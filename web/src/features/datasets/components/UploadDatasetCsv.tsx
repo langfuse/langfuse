@@ -15,6 +15,7 @@ import {
   parseCsvClient,
 } from "@/src/features/datasets/lib/csvHelpers";
 import { DialogBody } from "@/src/components/ui/dialog";
+import { useTranslation } from "react-i18next";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;
@@ -31,6 +32,7 @@ export const UploadDatasetCsv = ({
   setPreview: (preview: CsvPreviewResult | null) => void;
   setCsvFile: (file: File | null) => void;
 }) => {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (
@@ -41,13 +43,19 @@ export const UploadDatasetCsv = ({
 
     const result = FileSchema.safeParse(file);
     if (!result.success) {
-      showErrorToast("Invalid file type", "Please select a valid CSV file");
+      showErrorToast(
+        t("dataset.errors.invalidFileType"),
+        t("dataset.errors.selectValidCsvFile"),
+      );
       event.target.value = "";
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 10MB");
+      showErrorToast(
+        t("dataset.errors.fileTooLarge"),
+        t("dataset.errors.maxFileSize10MB"),
+      );
       event.target.value = "";
       return;
     }
@@ -60,7 +68,10 @@ export const UploadDatasetCsv = ({
       });
 
       if (!Boolean(preview.columns.length)) {
-        showErrorToast("Invalid CSV", "CSV must have at least 1 column");
+        showErrorToast(
+          t("dataset.errors.invalidCsv"),
+          t("dataset.errors.csvMustHaveOneColumn"),
+        );
         event.target.value = "";
         return;
       }
@@ -68,8 +79,10 @@ export const UploadDatasetCsv = ({
       setPreview(preview);
     } catch (error) {
       showErrorToast(
-        "Failed to parse CSV",
-        error instanceof Error ? error.message : "Unknown error",
+        t("dataset.errors.failedToParseCsv"),
+        error instanceof Error
+          ? error.message
+          : t("dataset.errors.unknownError"),
       );
     } finally {
       event.target.value = "";
@@ -80,10 +93,11 @@ export const UploadDatasetCsv = ({
     <DialogBody className="border-t">
       <Card className="h-full items-center justify-center border-none">
         <CardHeader className="text-center">
-          <CardTitle className="text-lg">Add items to dataset</CardTitle>
+          <CardTitle className="text-lg">
+            {t("dataset.upload.addItemsToDataset")}
+          </CardTitle>
           <CardDescription>
-            Add items to dataset by uploading a file, add items manually or via
-            our SDKs/API
+            {t("dataset.upload.addItemsDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -103,7 +117,7 @@ export const UploadDatasetCsv = ({
           >
             <UploadIcon className="h-6 w-6 text-secondary-foreground" />
             <div className="text-sm text-secondary-foreground">
-              Click to select a CSV file
+              {t("dataset.upload.clickToSelectCsvFile")}
             </div>
           </div>
         </CardContent>

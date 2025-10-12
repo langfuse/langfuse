@@ -49,6 +49,7 @@ import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfig
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslation } from "react-i18next";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -74,6 +75,7 @@ export type EvaluatorDataRow = {
 };
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
@@ -137,7 +139,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const columns = [
     columnHelper.accessor("scoreName", {
       id: "scoreName",
-      header: "Generated Score Name",
+      header: t("evaluation.eval.evaluatorTable.generatedScoreName"),
       size: 200,
       cell: (row) => {
         const scoreName = row.getValue();
@@ -145,7 +147,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("status", {
-      header: "Status",
+      header: t("common.batchExports.status"),
       id: "status",
       size: 80,
       cell: (row) => {
@@ -159,7 +161,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("result", {
-      header: "Result",
+      header: t("evaluation.eval.evaluatorTable.result"),
       id: "result",
       size: 150,
       cell: (row) => {
@@ -168,7 +170,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("logs", {
-      header: "Logs",
+      header: t("evaluation.eval.evaluatorTable.logs"),
       id: "logs",
       size: 150,
       cell: ({ row }) => {
@@ -186,18 +188,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             }}
           >
             <ExternalLinkIcon className="mr-1 h-3 w-3" />
-            View
+            {t("common.actions.view")}
           </Button>
         );
       },
     }),
     columnHelper.accessor("template", {
       id: "template",
-      header: "Referenced Evaluator",
+      header: t("evaluation.eval.evaluatorTable.referencedEvaluator"),
       size: 200,
       cell: ({ row }) => {
         const template = row.original.template;
-        if (!template) return "template not found";
+        if (!template)
+          return t("evaluation.eval.evaluatorTable.templateNotFound");
         return (
           <div className="flex items-center gap-2">
             <TableIdOrName value={template.name} />
@@ -210,25 +213,25 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     }),
     columnHelper.accessor("createdAt", {
       id: "createdAt",
-      header: "Created At",
+      header: t("common.table.createdAt"),
       enableSorting: true,
       size: 150,
     }),
     columnHelper.accessor("updatedAt", {
       id: "updatedAt",
-      header: "Updated At",
+      header: t("common.table.updatedAt"),
       enableSorting: true,
       size: 150,
     }),
     columnHelper.accessor("target", {
       id: "target",
-      header: "Target",
+      header: t("evaluation.eval.evaluatorTable.target"),
       size: 150,
       enableHiding: true,
     }),
     columnHelper.accessor("filter", {
       id: "filter",
-      header: "Filter",
+      header: t("evaluation.eval.evaluatorTable.filter"),
       size: 200,
       enableHiding: true,
       cell: (row) => {
@@ -257,7 +260,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("id", {
-      header: "Id",
+      header: t("common.table.id"),
       id: "id",
       size: 100,
       enableHiding: true,
@@ -267,7 +270,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("actions", {
-      header: "Actions",
+      header: t("common.table.actions"),
       id: "actions",
       size: 100,
       cell: ({ row }) => {
@@ -280,12 +283,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 className="h-8 w-8 p-0"
                 aria-label="actions"
               >
-                <span className="sr-only [position:relative]">Open menu</span>
+                <span className="sr-only [position:relative]">
+                  {t("common.table.openMenu")}
+                </span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("common.table.actions")}</DropdownMenuLabel>
               <DropdownMenuItem
                 key={id}
                 aria-label="edit"
@@ -296,7 +301,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 }}
               >
                 <Edit className="mr-2 h-4 w-4" />
-                Edit
+                {t("common.actions.edit")}
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <DeleteEvalConfigButton
@@ -346,11 +351,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       result: result,
       maintainer: jobConfig.evalTemplate
         ? jobConfig.evalTemplate.projectId
-          ? "User maintained"
+          ? t("evaluation.eval.evaluatorTable.userMaintained")
           : jobConfig.evalTemplate.name.startsWith(RAGAS_TEMPLATE_PREFIX)
-            ? "Langfuse and Ragas maintained"
-            : "Langfuse maintained"
-        : "Not available",
+            ? t("evaluation.eval.evaluatorTable.langfuseAndRagasMaintained")
+            : t("evaluation.eval.evaluatorTable.langfuseMaintained")
+        : t("evaluation.eval.evaluatorTable.notAvailable"),
     };
   };
 
@@ -426,7 +431,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       >
         <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit configuration</DialogTitle>
+            <DialogTitle>
+              {t("evaluation.eval.evaluatorTable.editConfiguration")}
+            </DialogTitle>
           </DialogHeader>
           {existingEvaluator.isLoading ? (
             <div className="flex items-center justify-center p-4">
@@ -453,9 +460,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 setEditConfigId(null);
                 void utils.evals.allConfigs.invalidate();
                 showSuccessToast({
-                  title: "Evaluator updated successfully",
-                  description:
-                    "Changes will automatically be reflected future evaluator runs",
+                  title: t(
+                    "evaluation.eval.evaluatorTable.evaluatorUpdatedSuccessfully",
+                  ),
+                  description: t(
+                    "evaluation.eval.evaluatorTable.changesReflectedFutureRuns",
+                  ),
                 });
               }}
             />

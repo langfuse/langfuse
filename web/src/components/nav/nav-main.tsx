@@ -11,7 +11,8 @@ import {
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { type RouteGroup } from "@/src/components/layouts/routes";
+import { RouteGroup } from "@/src/components/layouts/routes";
+import { useTranslation } from "react-i18next";
 
 export type NavMainItem = {
   title: string;
@@ -59,6 +60,21 @@ export function NavMain({
     ungrouped: NavMainItem[];
   };
 }) {
+  const { t } = useTranslation();
+
+  const getGroupTitle = (group: string) => {
+    switch (group) {
+      case RouteGroup.Observability:
+        return t("common.navigation.observability");
+      case RouteGroup.PromptManagement:
+        return t("common.navigation.promptManagement");
+      case RouteGroup.Evaluation:
+        return t("common.navigation.evaluation");
+      default:
+        return group;
+    }
+  };
+
   return (
     <>
       <SidebarGroup>
@@ -88,7 +104,7 @@ export function NavMain({
       {items.grouped &&
         Object.entries(items.grouped).map(([group, items]) => (
           <SidebarGroup key={group}>
-            <SidebarGroupLabel>{group}</SidebarGroupLabel>
+            <SidebarGroupLabel>{getGroupTitle(group)}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {items.map((item) => (

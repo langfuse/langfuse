@@ -6,15 +6,10 @@ import {
 import { SelectItem } from "@/src/components/ui/select";
 import { Role } from "@langfuse/shared";
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
-import {
-  organizationRoleAccessRights,
-  orgNoneRoleComment,
-} from "@/src/features/rbac/constants/organizationAccessRights";
-import {
-  projectNoneRoleComment,
-  projectRoleAccessRights,
-} from "@/src/features/rbac/constants/projectAccessRights";
+import { organizationRoleAccessRights } from "@/src/features/rbac/constants/organizationAccessRights";
+import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+import { useTranslation } from "react-i18next";
 
 export const RoleSelectItem = ({
   role,
@@ -23,6 +18,7 @@ export const RoleSelectItem = ({
   role: Role;
   isProjectRole?: boolean;
 }) => {
+  const { t } = useTranslation();
   const isProjectNoneRole = role === Role.NONE && isProjectRole;
   const isOrgNoneRole = role === Role.NONE && !isProjectRole;
   const orgScopes = reduceScopesToListItems(organizationRoleAccessRights, role);
@@ -41,20 +37,32 @@ export const RoleSelectItem = ({
       <HoverCardPortal>
         <HoverCardContent hideWhenDetached={true} align="center" side="right">
           {isProjectNoneRole ? (
-            <div className="text-xs">{projectNoneRoleComment}</div>
+            <div className="text-xs">
+              {t("rbac.rolePermissions.projectNoneRoleComment")}
+            </div>
           ) : isOrgNoneRole ? (
-            <div className="text-xs">{orgNoneRoleComment}</div>
+            <div className="text-xs">
+              {t("rbac.rolePermissions.orgNoneRoleComment")}
+            </div>
           ) : (
             <>
-              <div className="font-bold">Role: {formatRole(role)}</div>
-              <p className="mt-2 text-xs font-semibold">Organization Scopes</p>
+              <div className="font-bold">
+                {t("rbac.rolePermissions.role")}: {formatRole(role)}
+              </div>
+              <p className="mt-2 text-xs font-semibold">
+                {t("rbac.rolePermissions.organizationScopes")}
+              </p>
               <ul className="list-inside list-disc text-xs">{orgScopes}</ul>
-              <p className="mt-2 text-xs font-semibold">Project Scopes</p>
+              <p className="mt-2 text-xs font-semibold">
+                {t("rbac.rolePermissions.projectScopes")}
+              </p>
               <ul className="list-inside list-disc text-xs">{projectScopes}</ul>
               <p className="mt-2 border-t pt-2 text-xs">
-                Note:{" "}
-                <span className="text-muted-foreground">Muted scopes</span> are
-                inherited from lower role.
+                {t("rbac.rolePermissions.note")}:{" "}
+                <span className="text-muted-foreground">
+                  {t("rbac.rolePermissions.mutedScopes")}
+                </span>{" "}
+                {t("rbac.rolePermissions.inheritedFromLowerRole")}
               </p>
             </>
           )}

@@ -22,6 +22,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useTranslation } from "react-i18next";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -82,6 +83,7 @@ function createBreadcrumbItems(currentFolderPath: string) {
 }
 
 export function PromptTable() {
+  const { t } = useTranslation();
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
@@ -264,7 +266,7 @@ export function PromptTable() {
   const columnHelper = createColumnHelper<PromptTableRow>();
   const promptColumns = [
     columnHelper.accessor("name", {
-      header: "Name",
+      header: t("common.labels.name"),
       id: "name",
       enableSorting: true,
       size: 250,
@@ -306,7 +308,7 @@ export function PromptTable() {
       },
     }),
     columnHelper.accessor("version", {
-      header: "Versions",
+      header: t("prompt.columns.versions"),
       id: "version",
       enableSorting: true,
       size: 70,
@@ -316,7 +318,7 @@ export function PromptTable() {
       },
     }),
     columnHelper.accessor("type", {
-      header: "Type",
+      header: t("common.table.type"),
       id: "type",
       enableSorting: true,
       size: 60,
@@ -325,7 +327,7 @@ export function PromptTable() {
       },
     }),
     columnHelper.accessor("createdAt", {
-      header: "Latest Version Created At",
+      header: t("prompt.columns.latestVersionCreatedAt"),
       id: "createdAt",
       enableSorting: true,
       size: 200,
@@ -336,7 +338,7 @@ export function PromptTable() {
       },
     }),
     columnHelper.accessor("numberOfObservations", {
-      header: "Number of Observations",
+      header: t("prompt.columns.numberOfObservations"),
       size: 170,
       cell: (row) => {
         if (isFolder(row.row.original)) return null;
@@ -358,7 +360,7 @@ export function PromptTable() {
       },
     }),
     columnHelper.accessor("tags", {
-      header: "Tags",
+      header: t("prompt.columns.tags"),
       id: "tags",
       enableSorting: true,
       size: 120,
@@ -388,7 +390,7 @@ export function PromptTable() {
     }),
     columnHelper.display({
       id: "actions",
-      header: "Actions",
+      header: t("prompt.columns.actions"),
       size: 70,
       cell: (row) => {
         if (isFolder(row.row.original)) return null;

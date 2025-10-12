@@ -5,9 +5,10 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Link from "next/link";
 import { captureException } from "@sentry/nextjs";
+import { useTranslation } from "react-i18next";
 
 export const ErrorPage = ({
-  title = "Error",
+  title,
   message,
   additionalButton,
 }: {
@@ -23,6 +24,8 @@ export const ErrorPage = ({
         onClick: () => void;
       };
 }) => {
+  const { t } = useTranslation();
+  const errorTitle = title ?? t("common.errors.error");
   const session = useSession();
   const router = useRouter();
   const newTargetPath = router.asPath;
@@ -30,7 +33,7 @@ export const ErrorPage = ({
   return (
     <div className="flex h-screen flex-col items-center justify-center">
       <AlertCircle className="mb-4 h-12 w-12 text-dark-red" />
-      <h1 className="mb-4 text-xl font-bold">{title}</h1>
+      <h1 className="mb-4 text-xl font-bold">{errorTitle}</h1>
       <p className="mb-6 text-center">{message}</p>
       <div className="flex gap-3">
         {session.status === "unauthenticated" ? (
@@ -41,7 +44,7 @@ export const ErrorPage = ({
               )
             }
           >
-            Sign In
+            {t("common.auth.signIn")}
           </Button>
         ) : null}
         {additionalButton ? (
@@ -61,19 +64,21 @@ export const ErrorPage = ({
 };
 
 export const ErrorPageWithSentry = ({
-  title = "Error",
+  title,
   message,
 }: {
   title?: string;
   message: string;
 }) => {
+  const { t } = useTranslation();
+  const errorTitle = title ?? t("common.errors.error");
   useEffect(() => {
     // Capture the error with Sentry
     if (window !== undefined)
       captureException(
-        new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
+        new Error(`ErrorPageWithSentry rendered: ${errorTitle}, ${message}`),
       );
   }, [title, message]); // Empty dependency array means this effect runs once on mount
 
-  return <ErrorPage title={title} message={message} />;
+  return <ErrorPage title={errorTitle} message={message} />;
 };

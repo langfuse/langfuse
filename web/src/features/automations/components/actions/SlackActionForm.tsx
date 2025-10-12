@@ -18,6 +18,7 @@ import {
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
 import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslation } from "react-i18next";
 
 interface SlackActionFormProps {
   form: UseFormReturn<any>;
@@ -31,6 +32,7 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
   disabled,
   projectId,
 }) => {
+  const { t } = useTranslation();
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     null,
   );
@@ -82,7 +84,9 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
             name="slack.channelId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Channel</FormLabel>
+                <FormLabel>
+                  {t("automation.actions.slackAction.channel")}
+                </FormLabel>
                 <FormControl>
                   <div className="max-w-md">
                     <ChannelSelector
@@ -90,13 +94,15 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                       selectedChannelId={field.value}
                       onChannelSelect={handleChannelSelect}
                       disabled={disabled}
-                      placeholder="Select a channel"
+                      placeholder={t(
+                        "automation.actions.slackAction.selectChannel",
+                      )}
                       showRefreshButton={true}
                     />
                   </div>
                 </FormControl>
                 <FormDescription>
-                  Select the Slack channel where notifications will be sent.
+                  {t("automation.actions.slackAction.channelDescription")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -119,10 +125,10 @@ export const SlackActionForm: React.FC<SlackActionFormProps> = ({
                 hasAccess={hasAccess}
                 disabled={disabled}
                 size="sm"
-                buttonText="Test Channel"
+                buttonText={t("automation.actions.slackAction.testChannel")}
               />
               <p className="text-sm text-muted-foreground">
-                Test this channel to verify the bot can send messages.
+                {t("automation.actions.slackAction.testChannelDescription")}
               </p>
             </div>
           )}

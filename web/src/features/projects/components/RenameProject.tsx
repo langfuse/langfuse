@@ -19,8 +19,10 @@ import { LockIcon } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslation } from "react-i18next";
 
 export default function RenameProject() {
+  const { t } = useTranslation();
   const { update: updateSession } = useSession();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
@@ -60,20 +62,18 @@ export default function RenameProject() {
 
   return (
     <div>
-      <Header title="Project Name" />
+      <Header title={t("project.rename.title")} />
       <Card className="mb-4 p-3">
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-primary">
-            Your Project will be renamed from &quot;
-            {project?.name ?? ""}
-            &quot; to &quot;
-            <b>{form.watch().name}</b>&quot;.
+            {t("project.rename.willBeRenamed", {
+              oldName: project?.name ?? "",
+              newName: form.watch().name,
+            })}
           </p>
         ) : (
           <p className="mb-4 text-sm text-primary">
-            Your Project is currently named &quot;
-            <b>{project?.name ?? ""}</b>
-            &quot;.
+            {t("project.rename.currentlyNamed", { name: project?.name ?? "" })}
           </p>
         )}
         <Form {...form}>
@@ -97,7 +97,7 @@ export default function RenameProject() {
                         disabled={!hasAccess}
                       />
                       {!hasAccess && (
-                        <span title="No access">
+                        <span title={t("project.rename.noAccess")}>
                           <LockIcon className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted" />
                         </span>
                       )}
@@ -115,7 +115,7 @@ export default function RenameProject() {
                 disabled={form.getValues().name === "" || !hasAccess}
                 className="mt-4"
               >
-                Save
+                {t("common.actions.save")}
               </Button>
             )}
           </form>

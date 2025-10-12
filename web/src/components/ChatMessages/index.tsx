@@ -1,5 +1,6 @@
 import { PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -117,6 +118,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   messages,
   addMessage,
 }) => {
+  const { t } = useTranslation();
   // Skip placeholder messages when determining last roles
   const lastMessageWithRole = messages
     .slice()
@@ -163,7 +165,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
         onClick={addRegularMessage}
       >
         <PlusCircleIcon size={14} className="mr-2" />
-        <p>Message</p>
+        <p>{t("common.labels.message")}</p>
       </Button>
       <TooltipProvider>
         <Tooltip>
@@ -175,14 +177,12 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               onClick={addPlaceholderMessage}
             >
               <PlusCircleIcon size={14} className="mr-2" />
-              <p>Placeholder</p>
+              <p>{t("common.labels.placeholder")}</p>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p className="text-xs">
-              Adds a placeholder to inject message pairs, e.g. a message history
-              (with &quot;role&quot;, &quot;content&quot; pairs) when compiling
-              the message in the SDK.
+              {t("common.hints.addsPlaceholderToInject")}
             </p>
           </TooltipContent>
         </Tooltip>

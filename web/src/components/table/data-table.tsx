@@ -39,6 +39,7 @@ import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
 import { isEqual } from "lodash";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import { useTranslation } from "react-i18next";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -486,6 +487,7 @@ function TableBodyComponent<TData>({
   pinFirstColumn = false,
   getRowClassName,
 }: TableBodyComponentProps<TData>) {
+  const { t } = useTranslation();
   return (
     <TableBody>
       {data.isLoading || !data.data ? (
@@ -494,7 +496,7 @@ function TableBodyComponent<TData>({
             colSpan={columns.length}
             className="content-start border-b text-center"
           >
-            Loading...
+            {t("common.table.loading")}
           </TableCell>
         </TableRow>
       ) : table.getRowModel().rows.length ? (
@@ -530,7 +532,7 @@ function TableBodyComponent<TData>({
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
             <div className="pointer-events-none absolute left-[50%] flex -translate-y-1/2 items-center justify-center">
-              No results.{" "}
+              {t("common.table.noResults")}{" "}
               {help && (
                 <DocPopup description={help.description} href={help.href} />
               )}

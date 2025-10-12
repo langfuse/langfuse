@@ -6,6 +6,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Fragment } from "react";
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +48,7 @@ const BreadcrumbComponent = ({
   items?: { name: string; href?: string }[];
   className?: string;
 }) => {
+  const { t } = useTranslation();
   const router = useRouter();
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
@@ -113,7 +115,7 @@ const BreadcrumbComponent = ({
             <DropdownMenuContent align="start">
               <DropdownMenuItem className="font-semibold" asChild>
                 <Link href="/" className="cursor-pointer">
-                  Organizations
+                  {t("common.navigation.organizations")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -186,7 +188,7 @@ const BreadcrumbComponent = ({
                           className="mr-1.5 h-4 w-4"
                           aria-hidden="true"
                         />
-                        New Organization
+                        {t("organization.buttons.newOrganization")}
                       </Link>
                     </Button>
                   </DropdownMenuItem>

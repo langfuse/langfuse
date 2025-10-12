@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useTranslation } from "react-i18next";
 import {
   NumberParam,
   StringParam,
@@ -105,6 +106,7 @@ langfuse.getPrompt("${name}", ${version})
 export const PromptDetail = ({
   promptName: promptNameProp,
 }: { promptName?: string } = {}) => {
+  const { t } = useTranslation();
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -537,7 +539,7 @@ export const PromptDetail = ({
                         projectId as string,
                         prompt.prompt,
                       )}
-                      title="Text Prompt"
+                      title={t("prompt.detail.textPrompt")}
                     />
                   )
                 ) : (

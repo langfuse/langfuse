@@ -16,12 +16,14 @@ import { SetupDefaultEvalModelCard } from "@/src/features/evals/components/set-u
 import { useTemplateValidation } from "@/src/features/evals/hooks/useTemplateValidation";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
 
 type SelectEvaluatorListProps = {
   projectId: string;
 };
 
 export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
 
@@ -53,7 +55,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   };
 
   const handleTemplateSelect = (templateId: string) => {
-    const template = templates.data?.templates.find((t) => t.id === templateId);
+    const template = templates.data?.templates.find(
+      (template: any) => template.id === templateId,
+    );
     if (template) {
       setSelectedTemplate(template);
     }
@@ -67,11 +71,11 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             <Skeleton className="h-full w-full" />
           ) : templates.isError ? (
             <div className="py-8 text-center text-destructive">
-              Error: {templates.error.message}
+              {t("common.errors.error")}: {templates.error.message}
             </div>
           ) : templates.data?.templates.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
-              No evaluators found. Create a new evaluator to get started.
+              {t("evaluation.eval.messages.noEvaluatorsFound")}
             </div>
           ) : (
             <div className="flex-1 overflow-hidden">
@@ -98,13 +102,13 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         <div className="flex justify-end gap-2">
           <Button onClick={handleOpenCreateEvaluator} variant="outline">
             <PlusIcon className="mr-2 h-4 w-4" />
-            Create Custom Evaluator
+            {t("evaluation.eval.buttons.createCustomEvaluator")}
           </Button>
           <Button
             onClick={handleSelectEvaluator}
             disabled={!selectedTemplate || !isSelectionValid}
           >
-            Use Selected Evaluator
+            {t("evaluation.eval.buttons.useSelectedEvaluator")}
           </Button>
         </div>
       </div>
@@ -115,7 +119,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
       >
         <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create new evaluator</DialogTitle>
+            <DialogTitle>
+              {t("evaluation.eval.dialog.createNewEvaluator")}
+            </DialogTitle>
           </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
@@ -129,8 +135,12 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 setSelectedTemplate(newTemplate);
               }
               showSuccessToast({
-                title: "Evaluator created successfully",
-                description: "You can now use this evaluator.",
+                title: t(
+                  "evaluation.eval.success.evaluatorCreatedSuccessfully",
+                ),
+                description: t(
+                  "evaluation.eval.success.youCanNowUseThisEvaluator",
+                ),
               });
             }}
           />

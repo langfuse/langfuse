@@ -1,0 +1,38 @@
+const translation = {
+  form: {
+    createModelDefinition: "创建模型定义",
+    editModelDefinition: "编辑模型定义",
+    createModel: "创建模型",
+    cloneModel: "克隆模型",
+    editModel: "编辑模型",
+    createNewModelDescription: "创建新的模型配置以跟踪生成成本。",
+    modelName: "模型名称",
+    modelNameDescription: "标准化模型名称。如果生成在摄入时匹配 `matchPattern`，则会被分配到此模型名称。",
+    matchPattern: "匹配模式",
+    matchPatternDescription: "用于将摄入的生成（模型属性）与此模型定义匹配的正则表达式（Postgres 语法）。对于模型名称的精确、不区分大小写匹配，请使用表达式：(?i)^(modelname)$",
+    prices: "价格",
+    pricesDescription: "为此模型设置每种使用类型的价格。使用类型必须与摄入的使用详情的键完全匹配。",
+    prefillUsageTypes: "从模板预填充使用类型：",
+    usageType: "使用类型",
+    price: "价格",
+    keyPlaceholder: "键（例如 input、output）",
+    pricePlaceholder: "每单位价格",
+    removePrice: "删除价格",
+    addPrice: "添加价格",
+    tokenizer: "分词器",
+    selectUnit: "选择单位",
+    tokenizerDescription: "可选地，如果没有摄入单位计数，Langfuse 可以对生成的输入和输出进行分词。这对于例如流式 OpenAI 完成很有用。有关支持的分词器的详细信息，请查看",
+    docs: "文档",
+    tokenizerConfig: "分词器配置",
+    tokenizerConfigDescription: "分词器的配置。OpenAI 需要此配置。查看",
+    forDetails: "了解详细信息。",
+  },
+  success: {
+    modelUpdated: "模型已更新",
+    modelCreated: "模型已创建",
+    modelUpdatedDescription: "模型 '{{modelName}}' 已成功更新。新的生成将使用这些模型价格。",
+    modelCreatedDescription: "模型 '{{modelName}}' 已成功创建。新的生成将使用这些模型价格。",
+  },
+};
+
+export default translation;

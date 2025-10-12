@@ -3,6 +3,7 @@ import { api } from "@/src/utils/api";
 import { type Plan } from "@langfuse/shared";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 declare global {
   interface Window {
@@ -15,6 +16,7 @@ let metadataQueue: Array<() => void> = [];
 let isWidgetLoaded = false;
 
 const PlainChat = () => {
+  const { t } = useTranslation();
   const scriptRef = useRef<HTMLScriptElement | null>(null);
   const updatePlainDataMut = api.plain.updatePlainData.useMutation({
     onError: () => {}, // Don't show default error toast
@@ -52,7 +54,7 @@ const PlainChat = () => {
           hideThreadRefs: true,
           logo: {
             url: "/icon256.png",
-            alt: "Langfuse logo",
+            alt: t("ui.support.langfuseLogo"),
           },
           style: {
             brandColor: "#000000", // This will be used in various places in the chat widget such as the primary chat button and send message button
@@ -63,18 +65,18 @@ const PlainChat = () => {
           chatButtons: [
             {
               icon: "email",
-              text: "Contact Support",
+              text: t("ui.support.contactSupport"),
             },
           ],
           links: [
             {
               icon: "chat",
-              text: "Ask AI Chat",
+              text: t("ui.support.askAiChat"),
               url: "https://langfuse.com/ask-ai",
             },
             {
               icon: "book",
-              text: "View Langfuse docs",
+              text: t("ui.support.viewLangfuseDocs"),
               url: "https://langfuse.com/docs",
             },
           ],

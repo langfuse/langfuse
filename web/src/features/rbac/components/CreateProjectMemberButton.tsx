@@ -40,6 +40,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { ActionButton } from "@/src/components/ActionButton";
+import { useTranslation } from "react-i18next";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
@@ -51,6 +52,7 @@ export function CreateProjectMemberButton(props: {
   orgId: string;
   project?: { id: string; name: string };
 }) {
+  const { t } = useTranslation();
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
   const hasOrgAccess = useHasOrganizationAccess({
@@ -147,15 +149,16 @@ export function CreateProjectMemberButton(props: {
             icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
           >
             {hasOnlySingleProjectAccess
-              ? "Add project member"
-              : "Add new member"}
+              ? t("project.settings.members.addProjectMember")
+              : t("project.settings.members.addNewMember")}
           </ActionButton>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Add new member to the{" "}
-              {hasOnlySingleProjectAccess ? "project" : "organization"}
+              {hasOnlySingleProjectAccess
+                ? t("project.settings.members.addProjectMember")
+                : t("rbac.forms.addNewMemberToOrganization")}
             </DialogTitle>
           </DialogHeader>
           <Form {...form}>
@@ -170,7 +173,7 @@ export function CreateProjectMemberButton(props: {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>{t("rbac.membersTable.email")}</FormLabel>
                       <FormControl>
                         <Input placeholder="jsdoe@example.com" {...field} />
                       </FormControl>
@@ -184,7 +187,9 @@ export function CreateProjectMemberButton(props: {
                     name="orgRole"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Organization Role</FormLabel>
+                        <FormLabel>
+                          {t("rbac.forms.organizationRole")}
+                        </FormLabel>
                         <Select
                           defaultValue={field.value}
                           onValueChange={(value) =>
@@ -263,7 +268,7 @@ export function CreateProjectMemberButton(props: {
                   className="w-full"
                   loading={form.formState.isSubmitting}
                 >
-                  Grant access
+                  {t("rbac.forms.grantAccess")}
                 </Button>
                 <FormMessage />
               </DialogFooter>

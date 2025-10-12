@@ -10,6 +10,7 @@ import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useTranslation } from "react-i18next";
 
 export function TracePage({
   traceId,
@@ -18,6 +19,7 @@ export function TracePage({
   traceId: string;
   timestamp?: Date;
 }) {
+  const { t } = useTranslation();
   const router = useRouter();
 
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
@@ -69,15 +71,15 @@ export function TracePage({
   );
 
   if (trace.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this trace." />;
+    return <ErrorPage message={t("tracing.trace.errors.noAccess")} />;
 
   if (trace.error?.data?.code === "NOT_FOUND")
     return (
       <ErrorPage
-        title="Trace not found"
-        message="The trace is either still being processed or has been deleted."
+        title={t("tracing.trace.errors.notFound")}
+        message={t("tracing.trace.errors.notFoundDescription")}
         additionalButton={{
-          label: "Retry",
+          label: t("common.actions.retry"),
           onClick: () => void window.location.reload(),
         }}
       />
@@ -94,7 +96,7 @@ export function TracePage({
         itemType: "TRACE",
         breadcrumb: [
           {
-            name: "Traces",
+            name: t("tracing.trace.common.traces"),
             href: `/project/${router.query.projectId as string}/traces`,
           },
         ],

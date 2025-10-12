@@ -8,8 +8,10 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type views, type metricAggregations } from "@/src/features/query";
 import { type z } from "zod/v4";
 import { type WidgetChartConfig } from "@/src/features/widgets/utils";
+import { useTranslation } from "react-i18next";
 
 export default function EditWidget() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
@@ -33,8 +35,8 @@ export default function EditWidget() {
   const updateWidgetMutation = api.dashboardWidgets.update.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        title: "Widget updated successfully",
-        description: "Your widget has been updated.",
+        title: t("widget.actions.updated"),
+        description: t("widget.actions.updatedDescription"),
       });
       // Navigate back to dashboard if provided else widgets list
       if (dashboardId) {
@@ -46,7 +48,7 @@ export default function EditWidget() {
       }
     },
     onError: (error) => {
-      showErrorToast("Failed to update widget", error.message);
+      showErrorToast(t("widget.errors.updateFailed"), error.message);
     },
   });
 
@@ -84,9 +86,9 @@ export default function EditWidget() {
     <Page
       withPadding
       headerProps={{
-        title: "Edit Widget",
+        title: t("widget.pages.editWidget"),
         help: {
-          description: "Edit an existing widget",
+          description: t("widget.pages.editWidgetDescription"),
         },
       }}
     >

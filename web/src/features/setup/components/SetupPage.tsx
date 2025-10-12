@@ -30,6 +30,7 @@ import { Check } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
+import { useTranslation } from "react-i18next";
 
 // Multi-step setup process
 // 1. Create Organization: /setup
@@ -37,6 +38,7 @@ import { StringParam, useQueryParam } from "use-query-params";
 // 3. Create Project: /organization/:orgId/setup?step=create-project
 // 4. Setup Tracing: /project/:projectId/setup
 export function SetupPage() {
+  const { t } = useTranslation();
   const { project, organization } = useQueryProjectOrOrganization();
   const router = useRouter();
   const [orgStep] = useQueryParam("orgstep", StringParam); // "invite-members" | "create-project"
@@ -74,15 +76,14 @@ export function SetupPage() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Setup",
+        title: t("onboarding.setup.title"),
         help: {
-          description:
-            "Create a new organization. This will be used to manage your projects and teams.",
+          description: t("onboarding.setup.helpDescription"),
         },
         ...(stepInt === 1 && {
           breadcrumb: [
             {
-              name: "Organizations",
+              name: t("common.navigation.organizations"),
               href: "/",
             },
           ],
@@ -99,7 +100,7 @@ export function SetupPage() {
                   : "font-semibold text-foreground",
               )}
             >
-              1. Create Organization
+              {t("onboarding.setup.steps.createOrganization")}
               {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -112,7 +113,7 @@ export function SetupPage() {
                   : "font-semibold text-foreground",
               )}
             >
-              2. Invite Members
+              {t("onboarding.setup.steps.inviteMembers")}
               {stepInt > 2 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -125,7 +126,7 @@ export function SetupPage() {
                   : "font-semibold text-foreground",
               )}
             >
-              3. Create Project
+              {t("onboarding.setup.steps.createProject")}
               {stepInt > 3 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -138,7 +139,7 @@ export function SetupPage() {
                   : "font-semibold text-foreground",
               )}
             >
-              4. Setup Tracing
+              {t("onboarding.setup.steps.setupTracing")}
               {stepInt === 4 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -149,9 +150,9 @@ export function SetupPage() {
           // 1. Create Org
           stepInt === 1 && (
             <div>
-              <Header title="New Organization" />
+              <Header title={t("onboarding.setup.organization.title")} />
               <p className="mb-4 text-sm text-muted-foreground">
-                Organizations are used to manage your projects and teams.
+                {t("onboarding.setup.organization.description")}
               </p>
               <NewOrganizationForm
                 onSuccess={(orgId) => {
@@ -166,10 +167,9 @@ export function SetupPage() {
           stepInt === 2 && organization && (
             <div className="flex flex-col gap-10">
               <div>
-                <Header title="Organization Members" />
+                <Header title={t("onboarding.setup.members.title")} />
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Invite members to your organization to collaborate on
-                  projects. You can always add more members later.
+                  {t("onboarding.setup.members.description")}
                 </p>
                 <MembersTable orgId={organization.id} />
               </div>
@@ -183,11 +183,9 @@ export function SetupPage() {
           // 3. Create Project
           stepInt === 3 && organization && (
             <div>
-              <Header title="New Project" />
+              <Header title={t("onboarding.setup.project.title")} />
               <p className="mb-4 text-sm text-muted-foreground">
-                Projects are used to group traces, datasets, evals and prompts.
-                Multiple environments are best separated via tags within a
-                project.
+                {t("onboarding.setup.project.description")}
               </p>
               <NewProjectForm
                 orgId={organization.id}
@@ -215,7 +213,7 @@ export function SetupPage() {
           data-testid="btn-skip-add-members"
           onClick={() => router.push(createProjectRoute(organization.id))}
         >
-          Next
+          {t("onboarding.setup.buttons.next")}
         </Button>
       )}
       {
@@ -226,7 +224,9 @@ export function SetupPage() {
             onClick={() => router.push(`/project/${project.id}`)}
             variant={hasAnyTrace ? "default" : "secondary"}
           >
-            {hasAnyTrace ? "Open Dashboard" : "Skip for now"}
+            {hasAnyTrace
+              ? t("onboarding.setup.buttons.openDashboard")
+              : t("onboarding.setup.buttons.skipForNow")}
           </Button>
         )
       }
@@ -241,6 +241,7 @@ const TracingSetup = ({
   projectId: string;
   hasAnyTrace?: boolean;
 }) => {
+  const { t } = useTranslation();
   const [apiKeys, setApiKeys] = useState<
     RouterOutput["projectApiKeys"]["create"] | null
   >(null);
@@ -264,24 +265,23 @@ const TracingSetup = ({
   return (
     <div className="space-y-8">
       <div>
-        <Header title="API Keys" />
+        <Header title={t("onboarding.setup.apiKeys.title")} />
         <p className="mb-4 text-sm text-muted-foreground">
-          These keys are used to authenticate your API requests. You can create
-          more keys later in the project settings.
+          {t("onboarding.setup.apiKeys.description")}
         </p>
         {apiKeys ? (
           <ApiKeyRender generatedKeys={apiKeys} scope={"project"} />
         ) : (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              You need to create an API key to start tracing your application.
+              {t("onboarding.setup.apiKeys.needToCreate")}
             </p>
             <Button
               onClick={createApiKey}
               loading={mutCreateApiKey.isPending}
               className="self-start"
             >
-              Create API Key
+              {t("onboarding.setup.apiKeys.createButton")}
             </Button>
           </div>
         )}
@@ -289,12 +289,11 @@ const TracingSetup = ({
 
       <div>
         <Header
-          title="Setup Tracing"
+          title={t("onboarding.setup.tracing.title")}
           status={hasAnyTrace ? "active" : "pending"}
         />
         <p className="mb-4 text-sm text-muted-foreground">
-          Tracing is used to track and analyze your LLM calls. You can always
-          skip this step and setup tracing later.
+          {t("onboarding.setup.tracing.description")}
         </p>
         <QuickstartExamples
           secretKey={apiKeys?.secretKey}

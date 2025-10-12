@@ -30,16 +30,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/src/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
+import { useTranslation } from "react-i18next";
 
 enum CopySettings {
   SINGLE_VERSION = "single_version",
   ALL_VERSIONS = "all_versions",
 }
 
-const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  isCopySingleVersion: z.enum(CopySettings),
-});
+const createFormSchema = (t: (key: string) => string) =>
+  z.object({
+    name: z.string().min(1, t("prompt.validation.nameRequired")),
+    isCopySingleVersion: z.enum(CopySettings),
+  });
 
 const DuplicatePromptForm: React.FC<{
   projectId: string;
@@ -48,8 +50,10 @@ const DuplicatePromptForm: React.FC<{
   promptVersion: number;
   onFormSuccess: () => void;
 }> = ({ projectId, promptId, promptName, promptVersion, onFormSuccess }) => {
+  const { t } = useTranslation();
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const formSchema = createFormSchema(t);
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -184,6 +188,7 @@ export const DuplicatePromptButton: React.FC<{
   promptName: string;
   promptVersion: number;
 }> = ({ projectId, promptId, promptName, promptVersion }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -212,7 +217,7 @@ export const DuplicatePromptButton: React.FC<{
           hasAccess={hasAccess}
           variant="outline"
           limit={promptLimit}
-          title="Duplicate prompt"
+          title={t("prompt.actions.duplicatePrompt")}
           limitValue={allPromptNames.data?.length ?? undefined}
           onClick={() => {
             capture("prompt_detail:duplicate_button_click");

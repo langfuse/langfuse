@@ -14,12 +14,13 @@ import { api } from "@/src/utils/api";
 import { useMemo, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { type Prisma } from "@langfuse/shared";
+// import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
 import { useRouter } from "next/router";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import { useTranslation } from "react-i18next";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -43,7 +44,7 @@ interface UpdateDatasetFormProps extends BaseDatasetFormProps {
   datasetId: string;
   datasetName: string;
   datasetDescription?: string;
-  datasetMetadata?: Prisma.JsonValue;
+  datasetMetadata?: any;
 }
 
 type DatasetFormProps =
@@ -51,37 +52,38 @@ type DatasetFormProps =
   | UpdateDatasetFormProps
   | DeleteDatasetFormProps;
 
-const formSchema = z.object({
-  name: z
-    .string()
-    .min(1, { message: "Input is required" })
-    .refine((name) => name.trim().length > 0, {
-      message: "Input should not be only whitespace",
-    }),
-  description: z.string(),
-  metadata: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-});
+const createFormSchema = (t: (key: string) => string) =>
+  z.object({
+    name: z
+      .string()
+      .min(1, t("dataset.validation.inputRequired"))
+      .refine((name) => name.trim().length > 0, {
+        message: t("dataset.validation.inputShouldNotBeWhitespace"),
+      }),
+    description: z.string(),
+    metadata: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      {
+        message: t("dataset.validation.invalidInputJson"),
+      },
+    ),
+  });
 
 export const DatasetForm = (props: DatasetFormProps) => {
+  const { t } = useTranslation();
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(createFormSchema(t)),
     defaultValues:
       props.mode === "update"
         ? {
@@ -112,18 +114,20 @@ export const DatasetForm = (props: DatasetFormProps) => {
   );
 
   const allDatasetNames = useMemo(() => {
-    return allDatasets.data?.map((dataset) => ({ value: dataset.name })) ?? [];
+    return (
+      allDatasets.data?.map((dataset: any) => ({ value: dataset.name })) ?? []
+    );
   }, [allDatasets.data]);
 
   useUniqueNameValidation({
     currentName: form.watch("name"),
     allNames: allDatasetNames,
     form,
-    errorMessage: "Dataset name already exists.",
+    errorMessage: t("dataset.errors.datasetNameAlreadyExists"),
     whitelistedName: props.mode === "update" ? props.datasetName : undefined,
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<ReturnType<typeof createFormSchema>>) {
     const trimmedValues = {
       ...values,
       name: values.name.trim(),
@@ -175,7 +179,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
     if (props.mode !== "delete") return;
 
     if (deleteConfirmationInput !== props.datasetName) {
-      setFormError("Please type the correct dataset name to confirm deletion");
+      setFormError(t("dataset.errors.pleaseTypeCorrectDatasetName"));
       return;
     }
 
@@ -208,7 +212,9 @@ export const DatasetForm = (props: DatasetFormProps) => {
             {props.mode === "delete" ? (
               <div className="mb-8 grid w-full gap-1.5">
                 <Label htmlFor="delete-confirmation">
-                  Type &quot;{props.datasetName}&quot; to confirm deletion
+                  {t("dataset.form.typeToConfirmDeletion", {
+                    datasetName: props.datasetName,
+                  })}
                 </Label>
                 <Input
                   id="delete-confirmation"
@@ -223,7 +229,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>{t("common.labels.name")}</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -236,7 +242,9 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description (optional)</FormLabel>
+                      <FormLabel>
+                        {t("dataset.form.descriptionOptional")}
+                      </FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -249,7 +257,9 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   name="metadata"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Metadata (optional)</FormLabel>
+                      <FormLabel>
+                        {t("dataset.form.metadataOptional")}
+                      </FormLabel>
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
@@ -279,15 +289,12 @@ export const DatasetForm = (props: DatasetFormProps) => {
                 }
                 className="w-full"
               >
-                {props.mode === "create"
-                  ? "Create dataset"
-                  : props.mode === "delete"
-                    ? "Delete Dataset"
-                    : "Update dataset"}
+                {t(`dataset.actions.${props.mode}Dataset`)}
               </Button>
               {formError && (
                 <p className="mt-4 text-center text-sm text-red-500">
-                  <span className="font-bold">Error:</span> {formError}
+                  <span className="font-bold">{t("common.errors.error")}</span>{" "}
+                  {formError}
                 </p>
               )}
             </div>

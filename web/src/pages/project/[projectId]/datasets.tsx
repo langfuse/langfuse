@@ -4,8 +4,10 @@ import Page from "@/src/components/layouts/page";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { api } from "@/src/utils/api";
 import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboarding";
+import { useTranslation } from "react-i18next";
 
 export default function Datasets() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -27,10 +29,9 @@ export default function Datasets() {
   return (
     <Page
       headerProps={{
-        title: "Datasets",
+        title: t("dataset.pages.title"),
         help: {
-          description:
-            "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
+          description: t("dataset.pages.description"),
           href: "https://langfuse.com/docs/evaluation/dataset-runs/datasets",
         },
         actionButtonsRight: (

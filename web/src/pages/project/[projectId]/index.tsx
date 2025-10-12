@@ -31,8 +31,10 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
+import { useTranslation } from "react-i18next";
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { selectedOption, dateRange, setDateRangeAndOption } =
@@ -92,33 +94,33 @@ export default function Dashboard() {
 
   const filterColumns: ColumnDefinition[] = [
     {
-      name: "Trace Name",
+      name: t("dashboard.filters.traceName"),
       id: "traceName",
       type: "stringOptions",
       options: nameOptions,
       internal: "internalValue",
     },
     {
-      name: "Tags",
+      name: t("common.labels.tags"),
       id: "tags",
       type: "arrayOptions",
       options: tagsOptions,
       internal: "internalValue",
     },
     {
-      name: "User",
+      name: t("common.labels.user"),
       id: "user",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Release",
+      name: t("dashboard.filters.release"),
       id: "release",
       type: "string",
       internal: "internalValue",
     },
     {
-      name: "Version",
+      name: t("common.filters.version"),
       id: "version",
       type: "string",
       internal: "internalValue",
@@ -168,7 +170,7 @@ export default function Dashboard() {
       withPadding
       scrollable
       headerProps={{
-        title: "Home",
+        title: t("dashboard.home.title"),
         actionButtonsRight: <SetupTracingButton />,
       }}
     >
@@ -191,8 +193,8 @@ export default function Dashboard() {
             }
           />
           <MultiSelect
-            title="Environment"
-            label="Env"
+            title={t("common.labels.environment")}
+            label={t("common.labels.env")}
             values={selectedEnvironments}
             onValueChange={useDebounce(setSelectedEnvironments)}
             options={environmentOptions.map((env) => ({
@@ -208,8 +210,8 @@ export default function Dashboard() {
         </div>
         {uiCustomization?.feedbackHref === undefined && (
           <FeedbackButtonWrapper
-            title="Request Chart"
-            description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
+            title={t("dashboard.home.requestChart")}
+            description={t("dashboard.home.requestChartDescription")}
             className="hidden lg:flex"
           >
             <Button
@@ -223,7 +225,7 @@ export default function Dashboard() {
                 className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
                 aria-hidden="true"
               />
-              Request Chart
+              {t("dashboard.home.requestChart")}
             </Button>
           </FeedbackButtonWrapper>
         )}

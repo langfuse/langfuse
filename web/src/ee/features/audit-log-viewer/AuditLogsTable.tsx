@@ -16,10 +16,12 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
+import { useTranslation } from "react-i18next";
 
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
 
 export function AuditLogsTable(props: { projectId: string }) {
+  const { t } = useTranslation();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -36,7 +38,7 @@ export function AuditLogsTable(props: { projectId: string }) {
   const columns: LangfuseColumnDef<AuditLogRow>[] = [
     {
       accessorKey: "createdAt",
-      header: "Time",
+      header: t("ee.auditLogs.table.timestamp"),
       cell: (row) => {
         const date = row.getValue() as Date;
         return date.toLocaleString();
@@ -44,7 +46,7 @@ export function AuditLogsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "actor",
-      header: "Actor",
+      header: t("ee.auditLogs.table.user"),
       headerTooltip: {
         description: "The actor within Langfuse who performed the action.",
       },
@@ -88,19 +90,19 @@ export function AuditLogsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "resourceType",
-      header: "Resource Type",
+      header: t("ee.auditLogs.table.resourceType"),
     },
     {
       accessorKey: "resourceId",
-      header: "Resource ID",
+      header: t("ee.auditLogs.table.resourceId"),
     },
     {
       accessorKey: "action",
-      header: "Action",
+      header: t("ee.auditLogs.table.action"),
     },
     {
       accessorKey: "before",
-      header: "Before",
+      header: t("ee.auditLogs.table.before"),
       size: 300,
       cell: (row) => {
         const value = row.getValue() as string | null;
@@ -110,7 +112,7 @@ export function AuditLogsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "after",
-      header: "After",
+      header: t("ee.auditLogs.table.after"),
       size: 300,
       cell: (row) => {
         const value = row.getValue() as string | null;

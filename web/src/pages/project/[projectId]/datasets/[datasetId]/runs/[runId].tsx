@@ -21,8 +21,10 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
 
 export default function Dataset() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -44,12 +46,18 @@ export default function Dataset() {
         title: run.data?.name ?? runId,
         itemType: "DATASET_RUN",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          {
+            name: t("dataset.pages.title"),
+            href: `/project/${projectId}/datasets`,
+          },
           {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
-          { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
+          {
+            name: t("dataset.runs.title"),
+            href: `/project/${projectId}/datasets/${datasetId}`,
+          },
         ],
         actionButtonsRight: (
           <>
@@ -100,9 +108,9 @@ export default function Dataset() {
             datasetRunId={runId}
           />
         </div>
-        <SidePanel mobileTitle="Run details" id="run-details">
+        <SidePanel mobileTitle={t("dataset.runs.details")} id="run-details">
           <SidePanelHeader>
-            <SidePanelTitle>Run details</SidePanelTitle>
+            <SidePanelTitle>{t("dataset.runs.details")}</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent>
             {run.isPending ? (
@@ -112,14 +120,14 @@ export default function Dataset() {
                 {!!run.data?.description && (
                   <JSONView
                     json={run.data.description}
-                    title="Description"
+                    title={t("dataset.runs.description")}
                     className="w-full overflow-y-auto"
                   />
                 )}
                 {!!run.data?.metadata && (
                   <JSONView
                     json={run.data.metadata}
-                    title="Metadata"
+                    title={t("dataset.runs.metadata")}
                     className="w-full overflow-y-auto"
                   />
                 )}

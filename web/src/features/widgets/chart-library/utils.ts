@@ -67,25 +67,26 @@ export const formatAxisLabel = (label: string): string =>
  */
 export function getChartTypeDisplayName(
   chartType: DashboardWidgetChartType,
+  t: (key: string) => string,
 ): string {
   switch (chartType) {
     case "LINE_TIME_SERIES":
-      return "Line Chart (Time Series)";
+      return t("widget.chartTypes.lineTimeSeries");
     case "BAR_TIME_SERIES":
-      return "Bar Chart (Time Series)";
+      return t("widget.chartTypes.barTimeSeries");
     case "HORIZONTAL_BAR":
-      return "Horizontal Bar Chart (Total Value)";
+      return t("widget.chartTypes.horizontalBar");
     case "VERTICAL_BAR":
-      return "Vertical Bar Chart (Total Value)";
+      return t("widget.chartTypes.verticalBar");
     case "PIE":
-      return "Pie Chart (Total Value)";
+      return t("widget.chartTypes.pie");
     case "NUMBER":
-      return "Big Number (Total Value)";
+      return t("widget.chartTypes.number");
     case "HISTOGRAM":
-      return "Histogram (Total Value)";
+      return t("widget.chartTypes.histogram");
     case "PIVOT_TABLE":
-      return "Pivot Table (Total Value)";
+      return t("widget.chartTypes.pivotTable");
     default:
-      return "Unknown Chart Type";
+      return t("widget.chartTypes.unknown");
   }
 }

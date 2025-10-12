@@ -119,7 +119,9 @@ export const TracePreview = ({
             <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {trace.name}
             </span>
-            <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
+            <CopyIdsPopover
+              idItems={[{ id: trace.id, name: t("tracing.trace.ids.traceId") }]}
+            />
           </div>
           <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
             <NewDatasetItemFromExistingObject
@@ -295,7 +297,7 @@ export const TracePreview = ({
               <div>
                 <PrettyJsonView
                   key={trace.id + "-metadata"}
-                  title="Metadata"
+                  title={t("tracing.trace.common.metadata")}
                   json={trace.metadata}
                   media={
                     traceMedia.data?.filter((m) => m.field === "metadata") ?? []

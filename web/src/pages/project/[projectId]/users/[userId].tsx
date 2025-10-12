@@ -11,10 +11,17 @@ import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
+import { useTranslation } from "react-i18next";
 
-const tabs = ["Traces", "Sessions", "Scores"] as const;
+const getTabs = (t: (key: string) => string) =>
+  [
+    t("user.tabs.traces"),
+    t("user.tabs.sessions"),
+    t("user.tabs.scores"),
+  ] as const;
 
 export default function UserPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
@@ -24,6 +31,7 @@ export default function UserPage() {
     userId,
   });
 
+  const tabs = getTabs(t);
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
     withDefault(StringParam, tabs[0]),
@@ -31,11 +39,11 @@ export default function UserPage() {
 
   const renderTabContent = () => {
     switch (currentTab as (typeof tabs)[number]) {
-      case "Sessions":
+      case t("user.tabs.sessions"):
         return <SessionsTab userId={userId} projectId={projectId} />;
-      case "Traces":
+      case t("user.tabs.traces"):
         return <TracesTab userId={userId} projectId={projectId} />;
-      case "Scores":
+      case t("user.tabs.scores"):
         return <ScoresTab userId={userId} projectId={projectId} />;
       default:
         return null;
@@ -56,7 +64,9 @@ export default function UserPage() {
     <Page
       headerProps={{
         title: userId,
-        breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
+        breadcrumb: [
+          { name: t("user.pages.title"), href: `/project/${projectId}/users` },
+        ],
         itemType: "USER",
 
         actionButtonsRight: (
@@ -101,7 +111,7 @@ export default function UserPage() {
               Active:{" "}
               {user.data.firstTrace
                 ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : "No traces yet"}
+                : t("user.noTraces")}
             </Badge>
           </div>
         )}

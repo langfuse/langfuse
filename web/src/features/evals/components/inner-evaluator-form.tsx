@@ -10,6 +10,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
+import { useTranslation } from "react-i18next";
 import {
   Select,
   SelectContent,
@@ -110,10 +111,10 @@ const TracesPreview = memo(
       <>
         <div className="flex flex-col items-start gap-1">
           <span className="text-sm font-medium leading-none">
-            Preview sample matched traces
+            {t("evaluation.eval.form.previewSampleMatchedTraces")}
           </span>
           <FormDescription>
-            Sample over the last 24 hours that match these filters
+            {t("evaluation.eval.form.sampleOverLast24Hours")}
           </FormDescription>
         </div>
         <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
@@ -147,6 +148,7 @@ export const InnerEvaluatorForm = (props: {
   preventRedirect?: boolean;
   preprocessFormValues?: (values: any) => any;
 }) => {
+  const { t } = useTranslation();
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const [showPreview, setShowPreview] = useState(false);
@@ -318,15 +320,14 @@ export const InnerEvaluatorForm = (props: {
     ) {
       form.setError("timeScope", {
         type: "manual",
-        message:
-          "The evaluator ran on existing traces already. This cannot be changed anymore.",
+        message: t("evaluation.eval.form.cannotChangeExistingTraces"),
       });
       return;
     }
     if (form.getValues("timeScope").length === 0) {
       form.setError("timeScope", {
         type: "manual",
-        message: "Please select at least one.",
+        message: t("evaluation.eval.form.pleaseSelectAtLeastOne"),
       });
       return;
     }
@@ -334,7 +335,7 @@ export const InnerEvaluatorForm = (props: {
     if (validatedFilter.success === false) {
       form.setError("filter", {
         type: "manual",
-        message: "Please fill out all filter fields",
+        message: t("evaluation.eval.form.pleaseFillOutAllFilterFields"),
       });
       return;
     }
@@ -346,7 +347,7 @@ export const InnerEvaluatorForm = (props: {
     if (validatedVarMapping.success === false) {
       form.setError("mapping", {
         type: "manual",
-        message: "Please fill out all variable mappings",
+        message: t("evaluation.eval.form.pleaseFillOutAllVariableMappings"),
       });
       return;
     }
@@ -407,7 +408,9 @@ export const InnerEvaluatorForm = (props: {
     <div className="flex items-center gap-2">
       {form.watch("target") === "trace" && !props.disabled && (
         <>
-          <span className="text-xs text-muted-foreground">Show Preview</span>
+          <span className="text-xs text-muted-foreground">
+            {t("evaluation.eval.form.showPreview")}
+          </span>
           <Switch
             checked={showPreview}
             onCheckedChange={setShowPreview}
@@ -440,7 +443,9 @@ export const InnerEvaluatorForm = (props: {
         name="scoreName"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Generated Score Name</FormLabel>
+            <FormLabel>
+              {t("evaluation.eval.form.generatedScoreName")}
+            </FormLabel>
             <FormControl>
               <Input {...field} />
             </FormControl>
@@ -450,7 +455,9 @@ export const InnerEvaluatorForm = (props: {
       />
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
-          <span className="text-lg font-medium">Target</span>
+          <span className="text-lg font-medium">
+            {t("evaluation.eval.form.target")}
+          </span>
           <div className="flex flex-col gap-4">
             <FormField
               control={form.control}
@@ -458,7 +465,7 @@ export const InnerEvaluatorForm = (props: {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Target data{" "}
+                    {t("evaluation.eval.form.targetData")}{" "}
                     {props.mode === "edit" && (
                       <Tooltip>
                         <TooltipTrigger>
@@ -466,8 +473,9 @@ export const InnerEvaluatorForm = (props: {
                         </TooltipTrigger>
                         <TooltipContent className="max-w-[200px] p-2">
                           <span className="leading-4">
-                            An evaluator&apos;s target data may only be
-                            configured at creation.
+                            {t(
+                              "evaluation.eval.form.evaluatorTargetDataTooltip",
+                            )}
                           </span>
                         </TooltipContent>
                       </Tooltip>
@@ -503,13 +511,13 @@ export const InnerEvaluatorForm = (props: {
                           value="trace"
                           disabled={props.disabled || props.mode === "edit"}
                         >
-                          Live tracing data
+                          {t("evaluation.eval.form.liveTracingData")}
                         </TabsTrigger>
                         <TabsTrigger
                           value="dataset"
                           disabled={props.disabled || props.mode === "edit"}
                         >
-                          Dataset runs
+                          {t("evaluation.eval.form.datasetRuns")}
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
@@ -524,7 +532,9 @@ export const InnerEvaluatorForm = (props: {
               name="timeScope"
               render={({ field }) => (
                 <FormItem className="flex-1">
-                  <FormLabel>Evaluator runs on</FormLabel>
+                  <FormLabel>
+                    {t("evaluation.eval.form.evaluatorRunsOn")}
+                  </FormLabel>
                   <FormControl>
                     <div className="flex flex-col gap-2">
                       <div className="items-top flex space-x-2">
@@ -544,10 +554,10 @@ export const InnerEvaluatorForm = (props: {
                             htmlFor="newObjects"
                             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                           >
-                            New{" "}
+                            {t("evaluation.eval.form.new")}{" "}
                             {form.watch("target") === "trace"
-                              ? "traces"
-                              : "dataset run items"}
+                              ? t("evaluation.eval.form.traces")
+                              : t("evaluation.eval.form.datasetRunItems")}
                           </label>
                         </div>
                       </div>
@@ -572,10 +582,10 @@ export const InnerEvaluatorForm = (props: {
                             htmlFor="existingObjects"
                             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                           >
-                            Existing{" "}
+                            {t("evaluation.eval.form.existing")}{" "}
                             {form.watch("target") === "trace"
-                              ? "traces"
-                              : "dataset run items"}
+                              ? t("evaluation.eval.form.traces")
+                              : t("evaluation.eval.form.datasetRunItems")}
                           </label>
                           {field.value.includes("EXISTING") &&
                             !props.disabled &&
@@ -620,7 +630,9 @@ export const InnerEvaluatorForm = (props: {
               name="filter"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Target filter</FormLabel>
+                  <FormLabel>
+                    {t("evaluation.eval.form.targetFilter")}
+                  </FormLabel>
                   {isTraceTarget(form.watch("target")) ? (
                     <>
                       <FormControl>
@@ -688,7 +700,7 @@ export const InnerEvaluatorForm = (props: {
               name="sampling"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Sampling</FormLabel>
+                  <FormLabel>{t("evaluation.eval.form.sampling")}</FormLabel>
                   <FormControl>
                     <div className="max-w-[500px]">
                       <Slider
@@ -724,13 +736,14 @@ export const InnerEvaluatorForm = (props: {
               name="delay"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Delay (seconds)</FormLabel>
+                  <FormLabel>
+                    {t("evaluation.eval.form.delaySeconds")}
+                  </FormLabel>
                   <FormControl>
                     <Input {...field} type="number" min={0} />
                   </FormControl>
                   <FormDescription>
-                    Time between first Trace/Dataset run event and evaluation
-                    execution to ensure all data is available
+                    {t("evaluation.eval.form.timeBetweenFirstTrace")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -741,12 +754,13 @@ export const InnerEvaluatorForm = (props: {
       )}
       <Card className="min-w-0 max-w-full p-4">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-lg font-medium">Variable mapping</span>
+          <span className="text-lg font-medium">
+            {t("evaluation.eval.form.variableMapping")}
+          </span>
         </div>
         {form.watch("target") === "trace" && !props.disabled && (
           <FormDescription>
-            Preview of the evaluation prompt with the variables replaced with
-            the first matched trace data subject to the filters.
+            {t("evaluation.eval.form.previewEvaluationPrompt")}
           </FormDescription>
         )}
         <div className="flex max-w-full flex-col gap-4">
@@ -778,7 +792,7 @@ export const InnerEvaluatorForm = (props: {
                       <div className="flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
                         <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
                           <div className="flex flex-row items-center gap-2">
-                            Evaluation Prompt Preview
+                            {t("evaluation.eval.form.evaluationPromptPreview")}
                             <Skeleton className="h-[25px] w-[63px]" />
                           </div>
                           <div className="flex justify-end">
@@ -787,15 +801,14 @@ export const InnerEvaluatorForm = (props: {
                         </div>
                         <div className="flex h-full w-full flex-1 items-center justify-center rounded border">
                           <p className="text-center text-sm text-muted-foreground">
-                            No trace data found, please adjust filters or switch
-                            to not show preview.
+                            {t("evaluation.eval.form.noTraceDataFound")}
                           </p>
                         </div>
                       </div>
                     )
                   ) : (
                     <JSONView
-                      title={"Evaluation Prompt"}
+                      title={t("evaluation.eval.labels.evaluationPrompt")}
                       json={props.evalTemplate.prompt ?? null}
                       className={cn(
                         "min-h-48",
@@ -824,9 +837,9 @@ export const InnerEvaluatorForm = (props: {
                           {mappingField.templateVariable}
                           {"}}"}
                           <DocPopup
-                            description={
-                              "Variable in the template to be replaced with the mapped data."
-                            }
+                            description={t(
+                              "evaluation.eval.labels.objectDescription",
+                            )}
                             href={
                               "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                             }
@@ -839,10 +852,10 @@ export const InnerEvaluatorForm = (props: {
                           render={({ field }) => (
                             <div className="flex items-center gap-2">
                               <VariableMappingDescription
-                                title="Object"
-                                description={
-                                  "Langfuse object to retrieve the data from."
-                                }
+                                title={t("evaluation.eval.labels.object")}
+                                description={t(
+                                  "evaluation.eval.labels.objectDescription",
+                                )}
                                 href={
                                   "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 }
@@ -902,10 +915,12 @@ export const InnerEvaluatorForm = (props: {
                               return (
                                 <div className="flex items-center gap-2">
                                   <VariableMappingDescription
-                                    title={"Object Name"}
-                                    description={
-                                      "Name of the Langfuse object to retrieve the data from."
-                                    }
+                                    title={t(
+                                      "evaluation.eval.labels.objectName",
+                                    )}
+                                    description={t(
+                                      "evaluation.eval.labels.objectNameDescription",
+                                    )}
                                     href={
                                       "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                     }
@@ -954,7 +969,9 @@ export const InnerEvaluatorForm = (props: {
                                             onChange={(e) =>
                                               field.onChange(e.target.value)
                                             }
-                                            placeholder="Enter langfuse object name"
+                                            placeholder={t(
+                                              "evaluation.eval.labels.enterLangfuseObjectName",
+                                            )}
                                             disabled={props.disabled}
                                           />
                                         </div>
@@ -1002,10 +1019,12 @@ export const InnerEvaluatorForm = (props: {
                           render={({ field }) => (
                             <div className="flex items-center gap-2">
                               <VariableMappingDescription
-                                title={"Object Variable"}
-                                description={
-                                  "Variable on the Langfuse object to insert into the template."
-                                }
+                                title={t(
+                                  "evaluation.eval.labels.objectVariable",
+                                )}
+                                description={t(
+                                  "evaluation.eval.labels.objectVariableDescription",
+                                )}
                                 href={
                                   "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 }
@@ -1033,7 +1052,11 @@ export const InnerEvaluatorForm = (props: {
                                     }}
                                   >
                                     <SelectTrigger>
-                                      <SelectValue placeholder="Object type" />
+                                      <SelectValue
+                                        placeholder={t(
+                                          "evaluation.eval.labels.objectType",
+                                        )}
+                                      />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {availableVariables
@@ -1070,10 +1093,10 @@ export const InnerEvaluatorForm = (props: {
                             render={({ field }) => (
                               <div className="flex items-center gap-2">
                                 <VariableMappingDescription
-                                  title={"JsonPath"}
-                                  description={
-                                    "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
-                                  }
+                                  title={t("evaluation.eval.labels.jsonPath")}
+                                  description={t(
+                                    "evaluation.eval.labels.jsonPathDescription",
+                                  )}
                                   href={
                                     "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                   }
@@ -1084,7 +1107,9 @@ export const InnerEvaluatorForm = (props: {
                                       {...field}
                                       value={field.value ?? ""}
                                       disabled={props.disabled}
-                                      placeholder="Optional"
+                                      placeholder={t(
+                                        "evaluation.eval.labels.optional",
+                                      )}
                                     />
                                   </FormControl>
                                   <FormMessage />
@@ -1114,12 +1139,13 @@ export const InnerEvaluatorForm = (props: {
           loading={createJobMutation.isPending || updateJobMutation.isPending}
           className="mt-3 max-w-fit"
         >
-          {props.mode === "edit" ? "Update" : "Execute"}
+          {t("common.actions.update")}
         </Button>
       ) : null}
       {formError ? (
         <p className="text-red w-full text-center">
-          <span className="font-bold">Error:</span> {formError}
+          <span className="font-bold">{t("common.errors.error")}</span>{" "}
+          {formError}
         </p>
       ) : null}
     </div>

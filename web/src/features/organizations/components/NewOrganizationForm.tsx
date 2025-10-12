@@ -26,12 +26,14 @@ import { organizationFormSchema } from "@/src/features/organizations/utils/organ
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { SurveyName } from "@prisma/client";
 import { env } from "@/src/env.mjs";
+import { useTranslation } from "react-i18next";
 
 export const NewOrganizationForm = ({
   onSuccess,
 }: {
   onSuccess: (orgId: string) => void;
 }) => {
+  const { t } = useTranslation();
   const { update: updateSession } = useSession();
 
   const form = useForm({
@@ -107,7 +109,7 @@ export const NewOrganizationForm = ({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Organization name</FormLabel>
+              <FormLabel>{t("organization.forms.organizationName")}</FormLabel>
               <FormControl>
                 <Input
                   placeholder="my-org"
@@ -126,22 +128,34 @@ export const NewOrganizationForm = ({
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Type</FormLabel>
+                  <FormLabel>{t("organization.forms.type")}</FormLabel>
                   <FormDescription>
-                    What would best describe your organization?
+                    {t("organization.forms.typeDescription")}
                   </FormDescription>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger ref={field.ref}>
-                        <SelectValue placeholder="Please choose" />
+                        <SelectValue
+                          placeholder={t("organization.forms.pleaseChoose")}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Personal">Personal</SelectItem>
-                      <SelectItem value="Educational">Educational</SelectItem>
-                      <SelectItem value="Company">Company</SelectItem>
-                      <SelectItem value="Startup">Startup</SelectItem>
-                      <SelectItem value="Agency">Agency</SelectItem>
+                      <SelectItem value="Personal">
+                        {t("organization.forms.personal")}
+                      </SelectItem>
+                      <SelectItem value="Educational">
+                        {t("organization.forms.educational")}
+                      </SelectItem>
+                      <SelectItem value="Company">
+                        {t("organization.forms.company")}
+                      </SelectItem>
+                      <SelectItem value="Startup">
+                        {t("organization.forms.startup")}
+                      </SelectItem>
+                      <SelectItem value="Agency">
+                        {t("organization.forms.agency")}
+                      </SelectItem>
                       <SelectItem value="N/A">N/A</SelectItem>
                     </SelectContent>
                   </Select>
@@ -155,14 +169,18 @@ export const NewOrganizationForm = ({
                 name="size"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{watchedType} size</FormLabel>
+                    <FormLabel>{t("organization.forms.size")}</FormLabel>
                     <FormDescription>
-                      How many people are in your {watchedType}?
+                      {t("organization.forms.sizeDescription", {
+                        type: watchedType,
+                      })}
                     </FormDescription>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger ref={field.ref}>
-                          <SelectValue placeholder="Please choose" />
+                          <SelectValue
+                            placeholder={t("organization.forms.pleaseChoose")}
+                          />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -171,7 +189,7 @@ export const NewOrganizationForm = ({
                         <SelectItem value="50-99">50-99</SelectItem>
                         <SelectItem value="100-299">100-299</SelectItem>
                         <SelectItem value="More than 300">
-                          More than 300
+                          {t("organization.forms.sizeOptions.300+")}
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -183,7 +201,7 @@ export const NewOrganizationForm = ({
           </>
         )}
         <Button type="submit" loading={createOrgMutation.isPending}>
-          Create
+          {t("organization.forms.create")}
         </Button>
       </form>
     </Form>

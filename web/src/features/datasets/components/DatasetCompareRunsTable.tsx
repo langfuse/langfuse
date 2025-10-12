@@ -34,6 +34,7 @@ import {
   DatasetCompareMetricsProvider,
   useDatasetCompareMetrics,
 } from "@/src/features/datasets/contexts/DatasetCompareMetricsContext";
+import { useTranslation } from "react-i18next";
 
 export type RunMetrics = {
   id: string;
@@ -109,6 +110,7 @@ function DatasetCompareRunsTableInternal(props: {
   runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   localExperiments: { key: string; value: string }[];
 }) {
+  const { t } = useTranslation();
   const { toggleMetric, isMetricSelected } = useDatasetCompareMetrics();
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
   const [unchangedCounts, setUnchangedCounts] = useState<
@@ -315,7 +317,7 @@ function DatasetCompareRunsTableInternal(props: {
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
     {
       accessorKey: "id",
-      header: "Item id",
+      header: t("dataset.compare.itemId"),
       id: "id",
       size: 90,
       enableHiding: true,
@@ -332,7 +334,7 @@ function DatasetCompareRunsTableInternal(props: {
     },
     {
       accessorKey: "input",
-      header: "Input",
+      header: t("dataset.compare.input"),
       id: "input",
       size: 200,
       enableHiding: true,
@@ -349,7 +351,7 @@ function DatasetCompareRunsTableInternal(props: {
     },
     {
       accessorKey: "expectedOutput",
-      header: "Expected Output",
+      header: t("dataset.compare.expectedOutput"),
       id: "expectedOutput",
       size: 200,
       enableHiding: true,
@@ -369,7 +371,7 @@ function DatasetCompareRunsTableInternal(props: {
     },
     {
       accessorKey: "metadata",
-      header: "Metadata",
+      header: t("dataset.compare.metadata"),
       id: "metadata",
       size: 200,
       enableHiding: true,
@@ -413,7 +415,7 @@ function DatasetCompareRunsTableInternal(props: {
                 onClick={() => setIsMetricsDropdownOpen(!isMetricsDropdownOpen)}
               >
                 <Cog className="mr-2 h-4 w-4" />
-                <span>Run metrics</span>
+                <span>{t("dataset.compare.runMetrics")}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -423,13 +425,13 @@ function DatasetCompareRunsTableInternal(props: {
                 checked={isMetricSelected("scores")}
                 onCheckedChange={() => toggleMetric("scores")}
               >
-                Scores
+                {t("dataset.compare.scores")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={isMetricSelected("resourceMetrics")}
                 onCheckedChange={() => toggleMetric("resourceMetrics")}
               >
-                Latency and cost
+                {t("dataset.compare.latencyAndCost")}
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>

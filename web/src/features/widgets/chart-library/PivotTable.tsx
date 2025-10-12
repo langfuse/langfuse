@@ -130,8 +130,8 @@ const SortableHeader: React.FC<{
             className="ml-1"
             title={
               sortDirection === "ASC"
-                ? "Sorted ascending"
-                : "Sort by this column"
+                ? t("common.sorting.sortedAscending")
+                : t("common.sorting.sortByThisColumn")
             }
           >
             {sortDirection === "ASC" ? "▲" : "▼"}
@@ -396,7 +396,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
               label={
                 config?.dimensions && config.dimensions.length > 0
                   ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
-                  : "Dimension"
+                  : t("widget.table.dimension")
               }
               className="p-2 text-left font-medium first:pl-2"
             />

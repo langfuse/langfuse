@@ -11,6 +11,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { useTranslation } from "react-i18next";
 
 export const TracesBarListChart = ({
   className,
@@ -27,6 +28,7 @@ export const TracesBarListChart = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Total traces query using executeQuery
@@ -101,7 +103,7 @@ export const TracesBarListChart = ({
   return (
     <DashboardCard
       className={className}
-      title={"Traces"}
+      title={t("dashboard.cards.traces.title")}
       description={null}
       isLoading={isLoading || traces.isPending || totalTraces.isPending}
     >
@@ -112,7 +114,7 @@ export const TracesBarListChart = ({
               ? Number(totalTraces.data[0].count_count)
               : 0,
           )}
-          description={"Total traces tracked"}
+          description={t("dashboard.cards.traces.description")}
         />
         {adjustedData.length > 0 ? (
           <>

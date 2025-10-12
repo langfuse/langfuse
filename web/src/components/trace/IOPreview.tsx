@@ -1,6 +1,7 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { z } from "zod/v4";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/src/utils/tailwind";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -48,6 +49,7 @@ export const IOPreview: React.FC<{
   onOutputExpansionChange,
   ...props
 }) => {
+  const { t } = useTranslation();
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<
     "pretty" | "json"
   >("jsonViewPreference", "pretty");
@@ -174,7 +176,7 @@ export const IOPreview: React.FC<{
               <>
                 {!(hideIfNull && !input) && !hideInput ? (
                   <PrettyJsonView
-                    title="Input"
+                    title={t("tracing.trace.io.input")}
                     className="ph-no-capture"
                     json={input ?? null}
                     isLoading={isLoading}
@@ -186,7 +188,7 @@ export const IOPreview: React.FC<{
                 ) : null}
                 {!(hideIfNull && !output) && !hideOutput ? (
                   <PrettyJsonView
-                    title="Output"
+                    title={t("tracing.trace.io.output")}
                     className="ph-no-capture"
                     json={outputClean}
                     isLoading={isLoading}
@@ -204,7 +206,7 @@ export const IOPreview: React.FC<{
           <div style={{ display: selectedView === "json" ? "block" : "none" }}>
             {!(hideIfNull && !input) && !hideInput ? (
               <PrettyJsonView
-                title="Input"
+                title={t("tracing.trace.io.input")}
                 className="ph-no-capture"
                 json={input ?? null}
                 isLoading={isLoading}
@@ -216,7 +218,7 @@ export const IOPreview: React.FC<{
             ) : null}
             {!(hideIfNull && !output) && !hideOutput ? (
               <PrettyJsonView
-                title="Output"
+                title={t("tracing.trace.io.output")}
                 className="ph-no-capture"
                 json={outputClean}
                 isLoading={isLoading}
@@ -232,7 +234,7 @@ export const IOPreview: React.FC<{
         <>
           {!(hideIfNull && !input) && !hideInput ? (
             <PrettyJsonView
-              title="Input"
+              title={t("tracing.trace.io.input")}
               className="ph-no-capture"
               json={input ?? null}
               isLoading={isLoading}
@@ -244,7 +246,7 @@ export const IOPreview: React.FC<{
           ) : null}
           {!(hideIfNull && !output) && !hideOutput ? (
             <PrettyJsonView
-              title="Output"
+              title={t("tracing.trace.io.output")}
               className="ph-no-capture"
               json={outputClean}
               isLoading={isLoading}
@@ -330,8 +332,11 @@ export const OpenAiMessageView: React.FC<{
                       }}
                     >
                       <MarkdownJsonView
-                        title="Placeholder"
-                        content={message.name || "Unnamed placeholder"}
+                        title={t("tracing.trace.io.placeholder")}
+                        content={
+                          message.name ||
+                          t("tracing.trace.io.unnamedPlaceholder")
+                        }
                         customCodeHeaderClassName={cn("bg-primary-foreground")}
                       />
                     </div>
@@ -341,8 +346,11 @@ export const OpenAiMessageView: React.FC<{
                       }}
                     >
                       <PrettyJsonView
-                        title="Placeholder"
-                        json={message.name || "Unnamed placeholder"}
+                        title={t("tracing.trace.io.placeholder")}
+                        json={
+                          message.name ||
+                          t("tracing.trace.io.unnamedPlaceholder")
+                        }
                         projectIdForPromptButtons={projectIdForPromptButtons}
                         currentView={currentView}
                       />
@@ -420,7 +428,7 @@ export const OpenAiMessageView: React.FC<{
                   >
                     {isCollapsed
                       ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
-                      : "Hide history"}
+                      : t("tracing.trace.io.hideHistory")}
                   </Button>
                 ) : null}
               </Fragment>
@@ -428,7 +436,7 @@ export const OpenAiMessageView: React.FC<{
         </div>
         {additionalInput && (
           <PrettyJsonView
-            title="Additional Input"
+            title={t("tracing.trace.io.additionalInput")}
             json={additionalInput}
             projectIdForPromptButtons={projectIdForPromptButtons}
             currentView={shouldRenderMarkdown ? "pretty" : "json"}

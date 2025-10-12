@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import {
@@ -24,6 +25,7 @@ export const PriceBreakdownTooltip = ({
   priceUnit: PriceUnit;
   rowHeight: RowHeight;
 }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const { priceUnitMultiplier } = usePriceUnitMultiplier();
 
@@ -86,8 +88,12 @@ export const PriceBreakdownTooltip = ({
                 </div>
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between font-mono text-xs font-semibold">
-                    <span className="mr-4">Usage Type</span>
-                    <span>Price {priceUnit}</span>
+                    <span className="mr-4">
+                      {t("project.settings.models.usageType")}
+                    </span>
+                    <span>
+                      {t("project.settings.models.price")} {priceUnit}
+                    </span>
                   </div>
                   {Object.entries(prices).map(([usageType, price]) => (
                     <div

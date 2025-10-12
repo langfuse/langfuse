@@ -13,6 +13,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { useTranslation } from "react-i18next";
 
 type BarChartDataPoint = {
   name: string;
@@ -34,6 +35,7 @@ export const UserChart = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
     view: "observations",
@@ -137,30 +139,30 @@ export const UserChart = ({
 
   const data = [
     {
-      tabTitle: "Token cost",
+      tabTitle: t("dashboard.cards.userConsumption.tokenCost"),
       data: isExpanded
         ? transformedCost.slice(0, maxNumberOfEntries.expanded)
         : transformedCost.slice(0, maxNumberOfEntries.collapsed),
       totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: "Total cost",
+      metricDescription: t("dashboard.cards.userConsumption.totalCost"),
       formatter: localUsdFormatter,
     },
     {
-      tabTitle: "Count of Traces",
+      tabTitle: t("dashboard.cards.userConsumption.countOfTraces"),
       data: isExpanded
         ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
         : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
       totalMetric: totalTraces
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
-      metricDescription: "Total traces",
+      metricDescription: t("dashboard.cards.userConsumption.totalTraces"),
     },
   ];
 
   return (
     <DashboardCard
       className={className}
-      title="User consumption"
+      title={t("dashboard.cards.userConsumption.title")}
       isLoading={isLoading || user.isPending}
     >
       <TabComponent

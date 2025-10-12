@@ -29,6 +29,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import { useTranslation } from "react-i18next";
 
 type RowData = {
   userId: string;
@@ -41,6 +42,7 @@ type RowData = {
 };
 
 export default function UsersPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -63,10 +65,9 @@ export default function UsersPage() {
   return (
     <Page
       headerProps={{
-        title: "Users",
+        title: t("user.pages.title"),
         help: {
-          description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+          description: t("user.pages.description"),
           href: "https://langfuse.com/docs/user-explorer",
         },
       }}
@@ -79,6 +80,7 @@ export default function UsersPage() {
 }
 
 const UsersTable = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -101,7 +103,7 @@ const UsersTable = () => {
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Timestamp",
+          column: t("user.filters.timestamp"),
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
@@ -203,10 +205,9 @@ const UsersTable = () => {
     {
       accessorKey: "userId",
       enableColumnFilter: true,
-      header: "User ID",
+      header: t("user.table.userId"),
       headerTooltip: {
-        description:
-          "The unique identifier for the user that was logged in Langfuse. See docs for more details on how to set this up.",
+        description: t("user.table.userIdDescription"),
         href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
@@ -224,7 +225,7 @@ const UsersTable = () => {
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: t("user.table.environment"),
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -242,9 +243,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "firstEvent",
-      header: "First Event",
+      header: t("user.table.firstEvent"),
       headerTooltip: {
-        description: "The earliest trace recorded for this user.",
+        description: t("user.table.firstEventDescription"),
       },
       size: 150,
       cell: ({ row }) => {
@@ -259,9 +260,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "lastEvent",
-      header: "Last Event",
+      header: t("user.table.lastEvent"),
       headerTooltip: {
-        description: "The latest trace recorded for this user.",
+        description: t("user.table.lastEventDescription"),
       },
       size: 150,
       cell: ({ row }) => {
@@ -276,10 +277,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalEvents",
-      header: "Total Events",
+      header: t("user.table.totalEvents"),
       headerTooltip: {
-        description:
-          "Total number of events for the user, includes traces and observations. See data model for more details.",
+        description: t("user.table.totalEventsDescription"),
         href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
@@ -295,10 +295,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalTokens",
-      header: "Total Tokens",
+      header: t("user.table.totalTokens"),
       headerTooltip: {
-        description:
-          "Total number of tokens used for the user across all generations.",
+        description: t("user.table.totalTokensDescription"),
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -314,9 +313,9 @@ const UsersTable = () => {
     },
     {
       accessorKey: "totalCost",
-      header: "Total Cost",
+      header: t("user.table.totalCost"),
       headerTooltip: {
-        description: "Total cost for the user across all generations.",
+        description: t("user.table.totalCostDescription"),
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
@@ -375,9 +374,11 @@ const UsersTable = () => {
                       userId: t.id,
                       environment: t.environment ?? undefined,
                       firstEvent:
-                        t.firstTrace?.toLocaleString() ?? "No event yet",
+                        t.firstTrace?.toLocaleString() ??
+                        t("user.table.noEventYet"),
                       lastEvent:
-                        t.lastTrace?.toLocaleString() ?? "No event yet",
+                        t.lastTrace?.toLocaleString() ??
+                        t("user.table.noEventYet"),
                       totalEvents: compactNumberFormatter(
                         Number(t.totalTraces ?? 0) +
                           Number(t.totalObservations ?? 0),

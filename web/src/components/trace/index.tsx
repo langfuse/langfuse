@@ -1,4 +1,5 @@
 import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
+import { useTranslation } from "react-i18next";
 import { TraceTree } from "./TraceTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -82,6 +83,7 @@ export function Trace(props: {
     updateType?: UrlUpdateType,
   ) => void;
 }) {
+  const { t } = useTranslation();
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
@@ -303,7 +305,7 @@ export function Trace(props: {
                 ) : (
                   <CommandInput
                     showBorder={false}
-                    placeholder="Search"
+                    placeholder={t("tracing.trace.actions.search")}
                     className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
                     value={searchQuery}
                     onValueChange={setSearchQuery}
@@ -331,8 +333,8 @@ export function Trace(props: {
                         size="icon"
                         title={
                           expandedItems.includes(`trace-${props.trace.id}`)
-                            ? "Collapse all"
-                            : "Expand all"
+                            ? t("tracing.trace.actions.collapseAll")
+                            : t("tracing.trace.actions.expandAll")
                         }
                       >
                         {expandedItems.includes(`trace-${props.trace.id}`) ? (
@@ -368,8 +370,8 @@ export function Trace(props: {
                             size="icon"
                             title={
                               isEverythingCollapsed
-                                ? "Expand all"
-                                : "Collapse all"
+                                ? t("tracing.trace.actions.expandAll")
+                                : t("tracing.trace.actions.collapseAll")
                             }
                           >
                             {isEverythingCollapsed ? (
@@ -386,13 +388,15 @@ export function Trace(props: {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="View Options"
+                          title={t("tracing.trace.common.viewOptions")}
                         >
                           <Settings2 className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel>View Options</DropdownMenuLabel>
+                        <DropdownMenuLabel>
+                          {t("tracing.trace.common.viewOptions")}
+                        </DropdownMenuLabel>
                         <DropdownMenuSeparator />
 
                         {isGraphViewAvailable && (
@@ -538,7 +542,7 @@ export function Trace(props: {
                       variant="ghost"
                       size="icon"
                       onClick={downloadTraceAsJson}
-                      title="Download trace as JSON"
+                      title={t("tracing.trace.actions.downloadAsJson")}
                     >
                       <Download className="h-4 w-4" />
                     </Button>

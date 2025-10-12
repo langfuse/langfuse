@@ -11,11 +11,13 @@ import {
   EVALS_TABS,
 } from "@/src/features/navigation/utils/evals-tabs";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { useTranslation } from "react-i18next";
 
 export default function TemplatesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
+  const { t } = useTranslation();
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalTemplate:CUD",
@@ -39,7 +41,7 @@ export default function TemplatesPage() {
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
         },
         tabsProps: {
-          tabs: getEvalsTabs(projectId),
+          tabs: getEvalsTabs(projectId, t),
           activeTab: EVALS_TABS.TEMPLATES,
         },
         actionButtonsRight: (

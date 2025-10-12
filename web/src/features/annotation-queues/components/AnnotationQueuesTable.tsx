@@ -24,6 +24,7 @@ import TableLink from "@/src/components/table/table-link";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
+import { useTranslation } from "react-i18next";
 
 type RowData = {
   key: {
@@ -39,6 +40,7 @@ type RowData = {
 };
 
 export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "annotationQueues",
     "s",
@@ -63,7 +65,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "key",
-      header: "Name",
+      header: t("annotation-queue.queuesTable.name"),
       id: "key",
       size: 150,
       isPinned: true,
@@ -79,7 +81,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "description",
-      header: "Description",
+      header: t("annotation-queue.queuesTable.description"),
       id: "description",
       enableHiding: true,
       size: 200,
@@ -99,21 +101,21 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "countCompletedItems",
-      header: "Completed Items",
+      header: t("annotation-queue.queuesTable.completedItems"),
       id: "countCompletedItems",
       enableHiding: true,
       size: 90,
     },
     {
       accessorKey: "countPendingItems",
-      header: "Pending Items",
+      header: t("annotation-queue.queuesTable.pendingItems"),
       id: "countPendingItems",
       enableHiding: true,
       size: 90,
     },
     {
       accessorKey: "scoreConfigs",
-      header: "Score Configs",
+      header: t("annotation-queue.queuesTable.scoreConfigs"),
       id: "scoreConfigs",
       enableHiding: true,
       size: 200,
@@ -140,14 +142,14 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "createdAt",
-      header: "Created",
+      header: t("common.batchExports.created"),
       id: "createdAt",
       enableHiding: true,
       size: 150,
     },
     {
       accessorKey: "processAction",
-      header: "Process",
+      header: t("annotation-queue.queuesTable.process"),
       id: "processAction",
       isPinned: true,
       cell: ({ row }) => {
@@ -171,7 +173,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
     },
     {
       accessorKey: "actions",
-      header: "Actions",
+      header: t("annotation-queue.queuesTable.actions"),
       id: "actions",
       size: 70,
       isPinned: true,
@@ -181,12 +183,16 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">
+                  {t("annotation-queue.queuesTable.openMenu")}
+                </span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                {t("annotation-queue.queuesTable.actions")}
+              </DropdownMenuLabel>
               <div className="flex flex-col space-y-0.5">
                 <CreateOrEditAnnotationQueueButton
                   projectId={projectId}

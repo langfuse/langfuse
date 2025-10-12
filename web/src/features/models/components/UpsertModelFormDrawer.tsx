@@ -44,6 +44,7 @@ import { useRouter } from "next/router";
 
 import { PricePreview } from "./PricePreview";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useTranslation } from "react-i18next";
 
 type UpsertModelDrawerProps =
   | {
@@ -68,6 +69,7 @@ export const UpsertModelFormDrawer = ({
   children,
   ...props
 }: UpsertModelDrawerProps) => {
+  const { t } = useTranslation();
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
@@ -132,8 +134,18 @@ export const UpsertModelFormDrawer = ({
       form.reset();
       setOpen(false);
       showSuccessToast({
-        title: `Model ${props.action === "edit" ? "updated" : "created"}`,
-        description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
+        title:
+          props.action === "edit"
+            ? t("model.success.modelUpdated")
+            : t("model.success.modelCreated"),
+        description:
+          props.action === "edit"
+            ? t("model.success.modelUpdatedDescription", {
+                modelName: upsertedModel.modelName,
+              })
+            : t("model.success.modelCreatedDescription", {
+                modelName: upsertedModel.modelName,
+              }),
       });
       router.push(
         `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
@@ -186,8 +198,8 @@ export const UpsertModelFormDrawer = ({
         className={props.className}
         title={
           props.action === "create"
-            ? "Create model definition"
-            : "Edit model definition"
+            ? t("model.form.createModelDefinition")
+            : t("model.form.editModelDefinition")
         }
       >
         {children}
@@ -197,10 +209,10 @@ export const UpsertModelFormDrawer = ({
           <div className="flex items-center justify-between">
             <DrawerTitle>
               {props.action === "create"
-                ? "Create Model"
+                ? t("model.form.createModel")
                 : props.action === "clone"
-                  ? "Clone Model"
-                  : "Edit Model"}
+                  ? t("model.form.cloneModel")
+                  : t("model.form.editModel")}
             </DrawerTitle>
             <Button
               variant="ghost"
@@ -215,7 +227,7 @@ export const UpsertModelFormDrawer = ({
             {props.action === "edit"
               ? props.modelData.modelName
               : props.action === "create"
-                ? "Create a new model configuration to track generation costs."
+                ? t("model.form.createNewModelDescription")
                 : null}
           </DrawerDescription>
         </DrawerHeader>
@@ -231,11 +243,9 @@ export const UpsertModelFormDrawer = ({
               disabled={props.action === "edit"}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Model Name</FormLabel>
+                  <FormLabel>{t("model.form.modelName")}</FormLabel>
                   <FormDescription>
-                    The name of the model. This will be used to reference the
-                    model in the API. You can track price changes of models by
-                    using the same name and match pattern.
+                    {t("model.form.modelNameDescription")}
                   </FormDescription>
                   <FormControl>
                     <Input {...field} />
@@ -249,12 +259,9 @@ export const UpsertModelFormDrawer = ({
               name="matchPattern"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Match pattern</FormLabel>
+                  <FormLabel>{t("model.form.matchPattern")}</FormLabel>
                   <FormDescription>
-                    Regular expression (Postgres syntax) to match ingested
-                    generations (model attribute) to this model definition. For
-                    an exact, case-insensitive match to a model name, use the
-                    expression: (?i)^(modelname)$
+                    {t("model.form.matchPatternDescription")}
                   </FormDescription>
                   <FormControl>
                     <Input {...field} />
@@ -269,15 +276,14 @@ export const UpsertModelFormDrawer = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-2">
-                    Prices
+                    {t("model.form.prices")}
                   </FormLabel>
                   <FormDescription>
-                    Set prices per usage type for this model. Usage types must
-                    exactly match the keys of the ingested usage details.
+                    {t("model.form.pricesDescription")}
                   </FormDescription>
                   <span className="flex flex-col gap-2">
                     <FormDescription>
-                      Prefill usage types from template:
+                      {t("model.form.prefillUsageTypes")}
                     </FormDescription>
                     <span className="flex gap-2">
                       <Button
@@ -294,7 +300,7 @@ export const UpsertModelFormDrawer = ({
                           });
                         }}
                       >
-                        OpenAI
+                        {t("model.form.openai")}
                       </Button>
                       <Button
                         type="button"
@@ -312,21 +318,21 @@ export const UpsertModelFormDrawer = ({
                           });
                         }}
                       >
-                        Anthropic
+                        {t("model.form.anthropic")}
                       </Button>
                     </span>
                   </span>
                   <FormControl>
                     <span className="flex flex-col gap-2">
                       <FormDescription className="grid grid-cols-2 gap-1">
-                        <span>Usage type</span>
-                        <span>Price</span>
+                        <span>{t("model.form.usageType")}</span>
+                        <span>{t("model.form.price")}</span>
                       </FormDescription>
                       {Object.entries(field.value).map(
                         ([key, value], index) => (
                           <div key={index} className="grid grid-cols-2 gap-1">
                             <Input
-                              placeholder="Key (e.g. input, output)"
+                              placeholder={t("model.form.keyPlaceholder")}
                               value={key}
                               onChange={(e) => {
                                 const newPrices = { ...field.value };
@@ -339,7 +345,7 @@ export const UpsertModelFormDrawer = ({
                             <div className="flex gap-1">
                               <Input
                                 type="number"
-                                placeholder="Price per unit"
+                                placeholder={t("model.form.pricePlaceholder")}
                                 value={value}
                                 step="0.000001"
                                 onChange={(e) => {
@@ -352,7 +358,7 @@ export const UpsertModelFormDrawer = ({
                               <Button
                                 type="button"
                                 variant="outline"
-                                title="Remove price"
+                                title={t("model.form.removePrice")}
                                 size="icon"
                                 onClick={() => {
                                   const newPrices = { ...field.value };
@@ -378,7 +384,7 @@ export const UpsertModelFormDrawer = ({
                         className="flex items-center gap-1"
                       >
                         <PlusCircle className="h-4 w-4" />
-                        <span>Add Price</span>
+                        <span>{t("model.form.addPrice")}</span>
                       </Button>
                       <PricePreview prices={field.value} />
                     </span>
@@ -392,7 +398,7 @@ export const UpsertModelFormDrawer = ({
               name="tokenizerId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tokenizer</FormLabel>
+                  <FormLabel>{t("model.form.tokenizer")}</FormLabel>
                   <Select
                     onValueChange={(tokenizerId) => {
                       field.onChange(tokenizerId);
@@ -404,7 +410,7 @@ export const UpsertModelFormDrawer = ({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a unit" />
+                        <SelectValue placeholder={t("model.form.selectUnit")} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -416,16 +422,13 @@ export const UpsertModelFormDrawer = ({
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Optionally, Langfuse can tokenize the input and output of a
-                    generation if no unit counts are ingested. This is useful
-                    for e.g. streamed OpenAI completions. For details on the
-                    supported tokenizers, see the{" "}
+                    {t("model.form.tokenizerDescription")}{" "}
                     <Link
                       href="https://langfuse.com/docs/model-usage-and-cost"
                       className="underline"
                       target="_blank"
                     >
-                      docs
+                      {t("model.form.docs")}
                     </Link>
                     .
                   </FormDescription>
@@ -439,7 +442,7 @@ export const UpsertModelFormDrawer = ({
                 name="tokenizerConfig"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tokenizer Config</FormLabel>
+                    <FormLabel>{t("model.form.tokenizerConfig")}</FormLabel>
                     <CodeMirrorEditor
                       mode="json"
                       value={field.value ?? "{}"}
@@ -447,15 +450,15 @@ export const UpsertModelFormDrawer = ({
                       minHeight="none"
                     />
                     <FormDescription>
-                      The config for the tokenizer. Required for openai. See the{" "}
+                      {t("model.form.tokenizerConfigDescription")}{" "}
                       <Link
                         href="https://langfuse.com/docs/model-usage-and-cost"
                         className="underline"
                         target="_blank"
                       >
-                        docs
+                        {t("model.form.docs")}
                       </Link>{" "}
-                      for details.
+                      {t("model.form.forDetails")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -469,7 +472,7 @@ export const UpsertModelFormDrawer = ({
                 onClick={() => setOpen(false)}
                 className="w-full"
               >
-                Cancel
+                {t("common.actions.cancel")}
               </Button>
 
               <Button
@@ -477,13 +480,14 @@ export const UpsertModelFormDrawer = ({
                 className="w-full"
                 loading={upsertModelMutation.isPending}
               >
-                Submit
+                {t("common.actions.submit")}
               </Button>
             </DrawerFooter>
           </form>
           {formError ? (
             <p className="my-2 text-center text-sm font-medium text-destructive">
-              <span className="font-semibold">Error:</span> {formError}
+              <span className="font-semibold">{t("common.errors.error")}</span>{" "}
+              {formError}
             </p>
           ) : null}
         </Form>

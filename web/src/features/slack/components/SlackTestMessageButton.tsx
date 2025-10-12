@@ -5,6 +5,7 @@ import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type SlackChannel } from "./ChannelSelector";
+import { useTranslation } from "react-i18next";
 
 /**
  * Props for the SlackTestMessageButton component
@@ -44,23 +45,27 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
   disabled = false,
   variant = "default",
   size = "default",
-  buttonText = "Send Test Message",
+  buttonText,
   onSuccess,
   onError,
   showText = true,
   hasAccess = true,
 }) => {
+  const { t } = useTranslation();
   // Test message mutation
   const testMessageMutation = api.slack.sendTestMessage.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        title: "Test Message Sent",
-        description: "Test message sent successfully to the selected channel.",
+        title: t("automation.slack.testMessage.sent"),
+        description: t("automation.slack.testMessage.sentDescription"),
       });
       onSuccess?.();
     },
     onError: (error) => {
-      showErrorToast("Failed to Send Test Message", error.message);
+      showErrorToast(
+        t("automation.slack.testMessage.failedToSend"),
+        error.message,
+      );
       onError?.(new Error(error.message));
     },
   });
@@ -95,12 +100,16 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
       {testMessageMutation.isPending ? (
         <>
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-          {showText && <span>Sending...</span>}
+          {showText && <span>{t("automation.slack.testMessage.sending")}</span>}
         </>
       ) : (
         <>
           <Zap className="h-4 w-4" />
-          {showText && <span>{buttonText}</span>}
+          {showText && (
+            <span>
+              {buttonText || t("automation.slack.testMessage.sendTestMessage")}
+            </span>
+          )}
         </>
       )}
     </Button>

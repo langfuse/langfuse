@@ -19,8 +19,10 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
+import { useTranslation } from "react-i18next";
 
 export default function QueueItems() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const queueId = router.query.queueId as string;
@@ -48,7 +50,7 @@ export default function QueueItems() {
         itemType: "ANNOTATION_QUEUE",
         breadcrumb: [
           {
-            name: "Annotation Queues",
+            name: t("annotation-queue.item.annotationQueues"),
             href: `/project/${projectId}/annotation-queues`,
           },
         ],
@@ -74,12 +76,14 @@ export default function QueueItems() {
           <AnnotationQueueItemsTable projectId={projectId} queueId={queueId} />
         </div>
         <SidePanel
-          mobileTitle={queue.data?.name ?? "Queue details"}
+          mobileTitle={
+            queue.data?.name ?? t("annotation-queue.item.queueDetails")
+          }
           id="queue-details"
         >
           <SidePanelHeader>
             <SidePanelTitle>
-              {queue.data?.name ?? "Queue details"}
+              {queue.data?.name ?? t("annotation-queue.item.queueDetails")}
             </SidePanelTitle>
             <CreateOrEditAnnotationQueueButton
               projectId={projectId}
@@ -97,7 +101,9 @@ export default function QueueItems() {
                   </CardDescription>
                 )}
                 <div className="flex flex-col gap-2">
-                  <SubHeaderLabel title="Score Configs" />
+                  <SubHeaderLabel
+                    title={t("annotation-queue.queuesTable.scoreConfigs")}
+                  />
                   <div className="flex flex-wrap gap-2">
                     {queue.data?.scoreConfigs.map((scoreConfig) => (
                       <Badge key={scoreConfig.id} variant="outline">

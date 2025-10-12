@@ -25,6 +25,7 @@ import {
 } from "@/src/components/ui/form";
 import { toast } from "sonner";
 import { Bell, Plus, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const usageAlertsSchema = z.object({
   enabled: z.boolean(),
@@ -38,6 +39,7 @@ const usageAlertsSchema = z.object({
 type UsageAlertsFormData = z.infer<typeof usageAlertsSchema>;
 
 export function UsageAlerts({ orgId }: { orgId: string }) {
+  const { t } = useTranslation();
   const [newRecipient, setNewRecipient] = useState("");
   const [isAddingRecipient, setIsAddingRecipient] = useState(false);
 
@@ -52,13 +54,13 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
 
   const upsertUsageAlerts = api.cloudBilling.upsertUsageAlerts.useMutation({
     onSuccess: () => {
-      toast.success("Usage alerts updated", {
-        description: "Your usage alert settings have been saved successfully.",
+      toast.success(t("ee.usageAlerts.updated"), {
+        description: t("ee.usageAlerts.updatedDescription"),
       });
       refetch();
     },
     onError: (error) => {
-      toast.error("Failed to update usage alerts", {
+      toast.error(t("ee.usageAlerts.updateFailed"), {
         description: error.message,
       });
     },
@@ -102,16 +104,16 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newRecipient)) {
-      toast.error("Invalid email address", {
-        description: "Please enter a valid email address.",
+      toast.error(t("ee.usageAlerts.invalidEmail"), {
+        description: t("ee.usageAlerts.invalidEmailDescription"),
       });
       return;
     }
 
     const currentRecipients = form.getValues("notifications.recipients");
     if (currentRecipients.includes(newRecipient)) {
-      toast.error("Email already added", {
-        description: "This email address is already in the recipient list.",
+      toast.error(t("ee.usageAlerts.emailAlreadyAdded"), {
+        description: t("ee.usageAlerts.emailAlreadyAddedDescription"),
       });
       return;
     }
@@ -260,7 +262,9 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
                         <div className="flex items-center space-x-2">
                           <Input
                             type="email"
-                            placeholder="Enter email address"
+                            placeholder={t(
+                              "ee.usageAlerts.enterEmailPlaceholder",
+                            )}
                             value={newRecipient}
                             onChange={(e) => setNewRecipient(e.target.value)}
                             onKeyDown={(e) => {
@@ -310,7 +314,9 @@ export function UsageAlerts({ orgId }: { orgId: string }) {
 
             <div className="flex justify-end">
               <Button type="submit" disabled={upsertUsageAlerts.isPending}>
-                {upsertUsageAlerts.isPending ? "Saving..." : "Save Changes"}
+                {upsertUsageAlerts.isPending
+                  ? t("common.status.saving")
+                  : t("ee.usageAlerts.saveChanges")}
               </Button>
             </div>
           </form>

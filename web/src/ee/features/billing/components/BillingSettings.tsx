@@ -32,8 +32,10 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { useState } from "react";
 import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 import { UsageAlerts } from "./UsageAlerts";
+import { useTranslation } from "react-i18next";
 
 export const BillingSettings = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const orgId = router.query.organizationId as string | undefined;
   const hasAccess = useHasOrganizationAccess({
@@ -57,7 +59,7 @@ export const BillingSettings = () => {
     );
   return (
     <div>
-      <Header title="Usage & Billing" />
+      <Header title={t("organization.settings.usageAndBilling")} />
       <div className="space-y-6">
         <OrganizationUsageChart />
         {isUsageAlertEntitled && orgId && <UsageAlerts orgId={orgId} />}
@@ -67,6 +69,7 @@ export const BillingSettings = () => {
 };
 
 const OrganizationUsageChart = () => {
+  const { t } = useTranslation();
   const organization = useQueryOrganization();
   const usage = api.cloudBilling.getUsage.useQuery(
     {
@@ -121,12 +124,14 @@ const OrganizationUsageChart = () => {
           </>
         ) : (
           <span className="text-sm text-muted-foreground">
-            Loading (might take a moment) ...
+            {t("common.status.loading")}
           </span>
         )}
       </Card>
       <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-        <p>Current plan: {planLabel}</p>
+        <p>
+          {t("organization.settings.currentPlan")}: {planLabel}
+        </p>
         {usage.data?.billingPeriod && (
           <p>
             {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
@@ -142,7 +147,7 @@ const OrganizationUsageChart = () => {
         <BillingPortalOrPricingPageButton />
         <Button variant="secondary" asChild>
           <Link href={"https://langfuse.com/pricing"} target="_blank">
-            Compare plans
+            {t("organization.settings.comparePlans")}
           </Link>
         </Button>
       </div>
@@ -151,6 +156,7 @@ const OrganizationUsageChart = () => {
 };
 
 const BillingPortalOrPricingPageButton = () => {
+  const { t } = useTranslation();
   const organization = useQueryOrganization();
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -221,14 +227,14 @@ const BillingPortalOrPricingPageButton = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button>Change plan</Button>
+        <Button>{t("organization.settings.changePlan")}</Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl">
         <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle>Plans</DialogTitle>
+          <DialogTitle>{t("organization.settings.plans")}</DialogTitle>
           <Button variant="secondary" asChild>
             <Link href="https://langfuse.com/pricing" target="_blank">
-              Comparison of plans ↗
+              {t("organization.settings.comparisonOfPlans")} ↗
             </Link>
           </Button>
         </DialogHeader>
@@ -285,8 +291,8 @@ const BillingPortalOrPricingPageButton = () => {
                         >
                           {organization?.cloudConfig?.stripe
                             ?.activeProductId === product.stripeProductId
-                            ? "Current plan"
-                            : "Change plan"}
+                            ? t("organization.settings.currentPlan")
+                            : t("organization.settings.changePlan")}
                         </Button>
                       </DialogTrigger>
                       <DialogContent>

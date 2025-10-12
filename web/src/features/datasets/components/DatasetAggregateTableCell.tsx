@@ -26,6 +26,7 @@ import {
   ListCheck,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 const DatasetAggregateCell = ({
   scores,
@@ -44,6 +45,7 @@ const DatasetAggregateCell = ({
   output?: Prisma.JsonValue;
   isHighlighted?: boolean;
 }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const { selectedMetrics } = useDatasetCompareMetrics();
   // conditionally fetch the trace or observation depending on the presence of observationId
@@ -120,7 +122,9 @@ const DatasetAggregateCell = ({
                   </Badge>
                 ))
               ) : (
-                <span className="text-xs text-muted-foreground">No scores</span>
+                <span className="text-xs text-muted-foreground">
+                  {t("dataset.aggregateCell.noScores")}
+                </span>
               )}
             </div>
           </div>
@@ -175,7 +179,7 @@ const DatasetAggregateCell = ({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  title="Compare expected output with actual output"
+                  title={t("dataset.aggregateCell.compareExpectedActual")}
                   className="absolute right-2 top-2 rounded bg-background p-1 opacity-0 transition-opacity hover:bg-secondary group-hover:opacity-100"
                   aria-label="Action button"
                 >
@@ -188,7 +192,9 @@ const DatasetAggregateCell = ({
                 onClick={(event) => event.stopPropagation()}
               >
                 <DialogHeader>
-                  <DialogTitle>Expected Output → Actual Output</DialogTitle>
+                  <DialogTitle>
+                    {t("dataset.aggregateCell.expectedOutputActualOutput")}
+                  </DialogTitle>
                 </DialogHeader>
                 <DialogBody>
                   <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
@@ -202,8 +208,8 @@ const DatasetAggregateCell = ({
                               null,
                               2,
                             )}
-                            oldLabel="Expected Output"
-                            newLabel="Actual Output"
+                            oldLabel={t("dataset.aggregateCell.expectedOutput")}
+                            newLabel={t("dataset.aggregateCell.actualOutput")}
                           />
                         </div>
                       </div>
@@ -218,7 +224,7 @@ const DatasetAggregateCell = ({
                     }}
                     className="w-full"
                   >
-                    Close
+                    {t("common.actions.close")}
                   </Button>
                 </DialogFooter>
               </DialogContent>

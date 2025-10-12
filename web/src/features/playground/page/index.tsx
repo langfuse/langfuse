@@ -8,6 +8,7 @@ import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnte
 import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
+import { useTranslation } from "react-i18next";
 
 /**
  * PlaygroundPage Component
@@ -31,6 +32,7 @@ import MultiWindowPlayground from "@/src/features/playground/page/components/Mul
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
+  const { t } = useTranslation();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
 
@@ -85,10 +87,9 @@ export default function PlaygroundPage() {
       <Page
         withPadding={false}
         headerProps={{
-          title: "Playground",
+          title: t("playground.page.title"),
           help: {
-            description:
-              "A sandbox to test and iterate your prompts across multiple windows",
+            description: t("playground.page.description"),
             href: "https://langfuse.com/docs/prompt-management/features/playground",
           },
         }}
@@ -103,7 +104,12 @@ export default function PlaygroundPage() {
   // Execution status and control states
   const executionStatus = globalIsExecutingAll
     ? getExecutionStatus() ||
-      `Executing ${windowIds.length} window${windowIds.length === 1 ? "" : "s"}`
+      t(
+        windowIds.length === 1
+          ? "playground.page.executingWindows"
+          : "playground.page.executingWindowsPlural",
+        { count: windowIds.length },
+      )
     : getExecutionStatus();
   const isRunAllDisabled = globalIsExecutingAll;
 
@@ -117,10 +123,9 @@ export default function PlaygroundPage() {
       scrollable={false}
       withPadding={false}
       headerProps={{
-        title: "Playground",
+        title: t("playground.page.title"),
         help: {
-          description:
-            "A sandbox to test and iterate your prompts across multiple windows",
+          description: t("playground.page.description"),
           href: "https://langfuse.com/docs/prompt-management/features/playground",
         },
         actionButtonsRight: (
@@ -128,8 +133,12 @@ export default function PlaygroundPage() {
             {/* Window Count Display - Hidden on mobile */}
             <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
               <span className="whitespace-nowrap">
-                {windowIds.length} window
-                {windowIds.length === 1 ? "" : "s"}
+                {t(
+                  windowIds.length === 1
+                    ? "playground.page.windowCount"
+                    : "playground.page.windowCountPlural",
+                  { count: windowIds.length },
+                )}
               </span>
               {executionStatus && (
                 <>
@@ -150,14 +159,16 @@ export default function PlaygroundPage() {
               onClick={handleExecuteAll}
               disabled={isRunAllDisabled}
               className="hidden flex-shrink-0 gap-1 md:flex"
-              title="Execute all playground windows simultaneously"
+              title={t("playground.page.executeAll")}
             >
               {isRunAllDisabled ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
                 <Play className="h-3 w-3" />
               )}
-              <span className="hidden lg:inline">Run All (Ctrl + Enter)</span>
+              <span className="hidden lg:inline">
+                {t("playground.page.runAll")}
+              </span>
             </Button>
 
             {/* Reset Playground Button */}

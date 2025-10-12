@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { isPresent, ScoreDataType, availableDataTypes } from "@langfuse/shared";
+import { isPresent, availableDataTypes, ScoreDataType } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -40,6 +40,7 @@ import {
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { z } from "zod/v4";
+import { useTranslation } from "react-i18next";
 
 const Category = z.object({
   label: z.string().min(1),
@@ -57,50 +58,53 @@ const createConfigSchema = z.object({
 
 type CreateConfig = z.infer<typeof createConfigSchema>;
 
-const validateScoreConfig = (values: CreateConfig): string | null => {
-  const { dataType, maxValue, minValue, categories } = values;
+const createValidateScoreConfig =
+  (t: (key: string) => string) =>
+  (values: CreateConfig): string | null => {
+    const { dataType, maxValue, minValue, categories } = values;
 
-  if (isNumericDataType(dataType)) {
-    if (
-      isPresent(maxValue) &&
-      isPresent(minValue) &&
-      Number(maxValue) <= Number(minValue)
-    ) {
-      return "Maximum value must be greater than Minimum value.";
+    if (isNumericDataType(dataType)) {
+      if (
+        isPresent(maxValue) &&
+        isPresent(minValue) &&
+        Number(maxValue) <= Number(minValue)
+      ) {
+        return t("evaluation.score.errors.maxValueMustBeGreater");
+      }
+    } else if (isCategoricalDataType(dataType)) {
+      if (!categories || categories.length === 0) {
+        return t("evaluation.score.errors.atLeastOneCategoryRequired");
+      }
+    } else if (isBooleanDataType(dataType)) {
+      if (categories?.length !== 2)
+        return t("evaluation.score.errors.booleanMustHaveTwoCategories");
+      const isBooleanCategoryInvalid = categories?.some(
+        (category) => category.value !== 0 && category.value !== 1,
+      );
+      if (isBooleanCategoryInvalid)
+        return t("evaluation.score.errors.booleanMustHaveZeroAndOne");
     }
-  } else if (isCategoricalDataType(dataType)) {
-    if (!categories || categories.length === 0) {
-      return "At least one category is required for categorical data types.";
+
+    const uniqueNames = new Set<string>();
+    const uniqueValues = new Set<number>();
+
+    for (const category of categories || []) {
+      if (uniqueNames.has(category.label)) {
+        return t("evaluation.score.errors.categoryNamesMustBeUnique");
+      }
+      uniqueNames.add(category.label);
+
+      if (uniqueValues.has(category.value)) {
+        return t("evaluation.score.errors.categoryValuesMustBeUnique");
+      }
+      uniqueValues.add(category.value);
     }
-  } else if (isBooleanDataType(dataType)) {
-    if (categories?.length !== 2)
-      return "Boolean data type must have exactly 2 categories.";
-    const isBooleanCategoryInvalid = categories?.some(
-      (category) => category.value !== 0 && category.value !== 1,
-    );
-    if (isBooleanCategoryInvalid)
-      return "Boolean data type must have categories with values 0 and 1.";
-  }
 
-  const uniqueNames = new Set<string>();
-  const uniqueValues = new Set<number>();
-
-  for (const category of categories || []) {
-    if (uniqueNames.has(category.label)) {
-      return "Category names must be unique.";
-    }
-    uniqueNames.add(category.label);
-
-    if (uniqueValues.has(category.value)) {
-      return "Category values must be unique.";
-    }
-    uniqueValues.add(category.value);
-  }
-
-  return null;
-};
+    return null;
+  };
 
 export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -115,7 +119,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   const createScoreConfig = api.scoreConfigs.create.useMutation({
     onSuccess: () => utils.scoreConfigs.invalidate(),
     onError: (error) =>
-      setFormError(error.message ?? "An error occurred while creating config."),
+      setFormError(
+        error.message ?? t("evaluation.score.errors.errorCreatingConfig"),
+      ),
   });
 
   const form = useForm({
@@ -136,7 +142,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   if (!hasAccess) return null;
 
   async function onSubmit(values: CreateConfig) {
-    const error = validateScoreConfig(values);
+    const error = createValidateScoreConfig(t)(values);
     setFormError(error);
     const isValid = await form.trigger();
     if (!isValid || error) return;
@@ -161,7 +167,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
   }
 
   const handleSubmitConfirm = async () => {
-    const error = validateScoreConfig(form.getValues());
+    const error = createValidateScoreConfig(t)(form.getValues());
     setFormError(error);
     const isValid = await form.trigger();
     if (isValid && !error) {
@@ -182,12 +188,14 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
         <DialogTrigger asChild>
           <Button variant="secondary" loading={createScoreConfig.isPending}>
             <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
-            Add new score config
+            {t("evaluation.score.form.addNewScoreConfig")}
           </Button>
         </DialogTrigger>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add new score config</DialogTitle>
+            <DialogTitle>
+              {t("evaluation.score.form.addNewScoreConfigTitle")}
+            </DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
@@ -201,7 +209,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>{t("common.labels.name")}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -220,7 +228,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   name="dataType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Data type</FormLabel>
+                      <FormLabel>
+                        {t("evaluation.score.form.dataType")}
+                      </FormLabel>
                       <Select
                         defaultValue={field.value}
                         onValueChange={(value) => {
@@ -235,8 +245,14 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                             form.setValue("maxValue", undefined);
                             if (isBooleanDataType(value as ScoreDataType)) {
                               replace([
-                                { label: "True", value: 1 },
-                                { label: "False", value: 0 },
+                                {
+                                  label: t("evaluation.score.form.true"),
+                                  value: 1,
+                                },
+                                {
+                                  label: t("evaluation.score.form.false"),
+                                  value: 0,
+                                },
                               ]);
                             } else {
                               replace([{ label: "", value: 0 }]);
@@ -246,7 +262,11 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select a data type" />
+                            <SelectValue
+                              placeholder={t(
+                                "evaluation.score.form.selectDataType",
+                              )}
+                            />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -268,7 +288,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                       name="minValue"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Minimum (optional) </FormLabel>
+                          <FormLabel>
+                            {t("evaluation.score.form.minimumOptional")}
+                          </FormLabel>
                           <FormControl>
                             <Input
                               {...field}
@@ -292,7 +314,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                       name="maxValue"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Maximum (optional)</FormLabel>
+                          <FormLabel>
+                            {t("evaluation.score.form.maximumOptional")}
+                          </FormLabel>
                           <FormControl>
                             <Input
                               {...field}
@@ -322,7 +346,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                           {fields.length > 0 && (
                             <div className="mb-2 grid grid-cols-[1fr,3fr] items-center gap-2 text-left sm:grid-cols-[1fr,7fr]">
                               <FormLabel className="grid grid-flow-col">
-                                Value
+                                {t("evaluation.score.form.value")}
                                 <DocPopup
                                   description={`This is how the ${
                                     isCategoricalDataType(
@@ -333,7 +357,9 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                   } label is mapped to an integer value internally.`}
                                 />
                               </FormLabel>
-                              <FormLabel>Label</FormLabel>
+                              <FormLabel>
+                                {t("evaluation.score.form.label")}
+                              </FormLabel>
                             </div>
                           )}
                           {fields.map((category, index) => (
@@ -416,7 +442,7 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                                   append({ label: "", value: fields.length })
                                 }
                               >
-                                Add category
+                                {t("evaluation.score.form.addCategory")}
                               </Button>
                             </div>
                           )}
@@ -431,11 +457,15 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                   render={({ field }) => (
                     <>
                       <FormItem>
-                        <FormLabel>Description (optional)</FormLabel>
+                        <FormLabel>
+                          {t("evaluation.score.form.descriptionOptional")}
+                        </FormLabel>
                         <FormControl>
                           <Textarea
                             {...field}
-                            placeholder="Provide an optional description of the score config..."
+                            placeholder={t(
+                              "evaluation.score.form.provideOptionalDescription",
+                            )}
                           />
                         </FormControl>
                         <FormMessage />
@@ -459,18 +489,19 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                     className="w-full"
                     onClick={handleSubmitConfirm}
                   >
-                    Submit
+                    {t("common.actions.submit")}
                   </Button>
                 </div>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Confirm Submission</DialogTitle>
+                  <DialogTitle>
+                    {t("evaluation.score.confirmDialog.title")}
+                  </DialogTitle>
                 </DialogHeader>
                 <DialogBody>
                   <p className="py-4 text-sm">
-                    Score configs cannot be edited or deleted after they have
-                    been created. Are you sure you want to proceed?
+                    {t("evaluation.score.confirmDialog.title")}
                   </p>
                 </DialogBody>
                 <DialogFooter>
@@ -482,19 +513,22 @@ export function CreateScoreConfigButton({ projectId }: { projectId: string }) {
                         disabled={form.formState.isSubmitting}
                         onClick={() => setConfirmOpen(false)}
                       >
-                        Continue Editing
+                        {t("common.actions.continueEditing")}
                       </Button>
                       <Button
                         type="submit"
                         loading={form.formState.isSubmitting}
                         onClick={form.handleSubmit(onSubmit)}
                       >
-                        Confirm
+                        {t("common.actions.confirm")}
                       </Button>
                     </div>
                     {formError ? (
                       <p className="text-red w-full text-center">
-                        <span className="font-bold">Error:</span> {formError}
+                        <span className="font-bold">
+                          {t("common.errors.error")}
+                        </span>{" "}
+                        {formError}
                       </p>
                     ) : null}
                   </div>

@@ -34,6 +34,7 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useTranslation } from "react-i18next";
 import { DialogFooter } from "@/src/components/ui/dialog";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
@@ -149,6 +150,7 @@ export function CreateLLMApiKeyForm({
   mode = "create",
   existingKey,
 }: CreateLLMApiKeyFormProps) {
+  const { t } = useTranslation();
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -484,9 +486,11 @@ export function CreateLLMApiKeyForm({
             name="adapter"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>LLM adapter</FormLabel>
+                <FormLabel>
+                  {t("project.settings.llmConnections.llmAdapter")}
+                </FormLabel>
                 <FormDescription>
-                  Schema that is accepted at that provider endpoint.
+                  {t("project.settings.llmConnections.llmAdapterDescription")}
                 </FormDescription>
                 <Select
                   defaultValue={field.value}
@@ -501,7 +505,11 @@ export function CreateLLMApiKeyForm({
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a LLM provider" />
+                      <SelectValue
+                        placeholder={t(
+                          "project.settings.llmConnections.selectLlmProvider",
+                        )}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -522,14 +530,18 @@ export function CreateLLMApiKeyForm({
             name="provider"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Provider name</FormLabel>
+                <FormLabel>
+                  {t("project.settings.llmConnections.providerName")}
+                </FormLabel>
                 <FormDescription>
-                  Key to identify the connection within Langfuse.
+                  {t("project.settings.llmConnections.providerNameDescription")}
                 </FormDescription>
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder={`e.g. ${currentAdapter}`}
+                    placeholder={t(
+                      "project.settings.llmConnections.providerNamePlaceholder",
+                    )}
                     disabled={isFieldDisabled("provider")}
                   />
                 </FormControl>
@@ -636,11 +648,11 @@ export function CreateLLMApiKeyForm({
               name="secretKey"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>API Key</FormLabel>
+                  <FormLabel>
+                    {t("project.settings.llmConnections.apiKey")}
+                  </FormLabel>
                   <FormDescription>
-                    {isLangfuseCloud
-                      ? "Your API keys are stored encrypted on our servers."
-                      : "Your API keys are stored encrypted in your database."}
+                    {t("project.settings.llmConnections.apiKeyDescription")}
                   </FormDescription>
                   {currentAdapter === LLMAdapter.VertexAI && (
                     <FormDescription className="text-dark-yellow">
@@ -725,7 +737,7 @@ export function CreateLLMApiKeyForm({
                 <span>
                   {showAdvancedSettings
                     ? "Hide advanced settings"
-                    : "Show advanced settings"}
+                    : t("project.settings.llmConnections.showAdvancedSettings")}
                 </span>
                 <ChevronDown
                   className={`ml-1 h-4 w-4 transition-transform ${showAdvancedSettings ? "rotate-180" : "rotate-0"}`}
@@ -835,7 +847,9 @@ export function CreateLLMApiKeyForm({
               className="w-full"
               loading={form.formState.isSubmitting}
             >
-              {mode === "create" ? "Create connection" : "Save changes"}
+              {mode === "create"
+                ? t("project.settings.llmConnections.createConnection")
+                : "Save changes"}
             </Button>
             {form.formState.errors.root && (
               <FormMessage>{form.formState.errors.root.message}</FormMessage>

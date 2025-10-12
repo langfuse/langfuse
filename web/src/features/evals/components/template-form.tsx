@@ -12,6 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { extractVariables, getIsCharOrUnderscore } from "@langfuse/shared";
@@ -96,40 +97,46 @@ export const EvalTemplateForm = (props: {
   );
 };
 
-const selectedModelSchema = z.object({
-  provider: z.string().min(1, "Select a provider"),
-  model: z.string().min(1, "Select a model"),
-  modelParams: ZodModelConfig,
-});
+const createSelectedModelSchema = (t: (key: string) => string) =>
+  z.object({
+    provider: z.string().min(1, t("evaluation.eval.form.selectProvider")),
+    model: z.string().min(1, t("evaluation.eval.form.selectModel")),
+    modelParams: ZodModelConfig,
+  });
 
-const formSchema = z.object({
-  name: z.string().min(1, "Enter a name"),
-  prompt: z
-    .string()
-    .min(1, "Enter a prompt")
-    .refine((val) => {
-      const variables = extractVariables(val);
-      const matches = variables.map((variable) => {
-        // check regex here
-        if (variable.match(/^[A-Za-z_]+$/)) {
-          return true;
-        }
-        return false;
-      });
-      return !matches.includes(false);
-    }, "Variables must only contain letters and underscores (_)"),
+const createFormSchema = (t: (key: string) => string) =>
+  z.object({
+    name: z.string().min(1, t("evaluation.eval.form.enterName")),
+    prompt: z
+      .string()
+      .min(1, t("evaluation.eval.form.enterPrompt"))
+      .refine((val) => {
+        const variables = extractVariables(val);
+        const matches = variables.map((variable) => {
+          // check regex here
+          if (variable.match(/^[A-Za-z_]+$/)) {
+            return true;
+          }
+          return false;
+        });
+        return !matches.includes(false);
+      }, "Variables must only contain letters and underscores (_)"),
 
-  variables: z.array(
-    z.string().min(1, "Variables must have at least one character"),
-  ),
-  outputScore: z.string().min(1, "Enter a score function"),
-  outputReasoning: z.string().min(1, "Enter a reasoning function"),
-  referencedEvaluators: z
-    .enum(EvalReferencedEvaluators)
-    .optional()
-    .default(EvalReferencedEvaluators.PERSIST),
-  shouldUseDefaultModel: z.boolean().default(true),
-});
+    variables: z.array(
+      z.string().min(1, t("evaluation.eval.form.variablesMinLength")),
+    ),
+    outputScore: z
+      .string()
+      .min(1, t("evaluation.eval.form.enterScoreFunction")),
+    outputReasoning: z
+      .string()
+      .min(1, t("evaluation.eval.form.enterReasoningFunction")),
+    referencedEvaluators: z
+      .enum(EvalReferencedEvaluators)
+      .optional()
+      .default(EvalReferencedEvaluators.PERSIST),
+    shouldUseDefaultModel: z.boolean().default(true),
+  });
 
 export type EvalTemplateFormPreFill = {
   name: string;
@@ -156,15 +163,19 @@ export const InnerEvalTemplateForm = (props: {
   // template to be updated
   existingEvalTemplateId?: string;
   existingEvalTemplateName?: string;
-  onFormSuccess?: (template?: EvalTemplate) => void;
+  onFormSuccess?: (template?: any) => void;
   onBeforeSubmit?: (template: any) => boolean;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
   preventRedirect?: boolean;
   cloneSourceId?: string | null;
 }) => {
+  const { t } = useTranslation();
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
+
+  const selectedModelSchema = createSelectedModelSchema(t);
+  const formSchema = createFormSchema(t);
 
   // Determine if we should use default model or custom model
   // If existing template has no provider, it was using default model
@@ -212,7 +223,7 @@ export const InnerEvalTemplateForm = (props: {
       variables: props.preFilledFormValues?.vars ?? [],
       outputReasoning: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).reasoning
-        : "One sentence reasoning for the score",
+        : t("evaluation.eval.form.oneSentenceReasoning"),
       outputScore: props.preFilledFormValues
         ? OutputSchema.parse(props.preFilledFormValues?.outputSchema).score
         : "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",
@@ -236,9 +247,10 @@ export const InnerEvalTemplateForm = (props: {
         props.existingEvalTemplateId
       ) {
         showSuccessToast({
-          title: "Updated evaluators",
-          description:
-            "Updated referenced evaluators to use new template version.",
+          title: t("evaluation.eval.messages.updatedEvaluators"),
+          description: t(
+            "evaluation.eval.messages.updatedReferencedEvaluators",
+          ),
         });
       }
     },
@@ -311,9 +323,7 @@ export const InnerEvalTemplateForm = (props: {
       }
     } else {
       if (!defaultModel) {
-        setFormError(
-          "No default evaluation model set. Set up default evaluation model or use a custom model",
-        );
+        setFormError(t("evaluation.eval.errors.noDefaultEvaluationModelSet"));
         return;
       }
     }
@@ -360,9 +370,14 @@ export const InnerEvalTemplateForm = (props: {
               render={({ field }) => (
                 <>
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>{t("common.labels.name")}</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Select a template name" />
+                      <Input
+                        {...field}
+                        placeholder={t(
+                          "evaluation.eval.form.selectTemplateName",
+                        )}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -377,7 +392,9 @@ export const InnerEvalTemplateForm = (props: {
       {/* Model Selection Section */}
       <Card>
         <CardContent>
-          <p className="my-2 font-semibold">Model</p>
+          <p className="my-2 font-semibold">
+            {t("evaluation.eval.form.model")}
+          </p>
           <FormField
             control={form.control}
             name="shouldUseDefaultModel"
@@ -391,12 +408,14 @@ export const InnerEvalTemplateForm = (props: {
                   />
                 </FormControl>
                 <div className="space-y-0 leading-none">
-                  <FormLabel>Use default evaluation model</FormLabel>
+                  <FormLabel>
+                    {t("evaluation.eval.form.useDefaultEvaluationModel")}
+                  </FormLabel>
                   <FormDescription className="text-xs">
                     <ManageDefaultEvalModel
                       projectId={props.projectId}
                       variant="color-coded"
-                      setUpMessage="No default model set. Set up default evaluation model"
+                      setUpMessage={t("evaluation.eval.form.noDefaultModelSet")}
                       className="text-sm font-normal"
                     />
                   </FormDescription>
@@ -410,16 +429,16 @@ export const InnerEvalTemplateForm = (props: {
               <div className="mt-2 flex items-center space-x-1 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4" />
                 <p>
-                  This evaluator is configured to use{" "}
-                  {modelParams.provider.value}s models but no API key exists.
-                  Add a key or choose another provider.
+                  {t("evaluation.eval.errors.evaluatorConfiguredButNoApiKey", {
+                    provider: modelParams.provider.value,
+                  })}
                 </p>
               </div>
             ) : (
               <ModelParameters
                 customHeader={
                   <p className="text-sm font-medium leading-none">
-                    Custom model configuration
+                    {t("evaluation.eval.form.customModelConfiguration")}
                   </p>
                 }
                 {...{
@@ -429,8 +448,9 @@ export const InnerEvalTemplateForm = (props: {
                   availableProviders,
                   updateModelParamValue: updateModelParamValue,
                   setModelParamEnabled,
-                  modelParamsDescription:
-                    "Select a model which supports function calling.",
+                  modelParamsDescription: t(
+                    "evaluation.eval.form.selectModelWithFunctionCalling",
+                  ),
                 }}
                 formDisabled={!props.isEditing}
               />
@@ -441,18 +461,20 @@ export const InnerEvalTemplateForm = (props: {
       <Card>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <p className="my-2 font-semibold">Prompt</p>
+            <p className="my-2 font-semibold">
+              {t("evaluation.eval.form.prompt")}
+            </p>
             <FormField
               control={form.control}
               name="prompt"
               render={({ field }) => (
                 <>
                   <FormItem>
-                    <FormLabel>Evaluation prompt</FormLabel>
+                    <FormLabel>
+                      {t("evaluation.eval.form.evaluationPrompt")}
+                    </FormLabel>
                     <FormDescription>
-                      Define your llm-as-a-judge evaluation template. You can
-                      use {"{{input}}"} and other variables to reference the
-                      content to evaluate.
+                      {t("evaluation.eval.form.defineLlmAsJudgeTemplate")}
                     </FormDescription>
                     <FormControl>
                       <CodeMirrorEditor
@@ -478,11 +500,11 @@ export const InnerEvalTemplateForm = (props: {
             name="outputReasoning"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Score reasoning prompt</FormLabel>
+                <FormLabel>
+                  {t("evaluation.eval.form.scoreReasoningPrompt")}
+                </FormLabel>
                 <FormDescription>
-                  Define how the LLM should explain its evaluation. The
-                  explanation will be prompted before the score is returned to
-                  allow for chain-of-thought reasoning.
+                  {t("evaluation.eval.form.defineLlmExplanation")}
                 </FormDescription>
                 <FormControl>
                   <Input {...field} />
@@ -497,10 +519,11 @@ export const InnerEvalTemplateForm = (props: {
             name="outputScore"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Score range prompt</FormLabel>
+                <FormLabel>
+                  {t("evaluation.eval.form.scoreRangePrompt")}
+                </FormLabel>
                 <FormDescription>
-                  Define how the LLM should return the evaluation score in
-                  natural language. Needs to yield a numeric value.
+                  {t("evaluation.eval.form.scoreRangePromptDescription")}
                 </FormDescription>
                 <FormControl>
                   <Input {...field} />
@@ -522,12 +545,13 @@ export const InnerEvalTemplateForm = (props: {
           loading={createEvalTemplateMutation.isPending}
           className="max-w-fit"
         >
-          Save
+          {t("common.actions.save")}
         </Button>
       )}
       {formError ? (
         <p className="text-red w-full text-center">
-          <span className="font-bold">Error:</span> {formError}
+          <span className="font-bold">{t("common.errors.error")}</span>{" "}
+          {formError}
         </p>
       ) : null}
     </div>

@@ -8,8 +8,10 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
+import { useTranslation } from "react-i18next";
 
 export default function Traces() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -32,10 +34,9 @@ export default function Traces() {
   return (
     <Page
       headerProps={{
-        title: "Tracing",
+        title: t("tracing.trace.pages.title"),
         help: {
-          description:
-            "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+          description: t("tracing.trace.pages.description"),
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps: {

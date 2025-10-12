@@ -1,4 +1,5 @@
 import { api } from "@/src/utils/api";
+import { useTranslation } from "react-i18next";
 
 import { ImageOff } from "lucide-react";
 import {
@@ -22,6 +23,7 @@ export const LangfuseMediaView = ({
   mediaAPIReturnValue?: MediaReturnType;
   asFileIcon?: boolean;
 }) => {
+  const { t } = useTranslation();
   let mediaData: { id: string; type: MediaContentType } | null = null;
 
   const projectId = useProjectIdFromURL();
@@ -49,10 +51,12 @@ export const LangfuseMediaView = ({
   if (!mediaData)
     return (
       <div className="flex items-center gap-2">
-        <span title="Invalid Langfuse Media Tag">
+        <span title={t("common.media.invalidLangfuseMediaTag")}>
           <ImageOff className="h-4 w-4" />
         </span>
-        <span className="truncate text-sm">Invalid Langfuse Media Tag</span>
+        <span className="truncate text-sm">
+          {t("common.media.invalidLangfuseMediaTag")}
+        </span>
       </div>
     );
 

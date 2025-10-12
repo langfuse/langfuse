@@ -8,6 +8,8 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
+import "@/src/i18n";
+
 import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
 
@@ -38,6 +40,8 @@ import PlainChat, {
   chatSetCustomer,
   chatSetThreadDetails,
 } from "@/src/features/support-chat/PlainChat";
+import { changeLanguage } from "@/src/i18n";
+import { useTranslation } from "react-i18next";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -69,6 +73,14 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    const initializeLanguage = async () => {
+      await changeLanguage(i18n.language);
+    };
+    initializeLanguage();
+  }, [i18n.language]);
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)

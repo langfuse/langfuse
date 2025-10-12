@@ -25,8 +25,12 @@ export function formatMetricName(metricName: string): string {
 /**
  * Formats multiple metric names for display, showing first 3 and "+ X more" if needed
  */
-export function formatMultipleMetricNames(metricNames: string[]): string {
-  if (metricNames.length === 0) return "No Metrics";
+export function formatMultipleMetricNames(
+  metricNames: string[],
+  t?: (key: string) => string,
+): string {
+  if (metricNames.length === 0)
+    return t ? t("widget.metrics.noMetrics") : "No Metrics";
   if (metricNames.length === 1) return formatMetricName(metricNames[0]);
 
   const formattedNames = metricNames.map(formatMetricName);

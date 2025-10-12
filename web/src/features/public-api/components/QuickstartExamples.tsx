@@ -8,12 +8,13 @@ import {
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import Link from "next/link";
+import { useTranslation } from "react-i18next";
 
 export const QuickstartExamples = (p: {
   secretKey?: string;
   publicKey?: string;
 }) => {
+  const { t } = useTranslation();
   const uiCustomization = useUiCustomization();
   const capture = usePostHogClientCapture();
   const tabs = [
@@ -22,7 +23,7 @@ export const QuickstartExamples = (p: {
     { value: "openai", label: "OpenAI" },
     { value: "langchain", label: "Langchain" },
     { value: "langchain-js", label: "Langchain JS" },
-    { value: "other", label: "Other" },
+    { value: "other", label: t("project.settings.apiKeys.other") },
   ];
   const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 
@@ -33,15 +34,7 @@ export const QuickstartExamples = (p: {
   if (uiCustomization?.documentationHref) {
     return (
       <p className="mb-2">
-        See your{" "}
-        <Link
-          href={uiCustomization.documentationHref}
-          target="_blank"
-          className="underline"
-        >
-          internal documentation
-        </Link>{" "}
-        for details on how to set up Langfuse in your organization.
+        {t("project.settings.apiKeys.quickstartExamples.internalDocumentation")}
       </p>
     );
   }
@@ -72,25 +65,7 @@ export const QuickstartExamples = (p: {
             content={`from langfuse import Langfuse\n\nlangfuse = Langfuse(\n  secret_key="${secretKey}",\n  public_key="${publicKey}",\n  host="${host}"\n)`}
           />
           <p className="mt-3 text-xs text-muted-foreground">
-            See{" "}
-            <a
-              href="https://langfuse.com/docs/observability/get-started"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Quickstart
-            </a>{" "}
-            and{" "}
-            <a
-              href="https://langfuse.com/docs/sdk/python"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Python docs
-            </a>{" "}
-            for more details and an end-to-end example.
+            {t("project.settings.apiKeys.quickstartExamples.quickstartPython")}
           </p>
         </TabsContent>
         <TabsContent value="js">
@@ -99,32 +74,12 @@ export const QuickstartExamples = (p: {
             content={`import { Langfuse } from "langfuse";\n\nconst langfuse = new Langfuse({\n  secretKey: "${secretKey}",\n  publicKey: "${publicKey}",\n  baseUrl: "${host}"\n});`}
           />
           <p className="mt-3 text-xs text-muted-foreground">
-            See{" "}
-            <a
-              href="https://langfuse.com/docs/observability/get-started"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Quickstart
-            </a>{" "}
-            and{" "}
-            <a
-              href="https://langfuse.com/docs/sdk/typescript"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              JS/TS docs
-            </a>{" "}
-            for more details and an end-to-end example.
+            {t("project.settings.apiKeys.quickstartExamples.quickstartJs")}
           </p>
         </TabsContent>
         <TabsContent value="openai">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration is a drop-in replacement for the OpenAI Python SDK.
-            By changing the import, Langfuse will capture all LLM calls and send
-            them to Langfuse asynchronously.
+            {t("project.settings.apiKeys.quickstartExamples.openaiIntegration")}
           </p>
           <CodeView content="pip install langfuse" className="my-2" />
           <CodeView
@@ -137,22 +92,14 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Use the OpenAI SDK as you would normally. See the{" "}
-            <a
-              href="https://langfuse.com/integrations/model-providers/openai-py"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              OpenAI Integration docs
-            </a>{" "}
-            for more details and an end-to-end example.
+            {t("project.settings.apiKeys.quickstartExamples.openaiUsage")}
           </p>
         </TabsContent>
         <TabsContent value="langchain">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration uses the Langchain callback system to automatically
-            capture detailed traces of your Langchain executions.
+            {t(
+              "project.settings.apiKeys.quickstartExamples.langchainIntegration",
+            )}
           </p>
           <CodeView content="pip install langfuse" className="my-2" />
           <CodeView
@@ -160,22 +107,14 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            See the{" "}
-            <a
-              href="https://langfuse.com/integrations/frameworks/langchain"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Langchain Integration docs
-            </a>{" "}
-            for more details and an end-to-end example.
+            {t("project.settings.apiKeys.quickstartExamples.langchainDocs")}
           </p>
         </TabsContent>
         <TabsContent value="langchain-js">
           <p className="mt-2 text-xs text-muted-foreground">
-            The integration uses the Langchain callback system to automatically
-            capture detailed traces of your Langchain executions.
+            {t(
+              "project.settings.apiKeys.quickstartExamples.langchainIntegration",
+            )}
           </p>
           <CodeView content="npm install langfuse-langchain" className="my-2" />
           <CodeView
@@ -183,71 +122,17 @@ export const QuickstartExamples = (p: {
             className="my-2"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            See the{" "}
-            <a
-              href="https://langfuse.com/integrations/frameworks/langchain"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Langchain Integration docs
-            </a>{" "}
-            for more details and an end-to-end example.
+            {t("project.settings.apiKeys.quickstartExamples.langchainDocs")}
           </p>
         </TabsContent>
         <TabsContent value="other">
           <p className="mt-2 text-xs text-muted-foreground">
-            Use the{" "}
-            <a
-              href="https://api.reference.langfuse.com/"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              API
-            </a>{" "}
-            or one of the{" "}
-            <a
-              href="https://langfuse.com/docs/integrations"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              native integrations
-            </a>{" "}
-            (e.g. LiteLLM, Flowise, and Langflow) to integrate with Langfuse.
+            {t("project.settings.apiKeys.quickstartExamples.otherIntegrations")}
           </p>
         </TabsContent>
       </Tabs>
       <span className="mt-4 text-xs text-muted-foreground">
-        Do you have questions or issues? Check out this{" "}
-        <a
-          href="https://langfuse.com/faq/all/missing-traces"
-          className="underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          FAQ post
-        </a>{" "}
-        for common resolutions,{" "}
-        <Link
-          className="underline"
-          href="https://langfuse.com/docs/ask-ai"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Ask AI
-        </Link>{" "}
-        or{" "}
-        <Link
-          className="underline"
-          href="https://langfuse.com/support"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          get support
-        </Link>
-        .
+        {t("project.settings.apiKeys.quickstartExamples.supportInfo")}
       </span>
     </div>
   );

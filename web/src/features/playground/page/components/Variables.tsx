@@ -1,18 +1,17 @@
 import { Divider } from "@tremor/react";
+import { useTranslation } from "react-i18next";
 
 import { usePlaygroundContext } from "../context";
 import { PromptVariableComponent } from "./PromptVariableComponent";
 
 export const Variables = () => {
+  const { t } = useTranslation();
   const { promptVariables } = usePlaygroundContext();
 
   const renderNoVariables = () => (
     <div className="text-xs">
-      <p className="mb-2">No variables defined.</p>
-      <p>
-        Use handlebars in your prompts to add a variable:
-        &#123;&#123;exampleVariable&#125;&#125;
-      </p>
+      <p className="mb-2">{t("playground.noVariablesDefined")}</p>
+      <p>{t("playground.useHandlebarsToAddVariable")}</p>
     </div>
   );
 

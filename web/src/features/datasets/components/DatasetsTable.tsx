@@ -31,6 +31,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTranslation } from "react-i18next";
 
 type RowData = {
   key: {
@@ -46,6 +47,7 @@ type RowData = {
 };
 
 export function DatasetsTable(props: { projectId: string }) {
+  const { t } = useTranslation();
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
   const [paginationState, setPaginationState] = useQueryParams({
@@ -88,7 +90,7 @@ export function DatasetsTable(props: { projectId: string }) {
   const columns: LangfuseColumnDef<RowData>[] = [
     {
       accessorKey: "key",
-      header: "Name",
+      header: t("dataset.table.name"),
       id: "key",
       size: 150,
       isPinned: true,
@@ -104,7 +106,7 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "description",
-      header: "Description",
+      header: t("dataset.table.description"),
       id: "description",
       enableHiding: true,
       size: 200,
@@ -119,21 +121,21 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "countItems",
-      header: "Items",
+      header: t("dataset.table.items"),
       id: "countItems",
       enableHiding: true,
       size: 60,
     },
     {
       accessorKey: "countRuns",
-      header: "Runs",
+      header: t("common.table.runs"),
       id: "countRuns",
       enableHiding: true,
       size: 60,
     },
     {
       accessorKey: "createdAt",
-      header: "Created",
+      header: t("common.batchExports.created"),
       id: "createdAt",
       enableHiding: true,
       size: 150,
@@ -144,7 +146,7 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "lastRunAt",
-      header: "Last Run",
+      header: t("dataset.table.lastRun"),
       id: "lastRunAt",
       enableHiding: true,
       size: 150,
@@ -155,7 +157,7 @@ export function DatasetsTable(props: { projectId: string }) {
     },
     {
       accessorKey: "metadata",
-      header: "Metadata",
+      header: t("dataset.table.metadata"),
       id: "metadata",
       enableHiding: true,
       size: 300,
@@ -169,7 +171,7 @@ export function DatasetsTable(props: { projectId: string }) {
     {
       id: "actions",
       accessorKey: "actions",
-      header: "Actions",
+      header: t("dataset.table.actions"),
       size: 70,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
@@ -177,7 +179,7 @@ export function DatasetsTable(props: { projectId: string }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">{t("dataset.table.openMenu")}</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -185,7 +187,9 @@ export function DatasetsTable(props: { projectId: string }) {
               align="end"
               className="flex flex-col [&>*]:w-full [&>*]:justify-start"
             >
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                {t("dataset.table.actions")}
+              </DropdownMenuLabel>
               <DropdownMenuItem asChild>
                 <DatasetActionButton
                   mode="update"

@@ -9,8 +9,10 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useTranslation } from "react-i18next";
 
 export function DeletePrompt({ promptName }: { promptName: string }) {
+  const { t } = useTranslation();
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
@@ -30,14 +32,15 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="text-md mb-3 font-semibold">
+          {t("common.confirmations.pleaseConfirm")}
+        </h2>
         <p className="mb-3 text-sm">
-          This action permanently deletes this prompt. All requests to fetch
-          prompt{" "}
+          {t("prompt.delete.confirmMessage")}{" "}
           <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
             {promptName}
           </code>{" "}
-          will error.
+          {t("prompt.delete.willError")}.
         </p>
         <div className="flex justify-end space-x-4">
           <Button
@@ -57,7 +60,7 @@ export function DeletePrompt({ promptName }: { promptName: string }) {
               setIsOpen(false);
             }}
           >
-            Delete Prompt
+            {t("prompt.delete.button")}
           </Button>
         </div>
       </PopoverContent>

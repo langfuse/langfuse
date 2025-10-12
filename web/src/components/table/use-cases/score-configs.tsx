@@ -30,6 +30,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { useTranslation } from "react-i18next";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -72,6 +73,7 @@ function getConfigRange(
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
@@ -105,20 +107,20 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "name",
       id: "name",
-      header: "Name",
+      header: t("project.settings.scores.name"),
       enableHiding: true,
     },
     {
       accessorKey: "dataType",
       id: "dataType",
-      header: "Data Type",
+      header: t("project.settings.scores.dataType"),
       size: 80,
       enableHiding: true,
     },
     {
       accessorKey: "range",
       id: "range",
-      header: "Range",
+      header: t("project.settings.scores.range"),
       enableHiding: true,
       size: 300,
       cell: ({ row }) => {
@@ -132,7 +134,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "description",
       id: "description",
-      header: "Description",
+      header: t("project.settings.scores.description"),
       enableHiding: true,
       cell: ({ row }) => {
         const value = row.original.description;
@@ -159,17 +161,19 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "isArchived",
       id: "isArchived",
-      header: "Status",
+      header: t("project.settings.scores.status"),
       size: 80,
       enableHiding: true,
       cell: ({ row }) => {
         const { isArchived } = row.original;
-        return isArchived ? "Archived" : "Active";
+        return isArchived
+          ? t("project.settings.scores.archived")
+          : t("project.settings.scores.active");
       },
     },
     {
       accessorKey: "action",
-      header: "Action",
+      header: t("project.settings.scores.action"),
       size: 70,
       isPinned: true,
       enableHiding: true,

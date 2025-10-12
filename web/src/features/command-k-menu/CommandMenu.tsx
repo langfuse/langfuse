@@ -19,12 +19,14 @@ import { useOrganizationSettingsPages } from "@/src/pages/organization/[organiza
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
+import { useTranslation } from "react-i18next";
 
 export function CommandMenu({
   mainNavigation,
 }: {
   mainNavigation: NavigationItem[];
 }) {
+  const { t } = useTranslation();
   const { open, setOpen } = useCommandMenu();
   const router = useRouter();
   const { allProjectItems } = useNavigationItems();
@@ -35,7 +37,7 @@ export function CommandMenu({
   const projectSettingsItems = settingsPages
     .filter((page) => page.show !== false && !("href" in page))
     .map((page) => ({
-      title: `Project Settings > ${page.title}`,
+      title: `${t("common.commandMenu.projectSettingsPrefix")} ${page.title}`,
       url: `/project/${project?.id}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
       keywords: page.cmdKKeywords || [],
     }));
@@ -43,7 +45,7 @@ export function CommandMenu({
   const orgSettingsItems = orgSettingsPages
     .filter((page) => page.show !== false && !("href" in page))
     .map((page) => ({
-      title: `Organization Settings > ${page.title}`,
+      title: `${t("common.commandMenu.organizationSettingsPrefix")} ${page.title}`,
       url: `/organization/${organization?.id}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
       keywords: page.cmdKKeywords || [],
     }));
@@ -99,7 +101,7 @@ export function CommandMenu({
 
   const dashboardItems =
     dashboardsQuery.data?.dashboards.map((d) => ({
-      title: `Dashboard > ${d.name}`,
+      title: `${t("common.commandMenu.dashboardPrefix")} ${d.name}`,
       url: `/project/${project?.id}/dashboards/${d.id}`,
       keywords: [
         "dashboard",
@@ -140,13 +142,13 @@ export function CommandMenu({
       }}
     >
       <CommandInput
-        placeholder="Type a command or search..."
+        placeholder={t("common.commandMenu.placeholder")}
         className="border-none focus:border-none focus:outline-none focus:ring-0 focus:ring-transparent"
         onValueChange={debouncedSearchChange}
       />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        <CommandGroup heading="Main Navigation">
+        <CommandEmpty>{t("common.commandMenu.noResultsFound")}</CommandEmpty>
+        <CommandGroup heading={t("common.commandMenu.mainNavigation")}>
           {navItems.map((item) => (
             <CommandItem
               key={item.url}
@@ -169,7 +171,7 @@ export function CommandMenu({
         {allProjectItems.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Projects">
+            <CommandGroup heading={t("common.commandMenu.projects")}>
               {allProjectItems.map((item) => (
                 <CommandItem
                   key={item.url}
@@ -195,7 +197,7 @@ export function CommandMenu({
         {dashboardItems.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Dashboards">
+            <CommandGroup heading={t("common.commandMenu.dashboards")}>
               {dashboardItems.map((item) => (
                 <CommandItem
                   key={item.url}
@@ -221,7 +223,7 @@ export function CommandMenu({
         {projectSettingsItems.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Project Settings">
+            <CommandGroup heading={t("common.commandMenu.projectSettings")}>
               {projectSettingsItems.map((item) => (
                 <CommandItem
                   key={item.url}
@@ -246,7 +248,9 @@ export function CommandMenu({
         {orgSettingsItems.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Organization Settings">
+            <CommandGroup
+              heading={t("common.commandMenu.organizationSettings")}
+            >
               {orgSettingsItems.map((item) => (
                 <CommandItem
                   key={item.url}

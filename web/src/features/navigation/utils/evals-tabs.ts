@@ -5,15 +5,17 @@ export const EVALS_TABS = {
 
 export type EvalsTab = (typeof EVALS_TABS)[keyof typeof EVALS_TABS];
 
-export const getEvalsTabs = (projectId: string) => [
-  {
-    value: EVALS_TABS.CONFIGS,
-    label: "Running Evaluators",
-    href: `/project/${projectId}/evals`,
-  },
-  {
-    value: EVALS_TABS.TEMPLATES,
-    label: "Evaluator Library",
-    href: `/project/${projectId}/evals/templates`,
-  },
-];
+export const getEvalsTabs = (projectId: string, t: (key: string) => string) => {
+  return [
+    {
+      value: EVALS_TABS.CONFIGS,
+      label: t("evaluation.eval.tabs.runningEvaluators"),
+      href: `/project/${projectId}/evals`,
+    },
+    {
+      value: EVALS_TABS.TEMPLATES,
+      label: t("evaluation.eval.tabs.evaluatorLibrary"),
+      href: `/project/${projectId}/evals/templates`,
+    },
+  ];
+};

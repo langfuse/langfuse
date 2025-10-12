@@ -15,6 +15,7 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useTranslation } from "react-i18next";
 
 const dropValuesForCategoricalScores = (
   value: number,
@@ -47,6 +48,7 @@ export const ScoresTable = ({
   globalFilterState: FilterState;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const localFilters = createTracesTimeFilter(
     globalFilterState,
     "scoreTimestamp",
@@ -183,7 +185,7 @@ export const ScoresTable = ({
   return (
     <DashboardCard
       className={className}
-      title="Scores"
+      title={t("dashboard.cards.scores.title")}
       isLoading={
         isLoading ||
         metrics.isPending ||
@@ -193,9 +195,11 @@ export const ScoresTable = ({
     >
       <DashboardTable
         headers={[
-          "Name",
+          t("dashboard.cards.scores.name"),
           <RightAlignedCell key="count">#</RightAlignedCell>,
-          <RightAlignedCell key="average">Avg</RightAlignedCell>,
+          <RightAlignedCell key="average">
+            {t("dashboard.cards.scores.avg")}
+          </RightAlignedCell>,
           <RightAlignedCell key="zero">0</RightAlignedCell>,
           <RightAlignedCell key="one">1</RightAlignedCell>,
         ]}
@@ -237,7 +241,7 @@ export const ScoresTable = ({
       >
         <TotalMetric
           metric={totalScores ? compactNumberFormatter(totalScores) : "0"}
-          description="Total scores tracked"
+          description={t("dashboard.cards.scores.description")}
         />
       </DashboardTable>
     </DashboardCard>

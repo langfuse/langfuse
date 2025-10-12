@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import { useTranslation } from "react-i18next";
 
 const regions =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -60,6 +61,7 @@ export function CloudRegionSwitch({
 }: {
   isSignUpPage?: boolean;
 }) {
+  const { t } = useTranslation();
   const capture = usePostHogClientCapture();
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
@@ -73,12 +75,12 @@ export function CloudRegionSwitch({
       <div className="flex w-full flex-col gap-2">
         <div>
           <span className="text-sm font-medium leading-none">
-            Data Region
+            {t("auth.dataRegion.label")}
             <DataRegionInfo />
           </span>
           {isSignUpPage && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ? (
             <p className="text-xs text-muted-foreground">
-              Demo project is only available in the EU region.
+              {t("auth.dataRegion.demoProjectNote")}
             </p>
           ) : null}
         </div>
@@ -118,53 +120,49 @@ export function CloudRegionSwitch({
   );
 }
 
-const DataRegionInfo = () => (
-  <Dialog>
-    <DialogTrigger asChild>
-      <a
-        href="#"
-        className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
-        title="What is this?"
-        tabIndex={-1}
-      >
-        (what is this?)
-      </a>
-    </DialogTrigger>
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Data Regions</DialogTitle>
-      </DialogHeader>
-      <DialogBody>
-        <DialogDescription className="flex flex-col gap-2">
-          <p>Langfuse Cloud is available in two data regions:</p>
-          <ul className="list-disc pl-5">
-            <li>US: Oregon (AWS us-west-2)</li>
-            <li>EU: Ireland (AWS eu-west-1)</li>
-          </ul>
-          <p>
-            Regions are strictly separated, and no data is shared across
-            regions. Choosing a region close to you can help improve speed and
-            comply with local data residency laws and privacy regulations.
-            Contact us to onboard into a HIPAA compliant region.
-          </p>
-          <p>
-            You can have accounts in both regions and data migrations are
-            available on Team plans.
-          </p>
-          <p>
-            For more information, visit{" "}
-            <a
-              href="https://langfuse.com/docs/data-security-privacy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary-accent underline"
-            >
-              langfuse.com/security
-            </a>
-            .
-          </p>
-        </DialogDescription>
-      </DialogBody>
-    </DialogContent>
-  </Dialog>
-);
+const DataRegionInfo = () => {
+  const { t } = useTranslation();
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <a
+          href="#"
+          className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+          title={t("auth.dataRegion.whatIsThis")}
+          tabIndex={-1}
+        >
+          {t("auth.dataRegion.whatIsThis")}
+        </a>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("auth.dataRegion.title")}</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <DialogDescription className="flex flex-col gap-2">
+            <p>{t("auth.dataRegion.description")}</p>
+            <ul className="list-disc pl-5">
+              <li>{t("auth.dataRegion.usRegion")}</li>
+              <li>{t("auth.dataRegion.euRegion")}</li>
+            </ul>
+            <p>{t("auth.dataRegion.regionsInfo")}</p>
+            <p>{t("auth.dataRegion.accountsInfo")}</p>
+            <p>
+              {t("auth.dataRegion.moreInfo")}{" "}
+              <a
+                href="https://langfuse.com/docs/data-security-privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-accent underline"
+              >
+                {t("auth.dataRegion.securityLink")}
+              </a>
+              .
+            </p>
+          </DialogDescription>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+};

@@ -15,54 +15,53 @@ import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type RouterOutput } from "@/src/utils/types";
+import { useTranslation } from "react-i18next";
 
-const formSchema = z.object({
-  input: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  expectedOutput: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  metadata: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-});
+const createFormSchema = (t: (key: string) => string) =>
+  z.object({
+    input: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      {
+        message: t("dataset.validation.invalidInputJson"),
+      },
+    ),
+    expectedOutput: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      {
+        message: t("dataset.validation.invalidInputJson"),
+      },
+    ),
+    metadata: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      {
+        message: t("dataset.validation.invalidInputJson"),
+      },
+    ),
+  });
 
 export const EditDatasetItem = ({
   projectId,
@@ -71,6 +70,7 @@ export const EditDatasetItem = ({
   projectId: string;
   datasetItem: RouterOutput["datasets"]["itemById"];
 }) => {
+  const { t } = useTranslation();
   const [formError, setFormError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const hasAccess = useHasProjectAccess({
@@ -97,7 +97,7 @@ export const EditDatasetItem = ({
   }, [datasetItem?.id]);
 
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(createFormSchema(t)),
     defaultValues: {
       input: "",
       expectedOutput: "",
@@ -110,7 +110,7 @@ export const EditDatasetItem = ({
     onError: (error) => setFormError(error.message),
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<ReturnType<typeof createFormSchema>>) {
     if (!!!datasetItem) return;
     updateDatasetItemMutation.mutate({
       projectId: projectId,
@@ -135,7 +135,8 @@ export const EditDatasetItem = ({
           <div className="flex items-center justify-end gap-4">
             {formError ? (
               <p className="text-red text-center">
-                <span className="font-bold">Error:</span> {formError}
+                <span className="font-bold">{t("common.errors.error")}</span>{" "}
+                {formError}
               </p>
             ) : null}
             <Button
@@ -144,7 +145,9 @@ export const EditDatasetItem = ({
               disabled={!hasChanges || !hasAccess}
               variant={hasChanges ? "default" : "ghost"}
             >
-              {hasChanges ? "Save changes" : "Saved"}
+              {hasChanges
+                ? t("dataset.actions.saveChanges")
+                : t("dataset.actions.saved")}
             </Button>
           </div>
           <div className="ph-no-capture flex-1 overflow-auto">
@@ -155,7 +158,7 @@ export const EditDatasetItem = ({
                   name="input"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Input</FormLabel>
+                      <FormLabel>{t("dataset.form.input")}</FormLabel>
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
@@ -177,7 +180,7 @@ export const EditDatasetItem = ({
                   name="expectedOutput"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Expected output</FormLabel>
+                      <FormLabel>{t("dataset.form.expectedOutput")}</FormLabel>
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
@@ -200,7 +203,7 @@ export const EditDatasetItem = ({
                 name="metadata"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Metadata</FormLabel>
+                    <FormLabel>{t("dataset.form.metadata")}</FormLabel>
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"

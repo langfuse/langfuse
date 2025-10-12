@@ -20,6 +20,7 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Flex, Text } from "@tremor/react";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { useTranslation } from "react-i18next";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -30,6 +31,7 @@ export function ScoreAnalytics(props: {
   projectId: string;
   isLoading?: boolean;
 }) {
+  const { t } = useTranslation();
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
     useLocalStorage<string[]>(
@@ -77,8 +79,8 @@ export function ScoreAnalytics(props: {
   return (
     <DashboardCard
       className={props.className}
-      title="Scores Analytics"
-      description="Aggregate scores and averages over time"
+      title={t("dashboard.scoreAnalytics.title")}
+      description={t("dashboard.scoreAnalytics.description")}
       isLoading={props.isLoading || scoreKeysAndProps.isPending}
       headerClassName={"grid grid-cols-[1fr,auto,auto] items-center"}
       headerChildren={
@@ -86,7 +88,7 @@ export function ScoreAnalytics(props: {
         !props.isLoading &&
         Boolean(scoreKeysAndProps.data?.length) && (
           <MultiSelectKeyValues
-            placeholder="Search score..."
+            placeholder={t("dashboard.scoreAnalytics.searchScore")}
             onValueChange={(values, changedValueId, selectedValueKeys) => {
               if (values.length === 0) setSelectedDashboardScoreKeys([]);
 
@@ -126,9 +128,13 @@ export function ScoreAnalytics(props: {
                   {/* aggregate */}
                   <div>
                     <div className="mb-2 text-sm text-muted-foreground">
-                      Total aggregate scores
+                      {t("dashboard.scoreAnalytics.totalAggregateScores")}
                       {isNumericDataType(dataType) && (
-                        <DocPopup description="Aggregate of up to 10,000 scores" />
+                        <DocPopup
+                          description={t(
+                            "dashboard.scoreAnalytics.aggregateDescription",
+                          )}
+                        />
                       )}
                     </div>
                     {isCategoricalDataType(dataType) && (
@@ -155,8 +161,8 @@ export function ScoreAnalytics(props: {
                   <div>
                     <div className="mb-2 text-sm text-muted-foreground">
                       {isNumericDataType(dataType)
-                        ? "Moving average over time"
-                        : "Scores over time"}
+                        ? t("dashboard.scoreAnalytics.movingAverageOverTime")
+                        : t("dashboard.scoreAnalytics.scoresOverTime")}
                     </div>
                     {isCategoricalDataType(dataType) && (
                       <CategoricalScoreChart
@@ -197,7 +203,7 @@ export function ScoreAnalytics(props: {
           className="min-h-[9rem] w-full flex-1 rounded-tremor-default border"
         >
           <Text className="text-tremor-content">
-            Select a score to view analytics
+            {t("dashboard.scoreAnalytics.selectScoreToViewAnalytics")}
           </Text>
         </Flex>
       ) : (

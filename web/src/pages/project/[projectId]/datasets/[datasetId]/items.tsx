@@ -20,8 +20,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
+import { useTranslation } from "react-i18next";
 
 export default function DatasetItems() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -42,7 +44,10 @@ export default function DatasetItems() {
             }
           : undefined,
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          {
+            name: t("dataset.pages.title"),
+            href: `/project/${projectId}/datasets`,
+          },
         ],
         tabsProps: {
           tabs: getDatasetTabs(projectId, datasetId),

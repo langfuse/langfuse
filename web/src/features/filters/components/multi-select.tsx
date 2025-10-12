@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -54,6 +55,7 @@ export function MultiSelect({
   isCustomSelectEnabled?: boolean;
   labelTruncateCutOff?: number;
 }) {
+  const { t } = useTranslation();
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
   const freeTextInput = getFreeTextInput(
@@ -135,7 +137,7 @@ export function MultiSelect({
           )}
           disabled={disabled}
         >
-          {label ?? "Select"}
+          {label ?? t("common.select.select")}
           <ChevronDown className="h-4 w-4 opacity-50" />
           {selectedValues.size > 0 && (
             <>
@@ -152,7 +154,9 @@ export function MultiSelect({
                     variant="secondary"
                     className="rounded-sm px-1 font-normal"
                   >
-                    {selectedValues.size} selected
+                    {t("common.select.selected", {
+                      count: selectedValues.size,
+                    })}
                   </Badge>
                 ) : (
                   getSelectedOptions().map((option) => (
@@ -176,7 +180,9 @@ export function MultiSelect({
           <InputCommandList>
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
             {!isCustomSelectEnabled && (
-              <InputCommandEmpty>No results found.</InputCommandEmpty>
+              <InputCommandEmpty>
+                {t("common.select.noResultsFound")}
+              </InputCommandEmpty>
             )}
             <InputCommandGroup>
               {selectableOptions.length > 0 && (
@@ -193,7 +199,9 @@ export function MultiSelect({
                       <Check className={cn("h-4 w-4")} />
                     </div>
                     <div className="font-medium">
-                      {allSelectedState ? "Deselect All" : "Select All"}
+                      {allSelectedState
+                        ? t("common.select.deselectAll")
+                        : t("common.select.selectAll")}
                     </div>
                   </InputCommandItem>
                   <InputCommandSeparator />
@@ -305,7 +313,7 @@ export function MultiSelect({
                     onClick={(e) => {
                       e.stopPropagation();
                     }}
-                    placeholder="Enter custom value"
+                    placeholder={t("common.select.enterCustomValue")}
                     className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dotted p-0 text-sm"
                   />
                 </InputCommandItem>
@@ -319,7 +327,7 @@ export function MultiSelect({
                     onSelect={() => onValueChange([])}
                     className="justify-center text-center"
                   >
-                    Clear filters
+                    {t("common.select.clearFilters")}
                   </InputCommandItem>
                 </InputCommandGroup>
               </>

@@ -3,8 +3,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { AuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslation } from "react-i18next";
 
 export function AuditLogsSettingsPage(props: { projectId: string }) {
+  const { t } = useTranslation();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "auditLogs:read",
@@ -13,8 +15,7 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
 
   const body = !hasEntitlement ? (
     <p className="text-sm text-muted-foreground">
-      Audit logs are an Enterprise feature. Upgrade your plan to track all
-      changes made to your project.
+      {t("ee.auditLogs.enterpriseFeature")}
     </p>
   ) : !hasAccess ? (
     <Alert>
@@ -29,11 +30,9 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
 
   return (
     <>
-      <Header title="Audit Logs" />
+      <Header title={t("ee.auditLogs.title")} />
       <p className="mb-2 text-sm text-muted-foreground">
-        Track who changed what in your project and when. Monitor settings,
-        configurations, and data changes over time. Reach out to the Langfuse
-        team if you require more detailed/filtered audit logs.
+        {t("ee.auditLogs.description")}
       </p>
       {body}
     </>

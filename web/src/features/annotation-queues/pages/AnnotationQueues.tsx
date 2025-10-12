@@ -6,8 +6,10 @@ import Page from "@/src/components/layouts/page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+import { useTranslation } from "react-i18next";
 
 export default function AnnotationQueues() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const hasAccess = useHasProjectAccess({
@@ -36,10 +38,9 @@ export default function AnnotationQueues() {
   return (
     <Page
       headerProps={{
-        title: "Annotation Queues",
+        title: t("annotation-queue.item.annotationQueues"),
         help: {
-          description:
-            "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
+          description: t("annotation-queue.queuesTable.noQueuesDescription"),
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
         },
         actionButtonsRight: (

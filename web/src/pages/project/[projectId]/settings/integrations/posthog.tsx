@@ -27,8 +27,10 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod/v4";
+import { useTranslation } from "react-i18next";
 
 export default function PosthogIntegrationSettings() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -53,9 +55,12 @@ export default function PosthogIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "PostHog Integration",
+        title: t("project.settings.integrations.posthog.title"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("common.labels.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
@@ -68,15 +73,7 @@ export default function PosthogIntegrationSettings() {
       }}
     >
       <p className="mb-4 text-sm text-primary">
-        We have teamed up with{" "}
-        <Link href="https://posthog.com" className="underline">
-          PostHog
-        </Link>{" "}
-        (OSS product analytics) to make Langfuse events/metrics available in
-        your PostHog dashboards. Upon activation, all historical data from your
-        project will be synced. After the initial sync, new data is
-        automatically synced every hour to keep your PostHog dashboards up to
-        date.
+        {t("project.settings.integrations.posthog.description")}
       </p>
       {!hasAccess && (
         <p className="text-sm">
@@ -86,7 +83,9 @@ export default function PosthogIntegrationSettings() {
       )}
       {hasAccess && (
         <>
-          <Header title="Configuration" />
+          <Header
+            title={t("project.settings.integrations.posthog.configuration")}
+          />
           <Card className="p-3">
             <PostHogLogo className="mb-4 w-36 text-foreground" />
             <PostHogIntegrationSettings
@@ -99,7 +98,10 @@ export default function PosthogIntegrationSettings() {
       )}
       {state.data?.enabled && (
         <>
-          <Header title="Status" className="mt-8" />
+          <Header
+            title={t("project.settings.integrations.posthog.statusLabel")}
+            className="mt-8"
+          />
           <p className="text-sm text-primary">
             Data synced until:{" "}
             {state.data?.lastSyncAt
@@ -175,13 +177,14 @@ const PostHogIntegrationSettings = ({
           name="posthogHostname"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Posthog Hostname</FormLabel>
+              <FormLabel>
+                {t("project.settings.integrations.posthog.hostname")}
+              </FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                US region: https://us.posthog.com; EU region:
-                https://eu.posthog.com
+                {t("project.settings.integrations.posthog.hostnameHint")}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -192,7 +195,9 @@ const PostHogIntegrationSettings = ({
           name="posthogProjectApiKey"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Posthog Project API Key</FormLabel>
+              <FormLabel>
+                {t("project.settings.integrations.posthog.projectApiKey")}
+              </FormLabel>
               <FormControl>
                 <PasswordInput {...field} />
               </FormControl>
@@ -205,7 +210,9 @@ const PostHogIntegrationSettings = ({
           name="enabled"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Enabled</FormLabel>
+              <FormLabel>
+                {t("project.settings.integrations.posthog.enabled")}
+              </FormLabel>
               <FormControl>
                 <Switch
                   id="posthog-integration-enabled"
@@ -227,7 +234,7 @@ const PostHogIntegrationSettings = ({
           onClick={posthogForm.handleSubmit(onSubmit)}
           disabled={isLoading}
         >
-          Save
+          {t("project.settings.integrations.posthog.save")}
         </Button>
         <Button
           variant="ghost"
@@ -242,7 +249,7 @@ const PostHogIntegrationSettings = ({
               mutDelete.mutate({ projectId });
           }}
         >
-          Reset
+          {t("project.settings.integrations.posthog.reset")}
         </Button>
       </div>
     </Form>

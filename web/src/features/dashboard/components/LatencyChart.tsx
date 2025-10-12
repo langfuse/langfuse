@@ -23,6 +23,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { useTranslation } from "react-i18next";
 
 export const GenerationLatencyChart = ({
   className,
@@ -41,6 +42,7 @@ export const GenerationLatencyChart = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const {
     allModels,
     selectedModels,
@@ -123,23 +125,23 @@ export const GenerationLatencyChart = ({
 
   const data = [
     {
-      tabTitle: "50th Percentile",
+      tabTitle: t("dashboard.modelLatencies.percentiles.p50"),
       data: getData("p50_latency"),
     },
     {
-      tabTitle: "75th Percentile",
+      tabTitle: t("dashboard.modelLatencies.percentiles.p75"),
       data: getData("p75_latency"),
     },
     {
-      tabTitle: "90th Percentile",
+      tabTitle: t("dashboard.modelLatencies.percentiles.p90"),
       data: getData("p90_latency"),
     },
     {
-      tabTitle: "95th Percentile",
+      tabTitle: t("dashboard.modelLatencies.percentiles.p95"),
       data: getData("p95_latency"),
     },
     {
-      tabTitle: "99th Percentile",
+      tabTitle: t("dashboard.modelLatencies.percentiles.p99"),
       data: getData("p99_latency"),
     },
   ];
@@ -147,8 +149,8 @@ export const GenerationLatencyChart = ({
   return (
     <DashboardCard
       className={className}
-      title="Model latencies"
-      description="Latencies (seconds) per LLM generation"
+      title={t("dashboard.modelLatencies.title")}
+      description={t("dashboard.modelLatencies.subtitle")}
       isLoading={
         isLoading || (latencies.isPending && selectedModels.length > 0)
       }

@@ -14,6 +14,7 @@ import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useTranslation } from "react-i18next";
 
 interface EditDashboardDialogProps {
   open: boolean;
@@ -32,6 +33,7 @@ export function EditDashboardDialog({
   initialName,
   initialDescription,
 }: EditDashboardDialogProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const utils = api.useUtils();
@@ -40,19 +42,22 @@ export function EditDashboardDialog({
     onSuccess: () => {
       void utils.dashboard.invalidate();
       showSuccessToast({
-        title: "Dashboard updated",
-        description: "The dashboard has been updated successfully",
+        title: t("dashboard.actions.updated"),
+        description: t("dashboard.actions.updatedDescription"),
       });
       onOpenChange(false);
     },
     onError: (e) => {
-      showErrorToast("Failed to update dashboard", e.message);
+      showErrorToast(t("dashboard.errors.updateFailed"), e.message);
     },
   });
 
   const handleSave = () => {
     if (!name.trim()) {
-      showErrorToast("Validation error", "Dashboard name is required");
+      showErrorToast(
+        t("dashboard.errors.validationError"),
+        t("dashboard.errors.nameRequired"),
+      );
       return;
     }
 
@@ -78,7 +83,7 @@ export function EditDashboardDialog({
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Dashboard name"
+                placeholder={t("dashboard.form.namePlaceholder")}
               />
             </div>
             <div className="grid gap-2">
@@ -87,7 +92,7 @@ export function EditDashboardDialog({
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Dashboard description"
+                placeholder={t("dashboard.form.descriptionPlaceholder")}
                 rows={3}
               />
             </div>

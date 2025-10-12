@@ -15,6 +15,7 @@ import { type Organization, type Role } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Header from "@/src/components/layouts/header";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useTranslation } from "react-i18next";
 
 export type tmp = Organization;
 export type InvitesTableRow = {
@@ -38,6 +39,7 @@ export function MembershipInvitesPage({
   orgId: string;
   projectId?: string;
 }) {
+  const { t } = useTranslation();
   const paginationKey = projectId
     ? `projectInvites_${projectId}_pagination`
     : `orgInvites_${orgId}_pagination`;
@@ -100,17 +102,17 @@ export function MembershipInvitesPage({
     {
       accessorKey: "email",
       id: "email",
-      header: "Email",
+      header: t("rbac.membershipInvites.email"),
     },
     {
       accessorKey: "orgRole",
       id: "orgRole",
-      header: "Organization Role",
+      header: t("rbac.membershipInvites.organizationRole"),
     },
     {
       accessorKey: "createdAt",
       id: "createdAt",
-      header: "Invited On",
+      header: t("rbac.membershipInvites.invitedOn"),
       cell: ({ row }) => {
         const value = row.getValue("createdAt") as InvitesTableRow["createdAt"];
         return value ? new Date(value).toLocaleString() : undefined;
@@ -121,14 +123,14 @@ export function MembershipInvitesPage({
           {
             accessorKey: "projectRole",
             id: "projectRole",
-            header: "Project Role",
+            header: t("rbac.membershipInvites.projectRole"),
           },
         ]
       : []),
     {
       accessorKey: "invitedByUser",
       id: "invitedByUser",
-      header: "Invited By",
+      header: t("rbac.membershipInvites.invitedBy"),
       cell: ({ row }) => {
         const invitedByUser = row.getValue(
           "invitedByUser",
@@ -139,7 +141,7 @@ export function MembershipInvitesPage({
             <Avatar className="h-7 w-7">
               <AvatarImage
                 src={image ?? undefined}
-                alt={name ?? "User Avatar"}
+                alt={name ?? t("rbac.membershipInvites.userAvatar")}
               />
               <AvatarFallback>
                 {name
@@ -159,16 +161,14 @@ export function MembershipInvitesPage({
     {
       accessorKey: "meta",
       id: "meta",
-      header: "Actions",
+      header: t("rbac.membershipInvites.actions"),
       cell: ({ row }) => {
         const { inviteId } = row.getValue("meta") as InvitesTableRow["meta"];
         return hasCudAccess ? (
           <div className="flex space-x-2">
             <button
               onClick={() => {
-                if (
-                  confirm("Are you sure you want to cancel this invitation?")
-                ) {
+                if (confirm(t("rbac.membershipInvites.cancelInvitation"))) {
                   mutDeleteInvite.mutate({ inviteId, orgId });
                 }
               }}
@@ -208,7 +208,7 @@ export function MembershipInvitesPage({
   return (
     <>
       {/* Header included in order to hide it when there are not invites yet */}
-      <Header title="Membership Invites" />
+      <Header title={t("rbac.membershipInvites.title")} />
       <DataTableToolbar columns={columns} />
       <DataTable
         tableName={"membershipInvites"}

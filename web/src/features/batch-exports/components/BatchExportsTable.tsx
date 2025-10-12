@@ -14,8 +14,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useTranslation } from "react-i18next";
 
 export function BatchExportsTable(props: { projectId: string }) {
+  const { t } = useTranslation();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
@@ -31,7 +33,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "name",
       id: "name",
-      header: "Name",
+      header: t("common.batchExports.name"),
       size: 200,
       cell: ({ row }) => {
         const name = row.getValue("name") as string;
@@ -46,9 +48,12 @@ export function BatchExportsTable(props: { projectId: string }) {
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="space-y-1">
-                    <div>Created: {new Date(createdAt).toLocaleString()}</div>
                     <div>
-                      Finished:{" "}
+                      {t("common.batchExports.created")}:{" "}
+                      {new Date(createdAt).toLocaleString()}
+                    </div>
+                    <div>
+                      {t("common.batchExports.finished")}:{" "}
                       {finishedAt ? new Date(finishedAt).toLocaleString() : "-"}
                     </div>
                   </div>
@@ -62,7 +67,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "status",
       id: "status",
-      header: "Status",
+      header: t("common.batchExports.status"),
       size: 90,
       cell: (row) => {
         const status = row.getValue() as string;
@@ -74,7 +79,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "url",
       id: "url",
-      header: "Download URL",
+      header: t("common.batchExports.downloadUrl"),
       size: 130,
       cell: (info) => {
         const url = info.getValue() as string | null;
@@ -82,11 +87,15 @@ export function BatchExportsTable(props: { projectId: string }) {
           return null;
         }
         if (url === "expired") {
-          return <span className="text-muted-foreground">Expired</span>;
+          return (
+            <span className="text-muted-foreground">
+              {t("common.batchExports.expired")}
+            </span>
+          );
         }
         return (
           <ActionButton href={url} icon={<DownloadIcon size={16} />} size="sm">
-            Download
+            {t("common.batchExports.download")}
           </ActionButton>
         );
       },
@@ -94,13 +103,13 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "format",
       id: "format",
-      header: "Format",
+      header: t("common.batchExports.format"),
       size: 70,
     },
     {
       accessorKey: "user",
       id: "user",
-      header: "Created By",
+      header: t("common.batchExports.createdBy"),
       size: 150,
       cell: ({ row }) => {
         const user = row.getValue("user") as {
@@ -112,10 +121,10 @@ export function BatchExportsTable(props: { projectId: string }) {
             <Avatar className="h-7 w-7">
               <AvatarImage
                 src={user?.image ?? undefined}
-                alt={user?.name ?? "User Avatar"}
+                alt={user?.name ?? t("common.batchExports.userAvatar")}
               />
             </Avatar>
-            <span>{user?.name ?? "Unknown"}</span>
+            <span>{user?.name ?? t("common.batchExports.unknown")}</span>
           </div>
         );
       },
@@ -123,7 +132,7 @@ export function BatchExportsTable(props: { projectId: string }) {
     {
       accessorKey: "log",
       id: "log",
-      header: "Log",
+      header: t("common.batchExports.log"),
       size: 300,
       cell: (row) => {
         const log = row.getValue() as string | null;

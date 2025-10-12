@@ -40,6 +40,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { useTranslation } from "react-i18next";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -131,6 +132,7 @@ export function DataTableToolbar<TData, TValue>({
   orderByState,
   viewConfig,
 }: DataTableToolbarProps<TData, TValue>) {
+  const { t } = useTranslation();
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
@@ -165,8 +167,10 @@ export function DataTableToolbar<TData, TValue>({
                 autoFocus
                 placeholder={
                   searchConfig.tableAllowsFullTextSearch
-                    ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
+                    ? t("common.tableToolbar.search")
+                    : t("common.tableToolbar.searchWithFields", {
+                        fields: searchConfig.metadataSearchFields.join(", "),
+                      })
                 }
                 value={searchString}
                 onChange={(event) => setSearchString(event.currentTarget.value)}
@@ -191,9 +195,9 @@ export function DataTableToolbar<TData, TValue>({
                       {searchConfig.tableAllowsFullTextSearch &&
                       (searchConfig.searchType ?? []).includes("content")
                         ? (searchConfig.customDropdownLabels?.fullText ??
-                          "Full Text")
+                          t("common.tableToolbar.fullText"))
                         : (searchConfig.customDropdownLabels?.metadata ??
-                          "IDs / Names")}
+                          t("common.tableToolbar.idsNames"))}
                       <DocPopup
                         description={
                           searchConfig.tableAllowsFullTextSearch &&
@@ -201,15 +205,20 @@ export function DataTableToolbar<TData, TValue>({
                             "content",
                           ) ? (
                             <p className="text-xs font-normal text-primary">
-                              Searches in Input/Output and{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {t("common.tableToolbar.searchesInInputOutput", {
+                                fields:
+                                  searchConfig.metadataSearchFields.join(", "),
+                              })}
                               {!searchConfig.hidePerformanceWarning &&
-                                " For improved performance, please filter the table down."}
+                                " " +
+                                  t("common.tableToolbar.performanceWarning")}
                             </p>
                           ) : (
                             <p className="text-xs font-normal text-primary">
-                              Searches in{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {t("common.tableToolbar.searchesInFields", {
+                                fields:
+                                  searchConfig.metadataSearchFields.join(", "),
+                              })}
                             </p>
                           )
                         }
@@ -242,14 +251,14 @@ export function DataTableToolbar<TData, TValue>({
                   >
                     <DropdownMenuRadioItem value="metadata">
                       {searchConfig.customDropdownLabels?.metadata ??
-                        "IDs / Names"}
+                        t("common.tableToolbar.idsNames")}
                     </DropdownMenuRadioItem>
                     <DropdownMenuRadioItem
                       value="metadata_fulltext"
                       disabled={!searchConfig.tableAllowsFullTextSearch}
                     >
                       {searchConfig.customDropdownLabels?.fullText ??
-                        "Full Text"}
+                        t("common.tableToolbar.fullText")}
                     </DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
@@ -265,8 +274,8 @@ export function DataTableToolbar<TData, TValue>({
         )}
         {environmentFilter && (
           <MultiSelect
-            title="Environment"
-            label="Env"
+            title={t("common.labels.environment")}
+            label={t("common.labels.env")}
             values={environmentFilter.values}
             onValueChange={environmentFilter.onValueChange}
             options={environmentFilter.options}

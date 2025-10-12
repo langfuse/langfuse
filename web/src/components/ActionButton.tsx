@@ -8,14 +8,14 @@ import {
 } from "@/src/components/ui/hover-card";
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 
-const BUTTON_STATE_MESSAGES = {
+const createButtonStateMessages = (t: (key: string) => string) => ({
   limitReached: (current: number, max: number) =>
-    `You have reached the limit (${current}/${max}) for this resource at your current plan. Upgrade your plan to increase the limit.`,
-  noAccess:
-    "You do not have access to this resource, please ask your admin to grant you access.",
-  entitlement: "This feature is not available in your current plan.",
-} as const;
+    t("common.messages.limitReached", { current, max }),
+  noAccess: t("common.messages.noAccess"),
+  entitlement: t("common.messages.entitlement"),
+});
 
 interface ActionButtonProps extends ButtonProps {
   icon?: React.ReactNode;
@@ -48,6 +48,7 @@ export const ActionButton = React.forwardRef<
   },
   ref,
 ) {
+  const { t } = useTranslation();
   const hasReachedLimit =
     typeof limit === "number" &&
     limitValue !== undefined &&
@@ -56,14 +57,15 @@ export const ActionButton = React.forwardRef<
     disabled || !hasAccess || !hasEntitlement || hasReachedLimit;
 
   const getMessage = () => {
-    if (!hasAccess) return BUTTON_STATE_MESSAGES.noAccess;
-    if (!hasEntitlement) return BUTTON_STATE_MESSAGES.entitlement;
+    const messages = createButtonStateMessages(t);
+    if (!hasAccess) return messages.noAccess;
+    if (!hasEntitlement) return messages.entitlement;
     if (
       hasReachedLimit &&
       typeof limit === "number" &&
       limitValue !== undefined
     ) {
-      return BUTTON_STATE_MESSAGES.limitReached(limitValue, limit);
+      return messages.limitReached(limitValue, limit);
     }
     return null;
   };

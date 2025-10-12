@@ -40,6 +40,7 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTranslation } from "react-i18next";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -58,6 +59,7 @@ export default function EvalsTemplateTable({
 }: {
   projectId: string;
 }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
@@ -137,13 +139,17 @@ export default function EvalsTemplateTable({
       setPendingCloneSubmission(null);
       setShowReferenceUpdateDialog(false);
       showSuccessToast({
-        title: "Evaluator cloned successfully",
-        description:
-          "This evaluator is now available and maintained on project level.",
+        title: t("evaluation.eval.templatesTable.evaluatorClonedSuccessfully"),
+        description: t(
+          "evaluation.eval.templatesTable.evaluatorClonedDescription",
+        ),
       });
     },
     onError: (error) => {
-      showErrorToast("Error cloning evaluator", error.message);
+      showErrorToast(
+        t("evaluation.eval.templatesTable.errorCloningEvaluator"),
+        error.message,
+      );
     },
   });
 
@@ -162,7 +168,7 @@ export default function EvalsTemplateTable({
 
   const columns = [
     columnHelper.accessor("name", {
-      header: "Name",
+      header: t("common.labels.name"),
       id: "name",
       cell: (row) => {
         const name = row.getValue();
@@ -171,7 +177,7 @@ export default function EvalsTemplateTable({
     }),
     columnHelper.accessor("maintainer", {
       id: "maintainer",
-      header: "Maintainer",
+      header: t("evaluation.eval.templatesTable.maintainer"),
       size: 150,
       cell: (row) => {
         return (
@@ -182,14 +188,14 @@ export default function EvalsTemplateTable({
       },
     }),
     columnHelper.accessor("latestCreatedAt", {
-      header: "Last Edit",
+      header: t("evaluation.eval.templatesTable.lastEdit"),
       id: "latestCreatedAt",
       cell: (row) => {
         return row.getValue()?.toLocaleDateString();
       },
     }),
     columnHelper.accessor("usageCount", {
-      header: "Usage count",
+      header: t("evaluation.eval.templatesTable.usageCount"),
       id: "usageCount",
       enableHiding: true,
       cell: (row) => {
@@ -198,7 +204,7 @@ export default function EvalsTemplateTable({
       },
     }),
     columnHelper.accessor("latestVersion", {
-      header: "Latest Version",
+      header: t("evaluation.eval.templatesTable.latestVersion"),
       id: "latestVersion",
       enableHiding: true,
       cell: (row) => {
@@ -206,7 +212,7 @@ export default function EvalsTemplateTable({
       },
     }),
     columnHelper.accessor("id", {
-      header: "Id",
+      header: t("evaluation.eval.templatesTable.id"),
       id: "id",
       size: 100,
       enableHiding: true,
@@ -216,7 +222,7 @@ export default function EvalsTemplateTable({
       },
     }),
     columnHelper.accessor("actions", {
-      header: "Actions",
+      header: t("evaluation.eval.templatesTable.actions"),
       id: "actions",
       size: 100,
       cell: ({ row }) => {
@@ -234,7 +240,9 @@ export default function EvalsTemplateTable({
               disabled={isInvalid}
               title={
                 isInvalid
-                  ? "Evaluator requires project-level evaluation model. Set it up and start running evaluations."
+                  ? t(
+                      "evaluation.eval.templatesTable.evaluatorRequiresProjectLevel",
+                    )
                   : undefined
               }
               hasAccess={hasAccess}
@@ -249,14 +257,14 @@ export default function EvalsTemplateTable({
                 }
               }}
             >
-              Use Evaluator
+              {t("evaluation.eval.templatesTable.useEvaluator")}
             </ActionButton>
             {!row.original.maintainer.includes("User") ? (
               <Button
                 aria-label="clone"
                 variant="outline"
                 size="icon-xs"
-                title="Clone"
+                title={t("common.actions.clone")}
                 disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -270,7 +278,7 @@ export default function EvalsTemplateTable({
                 aria-label="edit"
                 variant="outline"
                 size="icon-xs"
-                title="Edit"
+                title={t("common.actions.edit")}
                 disabled={!hasAccess}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -378,7 +386,9 @@ export default function EvalsTemplateTable({
       >
         <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit evaluator</DialogTitle>
+            <DialogTitle>
+              {t("evaluation.eval.templatesTable.editEvaluator")}
+            </DialogTitle>
           </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
@@ -390,8 +400,12 @@ export default function EvalsTemplateTable({
               setEditTemplateId(null);
               void utils.evals.templateNames.invalidate();
               showSuccessToast({
-                title: "Evaluator updated successfully",
-                description: "You can now use this evaluator.",
+                title: t(
+                  "evaluation.eval.templatesTable.evaluatorUpdatedSuccessfully",
+                ),
+                description: t(
+                  "evaluation.eval.templatesTable.evaluatorUpdatedDescription",
+                ),
               });
             }}
           />
@@ -408,7 +422,9 @@ export default function EvalsTemplateTable({
       >
         <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Clone evaluator</DialogTitle>
+            <DialogTitle>
+              {t("evaluation.eval.templatesTable.cloneEvaluator")}
+            </DialogTitle>
           </DialogHeader>
           <EvalTemplateForm
             projectId={projectId}
@@ -455,9 +471,12 @@ export default function EvalsTemplateTable({
               setPendingCloneSubmission(null);
               void utils.evals.templateNames.invalidate();
               showSuccessToast({
-                title: "Evaluator cloned successfully",
-                description:
-                  "This evaluator is now available and maintained on project level. ",
+                title: t(
+                  "evaluation.eval.templatesTable.evaluatorClonedSuccessfully",
+                ),
+                description: t(
+                  "evaluation.eval.templatesTable.evaluatorClonedDescription",
+                ),
               });
             }}
           />
@@ -478,14 +497,19 @@ export default function EvalsTemplateTable({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update running evaluators?</DialogTitle>
+            <DialogTitle>
+              {t("evaluation.eval.templatesTable.updateRunningEvaluators")}
+            </DialogTitle>
             <DialogDescription>
-              Do you want all running evaluators attached to the original
-              Langfuse evaluator to reference your new project-level version?
+              {t(
+                "evaluation.eval.templatesTable.updateRunningEvaluatorsDescription",
+              )}
               <br />
               <br />
-              <strong>Warning:</strong> This might break workflows if you have
-              changed variables or other critical aspects of the template.
+              <strong>
+                {t("evaluation.eval.templatesTable.warning")}
+              </strong>{" "}
+              {t("evaluation.eval.templatesTable.warningDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -500,7 +524,7 @@ export default function EvalsTemplateTable({
                 }
               }}
             >
-              No, keep as is
+              {t("evaluation.eval.templatesTable.noKeepAsIs")}
             </Button>
             <Button
               onClick={() => {
@@ -512,7 +536,7 @@ export default function EvalsTemplateTable({
                 }
               }}
             >
-              Yes, update all references
+              {t("evaluation.eval.templatesTable.yesUpdateAllReferences")}
             </Button>
           </DialogFooter>
         </DialogContent>

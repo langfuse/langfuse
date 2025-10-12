@@ -15,6 +15,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { useTranslation } from "react-i18next";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -33,6 +34,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const tracesQuery: QueryType = {
     view: "traces",
     dimensions: [],
@@ -141,23 +143,23 @@ export const TracesAndObservationsTimeSeriesChart = ({
 
   const data = [
     {
-      tabTitle: "Traces",
+      tabTitle: t("dashboard.cards.tracesByTime.traces"),
       data: transformedTraces,
       totalMetric: total,
-      metricDescription: `Traces tracked`,
+      metricDescription: t("dashboard.cards.tracesByTime.tracesTracked"),
     },
     {
-      tabTitle: "Observations by Level",
+      tabTitle: t("dashboard.cards.tracesByTime.observationsByLevel"),
       data: transformedObservations,
       totalMetric: totalObservations,
-      metricDescription: `Observations tracked`,
+      metricDescription: t("dashboard.cards.tracesByTime.observationsTracked"),
     },
   ];
 
   return (
     <DashboardCard
       className={className}
-      title="Traces by time"
+      title={t("dashboard.cards.tracesByTime.title")}
       isLoading={isLoading || traces.isPending}
       cardContentClassName="flex flex-col content-end "
     >

@@ -29,11 +29,13 @@ import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { startCase } from "lodash";
+import { useTranslation } from "react-i18next";
 
 type ApiKeyScope = "project" | "organization";
 type ApiKeyEntity = { id: string; note: string | null };
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
+  const { t } = useTranslation();
   const { entityId, scope } = props;
   if (!entityId) {
     throw new Error(
@@ -68,11 +70,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   if (!hasAccess) {
     return (
       <div>
-        <Header title="API Keys" />
+        <Header title={t("project.settings.apiKeys.title")} />
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
+          <AlertTitle>{t("project.settings.apiKeys.accessDenied")}</AlertTitle>
           <AlertDescription>
-            You do not have permission to view API keys for this {scope}.
+            {t("project.settings.apiKeys.noPermission", { scope })}
           </AlertDescription>
         </Alert>
       </div>
@@ -82,9 +84,13 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   return (
     <div>
       <Header
-        title={startCase(`${scope} API keys`)}
+        title={
+          scope === "project"
+            ? t("project.settings.apiKeys.projectApiKeys")
+            : startCase(`${scope} API keys`)
+        }
         help={{
-          description: `Learn more about ${scope} API keys`,
+          description: t("project.settings.apiKeys.learnMore", { scope }),
           href:
             scope === "project"
               ? "https://langfuse.com/docs/api#authentication"
@@ -96,11 +102,17 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           <TableHeader>
             <TableRow>
               <TableHead className="hidden text-primary md:table-cell">
-                Created
+                {t("project.settings.apiKeys.created")}
               </TableHead>
-              <TableHead className="text-primary">Note</TableHead>
-              <TableHead className="text-primary">Public Key</TableHead>
-              <TableHead className="text-primary">Secret Key</TableHead>
+              <TableHead className="text-primary">
+                {t("project.settings.apiKeys.note")}
+              </TableHead>
+              <TableHead className="text-primary">
+                {t("project.settings.apiKeys.publicKey")}
+              </TableHead>
+              <TableHead className="text-primary">
+                {t("project.settings.apiKeys.secretKey")}
+              </TableHead>
               {/* <TableHead className="text-primary">Last used</TableHead> */}
               <TableHead />
             </TableRow>
@@ -109,7 +121,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
             {apiKeysQuery.data?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center">
-                  None
+                  {t("project.settings.apiKeys.none")}
                 </TableCell>
               </TableRow>
             ) : (

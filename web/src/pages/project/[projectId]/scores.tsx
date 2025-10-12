@@ -3,8 +3,10 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
+import { useTranslation } from "react-i18next";
 
 export default function ScoresPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -27,10 +29,9 @@ export default function ScoresPage() {
   return (
     <Page
       headerProps={{
-        title: "Scores",
+        title: t("evaluation.score.pages.title"),
         help: {
-          description:
-            "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+          description: t("evaluation.score.pages.description"),
           href: "https://langfuse.com/docs/evaluation/overview",
         },
       }}

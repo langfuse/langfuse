@@ -13,6 +13,7 @@ import { api } from "@/src/utils/api";
 import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { Goal, Network } from "lucide-react";
 import Page from "@/src/components/layouts/page";
+import { useTranslation } from "react-i18next";
 
 export const AnnotationQueuesItem = ({
   annotationQueueId,
@@ -23,6 +24,7 @@ export const AnnotationQueuesItem = ({
   projectId: string;
   itemId?: string;
 }) => {
+  const { t } = useTranslation();
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:read",
@@ -74,7 +76,7 @@ export const AnnotationQueuesItem = ({
         itemType: "QUEUE_ITEM",
         breadcrumb: [
           {
-            name: "Annotation Queues",
+            name: t("annotation-queue.item.annotationQueues"),
             href: `/project/${projectId}/annotation-queues`,
           },
           {
@@ -95,7 +97,7 @@ export const AnnotationQueuesItem = ({
               <TabsList>
                 <TabsTrigger value="hideTree">
                   <Goal className="mr-1 h-4 w-4"></Goal>
-                  Focused
+                  {t("annotation-queue.item.focused")}
                 </TabsTrigger>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -110,16 +112,13 @@ export const AnnotationQueuesItem = ({
                         }
                       >
                         <Network className="mr-1 h-4 w-4"></Network>
-                        Detailed
+                        {t("annotation-queue.item.detailed")}
                       </TabsTrigger>
                     </span>
                   </TooltipTrigger>
                   {isDetailedViewDisabled && (
                     <TooltipContent>
-                      <p>
-                        Detailed view is only available for traces and
-                        observations
-                      </p>
+                      <p>{t("annotation-queue.item.detailedViewTooltip")}</p>
                     </TooltipContent>
                   )}
                 </Tooltip>

@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight, Component, Menu, X } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { useTranslation } from "react-i18next";
 import {
   closestCenter,
   DndContext,
@@ -291,6 +292,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
+  const { t } = useTranslation();
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
     {},
@@ -381,8 +383,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     >
       <Drawer modal={false}>
         <DrawerTrigger asChild>
-          <Button variant="outline" title="Show/hide columns">
-            <span>Columns</span>
+          <Button variant="outline" title={t("common.table.showHideColumns")}>
+            <span>{t("common.table.columns")}</span>
             <div className="ml-1 rounded-sm bg-input px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>
@@ -390,7 +392,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
           <div className="mx-auto w-full overflow-y-auto md:max-h-full">
             <div className="sticky top-0 z-10">
               <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
-                <DrawerTitle>Column Visibility</DrawerTitle>
+                <DrawerTitle>{t("common.table.columnVisibility")}</DrawerTitle>
                 <div className="flex flex-row gap-2">
                   <Button
                     variant="outline"
@@ -401,7 +403,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                       setColumnVisibility(defaultColumnVisibility);
                     }}
                   >
-                    Restore Defaults
+                    {t("common.table.restoreDefaults")}
                   </Button>
                   <DrawerClose asChild>
                     <Button variant="outline" size="icon">
@@ -427,8 +429,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                   >
                     <span className="text-sm font-medium">
                       {count === total
-                        ? "Deselect All Columns"
-                        : "Select All Columns"}
+                        ? t("common.table.deselectAllColumns")
+                        : t("common.table.selectAllColumns")}
                     </span>
                     <div className="ml-1 rounded-sm bg-input px-1 text-xs">{`${count}/${total}`}</div>
                   </Button>

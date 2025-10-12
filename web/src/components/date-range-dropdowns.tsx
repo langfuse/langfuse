@@ -28,6 +28,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
+import { useTranslation } from "react-i18next";
 
 type BaseDateRangeDropdownProps<T> = {
   selectedOption: T;
@@ -42,11 +43,15 @@ const BaseDateRangeDropdown = <T extends string>({
   limitedOptions,
   onSelectionChange,
 }: BaseDateRangeDropdownProps<T>) => {
+  const { t } = useTranslation();
+
   return (
     <Select value={selectedOption} onValueChange={onSelectionChange}>
       <SelectTrigger className="w-fit font-medium hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
-        {selectedOption !== "All time" && <span>Past</span>}
-        <SelectValue placeholder="Select" />
+        {selectedOption !== "All time" && (
+          <span>{t("dashboard.filters.past")}</span>
+        )}
+        <SelectValue placeholder={t("common.actions.select")} />
       </SelectTrigger>
       <SelectContent position="popper" defaultValue={60}>
         {options.map((item) => {
@@ -68,7 +73,7 @@ const BaseDateRangeDropdown = <T extends string>({
               </HoverCardTrigger>
               <HoverCardPortal>
                 <HoverCardContent className="w-60 text-sm" side="right">
-                  This time range is not available in your current plan.
+                  {t("dashboard.filters.timeRangeNotAvailable")}
                 </HoverCardContent>
               </HoverCardPortal>
             </HoverCard>

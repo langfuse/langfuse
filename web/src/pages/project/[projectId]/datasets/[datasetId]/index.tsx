@@ -38,8 +38,10 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { useTranslation } from "react-i18next";
 
 export default function Dataset() {
+  const { t } = useTranslation();
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -85,10 +87,10 @@ export default function Dataset() {
     void utils.datasets.runsByDatasetId.invalidate();
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
-      title: "Dataset run triggered successfully",
-      description: "Waiting for dataset run to complete...",
+      title: t("dataset.actions.runTriggered"),
+      description: t("dataset.actions.runTriggeredDescription"),
       link: {
-        text: "View dataset run",
+        text: t("dataset.actions.viewRun"),
         href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
@@ -155,7 +157,10 @@ export default function Dataset() {
         title: dataset.data?.name ?? "",
         itemType: "DATASET",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          {
+            name: t("dataset.pages.title"),
+            href: `/project/${projectId}/datasets`,
+          },
         ],
         help: dataset.data?.description
           ? {

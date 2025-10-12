@@ -4,8 +4,10 @@ import SessionsTable from "@/src/components/table/use-cases/sessions";
 import Page from "@/src/components/layouts/page";
 import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";
+import { useTranslation } from "react-i18next";
 
 export default function Sessions() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -27,10 +29,9 @@ export default function Sessions() {
   return (
     <Page
       headerProps={{
-        title: "Sessions",
+        title: t("tracing.session.pages.title"),
         help: {
-          description:
-            "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
+          description: t("tracing.session.pages.description"),
           href: "https://langfuse.com/docs/observability/features/sessions",
         },
       }}

@@ -39,8 +39,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { TriangleAlert } from "lucide-react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useTranslation } from "react-i18next";
 
 export function TransferProjectButton() {
+  const { t } = useTranslation();
   const capture = usePostHogClientCapture();
   const session = useSession();
   const { project, organization } = useQueryProject();
@@ -71,9 +73,8 @@ export function TransferProjectButton() {
   const transferProject = api.projects.transfer.useMutation({
     onSuccess: async () => {
       showSuccessToast({
-        title: "Project transferred",
-        description:
-          "The project is successfully transferred to the new organization. Redirecting...",
+        title: t("project.transfer.successTitle"),
+        description: t("project.transfer.successDescription"),
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
       void session.update();
@@ -102,13 +103,13 @@ export function TransferProjectButton() {
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="destructive-secondary" disabled={!hasAccess}>
-          Transfer Project
+          {t("project.transfer.title")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            Transfer Project
+            {t("project.transfer.title")}
           </DialogTitle>
           <Alert className="mt-2">
             <TriangleAlert className="h-4 w-4" />
@@ -141,7 +142,9 @@ export function TransferProjectButton() {
                 name="projectId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Select New Organization</FormLabel>
+                    <FormLabel>
+                      {t("project.transfer.selectNewOrganization")}
+                    </FormLabel>
                     <FormControl>
                       <Select
                         onValueChange={field.onChange}
@@ -149,7 +152,11 @@ export function TransferProjectButton() {
                         disabled={transferProject.isPending}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select organization" />
+                          <SelectValue
+                            placeholder={t(
+                              "project.transfer.selectOrganizationPlaceholder",
+                            )}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           {organizationsToTransferTo

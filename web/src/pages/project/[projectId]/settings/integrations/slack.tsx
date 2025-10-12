@@ -19,8 +19,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { useTranslation } from "react-i18next";
 
 export default function SlackIntegrationSettings() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -89,9 +91,12 @@ export default function SlackIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Slack Integration",
+        title: t("project.settings.integrations.slack.title"),
         breadcrumb: [
-          { name: "Settings", href: `/project/${projectId}/settings` },
+          {
+            name: t("common.labels.settings"),
+            href: `/project/${projectId}/settings`,
+          },
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: <AutomationButton projectId={projectId} />,
@@ -122,7 +127,9 @@ export default function SlackIntegrationSettings() {
                     projectId={projectId}
                     selectedChannelId={selectedChannel?.id}
                     onChannelSelect={setSelectedChannel}
-                    placeholder="Choose a channel to test"
+                    placeholder={t(
+                      "project.settings.integrations.slack.chooseChannel",
+                    )}
                     showRefreshButton={true}
                   />
                 </div>

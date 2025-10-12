@@ -29,8 +29,10 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function Dataset() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -90,11 +92,7 @@ export default function Dataset() {
 
   const handleDelete = () => {
     if (!hasAccess || mutDelete.isPending) return;
-    if (
-      window.confirm(
-        "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
-      )
-    ) {
+    if (window.confirm(t("dataset.items.deleteConfirmation"))) {
       capture("dataset_item:delete");
       mutDelete.mutate({
         projectId,
@@ -111,13 +109,16 @@ export default function Dataset() {
         title: itemId,
         itemType: "DATASET_ITEM",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
+          {
+            name: t("dataset.pages.title"),
+            href: `/project/${projectId}/datasets`,
+          },
           {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
           {
-            name: "Items",
+            name: t("dataset.items.title"),
             href: `/project/${projectId}/datasets/${datasetId}/items`,
           },
         ],
@@ -138,13 +139,13 @@ export default function Dataset() {
                     <div className="space-y-2">
                       <h4 className="font-medium leading-none">
                         {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive this item?"
-                          : "Unarchive this item?"}
+                          ? t("dataset.items.archiveConfirmation")
+                          : t("dataset.items.unarchiveConfirmation")}
                       </h4>
                       <p className="text-sm text-muted-foreground">
                         {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archiving an item will exclude it from new dataset runs."
-                          : "Unarchiving an item will include it back in new dataset runs."}
+                          ? t("dataset.items.archiveDescription")
+                          : t("dataset.items.unarchiveDescription")}
                       </p>
                     </div>
                     <Button
@@ -158,10 +159,10 @@ export default function Dataset() {
                       size="sm"
                     >
                       {mutUpdate.isPending
-                        ? "Processing..."
+                        ? t("common.status.processing")
                         : item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive"
-                          : "Unarchive"}
+                          ? t("dataset.items.archive")
+                          : t("dataset.items.unarchive")}
                     </Button>
                   </div>
                 </PopoverContent>
@@ -213,7 +214,9 @@ export default function Dataset() {
                   className="text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  {mutDelete.isPending ? "Deleting..." : "Delete"}
+                  {mutDelete.isPending
+                    ? t("common.status.deleting")
+                    : t("dataset.items.delete")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -235,7 +238,7 @@ export default function Dataset() {
         </ResizablePanel>
         <ResizableHandle withHandle className="bg-border" />
         <ResizablePanel minSize={10} className="flex flex-col space-y-4">
-          <Header title="Runs" />
+          <Header title={t("common.table.runs")} />
           <DatasetRunItemsTable
             projectId={projectId}
             datasetItemId={itemId}

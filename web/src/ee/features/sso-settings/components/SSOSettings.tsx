@@ -2,18 +2,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Header from "@/src/components/layouts/header";
+import { useTranslation } from "react-i18next";
 
 export const SSOSettings = () => {
+  const { t } = useTranslation();
   const hasEntitlement = useHasEntitlement("cloud-multi-tenant-sso");
 
   const commonContent = (
     <>
-      <Header title="SSO Configuration" />
+      <Header title={t("organization.settings.ssoConfiguration")} />
       <p className="mb-4 text-sm text-muted-foreground">
-        Configure Single Sign-On (SSO) for your organization. SSO allows your
-        team to use your existing identity provider for authentication, e.g.
-        Okta, AzureAD/EntraID. Alternatively, you can enforce the use of a
-        public provider such as Google, GitHub and Microsoft.
+        {t("organization.settings.ssoDescription")}
       </p>
     </>
   );
@@ -24,10 +23,9 @@ export const SSOSettings = () => {
         {commonContent}
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Not available</AlertTitle>
+          <AlertTitle>{t("organization.settings.notAvailable")}</AlertTitle>
           <AlertDescription>
-            Enterprise SSO and SSO Enforcement are not available on your plan.
-            Please upgrade to access this feature.
+            {t("organization.settings.ssoNotAvailableDescription")}
           </AlertDescription>
         </Alert>
       </div>
@@ -39,16 +37,9 @@ export const SSOSettings = () => {
       {commonContent}
       <Alert>
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Contact Langfuse Support</AlertTitle>
+        <AlertTitle>{t("organization.settings.contactSupport")}</AlertTitle>
         <AlertDescription>
-          To set up or change your SSO configuration, please reach out to{" "}
-          <a
-            href="mailto:support@langfuse.com"
-            className="font-medium underline underline-offset-4"
-          >
-            support@langfuse.com
-          </a>
-          .
+          {t("organization.settings.contactSupportDescription")}
         </AlertDescription>
       </Alert>
     </div>

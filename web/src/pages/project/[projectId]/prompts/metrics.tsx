@@ -23,6 +23,7 @@ import {
   getPromptTabs,
   PROMPT_TABS,
 } from "@/src/features/navigation/utils/prompt-tabs";
+import { useTranslation } from "react-i18next";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -79,6 +80,7 @@ function joinPromptCoreAndMetricData(
 export default function PromptVersionTable({
   promptName: promptNameProp,
 }: { promptName?: string } = {}) {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const promptName =
@@ -135,7 +137,7 @@ export default function PromptVersionTable({
     isColumnLoading: isTraceColumnLoading,
   } = useIndividualScoreColumns<PromptVersionTableRow>({
     projectId,
-    scoreColumnPrefix: "Trace",
+    scoreColumnPrefix: t("prompt.columns.trace"),
     scoreColumnKey: "traceScores",
     showAggregateViewOnly: true,
   });
@@ -145,7 +147,7 @@ export default function PromptVersionTable({
     isColumnLoading: isGenerationColumnLoading,
   } = useIndividualScoreColumns<PromptVersionTableRow>({
     projectId,
-    scoreColumnPrefix: "Generation",
+    scoreColumnPrefix: t("prompt.columns.generation"),
     scoreColumnKey: "generationScores",
     showAggregateViewOnly: true,
   });
@@ -154,7 +156,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "version",
       id: "version",
-      header: "Version",
+      header: t("prompt.columns.version"),
       size: 80,
       cell: ({ row }) => {
         const version = row.getValue("version");
@@ -169,7 +171,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "labels",
       id: "labels",
-      header: "Labels",
+      header: t("prompt.columns.labels"),
       size: 160,
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
@@ -189,7 +191,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianLatency",
       id: "medianLatency",
-      header: "Median latency",
+      header: t("prompt.columns.medianLatency"),
       size: 140,
       cell: ({ row }) => {
         const latency: number | undefined | null =
@@ -208,7 +210,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianInputTokens",
       id: "medianInputTokens",
-      header: "Median input tokens",
+      header: t("prompt.columns.medianInputTokens"),
       size: 160,
       enableHiding: true,
       cell: ({ row }) => {
@@ -224,7 +226,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianOutputTokens",
       id: "medianOutputTokens",
-      header: "Median output tokens",
+      header: t("prompt.columns.medianOutputTokens"),
       size: 170,
       enableHiding: true,
       cell: ({ row }) => {
@@ -239,7 +241,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "medianCost",
       id: "medianCost",
-      header: "Median cost",
+      header: t("prompt.columns.medianCost"),
       size: 120,
       cell: ({ row }) => {
         const value: number | undefined | null = row.getValue("medianCost");
@@ -254,7 +256,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "generationCount",
       id: "generationCount",
-      header: "Generations count",
+      header: t("prompt.columns.generationsCount"),
       size: 150,
       enableHiding: true,
       cell: ({ row }) => {
@@ -270,7 +272,7 @@ export default function PromptVersionTable({
     },
     {
       accessorKey: "traceScores",
-      header: "Trace Scores",
+      header: t("prompt.columns.traceScores"),
       id: "traceScores",
       enableHiding: true,
       columns: traceScoreColumns,
@@ -282,7 +284,7 @@ export default function PromptVersionTable({
     },
     {
       accessorKey: "generationScores",
-      header: "Generation Scores",
+      header: t("prompt.columns.generationScores"),
       id: "generationScores",
       enableHiding: true,
       columns: generationScoreColumns,
@@ -295,7 +297,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "lastUsed",
       id: "lastUsed",
-      header: "Last used",
+      header: t("prompt.columns.lastUsed"),
       enableHiding: true,
       size: 150,
       headerTooltip: {
@@ -314,7 +316,7 @@ export default function PromptVersionTable({
     {
       accessorKey: "firstUsed",
       id: "firstUsed",
-      header: "First used",
+      header: t("prompt.columns.firstUsed"),
       size: 150,
       enableHiding: true,
       headerTooltip: {
@@ -364,17 +366,19 @@ export default function PromptVersionTable({
             traceScores: verifyAndPrefixScoreDataAgainstKeys(
               scoreKeysAndProps,
               prompt.traceScores ?? {},
-              "Trace",
+              t("prompt.metrics.trace"),
             ),
             generationScores: verifyAndPrefixScoreDataAgainstKeys(
               scoreKeysAndProps,
               prompt.observationScores ?? {},
-              "Generation",
+              t("prompt.metrics.generation"),
             ),
             lastUsed:
-              prompt.lastUsed?.toLocaleString() ?? "No linked generation yet",
+              prompt.lastUsed?.toLocaleString() ??
+              t("prompt.metrics.noLinkedGenerationYet"),
             firstUsed:
-              prompt.firstUsed?.toLocaleString() ?? "No linked generation yet",
+              prompt.firstUsed?.toLocaleString() ??
+              t("prompt.metrics.noLinkedGenerationYet"),
           };
         })
       : [];
@@ -385,13 +389,12 @@ export default function PromptVersionTable({
         title: promptName,
         itemType: "PROMPT",
         help: {
-          description:
-            "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
+          description: t("prompt.metrics.description"),
           href: "https://langfuse.com/docs/prompt-management/get-started",
         },
         breadcrumb: [
           {
-            name: "Prompts",
+            name: t("prompt.metrics.prompts"),
             href: `/project/${projectId}/prompts/`,
           },
           {

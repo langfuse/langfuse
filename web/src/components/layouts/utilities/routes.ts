@@ -1,4 +1,4 @@
-import { RouteSection, RouteGroup, ROUTES, type Route } from "../routes";
+import { RouteSection, RouteGroup, type Route } from "../routes";
 
 export type NavigationItem = Omit<Route, "children" | "items"> & {
   url: string;
@@ -42,11 +42,12 @@ const groupProcessedNavigation = (items: NavigationItem[]) => {
 
 export function processNavigation(
   mapNavigation: (route: Route) => NavigationItem | null,
+  routes: Route[],
 ) {
   // First process all routes (apply filtering, permissions, etc.)
-  const allProcessedItems = ROUTES.map(mapNavigation).filter(
-    (item): item is NavigationItem => Boolean(item),
-  );
+  const allProcessedItems = routes
+    .map(mapNavigation)
+    .filter((item): item is NavigationItem => Boolean(item));
 
   // Then group the processed items by section
   const mainItems = allProcessedItems.filter(

@@ -14,11 +14,13 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { useTranslation } from "react-i18next";
 
 // Multi-step setup process
 // 1. Select Evaluator: /project/:projectId/evals/new
 // 2. Configure Evaluator: /project/:projectId/evals/new?evaluator=:evaluatorId
 export default function NewEvaluatorPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluator as string | undefined;
@@ -46,17 +48,17 @@ export default function NewEvaluatorPage() {
   );
 
   if (!hasAccess) {
-    return <div>You do not have access to this page.</div>;
+    return <div>{t("evaluation.eval.newEvaluator.noAccess")}</div>;
   }
 
   return (
     <Page
       withPadding
       headerProps={{
-        title: "Set up evaluator",
+        title: t("evaluation.eval.newEvaluator.title"),
         breadcrumb: [
           {
-            name: "Running Evaluators",
+            name: t("evaluation.eval.newEvaluator.runningEvaluators"),
             href: `/project/${projectId}/evals`,
           },
         ],
@@ -76,7 +78,7 @@ export default function NewEvaluatorPage() {
                   : "font-semibold text-foreground",
               )}
             >
-              1. Select Evaluator
+              {t("evaluation.eval.newEvaluator.selectEvaluator")}
               {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -90,7 +92,7 @@ export default function NewEvaluatorPage() {
               )}
             >
               <div className="flex flex-row">
-                2. Run Evaluator
+                {t("evaluation.eval.newEvaluator.runEvaluator")}
                 {currentTemplate && (
                   <div className="flex flex-row gap-2">
                     <span>

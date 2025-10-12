@@ -12,6 +12,7 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { type LlmApiKeys } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { PencilIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function UpdateLLMApiKeyDialog({
   apiKey,
@@ -24,6 +25,7 @@ export function UpdateLLMApiKeyDialog({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const [internalOpen, setInternalOpen] = useState(false);
   const uiCustomization = useUiCustomization();
 
@@ -50,7 +52,9 @@ export function UpdateLLMApiKeyDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle>Update LLM Connection</DialogTitle>
+          <DialogTitle>
+            {t("project.settings.llmConnections.updateLlmConnection")}
+          </DialogTitle>
         </DialogHeader>
         {isOpen && (
           <CreateLLMApiKeyForm

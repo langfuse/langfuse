@@ -21,8 +21,10 @@ import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnit
 import Generations from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
 import { SquareArrowOutUpRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export default function ModelDetailPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
   const projectId = router.query.projectId as string;
@@ -51,10 +53,12 @@ export default function ModelDetailPage() {
   if (!isLoading && !model) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <div className="mb-4 text-xl font-medium">Model not found</div>
+        <div className="mb-4 text-xl font-medium">
+          {t("model.details.modelNotFound")}
+        </div>
         <Button variant="outline" asChild>
           <Link href={`/project/${projectId}/settings/models`}>
-            Return to Models page
+            {t("model.details.returnToModels")}
           </Link>
         </Button>
       </div>
@@ -64,7 +68,7 @@ export default function ModelDetailPage() {
   const isLangfuseModel = !Boolean(model?.projectId);
 
   if (isLoading || !model) {
-    return <div className="p-3">Loading...</div>;
+    return <div className="p-3">{t("common.status.loading")}</div>;
   }
 
   return (
@@ -73,12 +77,12 @@ export default function ModelDetailPage() {
       headerProps={{
         title: model.modelName,
         help: {
-          description: "Model configuration and pricing details",
+          description: t("model.pages.description"),
           href: "https://langfuse.com/docs/model-usage-and-cost",
         },
         breadcrumb: [
           {
-            name: "Models",
+            name: t("model.pages.title"),
             href: `/project/${router.query.projectId as string}/settings/models`,
           },
           { name: model.modelName },
@@ -107,36 +111,40 @@ export default function ModelDetailPage() {
       <div className="grid grid-cols-2 gap-6 p-2">
         <Card>
           <CardHeader>
-            <CardTitle>Model configuration</CardTitle>
+            <CardTitle>{t("model.details.modelConfiguration")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Match Pattern
+                {t("model.details.matchPattern")}
               </div>
               <div className="mt-1 font-mono text-sm">{model.matchPattern}</div>
             </div>
 
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Maintained by
+                {t("model.details.maintainedBy")}
               </div>
               <div className="mt-1 text-sm">
-                {isLangfuseModel ? "Langfuse" : "User"}
+                {isLangfuseModel
+                  ? t("common.table.langfuse")
+                  : t("model.details.user")}
               </div>
             </div>
 
             <div>
               <div className="text-sm font-medium text-muted-foreground">
-                Tokenizer
+                {t("model.details.tokenizer")}
               </div>
-              <div className="mt-1 text-sm">{model.tokenizerId || "None"}</div>
+              <div className="mt-1 text-sm">
+                {model.tokenizerId || t("common.labels.none")}
+              </div>
             </div>
 
             {model.tokenizerId && (
               <div>
                 <div className="text-sm font-medium text-muted-foreground">
-                  Tokenizer Config
+                  {t("model.details.tokenizerConfig")}
                 </div>
                 <pre className="mt-1 rounded bg-muted p-2 text-sm">
                   <JSONView json={model.tokenizerConfig} />
@@ -148,14 +156,16 @@ export default function ModelDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Pricing</CardTitle>
+            <CardTitle>{t("model.details.pricing")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
               <div className="grid grid-cols-2 gap-2 border-b border-border text-sm font-medium text-muted-foreground">
-                <span>Usage Type</span>
+                <span>{t("model.details.usageType")}</span>
                 <span className="flex items-center gap-2">
-                  <span>Price {priceUnit}</span>
+                  <span>
+                    {t("model.details.price")} {priceUnit}
+                  </span>
                   <PriceUnitSelector />
                 </span>
               </div>
@@ -180,13 +190,13 @@ export default function ModelDetailPage() {
         <Card className="col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Model observations</span>
+              <span>{t("model.details.modelObservations")}</span>
               <Button variant="ghost" asChild>
                 <Link
                   href={`/project/${projectId}/observations`}
                   className="flex items-center gap-1"
                 >
-                  <span className="text-sm">View all</span>
+                  <span className="text-sm">{t("model.details.viewAll")}</span>
                   <SquareArrowOutUpRight className="h-4 w-4" />
                 </Link>
               </Button>

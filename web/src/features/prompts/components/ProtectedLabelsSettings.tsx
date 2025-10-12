@@ -18,6 +18,7 @@ import { z } from "zod/v4";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
+import { useTranslation } from "react-i18next";
 import {
   Command,
   CommandEmpty,
@@ -49,6 +50,7 @@ export default function ProtectedLabelsSettings({
 }: {
   projectId: string;
 }) {
+  const { t } = useTranslation();
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "promptProtectedLabels:CUD",
@@ -108,12 +110,10 @@ export default function ProtectedLabelsSettings({
 
   return (
     <div>
-      <Header title="Protected Prompt Labels" />
+      <Header title={t("prompt.protectedLabels.title")} />
       <Card className="mb-4 p-3">
         <p className="mb-4 text-sm text-primary">
-          Protected labels can only be modified by users with admin or owner
-          access. This prevents other users from changing or removing these
-          labels from prompts.
+          {t("prompt.protectedLabels.description")}
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (

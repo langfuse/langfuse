@@ -24,6 +24,7 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { env } from "@/src/env.mjs";
 import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
+import { useTranslation } from "react-i18next";
 
 type SupportMenuItem = {
   title: string;
@@ -33,12 +34,13 @@ type SupportMenuItem = {
 };
 
 export const SupportMenuDropdown = () => {
+  const { t } = useTranslation();
   const uiCustomization = useUiCustomization();
 
   const supportMenuItems: (SupportMenuItem | "separator")[] = useMemo(() => {
     const items: (SupportMenuItem | "separator")[] = [
       {
-        title: "Ask AI",
+        title: t("dashboard.support.askAI"),
         pathname: "https://langfuse.com/docs/ask-ai",
         icon: Sparkles,
       },
@@ -46,19 +48,19 @@ export const SupportMenuDropdown = () => {
 
     if (uiCustomization?.supportHref) {
       items.push({
-        title: "Support",
+        title: t("common.navigation.support"),
         pathname: uiCustomization.supportHref,
         icon: LifeBuoy,
       });
     } else {
       if (chatAvailable) {
         items.push({
-          title: "Chat",
+          title: t("dashboard.support.chat"),
           pathname: "#",
           menuNode: (
             <div className="flex items-center gap-2" onClick={() => openChat()}>
               <MessageCircle className="h-4 w-4" />
-              <span>Contact Support</span>
+              <span>{t("dashboard.support.contactSupport")}</span>
             </div>
           ),
           icon: MessageCircle,
@@ -66,12 +68,12 @@ export const SupportMenuDropdown = () => {
       }
       items.push("separator");
       items.push({
-        title: "GitHub Support",
+        title: t("dashboard.support.githubSupport"),
         pathname: "https://langfuse.com/gh-support",
         icon: Github,
       });
       items.push({
-        title: "Discord",
+        title: t("dashboard.support.discord"),
         pathname: "https://langfuse.com/discord",
         icon: SiDiscord,
       });
@@ -79,14 +81,14 @@ export const SupportMenuDropdown = () => {
 
     items.push("separator");
     items.push({
-      title: "Docs",
+      title: t("dashboard.support.docs"),
       pathname:
         uiCustomization?.documentationHref ?? "https://langfuse.com/docs",
       icon: LibraryBig,
     });
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       items.push({
-        title: "Status Page",
+        title: t("dashboard.support.statusPage"),
         pathname: "https://status.langfuse.com",
         icon: Radio,
       });
@@ -95,7 +97,7 @@ export const SupportMenuDropdown = () => {
 
     if (uiCustomization?.feedbackHref) {
       items.push({
-        title: "Feedback",
+        title: t("dashboard.support.feedback"),
         pathname: uiCustomization.feedbackHref,
         icon: MessageSquarePlus,
       });
@@ -103,12 +105,12 @@ export const SupportMenuDropdown = () => {
       items.push(
         ...[
           {
-            title: "Feature Request",
+            title: t("dashboard.support.featureRequest"),
             pathname: "https://langfuse.com/ideas",
             icon: Lightbulb,
           },
           {
-            title: "Report a Bug",
+            title: t("dashboard.support.reportBug"),
             pathname: "https://langfuse.com/issues",
             icon: Bug,
           },
@@ -126,7 +128,7 @@ export const SupportMenuDropdown = () => {
       <DropdownMenuTrigger asChild>
         <SidebarMenuButton>
           <LifeBuoy className="h-4 w-4" />
-          Support
+          {t("common.navigation.support")}
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent

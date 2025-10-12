@@ -4,6 +4,7 @@ import {
   type APIScoreV2,
   isGenerationLike,
 } from "@langfuse/shared";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -59,6 +60,7 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   isTimeline?: boolean;
 }) => {
+  const { t } = useTranslation();
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
@@ -140,8 +142,14 @@ export const ObservationPreview = ({
             </span>
             <CopyIdsPopover
               idItems={[
-                { id: preloadedObservation.traceId, name: "Trace ID" },
-                { id: preloadedObservation.id, name: "Observation ID" },
+                {
+                  id: preloadedObservation.traceId,
+                  name: t("tracing.trace.ids.traceId"),
+                },
+                {
+                  id: preloadedObservation.id,
+                  name: t("tracing.trace.ids.observationId"),
+                },
               ]}
             />
           </div>
@@ -296,7 +304,9 @@ export const ObservationPreview = ({
                         <Link
                           href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.internalModelId}`}
                           className="flex items-center"
-                          title="View model details"
+                          title={t(
+                            "tracing.trace.tracing.observation.viewModelDetails",
+                          )}
                         >
                           {preloadedObservation.model}
                         </Link>
@@ -431,7 +441,7 @@ export const ObservationPreview = ({
                 {preloadedObservation.statusMessage && (
                   <PrettyJsonView
                     key={preloadedObservation.id + "-status"}
-                    title="Status Message"
+                    title={t("tracing.trace.io.statusMessage")}
                     json={preloadedObservation.statusMessage}
                     currentView={currentView}
                   />
@@ -441,7 +451,7 @@ export const ObservationPreview = ({
                 {observationWithInputAndOutput.data?.metadata && (
                   <PrettyJsonView
                     key={observationWithInputAndOutput.data.id + "-metadata"}
-                    title="Metadata"
+                    title={t("tracing.trace.common.metadata")}
                     json={observationWithInputAndOutput.data.metadata}
                     media={observationMedia.data?.filter(
                       (m) => m.field === "metadata",

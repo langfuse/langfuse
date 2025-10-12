@@ -14,6 +14,7 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { Dialog } from "@/src/components/ui/dialog";
@@ -27,6 +28,7 @@ import { Label } from "@/src/components/ui/label";
 import { Input } from "@/src/components/ui/input";
 
 export default function DefaultEvaluationModelPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const utils = api.useUtils();
@@ -62,8 +64,10 @@ export default function DefaultEvaluationModelPage() {
     api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
         showSuccessToast({
-          title: "Default evaluation model updated",
-          description: "All running evaluators will use the new model.",
+          title: t("evaluation.eval.success.defaultEvaluationModelUpdated"),
+          description: t(
+            "evaluation.eval.success.allRunningEvaluatorsWillUseNewModel",
+          ),
         });
 
         utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
@@ -98,15 +102,16 @@ export default function DefaultEvaluationModelPage() {
       <Page
         withPadding
         headerProps={{
-          title: "Default Evaluation Model",
+          title: t("evaluation.eval.pages.defaultEvaluationModel"),
           help: {
-            description:
-              "Configure a default evaluation model for your project.",
+            description: t(
+              "evaluation.eval.pages.configureDefaultEvaluationModel",
+            ),
             href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
           },
           breadcrumb: [
             {
-              name: "Evaluator Library",
+              name: t("evaluation.eval.pages.evaluatorLibrary"),
               href: `/project/${projectId}/evals/templates`,
             },
           ],
@@ -114,11 +119,13 @@ export default function DefaultEvaluationModelPage() {
       >
         <Card className="mt-3 flex flex-col gap-6">
           <CardContent>
-            <p className="my-2 text-lg font-semibold">Default model</p>
+            <p className="my-2 text-lg font-semibold">
+              {t("evaluation.eval.pages.defaultModel")}
+            </p>
             <ManageDefaultEvalModel
               projectId={projectId}
               variant="color-coded"
-              setUpMessage="No default model set. Set up default evaluation model"
+              setUpMessage={t("evaluation.eval.pages.noDefaultModelSet")}
               className="text-sm font-normal"
               showEditButton={false}
             />
@@ -150,14 +157,16 @@ export default function DefaultEvaluationModelPage() {
                 }}
               >
                 <Pencil className="mr-2 h-4 w-4" />
-                {selectedModel ? "Edit" : "Set up"}
+                {selectedModel
+                  ? t("common.actions.edit")
+                  : t("evaluation.eval.actions.setUp")}
               </Button>
             </DialogTrigger>
             <DialogContent className="px-3 py-10">
               <ModelParameters
                 customHeader={
                   <p className="font-medium leading-none">
-                    Default model configuration
+                    {t("evaluation.eval.pages.defaultModelConfiguration")}
                   </p>
                 }
                 {...{
@@ -171,12 +180,12 @@ export default function DefaultEvaluationModelPage() {
                 formDisabled={!hasWriteAccess}
               />
               <div className="my-2 text-xs text-muted-foreground">
-                Select a model which supports function calling.
+                {t("evaluation.eval.pages.selectModelWithFunctionCalling")}
               </div>
               <div className="flex flex-col gap-2">
                 <div className="mt-2 flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setIsEditing(false)}>
-                    Cancel
+                    {t("common.actions.cancel")}
                   </Button>
                   {selectedModel ? (
                     <UpdateButton
@@ -189,13 +198,16 @@ export default function DefaultEvaluationModelPage() {
                       disabled={!hasWriteAccess || !modelParams.provider.value}
                       onClick={executeUpsertMutation}
                     >
-                      Save
+                      {t("common.actions.save")}
                     </Button>
                   )}
                 </div>
                 {formError ? (
                   <p className="text-red w-full text-center">
-                    <span className="font-bold">Error:</span> {formError}
+                    <span className="font-bold">
+                      {t("common.errors.error")}:
+                    </span>{" "}
+                    {formError}
                   </p>
                 ) : null}
               </div>
@@ -216,6 +228,7 @@ function UpdateButton({
   isLoading: boolean;
   executeUpsertMutation: () => void;
 }) {
+  const { t } = useTranslation();
   const [confirmationInput, setConfirmationInput] = useState("");
   const hasWriteAccess = useHasProjectAccess({
     projectId,
@@ -233,22 +246,24 @@ function UpdateButton({
             e.stopPropagation();
           }}
         >
-          Update
+          {t("common.actions.update")}
         </Button>
       </PopoverTrigger>
       <PopoverContent
         onClick={(e) => e.stopPropagation()}
         className="w-fit max-w-[500px]"
       >
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="text-md mb-3 font-semibold">
+          {t("common.confirmations.pleaseConfirm")}
+        </h2>
         <p className="mb-3 text-sm">
-          Updating the default model will impact any currently running
-          evaluators that use it. Please confirm that you want to proceed with
-          this change.
+          {t("evaluation.eval.pages.updatingDefaultModelWillImpact")}
         </p>
         <div className="mb-4 grid w-full gap-1.5">
           <Label htmlFor="update-confirmation">
-            Type &quot;{CONFIRMATION}&quot; to confirm
+            {t("evaluation.eval.pages.typeToConfirm", {
+              confirmation: CONFIRMATION,
+            })}
           </Label>
           <Input
             id="update-confirmation"
@@ -262,13 +277,15 @@ function UpdateButton({
             loading={isLoading}
             onClick={() => {
               if (confirmationInput !== CONFIRMATION) {
-                alert("Please type the correct confirmation");
+                alert(
+                  t("evaluation.eval.errors.pleaseTypeCorrectConfirmation"),
+                );
                 return;
               }
               executeUpsertMutation();
             }}
           >
-            Confirm
+            {t("common.actions.confirm")}
           </Button>
         </div>
       </PopoverContent>

@@ -25,11 +25,11 @@ const DEBUG_QUERY_STATE = false;
 // encode/decode filter state
 // The decode has to return null or undefined so that withDefault will use the default value.
 // An empty array will be interpreted as existing state and hence the default value will not be used.
-const getCommaArrayParam = (table: TableName) => ({
+const getCommaArrayParam = (table: TableName, t: (key: string) => string) => ({
   encode: (filterState: FilterState) =>
     encodeDelimitedArray(
       filterState.map((f) => {
-        const columnId = getColumnId(table, f.column);
+        const columnId = getColumnId(table, f.column, t);
 
         const stringified = `${columnId};${f.type};${
           f.type === "numberObject" ||
@@ -79,7 +79,7 @@ const getCommaArrayParam = (table: TableName) => ({
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
-          column: getColumnName(table, column),
+          column: getColumnName(table, column, t),
           key: key !== "" ? key : undefined,
           operator,
           value: parsedValue,
@@ -95,6 +95,7 @@ const getCommaArrayParam = (table: TableName) => ({
 export const useQueryFilterState = (
   initialState: FilterState = [],
   table: TableName,
+  t: (key: string) => string,
   projectId?: string, // Passing projectId is expected as filters might differ across projects. However, we can't call hooks conditionally. There is a case in the prompts table where this will only be used if projectId is defined, but it's not defined in all cases.
 ) => {
   const [sessionFilterState, setSessionFilterState] =
@@ -122,7 +123,7 @@ export const useQueryFilterState = (
   // Note: `use-query-params` library does not automatically update the URL with the default value
   const [filterState, setFilterState] = useQueryParam(
     "filter",
-    withDefault(getCommaArrayParam(table), sessionFilterState),
+    withDefault(getCommaArrayParam(table, t), sessionFilterState),
   );
 
   const setFilterStateWithSession = (newState: FilterState): void => {
@@ -133,7 +134,7 @@ export const useQueryFilterState = (
   return [filterState, setFilterStateWithSession] as const;
 };
 
-const tableCols = {
+const getTableCols = (t: (key: string) => string) => ({
   generations: observationsTableCols,
   traces: tracesTableCols,
   sessions: sessionsViewCols,
@@ -144,27 +145,38 @@ const tableCols = {
   job_executions: evalExecutionsFilterCols,
   dataset_items: datasetItemFilterColumns,
   widgets: [
-    { id: "environment", name: "Environment" },
-    { id: "traceName", name: "Trace Name" },
-    { id: "tags", name: "Tags" },
-    { id: "release", name: "Release" },
-    { id: "user", name: "User" },
-    { id: "session", name: "Session" },
-    { id: "version", name: "Version" },
+    {
+      id: "environment",
+      name: t("common.filters.environment"),
+    },
+    { id: "traceName", name: t("common.filters.traceName") },
+    { id: "tags", name: t("common.filters.tags") },
+    { id: "release", name: t("common.filters.release") },
+    { id: "user", name: t("common.filters.user") },
+    { id: "session", name: t("common.filters.session") },
+    { id: "version", name: t("common.filters.version") },
   ],
   dashboard: [
-    { id: "traceName", name: "Trace Name" },
-    { id: "tags", name: "Tags" },
-    { id: "release", name: "Release" },
-    { id: "user", name: "User" },
-    { id: "version", name: "Version" },
+    { id: "traceName", name: t("common.filters.traceName") },
+    { id: "tags", name: t("common.filters.tags") },
+    { id: "release", name: t("common.filters.release") },
+    { id: "user", name: t("common.filters.user") },
+    { id: "version", name: t("common.filters.version") },
   ],
-};
+});
 
-function getColumnId(table: TableName, name: string): string | undefined {
-  return tableCols[table]?.find((col) => col.name === name)?.id;
+function getColumnId(
+  table: TableName,
+  name: string,
+  t: (key: string) => string,
+): string | undefined {
+  return getTableCols(t)[table]?.find((col) => col.name === name)?.id;
 }
 
-function getColumnName(table: TableName, id: string): string | undefined {
-  return tableCols[table]?.find((col) => col.id === id)?.name;
+function getColumnName(
+  table: TableName,
+  id: string,
+  t: (key: string) => string,
+): string | undefined {
+  return getTableCols(t)[table]?.find((col) => col.id === id)?.name;
 }

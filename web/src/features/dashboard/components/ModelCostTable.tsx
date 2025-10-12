@@ -13,6 +13,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { useTranslation } from "react-i18next";
 
 export const ModelCostTable = ({
   className,
@@ -29,6 +30,7 @@ export const ModelCostTable = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const modelCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "providedModelName" }],
@@ -98,14 +100,18 @@ export const ModelCostTable = ({
   return (
     <DashboardCard
       className={className}
-      title="Model costs"
+      title={t("dashboard.cards.modelCosts.title")}
       isLoading={isLoading || metrics.isLoading}
     >
       <DashboardTable
         headers={[
-          "Model",
-          <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
-          <RightAlignedCell key="cost">USD</RightAlignedCell>,
+          t("dashboard.cards.modelCosts.model"),
+          <RightAlignedCell key="tokens">
+            {t("dashboard.cards.modelCosts.tokens")}
+          </RightAlignedCell>,
+          <RightAlignedCell key="cost">
+            {t("dashboard.cards.modelCosts.usd")}
+          </RightAlignedCell>,
         ]}
         rows={metricsData}
         isLoading={isLoading || metrics.isLoading}
@@ -113,7 +119,7 @@ export const ModelCostTable = ({
       >
         <TotalMetric
           metric={totalCostDashboardFormatted(totalTokenCost)}
-          description="Total cost"
+          description={t("dashboard.cards.modelCosts.description")}
         >
           <DocPopup
             description="Calculated multiplying the number of tokens with cost per token for each model."

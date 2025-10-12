@@ -16,6 +16,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTranslation } from "react-i18next";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -33,56 +34,56 @@ import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 
-const formSchema = z.object({
-  datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
-  input: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  expectedOutput: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-  metadata: z.string().refine(
-    (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
-    {
-      message:
-        "Invalid input. Please provide a JSON object or double-quoted string.",
-    },
-  ),
-});
+const createFormSchema = (t: (key: string) => string) =>
+  z.object({
+    datasetIds: z
+      .array(z.string())
+      .min(1, t("dataset.validation.selectAtLeastOneDataset")),
+    input: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      {
+        message: t("dataset.validation.invalidInputJson"),
+      },
+    ),
+    expectedOutput: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      {
+        message: t("dataset.validation.invalidInputJson"),
+      },
+    ),
+    metadata: z.string().refine(
+      (value) => {
+        if (value === "") return true;
+        try {
+          JSON.parse(value);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      {
+        message: t("dataset.validation.invalidInputJson"),
+      },
+    ),
+  });
 
-const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
+const formatJsonValue = (value: any | undefined): string => {
   if (value === undefined) return "";
 
   if (typeof value === "string") {
@@ -110,10 +111,11 @@ export const NewDatasetItemForm = (props: {
   onFormSuccess?: () => void;
   currentDatasetId?: string;
 }) => {
+  const { t } = useTranslation();
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const form = useForm({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(createFormSchema(t)),
     defaultValues: {
       datasetIds: props.datasetId ? [props.datasetId] : [],
       input: formatJsonValue(props.input),
@@ -135,7 +137,7 @@ export const NewDatasetItemForm = (props: {
       onError: (error) => setFormError(error.message),
     });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<ReturnType<typeof createFormSchema>>) {
     if (props.traceId) {
       capture("dataset_item:new_from_trace_form_submit", {
         object: props.observationId ? "observation" : "trace",
@@ -179,7 +181,7 @@ export const NewDatasetItemForm = (props: {
               name="datasetIds"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Target datasets</FormLabel>
+                  <FormLabel>{t("dataset.form.targetDatasets")}</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -193,20 +195,22 @@ export const NewDatasetItemForm = (props: {
                         >
                           {field.value.length > 0
                             ? `${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`
-                            : "Select datasets"}
+                            : t("dataset.form.selectDatasets")}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
                     <PopoverContent className="p-0">
                       <InputCommand>
-                        <InputCommandInput placeholder="Search datasets..." />
+                        <InputCommandInput
+                          placeholder={t("dataset.form.searchDatasets")}
+                        />
                         <InputCommandEmpty>
-                          No datasets found.
+                          {t("dataset.form.noDatasetsFound")}
                         </InputCommandEmpty>
                         <InputCommandGroup>
                           <ScrollArea className="h-fit">
-                            {datasets.data?.map((dataset) => (
+                            {datasets.data?.map((dataset: any) => (
                               <InputCommandItem
                                 value={dataset.name}
                                 key={dataset.id}
@@ -232,7 +236,7 @@ export const NewDatasetItemForm = (props: {
                                 {dataset.name}
                                 {dataset.id === props.currentDatasetId && (
                                   <span className="ml-1 text-muted-foreground">
-                                    (current)
+                                    {t("dataset.form.current")}
                                   </span>
                                 )}
                               </InputCommandItem>
@@ -246,7 +250,7 @@ export const NewDatasetItemForm = (props: {
                     <div className="mt-2 flex flex-wrap gap-1">
                       {field.value.map((datasetId) => {
                         const dataset = datasets.data?.find(
-                          (d) => d.id === datasetId,
+                          (d: any) => d.id === datasetId,
                         );
                         return (
                           <Badge
@@ -272,7 +276,7 @@ export const NewDatasetItemForm = (props: {
                 name="input"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
-                    <FormLabel>Input</FormLabel>
+                    <FormLabel>{t("dataset.form.input")}</FormLabel>
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
@@ -280,8 +284,8 @@ export const NewDatasetItemForm = (props: {
                         onChange={field.onChange}
                         minHeight={200}
                         placeholder={`{
-  "question": "What is the capital of England?"
-}`}
+                            "question": "What is the capital of England?"
+                          }`}
                       />
                     </FormControl>
                     <FormMessage />
@@ -293,7 +297,7 @@ export const NewDatasetItemForm = (props: {
                 name="expectedOutput"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
-                    <FormLabel>Expected output</FormLabel>
+                    <FormLabel>{t("dataset.form.expectedOutput")}</FormLabel>
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
@@ -301,8 +305,8 @@ export const NewDatasetItemForm = (props: {
                         onChange={field.onChange}
                         minHeight={200}
                         placeholder={`{
-  "answer": "London"
-}`}
+                            "answer": "London"
+                          }`}
                       />
                     </FormControl>
                     <FormMessage />
@@ -315,7 +319,7 @@ export const NewDatasetItemForm = (props: {
               name="metadata"
               render={({ field }) => (
                 <FormItem className="mt-4 flex flex-col gap-2">
-                  <FormLabel>Metadata</FormLabel>
+                  <FormLabel>{t("dataset.form.metadata")}</FormLabel>
                   <FormControl>
                     <CodeMirrorEditor
                       mode="json"
@@ -338,14 +342,15 @@ export const NewDatasetItemForm = (props: {
               className="w-full"
               disabled={selectedDatasetCount === 0}
             >
-              Add
+              {t("dataset.actions.add")}
               {selectedDatasetCount > 1
-                ? ` to ${selectedDatasetCount} datasets`
-                : " to dataset"}
+                ? ` ${t("dataset.actions.toDatasets", { count: selectedDatasetCount })}`
+                : ` ${t("dataset.actions.toDataset")}`}
             </Button>
             {formError ? (
               <p className="text-red mt-2 text-center">
-                <span className="font-bold">Error:</span> {formError}
+                <span className="font-bold">{t("common.errors.error")}</span>{" "}
+                {formError}
               </p>
             ) : null}
           </div>

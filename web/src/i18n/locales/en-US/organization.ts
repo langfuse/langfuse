@@ -1,0 +1,87 @@
+const translation = {
+  pages: {
+    title: "Organizations",
+    description: "Organizations help you manage access to projects. Each organization can have multiple projects and team members with different roles.",
+  },
+  buttons: {
+    newOrganization: "New Organization",
+    goToProject: "Go to project",
+    newProject: "New project",
+  },
+  forms: {
+    projectName: "Project name",
+    organizationName: "Organization name",
+    type: "Type",
+    typeDescription: "What would best describe your organization?",
+    pleaseChoose: "Please choose",
+    personal: "Personal",
+    educational: "Educational",
+    company: "Company",
+    startup: "Startup",
+    agency: "Agency",
+    size: "size",
+    sizeDescription: "How many people are in your {{type}}?",
+    sizeOptions: {
+      "300+": "More than 300",
+    },
+  },
+  settings: {
+    title: "Organization Settings",
+    general: "General",
+    apiKeys: "API Keys",
+    members: "Members",
+    billing: "Billing",
+    projects: "Projects",
+    debugInformation: "Debug Information",
+    metadata: "Metadata",
+    deleteOrganization: "Delete this organization",
+    deleteOrganizationDescription: "Once you delete an organization, there is no going back. Please be certain.",
+    organizationMembers: "Organization Members",
+    usageAndBilling: "Usage & Billing",
+    loading: "Loading (might take a moment) ...",
+    currentPlan: "Current plan",
+    changePlan: "Change plan",
+    comparePlans: "Compare plans",
+    ssoConfiguration: "SSO Configuration",
+    ssoDescription:
+      "Configure Single Sign-On (SSO) for your organization. SSO allows your team to use your existing identity provider for authentication, e.g. Okta, AzureAD/EntraID. Alternatively, you can enforce the use of a public provider such as Google, GitHub and Microsoft.",
+    notAvailable: "Not available",
+    ssoNotAvailableDescription: "Enterprise SSO and SSO Enforcement are not available on your plan. Please upgrade to access this feature.",
+    contactSupport: "Contact Langfuse Support",
+    contactSupportDescription: "To set up or change your SSO configuration, please reach out to support@langfuse.com.",
+    plans: "Plans",
+    comparisonOfPlans: "Comparison of plans",
+  },
+  status: {
+    demoOrg: "Demo Org",
+    beingDeleted: "Project is being deleted",
+  },
+  descriptions: {
+    demoOrganization: "We have built a Q&A chatbot that answers questions based on the Langfuse Docs. Interact with it to see traces in Langfuse.",
+  },
+  cards: {
+    tryDemo: "Try Langfuse Demo",
+    viewDemoProject: "View Demo Project",
+  },
+  search: {
+    placeholder: "Search projects",
+  },
+  rename: {
+    title: "Organization Name",
+    willBeRenamed: 'Your Organization will be renamed from "{{oldName}}" to "{{newName}}".',
+    currentlyNamed: 'Your Organization is currently named "{{name}}".',
+    noAccess: "No access",
+    save: "Save",
+  },
+  delete: {
+    button: "Delete Organization",
+    title: "Delete Organization",
+    description: 'To confirm, type "{{confirmMessage}}" in the input box',
+    descriptionWithProjects: "You can only delete an organization if it has no projects associated with it. Please delete or transfer all projects first. Deleting projects may take a few minutes.",
+    confirmMessage: 'Please confirm with "{{confirmMessage}}"',
+    successTitle: "Organization Deleted",
+    successDescription: "The organization has been successfully deleted.",
+  },
+};
+
+export default translation;

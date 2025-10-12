@@ -26,23 +26,25 @@ import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
-
-const resetPasswordSchema = z
-  .object({
-    email: z.string().email(),
-    password: passwordSchema,
-    confirmPassword: passwordSchema,
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+import { useTranslation } from "react-i18next";
 
 export function ResetPasswordPage({
   passwordResetAvailable,
 }: {
   passwordResetAvailable: boolean;
 }) {
+  const { t } = useTranslation();
+
+  const resetPasswordSchema = z
+    .object({
+      email: z.string().email(),
+      password: passwordSchema,
+      confirmPassword: passwordSchema,
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t("auth.validation.passwordsDoNotMatch"),
+      path: ["confirmPassword"],
+    });
   const session = useSession();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
@@ -89,7 +91,7 @@ export function ResetPasswordPage({
           setFormError(error.message);
         } else {
           console.error(error);
-          setFormError("An unknown error occurred");
+          setFormError(t("auth.errors.unexpectedError"));
         }
       });
   }
@@ -97,10 +99,10 @@ export function ResetPasswordPage({
   if (!passwordResetAvailable)
     return (
       <ErrorPage
-        title="Not available"
-        message="Password reset is not configured on this instance"
+        title={t("auth.resetPassword.notAvailable")}
+        message={t("auth.descriptions.passwordResetNotConfigured")}
         additionalButton={{
-          label: "Setup instructions",
+          label: t("auth.resetPassword.setupInstructions"),
           href: "https://langfuse.com/docs/deployment/self-host#emailpassword",
         }}
       />
@@ -117,14 +119,14 @@ export function ResetPasswordPage({
             <LangfuseIcon className="mx-auto" />
           </Link>
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-            Reset your password
+            {t("auth.resetPassword.title")}
           </h2>
           {session.status !== "authenticated" && (
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
                   <ArrowLeft className="mr-2 h-3 w-3" />
-                  Back to sign in
+                  {t("auth.resetPassword.backToSignIn")}
                 </Link>
               </Button>
             </div>
@@ -144,16 +146,16 @@ export function ResetPasswordPage({
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>{t("common.labels.email")}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
-                            placeholder="jsdoe@example.com"
+                            placeholder={t("common.placeholders.email")}
                             disabled={session.status === "authenticated"}
                             {...field}
                           />
                           {emailVerified.verified && (
-                            <span title="Email verified">
+                            <span title={t("auth.descriptions.emailVerified")}>
                               <ShieldCheck className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 transform text-muted-green" />
                             </span>
                           )}
@@ -170,7 +172,9 @@ export function ResetPasswordPage({
                       name="password"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>New Password</FormLabel>
+                          <FormLabel>
+                            {t("auth.resetPassword.newPassword")}
+                          </FormLabel>
                           <FormControl>
                             <PasswordInput {...field} />
                           </FormControl>
@@ -183,7 +187,9 @@ export function ResetPasswordPage({
                       name="confirmPassword"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormLabel>
+                            {t("auth.resetPassword.confirmNewPassword")}
+                          </FormLabel>
                           <FormControl>
                             <PasswordInput {...field} />
                           </FormControl>
@@ -204,7 +210,7 @@ export function ResetPasswordPage({
                         showResetPasswordEmailButton ? "secondary" : "default"
                       }
                     >
-                      Update Password
+                      {t("auth.resetPassword.updatePassword")}
                     </Button>
                   ) : (
                     <RequestResetPasswordEmailButton
@@ -222,7 +228,7 @@ export function ResetPasswordPage({
             ) : null}
             {isSuccess && (
               <div className="text-center text-sm font-medium">
-                Password successfully updated. Redirecting ...
+                {t("auth.descriptions.passwordSuccessfullyUpdated")}
               </div>
             )}
             {showResetPasswordEmailButton && (
@@ -235,11 +241,9 @@ export function ResetPasswordPage({
         </div>
         {session.status !== "authenticated" && (
           <div className="mx-auto mt-10 max-w-lg text-center text-xs text-muted-foreground">
-            You will only receive an email if an account with this email exists
-            and you have signed up with email and password. If you used an
-            authentication provider like Google, Gitlab, Okta, or GitHub, please{" "}
+            {t("auth.descriptions.resetPasswordEmailInfo")}{" "}
             <Link href="/auth/sign-in" className="underline">
-              sign in
+              {t("common.auth.signIn")}
             </Link>
             .
           </div>

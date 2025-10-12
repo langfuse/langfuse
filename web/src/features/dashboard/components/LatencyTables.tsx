@@ -11,6 +11,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { useTranslation } from "react-i18next";
 
 export const LatencyTables = ({
   projectId,
@@ -25,6 +26,7 @@ export const LatencyTables = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const generationsLatenciesQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "name" }],
@@ -173,12 +175,12 @@ export const LatencyTables = ({
     <>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Trace latency percentiles"
+        title={t("dashboard.latencyTables.traceLatencyPercentiles")}
         isLoading={isLoading || tracesLatencies.isPending}
       >
         <DashboardTable
           headers={[
-            "Trace Name",
+            t("dashboard.latencyTables.traceName"),
             <RightAlignedCell key="p50">p50</RightAlignedCell>,
             <RightAlignedCell key="p90">p90</RightAlignedCell>,
             <RightAlignedCell key="p95">
@@ -193,12 +195,12 @@ export const LatencyTables = ({
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Generation latency percentiles"
+        title={t("dashboard.latencyTables.generationLatencyPercentiles")}
         isLoading={isLoading || generationsLatencies.isPending}
       >
         <DashboardTable
           headers={[
-            "Generation Name",
+            t("dashboard.latencyTables.generationName"),
             <RightAlignedCell key="p50">p50</RightAlignedCell>,
             <RightAlignedCell key="p90">p90</RightAlignedCell>,
             <RightAlignedCell key="p95">
@@ -213,12 +215,12 @@ export const LatencyTables = ({
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Span latency percentiles"
+        title={t("dashboard.latencyTables.spanLatencyPercentiles")}
         isLoading={isLoading || spansLatencies.isPending}
       >
         <DashboardTable
           headers={[
-            "Span Name",
+            t("dashboard.latencyTables.spanName"),
             <RightAlignedCell key="p50">p50</RightAlignedCell>,
             <RightAlignedCell key="p90">p90</RightAlignedCell>,
             <RightAlignedCell key="p95">

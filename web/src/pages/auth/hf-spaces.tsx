@@ -11,6 +11,7 @@ import { type GetServerSideProps } from "next";
 import { env } from "@/src/env.mjs";
 import { PlusIcon } from "lucide-react";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { useTranslation } from "react-i18next";
 
 type PageProps = {
   deploymentDomain: string;
@@ -27,10 +28,11 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
 };
 
 export default function HfSpaces({ deploymentDomain }: PageProps) {
+  const { t } = useTranslation();
   return (
     <>
       <Head>
-        <title>Langfuse on Hugging Face</title>
+        <title>{t("common.pages.langfuseOnHuggingFace")}</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -46,13 +48,16 @@ export default function HfSpaces({ deploymentDomain }: PageProps) {
             />
           </div>
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-            Langfuse on Hugging Face
+            {t("common.pages.langfuseOnHuggingFace")}
           </h2>
         </div>
 
         <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-8">
-            <CodeView content={deploymentDomain} title="HF Space Host" />
+            <CodeView
+              content={deploymentDomain}
+              title={t("common.pages.hfSpaceHost")}
+            />
 
             <Button className="w-full" asChild>
               <Link
@@ -60,7 +65,7 @@ export default function HfSpaces({ deploymentDomain }: PageProps) {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open in new tab
+                {t("common.pages.openInNewTab")}
               </Link>
             </Button>
           </div>

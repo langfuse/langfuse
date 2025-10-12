@@ -1,6 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { chatAvailable, openChat } from "@/src/features/support-chat/PlainChat";
 import { AlertTriangle, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface ErrorNotificationProps {
   error: string;
@@ -19,6 +20,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   toast,
   path,
 }) => {
+  const { t } = useTranslation();
   const isError = type === "ERROR";
   const textColor = isError
     ? "text-destructive-foreground"
@@ -51,7 +53,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         )}
         {path && (
           <div className={`text-sm leading-tight ${textColor}`}>
-            Path: {path}
+            {t("ui.notification.error.path")}: {path}
           </div>
         )}
 
@@ -63,7 +65,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
               openChat();
             }}
           >
-            Report issue to Langfuse team
+            {t("common.actions.reportIssueToLangfuseTeam")}
           </Button>
         )}
       </div>

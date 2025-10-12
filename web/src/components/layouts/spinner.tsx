@@ -6,7 +6,7 @@ export function Spinner(props: { message: string }) {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <LangfuseIcon className="mx-auto motion-safe:animate-spin" size={42} />
         <h2 className="mt-5 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
-          {props.message} ...
+          {props.message}
         </h2>
       </div>
     </div>

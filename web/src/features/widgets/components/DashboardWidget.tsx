@@ -21,6 +21,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import { formatMetricName } from "@/src/features/widgets/utils";
+import { useTranslation } from "react-i18next";
 
 export interface WidgetPlacement {
   id: string;
@@ -49,6 +50,7 @@ export function DashboardWidget({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
 }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const utils = api.useUtils();
   const widget = api.dashboardWidgets.get.useQuery(
@@ -205,7 +207,7 @@ export function DashboardWidget({
       });
     },
     onError: (e) => {
-      showErrorToast("Failed to clone widget", e.message);
+      showErrorToast(t("widget.actions.cloneWidget"), e.message);
     },
   });
   const handleCopy = () => {
@@ -218,7 +220,7 @@ export function DashboardWidget({
   };
 
   const handleDelete = () => {
-    if (onDeleteWidget && confirm("Please confirm deletion")) {
+    if (onDeleteWidget && confirm(t("common.confirmations.pleaseConfirm"))) {
       onDeleteWidget(placement.id);
     }
   };
@@ -292,7 +294,7 @@ export function DashboardWidget({
             <div
               className="text-muted-foreground"
               aria-label="Loading chart data"
-              title="Loading..."
+              title={t("widget.actions.loading")}
             >
               <Loader2 size={16} className="animate-spin" />
             </div>

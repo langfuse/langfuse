@@ -26,8 +26,10 @@ import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
+import { useTranslation } from "react-i18next";
 
 export function LlmApiKeyList(props: { projectId: string }) {
+  const { t } = useTranslation();
   const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -52,11 +54,13 @@ export function LlmApiKeyList(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Header title="LLM Connections" />
+        <Header title={t("project.settings.llmConnections.title")} />
         <Alert>
-          <AlertTitle>Access Denied</AlertTitle>
+          <AlertTitle>
+            {t("project.settings.llmConnections.accessDenied")}
+          </AlertTitle>
           <AlertDescription>
-            You do not have permission to view LLM API keys for this project.
+            {t("project.settings.llmConnections.noPermission")}
           </AlertDescription>
         </Alert>
       </div>
@@ -65,27 +69,30 @@ export function LlmApiKeyList(props: { projectId: string }) {
 
   return (
     <div id="llm-api-keys">
-      <Header title="LLM Connections" />
+      <Header title={t("project.settings.llmConnections.title")} />
       <p className="mb-4 text-sm">
-        Connect your LLM services to enable evaluations and playground features.
-        Your provider will charge based on usage.
+        {t("project.settings.llmConnections.description")}
       </p>
       <Card className="mb-4 overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="text-primary md:table-cell">
-                Provider
+                {t("project.settings.llmConnections.provider")}
               </TableHead>
               <TableHead className="text-primary md:table-cell">
-                Adapter
+                {t("project.settings.llmConnections.adapter")}
               </TableHead>
               <TableHead className="text-primary md:table-cell">
-                Base URL
+                {t("project.settings.llmConnections.baseUrl")}
               </TableHead>
-              <TableHead className="text-primary">API Key</TableHead>
+              <TableHead className="text-primary">
+                {t("project.settings.llmConnections.apiKey")}
+              </TableHead>
               {hasExtraHeaderKeys ? (
-                <TableHead className="text-primary">Extra headers</TableHead>
+                <TableHead className="text-primary">
+                  {t("project.settings.llmConnections.extraHeaders")}
+                </TableHead>
               ) : null}
               <TableHead />
             </TableRow>
@@ -94,7 +101,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
             {apiKeys.data?.data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center">
-                  None
+                  {t("project.settings.llmConnections.none")}
                 </TableCell>
               </TableRow>
             ) : (

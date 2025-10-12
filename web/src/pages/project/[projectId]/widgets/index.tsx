@@ -9,8 +9,10 @@ import {
   getDashboardTabs,
   DASHBOARD_TABS,
 } from "@/src/features/navigation/utils/dashboard-tabs";
+import { useTranslation } from "react-i18next";
 
 export default function Widgets() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
   const capture = usePostHogClientCapture();
@@ -22,9 +24,9 @@ export default function Widgets() {
   return (
     <Page
       headerProps={{
-        title: "Widgets",
+        title: t("widget.pages.title"),
         help: {
-          description: "Manage and create widgets for your dashboard.",
+          description: t("widget.pages.description"),
           href: "https://langfuse.com/docs/metrics/features/custom-dashboards",
         },
         tabsProps: {
@@ -41,7 +43,7 @@ export default function Widgets() {
               capture("dashboard:new_widget_form_open");
             }}
           >
-            New widget
+            {t("widget.actions.newWidget")}
           </ActionButton>
         ),
       }}

@@ -3,6 +3,7 @@ import { api } from "@/src/utils/api";
 import { JobConfigState, type AutomationDomain } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { useTranslation } from "react-i18next";
 
 interface AutomationSidebarProps {
   projectId: string;
@@ -15,6 +16,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   selectedAutomation,
   onAutomationSelect,
 }) => {
+  const { t } = useTranslation();
   const { data: automations, isLoading } =
     api.automations.getAutomations.useQuery({
       projectId,
@@ -98,10 +100,10 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                         </span>
                         {" → "}
                         {automation.action.type === "WEBHOOK"
-                          ? "Webhook"
+                          ? t("automation.types.webhook")
                           : automation.action.type === "SLACK"
-                            ? "Slack"
-                            : "Annotation Queue"}
+                            ? t("automation.types.slack")
+                            : t("automation.types.annotationQueue")}
                       </p>
                     </div>
                   </div>

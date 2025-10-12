@@ -9,6 +9,7 @@ import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
 import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { LanguageSwitcher } from "@/src/components/i18n";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -20,6 +21,8 @@ import {
   processNavigation,
   type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
+import { useTranslation } from "react-i18next";
+import { useRoutes } from "@/src/components/layouts/routes";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -27,15 +30,20 @@ const signOutUser = async () => {
   await signOut();
 };
 
-const getUserNavigation = () => {
+const getUserNavigation = (t: (key: string) => string) => {
   return [
     {
-      name: "Theme",
+      name: t("ui.layout.navigation.language"),
+      onClick: () => {},
+      content: <LanguageSwitcher />,
+    },
+    {
+      name: t("ui.layout.navigation.theme"),
       onClick: () => {},
       content: <ThemeToggle />,
     },
     {
-      name: "Sign out",
+      name: t("ui.layout.navigation.signOut"),
       onClick: signOutUser,
     },
   ];
@@ -98,12 +106,14 @@ function useSessionWithRetryOnUnauthenticated() {
 }
 
 export default function Layout(props: PropsWithChildren) {
+  const { t } = useTranslation();
   const router = useRouter();
   const routerProjectId = router.query.projectId as string | undefined;
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
   const session = useSessionWithRetryOnUnauthenticated();
+  const routes = useRoutes();
 
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
@@ -218,12 +228,15 @@ export default function Layout(props: PropsWithChildren) {
   };
 
   // Process navigation using the dedicated utility
-  const { mainNavigation, secondaryNavigation, navigation } =
-    processNavigation(mapNavigation);
+  const { mainNavigation, secondaryNavigation, navigation } = processNavigation(
+    mapNavigation,
+    routes,
+  );
 
   const activePathName = navigation.find((item) => item.isActive)?.title;
 
-  if (session.status === "loading") return <Spinner message="Loading" />;
+  if (session.status === "loading")
+    return <Spinner message={t("common.status.loading")} />;
 
   // If the user has a token, but does not exist in the database, sign them out
   if (
@@ -236,7 +249,7 @@ export default function Layout(props: PropsWithChildren) {
     console.warn("Layout: User was signed out as db user was not found");
     signOutUser();
 
-    return <Spinner message="Redirecting" />;
+    return <Spinner message={t("common.status.redirecting")} />;
   }
 
   if (
@@ -253,7 +266,7 @@ export default function Layout(props: PropsWithChildren) {
     } else {
       void router.replace(`/auth/sign-in`);
     }
-    return <Spinner message="Redirecting" />;
+    return <Spinner message={t("common.status.redirecting")} />;
   }
 
   if (
@@ -274,7 +287,7 @@ export default function Layout(props: PropsWithChildren) {
         : "/";
 
     void router.replace(targetPath);
-    return <Spinner message="Redirecting" />;
+    return <Spinner message={t("common.status.redirecting")} />;
   }
 
   const hideNavigation =
@@ -319,7 +332,7 @@ export default function Layout(props: PropsWithChildren) {
             navItems={mainNavigation}
             secondaryNavItems={secondaryNavigation}
             userNavProps={{
-              items: getUserNavigation(),
+              items: getUserNavigation(t),
               user: {
                 name: session.data?.user?.name ?? "",
                 email: session.data?.user?.email ?? "",

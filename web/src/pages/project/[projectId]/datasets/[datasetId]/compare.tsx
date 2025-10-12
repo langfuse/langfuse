@@ -36,8 +36,10 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { useTranslation } from "react-i18next";
 
 export default function DatasetCompare() {
+  const { t } = useTranslation();
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -110,7 +112,8 @@ export default function DatasetCompare() {
 
   const runAggregatedMetrics = useMemo(() => {
     return transformAggregatedRunMetricsToChartData(
-      runMetrics.data?.runs.filter((run) => runIds?.includes(run.id)) ?? [],
+      runMetrics.data?.runs.filter((run: any) => runIds?.includes(run.id)) ??
+        [],
       scoreIdToName,
     );
   }, [runMetrics.data, runIds, scoreIdToName]);
@@ -150,7 +153,7 @@ export default function DatasetCompare() {
 
   const runs = useMemo(() => {
     const apiRuns =
-      runsData.data?.map((run) => ({
+      runsData.data?.map((run: any) => ({
         key: run.id,
         value: run.name,
       })) ?? [];
@@ -159,7 +162,7 @@ export default function DatasetCompare() {
   }, [runsData.data, localRuns]);
 
   if (!runsData.data || !router.isReady || runs.length === 0) {
-    return <span>Loading...</span>;
+    return <span>{t("common.status.loading")}</span>;
   }
 
   return (
@@ -168,7 +171,7 @@ export default function DatasetCompare() {
         title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
         breadcrumb: [
           {
-            name: "Datasets",
+            name: t("dataset.pages.title"),
             href: `/project/${projectId}/datasets`,
           },
           {
@@ -177,7 +180,7 @@ export default function DatasetCompare() {
           },
         ],
         help: {
-          description: "Compare your dataset runs side by side",
+          description: t("dataset.pages.compareDescription"),
         },
         actionButtonsRight: (
           <>
@@ -193,7 +196,9 @@ export default function DatasetCompare() {
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2 hidden md:block">New dataset run</span>
+                  <span className="ml-2 hidden md:block">
+                    {t("dataset.compare.newDatasetRun")}
+                  </span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -211,8 +216,8 @@ export default function DatasetCompare() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
-              placeholder="Select runs to compare"
+              title={t("common.table.runs")}
+              placeholder={t("dataset.compare.selectRuns")}
               className="w-fit"
               variant="outline"
               hideClearButton
@@ -258,24 +263,27 @@ export default function DatasetCompare() {
           />
         </div>
         <SidePanel
-          mobileTitle="Compare Dataset Runs"
+          mobileTitle={t("dataset.compare.compareDatasetRuns")}
           id="compare-dataset-runs"
           scrollable={false}
         >
           <SidePanelHeader>
-            <SidePanelTitle>Compare Dataset Runs</SidePanelTitle>
+            <SidePanelTitle>
+              {t("dataset.compare.compareDatasetRuns")}
+            </SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent className="overflow-y-auto p-1">
             <div className="w-full space-y-4">
               <div>
-                <SubHeaderLabel title="Description" />
+                <SubHeaderLabel title={t("dataset.compare.description")} />
                 <span className="text-sm text-muted-foreground">
-                  {dataset.data?.description ?? "No description"}
+                  {dataset.data?.description ??
+                    t("dataset.compare.noDescription")}
                 </span>
               </div>
               {dataset.data?.metadata && (
                 <div>
-                  <SubHeaderLabel title="Metadata" />
+                  <SubHeaderLabel title={t("dataset.compare.metadata")} />
                   <MarkdownJsonView content={dataset.data?.metadata} />
                 </div>
               )}
@@ -349,8 +357,8 @@ export default function DatasetCompare() {
               ) : (
                 <span className="-mt-2 text-sm text-muted-foreground">
                   {Boolean(runAggregatedMetrics?.size)
-                    ? "All charts hidden. Enable them in settings."
-                    : "Select more than one run to generate charts."}
+                    ? t("dataset.compare.allChartsHidden")
+                    : t("dataset.compare.selectMoreRuns")}
                 </span>
               )}
             </>

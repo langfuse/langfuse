@@ -8,8 +8,10 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
+import { useTranslation } from "react-i18next";
 
 export default function Generations() {
+  const { t } = useTranslation();
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -32,10 +34,9 @@ export default function Generations() {
   return (
     <Page
       headerProps={{
-        title: "Tracing",
+        title: t("tracing.observation.pages.title"),
         help: {
-          description:
-            "An observation captures a single function call in an application. See docs to learn more.",
+          description: t("tracing.observation.pages.description"),
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps: {

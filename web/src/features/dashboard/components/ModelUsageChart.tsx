@@ -25,6 +25,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { useTranslation } from "react-i18next";
 
 export const ModelUsageChart = ({
   className,
@@ -45,6 +46,7 @@ export const ModelUsageChart = ({
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
 }) => {
+  const { t } = useTranslation();
   const {
     allModels,
     selectedModels,
@@ -284,41 +286,41 @@ export const ModelUsageChart = ({
 
   const data = [
     {
-      tabTitle: "Cost by model",
+      tabTitle: t("dashboard.modelUsageChart.costByModel"),
       data: costByModel,
       totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: `Cost`,
+      metricDescription: t("dashboard.modelUsageChart.cost"),
       formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Cost by type",
+      tabTitle: t("dashboard.modelUsageChart.costByType"),
       data: costByType,
       totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: `Cost`,
+      metricDescription: t("dashboard.modelUsageChart.cost"),
       formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Units by model",
+      tabTitle: t("dashboard.modelUsageChart.unitsByModel"),
       data: unitsByModel,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
-      metricDescription: `Units`,
+      metricDescription: t("dashboard.modelUsageChart.units"),
     },
     {
-      tabTitle: "Units by type",
+      tabTitle: t("dashboard.modelUsageChart.unitsByType"),
       data: unitsByType,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
-      metricDescription: `Units`,
+      metricDescription: t("dashboard.modelUsageChart.units"),
     },
   ];
 
   return (
     <DashboardCard
       className={className}
-      title="Model Usage"
+      title={t("dashboard.modelUsageChart.title")}
       isLoading={
         isLoading || (queryResult.isPending && selectedModels.length > 0)
       }

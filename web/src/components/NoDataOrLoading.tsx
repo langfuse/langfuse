@@ -3,6 +3,7 @@ import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Flex, Text } from "@tremor/react";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
 
 interface NoDataOrLoadingProps {
   isLoading: boolean;
@@ -16,11 +17,8 @@ interface NoDataProps {
   className?: string;
 }
 
-const NoData = ({
-  noDataText = "No data",
-  children,
-  className,
-}: NoDataProps) => {
+const NoData = ({ noDataText, children, className }: NoDataProps) => {
+  const { t } = useTranslation();
   return (
     <Flex
       alignItems="center"
@@ -30,7 +28,9 @@ const NoData = ({
         className,
       )}
     >
-      <Text className="text-tremor-content">{noDataText}</Text>
+      <Text className="text-tremor-content">
+        {noDataText || t("dashboard.modelLatencies.noData")}
+      </Text>
       {children}
     </Flex>
   );
@@ -58,7 +58,7 @@ export function NoDataOrLoading({
   }
 
   return (
-    <NoData noDataText="No data" className={className}>
+    <NoData className={className}>
       {description && <DocPopup description={description} href={href} />}
     </NoData>
   );

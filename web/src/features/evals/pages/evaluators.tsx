@@ -13,12 +13,14 @@ import { api } from "@/src/utils/api";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
+import { useTranslation } from "react-i18next";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
+  const { t } = useTranslation();
 
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
@@ -85,7 +87,7 @@ export default function EvaluatorsPage() {
             href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
           },
           tabsProps: {
-            tabs: getEvalsTabs(projectId),
+            tabs: getEvalsTabs(projectId, t),
             activeTab: EVALS_TABS.CONFIGS,
           },
           actionButtonsRight: (
