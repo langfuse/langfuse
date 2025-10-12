@@ -10,7 +10,12 @@ export const llamaIndexMapper: ChatMLMapper = {
   mapperName: "llamaindex",
   dataSourceName: "llama-index",
 
-  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+  canMapScore(
+    input: unknown,
+    output: unknown,
+    metadata?: unknown,
+    _observationName?: string,
+  ): number {
     const meta = parseMetadata(metadata);
 
     if (
@@ -33,6 +38,7 @@ export const llamaIndexMapper: ChatMLMapper = {
     input: unknown,
     output: unknown,
     metadata?: unknown,
+    _observationName?: string,
   ): LangfuseChatML => {
     const inputMessages: LangfuseChatMLMessage[] = [];
     const outputMessages: LangfuseChatMLMessage[] = [];
