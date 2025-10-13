@@ -11,17 +11,17 @@ const LOW_SURROGATE_END = 0xdfff;
  * Decodes ONLY \uXXXX unicode escapes. Does not touch other escapes like \" \\n \\t etc.
  * Handles surrogate pairs (\uD83D\uDE00 -> 😀). Robust to truncation/invalid hex.
  * Invalid/truncated \uXXXX are left literal. Collapses paired backslashes before 'u' based on parity.
- * Greedy mode collapses all \ before 'u' for incorrect escapes, i.e. \\\\u1234 -> \u1234
+ * greedy mode decodes all \uXXXX patterns regardless of backslash escaping (e.g., \\u1234 -> 你).
  *
  * Used to make i.e. chinese characters render from truncated JSON strings where
  * JSON.parse would fail.
  *
- * Custom (i.e. no regex) implementation for performance reasons. Only way to do single pass.
+ * Custom (i.e. no regex) implementation for performance to only have a single pass over characters.
  * Overoptimized? yes, probably..
  * see also: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/charCodeAt
  *
  * @param input - The string to decode
- * @param greedy - If true, decodes invalid escapes \\\\u1234 -> \u1234
+ * @param greedy - If true, decodes all \uXXXX patterns (ignores backslash escaping rules)
  */
 export function decodeUnicodeEscapesOnly(
   input: string,
@@ -73,6 +73,51 @@ export function decodeUnicodeEscapesOnly(
     return { decoded: String.fromCodePoint(cp), consumed: 6 };
   };
 
+  // Greedy mode: decode all \uXXXX patterns (ignores backslash parity)
+  if (greedy) {
+    while (i < n) {
+      if (input.charCodeAt(i) !== BACKSLASH) {
+        i++;
+        continue;
+      }
+
+      // count backslashes before 'u'
+      let j = i + 1;
+      while (j < n && input.charCodeAt(j) === BACKSLASH) j++;
+
+      // look for 'u' after backslashes
+      if (j < n && input.charCodeAt(j) === U_CHAR && j + 5 <= n) {
+        const codeUnit = parseHex4(input, j + 1);
+        if (codeUnit !== -1) {
+          // Emit everything up to the backslash run
+          if (lastEmit < i) out.push(input.slice(lastEmit, i));
+
+          // surrogate pair decoding
+          const pair = tryDecodeSurrogatePair(input, j + 5, codeUnit, n);
+          if (pair) {
+            out.push(pair.decoded);
+            i = j + 5 + pair.consumed;
+            lastEmit = i;
+            continue;
+          }
+
+          // regular unicode characters
+          out.push(String.fromCharCode(codeUnit));
+          i = j + 5;
+          lastEmit = i;
+          continue;
+        }
+      }
+
+      // No valid \uXXXX pattern, move past the backslash(es)
+      i = j;
+    }
+
+    if (lastEmit < n) out.push(input.slice(lastEmit));
+    return out.join("");
+  }
+
+  // Non-greedy mode: respect backslash parity
   while (i < n) {
     // is not a '\'? continue
     if (input.charCodeAt(i) !== BACKSLASH) {
@@ -154,49 +199,5 @@ export function decodeUnicodeEscapesOnly(
   }
 
   if (lastEmit < n) out.push(input.slice(lastEmit));
-  let result = out.join("");
-
-  // Greedy mode: decode any remaining \uXXXX patterns in single pass (e.g., from double-escaped data like \\uXXXX)
-  // 2nd pass over the result string
-  if (greedy) {
-    const out2: string[] = [];
-    const m = result.length;
-    let i = 0;
-    let lastEmit = 0;
-
-    while (i < m) {
-      // Look for \uXXXX pattern
-      if (
-        result.charCodeAt(i) === BACKSLASH &&
-        i + 5 <= m &&
-        result.charCodeAt(i + 1) === U_CHAR
-      ) {
-        const codeUnit = parseHex4(result, i + 2);
-        if (codeUnit !== -1) {
-          // Try surrogate pair decoding
-          const pair = tryDecodeSurrogatePair(result, i + 6, codeUnit, m);
-          if (pair) {
-            if (lastEmit < i) out2.push(result.slice(lastEmit, i));
-            out2.push(pair.decoded);
-            i = i + 6 + pair.consumed;
-            lastEmit = i;
-            continue;
-          }
-
-          // Regular BMP character (not part of surrogate pair)
-          if (lastEmit < i) out2.push(result.slice(lastEmit, i));
-          out2.push(String.fromCharCode(codeUnit));
-          i += 6;
-          lastEmit = i;
-          continue;
-        }
-      }
-      i++;
-    }
-
-    if (lastEmit < m) out2.push(result.slice(lastEmit));
-    result = out2.join("");
-  }
-
-  return result;
+  return out.join("");
 }
