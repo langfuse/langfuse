@@ -3,7 +3,7 @@ import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 
 const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  environment: "env",
+  environment: "environment",
   name: "name",
   type: "type",
   traceName: "traceName",
@@ -12,9 +12,9 @@ const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   modelId: "modelId",
   promptName: "promptName",
   tags: "tags",
-  timeToFirstToken: "ttft",
+  timeToFirstToken: "timeToFirstToken",
   latency: "latency",
-  tokensPerSecond: "tps",
+  tokensPerSecond: "tokensPerSecond",
   inputCost: "inputCost",
   outputCost: "outputCost",
   totalCost: "totalCost",

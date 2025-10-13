@@ -10,7 +10,7 @@ const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   version: "version",
   release: "release",
   tags: "tags",
-  environment: "env",
+  environment: "environment",
   level: "level",
   bookmarked: "bookmarked",
   latency: "latency",
@@ -20,8 +20,8 @@ const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputCost: "inputCost",
   outputCost: "outputCost",
   totalCost: "totalCost",
-  "Scores (categorical)": "scoreCategories",
-  "Scores (numeric)": "scoresNumeric",
+  "Scores (categorical)": "score_categories",
+  "Scores (numeric)": "scores_avg",
   Metadata: "metadata",
 };
 

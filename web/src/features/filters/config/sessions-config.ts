@@ -4,8 +4,8 @@ import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-quer
 
 const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   bookmarked: "bookmarked",
-  sessionDuration: "duration",
-  countTraces: "traces",
+  sessionDuration: "sessionDuration",
+  countTraces: "countTraces",
   inputCost: "inputCost",
   outputCost: "outputCost",
   totalCost: "totalCost",
