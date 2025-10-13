@@ -1259,7 +1259,16 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
         projectId: dataset.body.projectId,
         datasetId: dataset.body.id,
-        filter: [],
+        filter: dbRunBeforeDelete?.id
+          ? [
+              {
+                column: "datasetRunId",
+                operator: "any of",
+                value: [dbRunBeforeDelete.id],
+                type: "stringOptions" as const,
+              },
+            ]
+          : [],
         orderBy: {
           column: "createdAt",
           order: "DESC",
