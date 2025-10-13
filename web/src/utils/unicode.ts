@@ -11,7 +11,7 @@ const LOW_SURROGATE_END = 0xdfff;
  * Decodes ONLY \uXXXX unicode escapes. Does not touch other escapes like \" \\n \\t etc.
  * Handles surrogate pairs (\uD83D\uDE00 -> 😀). Robust to truncation/invalid hex.
  * Invalid/truncated \uXXXX are left literal. Collapses paired backslashes before 'u' based on parity.
- * greedy mode decodes all \uXXXX patterns regardless of backslash escaping (e.g., \\u1234 -> 你).
+ * greedy mode decodes all \uXXXX patterns regardless of backslash escaping (e.g., \\u4F60 -> 你).
  *
  * Used to make i.e. chinese characters render from truncated JSON strings where
  * JSON.parse would fail.
