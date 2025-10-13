@@ -74,7 +74,12 @@ export const langChainMapper: ChatMLMapper = {
   mapperName: "langchain",
   dataSourceName: "langchain",
 
-  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+  canMapScore(
+    input: unknown,
+    output: unknown,
+    metadata?: unknown,
+    _observationName?: string,
+  ): number {
     const meta = parseMetadata(metadata);
 
     if (meta?.framework === "langchain") {
@@ -120,6 +125,7 @@ export const langChainMapper: ChatMLMapper = {
     input: unknown,
     output: unknown,
     metadata?: unknown,
+    _observationName?: string,
   ): LangfuseChatML => {
     const meta = parseMetadata(metadata);
     const inChatMlArray = mapToChatMl(input);

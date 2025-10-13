@@ -78,8 +78,6 @@ async function processItem(
       traceId: newTraceId,
       observationId: null,
       error: null,
-      input: datasetItem.input,
-      expectedOutput: datasetItem.expectedOutput,
       createdAt: timestamp,
       datasetId: datasetItem.datasetId,
       runId: config.runId,
