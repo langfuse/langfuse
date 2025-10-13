@@ -15,7 +15,17 @@ export interface ChatMLMapper {
   // 1-9 = partial match based on indicators
   // MAPPER_SCORE_NONE (0) = no match
   // metadata can be a string or object
-  canMapScore(input: unknown, output: unknown, metadata?: unknown): number;
+  canMapScore(
+    input: unknown,
+    output: unknown,
+    metadata?: unknown,
+    observationName?: string,
+  ): number;
 
-  map(input: unknown, output: unknown, metadata?: unknown): LangfuseChatML;
+  map(
+    input: unknown,
+    output: unknown,
+    metadata?: unknown,
+    observationName?: string,
+  ): LangfuseChatML;
 }

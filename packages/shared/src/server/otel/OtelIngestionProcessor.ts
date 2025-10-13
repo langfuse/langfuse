@@ -1677,14 +1677,18 @@ export class OtelIngestionProcessor {
           )
         ) {
           if ("ai.usage.cachedInputTokens" in attributes) {
-            usageDetails["input_cached_tokens"] = JSON.parse(
-              attributes["ai.usage.cachedInputTokens"] as string,
-            ).intValue;
+            const value = attributes["ai.usage.cachedInputTokens"] as string;
+            const parsed = JSON.parse(value);
+
+            usageDetails["input_cached_tokens"] =
+              typeof parsed === "number" ? parsed : JSON.parse(value).intValue;
           }
           if ("ai.usage.reasoningTokens" in attributes) {
-            usageDetails["output_reasoning_tokens"] = JSON.parse(
-              attributes["ai.usage.reasoningTokens"] as string,
-            ).intValue;
+            const value = attributes["ai.usage.reasoningTokens"] as string;
+            const parsed = JSON.parse(value);
+
+            usageDetails["output_reasoning_tokens"] =
+              typeof parsed === "number" ? parsed : JSON.parse(value).intValue;
           }
         } else if (providerMetadata) {
           // Fall back to providerMetadata

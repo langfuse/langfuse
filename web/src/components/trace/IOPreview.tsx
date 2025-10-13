@@ -24,6 +24,7 @@ export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  observationName?: string;
   isLoading?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
@@ -65,8 +66,14 @@ export const IOPreview: React.FC<{
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
   const chatML = useMemo(
-    () => mapToLangfuseChatML(input, output, metadata),
-    [input, output, metadata],
+    () =>
+      mapToLangfuseChatML(
+        input,
+        output,
+        metadata,
+        props.observationName ?? undefined,
+      ),
+    [input, output, metadata, props.observationName],
   );
   const canDisplayAsChat = chatML.canDisplayAsChat();
   const allMessages = chatML.getAllMessages();
@@ -138,7 +145,6 @@ export const IOPreview: React.FC<{
                 {!(hideIfNull && !input) && !hideInput ? (
                   <PrettyJsonView
                     title="Input"
-                    className="ph-no-capture"
                     json={input ?? null}
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "input") ?? []}
@@ -150,7 +156,6 @@ export const IOPreview: React.FC<{
                 {!(hideIfNull && !output) && !hideOutput ? (
                   <PrettyJsonView
                     title="Output"
-                    className="ph-no-capture"
                     json={output}
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "output") ?? []}
@@ -168,7 +173,6 @@ export const IOPreview: React.FC<{
             {!(hideIfNull && !input) && !hideInput ? (
               <PrettyJsonView
                 title="Input"
-                className="ph-no-capture"
                 json={input ?? null}
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "input") ?? []}
@@ -180,7 +184,6 @@ export const IOPreview: React.FC<{
             {!(hideIfNull && !output) && !hideOutput ? (
               <PrettyJsonView
                 title="Output"
-                className="ph-no-capture"
                 json={output}
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "output") ?? []}
@@ -196,7 +199,6 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !input) && !hideInput ? (
             <PrettyJsonView
               title="Input"
-              className="ph-no-capture"
               json={input ?? null}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
@@ -208,7 +210,6 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !output) && !hideOutput ? (
             <PrettyJsonView
               title="Output"
-              className="ph-no-capture"
               json={output}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
@@ -271,7 +272,7 @@ export const OpenAiMessageView: React.FC<{
   );
 
   return (
-    <div className="ph-no-capture flex max-h-full min-h-0 flex-col gap-2">
+    <div className="flex max-h-full min-h-0 flex-col gap-2">
       {title && <SubHeaderLabel title={title} className="mt-1" />}
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">

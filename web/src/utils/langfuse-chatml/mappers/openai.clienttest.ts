@@ -151,4 +151,174 @@ describe("openAIMapper", () => {
     expect(result.input.messages[0].toolCalls).toBeUndefined();
     expect(result.input.messages[0].toolCallId).toBeUndefined();
   });
+
+  it("should handle trace with tool calls (langfuse-sdk, openai auto instrument)", () => {
+    const metadata = {
+      language: "en",
+      scope: {
+        name: "langfuse-sdk",
+        version: "3.2.3",
+      },
+    };
+
+    const input = {
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_user_contact_information",
+            description: "Retrieve user contact information",
+            parameters: {
+              type: "object",
+              properties: {},
+              required: [],
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "query_knowledge_base",
+            description: "Query the knowledge base for information",
+            parameters: {
+              type: "object",
+              properties: {
+                _inquiry_summary: { type: "string" },
+                _lang: { type: "string" },
+              },
+              required: ["_inquiry_summary", "_lang"],
+            },
+          },
+        },
+      ],
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant.",
+        },
+        {
+          role: "assistant",
+          content: "",
+          name: null,
+          tool_call_id: null,
+          tool_calls: [
+            {
+              id: "call_user_001",
+              type: "function",
+              function: {
+                name: "get_user_contact_information",
+                arguments: {}, // Object, not string
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: {
+            // Object content, not stringified
+            userInformation: {
+              displayName: "Anonymous",
+              emails: [],
+              phoneNumbers: [],
+            },
+          },
+          name: null,
+          tool_call_id: "call_user_001",
+          tool_calls: null,
+        },
+        {
+          role: "user",
+          content: "how do I add an agent?",
+          name: null,
+          tool_call_id: null,
+          tool_calls: null,
+        },
+        {
+          role: "assistant",
+          content: "",
+          name: null,
+          tool_call_id: null,
+          tool_calls: [
+            {
+              id: "call_kb_002",
+              type: "function",
+              function: {
+                name: "query_knowledge_base",
+                arguments: {
+                  // Object arguments
+                  _inquiry_summary: "how to add an agent",
+                  _lang: "en",
+                },
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content:
+            "To add an agent, go to Settings and add it. Complete the required fields.",
+          name: "query_knowledge_base",
+          tool_call_id: "call_kb_002",
+          tool_calls: null,
+        },
+      ],
+    };
+
+    const output = {
+      role: "assistant",
+      content: "To add an agent, follow these steps:\n1. Go to Settings",
+    };
+
+    const result = openAIMapper.map(input, output, metadata);
+
+    // Verify mapper was used correctly
+    expect(result.input.messages).toHaveLength(6);
+
+    // Check first assistant message with tool call
+    const assistantMsg1 = result.input.messages[1];
+    expect(assistantMsg1.role).toBe("assistant");
+    expect(assistantMsg1.toolCalls).toBeDefined();
+    expect(assistantMsg1.toolCalls).toHaveLength(1);
+    expect(assistantMsg1.toolCalls?.[0].id).toBe("call_user_001");
+    expect(assistantMsg1.toolCalls?.[0].function.name).toBe(
+      "get_user_contact_information",
+    );
+    expect(assistantMsg1.toolCalls?.[0].function.arguments).toBe("{}");
+
+    // Check first tool response - content should remain as string
+    const toolMsg1 = result.input.messages[2];
+    expect(toolMsg1.role).toBe("tool");
+    expect(toolMsg1.toolCallId).toBe("call_user_001");
+    expect(typeof toolMsg1.content).toBe("string");
+    // Content should be the JSON string we provided
+    expect(toolMsg1.content).toContain("userInformation");
+
+    // Check second assistant message with tool call (object arguments)
+    const assistantMsg2 = result.input.messages[4];
+    expect(assistantMsg2.toolCalls).toBeDefined();
+    expect(assistantMsg2.toolCalls).toHaveLength(1);
+    expect(assistantMsg2.toolCalls?.[0].id).toBe("call_kb_002");
+    expect(assistantMsg2.toolCalls?.[0].function.name).toBe(
+      "query_knowledge_base",
+    );
+    // Object arguments should be stringified
+    expect(typeof assistantMsg2.toolCalls?.[0].function.arguments).toBe(
+      "string",
+    );
+    const args = JSON.parse(
+      assistantMsg2.toolCalls?.[0].function.arguments || "{}",
+    );
+    expect(args._inquiry_summary).toBe("how to add an agent");
+
+    // Check second tool response with name field
+    const toolMsg2 = result.input.messages[5];
+    expect(toolMsg2.role).toBe("tool");
+    expect(toolMsg2.toolCallId).toBe("call_kb_002");
+    expect(toolMsg2.name).toBe("query_knowledge_base");
+    expect(typeof toolMsg2.content).toBe("string");
+
+    // Verify additional input (tools array)
+    expect(result.input.additional).toBeDefined();
+    expect(result.input.additional?.tools).toBeDefined();
+  });
 });
