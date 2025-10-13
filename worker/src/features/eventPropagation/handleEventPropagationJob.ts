@@ -1,5 +1,6 @@
 import {
-  clickhouseClient,
+  queryClickhouse,
+  commandClickhouse,
   getCurrentSpan,
   logger,
   QueueName,
@@ -27,13 +28,11 @@ export const handleEventPropagationJob = async (
     return;
   }
 
-  const client = clickhouseClient();
-
   try {
     logger.debug("Starting event propagation batch processing");
 
     // Step 1: Get list of partitions ordered by time
-    const partitionsResult = await client.query({
+    const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
@@ -41,10 +40,11 @@ export const handleEventPropagationJob = async (
           AND active = 1
         ORDER BY partition ASC
       `,
-      format: "JSONEachRow",
+      tags: {
+        feature: "ingestion",
+        operation_name: "getPartitions",
+      },
     });
-
-    const partitions = await partitionsResult.json<{ partition: string }>();
 
     if (partitions.length < 3) {
       logger.info(
@@ -65,7 +65,7 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
-    await client.command({
+    await commandClickhouse({
       query: `
         with batch_stats as (
           select
@@ -208,13 +208,14 @@ export const handleEventPropagationJob = async (
         )
         WHERE obs._partition_value = tuple('${oldestPartition}')
       `,
-      clickhouse_settings: {
+      tags: {
+        feature: "ingestion",
+        partition: oldestPartition,
+        operation_name: "propagateObservationsToEvents",
+      },
+      clickhouseSettings: {
         type_json_skip_duplicated_paths: true,
-        log_comment: JSON.stringify({
-          feature: "ingestion",
-          partition: oldestPartition,
-          operation_name: "propagateObservationsToEvents",
-        }),
+        max_execution_time: 600, // 10 minutes timeout
       },
     });
 
@@ -223,11 +224,16 @@ export const handleEventPropagationJob = async (
     );
 
     // Step 4: Drop the processed partition
-    await client.command({
+    await commandClickhouse({
       query: `
         ALTER TABLE observations_batch_staging
         DROP PARTITION '${oldestPartition}'
       `,
+      tags: {
+        feature: "ingestion",
+        partition: oldestPartition,
+        operation_name: "dropPartition",
+      },
     });
 
     logger.info(

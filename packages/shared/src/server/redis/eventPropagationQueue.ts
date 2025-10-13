@@ -41,6 +41,13 @@ export class EventPropagationQueue {
     });
 
     if (EventPropagationQueue.instance) {
+      logger.debug("Setting global concurrency for EventPropagationQueue to 1");
+      EventPropagationQueue.instance.setGlobalConcurrency(1).catch(() => {
+        logger.warn(
+          "Failed to set global concurrency for EventPropagationQueue",
+        );
+      });
+
       logger.debug("Scheduling jobs for EventPropagationQueue");
       EventPropagationQueue.instance
         .add(
