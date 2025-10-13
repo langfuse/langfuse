@@ -138,6 +138,22 @@ function AnnotateHeader({
   );
 }
 
+const isCompareViewAggregate = (
+  configId: string,
+  disabledConfigIds?: Set<string>,
+) => {
+  return disabledConfigIds?.has(configId) ?? false;
+};
+
+const isScoreInputDisabled = (
+  config: ScoreConfigDomain,
+  disabledConfigIds?: Set<string>,
+) => {
+  return (
+    config.isArchived || isCompareViewAggregate(config.id, disabledConfigIds)
+  );
+};
+
 type AnnotateDrawerContentProps<Target extends ScoreTarget> =
   AnnotateDrawerProps<Target> & {
     configs: ScoreConfigDomain[];
@@ -145,6 +161,7 @@ type AnnotateDrawerContentProps<Target extends ScoreTarget> =
     queueId?: string;
     actionButtons?: React.ReactNode;
     onMutateCallbacks?: OnMutateCallbacks;
+    disabledConfigIds?: Set<string>;
   };
 
 export function AnnotateDrawerContent<Target extends ScoreTarget>({
@@ -160,6 +177,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   actionButtons,
   environment,
   onMutateCallbacks,
+  disabledConfigIds,
 }: AnnotateDrawerContentProps<Target>) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -438,6 +456,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                           {...field}
                                           className="text-xs"
                                           value={field.value || ""}
+                                          disabled={isScoreInputDisabled(
+                                            config,
+                                            disabledConfigIds,
+                                          )}
                                         />
                                         {field.value !== score.comment && (
                                           <div className="grid w-full grid-cols-[1fr,1fr] gap-2">
@@ -535,7 +557,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                       }}
                                       type="number"
                                       className="text-xs"
-                                      disabled={config.isArchived}
+                                      disabled={isScoreInputDisabled(
+                                        config,
+                                        disabledConfigIds,
+                                      )}
                                       onBlur={handleOnBlur({
                                         config,
                                         field,
@@ -571,7 +596,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                         ""
                                       }
                                       defaultValue={score.stringValue}
-                                      disabled={config.isArchived}
+                                      disabled={isScoreInputDisabled(
+                                        config,
+                                        disabledConfigIds,
+                                      )}
                                       onValueChange={handleOnValueChange(
                                         score,
                                         index,
@@ -614,7 +642,10 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
                                         ""
                                       }
                                       defaultValue={score.stringValue}
-                                      disabled={config.isArchived}
+                                      disabled={isScoreInputDisabled(
+                                        config,
+                                        disabledConfigIds,
+                                      )}
                                       className={`grid grid-cols-${categories.length}`}
                                       onValueChange={handleOnValueChange(
                                         score,

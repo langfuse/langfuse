@@ -11,7 +11,7 @@ import {
 type ActiveCell = {
   traceId: string;
   observationId?: string;
-  singleValueAggregate: ScoreAggregate;
+  scoreAggregates: ScoreAggregate;
   environment?: string;
 };
 

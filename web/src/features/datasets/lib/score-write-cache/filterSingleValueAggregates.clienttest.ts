@@ -424,7 +424,25 @@ describe("transformSingleValueAggregateScoreData", () => {
 });
 
 describe("filterSingleValueAggregates", () => {
-  it("should filter out aggregates without id", () => {
+  const createMockConfig = (
+    overrides: Partial<ScoreConfigDomain> = {},
+  ): ScoreConfigDomain =>
+    ({
+      id: "config-1",
+      name: "test-score",
+      projectId: "project-1",
+      dataType: "NUMERIC",
+      isArchived: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      categories: null,
+      maxValue: null,
+      minValue: null,
+      description: null,
+      ...overrides,
+    }) as ScoreConfigDomain;
+
+  it("should filter out aggregates without id and return disabled config IDs", () => {
     const aggregates: ScoreAggregate = {
       "score1-ANNOTATION-NUMERIC": {
         id: "score-123",
@@ -434,7 +452,7 @@ describe("filterSingleValueAggregates", () => {
         comment: null,
         hasMetadata: false,
       },
-      "score2-ANNOTATION": {
+      "score2-ANNOTATION-NUMERIC": {
         id: null,
         type: "NUMERIC",
         values: [0, 24],
@@ -442,7 +460,7 @@ describe("filterSingleValueAggregates", () => {
         comment: null,
         hasMetadata: false,
       },
-      "score3-ANNOTATION": {
+      "score3-ANNOTATION-CATEGORICAL": {
         id: "score-456",
         type: "CATEGORICAL",
         values: ["good"],
@@ -452,17 +470,34 @@ describe("filterSingleValueAggregates", () => {
       },
     };
 
-    const result = filterSingleValueAggregates(aggregates);
+    const configs = [
+      createMockConfig({ id: "c1", name: "score1", dataType: "NUMERIC" }),
+      createMockConfig({ id: "c2", name: "score2", dataType: "NUMERIC" }),
+      createMockConfig({
+        id: "c3",
+        name: "score3",
+        dataType: "CATEGORICAL",
+      }),
+    ];
 
-    expect(Object.keys(result)).toHaveLength(2);
-    expect(result["score1-ANNOTATION-NUMERIC"]).toBeDefined();
-    expect(result["score2-ANNOTATION"]).toBeUndefined();
-    expect(result["score3-ANNOTATION"]).toBeDefined();
+    const { filtered, disabledConfigIds } = filterSingleValueAggregates(
+      aggregates,
+      configs,
+    );
+
+    expect(Object.keys(filtered)).toHaveLength(2);
+    expect(filtered["score1-ANNOTATION-NUMERIC"]).toBeDefined();
+    expect(filtered["score2-ANNOTATION-NUMERIC"]).toBeUndefined();
+    expect(filtered["score3-ANNOTATION-CATEGORICAL"]).toBeDefined();
+
+    expect(disabledConfigIds.size).toBe(1);
+    expect(disabledConfigIds.has("c2")).toBe(true);
   });
 
   it("should handle empty input", () => {
-    const result = filterSingleValueAggregates({});
-    expect(Object.keys(result)).toHaveLength(0);
+    const { filtered, disabledConfigIds } = filterSingleValueAggregates({}, []);
+    expect(Object.keys(filtered)).toHaveLength(0);
+    expect(disabledConfigIds.size).toBe(0);
   });
 
   it("should preserve all aggregate properties", () => {
@@ -477,10 +512,39 @@ describe("filterSingleValueAggregates", () => {
       },
     };
 
-    const result = filterSingleValueAggregates(aggregates);
+    const configs = [
+      createMockConfig({ id: "config-t", name: "test", dataType: "NUMERIC" }),
+    ];
 
-    expect(result["test-ANNOTATION-NUMERIC"]).toEqual(
+    const { filtered } = filterSingleValueAggregates(aggregates, configs);
+
+    expect(filtered["test-ANNOTATION-NUMERIC"]).toEqual(
       aggregates["test-ANNOTATION-NUMERIC"],
     );
+  });
+
+  it("should not add config to disabled set if no matching config found", () => {
+    const aggregates: ScoreAggregate = {
+      "orphaned-ANNOTATION-NUMERIC": {
+        id: null,
+        type: "NUMERIC",
+        values: [1, 2],
+        average: 1.5,
+        comment: null,
+        hasMetadata: false,
+      },
+    };
+
+    const configs = [
+      createMockConfig({ id: "c1", name: "different", dataType: "NUMERIC" }),
+    ];
+
+    const { filtered, disabledConfigIds } = filterSingleValueAggregates(
+      aggregates,
+      configs,
+    );
+
+    expect(Object.keys(filtered)).toHaveLength(0);
+    expect(disabledConfigIds.size).toBe(0);
   });
 });

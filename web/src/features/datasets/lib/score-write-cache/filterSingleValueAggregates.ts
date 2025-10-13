@@ -10,17 +10,37 @@ import { type ScoreConfigDomain, type ScoreAggregate } from "@langfuse/shared";
  * Excludes multi-value aggregations (no ID).
  *
  * @param aggregates - Score aggregates to filter
- * @returns Single-value entries only
+ * @param configs - Score configs to match disabled entries
+ * @returns Filtered aggregates and set of disabled config IDs
  */
 export const filterSingleValueAggregates = (
   aggregates: ScoreAggregate,
-): ScoreAggregate => {
-  return Object.entries(aggregates)
-    .filter(([_, aggregate]) => Boolean(aggregate.id))
+  configs: ScoreConfigDomain[],
+): {
+  filtered: ScoreAggregate;
+  disabledConfigIds: Set<string>;
+} => {
+  const disabledConfigIds = new Set<string>();
+
+  const filtered = Object.entries(aggregates)
+    .filter(([key, aggregate]) => {
+      if (!aggregate.id) {
+        // Find matching config and add to disabled set
+        const { name, dataType } = decomposeAggregateScoreKey(key);
+        const config = configs.find(
+          (c) => normalizeScoreName(c.name) === name && c.dataType === dataType,
+        );
+        if (config) disabledConfigIds.add(config.id);
+        return false;
+      }
+      return true;
+    })
     .reduce((acc, [key, aggregate]) => {
       acc[key] = aggregate;
       return acc;
     }, {} as ScoreAggregate);
+
+  return { filtered, disabledConfigIds };
 };
 
 /**

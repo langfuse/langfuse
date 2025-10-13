@@ -15,7 +15,6 @@ import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
-import { filterSingleValueAggregates } from "@/src/features/datasets/lib/score-write-cache/filterSingleValueAggregates";
 import { mergeScoreAggregateWithCache } from "@/src/features/datasets/lib/score-write-cache/mergeScoreAggregateWithCache";
 
 const DatasetAggregateCell = ({
@@ -131,7 +130,7 @@ const DatasetAggregateCell = ({
     setActiveCell({
       traceId: value.trace.id,
       observationId: value.observation?.id,
-      singleValueAggregate: filterSingleValueAggregates(displayScores),
+      scoreAggregates: displayScores,
       environment: data?.environment,
     });
   };

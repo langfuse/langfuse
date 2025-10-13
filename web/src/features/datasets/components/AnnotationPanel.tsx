@@ -9,7 +9,10 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
-import { transformSingleValueAggregateScoreData } from "@/src/features/datasets/lib/score-write-cache/filterSingleValueAggregates";
+import {
+  transformSingleValueAggregateScoreData,
+  filterSingleValueAggregates,
+} from "@/src/features/datasets/lib/score-write-cache/filterSingleValueAggregates";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 import { api } from "@/src/utils/api";
@@ -35,14 +38,23 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
     projectId,
   });
 
-  const scores = useMemo(() => {
-    if (!Boolean(configsData.data?.configs.length) || !activeCell) return [];
-    return transformSingleValueAggregateScoreData(
-      activeCell.singleValueAggregate,
+  const { scores, disabledConfigIds } = useMemo(() => {
+    if (!Boolean(configsData.data?.configs.length) || !activeCell)
+      return { scores: [], disabledConfigIds: new Set<string>() };
+
+    const { filtered, disabledConfigIds } = filterSingleValueAggregates(
+      activeCell.scoreAggregates,
+      configsData.data?.configs ?? [],
+    );
+
+    const scores = transformSingleValueAggregateScoreData(
+      filtered,
       configsData.data?.configs ?? [],
       activeCell.traceId,
       activeCell.observationId ?? null,
     );
+
+    return { scores, disabledConfigIds };
   }, [activeCell, configsData.data?.configs]);
 
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
@@ -90,6 +102,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
             configs={configsData.data.configs}
             emptySelectedConfigIds={emptySelectedConfigIds}
             setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+            disabledConfigIds={disabledConfigIds}
             projectId={projectId}
             analyticsData={{
               type: "trace",
