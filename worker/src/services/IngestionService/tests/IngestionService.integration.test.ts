@@ -1114,6 +1114,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.observation_id).toBe(generationId);
     expect(score.value).toBe(100.5);
     expect(score.config_id).toBe(scoreConfigId);
+    expect(score.queue_id).toBe(queueId);
   });
 
   it("should silently reject invalid scores while processing valid ones", async () => {
