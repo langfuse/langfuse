@@ -8,8 +8,8 @@ import {
 import {
   reduceUsageOrCostDetails,
   stringDateTime,
+  type ObservationPriceFields,
 } from "@langfuse/shared/src/server";
-import type Decimal from "decimal.js";
 import { z } from "zod/v4";
 
 /**
@@ -101,11 +101,7 @@ export const APIObservation = z
  * @returns API Observation as defined in the public API
  */
 export const transformDbToApiObservation = (
-  observation: Observation & {
-    inputPrice: Decimal | null;
-    outputPrice: Decimal | null;
-    totalPrice: Decimal | null;
-  },
+  observation: Observation & ObservationPriceFields,
 ): z.infer<typeof APIObservation> => {
   const reducedUsageDetails = reduceUsageOrCostDetails(
     observation.usageDetails,
