@@ -16,7 +16,6 @@ import {
   EvalExecutionQueue,
   checkTraceExistsAndGetTimestamp,
   checkObservationExists,
-  DatasetRunItemUpsertEventType,
   TraceQueueEventType,
   StorageService,
   StorageServiceFactory,
@@ -150,18 +149,30 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────── │
  */
-export const createEvalJobs = async ({
-  event,
-  jobTimestamp,
-  enforcedJobTimeScope,
-}: {
-  event:
-    | TraceQueueEventType
-    | DatasetRunItemUpsertEventType
-    | CreateEvalQueueEventType;
+type CreateEvalJobsParams = {
   jobTimestamp: Date;
   enforcedJobTimeScope?: JobTimeScope;
-}) => {
+} & (
+  | {
+      eventType: "trace-upsert";
+      event: TraceQueueEventType;
+    }
+  | {
+      eventType: "dataset-run-item-upsert";
+      event: TraceQueueEventType;
+    }
+  | {
+      eventType: "ui-create-eval";
+      event: CreateEvalQueueEventType;
+    }
+);
+
+export const createEvalJobs = async ({
+  event,
+  eventType,
+  jobTimestamp,
+  enforcedJobTimeScope,
+}: CreateEvalJobsParams) => {
   const span = getCurrentSpan();
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.projectId", event.projectId);
@@ -209,18 +220,20 @@ export const createEvalJobs = async ({
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
 
-  // Early exit: Skip eval job creation for internal Langfuse traces
+  // Early exit: Skip eval job creation for internal Langfuse traces from trace upsert queue
+  // This excludes traces from prompt experiments that are coming via dataset run item upsert queue.
   // Internal traces (e.g., for eval executions) have environment starting with "langfuse-"
   // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
   // See corresponding validation in packages/shared/src/server/llm/fetchLLMCompletion.ts
   if (
-    "traceEnvironment" in event &&
+    eventType === "trace-upsert" &&
     event.traceEnvironment?.startsWith("langfuse-")
   ) {
     logger.debug("Skipping eval job creation for internal Langfuse trace", {
       traceId: event.traceId,
       environment: event.traceEnvironment,
     });
+
     return;
   }
 
