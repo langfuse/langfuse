@@ -23,14 +23,6 @@ import {
   getDatasetRunItemsCountForPublicApi,
 } from "@/src/features/public-api/server/dataset-run-items";
 
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "4.5mb",
-    },
-  },
-};
-
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Dataset Run Item",
