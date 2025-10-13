@@ -63,7 +63,7 @@ export const handleEventPropagationJob = async (
     // Use a time window for traces to limit the join scope
     // If clients send us an observation_start_time that is smaller than a previously received start_time
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
-    // will significantly affect run-time. This may be an accepted degredation and we test the outcome
+    // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
     await client.command({
       query: `
