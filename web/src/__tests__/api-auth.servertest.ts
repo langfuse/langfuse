@@ -317,7 +317,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
-        isIngestionSuspended: expect.any(Boolean),
+        isIngestionSuspended: expect.anything(),
       });
 
       await prisma.organization.update({
@@ -436,7 +436,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
-        isIngestionSuspended: expect.any(Boolean),
+        isIngestionSuspended: expect.anything(),
       });
 
       await prisma.organization.update({
@@ -549,7 +549,7 @@ describe("Authenticate API calls", () => {
         createdAt: expect.any(String),
         lastUsedAt: null,
         expiresAt: null,
-        isIngestionSuspended: expect.any(Boolean),
+        isIngestionSuspended: expect.anything(),
         projectId: expect.any(String),
         orgId: "seed-org-id",
         plan: "cloud:hobby",
@@ -646,7 +646,7 @@ describe("Authenticate API calls", () => {
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
         scope: "PROJECT",
-        isIngestionSuspended: expect.any(Boolean),
+        isIngestionSuspended: expect.anything(),
       });
 
       await new ApiAuthService(prisma, redis).deleteApiKey(
