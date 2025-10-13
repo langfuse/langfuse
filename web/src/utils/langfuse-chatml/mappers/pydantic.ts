@@ -39,7 +39,12 @@ export const pydanticMapper: ChatMLMapper = {
   mapperName: "pydantic",
   dataSourceName: "pydantic-ai",
 
-  canMapScore(input: unknown, output: unknown, metadata?: unknown): number {
+  canMapScore(
+    input: unknown,
+    output: unknown,
+    metadata?: unknown,
+    _observationName?: string,
+  ): number {
     // Parse metadata (handles string or object)
     const meta = parseMetadata(metadata);
 
@@ -97,6 +102,7 @@ export const pydanticMapper: ChatMLMapper = {
     input: unknown,
     output: unknown,
     metadata?: unknown,
+    _observationName?: string,
   ): LangfuseChatML => {
     const meta = parseMetadata(metadata);
     const inputMessages: LangfuseChatMLMessage[] = [];

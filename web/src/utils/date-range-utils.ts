@@ -128,7 +128,6 @@ export const TABLE_AGGREGATION_OPTIONS = [
   "last14Days",
   "last30Days",
   "last90Days",
-  "allTime",
 ] as const;
 
 export type DashboardDateRangeAggregationOption =
