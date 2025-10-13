@@ -339,6 +339,7 @@ export function useAnnotationFormHandlers({
           scoreId: undefined,
           value: null,
           stringValue: undefined,
+          comment: undefined,
         });
       } finally {
         // Clean up pending delete tracking
