@@ -1,7 +1,7 @@
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import { z } from "zod/v4";
 
 // Zod Schemas for Runtime Validation
+// intentionally self-contained to avoid circular dependencies
 
 // like Tool call in OpenAI format
 export const LangfuseChatMLToolCallSchema = z.object({
@@ -17,9 +17,12 @@ export const LangfuseChatMLMessageSchema = z.object({
   id: z.string().optional(),
   role: z.string(),
   name: z.string().optional(),
-  // Content can be string, array, object, or null - intentionally loose
-  content: z.unknown().optional(),
-  audio: z.unknown().optional(), // OpenAIOutputAudioType - rare, keep loose
+  // Content can be:
+  // - string (text messages)
+  // - array (multimodal: text/image/audio parts)
+  // - null/undefined
+  content: z.union([z.string(), z.array(z.any()), z.null()]).optional(),
+  audio: z.any().optional(), // Audio output (rare, keep loose)
   metadata: z.record(z.string(), z.unknown()).optional(),
   type: z.string().optional(), // "placeholder" or other special types
   json: z.record(z.string(), z.unknown()).optional(),
@@ -64,6 +67,17 @@ export const LangfuseChatMLDataSchema = z.object({
 export type LangfuseChatMLMessage = z.infer<typeof LangfuseChatMLMessageSchema>;
 export type LangfuseChatMLInput = z.infer<typeof LangfuseChatMLInputSchema>;
 export type LangfuseChatMLOutput = z.infer<typeof LangfuseChatMLOutputSchema>;
+
+// Re-export a compatible type for ChatMlMessageSchema (used by UI components)
+// This is the transformed message format after mapToChatMl processing
+export type ChatMlMessageSchema = {
+  role?: string;
+  name?: string;
+  content?: string | any[] | Record<string, any> | null;
+  audio?: any;
+  type?: string;
+  json?: Record<string, any>;
+};
 
 // TODO: should probably be a class, has methods
 export interface LangfuseChatML {

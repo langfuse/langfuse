@@ -1,6 +1,9 @@
 import { type ChatMLMapper, MAPPER_SCORE_NONE } from "./base";
-import type { LangfuseChatML, LangfuseChatMLMessage } from "../types";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import type {
+  LangfuseChatML,
+  LangfuseChatMLMessage,
+  ChatMlMessageSchema,
+} from "../types";
 import {
   isPlainObject,
   mapToChatMl,
