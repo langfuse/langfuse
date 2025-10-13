@@ -99,6 +99,7 @@ export function useConfigSelection({
             !config.isArchived ||
             fields.find((field) => field.configId === config.id),
         )
+        .sort((a, b) => a.name.localeCompare(b.name))
         .map((config) => ({
           key: config.id,
           value: resolveConfigValue({

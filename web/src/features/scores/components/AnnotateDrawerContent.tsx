@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -249,6 +249,17 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
     );
   };
 
+  const sortedFields = useMemo(() => {
+    return fields
+      .map((score, index) => ({ score, index }))
+      .sort((a, b) => {
+        const configA = configs.find((c) => c.id === a.score.configId);
+        const configB = configs.find((c) => c.id === b.score.configId);
+        if (!configA || !configB) return 0;
+        return configA.name.localeCompare(configB.name);
+      });
+  }, [fields, configs]);
+
   const { selectionOptions, handleConfigSelectionChange } = useConfigSelection({
     fields,
     remove,
@@ -352,7 +363,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
               name="scoreData"
               render={() => (
                 <>
-                  {fields.map((score, index) => {
+                  {sortedFields.map(({ score, index }) => {
                     const config = configs.find(
                       (config) => config.id === score.configId,
                     );
