@@ -213,9 +213,11 @@ export const handleEventPropagationJob = async (
         partition: oldestPartition,
         operation_name: "propagateObservationsToEvents",
       },
+      clickhouseConfigs: {
+        request_timeout: 600000, // 10 minutes timeout
+      },
       clickhouseSettings: {
         type_json_skip_duplicated_paths: true,
-        request_timeout: 600, // 10 minutes timeout
       },
     });
 
