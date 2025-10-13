@@ -154,22 +154,22 @@ type CreateEvalJobsParams = {
   enforcedJobTimeScope?: JobTimeScope;
 } & (
   | {
-      eventType: "trace-upsert";
+      sourceEventType: "trace-upsert";
       event: TraceQueueEventType;
     }
   | {
-      eventType: "dataset-run-item-upsert";
+      sourceEventType: "dataset-run-item-upsert";
       event: TraceQueueEventType;
     }
   | {
-      eventType: "ui-create-eval";
+      sourceEventType: "ui-create-eval";
       event: CreateEvalQueueEventType;
     }
 );
 
 export const createEvalJobs = async ({
   event,
-  eventType,
+  sourceEventType,
   jobTimestamp,
   enforcedJobTimeScope,
 }: CreateEvalJobsParams) => {
@@ -226,7 +226,7 @@ export const createEvalJobs = async ({
   // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
   // See corresponding validation in packages/shared/src/server/llm/fetchLLMCompletion.ts
   if (
-    eventType === "trace-upsert" &&
+    sourceEventType === "trace-upsert" &&
     event.traceEnvironment?.startsWith("langfuse-")
   ) {
     logger.debug("Skipping eval job creation for internal Langfuse trace", {

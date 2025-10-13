@@ -51,6 +51,7 @@ export const evalJobTraceCreatorQueueProcessor = async (
 ) => {
   try {
     await createEvalJobs({
+      sourceEventType: "trace-upsert",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
       enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
@@ -71,6 +72,7 @@ export const evalJobDatasetCreatorQueueProcessor = async (
 ) => {
   try {
     await createEvalJobs({
+      sourceEventType: "dataset-run-item-upsert",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
       enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
@@ -91,6 +93,7 @@ export const evalJobCreatorQueueProcessor = async (
 ) => {
   try {
     await createEvalJobs({
+      sourceEventType: "ui-create-eval",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
     });
