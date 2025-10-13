@@ -171,17 +171,19 @@ export function useAnnotationFormHandlers({
             environment: scoreMetadata.environment,
           });
 
+          const clientId = v4();
           const createPromise = createMutation.mutateAsync({
-            id: v4(),
+            id: clientId,
             ...validatedScore,
           });
+
+          // Set pending create immediately to prevent race condition
+          pendingCreates.current.set(index, createPromise);
 
           capture("score:create", {
             ...analyticsData,
             dataType: score.dataType,
           });
-
-          pendingCreates.current.set(index, createPromise);
 
           // Wait for creation and cleanup
           const createdScore = await createPromise;

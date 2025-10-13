@@ -108,9 +108,32 @@ export function ScoreWriteCacheProvider({ children }: { children: ReactNode }) {
     (key: ScoreId, score: UpdateAnnotationScoreData) => {
       const cachedScore = transformScore(score);
       if (!cachedScore) return;
-      setUpdates((prev) => new Map(prev).set(key, cachedScore));
+
+      // Check if this score is a pending create
+      setCreates((prev) => {
+        if (prev.has(key)) {
+          // Merge update into pending create instead of firing update mutation
+          const existing = prev.get(key);
+          if (!existing) return prev;
+
+          return new Map(prev).set(key, {
+            ...existing,
+            ...cachedScore, // Overwrites with new values
+          });
+        }
+        // Not in creates, add to updates
+        return prev;
+      });
+
+      // Only add to updates if not in creates
+      setUpdates((prevUpdates) => {
+        if (!creates.has(key)) {
+          return new Map(prevUpdates).set(key, cachedScore);
+        }
+        return prevUpdates;
+      });
     },
-    [],
+    [creates],
   );
 
   const cacheDelete = useCallback((key: ScoreId) => {

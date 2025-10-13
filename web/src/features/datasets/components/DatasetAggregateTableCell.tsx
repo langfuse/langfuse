@@ -131,7 +131,7 @@ const DatasetAggregateCell = ({
     setActiveCell({
       traceId: value.trace.id,
       observationId: value.observation?.id,
-      singleValueAggregate: filterSingleValueAggregates(value.scores), // IMPORTANT: Pass raw scores, NOT displayScores
+      singleValueAggregate: filterSingleValueAggregates(displayScores),
       environment: data?.environment,
     });
   };

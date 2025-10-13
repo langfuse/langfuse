@@ -101,11 +101,10 @@ export function useScoreMutations({
 
   const invalidateQueries = isTraceScore(scoreTarget)
     ? [
-        utils.scores.invalidate(),
         utils.traces.byIdWithObservationsAndScores.invalidate(),
         utils.sessions.invalidate(),
       ]
-    : [utils.scores.invalidate(), utils.sessions.byIdWithScores.invalidate()];
+    : [utils.sessions.byIdWithScores.invalidate()];
 
   const onSettledUpsert = onScoreSettledUpsert({
     fields,
