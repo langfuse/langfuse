@@ -3,6 +3,7 @@ import {
   BatchExportFileFormat,
   BatchExportQuerySchema,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -16,6 +17,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
+import { getObservationStream } from "../database-read-stream/observation-stream";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -78,11 +80,19 @@ export const handleBatchExportJob = async (
   }
 
   // handle db read stream
-  const dbReadStream = await getDatabaseReadStream({
-    projectId,
-    cutoffCreatedAt: jobDetails.createdAt,
-    ...parsedQuery.data,
-  });
+
+  const dbReadStream =
+    parsedQuery.data.tableName === BatchExportTableName.Observations
+      ? await getObservationStream({
+          projectId,
+          cutoffCreatedAt: jobDetails.createdAt,
+          ...parsedQuery.data,
+        })
+      : await getDatabaseReadStream({
+          projectId,
+          cutoffCreatedAt: jobDetails.createdAt,
+          ...parsedQuery.data,
+        });
 
   // Transform data to desired format
   let rowCount = 0;

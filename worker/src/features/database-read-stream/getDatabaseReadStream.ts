@@ -7,6 +7,7 @@ import {
   evalDatasetFormFilterCols,
   OrderByState,
   TracingSearchType,
+  ScoreDataType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -580,9 +581,14 @@ export const getDatabaseReadStream = async ({
 };
 
 export function prepareScoresForOutput(
-  filteredScores: ScoreDomain[],
+  scores: {
+    name: string;
+    stringValue: string | null;
+    dataType: ScoreDataType;
+    value: number | null;
+  }[],
 ): Record<string, string[] | number[]> {
-  return filteredScores.reduce(
+  return scores.reduce(
     (acc, score) => {
       // If this score name already exists in acc, use its existing type
       const existingValues = acc[score.name];
