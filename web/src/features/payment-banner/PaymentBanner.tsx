@@ -42,7 +42,6 @@ export function PaymentBanner() {
     }
 
     const updateHeight = () => {
-      console.log("updateHeight", bannerRef.current?.offsetHeight);
       if (bannerRef.current) {
         setBannerHeight(bannerRef.current.offsetHeight);
       } else {
