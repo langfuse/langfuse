@@ -14,6 +14,17 @@ export const CloudConfigSchema = z.object({
       activeSubscriptionId: z.string().optional(),
       activeProductId: z.string().optional(),
       activeUsageProductId: z.string().optional(),
+      subscriptionStatus: z
+        .enum([
+          "active",
+          "past_due",
+          "unpaid",
+          "canceled",
+          "incomplete",
+          "incomplete_expired",
+          "paused",
+        ])
+        .optional(),
     })
     .transform((data) => ({
       ...data,

@@ -523,6 +523,7 @@ async function handleSubscriptionChanged(
           activeUsageProductId: usageProductId,
           activeSubscriptionId: subscriptionId,
           customerId: stripeCustomerId,
+          subscriptionStatus: subscription.status,
         }),
       },
     };
@@ -568,6 +569,7 @@ async function handleSubscriptionChanged(
           activeProductId: undefined,
           activeSubscriptionId: undefined,
           activeUsageProductId: undefined,
+          subscriptionStatus: undefined,
         }),
       },
     };
