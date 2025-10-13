@@ -215,7 +215,7 @@ export const handleEventPropagationJob = async (
       },
       clickhouseSettings: {
         type_json_skip_duplicated_paths: true,
-        max_execution_time: 600, // 10 minutes timeout
+        request_timeout: 600, // 10 minutes timeout
       },
     });
 
