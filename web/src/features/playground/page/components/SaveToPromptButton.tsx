@@ -91,22 +91,37 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   };
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={300}>
       <Popover>
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               <Button
-                variant="ghost"
-                className={cn("h-6 w-6 p-0 hover:bg-muted", className)}
+                variant="outline"
+                className={cn(
+                  "h-7 gap-1.5 px-2.5 text-xs @xl:hidden",
+                  className,
+                )}
               >
                 <Save size={14} />
                 <span className="sr-only">Save as prompt</span>
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent>Save as prompt</TooltipContent>
+          <TooltipContent className="text-xs">Save as prompt</TooltipContent>
         </Tooltip>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex",
+              className,
+            )}
+          >
+            <Save size={14} />
+            <span>Save as prompt</span>
+          </Button>
+        </PopoverTrigger>
         <PopoverContent>
           <Button className="mt-2 w-full" onClick={handleNewPrompt}>
             Save as new prompt
