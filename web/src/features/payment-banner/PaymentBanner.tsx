@@ -105,6 +105,11 @@ export function PaymentBanner() {
     },
   );
 
+  // TODO: Uncomment to only show banner to admins / owners
+  // if (!canManageBilling) {
+  //   return null;
+  // }
+
   return (
     <div
       ref={bannerRef}
@@ -117,7 +122,7 @@ export function PaymentBanner() {
         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
           <span className="text-sm font-semibold">Billing Issue:</span>
           <span className="text-sm">
-            {!canManageBilling
+            {canManageBilling
               ? `We have problems collecting subscription payment for your organization '${organization.name}'. Please update your payment information to continue using Langfuse.`
               : `We have problems collecting subscription payment for your organization '${organization.name}'. Please notify your organization administrator to avoid service interruption.`}
           </span>
