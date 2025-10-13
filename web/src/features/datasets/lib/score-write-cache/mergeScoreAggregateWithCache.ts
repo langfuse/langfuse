@@ -130,27 +130,7 @@ export function mergeScoreAggregateWithCache(
     const key = column.key;
     const aggregate = result[key];
 
-    // CASE 1: Single value aggregate exists
-    if (aggregate?.id) {
-      // Priority 1: Check if deleted
-      if (isDeleted(aggregate.id, deletes)) {
-        delete result[key];
-        continue;
-      }
-
-      // Priority 2: Check if updated
-      const update = updates.get(aggregate.id);
-      if (update) {
-        result[key] = applyUpdate(aggregate, update);
-        continue;
-      }
-
-      // No changes, keep as-is
-      continue;
-    }
-
-    // CASE 2: No single value aggregate
-    // Check for cached create matching this trace/obs/column
+    // Check for cached create matching this trace/obs/column first
     const columnDataType = resolveAggregateType(column.dataType);
     const create = findMatchingCreate(
       creates,
@@ -160,14 +140,31 @@ export function mergeScoreAggregateWithCache(
       columnDataType,
     );
 
+    // Priority 1: Cached create overrides everything (handles re-create after delete)
     if (create) {
       const [scoreId, cachedScore] = create;
-
-      // Check if this create also has an update
       const update = updates.get(scoreId);
-
-      // Build aggregate from create (+ optional update)
       result[key] = buildAggregateFromCreate(cachedScore, scoreId, update);
+      continue;
+    }
+
+    // CASE 2: Single value aggregate exists from server
+    if (aggregate?.id) {
+      // Check if deleted
+      if (isDeleted(aggregate.id, deletes)) {
+        delete result[key];
+        continue;
+      }
+
+      // Check if updated
+      const update = updates.get(aggregate.id);
+      if (update) {
+        result[key] = applyUpdate(aggregate, update);
+        continue;
+      }
+
+      // No changes, keep as-is
+      continue;
     }
   }
 
