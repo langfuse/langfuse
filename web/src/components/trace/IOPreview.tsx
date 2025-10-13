@@ -24,6 +24,7 @@ export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  observationName?: string;
   isLoading?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
@@ -65,8 +66,14 @@ export const IOPreview: React.FC<{
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
   const chatML = useMemo(
-    () => mapToLangfuseChatML(input, output, metadata),
-    [input, output, metadata],
+    () =>
+      mapToLangfuseChatML(
+        input,
+        output,
+        metadata,
+        props.observationName ?? undefined,
+      ),
+    [input, output, metadata, props.observationName],
   );
   const canDisplayAsChat = chatML.canDisplayAsChat();
   const allMessages = chatML.getAllMessages();
