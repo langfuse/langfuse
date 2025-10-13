@@ -61,8 +61,32 @@ export const handleEventPropagationJob = async (
 
     // Step 3: Join observations_batch_staging with traces and insert into events
     // Use a time window for traces to limit the join scope
+    // If clients send us an observation_start_time that is smaller than a previously received start_time
+    // for the same span, this may create duplicates in the new events table. Deduplicating in this query
+    // will significantly affect run-time. This may be an accepted degredation and we test the outcome
+    // to check the likelihood of this happening in practice.
     await client.command({
       query: `
+        with batch_stats as (
+          select
+            groupUniqArray(project_id) as project_ids,
+            min(start_time) as min_start_time,
+            max(start_time) as max_start_time
+          from observations_batch_staging
+          where _partition_value = tuple('${oldestPartition}')
+        ), relevant_traces as (
+          select
+            t.id,
+            t.project_id,
+            t.user_id,
+            t.session_id,
+            t.metadata
+          from traces t
+          where t.project_id in (select arrayJoin(project_ids) from batch_stats)
+            and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
+            and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
+        )
+
         INSERT INTO events (
           org_id,
           project_id,
@@ -176,14 +200,16 @@ export const handleEventPropagationJob = async (
           obs.updated_at,
           obs.event_ts,
           obs.is_deleted
-        FROM observations_batch_staging AS obs
-        LEFT JOIN traces AS t ON (
-          obs.trace_id = t.id AND obs.project_id = t.project_id
+        FROM relevant_traces t
+        RIGHT JOIN observations_batch_staging AS obs
+        ON (
+          obs.project_id = t.project_id AND
+          obs.trace_id = t.id
         )
         WHERE obs._partition_value = tuple('${oldestPartition}')
-        and t._partition_value = tuple('${new Date().toISOString().slice(0, 7).replace("-", "")}')
       `,
       clickhouse_settings: {
+        type_json_skip_duplicated_paths: true,
         log_comment: JSON.stringify({
           feature: "ingestion",
           partition: oldestPartition,
