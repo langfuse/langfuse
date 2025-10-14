@@ -142,6 +142,7 @@ export const accountsRouter = createTRPCRouter({
         username: z.string(),
         password: z.string(),
         projectId: z.string(),
+        isGbaUser: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -161,9 +162,13 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
+      // Prepare djb_metadata based on GBA user flag
+      const djbMetadata = input.isGbaUser ? { ta_only: true } : null;
+
       const userRes = await supabase.from("User").insert({
         identifier: input.username,
         metadata: { role: "admin", provider: "credentials" },
+        djb_metadata: djbMetadata,
       });
 
       if (userRes.error) {

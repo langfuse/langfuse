@@ -8,6 +8,7 @@ import { DialogHeader } from "@/src/components/ui/dialog";
 import { DialogTitle } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import { api } from "@/src/utils/api";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/router";
@@ -21,6 +22,7 @@ export function CreateUserDialog() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [isGbaUser, setIsGbaUser] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   const projectId = router.query.projectId as string;
@@ -32,6 +34,7 @@ export function CreateUserDialog() {
       setIsOpen(false);
       setUsername("");
       setPassword("");
+      setIsGbaUser(false);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -48,6 +51,7 @@ export function CreateUserDialog() {
       username: username.trim(),
       password: password.trim(),
       projectId: projectId,
+      isGbaUser: isGbaUser,
     });
   };
 
@@ -88,6 +92,15 @@ export function CreateUserDialog() {
               placeholder="Enter password"
               disabled={createUser.isLoading}
             />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="gba-user"
+              checked={isGbaUser}
+              onCheckedChange={(checked) => setIsGbaUser(checked === true)}
+              disabled={createUser.isLoading}
+            />
+            <Label htmlFor="gba-user">GBA user?</Label>
           </div>
           <div className="flex justify-end space-x-2">
             <Button
