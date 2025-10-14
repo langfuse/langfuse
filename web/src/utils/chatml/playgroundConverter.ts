@@ -18,8 +18,10 @@ export function convertChatMlToPlayground(
   }
 
   // Handle assistant messages with tool calls (from json field)
-  if (msg.json?.tool_calls && Array.isArray(msg.json.tool_calls)) {
-    const toolCalls = msg.json.tool_calls.map((tc: any) => {
+  // Note: ChatMlSchema may nest in json.json due to content union matching
+  const jsonData = msg.json?.json || msg.json;
+  if (jsonData?.tool_calls && Array.isArray(jsonData.tool_calls)) {
+    const toolCalls = jsonData.tool_calls.map((tc: any) => {
       let args: Record<string, unknown>;
       try {
         args =
@@ -46,12 +48,12 @@ export function convertChatMlToPlayground(
   }
 
   // Handle tool results (from json field)
-  if (msg.json?.tool_call_id || msg.json?.toolCallId) {
+  if (jsonData?.tool_call_id || jsonData?.toolCallId) {
     return {
       role: ChatMessageRole.Tool,
       content: (msg.content as string) || "",
       type: ChatMessageType.ToolResult,
-      toolCallId: (msg.json.tool_call_id || msg.json.toolCallId) as string,
+      toolCallId: (jsonData.tool_call_id || jsonData.toolCallId) as string,
     };
   }
 
