@@ -4541,5 +4541,68 @@ describe("OTel Resource Span Mapping", () => {
         traceLoopObservation?.body.metadata?.attributes?.span_custom_field,
       ).toBe("custom_value");
     });
+
+    it("should stringify non-string attributes in observation metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const spanWithNonStringAttrs = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "test-scope", version: "1.0.0" },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "test-span",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  // Add input to trigger extraction logic
+                  { key: "input", value: { stringValue: "test input" } },
+                  // Non-string attributes that should be stringified
+                  { key: "count", value: { intValue: { low: 42, high: 0 } } },
+                  { key: "temperature", value: { doubleValue: 0.7 } },
+                  { key: "is_streaming", value: { boolValue: true } },
+                  // String attribute should remain as-is
+                  {
+                    key: "custom_field",
+                    value: { stringValue: "custom-value" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        spanWithNonStringAttrs,
+        new Set([traceId]),
+      );
+
+      const observation = events.find((e) => e.type === "span-create");
+
+      // Verify input is extracted
+      expect(observation?.body.input).toBe("test input");
+
+      // Verify non-string values are stringified in metadata.attributes
+      expect(observation?.body.metadata?.attributes?.count).toBe("42");
+      expect(observation?.body.metadata?.attributes?.temperature).toBe("0.7");
+      expect(observation?.body.metadata?.attributes?.is_streaming).toBe("true");
+      // Verify string values remain strings
+      expect(observation?.body.metadata?.attributes?.custom_field).toBe(
+        "custom-value",
+      );
+    });
   });
 });

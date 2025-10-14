@@ -217,8 +217,8 @@ export class OtelIngestionProcessor {
                   "trace",
                 );
 
-                // Extract input/output (usedKeys not needed as metadata.attributes is commented out)
-                // Drop used keys in case spanAttributes are included in the metadata block.
+                // Extract input/output (filteredAttributes not needed as metadata.attributes is commented out)
+                // Add filteredAttributes in case spanAttributes are included in the metadata block.
                 const { input, output } = this.extractInputAndOutput({
                   events: span?.events ?? [],
                   attributes: spanAttributes,
@@ -227,7 +227,7 @@ export class OtelIngestionProcessor {
 
                 // Construct metadata object with the specified structure
                 const metadata = {
-                  // attributes: spanAttributes,
+                  // attributes: filteredAttributes,
                   resourceAttributes: resourceAttributes,
                   scopeAttributes: scopeAttributes,
                   ...spanMetadata,
@@ -1069,7 +1069,7 @@ export class OtelIngestionProcessor {
     let input = null;
     let output = null;
     // Create a shallow copy of attributes to filter out used keys
-    const filteredAttributes = { ...attributes };
+    const rawFilteredAttributes = { ...attributes };
 
     // Pre-delete all potential input/output attribute keys to avoid duplicates
     // This ensures that if multiple frameworks' attributes are present, they're all filtered
@@ -1124,7 +1124,7 @@ export class OtelIngestionProcessor {
 
     // Delete simple keys
     potentialInputOutputKeys.forEach((key) => {
-      delete filteredAttributes[key];
+      delete rawFilteredAttributes[key];
     });
 
     // Delete gen_ai.prompt.* and gen_ai.completion.* keys
@@ -1133,9 +1133,18 @@ export class OtelIngestionProcessor {
         key.startsWith("gen_ai.prompt") ||
         key.startsWith("gen_ai.completion")
       ) {
-        delete filteredAttributes[key];
+        delete rawFilteredAttributes[key];
       }
     });
+
+    // Stringify non-string values in filteredAttributes to maintain backward compatibility
+    // This matches the old spanAttributesInMetadata behavior
+    const filteredAttributes = Object.fromEntries(
+      Object.entries(rawFilteredAttributes).map(([key, value]) => [
+        key,
+        typeof value === "string" ? value : JSON.stringify(value),
+      ]),
+    );
 
     // Langfuse
     input =
