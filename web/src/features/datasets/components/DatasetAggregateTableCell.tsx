@@ -177,7 +177,7 @@ const DatasetAggregateCell = ({
       {/* Displays trace/observation output */}
       <div
         className={cn(
-          "relative max-h-[50%] w-full min-w-0 overflow-auto",
+          "relative h-[50%] w-full min-w-0 flex-shrink-0 overflow-auto",
           !selectedFields.includes("output") && "hidden",
         )}
       >
@@ -195,7 +195,7 @@ const DatasetAggregateCell = ({
       {/* Displays scores */}
       <div
         className={cn(
-          "flex max-h-[50%] flex-shrink-0 overflow-hidden px-1",
+          "flex max-h-[50%] flex-shrink overflow-hidden px-1",
           !selectedFields.includes("scores") && "hidden",
         )}
       >
