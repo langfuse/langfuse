@@ -90,6 +90,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               ? "https://langfuse.com/docs/api#authentication"
               : "https://langfuse.com/docs/api#org-scoped-routes",
         }}
+        actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
       />
       <Card className="mb-4 overflow-hidden">
         <Table>
@@ -153,7 +154,6 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           </TableBody>
         </Table>
       </Card>
-      <CreateApiKeyButton entityId={entityId} scope={scope} />
     </div>
   );
 }
