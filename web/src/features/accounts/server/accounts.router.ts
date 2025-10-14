@@ -163,7 +163,7 @@ export const accountsRouter = createTRPCRouter({
       }
 
       // Prepare djb_metadata based on GBA user flag
-      const djbMetadata = input.isGbaUser ? { ta_only: true } : null;
+      const djbMetadata = input.isGbaUser ? { ta_only: true } : {};
 
       const userRes = await supabase.from("User").insert({
         identifier: input.username,
