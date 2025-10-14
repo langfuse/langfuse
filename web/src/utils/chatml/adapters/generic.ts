@@ -83,6 +83,10 @@ function preprocessData(data: unknown): unknown {
 
   // Array of messages
   if (Array.isArray(data)) {
+    // Handle nested array format: [[ChatML...]]
+    if (data.length === 1 && Array.isArray(data[0])) {
+      return data[0].map(normalizeGoogleMessage);
+    }
     return data.map(normalizeGoogleMessage);
   }
 
