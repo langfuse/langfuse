@@ -88,6 +88,14 @@ export type ObservationRecordInsertType = z.infer<
   typeof observationRecordInsertSchema
 >;
 
+export const observationBatchStagingRecordInsertSchema =
+  observationRecordInsertSchema.extend({
+    s3_first_seen_timestamp: z.number(),
+  });
+export type ObservationBatchStagingRecordInsertType = z.infer<
+  typeof observationBatchStagingRecordInsertSchema
+>;
+
 export const traceRecordBaseSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),
