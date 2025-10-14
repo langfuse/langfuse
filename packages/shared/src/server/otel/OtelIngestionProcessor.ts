@@ -219,6 +219,14 @@ export class OtelIngestionProcessor {
                   "trace",
                 );
 
+                // Extract input/output (usedKeys not needed as metadata.attributes is commented out)
+                // Drop used keys in case spanAttributes are included in the metadata block.
+                const { input, output } = this.extractInputAndOutput({
+                  events: span?.events ?? [],
+                  attributes: spanAttributes,
+                  instrumentationScopeName: scopeSpan?.scope?.name ?? "",
+                });
+
                 // Construct metadata object with the specified structure
                 const metadata = {
                   // attributes: spanAttributes,
@@ -318,11 +326,8 @@ export class OtelIngestionProcessor {
                   userId: this.extractUserId(spanAttributes),
                   sessionId: this.extractSessionId(spanAttributes),
 
-                  ...this.extractInputAndOutput({
-                    events: span?.events ?? [],
-                    attributes: spanAttributes,
-                    instrumentationScopeName: scopeSpan?.scope?.name ?? "",
-                  }),
+                  input,
+                  output,
 
                   // Metadata
                   metadata,
@@ -699,6 +704,14 @@ export class OtelIngestionProcessor {
 
     // Create full trace for root spans or spans with trace updates
     if (isRootSpan) {
+      // Extract input/output and get filtered attributes
+      const { input, output, filteredAttributes } = this.extractInputAndOutput({
+        events: span?.events ?? [],
+        attributes,
+        domain: "trace",
+        instrumentationScopeName,
+      });
+
       trace = {
         ...trace,
         name:
@@ -708,9 +721,7 @@ export class OtelIngestionProcessor {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
           ...this.extractMetadata(attributes, "observation"),
-          ...(isLangfuseSDKSpans
-            ? {}
-            : { attributes: spanAttributesInMetadata }),
+          ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
           resourceAttributes,
           scope: {
             ...(scopeSpan.scope || {}),
@@ -730,12 +741,8 @@ export class OtelIngestionProcessor {
         public: this.isTracePublic(attributes),
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
-        ...this.extractInputAndOutput({
-          events: span?.events ?? [],
-          attributes,
-          domain: "trace",
-          instrumentationScopeName,
-        }),
+        input,
+        output,
       };
     }
 
@@ -823,6 +830,13 @@ export class OtelIngestionProcessor {
 
     const instrumentationScopeName = scopeSpan?.scope?.name;
 
+    // Extract input/output and get filtered attributes
+    const { input, output, filteredAttributes } = this.extractInputAndOutput({
+      events: span?.events ?? [],
+      attributes,
+      instrumentationScopeName,
+    });
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -838,7 +852,7 @@ export class OtelIngestionProcessor {
       metadata: {
         ...resourceAttributeMetadata,
         ...spanAttributeMetadata,
-        ...(isLangfuseSDKSpans ? {} : { attributes: spanAttributesInMetadata }),
+        ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
         resourceAttributes,
         scope: { ...scopeSpan.scope, attributes: scopeAttributes },
       },
@@ -879,11 +893,8 @@ export class OtelIngestionProcessor {
         attributes,
         isLangfuseSDKSpans,
       ) as any,
-      ...this.extractInputAndOutput({
-        events: span?.events ?? [],
-        attributes,
-        instrumentationScopeName,
-      }),
+      input,
+      output,
     };
 
     const mappedObservationType = observationTypeMapper.mapToObservationType(
@@ -1065,11 +1076,79 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     instrumentationScopeName: string;
     domain?: "trace" | "observation";
-  }): { input: any; output: any } {
+  }): { input: any; output: any; filteredAttributes: Record<string, unknown> } {
     const { instrumentationScopeName, events, attributes, domain } = params;
 
     let input = null;
     let output = null;
+    // Create a shallow copy of attributes to filter out used keys
+    const filteredAttributes = { ...attributes };
+
+    // Pre-delete all potential input/output attribute keys to avoid duplicates
+    // This ensures that if multiple frameworks' attributes are present, they're all filtered
+    const potentialInputOutputKeys = [
+      // Langfuse SDK
+      LangfuseOtelSpanAttributes.TRACE_INPUT,
+      LangfuseOtelSpanAttributes.TRACE_OUTPUT,
+      LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
+      LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
+      // Vercel AI SDK
+      "ai.prompt.messages",
+      "ai.prompt",
+      "ai.toolCall.args",
+      "ai.response.text",
+      "ai.result.text",
+      "ai.toolCall.result",
+      "ai.response.object",
+      "ai.result.object",
+      "ai.response.toolCalls",
+      "ai.result.toolCalls",
+      // Google Vertex AI
+      "gcp.vertex.agent.llm_request",
+      "gcp.vertex.agent.llm_response",
+      "gcp.vertex.agent.tool_call_args",
+      "gcp.vertex.agent.tool_response",
+      // Logfire
+      "prompt",
+      "all_messages_events",
+      "events",
+      // LiveKit
+      "lk.input_text",
+      "lk.function_tool.output",
+      "lk.response.text",
+      // MLFlow
+      "mlflow.spanInputs",
+      "mlflow.spanOutputs",
+      // TraceLoop
+      "traceloop.entity.input",
+      "traceloop.entity.output",
+      // SmolAgents
+      "input.value",
+      "output.value",
+      // Pydantic and Pipecat
+      "input",
+      "output",
+      // OpenTelemetry
+      "gen_ai.input.messages",
+      "gen_ai.output.messages",
+      "gen_ai.tool.call.arguments",
+      "gen_ai.tool.call.result",
+    ];
+
+    // Delete simple keys
+    potentialInputOutputKeys.forEach((key) => {
+      delete filteredAttributes[key];
+    });
+
+    // Delete gen_ai.prompt.* and gen_ai.completion.* keys
+    Object.keys(attributes).forEach((key) => {
+      if (
+        key.startsWith("gen_ai.prompt") ||
+        key.startsWith("gen_ai.completion")
+      ) {
+        delete filteredAttributes[key];
+      }
+    });
 
     // Langfuse
     input =
@@ -1082,7 +1161,7 @@ export class OtelIngestionProcessor {
         : attributes[LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT];
 
     if (input != null || output != null) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // Vercel AI SDK
@@ -1113,7 +1192,7 @@ export class OtelIngestionProcessor {
                       ? attributes["ai.result.toolCalls"]
                       : undefined;
 
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     const inputEvents = events.filter(
@@ -1168,6 +1247,7 @@ export class OtelIngestionProcessor {
           processedOutput && processedOutput.length === 1
             ? processedOutput[0]
             : processedOutput,
+        filteredAttributes, // No attribute keys used, events are used instead
       };
     }
 
@@ -1204,21 +1284,25 @@ export class OtelIngestionProcessor {
         attributes: output,
         instrumentationScopeName,
       });
-      return { input: eventInput || input, output: eventOutput || output };
+      return {
+        input: eventInput || input,
+        output: eventOutput || output,
+        filteredAttributes, // No attribute keys used, events are used instead
+      };
     }
 
     // Google Vertex AI Agent-Developer-Kit (ADK)
     input = attributes["gcp.vertex.agent.llm_request"];
     output = attributes["gcp.vertex.agent.llm_response"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // Logfire uses `prompt` and `all_messages_events` property on spans
     input = attributes["prompt"];
     output = attributes["all_messages_events"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // LiveKit
@@ -1226,7 +1310,7 @@ export class OtelIngestionProcessor {
     output =
       attributes["lk.function_tool.output"] || attributes["lk.response.text"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // Logfire uses single `events` array for GenAI events
@@ -1252,6 +1336,7 @@ export class OtelIngestionProcessor {
         return {
           input: inputEvents.length > 0 ? inputEvents : null,
           output: choiceEvent || null,
+          filteredAttributes,
         };
       }
     }
@@ -1260,35 +1345,35 @@ export class OtelIngestionProcessor {
     input = attributes["mlflow.spanInputs"];
     output = attributes["mlflow.spanOutputs"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // TraceLoop sets traceloop.entity.input and traceloop.entity.output
     input = attributes["traceloop.entity.input"];
     output = attributes["traceloop.entity.output"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // SmolAgents sets input.value and output.value
     input = attributes["input.value"];
     output = attributes["output.value"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // Pydantic and Pipecat uses input and output
     input = attributes["input"];
     output = attributes["output"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // GCP Vertex Agent Tool call input and output
     input = attributes["gcp.vertex.agent.tool_call_args"];
     output = attributes["gcp.vertex.agent.tool_response"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // TraceLoop uses attributes property
@@ -1310,6 +1395,7 @@ export class OtelIngestionProcessor {
       return {
         input: this.convertKeyPathToNestedObject(input, "gen_ai.prompt"),
         output: this.convertKeyPathToNestedObject(output, "gen_ai.completion"),
+        filteredAttributes,
       };
     }
 
@@ -1317,17 +1403,17 @@ export class OtelIngestionProcessor {
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)
     input = attributes["gen_ai.tool.call.arguments"];
     output = attributes["gen_ai.tool.call.result"];
     if (input || output) {
-      return { input, output };
+      return { input, output, filteredAttributes };
     }
 
-    return { input: null, output: null };
+    return { input: null, output: null, filteredAttributes };
   }
 
   private extractEnvironment(
