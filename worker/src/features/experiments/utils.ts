@@ -28,20 +28,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
-import { createHash } from "crypto";
-
-/**
- * Generate deterministic trace ID based on dataset run and item IDs
- * This ensures both PostgreSQL and ClickHouse use the same trace ID
- */
-export function generateUnifiedTraceId(
-  runId: string,
-  datasetItemId: string,
-): string {
-  const input = `${runId}-${datasetItemId}`;
-  const hash = createHash("sha256").update(input).digest("hex");
-  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-}
 
 const isValidPrismaJsonObject = (
   input: Prisma.JsonValue,

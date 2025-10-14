@@ -53,7 +53,7 @@ import {
   QUEUE_ERROR_MESSAGES,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { compileHandlebarString } from "../utils";
+import { compileHandlebarString, createW3CTraceId } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 
@@ -497,6 +497,10 @@ export const createEvalJobs = async ({
     if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
       const jobExecutionId = randomUUID();
 
+      // Use a deterministic trace ID derived from the job execution ID
+      // This is useful to group all retries for a given job execution ID into one trace
+      const executionTraceId = createW3CTraceId(jobExecutionId);
+
       // deduplication: if a job exists already for a trace event, we do not create a new one.
       if (existingJob.length > 0) {
         logger.debug(
@@ -529,6 +533,7 @@ export const createEvalJobs = async ({
           jobInputTraceId: event.traceId,
           jobInputTraceTimestamp: traceTimestamp,
           jobTemplateId: config.eval_template_id,
+          executionTraceId,
           status: "PENDING",
           startTime: new Date(),
           ...(datasetItem
@@ -728,8 +733,8 @@ export const evaluate = async ({
   // persist the score and update the job status
   const scoreId = randomUUID();
 
-  // Generate trace ID for eval execution (16 random bytes as hex string)
-  const evalTraceId = randomBytes(16).toString("hex");
+  // Use deterministic trace ID from job execution ID. Retries will be in same trace.
+  const executionTraceId = createW3CTraceId(event.jobExecutionId);
 
   const llmOutput = await fetchLLMCompletion({
     streaming: false,
@@ -745,7 +750,7 @@ export const evaluate = async ({
     maxRetries: 1,
     traceSinkParams: {
       targetProjectId: event.projectId,
-      traceId: evalTraceId,
+      traceId: executionTraceId,
       traceName: `Execute eval: ${template.name}`,
       environment: "langfuse-llm-as-a-judge",
       metadata: {
@@ -779,7 +784,7 @@ export const evaluate = async ({
     comment: parsedLLMOutput.data.reasoning,
     source: ScoreSource.EVAL,
     environment: environment ?? "default",
-    evalExecutionTraceId: evalTraceId,
+    evalExecutionTraceId: executionTraceId,
   };
 
   // Write score to S3 and ingest into queue for Clickhouse processing

@@ -1261,6 +1261,7 @@ export const evalRouter = createTRPCRouter({
               | "jobInputTraceId"
               | "jobTemplateId"
               | "jobConfigurationId"
+              | "executionTraceId"
               | "error"
             >
           >
@@ -1274,6 +1275,7 @@ export const evalRouter = createTRPCRouter({
             je.job_input_trace_id as "jobInputTraceId",
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
+            je.execution_trace_id as "executionTraceId",
             je.error
             `,
             input.projectId,

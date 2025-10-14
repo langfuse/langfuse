@@ -18,7 +18,6 @@ import {
 import { v4 } from "uuid";
 import z from "zod/v4";
 import {
-  generateUnifiedTraceId,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
@@ -26,6 +25,7 @@ import {
   type PromptExperimentConfig,
 } from "./utils";
 import { randomUUID } from "crypto";
+import { createW3CTraceId } from "../utils";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -64,7 +64,7 @@ async function processItem(
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
-  const newTraceId = generateUnifiedTraceId(config.runId, datasetItem.id);
+  const newTraceId = createW3CTraceId();
   const runItemId = v4();
   const timestamp = new Date().toISOString();
 
