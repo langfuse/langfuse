@@ -148,6 +148,7 @@ describe("Playground Jump Full Pipeline", () => {
     const inResult = normalizeInput(input, ctx);
 
     expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
 
     // convert all messages to playground format
     const playgroundMessages = inResult.data
@@ -160,36 +161,44 @@ describe("Playground Jump Full Pipeline", () => {
 
     // Verify first assistant message with tool call
     const assistantWithToolCall1 = playgroundMessages[1];
-    expect(assistantWithToolCall1.type).toBe("assistant-tool-call");
-    expect(assistantWithToolCall1.toolCalls).toHaveLength(1);
-    expect(assistantWithToolCall1.toolCalls?.[0].id).toBe("call_user_info_001");
-    expect(assistantWithToolCall1.toolCalls?.[0].name).toBe("get_user_info");
-    expect(assistantWithToolCall1.toolCalls?.[0].args).toEqual({});
+    expect(assistantWithToolCall1?.type).toBe("assistant-tool-call");
+    if (assistantWithToolCall1?.type === "assistant-tool-call") {
+      expect(assistantWithToolCall1.toolCalls).toHaveLength(1);
+      expect(assistantWithToolCall1.toolCalls[0].id).toBe("call_user_info_001");
+      expect(assistantWithToolCall1.toolCalls[0].name).toBe("get_user_info");
+      expect(assistantWithToolCall1.toolCalls[0].args).toEqual({});
+    }
 
     // Verify first tool result
     const toolResult1 = playgroundMessages[2];
-    expect(toolResult1.type).toBe("tool-result");
-    expect(toolResult1.toolCallId).toBe("call_user_info_001");
-    expect(typeof toolResult1.content).toBe("string");
-    expect(toolResult1.content).toContain("Test User");
+    expect(toolResult1?.type).toBe("tool-result");
+    if (toolResult1?.type === "tool-result") {
+      expect(toolResult1.toolCallId).toBe("call_user_info_001");
+      expect(typeof toolResult1.content).toBe("string");
+      expect(toolResult1.content).toContain("Test User");
+    }
 
     // Verify second assistant message with tool call (object args)
     const assistantWithToolCall2 = playgroundMessages[4];
-    expect(assistantWithToolCall2.type).toBe("assistant-tool-call");
-    expect(assistantWithToolCall2.toolCalls).toHaveLength(1);
-    expect(assistantWithToolCall2.toolCalls?.[0].id).toBe("call_query_db_002");
-    expect(assistantWithToolCall2.toolCalls?.[0].name).toBe("query_database");
-    // Object arguments should be parsed back to object
-    expect(assistantWithToolCall2.toolCalls?.[0].args).toEqual({
-      query: "configure API settings",
-      lang: "en",
-    });
+    expect(assistantWithToolCall2?.type).toBe("assistant-tool-call");
+    if (assistantWithToolCall2?.type === "assistant-tool-call") {
+      expect(assistantWithToolCall2.toolCalls).toHaveLength(1);
+      expect(assistantWithToolCall2.toolCalls[0].id).toBe("call_query_db_002");
+      expect(assistantWithToolCall2.toolCalls[0].name).toBe("query_database");
+      // Object arguments should be parsed back to object
+      expect(assistantWithToolCall2.toolCalls[0].args).toEqual({
+        query: "configure API settings",
+        lang: "en",
+      });
+    }
 
     // Verify second tool result
     const toolResult2 = playgroundMessages[5];
-    expect(toolResult2.type).toBe("tool-result");
-    expect(toolResult2.toolCallId).toBe("call_query_db_002");
-    expect(typeof toolResult2.content).toBe("string");
-    expect(toolResult2.content).toContain("Settings > API Configuration");
+    expect(toolResult2?.type).toBe("tool-result");
+    if (toolResult2?.type === "tool-result") {
+      expect(toolResult2.toolCallId).toBe("call_query_db_002");
+      expect(typeof toolResult2.content).toBe("string");
+      expect(toolResult2.content).toContain("Settings > API Configuration");
+    }
   });
 });

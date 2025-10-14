@@ -41,7 +41,7 @@ describe("ChatML Integration", () => {
 
     expect(inResult.success).toBe(true);
     expect(inResult.data).toHaveLength(1);
-    expect(Array.isArray(inResult.data[0].content)).toBe(true);
+    expect(Array.isArray(inResult.data?.[0].content)).toBe(true);
     expect(additionalInput).toEqual({
       temperature: 0.7,
       model: "gpt-4-vision-preview",
@@ -62,6 +62,7 @@ describe("ChatML Integration", () => {
     const allMessages = combineInputOutputMessages(inResult, outResult, output);
 
     expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
     expect(inResult.data).toHaveLength(2);
     expect(allMessages).toHaveLength(3);
   });
@@ -121,7 +122,7 @@ describe("ChatML Integration", () => {
     const inResult = normalizeInput(input);
 
     expect(inResult.success).toBe(true);
-    expect(inResult.data[0].content).toHaveLength(1000000);
+    expect(inResult.data?.[0].content).toHaveLength(1000000);
   });
 
   it("should handle Google Gemini format with simple string contents", () => {
@@ -163,11 +164,14 @@ describe("ChatML Integration", () => {
     const allMessages = combineInputOutputMessages(inResult, outResult, output);
 
     expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected inResult.data to be defined");
     expect(inResult.data).toHaveLength(1);
     expect(inResult.data[0].role).toBe("user");
     expect(inResult.data[0].content).toBe("What is Langfuse?");
 
     expect(outResult.success).toBe(true);
+    if (!outResult.data)
+      throw new Error("Expected outResult.data to be defined");
     expect(outResult.data).toHaveLength(1);
     expect(outResult.data[0].role).toBe("assistant");
     expect(outResult.data[0].content).toContain("Langfuse");
@@ -219,6 +223,7 @@ describe("ChatML Integration", () => {
     const inResult = normalizeInput(input, ctx);
 
     expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
     expect(inResult.data).toHaveLength(2);
     expect(inResult.data[0].role).toBe("system");
     expect(inResult.data[0].content).toContain("hello_agent");
@@ -287,6 +292,7 @@ describe("ChatML Integration", () => {
     const inResult = normalizeInput(input, ctx);
 
     expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
     expect(inResult.data).toHaveLength(4);
     expect(inResult.data[0].role).toBe("system");
     expect(inResult.data[1].role).toBe("user");

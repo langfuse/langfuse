@@ -51,9 +51,9 @@ describe("OpenAI Adapter", () => {
     expect(result.success).toBe(true);
 
     // Verify arguments were stringified (ChatMlSchema nests in json.json due to content union quirk)
-    const toolCalls = result.data[0].json?.json?.tool_calls;
+    const toolCalls = result.data?.[0].json?.json?.tool_calls;
     expect(toolCalls).toBeDefined();
-    expect(toolCalls[0].function.arguments).toBe(
+    expect(toolCalls?.[0].function.arguments).toBe(
       '{"city":"NYC","units":"celsius"}',
     );
   });
@@ -76,7 +76,7 @@ describe("OpenAI Adapter", () => {
 
     const result = normalizeInput(input, { framework: "openai" });
     expect(result.success).toBe(true);
-    expect(Array.isArray(result.data[0].content)).toBe(true);
+    expect(Array.isArray(result.data?.[0].content)).toBe(true);
   });
 
   it("should remove null fields from messages", () => {
@@ -95,8 +95,8 @@ describe("OpenAI Adapter", () => {
     expect(result.success).toBe(true);
 
     // When all extra fields are null and removed, json field won't exist (correct behavior)
-    expect(result.data[0].role).toBe("user");
-    expect(result.data[0].content).toBe("Hello");
+    expect(result.data?.[0].role).toBe("user");
+    expect(result.data?.[0].content).toBe("Hello");
   });
 
   it("should stringify tool message object content", () => {
@@ -112,8 +112,8 @@ describe("OpenAI Adapter", () => {
 
     const result = normalizeInput(input, { framework: "openai" });
     expect(result.success).toBe(true);
-    expect(typeof result.data[0].content).toBe("string");
-    expect(result.data[0].content).toBe(
+    expect(typeof result.data?.[0].content).toBe("string");
+    expect(result.data?.[0].content).toBe(
       '{"temperature":72,"conditions":"sunny"}',
     );
   });
