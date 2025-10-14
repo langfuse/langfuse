@@ -2467,10 +2467,7 @@ describe("eval service tests", () => {
       vi.mocked(fetchLLMCompletion).mockImplementationOnce(
         async (params: any) => {
           capturedTraceSinkParams = params.traceSinkParams;
-          return {
-            completion: { score: 0.8, reasoning: "Good response" },
-            processTracedEvents: async () => {},
-          };
+          return { score: 0.8, reasoning: "Good response" };
         },
       );
 

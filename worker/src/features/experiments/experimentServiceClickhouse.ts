@@ -24,8 +24,7 @@ import {
   validateDatasetItem,
   type PromptExperimentConfig,
 } from "./utils";
-import { backOff } from "exponential-backoff";
-import { callLLM } from "../utils";
+import { callLLM } from "../../features/utils";
 import { randomUUID } from "crypto";
 
 async function getExistingRunItemDatasetItemIds(
@@ -181,20 +180,13 @@ async function processLLMCall(
     prompt: config.prompt,
   };
 
-  await backOff(
-    async () =>
-      await callLLM({
-        llmApiKey: config.validatedApiKey,
-        modelParams: config.model_params,
-        messages,
-        traceSinkParams,
-        throwOnError: false,
-        ...config,
-      }),
-    {
-      numOfAttempts: 1, // Turn off retries as Langchain handles this
-    },
-  );
+  await callLLM({
+    llmApiKey: config.validatedApiKey,
+    modelParams: config.model_params,
+    messages,
+    traceSinkParams,
+    ...config,
+  }).catch(); // catch errors and do not retry
 
   return { success: true };
 }

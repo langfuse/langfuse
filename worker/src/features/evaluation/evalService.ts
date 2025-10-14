@@ -36,7 +36,6 @@ import {
 } from "./traceFilterUtils";
 import {
   ChatMessageRole,
-  LangfuseNotFoundError,
   Prisma,
   singleFilter,
   InvalidRequestError,
@@ -53,7 +52,6 @@ import {
   QUEUE_ERROR_MESSAGES,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { backOff } from "exponential-backoff";
 import { callLLM, compileHandlebarString } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
@@ -713,7 +711,9 @@ export const evaluate = async ({
     logger.warn(
       `Evaluating job ${event.jobExecutionId} will fail. ${modelConfig.error}`,
     );
-    throw new LangfuseNotFoundError(modelConfig.error);
+    throw Error(
+      `Evaluating job ${event.jobExecutionId} will fail due to invalid model config: ${modelConfig.error}`,
+    );
   }
 
   const messages = [
@@ -730,34 +730,28 @@ export const evaluate = async ({
   // Generate trace ID for eval execution (16 random bytes as hex string)
   const evalTraceId = randomBytes(16).toString("hex");
 
-  const llmOutput = await backOff(
-    async () =>
-      await callLLM({
-        llmApiKey: modelConfig.config.apiKey,
-        messages,
-        modelParams: modelConfig.config.modelParams ?? {},
-        provider: modelConfig.config.provider,
-        model: modelConfig.config.model,
-        structuredOutputSchema: evalScoreSchema,
-        traceSinkParams: {
-          targetProjectId: event.projectId,
-          traceId: evalTraceId,
-          traceName: `Execute eval: ${template.name}`,
-          environment: "langfuse-llm-as-a-judge",
-          metadata: {
-            job_execution_id: event.jobExecutionId,
-            job_configuration_id: job.job_configuration_id,
-            target_trace_id: job.job_input_trace_id,
-            target_observation_id: job.job_input_observation_id,
-            target_dataset_item_id: job.job_input_dataset_item_id,
-            score_id: scoreId,
-          },
-        },
-      }),
-    {
-      numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
+  const llmOutput = await callLLM({
+    llmApiKey: modelConfig.config.apiKey,
+    messages,
+    modelParams: modelConfig.config.modelParams ?? {},
+    provider: modelConfig.config.provider,
+    model: modelConfig.config.model,
+    structuredOutputSchema: evalScoreSchema,
+    traceSinkParams: {
+      targetProjectId: event.projectId,
+      traceId: evalTraceId,
+      traceName: `Execute eval: ${template.name}`,
+      environment: "langfuse-llm-as-a-judge",
+      metadata: {
+        job_execution_id: event.jobExecutionId,
+        job_configuration_id: job.job_configuration_id,
+        target_trace_id: job.job_input_trace_id,
+        target_observation_id: job.job_input_observation_id,
+        target_dataset_item_id: job.job_input_dataset_item_id,
+        score_id: scoreId,
+      },
     },
-  );
+  });
 
   const parsedLLMOutput = evalScoreSchema.safeParse(llmOutput);
   if (!parsedLLMOutput.success) {
@@ -922,7 +916,7 @@ export async function extractVariablesFromTracingData({
           `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
         );
         // this should only happen for deleted data.
-        throw new LangfuseNotFoundError(
+        throw Error(
           `Dataset item ${datasetItemId} for project ${projectId} not found. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
         );
       }
@@ -967,7 +961,7 @@ export async function extractVariablesFromTracingData({
           `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
         );
         // this should only happen for deleted data or replication lags across clickhouse nodes.
-        throw new LangfuseNotFoundError(
+        throw Error(
           `Trace ${traceId} for project ${projectId} not found. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
         );
       }
@@ -1025,7 +1019,7 @@ export async function extractVariablesFromTracingData({
           `Observation ${mapping.objectName} for trace ${traceId} not found. ${QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR}`,
         );
         // this should only happen for deleted data or data replication lags across clickhouse nodes.
-        throw new LangfuseNotFoundError(
+        throw Error(
           `Observation ${mapping.objectName} for trace ${traceId} not found. ${QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR}`,
         );
       }

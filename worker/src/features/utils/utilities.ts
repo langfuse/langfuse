@@ -49,7 +49,6 @@ export async function callLLM(params: {
   model: string;
   traceSinkParams?: TraceSinkParams;
   structuredOutputSchema?: ZodV3Schema | LLMJSONSchema;
-  throwOnError?: boolean;
 }): Promise<unknown> {
   const {
     llmApiKey,
@@ -59,11 +58,10 @@ export async function callLLM(params: {
     model,
     traceSinkParams,
     structuredOutputSchema,
-    throwOnError,
   } = params;
 
   return withLLMErrorHandling(async () => {
-    const { completion, processTracedEvents } = await fetchLLMCompletion({
+    const completion = await fetchLLMCompletion({
       streaming: false,
       llmConnection: llmApiKey,
       messages,
@@ -76,12 +74,7 @@ export async function callLLM(params: {
       ...(structuredOutputSchema && { structuredOutputSchema }),
       traceSinkParams,
       maxRetries: 1,
-      throwOnError,
     });
-
-    if (traceSinkParams) {
-      await processTracedEvents();
-    }
 
     return completion;
   }, "call LLM");

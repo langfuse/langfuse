@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
-import { handleRetryableError } from "../features/utils";
+import { retryLLMRateLimitError } from "../features/utils";
 import { delayInMs } from "./utils/delays";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 
@@ -23,7 +23,7 @@ export const experimentCreateQueueProcessor = async (
     return true;
   } catch (e) {
     // If creating any of the dataset run items associated with this experiment create job fails with a 429, we want to retry the experiment creation job unless it's older than 24h.
-    const wasRetried = await handleRetryableError(e, job, {
+    const hasScheduledLLMRateLimitRetry = await retryLLMRateLimitError(e, job, {
       table: "dataset_runs",
       idField: "runId",
       queue: ExperimentCreateQueue.getInstance(),
@@ -32,7 +32,7 @@ export const experimentCreateQueueProcessor = async (
       delayFn: delayInMs,
     });
 
-    if (wasRetried) {
+    if (hasScheduledLLMRateLimitRetry) {
       return;
     }
 

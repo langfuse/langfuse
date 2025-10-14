@@ -59,7 +59,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
         streaming: false,
         structuredOutputSchema,
       });
-      return NextResponse.json(result.completion);
+      return NextResponse.json(result);
     }
 
     // If messages contain tool results, we include tools in the request
@@ -104,14 +104,14 @@ export default async function chatCompletionHandler(req: NextRequest) {
     }
 
     if (streaming) {
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         ...fetchLLMCompletionParams,
         streaming,
       });
 
       return new StreamingTextResponse(completion);
     } else {
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         ...fetchLLMCompletionParams,
         streaming,
       });

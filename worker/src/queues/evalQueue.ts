@@ -1,12 +1,6 @@
 import { Job } from "bullmq";
-import {
-  ApiError,
-  BaseError,
-  LangfuseNotFoundError,
-  QUEUE_ERROR_MESSAGES,
-} from "@langfuse/shared";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
-import { sql } from "kysely";
+import { JobExecutionStatus, QUEUE_ERROR_MESSAGES } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -15,35 +9,40 @@ import {
   EvalExecutionQueue,
   QueueJobs,
   getCurrentSpan,
+  isLLMCompletionError,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
-import { handleRetryableError } from "../features/utils";
+import { retryLLMRateLimitError } from "../features/utils";
 
-function isExpectedError(error: unknown): boolean {
-  return (
-    error instanceof LangfuseNotFoundError ||
-    (error instanceof BaseError &&
-      error.message.includes(
-        QUEUE_ERROR_MESSAGES.OUTPUT_TOKENS_TOO_LONG_ERROR,
-      )) || // output tokens too long
-    (error instanceof BaseError &&
-      error.message.includes(QUEUE_ERROR_MESSAGES.API_KEY_ERROR)) || // api key not provided
-    (error instanceof BaseError &&
-      error.message.includes(QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR)) || // api key not provided
-    (error instanceof ApiError &&
-      error.httpCode >= 400 &&
-      error.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
-    (error instanceof ApiError && error.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
-    (error instanceof ApiError &&
-      error.message.includes(QUEUE_ERROR_MESSAGES.TOO_LOW_MAX_TOKENS_ERROR)) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
-    (error instanceof ApiError &&
-      error.message.includes(QUEUE_ERROR_MESSAGES.INVALID_JSON_ERROR)) || // When evaluator model is not consistently returning valid JSON on structured output calls
-    (error instanceof BaseError &&
-      error.message.includes(QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR)) || // Trace not found.
-    (error instanceof ApiError &&
-      error.message.includes(QUEUE_ERROR_MESSAGES.TIMEOUT_ERROR)) // LLM provider timeout - graceful failure
-  );
+const nonRetryableLLMErrorMessageSubstrings = [
+  "Request timed out",
+  "is not valid JSON", // evaluator model is not consistently returning valid JSON on structured output calls
+  "Error: Unterminated string in JSON at position", // evaluator model is configured with too low max_tokens, the structured output response is incomplete JSON
+  "TypeError", // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
+] as const;
+
+function shouldRetryJob(error: unknown): boolean {
+  if (isLLMCompletionError(error)) {
+    if (error.responseStatusCode >= 400 && error.responseStatusCode < 500) {
+      return false;
+    }
+
+    const isRetryableLLMCompletionError =
+      nonRetryableLLMErrorMessageSubstrings.every(
+        (substring) => !error.message.includes(substring),
+      );
+
+    return isRetryableLLMCompletionError;
+  }
+
+  const isRetryableApplicationError =
+    error instanceof Error &&
+    Object.values(QUEUE_ERROR_MESSAGES).every(
+      (substring) => !error.message.includes(substring),
+    );
+
+  return isRetryableApplicationError;
 }
 
 export const evalJobTraceCreatorQueueProcessor = async (
@@ -135,7 +134,7 @@ export const evalJobExecutorQueueProcessor = async (
     return true;
   } catch (e) {
     // If the job fails with a 429, we want to retry it unless it's older than 24h.
-    const wasRetried = await handleRetryableError(e, job, {
+    const hasScheduledRateLimitRetry = await retryLLMRateLimitError(e, job, {
       table: "job_executions",
       idField: "jobExecutionId",
       queue: EvalExecutionQueue.getInstance(),
@@ -144,34 +143,32 @@ export const evalJobExecutorQueueProcessor = async (
       delayFn: delayInMs,
     });
 
-    if (wasRetried) {
-      return;
-    }
+    if (hasScheduledRateLimitRetry) return;
 
-    // we are left with 4xx and application errors here.
+    // we are left with non-429 LLM responses and application errors here.
+    await prisma.jobExecution.update({
+      where: {
+        id: job.data.payload.jobExecutionId,
+        projectId: job.data.payload.projectId,
+      },
+      data: {
+        status: JobExecutionStatus.ERROR,
+        endTime: new Date(),
+        error: isLLMCompletionError(e)
+          ? e.message
+          : "An internal error occurred",
+      },
+    });
 
-    const displayError =
-      e instanceof BaseError ? e.message : "An internal error occurred";
-
-    await kyselyPrisma.$kysely
-      .updateTable("job_executions")
-      .set("status", sql`'ERROR'::"JobExecutionStatus"`)
-      .set("end_time", new Date())
-      .set("error", displayError)
-      .where("id", "=", job.data.payload.jobExecutionId)
-      .where("project_id", "=", job.data.payload.projectId)
-      .execute();
-
-    // do not log expected errors (api failures + missing api keys not provided by the user)
-    if (isExpectedError(e)) {
-      return;
-    }
+    // Return early and do not throw if job should not be retried
+    if (!shouldRetryJob(e)) return;
 
     traceException(e);
     logger.error(
       `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
       e,
     );
+
     throw e;
   }
 };

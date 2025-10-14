@@ -1,6 +1,6 @@
-import { ApiError } from "@langfuse/shared";
 import {
   convertQueueNameToMetricName,
+  isLLMCompletionError,
   logger,
   recordDistribution,
   RetryBaggage,
@@ -38,7 +38,7 @@ interface RetryConfig {
  * @param config - Retry configuration
  * @returns true if retry was handled and job was added to the queue, false if regular processing should continue
  */
-export async function handleRetryableError(
+export async function retryLLMRateLimitError(
   error: unknown,
   job: {
     data: {
@@ -51,8 +51,8 @@ export async function handleRetryableError(
 ): Promise<boolean> {
   // Only handle specific retryable errors
   if (
-    !(error instanceof ApiError) ||
-    (error.httpCode !== 429 && error.httpCode < 500)
+    !isLLMCompletionError(error) ||
+    (error.responseStatusCode !== 429 && error.responseStatusCode < 500)
   ) {
     return false; // Not a retryable error
   }

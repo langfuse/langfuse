@@ -46,6 +46,7 @@ import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
+import { LLMCompletionError } from "./errors";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -79,7 +80,6 @@ type LLMCompletionParams = {
   callbacks?: BaseCallbackHandler[];
   maxRetries?: number;
   traceSinkParams?: TraceSinkParams;
-  throwOnError?: boolean; // default is true
   shouldUseLangfuseAPIKey?: boolean;
 };
 
@@ -93,20 +93,14 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
   },
-): Promise<{
-  completion: IterableReadableStream<Uint8Array>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{
-  completion: string;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<string>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
@@ -114,32 +108,24 @@ export async function fetchLLMCompletion(
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
-): Promise<{
-  completion: Record<string, unknown>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
-    tools: LLMToolDefinition[];
     streaming: false;
+    tools: LLMToolDefinition[];
   },
-): Promise<{
-  completion: ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<ToolCallResponse>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
-): Promise<{
-  completion:
-    | string
-    | IterableReadableStream<Uint8Array>
-    | Record<string, unknown>
-    | ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}> {
+): Promise<
+  | string
+  | IterableReadableStream<Uint8Array>
+  | Record<string, unknown>
+  | ToolCallResponse
+> {
   const {
     messages,
     tools,
@@ -149,7 +135,6 @@ export async function fetchLLMCompletion(
     llmConnection,
     maxRetries,
     traceSinkParams,
-    throwOnError = true,
     shouldUseLangfuseAPIKey = false,
   } = params;
 
@@ -375,12 +360,9 @@ export async function fetchLLMCompletion(
 
   try {
     if (params.structuredOutputSchema) {
-      return {
-        completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-          .withStructuredOutput(params.structuredOutputSchema)
-          .invoke(finalMessages, runConfig),
-        processTracedEvents,
-      };
+      return (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+        .withStructuredOutput(params.structuredOutputSchema)
+        .invoke(finalMessages, runConfig);
     }
 
     if (tools && tools.length > 0) {
@@ -396,32 +378,40 @@ export async function fetchLLMCompletion(
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return {
-        completion: parsed.data,
-        processTracedEvents,
-      };
+      return parsed.data;
     }
 
-    if (streaming) {
-      return {
-        completion: await chatModel
-          .pipe(new BytesOutputParser())
-          .stream(finalMessages, runConfig),
-        processTracedEvents,
-      };
+    if (streaming)
+      return chatModel
+        .pipe(new BytesOutputParser())
+        .stream(finalMessages, runConfig);
+
+    return chatModel
+      .pipe(new StringOutputParser())
+      .invoke(finalMessages, runConfig);
+  } catch (e) {
+    if (
+      e instanceof Error &&
+      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
+    ) {
+      throw new LLMCompletionError({
+        message: e.message,
+        responseStatusCode: 429,
+      });
     }
 
-    return {
-      completion: await chatModel
-        .pipe(new StringOutputParser())
-        .invoke(finalMessages, runConfig),
-      processTracedEvents,
-    };
-  } catch (error) {
-    if (throwOnError) {
-      throw error;
+    if (e instanceof Error) {
+      throw new LLMCompletionError({
+        message: e.message,
+        responseStatusCode: (e as any)?.response?.status ?? (e as any)?.status,
+      });
     }
 
-    return { completion: "", processTracedEvents };
+    throw new LLMCompletionError({
+      message: `{e}`,
+      responseStatusCode: (e as any)?.response?.status ?? (e as any)?.status,
+    });
+  } finally {
+    await processTracedEvents();
   }
 }
