@@ -4,7 +4,7 @@ import {
   stringifyToolCallArgs,
   stringifyToolResultContent,
   parseMetadata,
-} from "../shared/helpers";
+} from "../helpers";
 
 function normalizeMessage(msg: any): any {
   if (!msg || typeof msg !== "object") return msg;
@@ -102,7 +102,11 @@ export const openAIAdapter: ProviderAdapter = {
     return false;
   },
 
-  preprocess(data: unknown, _kind: "input" | "output", _ctx: NormalizerContext): unknown {
+  preprocess(
+    data: unknown,
+    _kind: "input" | "output",
+    _ctx: NormalizerContext,
+  ): unknown {
     return preprocessData(data);
   },
 };

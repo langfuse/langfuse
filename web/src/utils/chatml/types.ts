@@ -1,8 +1,7 @@
-// Minimal context for normalization
 export type NormalizerContext = {
   metadata?: unknown;
   observationName?: string;
-  framework?: string; // Explicit override
+  framework?: string; // for explicit overrides
 };
 
 // Unified tool event representation across all providers
@@ -24,6 +23,10 @@ export type ToolEvent =
 export interface ProviderAdapter {
   id: string;
   detect(ctx: NormalizerContext): boolean;
-  preprocess(data: unknown, kind: "input" | "output", ctx: NormalizerContext): unknown;
+  preprocess(
+    data: unknown,
+    kind: "input" | "output",
+    ctx: NormalizerContext,
+  ): unknown;
   extractToolEvents?(message: any): ToolEvent[];
 }

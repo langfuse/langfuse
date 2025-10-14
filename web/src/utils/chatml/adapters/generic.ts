@@ -4,10 +4,14 @@ export const genericAdapter: ProviderAdapter = {
   id: "generic",
 
   detect(_ctx: NormalizerContext): boolean {
-    return true; // Fallback always matches
+    return true; // fallback
   },
 
-  preprocess(data: unknown, _kind: "input" | "output", _ctx: NormalizerContext): unknown {
-    return data; // Identity - no transformation
+  preprocess(
+    data: unknown,
+    _kind: "input" | "output",
+    _ctx: NormalizerContext,
+  ): unknown {
+    return data; // just return, no transformation
   },
 };
