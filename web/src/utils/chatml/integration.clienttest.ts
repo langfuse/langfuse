@@ -302,4 +302,62 @@ describe("ChatML Integration", () => {
     expect(inResult.data[3].role).toBe("user");
     expect(inResult.data[3].content).not.toContain("[object Object]");
   });
+
+  it("should handle LangGraph messages with type field", () => {
+    const input = {
+      messages: [
+        {
+          content: "Search the web for 'example' and summarize.",
+          additional_kwargs: {},
+          response_metadata: {},
+          type: "human",
+          name: null,
+          id: "4f5904a4-473c-443c-af46-68765777a2f0",
+          example: false,
+        },
+        {
+          content: "",
+          additional_kwargs: {
+            tool_calls: [
+              {
+                id: "call_123",
+                function: {
+                  arguments: { query: "example" },
+                  name: "Web-Search",
+                },
+                type: "function",
+              },
+            ],
+          },
+          type: "ai",
+          id: "run-123",
+        },
+        {
+          content: [{ url: "https://example.com", title: "Example Result" }],
+          type: "tool",
+          name: "Web-Search",
+          tool_call_id: "call_123",
+        },
+      ],
+    };
+
+    const ctx = {
+      metadata: {
+        scope: { name: "langfuse-sdk" },
+        framework: "langgraph",
+      },
+    };
+
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+    expect(inResult.data).toHaveLength(3);
+    expect(inResult.data[0].role).toBe("user");
+    expect(inResult.data[0].content).toBe(
+      "Search the web for 'example' and summarize.",
+    );
+    expect(inResult.data[1].role).toBe("assistant");
+    expect(inResult.data[2].role).toBe("tool");
+  });
 });
