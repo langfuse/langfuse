@@ -122,7 +122,11 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -203,7 +207,11 @@ describe("eval service tests", () => {
         observationId: observationId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -295,7 +303,11 @@ describe("eval service tests", () => {
         datasetItemId: datasetItemId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
       // If this does not throw, we're good.
       expect(true).toBe(true);
     });
@@ -367,7 +379,11 @@ describe("eval service tests", () => {
       };
 
       // This should exit early without an error as there is no trace yet.
-      await createEvalJobs({ event: payloadDataset, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payloadDataset,
+        jobTimestamp,
+      });
 
       const jobsAfterDataset = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -392,7 +408,11 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payloadTrace, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payloadTrace,
+        jobTimestamp,
+      });
 
       const jobsAfterTrace = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -452,7 +472,11 @@ describe("eval service tests", () => {
       };
 
       // This should exit early without an error as there is no trace yet.
-      await createEvalJobs({ event: payloadTrace, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payloadTrace,
+        jobTimestamp,
+      });
 
       const jobsAfterDataset = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -480,7 +504,11 @@ describe("eval service tests", () => {
         datasetItemId,
       };
 
-      await createEvalJobs({ event: payloadDataset, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payloadDataset,
+        jobTimestamp,
+      });
 
       const jobsAfterTrace = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -520,7 +548,11 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -575,8 +607,16 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
-      await createEvalJobs({ event: payload, jobTimestamp }); // calling it twice to check it is only generated once
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      }); // calling it twice to check it is only generated once
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -616,7 +656,11 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -663,7 +707,11 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
 
       const jobs = await kyselyPrisma.$kysely
         .selectFrom("job_executions")
@@ -746,7 +794,11 @@ describe("eval service tests", () => {
         traceId: traceId,
       };
 
-      await createEvalJobs({ event: payload, jobTimestamp });
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
 
       // Wait for .5s
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -762,6 +814,7 @@ describe("eval service tests", () => {
       });
 
       await createEvalJobs({
+        sourceEventType: "trace-upsert",
         event: payload,
         jobTimestamp,
       }); // calling it twice to check it is only generated once
@@ -829,6 +882,7 @@ describe("eval service tests", () => {
       };
 
       await createEvalJobs({
+        sourceEventType: "trace-upsert",
         event: payload,
         jobTimestamp,
         enforcedJobTimeScope: "NEW", // the config must contain NEW
@@ -884,6 +938,7 @@ describe("eval service tests", () => {
       };
 
       await createEvalJobs({
+        sourceEventType: "trace-upsert",
         event: payload,
         jobTimestamp,
         enforcedJobTimeScope: "NEW", // the config must contain NEW
@@ -944,6 +999,7 @@ describe("eval service tests", () => {
       };
 
       await createEvalJobs({
+        sourceEventType: "trace-upsert",
         event: payload,
         jobTimestamp,
         enforcedJobTimeScope: "EXISTING", // the config must contain NEW
@@ -987,6 +1043,7 @@ describe("eval service tests", () => {
       await createTracesCh([trace]);
 
       await createEvalJobs({
+        sourceEventType: "trace-upsert",
         event: {
           projectId,
           traceId: traceId,
@@ -1135,6 +1192,7 @@ describe("eval service tests", () => {
       });
 
       await createEvalJobs({
+        sourceEventType: "trace-upsert",
         event: {
           projectId,
           traceId,
@@ -1260,6 +1318,7 @@ describe("eval service tests", () => {
       });
 
       await createEvalJobs({
+        sourceEventType: "trace-upsert",
         event: {
           projectId,
           traceId,
