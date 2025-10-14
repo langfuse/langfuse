@@ -20,11 +20,11 @@ import { mergeScoreAggregateWithCache } from "@/src/features/datasets/lib/score-
 const DatasetAggregateCell = ({
   value,
   projectId,
-  scoreColumns,
+  serverScoreColumns,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
-  scoreColumns: ScoreColumn[];
+  serverScoreColumns: ScoreColumn[];
 }) => {
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
@@ -36,8 +36,15 @@ const DatasetAggregateCell = ({
     scope: "scores:CUD",
   });
 
+  // Merge server scoreColumns with cached scoreColumns
+  const scoreColumns = useMemo(() => {
+    const seen = new Set<string>();
+    return [...serverScoreColumns, ...scoreWriteCache.scoreColumns]
+      .filter((col) => !seen.has(col.key) && seen.add(col.key))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [serverScoreColumns, scoreWriteCache.scoreColumns]);
+
   // Merge cached score writes into aggregates for optimistic display
-  // IMPORTANT: This is ONLY for display in the cell, NOT for activeCell.scoreAggregate
   const displayScores = useMemo(
     () =>
       mergeScoreAggregateWithCache(
@@ -242,19 +249,19 @@ const DatasetAggregateCell = ({
 type DatasetAggregateTableCellProps = {
   projectId: string;
   value: EnrichedDatasetRunItem;
-  scoreColumns: ScoreColumn[];
+  serverScoreColumns: ScoreColumn[];
 };
 
 export const DatasetAggregateTableCell = ({
   projectId,
   value,
-  scoreColumns,
+  serverScoreColumns,
 }: DatasetAggregateTableCellProps) => {
   return (
     <DatasetAggregateCell
       projectId={projectId}
       value={value}
-      scoreColumns={scoreColumns}
+      serverScoreColumns={serverScoreColumns}
     />
   );
 };
