@@ -154,7 +154,8 @@ export const handleEventPropagationJob = async (
           -- this way we threat the case as the "wrapper" for spans backfilled this way.
           coalesce(obs.parent_observation_id, obs.trace_id) AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
-          obs.start_time,
+          -- Clamp start_time to 1970-01-01 or later (Unix epoch minimum) to avoid toUnixTimestamp() errors
+          greatest(obs.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
           obs.end_time,
           obs.name,
           obs.type,
