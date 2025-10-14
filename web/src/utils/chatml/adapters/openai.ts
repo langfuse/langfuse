@@ -4,7 +4,6 @@ import {
   stringifyToolCallArgs,
   stringifyToolResultContent,
   parseMetadata,
-  getNestedProperty,
 } from "../helpers";
 
 function normalizeMessage(msg: unknown): Record<string, unknown> {
