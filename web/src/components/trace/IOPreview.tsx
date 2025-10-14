@@ -150,7 +150,6 @@ export const IOPreview: React.FC<{
                 {!(hideIfNull && !input) && !hideInput ? (
                   <PrettyJsonView
                     title="Input"
-                    className="ph-no-capture"
                     json={input ?? null}
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "input") ?? []}
@@ -162,7 +161,6 @@ export const IOPreview: React.FC<{
                 {!(hideIfNull && !output) && !hideOutput ? (
                   <PrettyJsonView
                     title="Output"
-                    className="ph-no-capture"
                     json={output}
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "output") ?? []}
@@ -180,7 +178,6 @@ export const IOPreview: React.FC<{
             {!(hideIfNull && !input) && !hideInput ? (
               <PrettyJsonView
                 title="Input"
-                className="ph-no-capture"
                 json={input ?? null}
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "input") ?? []}
@@ -192,7 +189,6 @@ export const IOPreview: React.FC<{
             {!(hideIfNull && !output) && !hideOutput ? (
               <PrettyJsonView
                 title="Output"
-                className="ph-no-capture"
                 json={output}
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "output") ?? []}
@@ -208,7 +204,6 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !input) && !hideInput ? (
             <PrettyJsonView
               title="Input"
-              className="ph-no-capture"
               json={input ?? null}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
@@ -220,7 +215,6 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !output) && !hideOutput ? (
             <PrettyJsonView
               title="Output"
-              className="ph-no-capture"
               json={output}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
@@ -283,7 +277,7 @@ export const OpenAiMessageView: React.FC<{
   );
 
   return (
-    <div className="ph-no-capture flex max-h-full min-h-0 flex-col gap-2">
+    <div className="flex max-h-full min-h-0 flex-col gap-2">
       {title && <SubHeaderLabel title={title} className="mt-1" />}
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
