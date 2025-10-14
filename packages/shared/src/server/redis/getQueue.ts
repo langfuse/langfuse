@@ -25,6 +25,7 @@ import { DeadLetterRetryQueue } from "./dlqRetryQueue";
 import { WebhookQueue } from "./webhookQueue";
 import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
+import { DelayedEventIngestionQueue } from "./delayedEventIngestionQueue";
 
 // IngestionQueue, OtelIngestionQueue, and TraceUpsert are sharded and require a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) or TraceUpsertQueue.getInstance({ shardName: queueName }) directly instead
@@ -87,6 +88,8 @@ export function getQueue(
       return WebhookQueue.getInstance();
     case QueueName.EntityChangeQueue:
       return EntityChangeQueue.getInstance();
+    case QueueName.DelayedEventIngestionQueue:
+      return DelayedEventIngestionQueue.getInstance();
     default: {
       // eslint-disable-next-line no-case-declarations, no-unused-vars
       const exhaustiveCheckDefault: never = queueName;
