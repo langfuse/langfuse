@@ -123,4 +123,177 @@ describe("ChatML Integration", () => {
     expect(inResult.success).toBe(true);
     expect(inResult.data[0].content).toHaveLength(1000000);
   });
+
+  it("should handle Google Gemini format with simple string contents", () => {
+    const input = {
+      model: "gemini-2.5-flash",
+      contents: "What is Langfuse?",
+    };
+    const output = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: "**Langfuse** is an **open-source observability and evaluation platform** for LLM applications.",
+              },
+            ],
+            role: "model",
+          },
+          finish_reason: "STOP",
+          index: 0,
+        },
+      ],
+      model_version: "gemini-2.5-flash",
+      usage_metadata: {
+        candidates_token_count: 20,
+        prompt_token_count: 6,
+        total_token_count: 26,
+      },
+    };
+
+    const ctx = {
+      metadata: {
+        scope: { name: "openinference.instrumentation.google_genai" },
+      },
+    };
+
+    const inResult = normalizeInput(input, ctx);
+    const outResult = normalizeOutput(output, ctx);
+    const allMessages = combineInputOutputMessages(inResult, outResult, output);
+
+    expect(inResult.success).toBe(true);
+    expect(inResult.data).toHaveLength(1);
+    expect(inResult.data[0].role).toBe("user");
+    expect(inResult.data[0].content).toBe("What is Langfuse?");
+
+    expect(outResult.success).toBe(true);
+    expect(outResult.data).toHaveLength(1);
+    expect(outResult.data[0].role).toBe("assistant");
+    expect(outResult.data[0].content).toContain("Langfuse");
+
+    expect(allMessages).toHaveLength(2);
+    expect(allMessages[1].role).toBe("assistant");
+  });
+
+  it("should handle Google Gemini format with contents array and system instruction", () => {
+    const input = {
+      model: "gemini-2.0-flash",
+      config: {
+        http_options: {
+          headers: {
+            "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+            "user-agent": "google-adk/1.12.0 gl-python/3.12.11",
+          },
+        },
+        system_instruction:
+          'Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is "hello_agent".',
+        tools: [
+          {
+            function_declarations: [
+              {
+                name: "say_hello",
+              },
+            ],
+          },
+        ],
+      },
+      contents: [
+        {
+          parts: [
+            {
+              text: "hi",
+            },
+          ],
+          role: "user",
+        },
+      ],
+    };
+
+    const ctx = {
+      metadata: {
+        scope: { name: "openinference.instrumentation.google_genai" },
+      },
+    };
+
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    expect(inResult.data).toHaveLength(2);
+    expect(inResult.data[0].role).toBe("system");
+    expect(inResult.data[0].content).toContain("hello_agent");
+    expect(inResult.data[1].role).toBe("user");
+    expect(inResult.data[1].content).toBe("hi");
+  });
+
+  it("should handle Google Gemini format with function_call and function_response", () => {
+    const input = {
+      model: "gemini-2.0-flash",
+      config: {
+        system_instruction:
+          'Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is "hello_agent".',
+        tools: [
+          {
+            function_declarations: [
+              {
+                name: "say_hello",
+              },
+            ],
+          },
+        ],
+      },
+      contents: [
+        {
+          parts: [
+            {
+              text: "hi",
+            },
+          ],
+          role: "user",
+        },
+        {
+          parts: [
+            {
+              function_call: {
+                args: {},
+                name: "say_hello",
+              },
+            },
+          ],
+          role: "model",
+        },
+        {
+          parts: [
+            {
+              function_response: {
+                name: "say_hello",
+                response: {
+                  greeting: "Hello Langfuse 👋",
+                },
+              },
+            },
+          ],
+          role: "user",
+        },
+      ],
+    };
+
+    const ctx = {
+      metadata: {
+        scope: { name: "openinference.instrumentation.google_genai" },
+      },
+    };
+
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    expect(inResult.data).toHaveLength(4);
+    expect(inResult.data[0].role).toBe("system");
+    expect(inResult.data[1].role).toBe("user");
+    expect(inResult.data[1].content).toBe("hi");
+    expect(inResult.data[2].role).toBe("assistant");
+    expect(inResult.data[2].content).not.toContain("[object Object]");
+    expect(inResult.data[3].role).toBe("user");
+    expect(inResult.data[3].content).not.toContain("[object Object]");
+  });
 });
