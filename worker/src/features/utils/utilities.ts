@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { logger } from "@langfuse/shared/src/server";
-import { ApiError } from "@langfuse/shared";
 import Handlebars from "handlebars";
 
 export function compileHandlebarString(
