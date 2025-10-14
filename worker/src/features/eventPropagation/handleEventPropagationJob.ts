@@ -6,9 +6,12 @@ import {
   QueueName,
   TQueueJobTypes,
   traceException,
+  EventPropagationQueue,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { env } from "../../env";
+import { randomUUID } from "crypto";
 
 /**
  * Processes the oldest partition from observations_batch_staging table
@@ -241,6 +244,21 @@ export const handleEventPropagationJob = async (
     logger.info(
       `Dropped partition ${oldestPartition} after successful processing`,
     );
+
+    // Schedule another job if we had more than 5 partitions remaining
+    if (partitions.length > 5) {
+      const queue = EventPropagationQueue.getInstance();
+      if (queue) {
+        await queue.add(
+          QueueJobs.EventPropagationJob,
+          { timestamp: new Date(), id: randomUUID() },
+          { delay: 10000 }, // 10 second delay
+        );
+        logger.info(
+          `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
+        );
+      }
+    }
   } catch (error) {
     logger.error("Failed to process event propagation batch", error);
     traceException(error);

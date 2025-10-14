@@ -466,11 +466,6 @@ if (env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true") {
     eventPropagationProcessor,
     {
       concurrency: 1,
-      limiter: {
-        // set global limit to 1 in 30s to reduce the chance of concurrent runs
-        max: 1,
-        duration: 30_000,
-      },
     },
   );
 }
