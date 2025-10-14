@@ -20,6 +20,7 @@ export type SpanCtx = {
   rootSpan?: boolean; // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#traces
   traceScope?: string;
   traceContext?: TCarrier;
+  startNewTrace?: boolean; // Start a new trace, severing any parent trace relationships
 };
 
 type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>; // eslint-disable-line no-unused-vars
@@ -28,17 +29,19 @@ export async function instrumentAsync<T>(
   ctx: SpanCtx,
   callback: AsyncCallbackFn<T>,
 ): Promise<T> {
-  const activeContext = ctx.traceContext
-    ? opentelemetry.propagation.extract(
-        opentelemetry.context.active(),
-        ctx.traceContext,
-      )
-    : opentelemetry.context.active();
+  const activeContext = ctx.startNewTrace
+    ? opentelemetry.ROOT_CONTEXT
+    : ctx.traceContext
+      ? opentelemetry.propagation.extract(
+          opentelemetry.context.active(),
+          ctx.traceContext,
+        )
+      : opentelemetry.context.active();
 
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
-      root: !ctx.traceContext && ctx.rootSpan,
+      root: ctx.startNewTrace || (!ctx.traceContext && ctx.rootSpan),
       kind: ctx.spanKind,
     },
     activeContext,
@@ -70,17 +73,19 @@ export function instrumentSync<T>(
   ctx: SpanCtx,
   callback: SyncCallbackFn<T>,
 ): T {
-  const activeContext = ctx.traceContext
-    ? opentelemetry.propagation.extract(
-        opentelemetry.context.active(),
-        ctx.traceContext,
-      )
-    : opentelemetry.context.active();
+  const activeContext = ctx.startNewTrace
+    ? opentelemetry.ROOT_CONTEXT
+    : ctx.traceContext
+      ? opentelemetry.propagation.extract(
+          opentelemetry.context.active(),
+          ctx.traceContext,
+        )
+      : opentelemetry.context.active();
 
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
-      root: !ctx.traceContext && ctx.rootSpan,
+      root: ctx.startNewTrace || (!ctx.traceContext && ctx.rootSpan),
       kind: ctx.spanKind,
     },
     activeContext,

@@ -36,10 +36,8 @@ import {
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
-import {
-  mapToLangfuseChatML,
-  type LangfuseChatMLMessage,
-} from "@/src/utils/langfuse-chatml";
+import { normalizeInput, extractAdditionalInput } from "@/src/utils/chatml";
+import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
@@ -213,78 +211,20 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   );
 };
 
-function convertLangfuseChatMLMessageToPlayground(
-  msg: LangfuseChatMLMessage,
-): ChatMessage | PlaceholderMessage | null {
-  // Handle placeholder messages
-  if (msg.type === "placeholder") {
-    return {
-      type: ChatMessageType.Placeholder,
-      name: msg.name || "",
-    } as PlaceholderMessage;
-  }
-
-  // Handle assistant messages with tool calls
-  if (msg.toolCalls && msg.toolCalls.length > 0) {
-    return {
-      role: ChatMessageRole.Assistant,
-      content: (msg.content as string) || "",
-      type: ChatMessageType.AssistantToolCall,
-      toolCalls: msg.toolCalls.map((tc) => {
-        // Parse JSON string to object, with safety
-        let args: Record<string, unknown>;
-        try {
-          args = JSON.parse(tc.function.arguments);
-        } catch {
-          // If parsing fails, treat as empty args
-          args = {};
-        }
-
-        return {
-          id: tc.id || "", // Playground requires string, convert null to empty
-          name: tc.function.name,
-          args,
-        };
-      }),
-    };
-  }
-
-  // Handle tool results with tool role
-  if (msg.toolCallId) {
-    return {
-      role: ChatMessageRole.Tool,
-      content: (msg.content as string) || "",
-      type: ChatMessageType.ToolResult,
-      toolCallId: msg.toolCallId,
-    };
-  }
-
-  // Handle regular messages
-  const content =
-    typeof msg.content === "string"
-      ? msg.content
-      : msg.content === null || msg.content === undefined
-        ? ""
-        : JSON.stringify(msg.content);
-
-  return {
-    role: (msg.role as ChatMessageRole) || ChatMessageRole.Assistant,
-    content,
-    type: ChatMessageType.PublicAPICreated,
-  };
-}
-
 const parsePrompt = (
   prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
 ): PlaygroundCache => {
   if (prompt.type === PromptType.Chat) {
-    // Use mapper system for all framework detection and normalization
     try {
-      const chatML = mapToLangfuseChatML(prompt.resolvedPrompt, null);
+      const inResult = normalizeInput(prompt.resolvedPrompt);
 
-      const messages = chatML.input.messages
-        .map(convertLangfuseChatMLMessageToPlayground)
-        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null);
+      const messages = inResult.success
+        ? inResult.data
+            .map(convertChatMlToPlayground)
+            .filter(
+              (msg): msg is ChatMessage | PlaceholderMessage => msg !== null,
+            )
+        : [];
 
       if (messages.length === 0) return null;
 
@@ -383,19 +323,25 @@ const parseGeneration = (
     }
   }
 
-  // use mapper: input is an object
   if (typeof input === "object") {
     try {
-      const chatML = mapToLangfuseChatML(
-        input,
-        generation.output,
-        generation.metadata,
-        generation.name ?? undefined,
-      );
+      const ctx = {
+        metadata:
+          typeof generation.metadata === "string"
+            ? JSON.parse(generation.metadata)
+            : generation.metadata,
+        observationName: generation.name ?? undefined,
+      };
 
-      const messages = chatML.input.messages
-        .map(convertLangfuseChatMLMessageToPlayground)
-        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null);
+      const inResult = normalizeInput(input, ctx);
+
+      const messages = inResult.success
+        ? inResult.data
+            .map(convertChatMlToPlayground)
+            .filter(
+              (msg): msg is ChatMessage | PlaceholderMessage => msg !== null,
+            )
+        : [];
 
       if (messages.length === 0) return null;
 
@@ -462,31 +408,21 @@ function parseTools(
     metadata: string | null;
   },
 ): PlaygroundTool[] {
-  // Use mapper to extract tools from all frameworks
   try {
     const input = JSON.parse(generation.input as string);
 
-    const chatML = mapToLangfuseChatML(
-      input,
-      generation.output,
-      generation.metadata,
-      generation.name ?? undefined,
-    );
-
-    // Tools extracted by mappers (LangChain puts them in additional.tools)
-    if (
-      chatML.input.additional?.tools &&
-      Array.isArray(chatML.input.additional.tools)
-    ) {
-      return chatML.input.additional.tools.map((tool: any) => ({
+    // Check additional.tools , langchain puts tools there
+    const additionalInput = extractAdditionalInput(input);
+    if (additionalInput?.tools && Array.isArray(additionalInput.tools)) {
+      return additionalInput.tools.map((tool: any) => ({
         id: Math.random().toString(36).substring(2),
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
+        name: tool.name || tool.function?.name,
+        description: tool.description || tool.function?.description,
+        parameters: tool.parameters || tool.function?.parameters,
       }));
     }
 
-    // OpenAI format: tools in input.tools field (not extracted by mapper)
+    // OpenAI format: tools in input.tools field
     if (typeof input === "object" && input !== null && "tools" in input) {
       const parsedTools = z.array(OpenAIToolSchema).safeParse(input["tools"]);
 

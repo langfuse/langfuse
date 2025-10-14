@@ -3,7 +3,11 @@ import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import { getObservationsTableCount } from "@langfuse/shared/src/server";
+import {
+  getObservationsCountFromEventsTable,
+  getObservationsTableCount,
+} from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -24,12 +28,16 @@ export const getAllQueries = {
   countAll: protectedProjectProcedure
     .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
-      const countQuery = await getObservationsTableCount({
+      const queryOpts = {
         projectId: ctx.session.projectId,
         filter: input.filter ?? [],
         limit: 1,
         offset: 0,
-      });
+      };
+      const countQuery =
+        env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+          ? await getObservationsCountFromEventsTable(queryOpts)
+          : await getObservationsTableCount(queryOpts);
       return {
         totalCount: countQuery,
       };
