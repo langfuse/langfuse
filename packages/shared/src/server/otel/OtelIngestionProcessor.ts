@@ -41,7 +41,6 @@ interface CreateTraceEventParams {
   attributes: Record<string, unknown>;
   resourceAttributes: Record<string, unknown>;
   resourceAttributeMetadata: Record<string, unknown>;
-  spanAttributesInMetadata: Record<string, unknown>;
   scopeSpan: any;
   scopeAttributes: Record<string, unknown>;
   isLangfuseSDKSpans: boolean;
@@ -59,7 +58,6 @@ interface CreateObservationEventParams {
   resourceAttributes: Record<string, unknown>;
   resourceAttributeMetadata: Record<string, unknown>;
   spanAttributeMetadata: Record<string, unknown>;
-  spanAttributesInMetadata: Record<string, unknown>;
   scopeSpan: any;
   scopeAttributes: Record<string, unknown>;
   isLangfuseSDKSpans: boolean;
@@ -295,6 +293,7 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
+                  // TODO: Add metric for event size in OTel
                   promptName:
                     spanAttributes?.[
                       LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
@@ -624,13 +623,6 @@ export class OtelIngestionProcessor {
       !parentObservationId ||
       String(attributes[LangfuseOtelSpanAttributes.AS_ROOT]) === "true";
 
-    const spanAttributesInMetadata = Object.fromEntries(
-      Object.entries(attributes).map(([key, value]) => [
-        key,
-        typeof value === "string" ? value : JSON.stringify(value),
-      ]),
-    );
-
     const hasTraceUpdates = this.hasTraceUpdates(attributes);
 
     // Handle trace creation logic with internal seen traces management
@@ -641,7 +633,6 @@ export class OtelIngestionProcessor {
         attributes,
         resourceAttributes,
         resourceAttributeMetadata,
-        spanAttributesInMetadata,
         scopeSpan,
         scopeAttributes,
         isLangfuseSDKSpans,
@@ -665,7 +656,6 @@ export class OtelIngestionProcessor {
       resourceAttributes,
       resourceAttributeMetadata,
       spanAttributeMetadata,
-      spanAttributesInMetadata,
       scopeSpan,
       scopeAttributes,
       isLangfuseSDKSpans,
