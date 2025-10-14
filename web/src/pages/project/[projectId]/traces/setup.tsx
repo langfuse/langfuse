@@ -82,7 +82,7 @@ const TracingSetup = ({
         <p className="mb-4 text-sm text-muted-foreground">
           Langfuse uses OpenTelemetry to instrument your application. You can
           use one of our SDKs or framework integrations. Please follow the
-          quickstart in the documentaiton to get started.
+          quickstart in the documentation to get started.
         </p>
         <ActionButton href="https://langfuse.com/docs/observability/get-started">
           Instrumentation Quickstart
