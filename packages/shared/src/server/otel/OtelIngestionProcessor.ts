@@ -293,7 +293,6 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
-                  // TODO: Add metric for event size in OTel
                   promptName:
                     spanAttributes?.[
                       LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
