@@ -40,10 +40,6 @@ const TracingSetup = ({
     <div className="space-y-8">
       <div>
         <SubHeader title="1. Get API Keys" />
-        <p className="text-sm text-muted-foreground">
-          These keys are used to authenticate your API requests. You can create
-          more keys later in the project settings.
-        </p>
         {apiKeys ? (
           <ApiKeyRender
             generatedKeys={apiKeys}
@@ -54,6 +50,7 @@ const TracingSetup = ({
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
               You need to create an API key to start tracing your application.
+              You can create more keys later in the project settings.
             </p>
             <div className="flex gap-2">
               <Button
@@ -80,9 +77,10 @@ const TracingSetup = ({
           status={hasTracingConfigured ? "active" : "pending"}
         />
         <p className="mb-4 text-sm text-muted-foreground">
-          Langfuse uses OpenTelemetry to instrument your application. You can
-          use one of our SDKs or framework integrations. Please follow the
-          quickstart in the documentation to get started.
+          Langfuse relies on OpenTelemetry to instrument your application and
+          export LLM application/agent traces to Langfuse. You can use one of
+          our SDKs or 50+ framework integrations. Please follow the quickstart
+          in the documentation to add Langfuse to your application.
         </p>
         <ActionButton href="https://langfuse.com/docs/observability/get-started">
           Instrumentation Quickstart
