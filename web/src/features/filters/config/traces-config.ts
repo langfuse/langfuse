@@ -51,14 +51,14 @@ export const traceFilterConfig: FilterConfig = {
       label: "Trace ID",
     },
     {
-      type: "string" as const,
-      column: "sessionId",
-      label: "Session ID",
-    },
-    {
-      type: "string" as const,
+      type: "categorical" as const,
       column: "userId",
       label: "User ID",
+    },
+    {
+      type: "categorical" as const,
+      column: "sessionId",
+      label: "Session ID",
     },
     {
       type: "stringKeyValue" as const,

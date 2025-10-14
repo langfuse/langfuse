@@ -236,6 +236,9 @@ export default function TracesTable({
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       bookmarked: ["Bookmarked", "Not bookmarked"],
+      userId: traceFilterOptionsResponse.data?.users?.map((u) => u.value) || [],
+      sessionId:
+        traceFilterOptionsResponse.data?.sessions?.map((s) => s.value) || [],
       latency: [],
       inputTokens: [],
       outputTokens: [],
@@ -349,6 +352,14 @@ export default function TracesTable({
           scores_avg: traceFilterOptions.scores_avg,
           score_categories: traceFilterOptions.score_categories,
           tags: traceFilterOptions.tags?.map((t) => ({ value: t.value })),
+          userId: traceFilterOptions.users?.map((u) => ({
+            value: u.value,
+            count: Number(u.count),
+          })),
+          sessionId: traceFilterOptions.sessions?.map((s) => ({
+            value: s.value,
+            count: Number(s.count),
+          })),
         }
       : undefined;
 
