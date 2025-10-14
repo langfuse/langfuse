@@ -1,7 +1,7 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 import {
   removeNullFields,
-  stringifyToolCallArgs,
+  // stringifyToolCallArgs,
   stringifyToolResultContent,
   parseMetadata,
 } from "../helpers";
@@ -41,11 +41,11 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   }
 
   // Stringify tool_calls arguments
-  if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
-    normalized.tool_calls = (
-      normalized.tool_calls as Record<string, unknown>[]
-    ).map(stringifyToolCallArgs);
-  }
+  // if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
+  //   normalized.tool_calls = (
+  //     normalized.tool_calls as Record<string, unknown>[]
+  //   ).map(stringifyToolCallArgs);
+  // }
 
   // Stringify object content for tool messages
   if (

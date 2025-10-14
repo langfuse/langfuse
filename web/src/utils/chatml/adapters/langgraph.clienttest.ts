@@ -93,7 +93,7 @@ describe("LangGraph Adapter", () => {
     const toolCalls = result.data[1].json?.json?.tool_calls;
     expect(toolCalls).toBeDefined();
     expect(toolCalls?.[0].id).toBe("call_abc");
-    expect(toolCalls?.[0].function.arguments).toBe('{"query":"example"}');
+    expect(toolCalls?.[0].function.arguments).toEqual({ query: "example" });
 
     expect(result.data[2].role).toBe("tool");
     expect(typeof result.data[2].content).toBe("string");
