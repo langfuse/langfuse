@@ -55,3 +55,15 @@ export function parseMetadata(
 
   return null;
 }
+
+export function getNestedProperty(
+  obj: Record<string, unknown> | null | undefined,
+  ...path: string[]
+): unknown {
+  let current: unknown = obj;
+  for (const key of path) {
+    if (!current || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}

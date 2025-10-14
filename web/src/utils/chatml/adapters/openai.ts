@@ -4,6 +4,7 @@ import {
   stringifyToolCallArgs,
   stringifyToolResultContent,
   parseMetadata,
+  getNestedProperty,
 } from "../helpers";
 
 function normalizeMessage(msg: unknown): Record<string, unknown> {
@@ -67,7 +68,8 @@ export const openAIAdapter: ProviderAdapter = {
     if (meta?.ls_provider === "openai") return true;
 
     // OpenTelemetry langfuse-sdk (OpenAI auto-instrumentation)
-    if (meta?.scope?.name === "langfuse-sdk") return true;
+    if (getNestedProperty(meta, "scope", "name") === "langfuse-sdk")
+      return true;
 
     // Observation name hint
     if (ctx.observationName?.toLowerCase().includes("openai")) return true;
