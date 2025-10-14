@@ -359,10 +359,13 @@ export async function fetchLLMCompletion(
   };
 
   try {
+    // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      return (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
         .withStructuredOutput(params.structuredOutputSchema)
         .invoke(finalMessages, runConfig);
+
+      return structuredOutput;
     }
 
     if (tools && tools.length > 0) {
@@ -386,9 +389,11 @@ export async function fetchLLMCompletion(
         .pipe(new BytesOutputParser())
         .stream(finalMessages, runConfig);
 
-    return chatModel
+    const completion = await chatModel
       .pipe(new StringOutputParser())
       .invoke(finalMessages, runConfig);
+
+    return completion;
   } catch (e) {
     if (
       e instanceof Error &&

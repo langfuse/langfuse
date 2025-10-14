@@ -25,7 +25,6 @@ import {
   validateDatasetItem,
   type PromptExperimentConfig,
 } from "./utils";
-import { callLLM } from "../../features/utils";
 import { randomUUID } from "crypto";
 
 async function getExistingRunItemDatasetItemIds(
