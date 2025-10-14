@@ -64,17 +64,20 @@ export const openAIAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // LangSmith metadata
-    if (meta?.ls_provider === "openai") return true;
+    // Explicit rejection: LangGraph/LangChain traces
+    if (meta && typeof meta === "object") {
+      if (
+        "langgraph_step" in meta ||
+        "langgraph_node" in meta ||
+        "langgraph_path" in meta ||
+        meta.framework === "langgraph" ||
+        (Array.isArray(meta.tags) && meta.tags.includes("langgraph"))
+      ) {
+        return false;
+      }
+    }
 
-    // OpenTelemetry langfuse-sdk (OpenAI auto-instrumentation)
-    if (getNestedProperty(meta, "scope", "name") === "langfuse-sdk")
-      return true;
-
-    // Observation name hint
-    if (ctx.observationName?.toLowerCase().includes("openai")) return true;
-
-    // Structural: has OpenAI-style tool_calls
+    // Reject if messages have LangChain structure (type without role)
     if (
       typeof ctx.metadata === "object" &&
       ctx.metadata !== null &&
@@ -82,6 +85,49 @@ export const openAIAdapter: ProviderAdapter = {
     ) {
       const messages = (ctx.metadata as Record<string, unknown>).messages;
       if (Array.isArray(messages)) {
+        const hasLangChainType = messages.some((msg: unknown) => {
+          const message = msg as Record<string, unknown>;
+          return (
+            message.type &&
+            typeof message.type === "string" &&
+            ["human", "ai", "tool", "system"].includes(message.type) &&
+            !("role" in message)
+          );
+        });
+        if (hasLangChainType) return false;
+      }
+    }
+
+    // Explicit framework override
+    if (ctx.framework === "openai") return true;
+
+    // LangSmith metadata
+    if (meta?.ls_provider === "openai") return true;
+
+    // Observation name hint
+    if (ctx.observationName?.toLowerCase().includes("openai")) return true;
+
+    // Structural: has OpenAI-style messages with role
+    if (
+      typeof ctx.metadata === "object" &&
+      ctx.metadata !== null &&
+      "messages" in ctx.metadata
+    ) {
+      const messages = (ctx.metadata as Record<string, unknown>).messages;
+      if (Array.isArray(messages)) {
+        const hasRole = messages.some((msg: unknown) => {
+          const message = msg as Record<string, unknown>;
+          return (
+            message.role &&
+            typeof message.role === "string" &&
+            ["system", "user", "assistant", "tool", "function"].includes(
+              message.role,
+            )
+          );
+        });
+        if (hasRole) return true;
+
+        // OpenAI-style tool_calls at top level
         const hasToolCalls = messages.some((msg: unknown) => {
           const message = msg as Record<string, unknown>;
           return (
@@ -92,20 +138,41 @@ export const openAIAdapter: ProviderAdapter = {
               return (
                 call.type === "function" &&
                 call.function &&
-                typeof call.id === "string"
+                typeof call.function === "object" &&
+                typeof (call.function as Record<string, unknown>).name ===
+                  "string"
               );
             })
           );
         });
         if (hasToolCalls) return true;
 
-        // Multimodal content
+        // OpenAI multimodal content with specific types
         const hasMultimodal = messages.some((msg: unknown) => {
           const message = msg as Record<string, unknown>;
-          return Array.isArray(message.content);
+          return (
+            Array.isArray(message.content) &&
+            message.content.some((part: unknown) => {
+              if (typeof part !== "object" || !part) return false;
+              const p = part as Record<string, unknown>;
+              return (
+                typeof p.type === "string" &&
+                ["text", "image_url", "input_audio"].includes(p.type)
+              );
+            })
+          );
         });
         if (hasMultimodal) return true;
       }
+    }
+
+    // OpenAI output format with choices
+    if (
+      typeof ctx.metadata === "object" &&
+      ctx.metadata !== null &&
+      "choices" in ctx.metadata
+    ) {
+      return true;
     }
 
     return false;
