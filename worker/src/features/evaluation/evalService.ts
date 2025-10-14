@@ -762,7 +762,7 @@ export const evaluate = async ({
   const parsedLLMOutput = evalScoreSchema.safeParse(llmOutput);
   if (!parsedLLMOutput.success) {
     throw Error(
-      `Invalid LLM response format. Model: ${modelConfig.config.model}, Response: ${llmOutput}`,
+      `${QUEUE_ERROR_MESSAGES.INVALID_LLM_STRUCTURED_OUTPUT}. Model: ${modelConfig.config.model}, Response: ${llmOutput}`,
     );
   }
 
