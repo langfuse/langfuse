@@ -27,6 +27,7 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
         "RunnableLambda",
         "StructuredOutputParser",
         "StrOutputParser",
+        "JsonOutputParser",
       ];
 
       for (const event of events) {
