@@ -2433,9 +2433,10 @@ describe("eval service tests", () => {
         "langfuse-llm-as-a-judge",
       );
       expect(capturedTraceSinkParams.metadata).toMatchObject({
-        jobExecutionId,
-        jobConfigurationId: configId,
-        targetTraceId: traceId,
+        job_execution_id: jobExecutionId,
+        job_configuration_id: configId,
+        target_trace_id: traceId,
+        score_id: capturedTraceSinkParams.metadata.score_id,
       });
       expect(capturedTraceSinkParams.metadata.score_id).toBeDefined();
     }, 15_000);
