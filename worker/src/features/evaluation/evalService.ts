@@ -29,6 +29,7 @@ import {
   getCurrentSpan,
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
+  fetchLLMCompletion,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -730,13 +731,18 @@ export const evaluate = async ({
   // Generate trace ID for eval execution (16 random bytes as hex string)
   const evalTraceId = randomBytes(16).toString("hex");
 
-  const llmOutput = await callLLM({
-    llmApiKey: modelConfig.config.apiKey,
+  const llmOutput = await fetchLLMCompletion({
+    streaming: false,
+    llmConnection: modelConfig.config.apiKey,
     messages,
-    modelParams: modelConfig.config.modelParams ?? {},
-    provider: modelConfig.config.provider,
-    model: modelConfig.config.model,
+    modelParams: {
+      provider: modelConfig.config.provider,
+      model: modelConfig.config.model,
+      adapter: modelConfig.config.apiKey.adapter,
+      ...modelConfig.config.modelParams,
+    },
     structuredOutputSchema: evalScoreSchema,
+    maxRetries: 1,
     traceSinkParams: {
       targetProjectId: event.projectId,
       traceId: evalTraceId,

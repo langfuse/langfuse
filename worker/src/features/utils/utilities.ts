@@ -1,13 +1,5 @@
-import {
-  ChatMessage,
-  fetchLLMCompletion,
-  LLMJSONSchema,
-  logger,
-  TraceSinkParams,
-} from "@langfuse/shared/src/server";
-import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
-import { z } from "zod/v4";
-import { ZodSchema as ZodV3Schema } from "zod/v3";
+import { logger } from "@langfuse/shared/src/server";
+import { ApiError } from "@langfuse/shared";
 import Handlebars from "handlebars";
 
 /**
@@ -39,45 +31,6 @@ async function withLLMErrorHandling<T>(
       (e as any)?.response?.status ?? (e as any)?.status,
     );
   }
-}
-
-export async function callLLM(params: {
-  llmApiKey: z.infer<typeof LLMApiKeySchema>;
-  messages: ChatMessage[];
-  modelParams: z.infer<typeof ZodModelConfig>;
-  provider: string;
-  model: string;
-  traceSinkParams?: TraceSinkParams;
-  structuredOutputSchema?: ZodV3Schema | LLMJSONSchema;
-}): Promise<unknown> {
-  const {
-    llmApiKey,
-    messages,
-    modelParams,
-    provider,
-    model,
-    traceSinkParams,
-    structuredOutputSchema,
-  } = params;
-
-  return withLLMErrorHandling(async () => {
-    const completion = await fetchLLMCompletion({
-      streaming: false,
-      llmConnection: llmApiKey,
-      messages,
-      modelParams: {
-        provider,
-        model,
-        adapter: llmApiKey.adapter,
-        ...modelParams,
-      },
-      ...(structuredOutputSchema && { structuredOutputSchema }),
-      traceSinkParams,
-      maxRetries: 1,
-    });
-
-    return completion;
-  }, "call LLM");
 }
 
 export function compileHandlebarString(

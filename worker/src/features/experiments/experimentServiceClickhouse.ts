@@ -5,6 +5,7 @@ import {
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
+  fetchLLMCompletion,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
@@ -180,12 +181,19 @@ async function processLLMCall(
     prompt: config.prompt,
   };
 
-  await callLLM({
-    llmApiKey: config.validatedApiKey,
-    modelParams: config.model_params,
+  await fetchLLMCompletion({
+    streaming: false,
+    llmConnection: config.validatedApiKey,
+    maxRetries: 1,
     messages,
+    modelParams: {
+      provider: config.provider,
+      model: config.model,
+      adapter: config.validatedApiKey.adapter,
+      ...config.model_params,
+    },
+    structuredOutputSchema: config.structuredOutputSchema,
     traceSinkParams,
-    ...config,
   }).catch(); // catch errors and do not retry
 
   return { success: true };
