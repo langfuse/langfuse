@@ -16,6 +16,7 @@ import {
   getS3EventStorageClient,
   QueueJobs,
   instrumentSync,
+  recordDistribution,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -248,6 +249,16 @@ export class OtelIngestionProcessor {
                 const scopeVersion = scopeSpan?.scope?.version;
 
                 const stringifiedSpan = JSON.stringify(span);
+                const eventBytes = Buffer.byteLength(stringifiedSpan, "utf8");
+
+                recordDistribution(
+                  "langfuse.ingestion.otel.event.byte_length",
+                  eventBytes,
+                  {
+                    source: "otel",
+                    sdk_language: telemetrySdkLanguage || "",
+                  },
+                );
 
                 events.push({
                   projectId: this.projectId,
@@ -339,7 +350,7 @@ export class OtelIngestionProcessor {
 
                   // Source data
                   // eventRaw: stringifiedSpan,
-                  eventBytes: Buffer.byteLength(stringifiedSpan, "utf8"),
+                  eventBytes,
                 });
               }
             }
