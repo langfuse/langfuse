@@ -533,10 +533,15 @@ describe("mergeScoreAggregateWithCache", () => {
         mockScoreColumns,
       );
 
-      // The old score should be deleted, but the new create should appear
-      // However, the create won't match because the aggregate already has an id
-      // So first the delete removes it, then nothing matches the create
-      expect(result["accuracy-ANNOTATION"]).toBeUndefined();
+      // Cached creates have priority - the new create should override the deleted score
+      expect(result["accuracy-ANNOTATION"]).toEqual({
+        type: "NUMERIC",
+        id: "score-new-after-delete",
+        values: [0.92],
+        average: 0.92,
+        comment: "recreated",
+        hasMetadata: false,
+      });
     });
 
     it("should show created score in empty slot after deleting different score (delete other + create)", () => {
