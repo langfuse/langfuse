@@ -37,6 +37,17 @@ export function mapToChatMl(
 export function mapOutputToChatMl(
   output: unknown,
 ): ReturnType<typeof ChatMlArraySchema.safeParse> {
+  // Check if output has messages key (LangGraph/LangChain format)
+  if (
+    output &&
+    typeof output === "object" &&
+    !Array.isArray(output) &&
+    "messages" in output
+  ) {
+    const obj = output as Record<string, unknown>;
+    return ChatMlArraySchema.safeParse(obj.messages);
+  }
+
   const result = ChatMlArraySchema.safeParse(
     Array.isArray(output) ? output : [output],
   );

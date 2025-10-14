@@ -92,7 +92,6 @@ export const langgraphAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // Explicit framework override
     if (ctx.framework === "langgraph") return true;
 
     // Check for LangGraph-specific metadata
