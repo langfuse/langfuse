@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
+  waitForQueueToBeEmpty,
 } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 import {
@@ -33,6 +34,7 @@ import {
   getDatasetRunItemsByDatasetIdCh,
   createDatasetRunItemsCh,
   createDatasetRunItem,
+  QueueName,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
@@ -76,6 +78,9 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("should delete a dataset and its runs and run items", async () => {
+    // Ensure queue is empty before starting test to avoid interference from previous tests
+    await waitForQueueToBeEmpty(QueueName.DatasetDelete);
+
     const datasetName = `dataset-${uuidv4()}`;
     const runName = `run-${uuidv4()}`;
     const nonExistentDatasetName = `non-existent-${uuidv4()}`;
@@ -190,7 +195,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       });
 
       expect(dbRunItems).toHaveLength(0);
-    }, 50000);
+    }, 60000);
   }, 90000);
 
   it("should create and get a dataset (v1), include special characters", async () => {
@@ -1506,6 +1511,9 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   }, 90000);
 
   it("should delete a dataset run and its run items", async () => {
+    // Ensure queue is empty before starting test to avoid interference from previous tests
+    await waitForQueueToBeEmpty(QueueName.DatasetDelete);
+
     const datasetName = `dataset-${uuidv4()}`;
     const runName = `run-${uuidv4()}`;
     const nonExistentRunName = `non-existent-${uuidv4()}`;

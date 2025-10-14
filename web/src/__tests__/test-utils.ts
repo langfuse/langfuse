@@ -181,6 +181,55 @@ export const truncateClickhouseTables = async () => {
   });
 };
 
+/**
+ * Waits for all pending jobs in the specified queue to complete.
+ * Useful for ensuring queue jobs are processed before/after tests.
+ * @param queueName - The name of the queue to wait for
+ * @param timeoutMs - Maximum time to wait in milliseconds (default: 60000)
+ */
+export const waitForQueueToBeEmpty = async (
+  queueName: QueueName,
+  timeoutMs = 60000,
+): Promise<void> => {
+  const startTime = Date.now();
+
+  const queue = getQueues().find((q) => q && q.name === queueName);
+
+  if (!queue) {
+    logger.debug(`Queue ${queueName} not found or not initialized`);
+    return;
+  }
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const [waiting, active, delayed] = await Promise.all([
+        queue.getWaitingCount(),
+        queue.getActiveCount(),
+        queue.getDelayedCount(),
+      ]);
+
+      if (waiting === 0 && active === 0 && delayed === 0) {
+        logger.debug(`Queue ${queueName} is empty`);
+        return;
+      }
+
+      logger.debug(`Queue ${queueName} still has jobs`, {
+        waiting,
+        active,
+        delayed,
+      });
+
+      // Wait a bit before checking again
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } catch (error) {
+      logger.error(`Error checking queue ${queueName}`, { error });
+      throw error;
+    }
+  }
+
+  throw new Error(`Timeout waiting for queue ${queueName} to be empty`);
+};
+
 export type IngestionAPIResponse = {
   errors: ErrorIngestion[];
   successes: SuccessfulIngestion[];
