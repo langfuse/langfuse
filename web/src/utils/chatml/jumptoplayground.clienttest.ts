@@ -138,11 +138,11 @@ describe("Playground Jump Full Pipeline", () => {
       ],
     };
 
-    const output = {
-      role: "assistant",
-      content:
-        "To configure the API settings, follow these steps:\n\n1. Navigate to **Settings > API Configuration**\n2. Enter your API key\n3. Select the appropriate region\n\nFor more details, refer to the documentation.",
-    };
+    // const output = {
+    //   role: "assistant",
+    //   content:
+    //     "To configure the API settings, follow these steps:\n\n1. Navigate to **Settings\n2. Enter your API key\n3. Select the appropriate region.",
+    // };
 
     const ctx = { metadata, observationName };
     const inResult = normalizeInput(input, ctx);
