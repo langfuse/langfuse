@@ -13,6 +13,7 @@ import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
+  convertTraceToStagingObservation,
   eventTypes,
   IngestionEntityTypes,
   IngestionEventType,
@@ -22,7 +23,6 @@ import {
   observationRecordInsertSchema,
   ObservationRecordInsertType,
   observationRecordReadSchema,
-  ObservationBatchStagingRecordInsertType,
   PromptService,
   QueueJobs,
   recordIncrement,
@@ -668,7 +668,7 @@ export class IngestionService {
     // Dual-write to staging table for batch propagation to events table
     // We pretend the trace is a "span" where span_id = trace_id
     if (createEventTraceRecord) {
-      const traceAsStagingObservation = this.convertTraceToStagingObservation(
+      const traceAsStagingObservation = convertTraceToStagingObservation(
         finalTraceRecord,
         createdAtTimestamp.getTime(),
       );
@@ -942,68 +942,6 @@ export class IngestionService {
     result.event_ts = new Date().getTime();
 
     return result;
-  }
-
-  /**
-   * Converts a trace record to a staging observation record.
-   * The trace is treated as a synthetic "SPAN" where span_id = trace_id.
-   * This allows traces to flow through the same batch propagation pipeline as observations.
-   */
-  private convertTraceToStagingObservation(
-    traceRecord: TraceRecordInsertType,
-    s3FirstSeenTimestamp: number,
-  ): ObservationBatchStagingRecordInsertType {
-    return {
-      // Identity - trace acts as its own span
-      id: traceRecord.id,
-      trace_id: traceRecord.id,
-      project_id: traceRecord.project_id,
-
-      // Type: pretend trace is a SPAN
-      type: "SPAN",
-
-      // No parent since traces are root-level
-      parent_observation_id: undefined,
-
-      // Core fields from trace
-      name: traceRecord.name,
-      environment: traceRecord.environment,
-      version: traceRecord.version,
-      metadata: traceRecord.metadata,
-
-      // Timing: trace.timestamp -> start_time
-      start_time: traceRecord.timestamp,
-      end_time: undefined,
-      completion_start_time: undefined,
-
-      // IO fields
-      input: traceRecord.input,
-      output: traceRecord.output,
-
-      // Default values for observation-specific fields
-      level: "DEFAULT",
-      status_message: undefined,
-      provided_model_name: undefined,
-      internal_model_id: undefined,
-      model_parameters: undefined,
-      provided_usage_details: {},
-      usage_details: {},
-      provided_cost_details: {},
-      cost_details: {},
-      total_cost: undefined,
-      prompt_id: undefined,
-      prompt_name: undefined,
-      prompt_version: undefined,
-
-      // System fields
-      created_at: traceRecord.created_at,
-      updated_at: traceRecord.updated_at,
-      event_ts: traceRecord.event_ts,
-      is_deleted: traceRecord.is_deleted,
-
-      // Staging-specific field
-      s3_first_seen_timestamp: s3FirstSeenTimestamp,
-    };
   }
 
   private static toTimeSortedEventList<
