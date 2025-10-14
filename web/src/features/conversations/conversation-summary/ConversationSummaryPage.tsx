@@ -6,7 +6,15 @@ import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Tags, Trophy, MessageSquare, Info } from "lucide-react";
+import {
+  Tags,
+  Trophy,
+  MessageSquare,
+  Info,
+  Clock,
+  Zap,
+  TrendingUp,
+} from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -135,6 +143,84 @@ const ScoreDetailCard = ({ score }: { score: any }) => {
         <div className="ml-4 text-right">
           <div className="text-lg font-bold">{value}</div>
           <div className="text-xs text-muted-foreground">{score.dataType}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// TTFT Metrics Display Component
+const TTFTMetricsDisplay = ({ scores }: { scores: any[] }) => {
+  // Extract TTFT values from scores
+  const avgTTFT = scores.find((score) => score.name === "avg-ttft");
+  const hiTTFT = scores.find((score) => score.name === "hi-ttft");
+  const loTTFT = scores.find((score) => score.name === "lo-ttft");
+
+  // If no TTFT scores are available, don't render the component
+  if (!avgTTFT && !hiTTFT && !loTTFT) {
+    return null;
+  }
+
+  const formatTTFTValue = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return "N/A";
+    return `${value.toFixed(3)}s`;
+  };
+
+  return (
+    <div className="rounded-lg border bg-gradient-to-r from-blue-50 to-indigo-50 p-6 dark:from-blue-950/20 dark:to-indigo-950/20">
+      <div className="mb-4 flex items-center gap-2">
+        <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+          Time to First Token (TTFT) Metrics
+        </h2>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {/* Average TTFT */}
+        <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
+          <div className="mb-2 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              Average
+            </span>
+          </div>
+          <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+            {formatTTFTValue(avgTTFT?.value)}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Mean response time
+          </div>
+        </div>
+
+        {/* Fastest TTFT (Lowest) */}
+        <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
+          <div className="mb-2 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              Fastest
+            </span>
+          </div>
+          <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+            {formatTTFTValue(loTTFT?.value)}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Best response time
+          </div>
+        </div>
+
+        {/* Slowest TTFT (Highest) */}
+        <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
+          <div className="mb-2 flex items-center gap-2">
+            <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              Slowest
+            </span>
+          </div>
+          <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+            {formatTTFTValue(hiTTFT?.value)}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Worst response time
+          </div>
         </div>
       </div>
     </div>
@@ -763,6 +849,9 @@ export function ConversationSummaryPage() {
             </div>
           </div>
         </div>
+
+        {/* TTFT Metrics Section */}
+        <TTFTMetricsDisplay scores={sessionData.data?.scores || []} />
 
         {/* Session Tags Section */}
         <div className="rounded-lg border bg-card p-6">
