@@ -150,9 +150,12 @@ export const handleEventPropagationJob = async (
           obs.project_id,
           obs.trace_id,
           obs.id AS span_id,
-          -- if parent_observation_id is null, use trace_id as parent_span_id
-          -- this way we threat the case as the "wrapper" for spans backfilled this way.
-          coalesce(obs.parent_observation_id, obs.trace_id) AS parent_span_id,
+          -- When the observation IS the trace itself (id = trace_id), parent should be NULL
+          -- Otherwise, use standard wrapper logic: parent_observation_id or trace_id as fallback
+          CASE
+            WHEN obs.id = obs.trace_id THEN NULL
+            ELSE coalesce(obs.parent_observation_id, obs.trace_id)
+          END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
           obs.start_time,
           obs.end_time,
