@@ -1,5 +1,5 @@
-export function removeNullFields(obj: any): any {
-  if (!obj || typeof obj !== "object") return obj;
+export function removeNullFields(obj: unknown): Record<string, unknown> {
+  if (!obj || typeof obj !== "object") return {};
 
   const cleaned: Record<string, unknown> = { ...obj };
 
@@ -12,17 +12,20 @@ export function removeNullFields(obj: any): any {
   return cleaned;
 }
 
-export function stringifyToolCallArgs(toolCall: any): any {
+export function stringifyToolCallArgs(
+  toolCall: Record<string, unknown>,
+): Record<string, unknown> {
   if (!toolCall?.function) return toolCall;
 
+  const func = toolCall.function as Record<string, unknown>;
   return {
     ...toolCall,
     function: {
-      ...toolCall.function,
+      ...func,
       arguments:
-        typeof toolCall.function.arguments === "string"
-          ? toolCall.function.arguments
-          : JSON.stringify(toolCall.function.arguments ?? {}),
+        typeof func.arguments === "string"
+          ? func.arguments
+          : JSON.stringify(func.arguments ?? {}),
     },
   };
 }
@@ -33,7 +36,9 @@ export function stringifyToolResultContent(content: unknown): string {
   return JSON.stringify(content);
 }
 
-export function parseMetadata(metadata: unknown): Record<string, any> | null {
+export function parseMetadata(
+  metadata: unknown,
+): Record<string, unknown> | null {
   if (!metadata) return null;
 
   if (typeof metadata === "string") {
@@ -45,7 +50,7 @@ export function parseMetadata(metadata: unknown): Record<string, any> | null {
   }
 
   if (typeof metadata === "object") {
-    return metadata as Record<string, any>;
+    return metadata as Record<string, unknown>;
   }
 
   return null;

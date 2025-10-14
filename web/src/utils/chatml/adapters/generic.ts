@@ -1,30 +1,40 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 
-function normalizeGoogleMessage(msg: any): any {
-  if (!msg || typeof msg !== "object") return msg;
+function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
+  if (!msg || typeof msg !== "object") return {};
 
-  let normalized = { ...msg };
+  const message = msg as Record<string, unknown>;
+  let normalized = { ...message };
 
   // Google/Gemini: "model" role → "assistant"
-  if (msg.role === "model") {
+  if (message.role === "model") {
     normalized.role = "assistant";
   }
 
   // Google/Gemini: "parts" field → "content" field
-  if (msg.parts && Array.isArray(msg.parts)) {
+  if (message.parts && Array.isArray(message.parts)) {
     // Check if parts contain function_call or function_response
-    const hasFunctionCall = msg.parts.some((p: any) => p.function_call);
-    const hasFunctionResponse = msg.parts.some((p: any) => p.function_response);
+    const hasFunctionCall = message.parts.some((p: unknown) => {
+      const part = p as Record<string, unknown>;
+      return part.function_call;
+    });
+    const hasFunctionResponse = message.parts.some((p: unknown) => {
+      const part = p as Record<string, unknown>;
+      return part.function_response;
+    });
 
     if (hasFunctionCall || hasFunctionResponse) {
       // Keep parts as structured content array
-      normalized.content = msg.parts;
+      normalized.content = message.parts;
     } else {
       // Extract text from parts
-      const content = msg.parts
-        .map((part: any) => {
-          if (typeof part === "object" && part.text) {
-            return part.text;
+      const content = message.parts
+        .map((part: unknown) => {
+          if (typeof part === "object" && part !== null) {
+            const p = part as Record<string, unknown>;
+            if (p.text) {
+              return p.text;
+            }
           }
           // Only stringify if it's actually a simple value, not an object
           if (typeof part === "string" || typeof part === "number") {
@@ -32,7 +42,7 @@ function normalizeGoogleMessage(msg: any): any {
           }
           return "";
         })
-        .filter((text: string) => text !== "")
+        .filter((text: unknown) => text !== "")
         .join("");
       normalized.content = content;
     }
@@ -49,9 +59,10 @@ function preprocessData(data: unknown): unknown {
   if (
     typeof data === "object" &&
     "candidates" in data &&
-    Array.isArray((data as any).candidates)
+    Array.isArray((data as Record<string, unknown>).candidates)
   ) {
-    const candidate = (data as any).candidates[0];
+    const obj = data as Record<string, unknown>;
+    const candidate = (obj.candidates as Record<string, unknown>[])[0];
     if (candidate?.content) {
       return normalizeGoogleMessage(candidate.content);
     }
@@ -59,15 +70,16 @@ function preprocessData(data: unknown): unknown {
 
   // Handle Google input format: {model: "...", contents: [...]} or {contents: "string"}
   if (typeof data === "object" && "contents" in data && !("messages" in data)) {
-    const obj = data as any;
+    const obj = data as Record<string, unknown>;
     const contents = obj.contents;
-    const messages: any[] = [];
+    const messages: Record<string, unknown>[] = [];
 
     // Handle system_instruction if present
-    if (obj.config?.system_instruction) {
+    const config = obj.config as Record<string, unknown> | undefined;
+    if (config?.system_instruction) {
       messages.push({
         role: "system",
-        content: obj.config.system_instruction,
+        content: config.system_instruction,
       });
     }
 

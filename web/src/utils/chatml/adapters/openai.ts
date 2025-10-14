@@ -6,14 +6,16 @@ import {
   parseMetadata,
 } from "../helpers";
 
-function normalizeMessage(msg: any): any {
-  if (!msg || typeof msg !== "object") return msg;
+function normalizeMessage(msg: unknown): Record<string, unknown> {
+  if (!msg || typeof msg !== "object") return {};
 
   let normalized = removeNullFields(msg);
 
   // Stringify tool_calls arguments
   if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
-    normalized.tool_calls = normalized.tool_calls.map(stringifyToolCallArgs);
+    normalized.tool_calls = (
+      normalized.tool_calls as Record<string, unknown>[]
+    ).map(stringifyToolCallArgs);
   }
 
   // Stringify object content for tool messages
@@ -76,25 +78,30 @@ export const openAIAdapter: ProviderAdapter = {
       ctx.metadata !== null &&
       "messages" in ctx.metadata
     ) {
-      const messages = (ctx.metadata as any).messages;
+      const messages = (ctx.metadata as Record<string, unknown>).messages;
       if (Array.isArray(messages)) {
-        const hasToolCalls = messages.some(
-          (msg: any) =>
-            msg.tool_calls &&
-            Array.isArray(msg.tool_calls) &&
-            msg.tool_calls.some(
-              (tc: any) =>
-                tc.type === "function" &&
-                tc.function &&
-                typeof tc.id === "string",
-            ),
-        );
+        const hasToolCalls = messages.some((msg: unknown) => {
+          const message = msg as Record<string, unknown>;
+          return (
+            message.tool_calls &&
+            Array.isArray(message.tool_calls) &&
+            message.tool_calls.some((tc: unknown) => {
+              const call = tc as Record<string, unknown>;
+              return (
+                call.type === "function" &&
+                call.function &&
+                typeof call.id === "string"
+              );
+            })
+          );
+        });
         if (hasToolCalls) return true;
 
         // Multimodal content
-        const hasMultimodal = messages.some((msg: any) =>
-          Array.isArray(msg.content),
-        );
+        const hasMultimodal = messages.some((msg: unknown) => {
+          const message = msg as Record<string, unknown>;
+          return Array.isArray(message.content);
+        });
         if (hasMultimodal) return true;
       }
     }
