@@ -331,7 +331,7 @@ const parseGeneration = (
         tools,
         structuredOutputSchema,
       };
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -391,7 +391,7 @@ function parseTools(
   try {
     const input = JSON.parse(generation.input as string);
 
-    // Check additional fields for tools (LangChain puts them there)
+    // Check additional.tools , langchain puts tools there
     const additionalInput = extractAdditionalInput(input);
     if (additionalInput?.tools && Array.isArray(additionalInput.tools)) {
       return additionalInput.tools.map((tool: any) => ({
