@@ -76,10 +76,17 @@ export const IOPreview: React.FC<{
     const inResult = normalizeInput(input, ctx);
     const outResult = normalizeOutput(output, ctx);
     const outputClean = cleanLegacyOutput(output, output);
+    const messages = combineInputOutputMessages(
+      inResult,
+      outResult,
+      outputClean,
+    );
 
     return {
-      canDisplayAsChat: inResult.success || outResult.success,
-      allMessages: combineInputOutputMessages(inResult, outResult, outputClean),
+      // display as chat if normalization succeeded AND we have messages to show
+      canDisplayAsChat:
+        (inResult.success || outResult.success) && messages.length > 0,
+      allMessages: messages,
       additionalInput: extractAdditionalInput(input),
     };
   }, [input, output, metadata, props.observationName]);
