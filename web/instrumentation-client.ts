@@ -13,7 +13,6 @@ Sentry.init({
   beforeSend(event, hint) {
     const error = hint.originalException;
     const errorValue = event.exception?.values?.[0]?.value || "";
-    const errorMessage = event.message || "";
 
     // Filter out TRPCClientErrors, we track them in DataDog.
     // The users see those via toast notifications -> see handleTrpcError in web/src/utils/api.ts
