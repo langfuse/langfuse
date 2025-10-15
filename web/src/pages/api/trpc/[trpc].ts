@@ -13,7 +13,16 @@ export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
   onError: ({ path, error }) => {
-    if (error.code === "NOT_FOUND" || error.code === "UNAUTHORIZED") {
+    // User errors that should not be reported to Sentry
+    const userErrorCodes = [
+      "NOT_FOUND",
+      "UNAUTHORIZED",
+      "FORBIDDEN",
+      "BAD_REQUEST",
+      "PRECONDITION_FAILED",
+    ];
+
+    if (userErrorCodes.includes(error.code)) {
       logger.info(
         `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
         error,
@@ -23,8 +32,9 @@ export default createNextApiHandler({
         `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
         error,
       );
+      // Only report system errors to Sentry, not user errors
+      traceException(error);
     }
-    traceException(error);
     return error;
   },
   responseMeta() {

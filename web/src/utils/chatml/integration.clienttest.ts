@@ -302,4 +302,164 @@ describe("ChatML Integration", () => {
     expect(inResult.data[3].role).toBe("user");
     expect(inResult.data[3].content).not.toContain("[object Object]");
   });
+
+  it("should handle LangGraph messages with type field", () => {
+    const input = {
+      messages: [
+        {
+          content: "Search the web for 'example' and summarize.",
+          additional_kwargs: {},
+          response_metadata: {},
+          type: "human",
+          name: null,
+          id: "4f5904a4-473c-443c-af46-68765777a2f0",
+          example: false,
+        },
+        {
+          content: "",
+          additional_kwargs: {
+            tool_calls: [
+              {
+                id: "call_123",
+                function: {
+                  arguments: { query: "example" },
+                  name: "Web-Search",
+                },
+                type: "function",
+              },
+            ],
+          },
+          type: "ai",
+          id: "run-123",
+        },
+        {
+          content: [{ url: "https://example.com", title: "Example Result" }],
+          type: "tool",
+          name: "Web-Search",
+          tool_call_id: "call_123",
+        },
+      ],
+    };
+
+    const ctx = {
+      metadata: {
+        scope: { name: "langfuse-sdk" },
+        framework: "langgraph",
+      },
+    };
+
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+    expect(inResult.data).toHaveLength(3);
+    expect(inResult.data[0].role).toBe("user");
+    expect(inResult.data[0].content).toBe(
+      "Search the web for 'example' and summarize.",
+    );
+    expect(inResult.data[1].role).toBe("assistant");
+    expect(inResult.data[2].role).toBe("tool");
+  });
+
+  it("should handle Microsoft Agent framework format with parts-based tool calls", () => {
+    const input = [
+      {
+        role: "user",
+        parts: [
+          {
+            type: "text",
+            content: "What's the weather like in Portland?",
+          },
+        ],
+      },
+    ];
+
+    const output = [
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "tool_call",
+            id: [
+              "run_9guMCbt68iSVgtsx6WdKMA18",
+              "call_Sz1QP8T7fuJkIECGDLFWOorq",
+            ],
+            name: "get_weather",
+            arguments: {
+              location: "Portland",
+            },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        parts: [
+          {
+            type: "tool_call_response",
+            id: [
+              "run_9guMCbt68iSVgtsx6WdKMA18",
+              "call_Sz1QP8T7fuJkIECGDLFWOorq",
+            ],
+            response: "The weather in Portland is stormy with a high of 19°C.",
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            content:
+              "The weather in Portland is currently stormy with a high temperature of 19°C.",
+          },
+        ],
+      },
+    ];
+
+    const ctx = {
+      metadata: {
+        scope: { name: "agent_framework" },
+      },
+    };
+
+    const inResult = normalizeInput(input, ctx);
+    const outResult = normalizeOutput(output, ctx);
+    const allMessages = combineInputOutputMessages(inResult, outResult, output);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected inResult.data to be defined");
+    expect(inResult.data).toHaveLength(1);
+    expect(inResult.data[0].role).toBe("user");
+    expect(inResult.data[0].content).toBe(
+      "What's the weather like in Portland?",
+    );
+
+    expect(outResult.success).toBe(true);
+    if (!outResult.data)
+      throw new Error("Expected outResult.data to be defined");
+    expect(outResult.data).toHaveLength(3);
+    expect(outResult.data[0].role).toBe("assistant");
+    // Tool call should be preserved as structured content
+    expect(Array.isArray(outResult.data[0].content)).toBe(true);
+    expect(outResult.data[0].content).toEqual([
+      {
+        type: "tool_call",
+        id: ["run_9guMCbt68iSVgtsx6WdKMA18", "call_Sz1QP8T7fuJkIECGDLFWOorq"],
+        name: "get_weather",
+        arguments: {
+          location: "Portland",
+        },
+      },
+    ]);
+
+    expect(outResult.data[1].role).toBe("tool");
+    expect(Array.isArray(outResult.data[1].content)).toBe(true);
+
+    expect(outResult.data[2].role).toBe("assistant");
+    expect(outResult.data[2].content).toBe(
+      "The weather in Portland is currently stormy with a high temperature of 19°C.",
+    );
+
+    expect(allMessages).toHaveLength(4);
+  });
 });

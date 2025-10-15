@@ -1005,18 +1005,18 @@ export class IngestionService {
     | {}
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = observationRecord.provided_model_name
-      ? await findModel({
-          projectId,
-          model: observationRecord.provided_model_name,
-        })
-      : null;
+    const { model: internalModel, prices: modelPrices } =
+      observationRecord.provided_model_name
+        ? await findModel({
+            projectId,
+            model: observationRecord.provided_model_name,
+          })
+        : { model: null, prices: [] };
 
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
-    const modelPrices = await this.getModelPrices(internalModel?.id);
 
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
@@ -1037,12 +1037,6 @@ export class IngestionService {
       ...final_cost_details,
       internal_model_id: internalModel?.id,
     };
-  }
-
-  private async getModelPrices(modelId?: string): Promise<Price[]> {
-    return modelId
-      ? ((await this.prisma.price.findMany({ where: { modelId } })) ?? [])
-      : [];
   }
 
   private async getUsageUnits(

@@ -13,18 +13,34 @@ import { normalizeInput } from "./index";
 import { openAIAdapter } from "./openai";
 
 describe("OpenAI Adapter", () => {
-  it("should detect OpenAI via metadata", () => {
-    expect(
-      openAIAdapter.detect({ metadata: { scope: { name: "langfuse-sdk" } } }),
-    ).toBe(true);
-
+  it("should detect OpenAI and reject LangGraph", () => {
     expect(openAIAdapter.detect({ observationName: "OpenAI-generation" })).toBe(
       true,
     );
 
+    expect(
+      openAIAdapter.detect({
+        metadata: { messages: [{ role: "user", content: "test" }] },
+      }),
+    ).toBe(true);
+
     expect(openAIAdapter.detect({ metadata: { framework: "langgraph" } })).toBe(
       false,
     );
+
+    expect(
+      openAIAdapter.detect({
+        metadata: { langgraph_node: "agent", langgraph_step: 3 },
+      }),
+    ).toBe(false);
+
+    expect(
+      openAIAdapter.detect({
+        metadata: {
+          messages: [{ type: "human", content: "test" }],
+        },
+      }),
+    ).toBe(false);
   });
 
   it("should normalize tool_calls arguments to JSON strings", () => {

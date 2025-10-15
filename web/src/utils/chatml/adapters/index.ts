@@ -1,9 +1,11 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 import { mapToChatMl, mapOutputToChatMl } from "../core";
+import { langgraphAdapter } from "./langgraph";
 import { openAIAdapter } from "./openai";
 import { genericAdapter } from "./generic";
 
 const adapters: ProviderAdapter[] = [
+  langgraphAdapter, // Must be before openAI (both use langfuse-sdk scope)
   openAIAdapter,
   // Add more adapters here as needed
   genericAdapter, // Always last (fallback)

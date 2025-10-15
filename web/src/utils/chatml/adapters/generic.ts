@@ -11,16 +11,16 @@ function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
     normalized.role = "assistant";
   }
 
-  // Google/Gemini: "parts" field → "content" field
+  // Google/Gemini/Microsoft Agent: "parts" field → "content" field
   if (message.parts && Array.isArray(message.parts)) {
-    // Check if parts contain function_call or function_response
+    // Check if parts contain function_call, function_response, or Microsoft Agent tool calls
     const hasFunctionCall = message.parts.some((p: unknown) => {
       const part = p as Record<string, unknown>;
-      return part.function_call;
+      return part.function_call || part.type === "tool_call";
     });
     const hasFunctionResponse = message.parts.some((p: unknown) => {
       const part = p as Record<string, unknown>;
-      return part.function_response;
+      return part.function_response || part.type === "tool_call_response";
     });
 
     if (hasFunctionCall || hasFunctionResponse) {
@@ -32,8 +32,12 @@ function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
         .map((part: unknown) => {
           if (typeof part === "object" && part !== null) {
             const p = part as Record<string, unknown>;
+            // Support both Google's "text" and Microsoft's "content" fields
             if (p.text) {
               return p.text;
+            }
+            if (p.content && typeof p.content === "string") {
+              return p.content;
             }
           }
           // Only stringify if it's actually a simple value, not an object
