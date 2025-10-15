@@ -105,10 +105,9 @@ export function PaymentBanner() {
     },
   );
 
-  // TODO: Uncomment to only show banner to admins / owners
-  // if (!canManageBilling) {
-  //   return null;
-  // }
+  if (!canManageBilling) {
+    return null;
+  }
 
   return (
     <div
