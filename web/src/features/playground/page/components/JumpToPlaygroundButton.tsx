@@ -258,9 +258,29 @@ const parseGeneration = (
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
-  const modelParams = parseModelParams(generation, modelToProviderMap);
+  let modelParams = parseModelParams(generation, modelToProviderMap);
   const tools = parseTools(generation);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
+  const providerOptions = parseLitellmMetadataFromGeneration(generation);
+
+  if (modelParams && providerOptions) {
+    const existingProviderOptions =
+      modelParams.providerOptions?.value ??
+      ({} as UIModelParams["providerOptions"]["value"]);
+
+    const mergedProviderOptions = {
+      ...existingProviderOptions,
+      ...providerOptions,
+    } as UIModelParams["providerOptions"]["value"];
+
+    modelParams = {
+      ...modelParams,
+      providerOptions: {
+        value: mergedProviderOptions,
+        enabled: true,
+      },
+    };
+  }
 
   let input = generation.input?.valueOf();
 
@@ -475,4 +495,60 @@ function parseStructuredOutputSchema(
     }
   } catch {}
   return null;
+}
+
+/**
+ * LiteLLM supports custom providers such as with its CustomLLM interface. Clients may
+ * send provider‑specific options in addition to standard parameters (e.g., temperature, top_p, max_tokens).
+ * LiteLLM records those extras on the generation as metadata.requester_metadata. When a user clicks
+ * “Open in Playground,” we lift requester_metadata into providerOptions so those custom options carry
+ * over for re‑run/compare/edit. This lets the Playground faithfully replay LiteLLM CustomLLM‑based
+ * workflows and preserves the original call’s intent.
+ *
+ * References:
+ * - https://docs.litellm.ai/docs/providers/custom_llm_server
+ * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
+ */
+function parseLitellmMetadataFromGeneration(
+  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
+  },
+): UIModelParams["providerOptions"]["value"] | undefined {
+  let metadata: unknown = generation.metadata;
+
+  if (metadata === null || metadata === undefined) {
+    return undefined;
+  }
+
+  if (typeof metadata === "string") {
+    const trimmedMetadata = metadata.trim();
+
+    if (!trimmedMetadata) {
+      return undefined;
+    }
+
+    try {
+      metadata = JSON.parse(trimmedMetadata);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (typeof metadata !== "object" || metadata === null) {
+    return undefined;
+  }
+
+  const requesterMetadata = (metadata as Record<string, unknown>)[
+    "requester_metadata"
+  ];
+
+  if (typeof requesterMetadata !== "object" || requesterMetadata === null) {
+    return undefined;
+  }
+
+  return {
+    metadata: requesterMetadata,
+  } as UIModelParams["providerOptions"]["value"];
 }

@@ -202,7 +202,7 @@ export const handleEventPropagationJob = async (
           NULL AS telemetry_sdk_version,
           '' AS blob_storage_file_path,
           '' AS event_raw,
-          0 AS event_bytes,
+          byteSize(*) AS event_bytes,
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
@@ -256,7 +256,7 @@ export const handleEventPropagationJob = async (
         await queue.add(
           QueueJobs.EventPropagationJob,
           { timestamp: new Date(), id: randomUUID() },
-          { delay: 10000 }, // 10 second delay
+          { delay: 1000 }, // 1 second delay
         );
         logger.info(
           `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
