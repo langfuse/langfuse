@@ -46,6 +46,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 // Import the mocked function
 import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+import { UnrecoverableError } from "../errors/UnrecoverableError";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // Check for both OPENAI_API_KEY and LANGFUSE_LLM_CONNECTION_OPENAI_KEY
@@ -1501,8 +1502,8 @@ describe("eval service tests", () => {
       };
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new Error(
-          `Evaluating job ${jobExecutionId} will fail due to invalid model config: API key for provider "openai" not found in project ${projectId}.`,
+        new UnrecoverableError(
+          `Invalid model configuration for job ${jobExecutionId}: API key for provider "openai" not found in project ${projectId}.`,
         ),
       );
 
@@ -2122,7 +2123,7 @@ describe("eval service tests", () => {
           variableMapping: variableMapping,
         }),
       ).rejects.toThrowError(
-        new Error(
+        new UnrecoverableError(
           `Observation great-llm-name for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
         ),
       );
