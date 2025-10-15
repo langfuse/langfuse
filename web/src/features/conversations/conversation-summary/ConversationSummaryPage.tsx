@@ -161,41 +161,20 @@ const TTFTHistogram = ({ ttftValues }: { ttftValues: number[] }) => {
     );
   }
 
-  // Create histogram bins
-  const min = Math.min(...ttftValues);
-  const max = Math.max(...ttftValues);
-  const binCount = Math.min(
-    10,
-    Math.max(3, Math.ceil(Math.sqrt(ttftValues.length))),
-  );
-  const binSize = (max - min) / binCount || 1; // Avoid division by zero
-
-  const bins = Array.from({ length: binCount }, (_, i) => ({
-    min: min + i * binSize,
-    max: min + (i + 1) * binSize,
-    count: 0,
-  }));
-
-  // Fill bins
-  ttftValues.forEach((value) => {
-    const binIndex = Math.min(
-      Math.floor((value - min) / binSize),
-      binCount - 1,
-    );
-    bins[binIndex].count++;
-  });
-
-  const maxCount = Math.max(...bins.map((b) => b.count));
+  // Sort values for better visualization
+  const sortedValues = [...ttftValues].sort((a, b) => a - b);
+  const maxTTFT = Math.max(...ttftValues);
+  const minTTFT = Math.min(...ttftValues);
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
         <BarChart3 className="h-4 w-4" />
-        Distribution ({ttftValues.length} samples)
+        TTFT Values ({ttftValues.length} samples)
       </div>
-      <div className="flex h-24 items-end gap-1">
-        {bins.map((bin, i) => {
-          const height = maxCount > 0 ? (bin.count / maxCount) * 100 : 0;
+      <div className="flex h-32 items-end gap-0.5">
+        {sortedValues.map((value, i) => {
+          const heightPercent = maxTTFT > 0 ? (value / maxTTFT) * 100 : 0;
           return (
             <TooltipProvider key={i}>
               <Tooltip>
@@ -204,18 +183,16 @@ const TTFTHistogram = ({ ttftValues }: { ttftValues: number[] }) => {
                     <div
                       className="w-full bg-blue-500/70 transition-all hover:bg-blue-600/80 dark:bg-blue-400/70 dark:hover:bg-blue-300/80"
                       style={{
-                        height: `${height}%`,
-                        minHeight: bin.count > 0 ? "2px" : "0px",
+                        height: `${heightPercent}%`,
+                        minHeight: "2px",
                       }}
                     />
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="text-xs">
-                    <div>
-                      {bin.min.toFixed(2)}s - {bin.max.toFixed(2)}s
-                    </div>
-                    <div>{bin.count} samples</div>
+                    <div>TTFT: {value.toFixed(3)}s</div>
+                    <div>Sample #{i + 1}</div>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -224,8 +201,8 @@ const TTFTHistogram = ({ ttftValues }: { ttftValues: number[] }) => {
         })}
       </div>
       <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-        <span>{min.toFixed(2)}s</span>
-        <span>{max.toFixed(2)}s</span>
+        <span>Min: {minTTFT.toFixed(3)}s</span>
+        <span>Max: {maxTTFT.toFixed(3)}s</span>
       </div>
     </div>
   );
