@@ -24,6 +24,10 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import {
+  PaymentBanner,
+  PaymentBannerProvider,
+} from "@/src/features/payment-banner";
+import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -332,27 +336,32 @@ export default function Layout(props: PropsWithChildren) {
           href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16${region === "DEV" ? "-dev" : ""}.png`}
         />
       </Head>
-      <div>
+      <PaymentBannerProvider>
         <SidebarProvider>
-          <AppSidebar
-            navItems={mainNavigation}
-            secondaryNavItems={secondaryNavigation}
-            userNavProps={{
-              items: getUserNavigation(),
-              user: {
-                name: session.data?.user?.name ?? "",
-                email: session.data?.user?.email ?? "",
-                avatar: session.data?.user?.image ?? "",
-              },
-            }}
-          />
-          <SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-            <ResizableContent>{props.children}</ResizableContent>
-            <Toaster visibleToasts={1} />
-            <CommandMenu mainNavigation={navigation} />
-          </SidebarInset>
+          <div className="flex h-dvh w-full flex-col">
+            <PaymentBanner />
+            <div className="flex min-h-0 flex-1 pt-banner-offset">
+              <AppSidebar
+                navItems={mainNavigation}
+                secondaryNavItems={secondaryNavigation}
+                userNavProps={{
+                  items: getUserNavigation(),
+                  user: {
+                    name: session.data?.user?.name ?? "",
+                    email: session.data?.user?.email ?? "",
+                    avatar: session.data?.user?.image ?? "",
+                  },
+                }}
+              />
+              <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
+                <ResizableContent>{props.children}</ResizableContent>
+                <Toaster visibleToasts={1} />
+                <CommandMenu mainNavigation={navigation} />
+              </SidebarInset>
+            </div>
+          </div>
         </SidebarProvider>
-      </div>
+      </PaymentBannerProvider>
     </>
   );
 }
@@ -415,7 +424,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
         <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
           <DrawerContent
             id="support-drawer"
-            className="inset-x-0 bottom-0 top-10 min-h-full"
+            className="inset-x-0 bottom-0 top-[calc(var(--banner-offset)+10px)] min-h-screen-with-banner"
             size="full"
           >
             <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
@@ -456,7 +465,9 @@ export function ResizableContent({ children }: PropsWithChildren) {
       onLayout={onLayout}
     >
       <ResizablePanel defaultSize={mainDefault} minSize={30}>
-        <main className="h-full w-full">{children}</main>
+        <main className="relative h-full w-full overflow-scroll">
+          {children}
+        </main>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize={drawerDefault} minSize={20} maxSize={60}>

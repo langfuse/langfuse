@@ -31,7 +31,7 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
 const drawerVariants = cva(
-  "fixed inset-x-0 z-50 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:right-0 md:mt-0 md:rounded-l-lg md:rounded-r-none",
+  "fixed inset-x-0 z-50 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:right-0 md:mt-0 md:rounded-l-lg md:rounded-r-none ",
   {
     variants: {
       size: {
@@ -41,7 +41,7 @@ const drawerVariants = cva(
         full: "w-full",
       },
       position: {
-        top: "md:inset-y-0",
+        top: "md:bottom-0 md:top-banner-offset md:max-h-screen-with-banner",
       },
       height: {
         default: "h-1/3 md:h-full",
