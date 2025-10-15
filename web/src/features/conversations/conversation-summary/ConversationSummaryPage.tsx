@@ -15,6 +15,7 @@ import {
   Clock,
   Zap,
   TrendingUp,
+  BarChart3,
 } from "lucide-react";
 import {
   Tooltip,
@@ -150,15 +151,127 @@ const ScoreDetailCard = ({ score }: { score: any }) => {
   );
 };
 
+// Simple Histogram Component for TTFT values
+const TTFTHistogram = ({ ttftValues }: { ttftValues: number[] }) => {
+  if (ttftValues.length === 0) {
+    return (
+      <div className="flex h-32 items-center justify-center text-sm text-gray-500">
+        No TTFT data available
+      </div>
+    );
+  }
+
+  // Create histogram bins
+  const min = Math.min(...ttftValues);
+  const max = Math.max(...ttftValues);
+  const binCount = Math.min(
+    10,
+    Math.max(3, Math.ceil(Math.sqrt(ttftValues.length))),
+  );
+  const binSize = (max - min) / binCount || 1; // Avoid division by zero
+
+  const bins = Array.from({ length: binCount }, (_, i) => ({
+    min: min + i * binSize,
+    max: min + (i + 1) * binSize,
+    count: 0,
+  }));
+
+  // Fill bins
+  ttftValues.forEach((value) => {
+    const binIndex = Math.min(
+      Math.floor((value - min) / binSize),
+      binCount - 1,
+    );
+    bins[binIndex].count++;
+  });
+
+  const maxCount = Math.max(...bins.map((b) => b.count));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <BarChart3 className="h-4 w-4" />
+        Distribution ({ttftValues.length} samples)
+      </div>
+      <div className="flex h-24 items-end gap-1">
+        {bins.map((bin, i) => {
+          const height = maxCount > 0 ? (bin.count / maxCount) * 100 : 0;
+          return (
+            <TooltipProvider key={i}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex flex-1 flex-col items-center">
+                    <div
+                      className="w-full bg-blue-500/70 transition-all hover:bg-blue-600/80 dark:bg-blue-400/70 dark:hover:bg-blue-300/80"
+                      style={{
+                        height: `${height}%`,
+                        minHeight: bin.count > 0 ? "2px" : "0px",
+                      }}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="text-xs">
+                    <div>
+                      {bin.min.toFixed(2)}s - {bin.max.toFixed(2)}s
+                    </div>
+                    <div>{bin.count} samples</div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        })}
+      </div>
+      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span>{min.toFixed(2)}s</span>
+        <span>{max.toFixed(2)}s</span>
+      </div>
+    </div>
+  );
+};
+
 // TTFT Metrics Display Component
-const TTFTMetricsDisplay = ({ scores }: { scores: any[] }) => {
+const TTFTMetricsDisplay = ({
+  scores,
+  traceScores,
+}: {
+  scores: any[];
+  traceScores: any;
+}) => {
   // Extract TTFT values from scores
   const avgTTFT = scores.find((score) => score.name === "avg-ttft");
   const hiTTFT = scores.find((score) => score.name === "hi-ttft");
   const loTTFT = scores.find((score) => score.name === "lo-ttft");
 
+  // Extract and deduplicate "time-to-first-token" scores for histogram
+  const ttftValues: number[] = [];
+
+  if (traceScores?.data?.scores) {
+    // Filter scores to find only those with exact name "time-to-first-token"
+    const ttftScores = traceScores.data.scores.filter(
+      (score: any) =>
+        score?.name === "time-to-first-token" && score?.value !== null,
+    );
+
+    // Deduplicate by scoreId to avoid counting the same score twice
+    const uniqueScores = ttftScores.reduce((acc: any[], score: any) => {
+      if (!acc.find((s) => s.id === score.id)) {
+        acc.push(score);
+      }
+      return acc;
+    }, []);
+
+    // Extract numeric values
+    uniqueScores.forEach((score: any) => {
+      if (typeof score.value === "number") {
+        ttftValues.push(score.value);
+      }
+    });
+  }
+
   // If no TTFT scores are available, don't render the component
-  if (!avgTTFT && !hiTTFT && !loTTFT) {
+  if (!avgTTFT && !hiTTFT && !loTTFT && ttftValues.length === 0) {
     return null;
   }
 
@@ -169,61 +282,72 @@ const TTFTMetricsDisplay = ({ scores }: { scores: any[] }) => {
 
   return (
     <div className="rounded-lg border bg-gradient-to-r from-blue-50 to-indigo-50 p-6 dark:from-blue-950/20 dark:to-indigo-950/20">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-6 flex items-center gap-2">
         <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
         <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">
           Time to First Token (TTFT) Metrics
         </h2>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {/* Average TTFT */}
-        <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
-          <div className="mb-2 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-              Average
-            </span>
-          </div>
-          <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-            {formatTTFTValue(avgTTFT?.value)}
-          </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            Mean response time
-          </div>
-        </div>
 
-        {/* Fastest TTFT (Lowest) */}
-        <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
-          <div className="mb-2 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-              Fastest
-            </span>
+      {/* Summary Statistics - only show if we have the aggregate scores */}
+      {(avgTTFT || hiTTFT || loTTFT) && (
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+          {/* Average TTFT */}
+          <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
+            <div className="mb-2 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                Average
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+              {formatTTFTValue(avgTTFT?.value)}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Mean response time
+            </div>
           </div>
-          <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-            {formatTTFTValue(loTTFT?.value)}
-          </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            Best response time
-          </div>
-        </div>
 
-        {/* Slowest TTFT (Highest) */}
-        <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
-          <div className="mb-2 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-              Slowest
-            </span>
+          {/* Fastest TTFT (Lowest) */}
+          <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
+            <div className="mb-2 flex items-center gap-2">
+              <Zap className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                Fastest
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+              {formatTTFTValue(loTTFT?.value)}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Best response time
+            </div>
           </div>
-          <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-            {formatTTFTValue(hiTTFT?.value)}
-          </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            Worst response time
+
+          {/* Slowest TTFT (Highest) */}
+          <div className="flex flex-col items-center rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
+            <div className="mb-2 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                Slowest
+              </span>
+            </div>
+            <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+              {formatTTFTValue(hiTTFT?.value)}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Worst response time
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Histogram - show if we have individual TTFT values */}
+      {ttftValues.length > 0 && (
+        <div className="rounded-lg bg-white/60 p-4 shadow-sm dark:bg-gray-800/60">
+          <TTFTHistogram ttftValues={ttftValues} />
+        </div>
+      )}
     </div>
   );
 };
@@ -768,6 +892,14 @@ export function ConversationSummaryPage() {
             "Time-to-First-Token Scores for Conversation Turns:",
             ttftScoresList,
           );
+
+          // Also log deduplicated values for histogram verification
+          const uniqueValues = [
+            ...new Set(
+              ttftScoresList.map((s) => s.value).filter((v) => v !== null),
+            ),
+          ];
+          console.log("Deduplicated TTFT values for histogram:", uniqueValues);
         } else {
           console.log(
             "No 'time-to-first-token' scores found for this conversation",
@@ -934,7 +1066,10 @@ export function ConversationSummaryPage() {
         </div>
 
         {/* TTFT Metrics Section */}
-        <TTFTMetricsDisplay scores={sessionData.data?.scores || []} />
+        <TTFTMetricsDisplay
+          scores={sessionData.data?.scores || []}
+          traceScores={traceScores}
+        />
 
         {/* Session Tags Section */}
         <div className="rounded-lg border bg-card p-6">
