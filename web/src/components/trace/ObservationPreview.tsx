@@ -128,7 +128,7 @@ export const ObservationPreview = ({
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
 
   return (
-    <div className="ph-no-capture col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
+    <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
         <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
           <div className="flex w-full flex-row items-start gap-1">

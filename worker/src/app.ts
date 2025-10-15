@@ -34,6 +34,7 @@ import {
   OtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  EventPropagationQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -64,6 +65,7 @@ import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
+import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 
 const app = express();
 
@@ -451,6 +453,19 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
     entityChangeQueueProcessor,
     {
       concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  EventPropagationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.EventPropagationQueue,
+    eventPropagationProcessor,
+    {
+      concurrency: 1,
     },
   );
 }
