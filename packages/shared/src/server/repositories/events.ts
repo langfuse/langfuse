@@ -16,6 +16,7 @@ import {
   orderByToClickhouseSql,
   StringFilter,
   convertApiProvidedFilterToClickhouseFilter,
+  createPublicApiObservationsColumnMapping,
   type ApiColumnMapping,
   ObservationPriceFields,
 } from "../queries";
@@ -42,6 +43,373 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
+
+/**
+ * Field mapping: each field defined once with its full SELECT expression
+ * All queries use `FROM events e` with alias, so all fields use `e.` prefix
+ */
+const EVENTS_FIELDS = {
+  // Aggregates
+  count: "count(*) as count",
+
+  // Identity & basic fields
+  id: "e.span_id as id",
+  traceId: 'e.trace_id as "trace_id"',
+  projectId: 'e.project_id as "project_id"',
+  environment: 'e.environment as "environment"',
+  type: "e.type as type",
+  parentObservationId: 'e.parent_span_id as "parent_observation_id"',
+  name: "e.name as name",
+  level: "e.level as level",
+  statusMessage: 'e.status_message as "status_message"',
+  version: "e.version as version",
+
+  // Time fields
+  startTime: 'e.start_time as "start_time"',
+  endTime: 'e.end_time as "end_time"',
+  completionStartTime: 'e.completion_start_time as "completion_start_time"',
+  createdAt: 'e.created_at as "created_at"',
+  updatedAt: 'e.updated_at as "updated_at"',
+  eventTs: "e.event_ts",
+
+  // Model fields
+  providedModelName: 'e.provided_model_name as "provided_model_name"',
+  internalModelId: 'e.model_id as "internal_model_id"',
+  modelParameters: 'e."model_parameters" as model_parameters',
+
+  // Usage & cost fields
+  providedUsageDetails: 'e.provided_usage_details as "provided_usage_details"',
+  usageDetails: 'e.usage_details as "usage_details"',
+  providedCostDetails: 'e.provided_cost_details as "provided_cost_details"',
+  costDetails: 'e.cost_details as "cost_details"',
+  totalCost: 'e.total_cost as "total_cost"',
+
+  // Prompt fields
+  promptId: 'e.prompt_id as "prompt_id"',
+  promptName: 'e.prompt_name as "prompt_name"',
+  promptVersion: 'e.prompt_version as "prompt_version"',
+
+  // I/O & metadata fields
+  input: "e.input",
+  output: "e.output",
+  metadata: "e.metadata",
+
+  // Calculated fields
+  latency:
+    "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency",
+  timeToFirstToken:
+    "if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as \"time_to_first_token\"",
+} as const;
+
+/**
+ * Predefined field sets for common query patterns
+ * Maps set names to arrays of field keys from EVENTS_FIELDS
+ */
+const FIELD_SETS = {
+  // Aggregates
+  count: ["count"],
+
+  // List query field sets (for getObservationsWithModelDataFromEventsTable)
+  base: [
+    "id",
+    "type",
+    "projectId",
+    "name",
+    "modelParameters",
+    "startTime",
+    "endTime",
+    "traceId",
+    "completionStartTime",
+    "providedUsageDetails",
+    "usageDetails",
+    "providedCostDetails",
+    "costDetails",
+    "level",
+    "environment",
+    "statusMessage",
+    "version",
+    "parentObservationId",
+    "createdAt",
+    "updatedAt",
+    "providedModelName",
+    "totalCost",
+    "promptId",
+    "promptName",
+    "promptVersion",
+    "internalModelId",
+  ],
+  calculated: ["latency", "timeToFirstToken"],
+  io: ["input", "output"],
+  metadata: ["metadata"],
+  eventTs: ["eventTs"],
+
+  // getById field sets (reuse the same fields - all queries use `FROM events e`)
+  byIdBase: [
+    "id",
+    "traceId",
+    "projectId",
+    "environment",
+    "type",
+    "parentObservationId",
+    "startTime",
+    "endTime",
+    "name",
+    "metadata",
+    "level",
+    "statusMessage",
+    "version",
+  ],
+  byIdModel: [
+    "providedModelName",
+    "internalModelId",
+    "modelParameters",
+    "providedUsageDetails",
+    "usageDetails",
+    "providedCostDetails",
+    "costDetails",
+    "totalCost",
+    "completionStartTime",
+  ],
+  byIdPrompt: ["promptId", "promptName", "promptVersion"],
+  byIdTimestamps: ["createdAt", "updatedAt", "eventTs"],
+} as const;
+
+/**
+ * EventsQueryBuilder - A fluent query builder for events table queries
+ */
+class EventsQueryBuilder {
+  private selectFields: Set<string> = new Set();
+  private ioFields: { truncated: boolean; charLimit?: number } | null = null;
+  private ctes: string[] = [];
+  private joins: string[] = [];
+  private whereClauses: string[] = [];
+  private orderByClause: string = "";
+  private limitClause: string = "";
+  private params: Record<string, any> = {};
+
+  /**
+   * Add SELECT fields from predefined field sets
+   */
+  selectFieldSet(...setNames: Array<keyof typeof FIELD_SETS>): this {
+    setNames
+      .flatMap((s) => {
+        return FIELD_SETS[s];
+      })
+      .forEach((s) => {
+        this.selectFields.add(s);
+      });
+    return this;
+  }
+
+  /**
+   * Add IO fields with optional truncation
+   */
+  selectIO(truncated: boolean = false, charLimit?: number): this {
+    this.ioFields = { truncated, charLimit };
+    return this;
+  }
+
+  /**
+   * Conditionally apply builder operations
+   */
+  when<T extends EventsQueryBuilder>(
+    this: T,
+    condition: boolean,
+    // eslint-disable-next-line no-unused-vars
+    fn: (builder: T) => T,
+  ): T {
+    return condition ? fn(this) : this;
+  }
+
+  /**
+   * Add a CTE (WITH clause) and track its parameters
+   */
+  withCTE(
+    name: string,
+    // eslint-disable-next-line no-unused-vars
+    generator: (params: {
+      projectId: string;
+      startTimeFrom: string | null;
+    }) => string,
+    options?: {
+      projectId?: string;
+      startTimeFrom?: string | null;
+    },
+  ): this {
+    const params = {
+      projectId: options?.projectId ?? "",
+      startTimeFrom: options?.startTimeFrom ?? null,
+    };
+
+    if (generator && !!options) {
+      this.ctes.push(`${name} AS (${generator(params)})`);
+
+      // Track CTE parameters
+      if (params.projectId) {
+        this.params.projectId = params.projectId;
+      }
+      if (params.startTimeFrom) {
+        this.params.startTimeFrom = params.startTimeFrom;
+      }
+    }
+
+    return this;
+  }
+
+  /**
+   * Add a LEFT JOIN
+   */
+  leftJoin(table: string, onClause: string): this {
+    this.joins.push(`LEFT JOIN ${table} ${onClause}`);
+    return this;
+  }
+
+  /**
+   * Add WHERE conditions from FilterList
+   * Accepts the output from FilterList.apply() or clickhouseSearchCondition()
+   */
+  where(condition: { query: string; params?: Record<string, any> }): this {
+    if (condition.query.trim()) {
+      // Strip leading AND/OR if present (e.g., from clickhouseSearchCondition)
+      const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
+      this.whereClauses.push(`(${trimmedQuery})`);
+    }
+    // Merge parameters from FilterCondition
+    if (condition.params) {
+      this.params = { ...this.params, ...condition.params };
+    }
+    return this;
+  }
+
+  /**
+   * Add raw WHERE condition with optional parameters
+   * Use ClickHouse parameter syntax: {paramName: Type}
+   *
+   * Example:
+   *   .whereRaw("span_id = {id: String}", { id: "abc123" })
+   */
+  whereRaw(condition: string, params?: Record<string, any>): this {
+    if (condition.trim()) {
+      this.whereClauses.push(condition);
+    }
+    // Merge provided parameters
+    if (params) {
+      this.params = { ...this.params, ...params };
+    }
+    return this;
+  }
+
+  /**
+   * Add ORDER BY clause
+   */
+  orderBy(clause: string): this {
+    if (clause.trim()) {
+      this.orderByClause = clause;
+    }
+    return this;
+  }
+
+  /**
+   * Add LIMIT and OFFSET
+   *
+   * @param limit - Maximum number of rows to return
+   * @param offset - Number of rows to skip
+   *
+   * Examples:
+   *   .limit(100, 0) - Parameterized: "LIMIT {limit: Int32} OFFSET {offset: Int32}"
+   */
+  limit(limit?: number, offset?: number): this {
+    if (limit !== undefined && offset !== undefined) {
+      this.limitClause = "LIMIT {limit: Int32} OFFSET {offset: Int32}";
+      if (limit !== undefined) this.params.limit = limit;
+      if (offset !== undefined) this.params.offset = offset;
+    } else {
+      this.limitClause = "LIMIT 1000";
+    }
+    return this;
+  }
+
+  /**
+   * Build the final query string
+   */
+  private build(): string {
+    const parts: string[] = [];
+
+    // CTEs (WITH clause)
+    if (this.ctes.length > 0) {
+      parts.push(`WITH ${this.ctes.join(",\n")}`);
+    }
+
+    // Build field expressions from field keys
+    // If ioFields are configured, exclude regular input/output from selectFields
+    const fieldsToProcess = this.ioFields
+      ? [...this.selectFields].filter((f) => f !== "input" && f !== "output")
+      : [...this.selectFields];
+
+    const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
+      const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
+      return fieldExpr ? [fieldExpr] : [];
+    });
+
+    // Add I/O fields if configured
+    if (this.ioFields) {
+      if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
+        fieldExpressions.push(
+          `leftUTF8(input, ${this.ioFields.charLimit}) as input, leftUTF8(output, ${this.ioFields.charLimit}) as output`,
+        );
+      } else {
+        fieldExpressions.push("input, output");
+      }
+    }
+
+    // SELECT
+    parts.push(`SELECT\n  ${fieldExpressions.join(",\n  ")}`);
+
+    // FROM
+    parts.push("FROM events e");
+
+    // JOINs
+    if (this.joins.length > 0) {
+      parts.push(this.joins.join("\n"));
+    }
+
+    // WHERE
+    if (this.whereClauses.length > 0) {
+      const whereExpression = this.whereClauses.join("\n        AND ");
+      parts.push(`WHERE ${whereExpression}`);
+    }
+
+    // ORDER BY
+    if (this.orderByClause) {
+      parts.push(this.orderByClause);
+    }
+
+    // LIMIT/OFFSET
+    if (this.limitClause) {
+      parts.push(this.limitClause);
+    }
+
+    return parts.join("\n");
+  }
+
+  /**
+   * Build the final query string along with accumulated parameters
+   *
+   * Returns both the query and all parameters that have been accumulated
+   * from FilterConditions, raw conditions, CTEs, and limit/offset.
+   *
+   * Example:
+   *   const { query, params } = queryBuilder.buildWithParams();
+   *   await queryClickhouse({ query, params });
+   */
+  buildWithParams(): { query: string; params: Record<string, any> } {
+    return {
+      query: this.build(),
+      params: this.params,
+    };
+  }
+}
+
 /**
  * Internal helper: enrich observations with model pricing data
  */
@@ -124,80 +492,8 @@ const extractTimeFilter = (filter: FilterList): string | null => {
 /**
  * Column mapping for public API filters on events table
  */
-const PUBLIC_API_EVENTS_COLUMN_MAPPING: ApiColumnMapping[] = [
-  {
-    id: "userId",
-    clickhouseSelect: "user_id",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "traceId",
-    clickhouseSelect: "trace_id",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "name",
-    clickhouseSelect: "name",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "level",
-    clickhouseSelect: "level",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "type",
-    clickhouseSelect: "type",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "parentObservationId",
-    clickhouseSelect: "parent_span_id",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "fromStartTime",
-    clickhouseSelect: "start_time",
-    operator: ">=",
-    filterType: "DateTimeFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "toStartTime",
-    clickhouseSelect: "start_time",
-    operator: "<",
-    filterType: "DateTimeFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "version",
-    clickhouseSelect: "version",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "environment",
-    clickhouseSelect: "environment",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-];
+const PUBLIC_API_EVENTS_COLUMN_MAPPING: ApiColumnMapping[] =
+  createPublicApiObservationsColumnMapping("events", "e", "parent_span_id");
 
 export const getObservationsCountFromEventsTable = async (
   opts: ObservationTableQuery,
@@ -236,39 +532,6 @@ const getObservationsFromEventsTableInternal = async <T>(
     tags: Record<string, string>;
   },
 ): Promise<Array<T>> => {
-  const select =
-    opts.select === "count"
-      ? "count(*) as count"
-      : `
-        e.span_id as id,
-        e.type as type,
-        e.project_id as "project_id",
-        e.name as name,
-        e."model_parameters" as model_parameters,
-        e.start_time as "start_time",
-        e.end_time as "end_time",
-        e.trace_id as "trace_id",
-        e.completion_start_time as "completion_start_time",
-        e.provided_usage_details as "provided_usage_details",
-        e.usage_details as "usage_details",
-        e.provided_cost_details as "provided_cost_details",
-        e.cost_details as "cost_details",
-        e.level as level,
-        e.environment as "environment",
-        e.status_message as "status_message",
-        e.version as version,
-        e.parent_span_id as "parent_observation_id",
-        e.created_at as "created_at",
-        e.updated_at as "updated_at",
-        e.provided_model_name as "provided_model_name",
-        e.total_cost as "total_cost",
-        e.prompt_id as "prompt_id",
-        e.prompt_name as "prompt_name",
-        e.prompt_version as "prompt_version",
-        e.model_id as "internal_model_id",
-        if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
-        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
-
   const {
     projectId,
     filter,
@@ -279,10 +542,7 @@ const getObservationsFromEventsTableInternal = async <T>(
     clickhouseConfigs,
   } = opts;
 
-  const selectString = selectIOAndMetadata
-    ? `${select}, e.input, e.output, e.metadata`
-    : select;
-
+  // Build filter list
   const observationsFilter = new FilterList([
     new StringFilter({
       clickhouseTable: "events",
@@ -298,64 +558,33 @@ const getObservationsFromEventsTableInternal = async <T>(
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
-
   const hasScoresFilter = filter.some((f) =>
     f.column.toLowerCase().includes("scores"),
   );
-
-  const scoresParams = hasScoresFilter
-    ? {
-        projectId: projectId,
-        startTimeFrom: startTimeFrom,
-      }
-    : {};
-
   const appliedObservationsFilter = observationsFilter.apply();
-
   const search = clickhouseSearchCondition(
     opts.searchQuery,
     opts.searchType,
     "e",
   );
 
-  // Query optimisation: joining traces onto observations is expensive.
+  // Query optimization: joining traces onto observations is expensive.
   // Hence, only join if the UI table contains filters on traces.
-  // Joins with traces are very expensive. We need to filter by time as well.
-  // We assume that a trace has to have been within the last 2 days to be relevant.
   const traceTableFilter = filter.filter((f) =>
     eventsTableLegacyTraceUiColumnDefinitions.some(
       (c) => c.uiTableId === f.column || c.uiTableName === f.column,
     ),
   );
-
   const orderByTraces = orderBy
     ? eventsTableLegacyTraceUiColumnDefinitions.some(
         (c) =>
           c.uiTableId === orderBy.column || c.uiTableName === orderBy.column,
       )
     : undefined;
+  const needsTraceJoin =
+    traceTableFilter.length > 0 || orderByTraces || search.query;
 
-  // Build CTEs - only include what's needed
-  const ctes: string[] = [];
-  if (hasScoresFilter) {
-    ctes.push(
-      eventsScoresAggregation({
-        projectId,
-        startTimeFrom,
-      }),
-    );
-  }
-
-  if (traceTableFilter.length > 0 || orderByTraces || search.query) {
-    ctes.push(
-      `traces AS (${eventsTracesAggregation({
-        projectId,
-        startTimeFrom,
-      })})`,
-    );
-  }
-
-  // When we have default ordering by time, we order by toUnixTimestamp(o.start_time)
+  // When we have default ordering by time, we order by toUnixTimestamp(e.start_time)
   // This way, clickhouse is able to read more efficiently directly from disk without ordering
   const newDefaultOrder =
     orderBy?.column === "startTime"
@@ -372,33 +601,52 @@ const getObservationsFromEventsTableInternal = async <T>(
     },
   ]);
 
-  const query = `
-      ${ctes.length > 0 ? `WITH ${ctes.join(",\n")}` : ""}
-      SELECT
-       ${selectString}
-      FROM events e
-        ${
-          traceTableFilter.length > 0 || orderByTraces || search.query
-            ? "LEFT JOIN traces t ON t.id = e.trace_id AND t.project_id = e.project_id"
-            : ""
-        }
-        ${hasScoresFilter ? `LEFT JOIN scores_agg AS s ON s.trace_id = e.trace_id and s.observation_id = e.span_id` : ""}
-      WHERE ${appliedObservationsFilter.query}
-        ${search.query}
-      ${chOrderBy}
-      ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : "LIMIT 1000"};`;
+  // Build query using EventsQueryBuilder
+  const queryBuilder = new EventsQueryBuilder();
+
+  if (opts.select === "count") {
+    queryBuilder.selectFieldSet("count");
+  } else {
+    queryBuilder.selectFieldSet("base", "calculated");
+    if (selectIOAndMetadata) {
+      queryBuilder.selectFieldSet("io", "metadata");
+    }
+  }
+
+  queryBuilder
+    .when(hasScoresFilter, (b) =>
+      b.withCTE("scores_agg", eventsScoresAggregation, {
+        projectId,
+        startTimeFrom,
+      }),
+    )
+    .when(!!needsTraceJoin, (b) =>
+      b.withCTE("traces", eventsTracesAggregation, {
+        projectId,
+        startTimeFrom,
+      }),
+    )
+    .when(!!needsTraceJoin, (b) =>
+      b.leftJoin(
+        "traces t",
+        "ON t.id = e.trace_id AND t.project_id = e.project_id",
+      ),
+    )
+    .when(hasScoresFilter, (b) =>
+      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+    )
+    .where(appliedObservationsFilter)
+    .where(search)
+    .orderBy(chOrderBy)
+    .limit(limit, offset);
+
+  const { query, params } = queryBuilder.buildWithParams();
 
   return measureAndReturn({
     operationName: "getObservationsFromEventsTableInternal",
     projectId,
     input: {
-      params: {
-        projectId,
-        startTimeFrom,
-        ...scoresParams,
-        ...appliedObservationsFilter.params,
-        ...search.params,
-      },
+      params,
       tags: {
         ...(opts.tags ?? {}),
         feature: "tracing",
@@ -495,56 +743,34 @@ const getObservationByIdFromEventsTableInternal = async ({
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
-  const query = `
-  SELECT
-    span_id as id,
-    trace_id,
-    project_id,
-    environment,
-    type,
-    parent_span_id as parent_observation_id,
-    start_time,
-    end_time,
-    name,
-    metadata,
-    level,
-    status_message,
-    version,
-    ${fetchWithInputOutput ? (renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input, leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,` : "input, output,") : ""}
-    provided_model_name,
-    model_id as internal_model_id,
-    model_parameters,
-    provided_usage_details,
-    usage_details,
-    provided_cost_details,
-    cost_details,
-    total_cost,
-    completion_start_time,
-    prompt_id,
-    prompt_name,
-    prompt_version,
-    created_at,
-    updated_at,
-    event_ts
-  FROM events
-  WHERE span_id = {id: String}
-  AND project_id = {projectId: String}
-  ${startTime ? `AND toDate(start_time) = toDate({startTime: DateTime64(3)})` : ""}
-  ${type ? `AND type = {type: String}` : ""}
-  ${traceId ? `AND trace_id = {traceId: String}` : ""}
-  ORDER BY toUnixTimestamp(start_time) DESC, event_ts DESC
-  LIMIT 1`;
+  // Build query using EventsQueryBuilder with automatic param tracking
+  const queryBuilder = new EventsQueryBuilder()
+    .selectFieldSet("byIdBase", "byIdModel", "byIdPrompt", "byIdTimestamps")
+    .when(fetchWithInputOutput, (b) =>
+      b.selectIO(
+        renderingProps.truncated,
+        env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
+      ),
+    )
+    .whereRaw("span_id = {id: String}", { id })
+    .whereRaw("project_id = {projectId: String}", { projectId })
+    .when(Boolean(startTime), (b) =>
+      b.whereRaw("toDate(start_time) = toDate({startTime: DateTime64(3)})", {
+        startTime: convertDateToClickhouseDateTime(startTime!),
+      }),
+    )
+    .when(Boolean(type), (b) => b.whereRaw("type = {type: String}", { type }))
+    .when(Boolean(traceId), (b) =>
+      b.whereRaw("trace_id = {traceId: String}", { traceId }),
+    )
+    .orderBy("ORDER BY toUnixTimestamp(start_time) DESC, event_ts DESC")
+    .limit(1, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
   return await queryClickhouse<ObservationRecordReadType>({
     query,
-    params: {
-      id,
-      projectId,
-      ...(startTime
-        ? { startTime: convertDateToClickhouseDateTime(startTime) }
-        : {}),
-      ...(type ? { type } : {}),
-      ...(traceId ? { traceId } : {}),
-    },
+    params,
     tags: {
       feature: "tracing",
       type: "events",
@@ -602,74 +828,45 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
 
   // Extract time filter using helper
   const startTimeFrom = extractTimeFilter(observationsFilter);
-
   const appliedFilter = observationsFilter.apply();
 
-  // Build SELECT clause based on query type
-  const select =
-    opts.select === "count"
-      ? "count(*) as count"
-      : `
-    e.span_id as id,
-    e.type as type,
-    e.project_id as "project_id",
-    e.name as name,
-    e."model_parameters" as model_parameters,
-    e.start_time as "start_time",
-    e.end_time as "end_time",
-    e.trace_id as "trace_id",
-    e.completion_start_time as "completion_start_time",
-    e.provided_usage_details as "provided_usage_details",
-    e.usage_details as "usage_details",
-    e.provided_cost_details as "provided_cost_details",
-    e.cost_details as "cost_details",
-    e.level as level,
-    e.environment as "environment",
-    e.status_message as "status_message",
-    e.version as version,
-    e.parent_span_id as "parent_observation_id",
-    e.created_at as "created_at",
-    e.updated_at as "updated_at",
-    e.provided_model_name as "provided_model_name",
-    e.total_cost as "total_cost",
-    e.prompt_id as "prompt_id",
-    e.prompt_name as "prompt_name",
-    e.prompt_version as "prompt_version",
-    e.model_id as "internal_model_id",
-    if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
-    if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token",
-    e.input,
-    e.output,
-    e.metadata`;
+  // Build query using EventsQueryBuilder
+  const queryBuilder = new EventsQueryBuilder();
 
-  // Build CTEs - only include traces if needed
-  const tracesCte = hasTraceFilter
-    ? `traces AS (${eventsTracesAggregation({ projectId, startTimeFrom })})`
-    : "";
+  if (opts.select === "count") {
+    queryBuilder.selectFieldSet("count");
+  } else {
+    queryBuilder.selectFieldSet("base", "calculated", "io", "metadata");
+  }
 
-  // Build query with conditional CTE
-  const query = `
-    ${tracesCte ? `WITH ${tracesCte}` : ""}
-    SELECT ${select}
-    FROM events e
-    ${hasTraceFilter ? "LEFT JOIN traces t ON t.id = e.trace_id AND t.project_id = e.project_id" : ""}
-    WHERE ${appliedFilter.query}
-    ${opts.select === "rows" ? "ORDER BY toUnixTimestamp(e.start_time) DESC" : ""}
-    ${opts.select === "rows" ? "LIMIT {limit: Int32} OFFSET {offset: Int32}" : ""}
-  `;
+  queryBuilder
+    .when(hasTraceFilter, (b) =>
+      b.withCTE("traces", eventsTracesAggregation, {
+        projectId,
+        startTimeFrom,
+      }),
+    )
+    .when(hasTraceFilter, (b) =>
+      b.leftJoin(
+        "traces t",
+        "ON t.id = e.trace_id AND t.project_id = e.project_id",
+      ),
+    )
+    .where(appliedFilter);
+
+  if (opts.select === "rows") {
+    queryBuilder
+      .orderBy("ORDER BY toUnixTimestamp(e.start_time) DESC")
+      .limit(limit, (page - 1) * limit);
+  }
+
+  const { query, params } = queryBuilder.buildWithParams();
 
   const result = await measureAndReturn({
     operationName: `getObservationsFromEventsTableForPublicApi_${opts.select}`,
     projectId,
     input: {
-      params: {
-        projectId,
-        startTimeFrom,
-        ...appliedFilter.params,
-        ...(opts.select === "rows"
-          ? { limit, offset: (page - 1) * limit }
-          : {}),
-      },
+      params,
       tags: {
         feature: "tracing",
         type: "events",

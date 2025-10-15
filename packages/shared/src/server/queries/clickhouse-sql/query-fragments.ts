@@ -69,46 +69,44 @@ export const eventsScoresAggregation = (
   params: EventsScoresAggregationParams,
 ) => {
   return `
-    scores_agg AS (
+    SELECT
+      trace_id,
+      observation_id,
+      -- For numeric scores, use tuples of (name, avg_value)
+      groupArrayIf(
+        tuple(name, avg_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')
+      ) AS scores_avg,
+      -- For categorical scores, use name:value format for improved query performance
+      groupArrayIf(
+        concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+      ) AS score_categories
+    FROM (
       SELECT
         trace_id,
         observation_id,
-        -- For numeric scores, use tuples of (name, avg_value)
-        groupArrayIf(
-          tuple(name, avg_value),
-          data_type IN ('NUMERIC', 'BOOLEAN')
-        ) AS scores_avg,
-        -- For categorical scores, use name:value format for improved query performance
-        groupArrayIf(
-          concat(name, ':', string_value),
-          data_type = 'CATEGORICAL' AND notEmpty(string_value)
-        ) AS score_categories
-      FROM (
-        SELECT
-          trace_id,
-          observation_id,
-          name,
-          avg(value) avg_value,
-          string_value,
-          data_type,
-          comment
-        FROM
-          scores FINAL
-        WHERE project_id = {projectId: String}
-        ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
-        GROUP BY
-          trace_id,
-          observation_id,
-          name,
-          string_value,
-          data_type,
-          comment
-        ORDER BY
-          trace_id
-        ) tmp
+        name,
+        avg(value) avg_value,
+        string_value,
+        data_type,
+        comment
+      FROM
+        scores FINAL
+      WHERE project_id = {projectId: String}
+      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
       GROUP BY
         trace_id,
-        observation_id
-    )
+        observation_id,
+        name,
+        string_value,
+        data_type,
+        comment
+      ORDER BY
+        trace_id
+      ) tmp
+    GROUP BY
+      trace_id,
+      observation_id
   `.trim();
 };

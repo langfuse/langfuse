@@ -22,5 +22,6 @@ export { createFilterFromFilterState } from "./clickhouse-sql/factory";
 export { clickhouseSearchCondition } from "./clickhouse-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
+  createPublicApiObservationsColumnMapping,
   type ApiColumnMapping,
 } from "./public-api-filter-builder";

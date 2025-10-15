@@ -131,12 +131,6 @@ export const transformDbToApiObservation = (
     outputUsage,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     totalUsage,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    traceName,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    traceTags,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    traceTimestamp,
     ...rest
   } = observation;
 
@@ -166,6 +160,11 @@ export const transformDbToApiObservation = (
  * Endpoints
  */
 
+const useEventsTableSchema = z
+  .union([z.literal("true"), z.literal("false"), z.boolean()])
+  .transform((val) => val === "true" || val === true)
+  .nullish();
+
 // GET /observations
 export const GetObservationsV1Query = z.object({
   ...publicApiPaginationZod,
@@ -179,10 +178,7 @@ export const GetObservationsV1Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
-  useEventsTable: z
-    .union([z.literal("true"), z.literal("false"), z.boolean()])
-    .transform((val) => val === "true" || val === true)
-    .nullish(),
+  useEventsTable: useEventsTableSchema,
 });
 export const GetObservationsV1Response = z
   .object({
@@ -194,9 +190,6 @@ export const GetObservationsV1Response = z
 // GET /observations/{observationId}
 export const GetObservationV1Query = z.object({
   observationId: z.string(),
-  useEventsTable: z
-    .union([z.literal("true"), z.literal("false"), z.boolean()])
-    .transform((val) => val === "true" || val === true)
-    .nullish(),
+  useEventsTable: useEventsTableSchema,
 });
 export const GetObservationV1Response = APIObservation;
