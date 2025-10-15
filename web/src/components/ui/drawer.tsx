@@ -34,7 +34,7 @@ const drawerVariants = cva(
         full: "w-full",
       },
       position: {
-        top: "md:bottom-0 md:top-[var(--banner-height,0px)] md:max-h-[calc(100%-var(--banner-height,0px))]",
+        top: "md:bottom-0 md:top-banner-offset md:max-h-screen-with-banner",
       },
       height: {
         default: "h-1/3 md:h-full",

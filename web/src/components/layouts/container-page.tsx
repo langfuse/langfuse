@@ -14,21 +14,19 @@ const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
 
   return (
     <div
-      className={cn(
-        "relative flex min-h-[calc(100svh-var(--banner-height,0px))] flex-1 flex-col",
-      )}
+      className={cn("relative flex min-h-screen-with-banner flex-1 flex-col")}
     >
       <header
         className={cn(
-          "sticky top-[var(--banner-height,0px)] z-50 w-full",
-          supportDrawerIsOpen && "top-0", // if the support drawer is open the parent element changes (see layout.tsx) and we need to adjust the top position
+          "sticky z-50 w-full",
+          supportDrawerIsOpen ? "top-0" : "top-banner-offset", // if the support drawer is open the parent element changes (see layout.tsx) and we need to adjust the top position
         )}
       >
         <PageHeader {...headerProps} container />
       </header>
       <main
         className={cn(
-          "relative flex min-h-[calc(100svh-var(--banner-height,0px))] flex-1 flex-col p-3 lg:container",
+          "relative flex min-h-screen-with-banner flex-1 flex-col p-3 lg:container",
         )}
       >
         {children}

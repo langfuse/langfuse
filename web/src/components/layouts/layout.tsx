@@ -340,7 +340,7 @@ export default function Layout(props: PropsWithChildren) {
         <SidebarProvider>
           <div className="flex h-dvh w-full flex-col">
             <PaymentBanner />
-            <div className="flex min-h-0 flex-1 pt-[var(--banner-height,0px)]">
+            <div className="flex min-h-0 flex-1 pt-banner-offset">
               <AppSidebar
                 navItems={mainNavigation}
                 secondaryNavItems={secondaryNavigation}
@@ -353,7 +353,7 @@ export default function Layout(props: PropsWithChildren) {
                   },
                 }}
               />
-              <SidebarInset className="h-[calc(100%-var(--banner-height,0px))] max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
+              <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
                 <ResizableContent>{props.children}</ResizableContent>
                 <Toaster visibleToasts={1} />
                 <CommandMenu mainNavigation={navigation} />
@@ -424,7 +424,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
         <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
           <DrawerContent
             id="support-drawer"
-            className="inset-x-0 bottom-0 top-[calc(var(--banner-height,0px)+10px)] min-h-[calc(100%-var(--banner-height,0px))]"
+            className="inset-x-0 bottom-0 top-[calc(var(--banner-offset)+10px)] min-h-screen-with-banner"
             size="full"
           >
             <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">

@@ -23,16 +23,14 @@ const Page = ({
     <div
       className={cn(
         "flex flex-col",
-        scrollable
-          ? "relative flex min-h-[calc(100svh-var(--banner-height,0px))] flex-1"
-          : "h-full",
+        scrollable ? "relative flex min-h-screen-with-banner flex-1" : "h-full",
       )}
       id="page"
     >
       <header
         className={cn(
-          ["sticky top-[var(--banner-height,0px)] z-50 w-full"],
-          supportDrawerIsOpen && "top-0", // if the support drawer is open the parent element changes (see layout.tsx) and we need to adjust the top position
+          "sticky z-50 w-full",
+          supportDrawerIsOpen ? "top-0" : "top-banner-offset", // if the support drawer is open the parent element changes (see layout.tsx) and we need to adjust the top position
         )}
       >
         <PageHeader {...headerProps} container={false} className={"top-0"} />
@@ -41,7 +39,7 @@ const Page = ({
         className={cn(
           "flex flex-1 flex-col",
           scrollable
-            ? "relative flex min-h-[calc(100svh-var(--banner-height,0px))]"
+            ? "relative flex min-h-screen-with-banner"
             : "h-full overflow-hidden",
           withPadding && "p-3",
         )}
