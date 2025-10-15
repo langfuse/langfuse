@@ -1,6 +1,7 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import { useEffect } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -700,6 +701,88 @@ export function ConversationSummaryPage() {
       ),
     },
   );
+
+  // Console log "time-to-first-token" scores for each turn
+  useEffect(() => {
+    try {
+      // Only process if we have valid trace scores data and it's not loading
+      if (
+        !traceScores.isLoading &&
+        !traceScores.isError &&
+        traceScores.data?.scores &&
+        conversation.data?.traces
+      ) {
+        // Filter scores to find only those with exact name "time-to-first-token"
+        const ttftScores = traceScores.data.scores.filter(
+          (score) => score?.name === "time-to-first-token",
+        );
+
+        if (ttftScores.length > 0) {
+          // Create flat list with trace ID and turn information
+          const ttftScoresList: Array<{
+            traceId: string;
+            scoreName: string;
+            value: number | null;
+            stringValue: string | null;
+            turnType: "user" | "assistant";
+            scoreId: string;
+          }> = [];
+
+          for (const trace of conversation.data.traces) {
+            if (!trace?.id) continue;
+
+            // Find scores for this trace
+            const traceScores = ttftScores.filter(
+              (score) => score?.traceId === trace.id,
+            );
+
+            // Add entries for both user and assistant turns (if they exist)
+            if (trace.input && traceScores.length > 0) {
+              traceScores.forEach((score) => {
+                ttftScoresList.push({
+                  traceId: trace.id,
+                  scoreName: score.name,
+                  value: score.value,
+                  stringValue: score.stringValue,
+                  turnType: "user",
+                  scoreId: score.id,
+                });
+              });
+            }
+
+            if (trace.output && traceScores.length > 0) {
+              traceScores.forEach((score) => {
+                ttftScoresList.push({
+                  traceId: trace.id,
+                  scoreName: score.name,
+                  value: score.value,
+                  stringValue: score.stringValue,
+                  turnType: "assistant",
+                  scoreId: score.id,
+                });
+              });
+            }
+          }
+
+          console.log(
+            "Time-to-First-Token Scores for Conversation Turns:",
+            ttftScoresList,
+          );
+        } else {
+          console.log(
+            "No 'time-to-first-token' scores found for this conversation",
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error processing TTFT scores:", error);
+    }
+  }, [
+    traceScores.data,
+    traceScores.isLoading,
+    traceScores.isError,
+    conversation.data?.traces,
+  ]);
 
   if (!conversationId || !projectId) {
     return (
