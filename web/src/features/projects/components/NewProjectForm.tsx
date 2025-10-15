@@ -64,6 +64,12 @@ export const NewProjectForm = ({
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-3"
         data-testid="new-project-form"
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            void form.handleSubmit(onSubmit)();
+          }
+        }}
       >
         <FormField
           control={form.control}

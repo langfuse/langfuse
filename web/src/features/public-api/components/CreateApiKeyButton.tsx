@@ -13,10 +13,11 @@ import {
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
+import { cn } from "@/src/utils/tailwind";
+import { SubHeader } from "@/src/components/layouts/header";
 
 type ApiKeyScope = "project" | "organization";
 
@@ -117,15 +118,6 @@ export function CreateApiKeyButton(props: {
             scope={props.scope}
             generatedKeys={generatedKeys ?? undefined}
           />
-          {generatedKeys && props.scope === "project" && (
-            <div className="mt-4 max-w-full">
-              <div className="text-md my-2 font-semibold">Usage</div>
-              <QuickstartExamples
-                secretKey={generatedKeys.secretKey}
-                publicKey={generatedKeys.publicKey}
-              />
-            </div>
-          )}
         </DialogBody>
       </DialogContent>
     </Dialog>
@@ -135,31 +127,40 @@ export function CreateApiKeyButton(props: {
 export const ApiKeyRender = ({
   scope,
   generatedKeys,
+  className,
 }: {
   scope: ApiKeyScope;
   generatedKeys?: { secretKey: string; publicKey: string };
+  className?: string;
 }) => {
   const uiCustomization = useUiCustomization();
   return (
-    <>
-      <div className="mb-4">
-        <div className="text-md font-semibold">Secret Key</div>
-        <div className="my-2 text-sm">
+    <div className={cn("space-y-6", className)}>
+      <div>
+        <SubHeader title="Secret Key" />
+        <div className="text-sm text-muted-foreground">
           This key can only be viewed once. You can always create new keys in
           the {scope} settings.
         </div>
-        <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
-      </div>
-      <div className="mb-4">
-        <div className="text-md mb-2 font-semibold">Public Key</div>
-        <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
-      </div>
-      <div>
-        <div className="text-md mb-2 font-semibold">Host</div>
         <CodeView
-          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+          content={generatedKeys?.secretKey ?? "Loading ..."}
+          className="mt-2"
         />
       </div>
-    </>
+      <div>
+        <SubHeader title="Public Key" />
+        <CodeView
+          content={generatedKeys?.publicKey ?? "Loading ..."}
+          className="mt-2"
+        />
+      </div>
+      <div>
+        <SubHeader title="Host" />
+        <CodeView
+          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+          className="mt-2"
+        />
+      </div>
+    </div>
   );
 };
