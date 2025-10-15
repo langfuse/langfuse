@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
-import { JobConfigState } from "@prisma/client";
+import { JobConfigState, JobExecutionStatus } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
@@ -497,10 +497,6 @@ export const createEvalJobs = async ({
     if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
       const jobExecutionId = randomUUID();
 
-      // Use a deterministic trace ID derived from the job execution ID
-      // This is useful to group all retries for a given job execution ID into one trace
-      const executionTraceId = createW3CTraceId(jobExecutionId);
-
       // deduplication: if a job exists already for a trace event, we do not create a new one.
       if (existingJob.length > 0) {
         logger.debug(
@@ -533,7 +529,6 @@ export const createEvalJobs = async ({
           jobInputTraceId: event.traceId,
           jobInputTraceTimestamp: traceTimestamp,
           jobTemplateId: config.eval_template_id,
-          executionTraceId,
           status: "PENDING",
           startTime: new Date(),
           ...(datasetItem
@@ -574,12 +569,17 @@ export const createEvalJobs = async ({
         logger.debug(
           `Cancelling eval job for config ${config.id} and trace ${event.traceId}`,
         );
-        await kyselyPrisma.$kysely
-          .updateTable("job_executions")
-          .set("status", sql`'CANCELLED'::"JobExecutionStatus"`)
-          .set("end_time", new Date())
-          .where("id", "=", existingJob[0].id)
-          .execute();
+
+        await prisma.jobExecution.update({
+          where: {
+            id: existingJob[0].id,
+            projectId: event.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.CANCELLED,
+            endTime: new Date(),
+          },
+        });
       }
     }
   }
@@ -595,12 +595,12 @@ export const evaluate = async ({
     `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
   // first, fetch all the context required for the evaluation
-  const job = await kyselyPrisma.$kysely
-    .selectFrom("job_executions")
-    .selectAll()
-    .where("id", "=", event.jobExecutionId)
-    .where("project_id", "=", event.projectId)
-    .executeTakeFirst();
+  const job = await prisma.jobExecution.findFirst({
+    where: {
+      id: event.jobExecutionId,
+      projectId: event.projectId,
+    },
+  });
 
   if (!job) {
     logger.info(
@@ -609,37 +609,38 @@ export const evaluate = async ({
     return;
   }
 
-  if (job.status === "CANCELLED" || !job?.job_input_trace_id) {
+  if (job.status === "CANCELLED" || !job?.jobInputTraceId) {
     logger.debug(`Job ${job.id} for project ${event.projectId} was cancelled.`);
 
-    await kyselyPrisma.$kysely
-      .deleteFrom("job_executions")
-      .where("id", "=", job.id)
-      .where("project_id", "=", event.projectId)
-      .execute();
+    await prisma.jobExecution.delete({
+      where: {
+        id: job.id,
+        projectId: event.projectId,
+      },
+    });
 
     return;
   }
 
-  const config = await kyselyPrisma.$kysely
-    .selectFrom("job_configurations")
-    .selectAll()
-    .where("id", "=", job.job_configuration_id)
-    .where("project_id", "=", event.projectId)
-    .executeTakeFirstOrThrow();
+  const config = await prisma.jobConfiguration.findFirst({
+    where: {
+      id: job.jobConfigurationId,
+      projectId: event.projectId,
+    },
+  });
 
-  if (!config || !config.eval_template_id) {
+  if (!config || !config.evalTemplateId) {
     logger.error(
-      `Eval template not found for config ${config.eval_template_id}`,
+      `Eval template not found for config ${config?.evalTemplateId}`,
     );
     throw new InvalidRequestError(
-      `Eval template not found for config ${config.eval_template_id}`,
+      `Eval template not found for config ${config?.evalTemplateId}`,
     );
   }
 
   const template = await prisma.evalTemplate.findFirstOrThrow({
     where: {
-      id: config.eval_template_id,
+      id: config.evalTemplateId,
       OR: [{ projectId: event.projectId }, { projectId: null }],
     },
   });
@@ -650,16 +651,16 @@ export const evaluate = async ({
 
   // selectedcolumnid is not safe to use, needs validation in extractVariablesFromTrace()
   const parsedVariableMapping = variableMappingList.parse(
-    config.variable_mapping,
+    config.variableMapping,
   );
 
   // extract the variables which need to be inserted into the prompt
   const mappingResult = await extractVariablesFromTracingData({
     projectId: event.projectId,
     variables: template.vars,
-    traceId: job.job_input_trace_id,
-    traceTimestamp: job.job_input_trace_timestamp ?? undefined,
-    datasetItemId: job.job_input_dataset_item_id ?? undefined,
+    traceId: job.jobInputTraceId,
+    traceTimestamp: job.jobInputTraceTimestamp ?? undefined,
+    datasetItemId: job.jobInputDatasetItemId ?? undefined,
     variableMapping: parsedVariableMapping,
   });
 
@@ -755,10 +756,10 @@ export const evaluate = async ({
       environment: "langfuse-llm-as-a-judge",
       metadata: {
         job_execution_id: event.jobExecutionId,
-        job_configuration_id: job.job_configuration_id,
-        target_trace_id: job.job_input_trace_id,
-        target_observation_id: job.job_input_observation_id,
-        target_dataset_item_id: job.job_input_dataset_item_id,
+        job_configuration_id: job.jobConfigurationId,
+        target_trace_id: job.jobInputTraceId,
+        target_observation_id: job.jobInputObservationId,
+        target_dataset_item_id: job.jobInputDatasetItemId,
         score_id: scoreId,
       },
     },
@@ -777,9 +778,9 @@ export const evaluate = async ({
 
   const baseScore = {
     id: scoreId,
-    traceId: job.job_input_trace_id,
-    observationId: job.job_input_observation_id,
-    name: config.score_name,
+    traceId: job.jobInputTraceId,
+    observationId: job.jobInputObservationId,
+    name: config.scoreName,
     value: parsedLLMOutput.data.score,
     comment: parsedLLMOutput.data.reasoning,
     source: ScoreSource.EVAL,
@@ -835,16 +836,21 @@ export const evaluate = async ({
   }
 
   logger.debug(
-    `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`,
+    `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.jobInputTraceId}`,
   );
 
-  await kyselyPrisma.$kysely
-    .updateTable("job_executions")
-    .set("status", sql`'COMPLETED'::"JobExecutionStatus"`)
-    .set("end_time", new Date())
-    .set("job_output_score_id", scoreId)
-    .where("id", "=", event.jobExecutionId)
-    .execute();
+  await prisma.jobExecution.update({
+    where: {
+      id: event.jobExecutionId,
+      projectId: event.projectId,
+    },
+    data: {
+      status: JobExecutionStatus.COMPLETED,
+      endTime: new Date(),
+      jobOutputScoreId: scoreId,
+      executionTraceId,
+    },
+  });
 
   logger.debug(
     `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.data.score}`,
