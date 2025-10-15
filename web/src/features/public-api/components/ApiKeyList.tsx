@@ -109,7 +109,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
           <TableBody className="text-muted-foreground">
             {apiKeysQuery.data?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={5} className="text-center">
                   None
                 </TableCell>
               </TableRow>
