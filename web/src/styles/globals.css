@@ -238,3 +238,17 @@
     }
   }
 }
+
+/* 
+ * Fix for Vaul drawer blocking text selection
+ * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
+ * We override this for drawers that set blockTextSelection={false}
+ * See: node_modules/vaul/dist/index.js line 84
+ */
+[data-vaul-drawer][data-allow-text-selection="true"],
+[data-vaul-drawer][data-allow-text-selection="true"] * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}

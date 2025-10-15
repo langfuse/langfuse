@@ -227,7 +227,7 @@ export function CommentList({
                       : (comment.authorUserId ?? "U")}
                   </AvatarFallback>
                 </Avatar>
-                <div className="relative rounded-md" data-vaul-no-drag>
+                <div className="relative rounded-md">
                   <div className="flex h-6 flex-row items-center justify-between px-1 py-0 text-sm">
                     <div className="text-sm font-medium">
                       {comment.authorUserName ?? comment.authorUserId ?? "User"}
