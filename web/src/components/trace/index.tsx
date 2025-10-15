@@ -100,6 +100,8 @@ export function Trace(props: {
     "traceTreeWidth",
     30,
   );
+  // Counter that increments on collapse/uncollapse to force remount
+  const [collapseToggleCount, setCollapseToggleCount] = useState(0);
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
 
   // TODO: remove, kinda hacky
@@ -141,7 +143,9 @@ export function Trace(props: {
   // store trace tree width in local storage
   const handleLayout = useCallback(
     (sizes: number[]) => {
-      if (!isTreePanelCollapsed && sizes[0] !== undefined) {
+      // TODO: fix race confition with multiple tabs open!
+      // Only save when not collapsed AND width is meaningful (> 5%)
+      if (!isTreePanelCollapsed && sizes[0] !== undefined && sizes[0] > 5) {
         setTraceTreeWidth(sizes[0]);
       }
     },
@@ -559,9 +563,10 @@ export function Trace(props: {
             direction="horizontal"
             className="flex-1 md:h-full"
             onLayout={handleLayout}
+            key={`panel-${collapseToggleCount}`}
           >
             <ResizablePanel
-              size={isTreePanelCollapsed ? 0 : traceTreeWidth}
+              defaultSize={isTreePanelCollapsed ? 0 : traceTreeWidth}
               minSize={isTreePanelCollapsed ? 0 : panelState.minSize}
               maxSize={isTreePanelCollapsed ? 0 : panelState.maxSize}
               className="md:flex md:h-full md:flex-col md:overflow-hidden"
@@ -574,6 +579,7 @@ export function Trace(props: {
                     size="icon"
                     onClick={() => {
                       setIsTreePanelCollapsed(false);
+                      setCollapseToggleCount((c) => c + 1);
                       capture("trace_detail:tree_panel_toggle", {
                         collapsed: false,
                       });
@@ -738,6 +744,7 @@ export function Trace(props: {
                           onClick={() => {
                             const newCollapsedState = !isTreePanelCollapsed;
                             setIsTreePanelCollapsed(newCollapsedState);
+                            setCollapseToggleCount((c) => c + 1);
                             capture("trace_detail:tree_panel_toggle", {
                               collapsed: newCollapsedState,
                             });
