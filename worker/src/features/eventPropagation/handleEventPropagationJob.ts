@@ -256,7 +256,7 @@ export const handleEventPropagationJob = async (
         await queue.add(
           QueueJobs.EventPropagationJob,
           { timestamp: new Date(), id: randomUUID() },
-          { delay: 10000 }, // 10 second delay
+          { delay: 1000 }, // 1 second delay
         );
         logger.info(
           `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
