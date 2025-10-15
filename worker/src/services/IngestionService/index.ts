@@ -13,6 +13,7 @@ import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
+  convertTraceToStagingObservation,
   eventTypes,
   IngestionEntityTypes,
   IngestionEventType,
@@ -577,7 +578,7 @@ export class IngestionService {
       entityId,
       createdAtTimestamp,
       traceEventList,
-      // createEventTraceRecord,
+      createEventTraceRecord,
     } = params;
     if (traceEventList.length === 0) return;
 
@@ -664,9 +665,18 @@ export class IngestionService {
       }
     }
 
-    // TODO: If createEventTraceRecord is true, create a corresponding event in the events table.
-    // Here, we pretend that the current trace is a "span" where we set the spanId = traceId.
-    // The corresponding root span, will set the traceId as parentSpanId to keep the existing "wrapper" behaviour.
+    // Dual-write to staging table for batch propagation to events table
+    // We pretend the trace is a "span" where span_id = trace_id
+    if (createEventTraceRecord) {
+      const traceAsStagingObservation = convertTraceToStagingObservation(
+        finalTraceRecord,
+        createdAtTimestamp.getTime(),
+      );
+      this.clickHouseWriter.addToQueue(
+        TableName.ObservationsBatchStaging,
+        traceAsStagingObservation,
+      );
+    }
 
     // Add trace into trace upsert queue for eval processing
     // First check if we already know this project has no job configurations
@@ -995,18 +1005,18 @@ export class IngestionService {
     | {}
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = observationRecord.provided_model_name
-      ? await findModel({
-          projectId,
-          model: observationRecord.provided_model_name,
-        })
-      : null;
+    const { model: internalModel, prices: modelPrices } =
+      observationRecord.provided_model_name
+        ? await findModel({
+            projectId,
+            model: observationRecord.provided_model_name,
+          })
+        : { model: null, prices: [] };
 
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
-    const modelPrices = await this.getModelPrices(internalModel?.id);
 
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
@@ -1027,12 +1037,6 @@ export class IngestionService {
       ...final_cost_details,
       internal_model_id: internalModel?.id,
     };
-  }
-
-  private async getModelPrices(modelId?: string): Promise<Price[]> {
-    return modelId
-      ? ((await this.prisma.price.findMany({ where: { modelId } })) ?? [])
-      : [];
   }
 
   private async getUsageUnits(
