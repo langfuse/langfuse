@@ -553,7 +553,7 @@ export function Trace(props: {
               }
             >
               {isTreePanelCollapsed ? (
-                <div className="flex h-full w-12 items-center justify-center border-r">
+                <div className="flex h-full w-12 items-start justify-center border-r pt-2">
                   <Button
                     variant="ghost"
                     size="icon"
