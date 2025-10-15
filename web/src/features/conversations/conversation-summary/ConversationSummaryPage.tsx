@@ -179,7 +179,7 @@ const TTFTHistogram = ({ ttftValues }: { ttftValues: number[] }) => {
             <TooltipProvider key={i}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex flex-1 flex-col items-center">
+                  <div className="flex h-full flex-1 flex-col-reverse items-center">
                     <div
                       className="w-full bg-blue-500/70 transition-all hover:bg-blue-600/80 dark:bg-blue-400/70 dark:hover:bg-blue-300/80"
                       style={{
