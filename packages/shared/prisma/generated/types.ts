@@ -100,6 +100,7 @@ export const JobExecutionStatus = {
   ERROR: "ERROR",
   PENDING: "PENDING",
   CANCELLED: "CANCELLED",
+  DELAYED: "DELAYED",
 } as const;
 export type JobExecutionStatus =
   (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];

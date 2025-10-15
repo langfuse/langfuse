@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
-import { retryLLMRateLimitError } from "../features/utils";
+import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 
 const nonRetryableLLMErrorMessageSubstrings = [
   "Request timed out",
@@ -143,7 +143,24 @@ export const evalJobExecutorQueueProcessor = async (
       delayFn: delayInMs,
     });
 
-    if (hasScheduledRateLimitRetry) return;
+    // Use the deterministic execution trace ID to update the job execution
+    const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
+
+    if (hasScheduledRateLimitRetry) {
+      await prisma.jobExecution.update({
+        where: {
+          id: job.data.payload.jobExecutionId,
+          projectId: job.data.payload.projectId,
+        },
+        data: {
+          status: JobExecutionStatus.DELAYED,
+          executionTraceId,
+        },
+      });
+
+      // Return early as we have already scheduled a delayed retry
+      return;
+    }
 
     // we are left with non-429 LLM responses and application errors here.
     await prisma.jobExecution.update({
@@ -157,6 +174,7 @@ export const evalJobExecutorQueueProcessor = async (
         error: isLLMCompletionError(e)
           ? e.message
           : "An internal error occurred",
+        executionTraceId,
       },
     });
 

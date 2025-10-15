@@ -901,6 +901,7 @@ enum JobExecutionStatus {
   ERROR
   PENDING
   CANCELLED
+  DELAYED
 }
 
 model JobExecution {

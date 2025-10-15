@@ -6,7 +6,7 @@ import {
   RetryBaggage,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
+import { prisma, kyselyPrisma } from "@langfuse/shared/src/db";
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 
