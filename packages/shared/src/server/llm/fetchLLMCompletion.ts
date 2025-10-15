@@ -413,7 +413,7 @@ export async function fetchLLMCompletion(
     }
 
     throw new LLMCompletionError({
-      message: `{e}`,
+      message: String(e),
       responseStatusCode: (e as any)?.response?.status ?? (e as any)?.status,
     });
   } finally {

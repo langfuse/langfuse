@@ -1502,7 +1502,7 @@ describe("eval service tests", () => {
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
         new Error(
-          `API key for provider "openai" not found in project ${projectId}.`,
+          `Evaluating job ${jobExecutionId} will fail due to invalid model config: API key for provider "openai" not found in project ${projectId}.`,
         ),
       );
 

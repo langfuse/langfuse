@@ -100,7 +100,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
         streaming: false,
         tools: tools ?? [],
       });
-      return NextResponse.json(result.completion);
+      return NextResponse.json(result);
     }
 
     if (streaming) {
