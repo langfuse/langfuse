@@ -157,7 +157,9 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       res.error = new TRPCError({
         code: res.error.code,
         cause: null, // do not expose stack traces
-        message: isSafeToExpose ? res.error.message : "Internal error",
+        message: isSafeToExpose
+          ? res.error.message
+          : "Internal error. We have been notified and are working on it.",
       });
     }
   }
