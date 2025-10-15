@@ -78,6 +78,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
  * errors on the backend.
  */
 import { initTRPC, TRPCError } from "@trpc/server";
+import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import superjson from "superjson";
 import { ZodError } from "zod/v4";
 import { setUpSuperjson } from "@/src/utils/superjson";
@@ -149,14 +150,14 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
-      // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
+      // - Either the original error message OR "Internal error" if it's a 5xx error
+      const httpStatus = getHTTPStatusCodeFromError(res.error);
+      const isSafeToExpose = httpStatus >= 400 && httpStatus < 500;
+
       res.error = new TRPCError({
         code: res.error.code,
         cause: null, // do not expose stack traces
-        message:
-          res.error.code !== "INTERNAL_SERVER_ERROR"
-            ? res.error.message
-            : "Internal error",
+        message: isSafeToExpose ? res.error.message : "Internal error",
       });
     }
   }
