@@ -40,6 +40,7 @@ function RunAggregateHeader({
         onChange={(filters: FilterState) =>
           debouncedUpdateRunFilters(runId, filters)
         }
+        variant="icon"
       />
     </div>
   );

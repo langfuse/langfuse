@@ -78,8 +78,6 @@ async function processItem(
       traceId: newTraceId,
       observationId: null,
       error: null,
-      input: datasetItem.input,
-      expectedOutput: datasetItem.expectedOutput,
       createdAt: timestamp,
       datasetId: datasetItem.datasetId,
       runId: config.runId,
@@ -177,7 +175,10 @@ async function processLLMCall(
       dataset_id: datasetItem.datasetId,
       dataset_item_id: datasetItem.id,
       structured_output_schema: config.structuredOutputSchema,
+      experiment_name: config.experimentName,
+      experiment_run_name: config.experimentRunName,
     },
+    prompt: config.prompt,
   };
 
   await backOff(

@@ -215,23 +215,8 @@ export const InnerEvaluatorForm = (props: {
     );
 
   const traceFilterOptions = useMemo(() => {
-    // Normalize API response to match TraceOptions type (count should be number, not string)
-    const normalized = traceFilterOptionsResponse.data
-      ? {
-          name: traceFilterOptionsResponse.data.name?.map((n) => ({
-            value: n.value,
-            count: Number(n.count),
-          })),
-          scores_avg: traceFilterOptionsResponse.data.scores_avg,
-          score_categories: traceFilterOptionsResponse.data.score_categories,
-          tags: traceFilterOptionsResponse.data.tags?.map((t) => ({
-            value: t.value,
-          })),
-        }
-      : {};
-
     return {
-      ...normalized,
+      ...(traceFilterOptionsResponse.data ?? {}),
       environment: environmentFilterOptionsResponse.data?.map((e) => ({
         value: e.environment,
       })),

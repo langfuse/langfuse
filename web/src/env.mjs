@@ -126,7 +126,10 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_KEYCLOAK_CHECKS: zAuthChecks,
     AUTH_KEYCLOAK_SCOPE: z.string().optional(),
-    AUTH_KEYCLOAK_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
+    AUTH_KEYCLOAK_ID_TOKEN: z
+      .enum(["true", "false"])
+      .optional()
+      .default("true"),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
     AUTH_CUSTOM_ISSUER: z.string().url().optional(),
@@ -286,6 +289,11 @@ export const env = createEnv({
     LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
     LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
     LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
+
+    // Events table migration
+    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
+      .enum(["true", "false"])
+      .default("false"),
   },
 
   /**
@@ -572,6 +580,9 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
     LANGFUSE_AI_FEATURES_PROJECT_ID:
       process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
+    // Events table migration
+    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

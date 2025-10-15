@@ -191,6 +191,7 @@ const events = {
   navigate_detail_pages: ["button_click_prev_or_next"],
   support_chat: ["initiated", "opened", "message_sent"], // also used on landing page for consistency
   cmd_k_menu: ["opened", "search_entered", "navigated"],
+  spend_alert: ["created", "updated", "deleted"],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

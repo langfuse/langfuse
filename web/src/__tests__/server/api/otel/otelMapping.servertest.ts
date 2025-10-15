@@ -4248,4 +4248,361 @@ describe("OTel Resource Span Mapping", () => {
       expect(updatedTraceEvent.body.sessionId).toBe("new-session");
     });
   });
+
+  describe("Input/Output attribute filtering from metadata", () => {
+    it("should filter Langfuse SDK trace input/output attributes from trace metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const rootSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "root-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Trace-level input/output (should be filtered from trace metadata.attributes)
+                  {
+                    key: "langfuse.trace.input",
+                    value: { stringValue: '{"query": "hello"}' },
+                  },
+                  {
+                    key: "langfuse.trace.output",
+                    value: { stringValue: '{"response": "hi"}' },
+                  },
+                  // Custom attributes (should remain in metadata.attributes)
+                  {
+                    key: "custom_trace_attribute",
+                    value: { stringValue: "should_be_in_metadata" },
+                  },
+                  {
+                    key: "trace_metadata_field",
+                    value: { stringValue: "preserved_value" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const rootEvents = await convertOtelSpanToIngestionEvent(
+        rootSpan,
+        new Set(),
+      );
+
+      const traceEvent = rootEvents.find((e) => e.type === "trace-create");
+
+      // Verify trace input/output are extracted (as JSON strings)
+      expect(traceEvent?.body.input).toEqual('{"query": "hello"}');
+      expect(traceEvent?.body.output).toEqual('{"response": "hi"}');
+
+      // Verify trace input/output keys are NOT in metadata.attributes
+      expect(
+        traceEvent?.body.metadata?.attributes?.["langfuse.trace.input"],
+      ).toBeUndefined();
+      expect(
+        traceEvent?.body.metadata?.attributes?.["langfuse.trace.output"],
+      ).toBeUndefined();
+
+      // Verify custom trace attributes ARE in metadata.attributes
+      expect(
+        traceEvent?.body.metadata?.attributes?.custom_trace_attribute,
+      ).toBe("should_be_in_metadata");
+      expect(traceEvent?.body.metadata?.attributes?.trace_metadata_field).toBe(
+        "preserved_value",
+      );
+    });
+
+    it("should filter Vercel AI SDK input/output attributes from observation metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+      const childSpanId = "abcdef1234567890";
+
+      const vercelAISpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai", // Vercel AI SDK scope name
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(childSpanId, "hex"),
+                parentSpanId: Buffer.from(rootSpanId, "hex"),
+                name: "vercel-ai-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Vercel AI SDK input/output (should be filtered)
+                  {
+                    key: "ai.prompt.messages",
+                    value: {
+                      stringValue: '[{"role":"user","content":"test"}]',
+                    },
+                  },
+                  {
+                    key: "ai.response.text",
+                    value: { stringValue: "AI response text" },
+                  },
+                  // Custom attributes (should remain in metadata.attributes)
+                  {
+                    key: "custom_observation_attribute",
+                    value: { stringValue: "should_remain" },
+                  },
+                  {
+                    key: "request_id",
+                    value: { stringValue: "req-123" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const vercelEvents = await convertOtelSpanToIngestionEvent(
+        vercelAISpan,
+        new Set([traceId]),
+      );
+
+      const vercelObservation = vercelEvents.find(
+        (e) => e.type === "span-create",
+      );
+
+      // Verify Vercel AI SDK input/output are extracted
+      expect(vercelObservation?.body.input).toEqual(
+        JSON.stringify([{ role: "user", content: "test" }]),
+      );
+      expect(vercelObservation?.body.output).toBe("AI response text");
+
+      // Verify Vercel AI SDK keys are NOT in metadata.attributes
+      expect(
+        vercelObservation?.body.metadata?.attributes?.["ai.prompt.messages"],
+      ).toBeUndefined();
+      expect(
+        vercelObservation?.body.metadata?.attributes?.["ai.response.text"],
+      ).toBeUndefined();
+
+      // Verify custom observation attributes ARE in metadata.attributes
+      expect(
+        vercelObservation?.body.metadata?.attributes
+          ?.custom_observation_attribute,
+      ).toBe("should_remain");
+      expect(vercelObservation?.body.metadata?.attributes?.request_id).toBe(
+        "req-123",
+      );
+    });
+
+    it("should filter TraceLoop and MLFlow input/output attributes from observation metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const traceLoopSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "traceloop-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("fedcba0987654321", "hex"),
+                parentSpanId: Buffer.from(rootSpanId, "hex"),
+                name: "traceloop-span",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 3000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // TraceLoop gen_ai attributes (should be filtered)
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "What is AI?" },
+                  },
+                  {
+                    key: "gen_ai.completion.0.content",
+                    value: { stringValue: "AI is..." },
+                  },
+                  // MLFlow attributes (should be filtered)
+                  {
+                    key: "mlflow.spanInputs",
+                    value: { stringValue: '{"question": "test"}' },
+                  },
+                  {
+                    key: "mlflow.spanOutputs",
+                    value: { stringValue: '{"answer": "response"}' },
+                  },
+                  // Custom attributes (should remain)
+                  {
+                    key: "span_custom_field",
+                    value: { stringValue: "custom_value" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const traceLoopEvents = await convertOtelSpanToIngestionEvent(
+        traceLoopSpan,
+        new Set([traceId]),
+      );
+
+      const traceLoopObservation = traceLoopEvents.find(
+        (e) => e.type === "span-create",
+      );
+
+      // Verify TraceLoop input/output are extracted
+      expect(traceLoopObservation?.body.input).toBeDefined();
+      expect(traceLoopObservation?.body.output).toBeDefined();
+
+      // Verify TraceLoop gen_ai keys are NOT in metadata.attributes
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.[
+          "gen_ai.prompt.0.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.[
+          "gen_ai.completion.0.content"
+        ],
+      ).toBeUndefined();
+
+      // Verify MLFlow keys are NOT in metadata.attributes
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.["mlflow.spanInputs"],
+      ).toBeUndefined();
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.["mlflow.spanOutputs"],
+      ).toBeUndefined();
+
+      // Verify custom span attribute IS in metadata.attributes
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.span_custom_field,
+      ).toBe("custom_value");
+    });
+
+    it("should stringify non-string attributes in observation metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const spanWithNonStringAttrs = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "test-scope", version: "1.0.0" },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "test-span",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  // Add input to trigger extraction logic
+                  { key: "input", value: { stringValue: "test input" } },
+                  // Non-string attributes that should be stringified
+                  { key: "count", value: { intValue: { low: 42, high: 0 } } },
+                  { key: "temperature", value: { doubleValue: 0.7 } },
+                  { key: "is_streaming", value: { boolValue: true } },
+                  // String attribute should remain as-is
+                  {
+                    key: "custom_field",
+                    value: { stringValue: "custom-value" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        spanWithNonStringAttrs,
+        new Set([traceId]),
+      );
+
+      const observation = events.find((e) => e.type === "span-create");
+
+      // Verify input is extracted
+      expect(observation?.body.input).toBe("test input");
+
+      // Verify non-string values are stringified in metadata.attributes
+      expect(observation?.body.metadata?.attributes?.count).toBe("42");
+      expect(observation?.body.metadata?.attributes?.temperature).toBe("0.7");
+      expect(observation?.body.metadata?.attributes?.is_streaming).toBe("true");
+      // Verify string values remain strings
+      expect(observation?.body.metadata?.attributes?.custom_field).toBe(
+        "custom-value",
+      );
+    });
+  });
 });

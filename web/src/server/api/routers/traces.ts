@@ -214,15 +214,21 @@ export const traceRouter = createTRPCRouter({
         getTracesGroupedByUsers(
           input.projectId,
           timestampFilter ? [timestampFilter] : [],
+          undefined,
+          100,
+          0,
         ),
         getTracesGroupedBySessionId(
           input.projectId,
           timestampFilter ? [timestampFilter] : [],
+          undefined,
+          100,
+          0,
         ),
       ]);
 
       return {
-        name: traceNames.map((n) => ({ value: n.name, count: n.count })),
+        name: traceNames.map((n) => ({ value: n.name })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
         tags: tags,

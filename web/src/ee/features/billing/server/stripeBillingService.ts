@@ -6,10 +6,9 @@ import { env } from "@/src/env.mjs";
 
 import { parseDbOrg } from "@langfuse/shared";
 import {
-  getTraceCountOfProjectsSinceCreationDate,
-  getObservationCountOfProjectsSinceCreationDate,
-  getScoreCountOfProjectsSinceCreationDate,
   logger,
+  getBillingCycleStart,
+  getBillingCycleEnd,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -28,7 +27,6 @@ import {
   IdempotencyKind,
 } from "@/src/ee/features/billing/utils/stripeIdempotencyKey";
 
-import { UsageAlertService } from "./usageAlertService";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 
 type ProductWithDefaultPrice = Expanded<Stripe.Product, "default_price">;
@@ -260,16 +258,23 @@ class BillingService {
   async getSubscriptionInfo(orgId: string): Promise<BillingSubscriptionInfo> {
     const client = this.stripe;
 
-    const { parsedOrg } = await this.getParsedOrg(orgId);
+    const { org, parsedOrg } = await this.getParsedOrg(orgId);
 
     const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
     if (!subscriptionId) {
-      // No active subscription → nothing scheduled
+      // No active subscription (Hobby plan) → calculate billing period from cached data
+      const now = new Date();
+      const billingCycleStart = getBillingCycleStart(org, now);
+      const billingCycleEnd = getBillingCycleEnd(org, now);
+
       return {
         cancellation: null,
         scheduledChange: null,
-        billingPeriod: null,
+        billingPeriod: {
+          start: billingCycleStart,
+          end: billingCycleEnd,
+        },
         hasValidPaymentMethod: false,
       };
     }
@@ -1551,7 +1556,6 @@ class BillingService {
           billingPeriod,
         };
       } catch (e) {
-        // Fail softly and fallback to Clickhouse
         logger.error(
           "Failed to get usage from Stripe, using usage from Clickhouse",
           { error: e },
@@ -1559,35 +1563,25 @@ class BillingService {
       }
     }
     // [A] End ----------------------------------------------------------------------------------------
-
-    // [B] We have no active subscription -> get usage from Clickhouse for past 30 days (likely hobby plan or fallback)
+    // [B] We have no active subscription -> get usage from cached Organization data (likely hobby plan or fallback)
     // ------------------------------------------------------------------------------------------------
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-    const projectIds = org.projects.map((p) => p.id);
+    // Use cached usage data populated by background job (runs every 60 minutes)
+    const cachedUsage = org.cloudCurrentCycleUsage ?? 0;
 
-    const [countTraces, countObservations, countScores] = await Promise.all([
-      getTraceCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-      getObservationCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-      getScoreCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-    ]);
+    // Calculate billing period using the billing cycle anchor
+    const now = new Date();
+    const billingCycleStart = getBillingCycleStart(org, now);
+    const billingCycleEnd = getBillingCycleEnd(org, now);
 
     return {
-      usageCount: countTraces + countObservations + countScores,
+      usageCount: cachedUsage,
       usageType: "units",
+      billingPeriod: {
+        start: billingCycleStart,
+        end: billingCycleEnd,
+      },
     };
-
     // [B] End ----------------------------------------------------------------------------------------
   }
 
@@ -1741,117 +1735,6 @@ class BillingService {
     });
 
     return { ok: true as const };
-  }
-
-  // TODO: Currently not working as expected, need to fix
-  /**
-   * Create/update/deactivate Stripe usage alerts for an organization.
-   *
-   * Preconditions: Org must have a Stripe customer and active subscription.
-   *
-   * @param orgId Organization id
-   * @param payload Usage alert configuration
-   */
-  async upsertUsageAlerts(
-    orgId: string,
-    payload: {
-      enabled: boolean;
-      threshold: number;
-      notifications: { email: boolean; recipients: string[] };
-    },
-  ) {
-    const { parsedOrg } = await this.getParsedOrg(orgId);
-    const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
-    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-    const currentAlerts = parsedOrg.cloudConfig?.usageAlerts;
-    if (!stripeCustomerId || !subscriptionId)
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message:
-          "Organization must have a Stripe customer with active subscription to configure usage alerts",
-      });
-    const client = this.stripe;
-    let updatedAlerts = payload;
-
-    const subscription = await client.subscriptions.retrieve(subscriptionId);
-    if (!subscription)
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Stripe subscription not found",
-      });
-    const meterId = subscription.items.data.filter((subItem) =>
-      Boolean((subItem as any).plan.meter),
-    )[0]?.plan.meter as string | undefined;
-
-    const updatedUsageAlertConfig: any = {
-      enabled: updatedAlerts.enabled,
-      type: "STRIPE",
-      threshold: updatedAlerts.threshold,
-      alertId: currentAlerts?.alertId ?? null,
-      meterId: meterId ?? null,
-      notifications: {
-        email: updatedAlerts.notifications.email,
-        recipients: updatedAlerts.notifications.recipients,
-      },
-    };
-
-    if (
-      !updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      currentAlerts?.enabled
-    ) {
-      await UsageAlertService.getInstance({ stripeClient: client }).deactivate({
-        id: currentAlerts?.alertId,
-      });
-    }
-    if (!currentAlerts?.alertId) {
-      const alert = await UsageAlertService.getInstance({
-        stripeClient: client,
-      }).create({
-        orgId,
-        customerId: stripeCustomerId,
-        meterId,
-        amount: updatedAlerts.threshold,
-      });
-      updatedUsageAlertConfig.alertId = alert.id;
-    }
-    if (
-      updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      (currentAlerts?.threshold !== updatedAlerts.threshold ||
-        currentAlerts.meterId !== meterId)
-    ) {
-      const alert = await UsageAlertService.getInstance({
-        stripeClient: client,
-      }).recreate({
-        orgId,
-        customerId: stripeCustomerId,
-        meterId,
-        existingAlertId: currentAlerts.alertId,
-        amount: updatedAlerts.threshold,
-      });
-      updatedUsageAlertConfig.alertId = alert.id;
-    }
-    if (
-      updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      !currentAlerts.enabled
-    ) {
-      await UsageAlertService.getInstance({ stripeClient: client }).activate({
-        id: currentAlerts.alertId,
-      });
-    }
-
-    const newCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      usageAlerts: updatedUsageAlertConfig,
-    };
-    await this.ctx.prisma.organization.update({
-      where: { id: orgId },
-      data: { cloudConfig: newCloudConfig },
-    });
-
-    return updatedAlerts;
   }
 }
 

@@ -46,6 +46,10 @@ const signOutUser = async () => {
 const getUserNavigation = () => {
   return [
     {
+      name: "Account Settings",
+      href: "/account/settings",
+    },
+    {
       name: "Theme",
       onClick: () => {},
       content: <ThemeToggle />,

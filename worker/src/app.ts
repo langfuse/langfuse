@@ -18,6 +18,7 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
@@ -33,6 +34,7 @@ import {
   OtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  EventPropagationQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -63,6 +65,7 @@ import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
+import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 
 const app = express();
 
@@ -302,6 +305,27 @@ if (
   );
 }
 
+// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+if (
+  env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
+  env.STRIPE_SECRET_KEY
+) {
+  WorkerManager.register(
+    QueueName.CloudSpendAlertQueue,
+    cloudSpendAlertQueueProcessor,
+    {
+      concurrency: 20,
+      limiter: {
+        // Process at most 600 jobs per minute / 10 jobs per second for Stripe API rate limits
+        // - stripe allows 100 ops / sec but we want to use a lower limit to account for 3 environments and other calls
+        // - See: https://docs.stripe.com/rate-limits
+        max: 900,
+        duration: 60_000,
+      },
+    },
+  );
+}
+
 // Free Tier Usage Threshold Queue: Only enable in cloud environment
 if (
   env.QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED === "true" &&
@@ -429,6 +453,19 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
     entityChangeQueueProcessor,
     {
       concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  EventPropagationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.EventPropagationQueue,
+    eventPropagationProcessor,
+    {
+      concurrency: 1,
     },
   );
 }
