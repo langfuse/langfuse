@@ -1,4 +1,4 @@
-import { filterOperators } from "@langfuse/shared";
+import { filterOperators } from "../../interfaces/filters";
 import {
   FilterList,
   DateTimeFilter,
@@ -8,7 +8,7 @@ import {
   StringFilter,
   NumberFilter,
   type ClickhouseOperator,
-} from "@langfuse/shared/src/server";
+} from "./clickhouse-sql/clickhouse-filter";
 import { z } from "zod/v4";
 
 export type ApiColumnMapping = {
@@ -38,7 +38,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
     if (value) {
       let filterInstance;
       switch (columnMapping.filterType) {
-        case "DateTimeFilter":
+        case "DateTimeFilter": {
           // get filter options from the filterOperators
           // validate that the user provided operator is in the list of available operators
           const availableOperators = z.enum(filterOperators.datetime);
@@ -62,6 +62,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
             : undefined;
 
           break;
+        }
         case "ArrayOptionsFilter":
           if (Array.isArray(value) || typeof value === "string") {
             filterInstance = new ArrayOptionsFilter({
@@ -120,7 +121,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
             });
           }
           break;
-        case "NumberFilter":
+        case "NumberFilter": {
           const availableOperatorsNum = z.enum([
             ...filterOperators.number,
             "!=",
@@ -139,6 +140,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
             });
           }
           break;
+        }
       }
 
       filterInstance && filterList.push(filterInstance);

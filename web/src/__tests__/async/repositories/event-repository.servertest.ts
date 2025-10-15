@@ -4,6 +4,8 @@ import {
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
+  getObservationsFromEventsTableForPublicApi,
+  getObservationsCountFromEventsTableForPublicApi,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -332,6 +334,7 @@ describe("Clickhouse Events Repository Test", () => {
   maybe("Filter Tests", () => {
     describe("Timestamp Filters", () => {
       it("should filter observations by start time with >= operator", async () => {
+        const uniqueProjectId = randomUUID();
         const traceId = randomUUID();
         const now = Date.now();
         const filterTime = new Date(now - 5000);
@@ -340,7 +343,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "old-event-gte",
@@ -349,7 +352,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "exact-event-gte",
@@ -358,7 +361,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "new-event-gte",
@@ -369,7 +372,7 @@ describe("Clickhouse Events Repository Test", () => {
         await createEventsCh(events);
 
         const result = await getObservationsWithModelDataFromEventsTable({
-          projectId,
+          projectId: uniqueProjectId,
           filter: [
             {
               type: "datetime",
@@ -382,15 +385,13 @@ describe("Clickhouse Events Repository Test", () => {
           offset: 0,
         });
 
-        const filteredObservations = result.filter(
-          (o) => o.traceId === traceId,
-        );
-        expect(filteredObservations.length).toBe(2);
-        const names = filteredObservations.map((o) => o.name).sort();
+        expect(result.length).toBe(2);
+        const names = result.map((o) => o.name).sort();
         expect(names).toEqual(["exact-event-gte", "new-event-gte"]);
       });
 
       it("should filter observations by start time with <= operator", async () => {
+        const uniqueProjectId = randomUUID();
         const traceId = randomUUID();
         const now = Date.now();
         const filterTime = new Date(now - 5000);
@@ -399,7 +400,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "old-event-lte",
@@ -408,7 +409,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "exact-event-lte",
@@ -417,7 +418,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "new-event-lte",
@@ -428,7 +429,7 @@ describe("Clickhouse Events Repository Test", () => {
         await createEventsCh(events);
 
         const result = await getObservationsWithModelDataFromEventsTable({
-          projectId,
+          projectId: uniqueProjectId,
           filter: [
             {
               type: "datetime",
@@ -441,15 +442,13 @@ describe("Clickhouse Events Repository Test", () => {
           offset: 0,
         });
 
-        const filteredObservations = result.filter(
-          (o) => o.traceId === traceId,
-        );
-        expect(filteredObservations.length).toBe(2);
-        const names = filteredObservations.map((o) => o.name).sort();
+        expect(result.length).toBe(2);
+        const names = result.map((o) => o.name).sort();
         expect(names).toEqual(["exact-event-lte", "old-event-lte"]);
       });
 
       it("should filter observations by end time", async () => {
+        const uniqueProjectId = randomUUID();
         const traceId = randomUUID();
         const now = Date.now();
         const filterTime = new Date(now - 2000);
@@ -458,7 +457,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "event-no-end",
@@ -468,7 +467,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "event-old-end",
@@ -478,7 +477,7 @@ describe("Clickhouse Events Repository Test", () => {
           createEvent({
             id: randomUUID(),
             span_id: randomUUID(),
-            project_id: projectId,
+            project_id: uniqueProjectId,
             trace_id: traceId,
             type: "SPAN",
             name: "event-recent-end",
@@ -490,7 +489,7 @@ describe("Clickhouse Events Repository Test", () => {
         await createEventsCh(events);
 
         const result = await getObservationsWithModelDataFromEventsTable({
-          projectId,
+          projectId: uniqueProjectId,
           filter: [
             {
               type: "datetime",
@@ -503,11 +502,8 @@ describe("Clickhouse Events Repository Test", () => {
           offset: 0,
         });
 
-        const filteredObservations = result.filter(
-          (o) => o.traceId === traceId,
-        );
-        expect(filteredObservations.length).toBe(1);
-        expect(filteredObservations[0].name).toBe("event-recent-end");
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("event-recent-end");
       });
     });
 
@@ -1097,6 +1093,336 @@ describe("Clickhouse Events Repository Test", () => {
           startTime: wrongDate,
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("getObservationsFromEventsTableForPublicApi", () => {
+    it("should return observations with pagination", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      const events = Array.from({ length: 5 }, (_, i) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: `pub-api-test-${i}`,
+          start_time: (Date.now() + i * 1000) * 1000,
+        }),
+      );
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 3,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBeLessThanOrEqual(3);
+
+      // Fetching the second page
+      const resultPage2 = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 2,
+        limit: 3,
+      });
+
+      expect(resultPage2).toBeDefined();
+      expect(resultPage2.length).toBeLessThanOrEqual(2);
+
+      // Count should ignore pagination
+      const count = await getObservationsCountFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 3,
+      });
+
+      expect(count).toBe(5);
+    });
+
+    it("should filter by traceId", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          type: "GENERATION",
+          name: "trace-1-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId2,
+          type: "GENERATION",
+          name: "trace-2-obs",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        traceId: traceId1,
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.traceId).toBe(traceId1);
+      expect(result[0]?.name).toBe("trace-1-obs");
+    });
+
+    it("should filter by type", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "generation-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "span-obs",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        type: "GENERATION",
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.type).toBe("GENERATION");
+      expect(result[0]?.name).toBe("generation-obs");
+    });
+
+    it("should filter by level", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "EVENT",
+          level: "ERROR",
+          name: "error-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "EVENT",
+          level: "DEFAULT",
+          name: "default-obs",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        level: "ERROR",
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.level).toBe("ERROR");
+      expect(result[0]?.name).toBe("error-obs");
+    });
+
+    it("should filter by time range", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+      const fromTime = new Date(now - 5000).toISOString();
+      const toTime = new Date(now + 5000).toISOString();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "old-obs",
+          start_time: (now - 10000) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "recent-obs",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "future-obs",
+          start_time: (now + 10000) * 1000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        fromStartTime: fromTime,
+        toStartTime: toTime,
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.name).toBe("recent-obs");
+    });
+
+    it("should combine multiple filters", async () => {
+      const uniqueProjectId = randomUUID();
+      const userId = "test-user";
+
+      // Create events in different traces so userId filtering works at trace level
+      const trace1 = randomUUID();
+      const trace2 = randomUUID();
+
+      const events = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: trace1,
+          user_id: userId,
+          type: "GENERATION",
+          level: "ERROR",
+          name: "matching-obs",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: trace1,
+          user_id: userId,
+          type: "SPAN",
+          level: "ERROR",
+          name: "wrong-type",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: trace2,
+          user_id: "other-user",
+          type: "GENERATION",
+          level: "ERROR",
+          name: "wrong-user",
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: uniqueProjectId,
+        page: 1,
+        limit: 10,
+        userId,
+        type: "GENERATION",
+        level: "ERROR",
+      });
+
+      // Should only return "matching-obs" because:
+      // - userId filters at trace level (excludes trace2 with "other-user")
+      // - type="GENERATION" excludes "wrong-type" (SPAN)
+      expect(result.length).toBe(1);
+      expect(result[0]?.name).toBe("matching-obs");
+    });
+
+    it("should enrich observations with model data", async () => {
+      const traceId = randomUUID();
+      const modelId = randomUUID();
+
+      // Create a model with pricing
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId: projectId,
+          modelName: `test-model-${modelId}`,
+          matchPattern: `(?i)^(test-model-${modelId})$`,
+          startDate: new Date("2023-01-01"),
+          unit: "TOKENS",
+          Price: {
+            create: [
+              {
+                usageType: "input",
+                price: 0.01,
+              },
+              {
+                usageType: "output",
+                price: 0.02,
+              },
+            ],
+          },
+        },
+      });
+
+      const event = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "model-enriched-obs",
+        model_id: modelId,
+        provided_model_name: `test-model-${modelId}`,
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsFromEventsTableForPublicApi({
+        projectId: projectId,
+        traceId: traceId,
+        page: 1,
+        limit: 10,
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.internalModelId).toBe(modelId);
+      expect(Number(result[0]?.inputPrice)).toBeCloseTo(0.01, 5);
+      expect(Number(result[0]?.outputPrice)).toBeCloseTo(0.02, 5);
+
+      // Cleanup
+      await prisma.model.delete({ where: { id: modelId } });
     });
   });
 });

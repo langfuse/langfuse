@@ -102,7 +102,7 @@ export const convertObservation = (
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     promptName: record.prompt_name ?? null,
-    promptVersion: record.prompt_version ?? null,
+    promptVersion: record.prompt_version ? Number(record.prompt_version) : null,
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()

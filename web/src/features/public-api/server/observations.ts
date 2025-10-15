@@ -1,4 +1,4 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
+import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src/server";
 import {
   StringFilter,
   type ObservationRecordReadType,
