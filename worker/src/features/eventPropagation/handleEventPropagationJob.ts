@@ -202,7 +202,7 @@ export const handleEventPropagationJob = async (
           NULL AS telemetry_sdk_version,
           '' AS blob_storage_file_path,
           '' AS event_raw,
-          0 AS event_bytes,
+          byteSize(*) AS event_bytes,
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
