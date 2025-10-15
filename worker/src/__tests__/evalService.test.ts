@@ -1503,7 +1503,7 @@ describe("eval service tests", () => {
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
         new UnrecoverableError(
-          `Invalid model configuration for job ${jobExecutionId}: API key for provider "openai" not found in project ${projectId}.`,
+          `Invalid model configuration for job ${jobExecutionId}: API key for provider "openai" not found in project ${projectId}`,
         ),
       );
 
