@@ -1,7 +1,6 @@
 import {
   ApiError,
   LLMAdapter,
-  LangfuseNotFoundError,
   ObservationType,
   variableMappingList,
 } from "@langfuse/shared";
@@ -17,22 +16,14 @@ import {
   upsertTrace,
   createDatasetRunItemsCh,
   createDatasetRunItem,
-  getScoreById,
   createOrgProjectAndApiKey,
+  LLMCompletionError,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
 import { sql } from "kysely";
 import { afterEach } from "node:test";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { compileHandlebarString } from "../features/utils/utilities";
 import { OpenAIServer } from "./network";
 import {
@@ -1510,7 +1501,7 @@ describe("eval service tests", () => {
       };
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new LangfuseNotFoundError(
+        new Error(
           `API key for provider "openai" not found in project ${projectId}.`,
         ),
       );
@@ -1620,12 +1611,13 @@ describe("eval service tests", () => {
       };
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new ApiError(
-          "Failed to call LLM: Error: 401 status code (no body)\n" +
+        new LLMCompletionError({
+          message:
+            "401 status code (no body)\n" +
             "\n" +
             "Troubleshooting URL: https://js.langchain.com/docs/troubleshooting/errors/MODEL_AUTHENTICATION/\n",
-          401,
-        ),
+          responseStatusCode: 401,
+        }),
       );
 
       const jobs = await kyselyPrisma.$kysely
@@ -2130,7 +2122,7 @@ describe("eval service tests", () => {
           variableMapping: variableMapping,
         }),
       ).rejects.toThrowError(
-        new LangfuseNotFoundError(
+        new Error(
           `Observation great-llm-name for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
         ),
       );
