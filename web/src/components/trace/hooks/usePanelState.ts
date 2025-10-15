@@ -55,7 +55,7 @@ export function usePanelState(
 
   const updateConstraints = useCallback(
     (containerWidth: number) => {
-      const MIN_WIDTH_PX = 380;
+      const MIN_WIDTH_PX = 355;
       const MAX_TREE_WIDTH_PX = 700;
 
       if (containerWidth <= 0) return;

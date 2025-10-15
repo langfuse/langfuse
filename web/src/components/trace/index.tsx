@@ -96,6 +96,10 @@ export function Trace(props: {
     "traceTreePanelCollapsed",
     false,
   );
+  const [traceTreeWidth, setTraceTreeWidth] = useLocalStorage(
+    "traceTreeWidth",
+    30,
+  );
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
 
   // TODO: remove, kinda hacky
@@ -132,6 +136,22 @@ export function Trace(props: {
   const panelState = usePanelState(
     containerRef,
     props.selectedTab?.includes("timeline") ? "timeline" : "tree",
+  );
+
+  // store trace tree width in local storage
+  const handleLayout = useCallback(
+    (sizes: number[]) => {
+      if (!isTreePanelCollapsed && sizes[0] !== undefined) {
+        setTraceTreeWidth(sizes[0]);
+      }
+    },
+    [isTreePanelCollapsed, setTraceTreeWidth],
+  );
+
+  // Memoize collapsed panel style to avoid recreation on every render
+  const collapsedPanelStyle = useMemo(
+    () => ({ flex: "0 0 48px", minWidth: "48px", maxWidth: "48px" }) as const,
+    [],
   );
 
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
@@ -538,18 +558,14 @@ export function Trace(props: {
           <ResizablePanelGroup
             direction="horizontal"
             className="flex-1 md:h-full"
-            onLayout={panelState.onLayout}
+            onLayout={handleLayout}
           >
             <ResizablePanel
-              defaultSize={isTreePanelCollapsed ? 0 : panelState.sizes[0]}
+              size={isTreePanelCollapsed ? 0 : traceTreeWidth}
               minSize={isTreePanelCollapsed ? 0 : panelState.minSize}
               maxSize={isTreePanelCollapsed ? 0 : panelState.maxSize}
               className="md:flex md:h-full md:flex-col md:overflow-hidden"
-              style={
-                isTreePanelCollapsed
-                  ? { flex: "0 0 48px", minWidth: "48px", maxWidth: "48px" }
-                  : undefined
-              }
+              style={isTreePanelCollapsed ? collapsedPanelStyle : undefined}
             >
               {isTreePanelCollapsed ? (
                 <div className="flex h-full w-12 items-start justify-center border-r pt-1">
