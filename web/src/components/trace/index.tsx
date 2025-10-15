@@ -460,7 +460,6 @@ export function Trace(props: {
                       }
                       minObservationLevel={minObservationLevel}
                       setMinObservationLevel={setMinObservationLevel}
-                      capture={capture}
                     />
 
                     {/* Download Button */}
@@ -686,7 +685,6 @@ export function Trace(props: {
                           }
                           minObservationLevel={minObservationLevel}
                           setMinObservationLevel={setMinObservationLevel}
-                          capture={capture}
                         />
                         <Button
                           variant="ghost"

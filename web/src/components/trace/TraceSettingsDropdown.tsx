@@ -14,6 +14,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Switch } from "@/src/components/ui/switch";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export interface TraceSettingsDropdownProps {
   isGraphViewAvailable: boolean;
@@ -29,7 +30,6 @@ export interface TraceSettingsDropdownProps {
   setColorCodeMetricsOnObservationTree: (value: boolean) => void;
   minObservationLevel: ObservationLevelType;
   setMinObservationLevel: (level: ObservationLevelType) => void;
-  capture: (event: string, properties?: Record<string, unknown>) => void;
 }
 
 export const TraceSettingsDropdown = ({
@@ -46,8 +46,8 @@ export const TraceSettingsDropdown = ({
   setColorCodeMetricsOnObservationTree,
   minObservationLevel,
   setMinObservationLevel,
-  capture,
 }: TraceSettingsDropdownProps) => {
+  const capture = usePostHogClientCapture();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
