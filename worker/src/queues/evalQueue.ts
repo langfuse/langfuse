@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { JobExecutionStatus, QUEUE_ERROR_MESSAGES } from "@langfuse/shared";
+import { JobExecutionStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
@@ -14,36 +14,7 @@ import {
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
-
-const nonRetryableLLMErrorMessageSubstrings = [
-  "Request timed out",
-  "is not valid JSON", // evaluator model is not consistently returning valid JSON on structured output calls
-  "Error: Unterminated string in JSON at position", // evaluator model is configured with too low max_tokens, the structured output response is incomplete JSON
-  "TypeError", // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
-] as const;
-
-function shouldRetryJob(error: unknown): boolean {
-  if (isLLMCompletionError(error)) {
-    if (error.responseStatusCode >= 400 && error.responseStatusCode < 500) {
-      return false;
-    }
-
-    const isRetryableLLMCompletionError =
-      nonRetryableLLMErrorMessageSubstrings.every(
-        (substring) => !error.message.includes(substring),
-      );
-
-    return isRetryableLLMCompletionError;
-  }
-
-  const isRetryableApplicationError =
-    error instanceof Error &&
-    Object.values(QUEUE_ERROR_MESSAGES).every(
-      (substring) => !error.message.includes(substring),
-    );
-
-  return isRetryableApplicationError;
-}
+import { isUnrecoverableError } from "../errors/UnrecoverableError";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -133,20 +104,43 @@ export const evalJobExecutorQueueProcessor = async (
     await evaluate({ event: job.data.payload });
     return true;
   } catch (e) {
-    // If the job fails with a 429, we want to retry it unless it's older than 24h.
-    const hasScheduledRateLimitRetry = await retryLLMRateLimitError(e, job, {
-      table: "job_executions",
-      idField: "jobExecutionId",
-      queue: EvalExecutionQueue.getInstance(),
-      queueName: QueueName.EvaluationExecution,
-      jobName: QueueJobs.EvaluationExecution,
-      delayFn: delayInMs,
-    });
+    // ┌─────────────────────────┐
+    // │   Job Fails with Error  │
+    // └───────────┬─────────────┘
+    //             │
+    //             ▼
+    // ┌────────────────────────────────────────┐
+    // │ Is it LLMCompletionError with          │
+    // │ isRetryable=true (429/5xx)?            │
+    // └─────┬──────────────────────────────┬───┘
+    //       │ Yes                          │ No
+    //       ▼                              ▼
+    // ┌──────────────────┐       ┌───────────────────────┐
+    // │ Is job < 24h old?│       │ Is it retryable?      │
+    // └─────┬──────┬─────┘       │ (shouldRetryJob)      │
+    //   Yes │      │ No          └─────┬─────────────┬───┘
+    //       ▼      ▼                Yes│             │No
+    // ┌─────────┐ ┌────────┐          ▼             ▼
+    // │Set:     │ │Set:    │    ┌─────────┐  ┌──────────┐
+    // │DELAYED  │ │ERROR   │    │BullMQ   │  │Set:      │
+    // │Retry in │ │Stop    │    │retry    │  │ERROR     │
+    // │1-25 min │ │        │    │w/ exp.  │  │Done      │
+    // └─────────┘ └────────┘    │backoff  │  └──────────┘
+    //                           └─────────┘
 
-    // Use the deterministic execution trace ID to update the job execution
     const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
 
-    if (hasScheduledRateLimitRetry) {
+    if (isLLMCompletionError(e) && e.isRetryable) {
+      await retryLLMRateLimitError(job, {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: EvalExecutionQueue.getInstance(),
+        queueName: QueueName.EvaluationExecution,
+        jobName: QueueJobs.EvaluationExecution,
+        delayFn: delayInMs,
+      });
+
+      // Use the deterministic execution trace ID to update the job execution
       await prisma.jobExecution.update({
         where: {
           id: job.data.payload.jobExecutionId,
@@ -162,7 +156,7 @@ export const evalJobExecutorQueueProcessor = async (
       return;
     }
 
-    // we are left with non-429 LLM responses and application errors here.
+    // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
     await prisma.jobExecution.update({
       where: {
         id: job.data.payload.jobExecutionId,
@@ -171,15 +165,16 @@ export const evalJobExecutorQueueProcessor = async (
       data: {
         status: JobExecutionStatus.ERROR,
         endTime: new Date(),
-        error: isLLMCompletionError(e)
-          ? e.message
-          : "An internal error occurred",
+        // Show user-facing error messages (LLM and config errors)
+        error:
+          isLLMCompletionError(e) || isUnrecoverableError(e)
+            ? e.message
+            : "An internal error occurred",
         executionTraceId,
       },
     });
 
-    // Return early and do not throw if job should not be retried
-    if (!shouldRetryJob(e)) return;
+    if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
 
     traceException(e);
     logger.error(
@@ -187,6 +182,7 @@ export const evalJobExecutorQueueProcessor = async (
       e,
     );
 
+    // Retry job by rethrowing error
     throw e;
   }
 };

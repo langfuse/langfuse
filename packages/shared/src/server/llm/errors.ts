@@ -2,12 +2,18 @@ const LLMCompletionErrorName = "LLMCompletionError";
 
 export class LLMCompletionError extends Error {
   responseStatusCode: number;
+  isRetryable: boolean;
 
-  constructor(params: { message: string; responseStatusCode?: number }) {
+  constructor(params: {
+    message: string;
+    responseStatusCode?: number;
+    isRetryable?: boolean;
+  }) {
     super(params.message);
 
     this.name = LLMCompletionErrorName;
     this.responseStatusCode = params.responseStatusCode ?? 500;
+    this.isRetryable = params.isRetryable ?? false; // Default to false - be explicit about retryability
 
     Error.captureStackTrace(this);
   }

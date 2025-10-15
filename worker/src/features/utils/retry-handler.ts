@@ -1,6 +1,5 @@
 import {
   convertQueueNameToMetricName,
-  isLLMCompletionError,
   logger,
   recordDistribution,
   RetryBaggage,
@@ -39,7 +38,6 @@ interface RetryConfig {
  * @returns true if retry was handled and job was added to the queue, false if regular processing should continue
  */
 export async function retryLLMRateLimitError(
-  error: unknown,
   job: {
     data: {
       timestamp: Date;
@@ -48,15 +46,7 @@ export async function retryLLMRateLimitError(
     };
   },
   config: RetryConfig,
-): Promise<boolean> {
-  // Only handle specific retryable errors
-  if (
-    !isLLMCompletionError(error) ||
-    (error.responseStatusCode !== 429 && error.responseStatusCode < 500)
-  ) {
-    return false; // Not a retryable error
-  }
-
+): Promise<void> {
   try {
     const jobId = job.data.payload[config.idField];
 
@@ -72,67 +62,66 @@ export async function retryLLMRateLimitError(
       logger.info(
         `Job ${jobId} is rate limited for more than 24h. Stop retrying.`,
       );
-      return false; // Don't retry
-    } else {
-      // Retry the job with delay
-      const delay = config.delayFn((job.data.retryBaggage?.attempt ?? 0) + 1);
 
-      const retryBaggage: RetryBaggage | undefined = job.data.retryBaggage
-        ? {
-            originalJobTimestamp: new Date(
-              job.data.retryBaggage.originalJobTimestamp,
-            ),
-            attempt: job.data.retryBaggage.attempt + 1,
-          }
-        : undefined;
-
-      // Record retry attempt distribution per queue
-
-      if (retryBaggage) {
-        recordDistribution(
-          `${convertQueueNameToMetricName(config.queueName)}.retries`,
-          retryBaggage.attempt,
-          {
-            queue: config.queueName,
-          },
-        );
-
-        // Record delay distribution per queue
-        recordDistribution(
-          `${convertQueueNameToMetricName(config.queueName)}.total_retry_delay_ms`,
-          new Date().getTime() -
-            new Date(retryBaggage.originalJobTimestamp).getTime(), // this is the total delay
-          {
-            queue: config.queueName,
-            unit: "milliseconds",
-          },
-        );
-      }
-
-      logger.info(
-        `Job ${jobId} is rate limited. Retrying in ${delay}ms. Attempt: ${retryBaggage?.attempt}. Total delay: ${retryBaggage ? new Date().getTime() - new Date(retryBaggage?.originalJobTimestamp).getTime() : "unavailable"}ms.`,
-      );
-
-      await config.queue?.add(
-        config.queueName,
-        {
-          name: config.jobName,
-          id: randomUUID(),
-          timestamp: new Date(),
-          payload: job.data.payload,
-          retryBaggage: retryBaggage,
-        },
-        { delay },
-      );
-
-      return true; // Do not continue regular processing, job was added to the queue
+      return; // Don't retry
     }
+
+    // Retry the job with delay
+    const delay = config.delayFn((job.data.retryBaggage?.attempt ?? 0) + 1);
+
+    const retryBaggage: RetryBaggage | undefined = job.data.retryBaggage
+      ? {
+          originalJobTimestamp: new Date(
+            job.data.retryBaggage.originalJobTimestamp,
+          ),
+          attempt: job.data.retryBaggage.attempt + 1,
+        }
+      : undefined;
+
+    // Record retry attempt distribution per queue
+    if (retryBaggage) {
+      recordDistribution(
+        `${convertQueueNameToMetricName(config.queueName)}.retries`,
+        retryBaggage.attempt,
+        {
+          queue: config.queueName,
+        },
+      );
+
+      // Record delay distribution per queue
+      recordDistribution(
+        `${convertQueueNameToMetricName(config.queueName)}.total_retry_delay_ms`,
+        new Date().getTime() -
+          new Date(retryBaggage.originalJobTimestamp).getTime(), // this is the total delay
+        {
+          queue: config.queueName,
+          unit: "milliseconds",
+        },
+      );
+    }
+
+    logger.info(
+      `Job ${jobId} is rate limited. Retrying in ${delay}ms. Attempt: ${retryBaggage?.attempt}. Total delay: ${retryBaggage ? new Date().getTime() - new Date(retryBaggage?.originalJobTimestamp).getTime() : "unavailable"}ms.`,
+    );
+
+    await config.queue?.add(
+      config.queueName,
+      {
+        name: config.jobName,
+        id: randomUUID(),
+        timestamp: new Date(),
+        payload: job.data.payload,
+        retryBaggage: retryBaggage,
+      },
+      { delay },
+    );
   } catch (innerErr) {
     const jobId = job.data.payload[config.idField];
     logger.error(
       `Failed to handle 429 retry for ${jobId}. Continuing regular processing.`,
       innerErr,
     );
-    return false; // Failed to handle retry - fallback to regular processing
+
+    throw innerErr;
   }
 }

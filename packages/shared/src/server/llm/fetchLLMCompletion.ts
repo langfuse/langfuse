@@ -395,26 +395,52 @@ export async function fetchLLMCompletion(
 
     return completion;
   } catch (e) {
+    const responseStatusCode =
+      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+    const message = e instanceof Error ? e.message : String(e);
+
+    // Check for non-retryable error patterns in message
+    const nonRetryablePatterns = [
+      "Request timed out",
+      "is not valid JSON",
+      "Unterminated string in JSON at position",
+      "TypeError",
+    ];
+
+    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
+      message.includes(pattern),
+    );
+
+    // Determine retryability:
+    // - 429 (rate limit): retryable with custom delay
+    // - 5xx (server errors): retryable with custom delay
+    // - 4xx (client errors): not retryable
+    // - Non-retryable patterns: not retryable
+    let isRetryable = false;
+
     if (
       e instanceof Error &&
       (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
     ) {
-      throw new LLMCompletionError({
-        message: e.message,
-        responseStatusCode: 429,
-      });
+      // Explicit 429 handling
+      isRetryable = true;
+    } else if (responseStatusCode >= 500) {
+      // 5xx errors are retryable (server issues)
+      isRetryable = true;
+    } else if (responseStatusCode === 429) {
+      // Rate limit is retryable
+      isRetryable = true;
     }
 
-    if (e instanceof Error) {
-      throw new LLMCompletionError({
-        message: e.message,
-        responseStatusCode: (e as any)?.response?.status ?? (e as any)?.status,
-      });
+    // Override if error message indicates non-retryable issue
+    if (hasNonRetryablePattern) {
+      isRetryable = false;
     }
 
     throw new LLMCompletionError({
-      message: String(e),
-      responseStatusCode: (e as any)?.response?.status ?? (e as any)?.status,
+      message,
+      responseStatusCode,
+      isRetryable,
     });
   } finally {
     await processTracedEvents();

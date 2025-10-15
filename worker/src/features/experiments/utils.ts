@@ -6,13 +6,10 @@ import {
   datasetItemMatchesVariable,
   extractPlaceholderNames,
   extractVariables,
-  InvalidRequestError,
-  LangfuseNotFoundError,
   MessagePlaceholderValues,
   Prisma,
   PromptContent,
   PromptType,
-  QUEUE_ERROR_MESSAGES,
   stringifyValue,
 } from "@langfuse/shared";
 import { compileHandlebarString } from "../utils/utilities";
@@ -28,6 +25,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
+import { UnrecoverableError } from "../../errors/UnrecoverableError";
 
 const isValidPrismaJsonObject = (
   input: Prisma.JsonValue,
@@ -192,7 +190,8 @@ export async function validateAndSetupExperiment(
   const datasetRun = await fetchDatasetRun(runId, projectId);
 
   if (!datasetRun) {
-    throw new LangfuseNotFoundError(`Dataset run ${runId} not found`);
+    // throw regular error here to allow retries for race conditions with dataset run creation
+    throw Error(`Dataset run ${runId} not found`);
   }
 
   // Validate experiment metadata
@@ -200,8 +199,8 @@ export async function validateAndSetupExperiment(
     datasetRun.metadata,
   );
   if (!validatedRunMetadata.success) {
-    throw new LangfuseNotFoundError(
-      "Langfuse in-app experiments can only be run with prompt and model configurations in metadata.",
+    throw new UnrecoverableError(
+      "Langfuse in-app experiments require prompt and model configurations in dataset run metadata",
     );
   }
 
@@ -211,13 +210,11 @@ export async function validateAndSetupExperiment(
   // Fetch and validate prompt
   const prompt = await fetchPrompt(prompt_id, projectId);
   if (!prompt) {
-    throw new LangfuseNotFoundError(`Prompt ${prompt_id} not found`);
+    throw new UnrecoverableError(`Prompt ${prompt_id} not found`);
   }
   const validatedPrompt = PromptContentSchema.safeParse(prompt.prompt);
   if (!validatedPrompt.success) {
-    throw new InvalidRequestError(
-      `Prompt ${prompt_id} not found in expected format`,
-    );
+    throw new UnrecoverableError(`Prompt ${prompt_id} has invalid format`);
   }
 
   // Fetch and validate API key
@@ -225,16 +222,12 @@ export async function validateAndSetupExperiment(
     where: { projectId, provider },
   });
   if (!apiKey) {
-    throw new LangfuseNotFoundError(
-      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
-    );
+    throw new UnrecoverableError(`API key for provider ${provider} not found`);
   }
 
   const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
   if (!validatedApiKey.success) {
-    throw new LangfuseNotFoundError(
-      `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} ${provider} not found.`,
-    );
+    throw new UnrecoverableError(`API key for provider ${provider} not found`);
   }
 
   // Extract variables from prompt

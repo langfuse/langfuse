@@ -39,7 +39,6 @@ import {
   ChatMessageRole,
   Prisma,
   singleFilter,
-  InvalidRequestError,
   variableMappingList,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
@@ -50,12 +49,12 @@ import {
   TraceDomain,
   Observation,
   DatasetItem,
-  QUEUE_ERROR_MESSAGES,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { compileHandlebarString, createW3CTraceId } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
+import { UnrecoverableError } from "../../errors/UnrecoverableError";
 
 let s3StorageServiceClient: StorageService;
 
@@ -631,10 +630,10 @@ export const evaluate = async ({
 
   if (!config || !config.evalTemplateId) {
     logger.error(
-      `Eval template not found for config ${config?.evalTemplateId}`,
+      `Evaluation template not found for config: ${config?.evalTemplateId}`,
     );
-    throw new InvalidRequestError(
-      `Eval template not found for config ${config?.evalTemplateId}`,
+    throw new UnrecoverableError(
+      `Evaluation template not found for config: ${config?.evalTemplateId}`,
     );
   }
 
@@ -699,7 +698,9 @@ export const evaluate = async ({
     .parse(template.outputSchema);
 
   if (!parsedOutputSchema) {
-    throw new InvalidRequestError("Output schema not found");
+    throw new UnrecoverableError(
+      "Output schema not found in evaluation template",
+    );
   }
 
   const evalScoreSchema = zodV3.object({
@@ -718,8 +719,8 @@ export const evaluate = async ({
     logger.warn(
       `Evaluating job ${event.jobExecutionId} will fail. ${modelConfig.error}`,
     );
-    throw Error(
-      `Evaluating job ${event.jobExecutionId} will fail due to invalid model config: ${modelConfig.error}`,
+    throw new UnrecoverableError(
+      `Invalid model configuration for job ${event.jobExecutionId}: ${modelConfig.error}`,
     );
   }
 
@@ -767,8 +768,8 @@ export const evaluate = async ({
 
   const parsedLLMOutput = evalScoreSchema.safeParse(llmOutput);
   if (!parsedLLMOutput.success) {
-    throw Error(
-      `${QUEUE_ERROR_MESSAGES.INVALID_LLM_STRUCTURED_OUTPUT}. Model: ${modelConfig.config.model}, Response: ${llmOutput}`,
+    throw new UnrecoverableError(
+      `Invalid LLM response format from model ${modelConfig.config.model}. Response: ${llmOutput}`,
     );
   }
 
@@ -832,6 +833,7 @@ export const evaluate = async ({
   } catch (e) {
     logger.error(`Failed to add score into IngestionQueue: ${e}`, e);
     traceException(e);
+
     throw new Error(`Failed to write score ${scoreId} into IngestionQueue`);
   }
 
@@ -1033,11 +1035,11 @@ export async function extractVariablesFromTracingData({
       // user facing errors
       if (!observation) {
         logger.warn(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. ${QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR}`,
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
         );
         // this should only happen for deleted data or data replication lags across clickhouse nodes.
-        throw Error(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. ${QUEUE_ERROR_MESSAGES.MAPPED_DATA_ERROR}`,
+        throw new UnrecoverableError(
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
         );
       }
 
