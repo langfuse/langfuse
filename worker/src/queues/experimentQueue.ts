@@ -38,7 +38,7 @@ export const experimentCreateQueueProcessor = async (
     if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
 
     logger.error(
-      "Failed to process experiment create job for project: ${job.data.payload.projectId}",
+      `Failed to process experiment create job for project: ${job.data.payload.projectId}`,
       e,
     );
     traceException(e);
