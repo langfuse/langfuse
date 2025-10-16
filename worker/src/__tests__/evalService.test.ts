@@ -2480,7 +2480,7 @@ describe("eval service tests", () => {
         "Execute evaluator: test-evaluator",
       );
       expect(capturedTraceSinkParams.environment).toBe(
-        LangfuseInternalTraceEnvironment.LLMAsAJudge,
+        LangfuseInternalTraceEnvironment.LLMJudge,
       );
       expect(capturedTraceSinkParams.metadata).toMatchObject({
         job_execution_id: jobExecutionId,
@@ -2493,15 +2493,15 @@ describe("eval service tests", () => {
   });
 
   describe("internal trace environment filtering", () => {
-    test("does not create eval jobs for trace-upsert with LLMAsAJudge environment", async () => {
+    test("does not create eval jobs for trace-upsert with LLMJudge environment", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
 
-      // Create trace with LLMAsAJudge environment
+      // Create trace with LLMJudge environment
       await upsertTrace({
         id: traceId,
         project_id: projectId,
-        environment: LangfuseInternalTraceEnvironment.LLMAsAJudge,
+        environment: LangfuseInternalTraceEnvironment.LLMJudge,
         timestamp: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -2525,7 +2525,7 @@ describe("eval service tests", () => {
       const payload = {
         projectId,
         traceId,
-        traceEnvironment: LangfuseInternalTraceEnvironment.LLMAsAJudge,
+        traceEnvironment: LangfuseInternalTraceEnvironment.LLMJudge,
       };
 
       // Attempt to create eval jobs
@@ -2800,7 +2800,7 @@ describe("eval service tests", () => {
       expect(jobs[0].job_input_trace_id).toBe(traceId);
     }, 10_000);
 
-    test("creates eval jobs for trace-upsert with 'langfuse' environment without hyphen", async () => {
+    test("does not create eval jobs for trace-upsert with 'langfuse' environment without hyphen", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
 
@@ -2849,8 +2849,7 @@ describe("eval service tests", () => {
         .where("project_id", "=", projectId)
         .execute();
 
-      expect(jobs.length).toBe(1);
-      expect(jobs[0].job_input_trace_id).toBe(traceId);
+      expect(jobs.length).toBe(0);
     }, 10_000);
   });
 });

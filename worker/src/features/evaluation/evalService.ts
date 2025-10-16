@@ -237,7 +237,7 @@ export const createEvalJobs = async ({
   // See: packages/shared/src/server/llm/types.ts (LangfuseInternalTraceEnvironment enum)
   if (
     sourceEventType === "trace-upsert" &&
-    event.traceEnvironment?.startsWith("langfuse-")
+    event.traceEnvironment?.startsWith("langfuse")
   ) {
     logger.debug("Skipping eval job creation for internal Langfuse trace", {
       traceId: event.traceId,
@@ -776,7 +776,7 @@ export const evaluate = async ({
       targetProjectId: event.projectId,
       traceId: executionTraceId,
       traceName: `Execute evaluator: ${template.name}`,
-      environment: LangfuseInternalTraceEnvironment.LLMAsAJudge,
+      environment: LangfuseInternalTraceEnvironment.LLMJudge,
       metadata: {
         ...executionMetadata,
         score_id: scoreId,
