@@ -59,9 +59,6 @@ export const acquirePartitionLock = async (
  * Processes partitions from observations_batch_staging table and propagates
  * events to the events table. Supports both targeted partition processing
  * (when partition is specified in job data) and discovery mode (cron job).
- *
- * Safety: Never processes the 2 most recent partitions to ensure they are complete.
- * Concurrency: Uses Redis distributed locking to prevent duplicate processing.
  */
 export const handleEventPropagationJob = async (
   job: Job<TQueueJobTypes[QueueName.EventPropagationQueue]>,
