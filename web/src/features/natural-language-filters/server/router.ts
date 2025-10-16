@@ -130,14 +130,12 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           shouldUseLangfuseAPIKey: true,
         });
 
-        await llmCompletion.processTracedEvents();
-
         logger.info(
-          `LLM completion received: ${JSON.stringify(llmCompletion.completion, null, 2)}`,
+          `LLM completion received: ${JSON.stringify(llmCompletion, null, 2)}`,
         );
 
         const parsedFilters = parseFiltersFromCompletion(
-          llmCompletion.completion as string,
+          llmCompletion as string,
         );
 
         return {

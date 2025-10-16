@@ -237,8 +237,8 @@ importers:
         specifier: ^0.3.30
         version: 0.3.30(@langchain/anthropic@0.3.29(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(axios@1.12.2)(cheerio@1.1.2)(handlebars@4.7.8)(openai@5.12.2(zod@3.25.62))
       langfuse-langchain:
-        specifier: 3.38.4
-        version: 3.38.4(langchain@0.3.30(@langchain/anthropic@0.3.29(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(axios@1.12.2)(cheerio@1.1.2)(handlebars@4.7.8)(openai@5.12.2(zod@3.25.62)))
+        specifier: 3.38.6
+        version: 3.38.6(langchain@0.3.30(@langchain/anthropic@0.3.29(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(axios@1.12.2)(cheerio@1.1.2)(handlebars@4.7.8)(openai@5.12.2(zod@3.25.62)))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -9633,14 +9633,22 @@ packages:
     resolution: {integrity: sha512-onTAqcEGhoXuBgqDFXe2t+bt9Vi+5YChRgdz3voM49JKoHwtVZQiUdqTfjSivGR75eSbYoiaIL8IRoio+jaqwg==}
     engines: {node: '>=18'}
 
-  langfuse-langchain@3.38.4:
-    resolution: {integrity: sha512-7HJqouMrVOP9MFdu33M4G4uBFyQAIh/DqGYALfs41xqm7t99eZxKcTvt4rYZy67iQAhd58TG3q8+9haGzuLbOA==}
+  langfuse-core@3.38.6:
+    resolution: {integrity: sha512-EcZXa+DK9FJdi1I30+u19eKjuBJ04du6j2Nybk19KKCuraLczg/ppkTQcGvc4QOk//OAi3qUHrajUuV74RXsBQ==}
+    engines: {node: '>=18'}
+
+  langfuse-langchain@3.38.6:
+    resolution: {integrity: sha512-XY7M1R/G7bzihm1cCT1CXKlTLfjHfTiWCPOVm/Ko039Cr3Nz945+HOynqUngjhQUdqH0gAwDsFUZookosARJSw==}
     engines: {node: '>=18'}
     peerDependencies:
       langchain: '>=0.0.157 <0.4.0'
 
   langfuse@3.38.4:
     resolution: {integrity: sha512-2UqMeHLl3DGNX1Nh/cO4jGhk7TzDJ6gjQLlyS9rwFCKVO81xot6b58yeTsTB5YrWupWsOxQtMNoQYIQGOUlH9Q==}
+    engines: {node: '>=18'}
+
+  langfuse@3.38.6:
+    resolution: {integrity: sha512-mtwfsNGIYvObRh+NYNGlJQJDiBN+Wr3Hnr++wN25mxuOpSTdXX+JQqVCyAqGL5GD2TAXRZ7COsN42Vmp9krYmg==}
     engines: {node: '>=18'}
 
   langium@3.0.0:
@@ -24713,15 +24721,23 @@ snapshots:
     dependencies:
       mustache: 4.2.0
 
-  langfuse-langchain@3.38.4(langchain@0.3.30(@langchain/anthropic@0.3.29(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(axios@1.12.2)(cheerio@1.1.2)(handlebars@4.7.8)(openai@5.12.2(zod@3.25.62))):
+  langfuse-core@3.38.6:
+    dependencies:
+      mustache: 4.2.0
+
+  langfuse-langchain@3.38.6(langchain@0.3.30(@langchain/anthropic@0.3.29(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(axios@1.12.2)(cheerio@1.1.2)(handlebars@4.7.8)(openai@5.12.2(zod@3.25.62))):
     dependencies:
       langchain: 0.3.30(@langchain/anthropic@0.3.29(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@langchain/aws@0.1.11(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(@langchain/google-genai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62))))(@langchain/google-vertexai@0.2.12(@langchain/core@0.3.58(openai@5.12.2(zod@3.25.62)))(zod@3.25.62))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(axios@1.12.2)(cheerio@1.1.2)(handlebars@4.7.8)(openai@5.12.2(zod@3.25.62))
-      langfuse: 3.38.4
-      langfuse-core: 3.38.4
+      langfuse: 3.38.6
+      langfuse-core: 3.38.6
 
   langfuse@3.38.4:
     dependencies:
       langfuse-core: 3.38.4
+
+  langfuse@3.38.6:
+    dependencies:
+      langfuse-core: 3.38.6
 
   langium@3.0.0:
     dependencies:
