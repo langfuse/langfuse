@@ -127,7 +127,7 @@ export const getObservationStream = async (props: {
 
   observationsFilter.push(
     ...createFilterFromFilterState(
-      filter,
+      filter ?? [],
       observationsTableUiColumnDefinitions,
     ),
   );
