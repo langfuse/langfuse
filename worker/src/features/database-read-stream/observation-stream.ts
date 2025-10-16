@@ -126,7 +126,7 @@ export const getObservationStream = async (props: {
       [
         ...(filter ?? []),
         {
-          column: "start_time",
+          column: "startTime",
           operator: "<" as const,
           value: cutoffCreatedAt,
           type: "datetime" as const,
