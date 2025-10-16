@@ -14,12 +14,13 @@ import {
   FilterList,
   FullObservations,
   orderByToClickhouseSql,
-  convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
+  deriveFilters,
   type ApiColumnMapping,
   ObservationPriceFields,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
+import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
   eventsTracesAggregation,
@@ -831,6 +832,7 @@ type PublicApiObservationsQuery = {
   toStartTime?: string;
   version?: string;
   environment?: string | string[];
+  advancedFilters?: FilterState;
 };
 
 /**
@@ -840,12 +842,14 @@ type PublicApiObservationsQuery = {
 const getObservationsFromEventsTableForPublicApiInternal = async <T>(
   opts: PublicApiObservationsQuery & { select: "rows" | "count" },
 ): Promise<Array<T>> => {
-  const { projectId, page, limit, ...filterParams } = opts;
+  const { projectId, page, limit, advancedFilters, ...filterParams } = opts;
 
-  // Convert public API filters to FilterList using column mapping
-  const observationsFilter = convertApiProvidedFilterToClickhouseFilter(
+  // Convert and merge simple and advanced filters
+  const observationsFilter = deriveFilters(
     { ...filterParams, projectId, page, limit },
     PUBLIC_API_EVENTS_COLUMN_MAPPING,
+    advancedFilters,
+    eventsTableUiColumnDefinitions,
   );
 
   // Determine if we need to join traces (for userId filter)

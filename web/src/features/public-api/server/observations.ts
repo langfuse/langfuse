@@ -1,14 +1,14 @@
 import {
-  convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
-} from "@langfuse/shared/src/server";
-import {
+  deriveFilters,
   StringFilter,
   type ObservationRecordReadType,
   queryClickhouse,
   convertObservation,
   measureAndReturn,
+  observationsTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
+import type { FilterState } from "@langfuse/shared";
 
 type QueryType = {
   page: number;
@@ -22,6 +22,7 @@ type QueryType = {
   fromStartTime?: string;
   toStartTime?: string;
   version?: string;
+  advancedFilters?: FilterState;
 };
 
 export const generateObservationsForPublicApi = async (props: QueryType) => {
@@ -156,19 +157,23 @@ const filterParams = createPublicApiObservationsColumnMapping(
   "parent_observation_id",
 );
 
-const generateFilter = (filter: QueryType) => {
-  const observationsFilter = convertApiProvidedFilterToClickhouseFilter(
-    filter,
+const generateFilter = (query: QueryType) => {
+  const { advancedFilters, ...simpleFilterProps } = query;
+  const chFilter = deriveFilters(
+    simpleFilterProps,
     filterParams,
+    advancedFilters,
+    observationsTableUiColumnDefinitions,
   );
 
-  observationsFilter.push(
+  // Add project filter
+  chFilter.push(
     new StringFilter({
       clickhouseTable: "observations",
       field: "project_id",
       operator: "=",
-      value: filter.projectId,
+      value: query.projectId,
     }),
   );
-  return observationsFilter;
+  return chFilter;
 };

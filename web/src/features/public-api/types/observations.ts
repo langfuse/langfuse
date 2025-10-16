@@ -3,6 +3,8 @@ import {
   ObservationLevel,
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  singleFilter,
+  InvalidRequestError,
 } from "@langfuse/shared";
 
 import {
@@ -179,6 +181,20 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
 });
 export const GetObservationsV1Response = z
   .object({
