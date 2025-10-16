@@ -4,6 +4,7 @@ import { logger, OtelIngestionProcessor } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
+import { ForbiddenError } from "@langfuse/shared";
 
 export const config = {
   api: {
@@ -19,12 +20,11 @@ export default withMiddlewares({
     rateLimitResource: "ingestion",
     fn: async ({ req, res, auth }) => {
       // Check if ingestion is suspended due to usage threshold
-      // TODO: Uncomment once we enabled ingestion suspension
-      // if (auth.scope.isIngestionSuspended) {
-      //   throw new ForbiddenError(
-      //     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
-      //   );
-      // }
+      if (auth.scope.isIngestionSuspended) {
+        throw new ForbiddenError(
+          "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+        );
+      }
 
       let body: Buffer;
       try {
