@@ -255,11 +255,10 @@ export const handleEventPropagationJob = async (
     if (partitions.length > 5) {
       const queue = EventPropagationQueue.getInstance();
       if (queue) {
-        await queue.add(
-          QueueJobs.EventPropagationJob,
-          { timestamp: new Date(), id: randomUUID() },
-          { delay: 1000 }, // 1 second delay
-        );
+        await queue.add(QueueJobs.EventPropagationJob, {
+          timestamp: new Date(),
+          id: randomUUID(),
+        });
         logger.info(
           `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
         );
