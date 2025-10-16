@@ -260,7 +260,7 @@ export const handleEventPropagationJob = async (
           id: randomUUID(),
         });
         logger.info(
-          `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
+          `Scheduled next event propagation job. Remaining partitions: ${partitions.length - 1}`,
         );
       }
     }
