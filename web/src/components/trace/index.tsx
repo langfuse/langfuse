@@ -65,6 +65,7 @@ export function Trace(props: {
   scores: APIScoreV2[];
   projectId: string;
   viewType?: "detailed" | "focused";
+  context?: "peek" | "fullscreen"; // are we in peek or fullscreen mode?
   isValidObservationId?: boolean;
   defaultMinObservationLevel?: ObservationLevelType;
   selectedTab?: string;
@@ -74,6 +75,7 @@ export function Trace(props: {
   ) => void;
 }) {
   const viewType = props.viewType ?? "detailed";
+  const context = props.context ?? "fullscreen";
   const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -142,20 +144,64 @@ export function Trace(props: {
     useLocalStorage("trace-tree-collapsed-fullscreen", false);
 
   const isTreePanelCollapsed =
-    viewType === "focused"
+    context === "peek"
       ? isTreePanelCollapsedPeek
       : isTreePanelCollapsedFullscreen;
   const setIsTreePanelCollapsed =
-    viewType === "focused"
+    context === "peek"
       ? setIsTreePanelCollapsedPeek
       : setIsTreePanelCollapsedFullscreen;
 
-  // Sync panel's collapsed state on mount
+  // DEBUG: Log context to understand the issue
+  console.log(
+    "DEBUG collapsed state routing:",
+    JSON.stringify({
+      propsContext: props.context,
+      derivedContext: context,
+      isPeekContext: context === "peek",
+      isFullscreenContext: context === "fullscreen",
+      usingPeekStorage: context === "peek",
+      usingFullscreenStorage: context === "fullscreen",
+    }),
+  );
+
+  // Sync panel's collapsed state on mount and check actual panel state
   useEffect(() => {
-    if (treePanelRef.current && isTreePanelCollapsed) {
-      treePanelRef.current.collapse();
-    }
-  }, [isTreePanelCollapsed]);
+    const panel = treePanelRef.current;
+    if (!panel) return;
+
+    // Small delay to let autoSaveId restore the layout first
+    const timer = setTimeout(() => {
+      const isActuallyCollapsed = panel.isCollapsed();
+
+      // IMPORTANT: Decide which setter to use based on CURRENT context
+      // to avoid stale closure bugs when switching contexts
+      const currentCollapsedState =
+        context === "peek"
+          ? isTreePanelCollapsedPeek
+          : isTreePanelCollapsedFullscreen;
+      const setCurrentCollapsedState =
+        context === "peek"
+          ? setIsTreePanelCollapsedPeek
+          : setIsTreePanelCollapsedFullscreen;
+
+      // Sync our state with actual panel state (cross-tab sync case)
+      if (isActuallyCollapsed !== currentCollapsedState) {
+        setCurrentCollapsedState(isActuallyCollapsed);
+      }
+
+      // If our state says collapsed but panel is expanded, collapse it
+      if (currentCollapsedState && !isActuallyCollapsed) {
+        panel.collapse();
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+    // Only re-run on context changes (mount and peek↔fullscreen switching)
+    // Do NOT run when isTreePanelCollapsed changes - that causes cross-tab ping-pong
+    // The onCollapse/onExpand callbacks handle all state syncing during interactions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context]); // ONLY context, NOT isTreePanelCollapsed
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -561,7 +607,7 @@ export function Trace(props: {
             direction="horizontal"
             className="flex-1 md:h-full"
             autoSaveId={
-              viewType === "focused"
+              context === "peek"
                 ? "trace-layout-peek"
                 : "trace-layout-fullscreen"
             }
@@ -577,9 +623,11 @@ export function Trace(props: {
               collapsedSize={3}
               onCollapse={() => {
                 // sync our state -> collapse detected
+                console.log("DEBUG onCollapse called, context:", context);
                 setIsTreePanelCollapsed(true);
               }}
               onExpand={() => {
+                console.log("DEBUG onExpand called, context:", context);
                 setIsTreePanelCollapsed(false);
               }}
               className="md:flex md:h-full md:flex-col md:overflow-hidden"
