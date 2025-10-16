@@ -35,6 +35,10 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ## Project Overview
 
+We recommend checking out DeepWiki to familiarize yourself with the project:
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/langfuse/langfuse)
+
 ### Technologies we use
 
 - Application (this repository)
@@ -420,3 +424,4 @@ npx fern-api generate --api organizations  # for the organizations API
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
+

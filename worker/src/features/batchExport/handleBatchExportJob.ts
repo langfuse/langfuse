@@ -5,6 +5,7 @@ import {
   BatchExportStatus,
   BatchExportTableName,
   exportOptions,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -50,7 +51,7 @@ export const handleBatchExportJob = async (
   });
 
   if (!jobDetails) {
-    throw new Error(
+    throw new LangfuseNotFoundError(
       `Job not found for project: ${projectId} and export ${batchExportId}`,
     );
   }
@@ -76,6 +77,13 @@ export const handleBatchExportJob = async (
   if (!parsedQuery.success) {
     throw new Error(
       `Failed to parse query for ${batchExportId}: ${parsedQuery.error.message}`,
+    );
+  }
+
+  if (span) {
+    span.setAttribute(
+      "messaging.bullmq.job.input.query",
+      JSON.stringify(parsedQuery.data),
     );
   }
 

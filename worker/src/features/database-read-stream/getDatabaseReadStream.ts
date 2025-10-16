@@ -8,6 +8,7 @@ import {
   OrderByState,
   TracingSearchType,
   ScoreDataType,
+  isPresent,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -594,7 +595,7 @@ export function prepareScoresForOutput(
       const existingValues = acc[score.name];
       const newValue =
         score.dataType === "NUMERIC" ? score.value : score.stringValue;
-      if (!newValue) return acc;
+      if (!isPresent(newValue)) return acc;
 
       if (!existingValues) {
         // First value determines the type

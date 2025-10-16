@@ -30,6 +30,24 @@ export default function Traces() {
 
   const showOnboarding = !isLoading && !hasTracingConfigured;
 
+  if (showOnboarding) {
+    return (
+      <Page
+        headerProps={{
+          title: "Tracing",
+          help: {
+            description:
+              "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+            href: "https://langfuse.com/docs/observability/data-model",
+          },
+        }}
+        scrollable
+      >
+        <TracesOnboarding projectId={projectId} />
+      </Page>
+    );
+  }
+
   return (
     <Page
       headerProps={{
@@ -44,14 +62,8 @@ export default function Traces() {
           activeTab: TRACING_TABS.TRACES,
         },
       }}
-      scrollable={showOnboarding}
     >
-      {/* Show onboarding screen if user has no traces */}
-      {showOnboarding ? (
-        <TracesOnboarding projectId={projectId} />
-      ) : (
-        <TracesTable projectId={projectId} />
-      )}
+      <TracesTable projectId={projectId} />
     </Page>
   );
 }

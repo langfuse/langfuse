@@ -433,6 +433,7 @@ export async function commandClickhouse(opts: {
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
+  clickhouseSettings?: ClickHouseSettings;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -447,6 +448,7 @@ export async function commandClickhouse(opts: {
         query: opts.query,
         query_params: opts.params,
         clickhouse_settings: {
+          ...opts.clickhouseSettings,
           log_comment: JSON.stringify(opts.tags ?? {}),
         },
       });

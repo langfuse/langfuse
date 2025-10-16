@@ -13,6 +13,7 @@ import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
+  convertTraceToStagingObservation,
   eventTypes,
   IngestionEntityTypes,
   IngestionEventType,
@@ -41,6 +42,7 @@ import {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
   hasNoJobConfigsCache,
+  traceException,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -204,6 +206,7 @@ export class IngestionService {
     eventBodyId: string,
     createdAtTimestamp: Date,
     events: IngestionEventType[],
+    forwardToEventsTable: boolean,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
@@ -216,6 +219,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
+          createEventTraceRecord: forwardToEventsTable,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -223,6 +227,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
+          writeToStagingTables: forwardToEventsTable,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -521,6 +526,8 @@ export class IngestionService {
                 ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
                 : {},
               string_value: validatedScore.stringValue,
+              execution_trace_id: validatedScore.executionTraceId,
+              queue_id: validatedScore.queueId ?? null,
               created_at: Date.now(),
               updated_at: Date.now(),
               event_ts: new Date(scoreEvent.timestamp).getTime(),
@@ -565,8 +572,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
+    createEventTraceRecord: boolean;
   }) {
-    const { projectId, entityId, createdAtTimestamp, traceEventList } = params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      traceEventList,
+      createEventTraceRecord,
+    } = params;
     if (traceEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -652,6 +666,19 @@ export class IngestionService {
       }
     }
 
+    // Dual-write to staging table for batch propagation to events table
+    // We pretend the trace is a "span" where span_id = trace_id
+    if (createEventTraceRecord) {
+      const traceAsStagingObservation = convertTraceToStagingObservation(
+        finalTraceRecord,
+        createdAtTimestamp.getTime(),
+      );
+      this.clickHouseWriter.addToQueue(
+        TableName.ObservationsBatchStaging,
+        traceAsStagingObservation,
+      );
+    }
+
     // Add trace into trace upsert queue for eval processing
     // First check if we already know this project has no job configurations
     const hasNoJobConfigs = await hasNoJobConfigsCache(projectId);
@@ -673,6 +700,7 @@ export class IngestionService {
           projectId,
           traceId: entityId,
           exactTimestamp: new Date(finalTraceRecord.timestamp),
+          traceEnvironment: finalTraceRecord.environment,
         },
         id: randomUUID(),
         timestamp: new Date(),
@@ -686,9 +714,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
+    writeToStagingTables: boolean;
   }) {
-    const { projectId, entityId, createdAtTimestamp, observationEventList } =
-      params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      observationEventList,
+      writeToStagingTables,
+    } = params;
     if (observationEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -790,6 +824,18 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    // Dual-write to staging table for batch propagation to events table
+    if (writeToStagingTables) {
+      const stagingRecord = {
+        ...finalObservationRecord,
+        s3_first_seen_timestamp: createdAtTimestamp.getTime(),
+      };
+      this.clickHouseWriter.addToQueue(
+        TableName.ObservationsBatchStaging,
+        stagingRecord,
+      );
+    }
   }
 
   private async mergeScoreRecords(params: {
@@ -961,18 +1007,18 @@ export class IngestionService {
     | {}
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = observationRecord.provided_model_name
-      ? await findModel({
-          projectId,
-          model: observationRecord.provided_model_name,
-        })
-      : null;
+    const { model: internalModel, prices: modelPrices } =
+      observationRecord.provided_model_name
+        ? await findModel({
+            projectId,
+            model: observationRecord.provided_model_name,
+          })
+        : { model: null, prices: [] };
 
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
-    const modelPrices = await this.getModelPrices(internalModel?.id);
 
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
@@ -993,12 +1039,6 @@ export class IngestionService {
       ...final_cost_details,
       internal_model_id: internalModel?.id,
     };
-  }
-
-  private async getModelPrices(modelId?: string): Promise<Price[]> {
-    return modelId
-      ? ((await this.prisma.price.findMany({ where: { modelId } })) ?? [])
-      : [];
   }
 
   private async getUsageUnits(
@@ -1022,83 +1062,96 @@ export class IngestionService {
       Object.keys(providedUsageDetails).length === 0 &&
       observationRecord.level !== ObservationLevel.ERROR
     ) {
-      let newInputCount: number | undefined;
-      let newOutputCount: number | undefined;
-      await instrumentAsync(
-        {
-          name: "token-count",
-        },
-        async (span) => {
-          try {
-            [newInputCount, newOutputCount] = await Promise.all([
-              tokenCountAsync({
+      try {
+        let newInputCount: number | undefined;
+        let newOutputCount: number | undefined;
+        await instrumentAsync(
+          {
+            name: "token-count",
+          },
+          async (span) => {
+            try {
+              [newInputCount, newOutputCount] = await Promise.all([
+                tokenCountAsync({
+                  text: observationRecord.input,
+                  model,
+                }),
+                tokenCountAsync({
+                  text: observationRecord.output,
+                  model,
+                }),
+              ]);
+            } catch (error) {
+              logger.warn(
+                `Async tokenization has failed. Falling back to synchronous tokenization`,
+                error,
+              );
+              newInputCount = tokenCount({
                 text: observationRecord.input,
                 model,
-              }),
-              tokenCountAsync({
+              });
+              newOutputCount = tokenCount({
                 text: observationRecord.output,
                 model,
-              }),
-            ]);
-          } catch (error) {
-            logger.warn(
-              `Async tokenization has failed. Falling back to synchronous tokenization`,
-              error,
-            );
-            newInputCount = tokenCount({
-              text: observationRecord.input,
-              model,
-            });
-            newOutputCount = tokenCount({
-              text: observationRecord.output,
-              model,
-            });
-          }
+              });
+            }
 
-          // Tracing
-          newInputCount
-            ? span.setAttribute(
-                "langfuse.tokenization.input-count",
-                newInputCount,
-              )
-            : undefined;
-          newOutputCount
-            ? span.setAttribute(
-                "langfuse.tokenization.output-count",
-                newOutputCount,
-              )
-            : undefined;
+            // Tracing
+            newInputCount
+              ? span.setAttribute(
+                  "langfuse.tokenization.input-count",
+                  newInputCount,
+                )
+              : undefined;
+            newOutputCount
+              ? span.setAttribute(
+                  "langfuse.tokenization.output-count",
+                  newOutputCount,
+                )
+              : undefined;
+            newInputCount || newOutputCount
+              ? span.setAttribute(
+                  "langfuse.tokenization.tokenizer",
+                  model.tokenizerId || "unknown",
+                )
+              : undefined;
+            newInputCount
+              ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
+              : undefined;
+            newOutputCount
+              ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
+              : undefined;
+          },
+        );
+
+        logger.debug(
+          `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
+        );
+
+        const newTotalCount =
           newInputCount || newOutputCount
-            ? span.setAttribute(
-                "langfuse.tokenization.tokenizer",
-                model.tokenizerId || "unknown",
-              )
+            ? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined;
-          newInputCount
-            ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
-            : undefined;
-          newOutputCount
-            ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
-            : undefined;
-        },
-      );
 
-      logger.debug(
-        `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
-      );
+        const usage_details: Record<string, number> = {};
 
-      const newTotalCount =
-        newInputCount || newOutputCount
-          ? (newInputCount ?? 0) + (newOutputCount ?? 0)
-          : undefined;
+        if (newInputCount != null) usage_details.input = newInputCount;
+        if (newOutputCount != null) usage_details.output = newOutputCount;
+        if (newTotalCount != null) usage_details.total = newTotalCount;
 
-      const usage_details: Record<string, number> = {};
-
-      if (newInputCount != null) usage_details.input = newInputCount;
-      if (newOutputCount != null) usage_details.output = newOutputCount;
-      if (newTotalCount != null) usage_details.total = newTotalCount;
-
-      return { usage_details, provided_usage_details: providedUsageDetails };
+        return { usage_details, provided_usage_details: providedUsageDetails };
+      } catch (error) {
+        traceException(error);
+        logger.error(
+          `Tokenization failed for observation ${observationRecord.id} with model ${model.id}. Continuing without token counts.`,
+          error,
+        );
+        // Continue without token counts - return empty usage_details
+        return {
+          usage_details: {},
+          provided_usage_details: providedUsageDetails,
+        };
+      }
     }
 
     const usageDetails = { ...providedUsageDetails };

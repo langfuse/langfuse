@@ -495,6 +495,7 @@ export type LLMApiKey =
 
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
+  LLMJudge = "langfuse-llm-as-a-judge",
 }
 
 export type TraceSinkParams = {
