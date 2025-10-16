@@ -1,14 +1,6 @@
-import {
-  useState,
-  useCallback,
-  useLayoutEffect,
-  useEffect,
-  useRef,
-} from "react";
-import useLocalStorage from "@/src/components/useLocalStorage";
+import { useState, useCallback, useLayoutEffect } from "react";
 
 interface PanelState {
-  sizes: number[]; // [leftPanelSize, rightPanelSize]
   minSize: number;
   maxSize: number;
 }
@@ -17,41 +9,10 @@ export function usePanelState(
   containerRef: React.RefObject<HTMLDivElement | null>,
   viewType: "timeline" | "tree",
 ) {
-  const previousViewTypeRef = useRef<string>(viewType);
-
-  const [timelineSizes, setTimelineSizes] = useLocalStorage(
-    "trace-detail-timeline",
-    [30, 70],
-  );
-  const [treeSizes, setTreeSizes] = useLocalStorage(
-    "trace-detail-tree",
-    [30, 70],
-  );
-
-  const [panelState, setPanelState] = useState<PanelState>(() => {
-    const savedSizes = viewType === "timeline" ? timelineSizes : treeSizes;
-
-    return {
-      sizes: savedSizes,
-      minSize: 25, // Will be updated by ResizeObserver
-      maxSize: viewType === "timeline" ? 80 : 70, // Will be updated by ResizeObserver
-    };
+  const [panelState, setPanelState] = useState<PanelState>({
+    minSize: 25, // Will be updated by ResizeObserver
+    maxSize: viewType === "timeline" ? 80 : 70, // Will be updated by ResizeObserver
   });
-
-  // Handle view switching
-  useEffect(() => {
-    if (previousViewTypeRef.current !== viewType) {
-      const newSizes = viewType === "timeline" ? timelineSizes : treeSizes;
-
-      setPanelState((prev) => ({
-        ...prev,
-        sizes: newSizes,
-        maxSize: viewType === "timeline" ? 80 : 70,
-      }));
-
-      previousViewTypeRef.current = viewType;
-    }
-  }, [viewType, timelineSizes, treeSizes]);
 
   const updateConstraints = useCallback(
     (containerWidth: number) => {
@@ -74,25 +35,12 @@ export function usePanelState(
 
       setPanelState((prev) => {
         if (prev.minSize !== minSize || prev.maxSize !== maxSize) {
-          return { ...prev, minSize, maxSize };
+          return { minSize, maxSize };
         }
         return prev;
       });
     },
     [viewType],
-  );
-
-  const onLayout = useCallback(
-    (sizes: number[]) => {
-      if (viewType === "timeline") {
-        setTimelineSizes(sizes);
-      } else {
-        setTreeSizes(sizes);
-      }
-
-      setPanelState((prev) => ({ ...prev, sizes }));
-    },
-    [viewType, setTimelineSizes, setTreeSizes],
   );
 
   // Handle container width changes
@@ -118,9 +66,7 @@ export function usePanelState(
   }, [updateConstraints, containerRef]);
 
   return {
-    sizes: panelState.sizes,
     minSize: panelState.minSize,
     maxSize: panelState.maxSize,
-    onLayout,
   };
 }

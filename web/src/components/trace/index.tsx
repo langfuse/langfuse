@@ -97,8 +97,6 @@ export function Trace(props: {
 
   // Use imperative panel API for collapse/expand
   const treePanelRef = useRef<ImperativePanelHandle>(null);
-  // Track UI state for collapsed button (for rendering only, not for controlling panel)
-  const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useState(false);
 
   // TODO: remove, kinda hacky
   // when user clicks Log View, we want to show them that you can collapse the tree panel
@@ -135,6 +133,29 @@ export function Trace(props: {
     containerRef,
     props.selectedTab?.includes("timeline") ? "timeline" : "tree",
   );
+
+  const TREE_DEFAULT_WIDTH = 30;
+  // store collapsed state per viewType: peek vs fullscreen
+  const [isTreePanelCollapsedPeek, setIsTreePanelCollapsedPeek] =
+    useLocalStorage("trace-tree-collapsed-peek", false);
+  const [isTreePanelCollapsedFullscreen, setIsTreePanelCollapsedFullscreen] =
+    useLocalStorage("trace-tree-collapsed-fullscreen", false);
+
+  const isTreePanelCollapsed =
+    viewType === "focused"
+      ? isTreePanelCollapsedPeek
+      : isTreePanelCollapsedFullscreen;
+  const setIsTreePanelCollapsed =
+    viewType === "focused"
+      ? setIsTreePanelCollapsedPeek
+      : setIsTreePanelCollapsedFullscreen;
+
+  // Sync panel's collapsed state on mount
+  useEffect(() => {
+    if (treePanelRef.current && isTreePanelCollapsed) {
+      treePanelRef.current.collapse();
+    }
+  }, [isTreePanelCollapsed]);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -539,17 +560,28 @@ export function Trace(props: {
           <ResizablePanelGroup
             direction="horizontal"
             className="flex-1 md:h-full"
-            autoSaveId="trace-tree-layout"
+            autoSaveId={
+              viewType === "focused"
+                ? "trace-layout-peek"
+                : "trace-layout-fullscreen"
+            }
           >
             <ResizablePanel
               ref={treePanelRef}
-              defaultSize={30}
-              minSize={27}
+              id="trace-tree-panel"
+              order={1}
+              defaultSize={TREE_DEFAULT_WIDTH}
+              minSize={panelState.minSize}
               maxSize={panelState.maxSize}
               collapsible={true}
               collapsedSize={3}
-              onCollapse={() => setIsTreePanelCollapsed(true)}
-              onExpand={() => setIsTreePanelCollapsed(false)}
+              onCollapse={() => {
+                // sync our state -> collapse detected
+                setIsTreePanelCollapsed(true);
+              }}
+              onExpand={() => {
+                setIsTreePanelCollapsed(false);
+              }}
               className="md:flex md:h-full md:flex-col md:overflow-hidden"
             >
               {isTreePanelCollapsed ? (
@@ -558,7 +590,7 @@ export function Trace(props: {
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      treePanelRef.current?.expand();
+                      treePanelRef.current?.resize(TREE_DEFAULT_WIDTH);
                       capture("trace_detail:tree_panel_toggle", {
                         collapsed: false,
                       });
@@ -721,15 +753,13 @@ export function Trace(props: {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            const newCollapsedState = !isTreePanelCollapsed;
-                            if (newCollapsedState) {
-                              treePanelRef.current?.collapse();
+                            if (isTreePanelCollapsed) {
+                              treePanelRef.current?.resize(TREE_DEFAULT_WIDTH);
                             } else {
-                              treePanelRef.current?.expand();
+                              treePanelRef.current?.collapse();
                             }
-                            setIsTreePanelCollapsed(newCollapsedState);
                             capture("trace_detail:tree_panel_toggle", {
-                              collapsed: newCollapsedState,
+                              collapsed: !isTreePanelCollapsed,
                             });
                           }}
                           title={
@@ -877,7 +907,12 @@ export function Trace(props: {
 
             <ResizableHandle className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:-translate-x-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
 
-            <ResizablePanel className="min-w-56 overflow-hidden md:h-full">
+            <ResizablePanel
+              id="trace-preview-panel"
+              order={2}
+              defaultSize={70}
+              className="min-w-56 overflow-hidden md:h-full"
+            >
               <div className="h-full pl-3">{previewContent}</div>
             </ResizablePanel>
           </ResizablePanelGroup>
