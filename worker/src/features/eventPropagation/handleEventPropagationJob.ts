@@ -129,7 +129,7 @@ export const handleEventPropagationJob = async (
       // We sort partitions from newest to oldest and then remove elements from the back.
       // This means that the oldest, unlocked element will be processed.
       // Later, we can continue to process from the back until two elements remain.
-      while (partitionToProcess !== null && partitions.length > 2) {
+      while (partitionToProcess === null && partitions.length > 2) {
         const internalPartition = partitions.pop()!;
         const lockAcquired = await acquirePartitionLock(
           internalPartition.partition,
