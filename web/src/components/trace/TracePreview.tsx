@@ -74,8 +74,6 @@ export const TracePreview = ({
     "pretty",
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
-    useEmptyConfigs();
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -157,9 +155,10 @@ export const TracePreview = ({
                       traceId: trace.id,
                     }}
                     scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    environment={trace.environment}
+                    scoreMetadata={{
+                      projectId: trace.projectId,
+                      environment: trace.environment,
+                    }}
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}

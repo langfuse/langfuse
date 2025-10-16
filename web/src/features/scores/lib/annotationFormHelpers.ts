@@ -4,7 +4,6 @@ import {
   type ScoreConfigCategoryDomain,
   type ScoreDataType,
 } from "@langfuse/shared";
-import { type ErrorOption } from "react-hook-form";
 
 export const resolveConfigValue = ({
   name,
@@ -16,7 +15,7 @@ export const resolveConfigValue = ({
   return `${getScoreDataTypeIcon(dataType)} ${name}`;
 };
 
-export const getAnnotationFormError = ({
+export const validateNumericScore = ({
   value,
   minValue,
   maxValue,
@@ -24,20 +23,18 @@ export const getAnnotationFormError = ({
   value?: number | null;
   minValue?: number | null;
   maxValue?: number | null;
-}): ErrorOption | null => {
+}): string | null => {
   if (
     (isPresent(maxValue) && Number(value) > maxValue) ||
     (isPresent(minValue) && Number(value) < minValue)
   ) {
-    return {
-      type: "custom",
-      message: `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`,
-    };
+    return `Not in range: [${minValue ?? "-∞"},${maxValue ?? "∞"}]`;
   }
   return null;
 };
 
-export const enrichCategories = (
+// In case the underlying score config categories have changed, we need to enrich the category options with a stale score value
+export const enrichCategoryOptionsWithStaleScoreValue = (
   categories: ScoreConfigCategoryDomain[],
   currentStringValue?: string | null,
 ): (ScoreConfigCategoryDomain & { isOutdated: boolean })[] => {

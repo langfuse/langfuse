@@ -39,7 +39,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
-import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 
 export const ObservationPreview = ({
   observations,
@@ -70,8 +69,6 @@ export const ObservationPreview = ({
   );
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
-    useEmptyConfigs();
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -169,9 +166,10 @@ export const ObservationPreview = ({
                       observationId: preloadedObservation.id,
                     }}
                     scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    environment={preloadedObservation.environment}
+                    scoreMetadata={{
+                      projectId: projectId,
+                      environment: preloadedObservation.environment,
+                    }}
                   />
 
                   <CreateNewAnnotationQueueItem

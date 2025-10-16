@@ -5,7 +5,6 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import {
   type AnnotationQueueItem,
@@ -15,8 +14,8 @@ import {
 } from "@langfuse/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useMemo } from "react";
 import { CommentsSection } from "./CommentsSection";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 
 interface AnnotationDrawerSectionProps {
   item: AnnotationQueueItem & {
@@ -48,10 +47,6 @@ export const AnnotationDrawerSection: React.FC<
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
 
-  const emptySelectedConfigIds = useMemo(() => {
-    return configs.map((c) => c.id);
-  }, [configs]);
-
   return (
     <Card className="col-span-2 flex h-full flex-col overflow-hidden">
       <ResizablePanelGroup
@@ -63,20 +58,20 @@ export const AnnotationDrawerSection: React.FC<
           minSize={30}
           defaultSize={verticalSize}
         >
-          <AnnotateDrawerContent
+          <AnnotationForm
             key={"annotation-drawer-content" + item.objectId}
             scoreTarget={scoreTarget}
-            scores={scores}
+            serverScores={scores}
             configs={configs}
-            emptySelectedConfigIds={emptySelectedConfigIds}
-            projectId={item.projectId}
+            scoreMetadata={{
+              projectId: item.projectId,
+              queueId: item.queueId,
+              environment,
+            }}
             analyticsData={{
               type: scoreTarget.type,
               source: "AnnotationQueue",
             }}
-            isSelectHidden
-            queueId={item.queueId}
-            environment={environment}
             actionButtons={
               isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
                 <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">

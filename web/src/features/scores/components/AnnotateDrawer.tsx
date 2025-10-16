@@ -12,22 +12,20 @@ import { api } from "@/src/utils/api";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { type AnnotateDrawerProps } from "@/src/features/scores/types";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import { formatAnnotateDescription } from "@/src/features/scores/lib/helpers";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 
 export function AnnotateDrawer<Target extends ScoreTarget>({
   projectId,
-  environment,
   scoreTarget,
   scores,
-  emptySelectedConfigIds,
-  setEmptySelectedConfigIds,
   analyticsData = {
     type: "trace",
     source: "TraceDetail",
   },
+  scoreMetadata,
   buttonVariant = "secondary",
 }: AnnotateDrawerProps<Target>) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -96,15 +94,12 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
             </div>
           </DrawerHeader>
         ) : (
-          <AnnotateDrawerContent
-            scores={scores}
+          <AnnotationForm
+            serverScores={scores}
             scoreTarget={scoreTarget}
             configs={configs}
-            emptySelectedConfigIds={emptySelectedConfigIds}
-            setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-            projectId={projectId}
             analyticsData={analyticsData}
-            environment={environment}
+            scoreMetadata={scoreMetadata}
           />
         )}
       </DrawerContent>

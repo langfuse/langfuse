@@ -3,7 +3,6 @@ import { Button } from "@/src/components/ui/button";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
-import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -14,8 +13,7 @@ import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useMemo } from "react";
-import { mergeScoreAggregateWithCache } from "@/src/features/datasets/lib/score-write-cache/mergeScoreAggregateWithCache";
+import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
 
 const DatasetAggregateCell = ({
   value,
@@ -29,42 +27,17 @@ const DatasetAggregateCell = ({
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
   const router = useRouter();
-  const scoreWriteCache = useScoreWriteCache();
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });
 
-  // Merge server scoreColumns with cached scoreColumns
-  const scoreColumns = useMemo(() => {
-    const seen = new Set<string>();
-    return [...serverScoreColumns, ...scoreWriteCache.scoreColumns]
-      .filter((col) => !seen.has(col.key) && seen.add(col.key))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [serverScoreColumns, scoreWriteCache.scoreColumns]);
-
   // Merge cached score writes into aggregates for optimistic display
-  const displayScores = useMemo(
-    () =>
-      mergeScoreAggregateWithCache(
-        value.scores,
-        scoreWriteCache.creates,
-        scoreWriteCache.updates,
-        scoreWriteCache.deletes,
-        value.trace.id,
-        value.observation?.id,
-        scoreColumns,
-      ),
-    [
-      scoreWriteCache.creates,
-      scoreWriteCache.updates,
-      scoreWriteCache.deletes,
-      value.scores,
-      value.trace.id,
-      value.observation?.id,
-      scoreColumns,
-    ],
+  const displayScores = useMergedAggregates(
+    value.scores,
+    value.trace.id,
+    value.observation?.id,
   );
 
   // conditionally fetch the trace or observation depending on the presence of observationId
@@ -201,8 +174,8 @@ const DatasetAggregateCell = ({
       >
         <div className="mt-1 w-full min-w-0 overflow-hidden">
           <div className="flex max-h-full w-full flex-wrap gap-1 overflow-y-auto">
-            {scoreColumns.length > 0 ? (
-              scoreColumns.map((scoreColumn) => (
+            {serverScoreColumns.length > 0 ? (
+              serverScoreColumns.map((scoreColumn) => (
                 <ScoreRow
                   key={scoreColumn.key}
                   projectId={projectId}

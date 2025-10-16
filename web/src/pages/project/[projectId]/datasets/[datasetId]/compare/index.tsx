@@ -18,10 +18,7 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
-import {
-  ScoreWriteCacheProvider,
-  useScoreWriteCache,
-} from "@/src/features/datasets/contexts/ScoreWriteCache";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import {
   ActiveCellProvider,
   useActiveCell,
@@ -56,7 +53,6 @@ function DatasetCompareInternal() {
   } = useDatasetRunsCompare(projectId, datasetId);
 
   const { activeCell, clearActiveCell } = useActiveCell();
-  const { clearWrites } = useScoreWriteCache();
 
   const handleExperimentSettled = async (data?: {
     success: boolean;
@@ -71,8 +67,7 @@ function DatasetCompareInternal() {
   // Clear annotation state on URL change (filters, navigation, etc.)
   useEffect(() => {
     clearActiveCell();
-    clearWrites();
-  }, [router.query, clearActiveCell, clearWrites]);
+  }, [router.query, clearActiveCell]);
 
   // Open panel when cell becomes active, close when cleared
   useEffect(() => {
@@ -215,10 +210,10 @@ function DatasetCompareInternal() {
 
 export default function DatasetCompare() {
   return (
-    <ScoreWriteCacheProvider>
+    <ScoreCacheProvider>
       <ActiveCellProvider>
         <DatasetCompareInternal />
       </ActiveCellProvider>
-    </ScoreWriteCacheProvider>
+    </ScoreCacheProvider>
   );
 }

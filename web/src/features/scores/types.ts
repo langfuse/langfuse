@@ -3,8 +3,7 @@ import { type AnnotateFormSchema } from "@/src/features/scores/schema";
 import {
   type ScoreSourceType,
   type ScoreDataType,
-  type CreateAnnotationScoreData,
-  type UpdateAnnotationScoreData,
+  type APIScoreV2,
 } from "@langfuse/shared";
 import { type z } from "zod/v4";
 
@@ -58,35 +57,33 @@ export type AnnotationScore = {
   source: ScoreSourceType;
   value?: number | null;
   stringValue?: string | null;
-  configId?: string | null;
+  configId: string;
   traceId?: string | null;
   observationId?: string | null;
   sessionId?: string | null;
   comment?: string | null;
 };
 
+type AnalyticsData = {
+  type: "trace" | "session";
+  source:
+    | "TraceDetail"
+    | "SessionDetail"
+    | "AnnotationQueue"
+    | "DatasetCompare";
+};
+
 export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   projectId: string;
   scoreTarget: Target;
-  scores: AnnotationScore[];
-  emptySelectedConfigIds: string[];
-  setEmptySelectedConfigIds?: (ids: string[]) => void;
-  analyticsData?: {
-    type: "trace" | "session";
-    source:
-      | "TraceDetail"
-      | "SessionDetail"
-      | "AnnotationQueue"
-      | "DatasetCompare";
+  scores: APIScoreV2[];
+  analyticsData?: AnalyticsData;
+  scoreMetadata: {
+    projectId: string;
+    queueId?: string;
+    environment?: string;
   };
   buttonVariant?: "secondary" | "outline";
-  environment?: string;
-};
-
-export type OnMutateCallbacks = {
-  onScoreCreate?: (scoreId: string, score: CreateAnnotationScoreData) => void;
-  onScoreUpdate?: (scoreId: string, score: UpdateAnnotationScoreData) => void;
-  onScoreDelete?: (scoreId: string) => void;
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

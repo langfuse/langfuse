@@ -8,26 +8,15 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
-import { useScoreWriteCache } from "@/src/features/datasets/contexts/ScoreWriteCache";
-import {
-  transformSingleValueAggregateScoreData,
-  filterSingleValueAggregates,
-} from "@/src/features/datasets/lib/score-write-cache/filterSingleValueAggregates";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
-import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 import { api } from "@/src/utils/api";
-import {
-  type CreateAnnotationScoreData,
-  type UpdateAnnotationScoreData,
-} from "@langfuse/shared";
 import { ChevronRight } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
   const [hasCommentDraft, setHasCommentDraft] = useState(false);
   const { activeCell, clearActiveCell } = useActiveCell();
-  const { cacheCreate, cacheUpdate, cacheDelete } = useScoreWriteCache();
 
   const [verticalSize, setVerticalSize] = useSessionStorage(
     `annotationQueueDrawerVertical-compare-${projectId}`,
@@ -37,43 +26,6 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
   const configsData = api.scoreConfigs.all.useQuery({
     projectId,
   });
-
-  const { scores, disabledConfigIds } = useMemo(() => {
-    if (!Boolean(configsData.data?.configs.length) || !activeCell)
-      return { scores: [], disabledConfigIds: new Set<string>() };
-
-    const { filtered, disabledConfigIds } = filterSingleValueAggregates(
-      activeCell.scoreAggregates,
-      configsData.data?.configs ?? [],
-    );
-
-    const scores = transformSingleValueAggregateScoreData(
-      filtered,
-      configsData.data?.configs ?? [],
-      activeCell.traceId,
-      activeCell.observationId ?? null,
-    );
-
-    return { scores, disabledConfigIds };
-  }, [activeCell, configsData.data?.configs]);
-
-  const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
-    useEmptyConfigs();
-
-  const onMutateCallbacks = useMemo(
-    () => ({
-      onScoreCreate: (scoreId: string, score: CreateAnnotationScoreData) => {
-        cacheCreate(scoreId, score);
-      },
-      onScoreUpdate: (scoreId: string, score: UpdateAnnotationScoreData) => {
-        cacheUpdate(scoreId, score);
-      },
-      onScoreDelete: (scoreId: string) => {
-        cacheDelete(scoreId);
-      },
-    }),
-    [cacheCreate, cacheUpdate, cacheDelete],
-  );
 
   if (!activeCell) {
     return <Skeleton className="h-full w-full" />;
@@ -91,25 +43,23 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
         defaultSize={verticalSize}
       >
         {configsData.data && activeCell ? (
-          <AnnotateDrawerContent
+          <AnnotationForm
             key={`annotation-drawer-content-${activeCell.traceId}-${activeCell.observationId}`}
             scoreTarget={{
               type: "trace",
               traceId: activeCell.traceId,
               observationId: activeCell.observationId,
             }}
-            scores={scores}
+            serverScores={activeCell.scoreAggregates}
             configs={configsData.data.configs}
-            emptySelectedConfigIds={emptySelectedConfigIds}
-            setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-            disabledConfigIds={disabledConfigIds}
-            projectId={projectId}
             analyticsData={{
               type: "trace",
               source: "DatasetCompare",
             }}
-            environment={activeCell.environment}
-            onMutateCallbacks={onMutateCallbacks}
+            scoreMetadata={{
+              projectId,
+              environment: activeCell.environment,
+            }}
             actionButtons={
               <Button
                 variant="outline"
