@@ -88,6 +88,8 @@ export const handleEventPropagationJob = async (
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
             and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
+          order by t.event_ts desc
+          limit 1 by t.project_id, t.id
         )
 
         INSERT INTO events (
@@ -208,7 +210,7 @@ export const handleEventPropagationJob = async (
           obs.event_ts,
           obs.is_deleted
         FROM relevant_traces t
-        RIGHT JOIN observations_batch_staging AS obs
+        RIGHT JOIN observations_batch_staging obs FINAL
         ON (
           obs.project_id = t.project_id AND
           obs.trace_id = t.id
@@ -253,13 +255,12 @@ export const handleEventPropagationJob = async (
     if (partitions.length > 5) {
       const queue = EventPropagationQueue.getInstance();
       if (queue) {
-        await queue.add(
-          QueueJobs.EventPropagationJob,
-          { timestamp: new Date(), id: randomUUID() },
-          { delay: 1000 }, // 1 second delay
-        );
+        await queue.add(QueueJobs.EventPropagationJob, {
+          timestamp: new Date(),
+          id: randomUUID(),
+        });
         logger.info(
-          `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
+          `Scheduled next event propagation job. Remaining partitions: ${partitions.length - 1}`,
         );
       }
     }
