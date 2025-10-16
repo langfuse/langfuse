@@ -77,6 +77,13 @@ export const handleBatchExportJob = async (
     );
   }
 
+  if (span) {
+    span.setAttribute(
+      "messaging.bullmq.job.input.query",
+      JSON.stringify(parsedQuery.data),
+    );
+  }
+
   // handle db read stream
   const dbReadStream = await getDatabaseReadStream({
     projectId,
