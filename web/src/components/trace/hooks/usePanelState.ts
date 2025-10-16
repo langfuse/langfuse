@@ -1,4 +1,4 @@
-import { useState, useCallback, useLayoutEffect } from "react";
+import { useState, useLayoutEffect } from "react";
 
 interface PanelState {
   minSize: number;
@@ -6,32 +6,34 @@ interface PanelState {
 }
 
 export function usePanelState(
-  containerRef: React.RefObject<HTMLDivElement | null>,
+  panelGroupId: string,
   viewType: "timeline" | "tree",
 ) {
+  const MIN_WIDTH_PX = 355;
+  const MAX_TREE_WIDTH_PX = 700;
+
   const [panelState, setPanelState] = useState<PanelState>({
-    minSize: 25, // Will be updated by ResizeObserver
-    maxSize: viewType === "timeline" ? 80 : 70, // Will be updated by ResizeObserver
+    minSize: 10, // Start with low default, will be updated by ResizeObserver
+    maxSize: viewType === "timeline" ? 80 : 70,
   });
 
-  const updateConstraints = useCallback(
-    (containerWidth: number) => {
-      const MIN_WIDTH_PX = 355;
-      const MAX_TREE_WIDTH_PX = 700;
+  // Handle PanelGroup width changes
+  useLayoutEffect(() => {
+    const panelGroup = document.querySelector(
+      `[data-panel-group-id="${panelGroupId}"]`,
+    );
+    if (!panelGroup) return;
 
-      if (containerWidth <= 0) return;
+    const resizeObserver = new ResizeObserver(() => {
+      const width = panelGroup.getBoundingClientRect().width;
 
-      const minSize = Math.max(
-        10,
-        Math.min(60, (MIN_WIDTH_PX / containerWidth) * 100),
-      );
+      if (width <= 0) return;
+
+      const minSize = Math.max(10, Math.min(60, (MIN_WIDTH_PX / width) * 100));
       const maxSize =
         viewType === "timeline"
           ? 80
-          : Math.max(
-              25,
-              Math.min(70, (MAX_TREE_WIDTH_PX / containerWidth) * 100),
-            );
+          : Math.max(25, Math.min(70, (MAX_TREE_WIDTH_PX / width) * 100));
 
       setPanelState((prev) => {
         if (prev.minSize !== minSize || prev.maxSize !== maxSize) {
@@ -39,31 +41,14 @@ export function usePanelState(
         }
         return prev;
       });
-    },
-    [viewType],
-  );
-
-  // Handle container width changes
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        updateConstraints(entry.contentRect.width);
-      }
     });
 
-    // Initial calculation
-    updateConstraints(container.offsetWidth);
-
-    resizeObserver.observe(container);
+    resizeObserver.observe(panelGroup);
 
     return () => {
       resizeObserver.disconnect();
     };
-  }, [updateConstraints, containerRef]);
+  }, [panelGroupId, viewType]);
 
   return {
     minSize: panelState.minSize,

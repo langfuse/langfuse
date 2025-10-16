@@ -131,8 +131,9 @@ export function Trace(props: {
   const containerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const panelGroupId = `trace-panel-group-${context}`;
   const panelState = usePanelState(
-    containerRef,
+    panelGroupId,
     props.selectedTab?.includes("timeline") ? "timeline" : "tree",
   );
 
@@ -141,39 +142,6 @@ export function Trace(props: {
   // Derive collapsed state from actual panel size (single source of truth = autoSaveId)
   // This avoids cross-tab sync issues from storing collapsed state separately
   const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useState(false);
-
-  // DEBUG: Check what's in localStorage on mount
-  useEffect(() => {
-    const autoSaveKey =
-      context === "peek" ? "trace-layout-peek" : "trace-layout-fullscreen";
-    const storageKey = `react-resizable-panels:${autoSaveKey}`;
-    const storedValue = localStorage.getItem(storageKey);
-    console.log(
-      "DEBUG autoSaveId check:",
-      JSON.stringify({
-        context,
-        autoSaveKey,
-        storageKey,
-        storedValue,
-        parsedValue: storedValue ? JSON.parse(storedValue) : null,
-      }),
-    );
-
-    // Check if panel actually restores to saved size
-    setTimeout(() => {
-      const panel = treePanelRef.current;
-      if (panel) {
-        console.log(
-          "DEBUG panel after autoSaveId restore:",
-          JSON.stringify({
-            panelSize: panel.getSize(),
-            isCollapsed: panel.isCollapsed(),
-            expectedFromStorage: storedValue ? JSON.parse(storedValue) : null,
-          }),
-        );
-      }
-    }, 100);
-  }, [context]);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -576,6 +544,7 @@ export function Trace(props: {
         {/* Desktop: Horizontal resizable panels */}
         <div className="hidden md:block md:h-full">
           <ResizablePanelGroup
+            id={panelGroupId}
             direction="horizontal"
             className="flex-1 md:h-full"
             autoSaveId={
