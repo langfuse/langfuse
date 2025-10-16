@@ -32,7 +32,8 @@ export const acquirePartitionLock = async (
   }
 
   try {
-    const lockKey = `${PARTITION_LOCK_PREFIX}:${partition}`; // TODO: Sanitize the partition key, e.g. by hashing
+    // Sanitize partition string to be Redis key friendly
+    const lockKey = `${PARTITION_LOCK_PREFIX}:${partition.replaceAll(/[^0-9_-]/g, "_")}`;
 
     // Returns "OK" if key was set (lock acquired), null if key already exists
     const result = await redis.set(lockKey, "true", "EX", ttlSeconds, "NX");
