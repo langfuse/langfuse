@@ -91,16 +91,6 @@ export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
 >;
 
-export type OptimisticScore = {
-  index: number;
-  value: number | null;
-  stringValue: string | null;
-  name?: string | null;
-  dataType?: ScoreDataType | null;
-  configId?: string | null;
-  scoreId?: string | null;
-};
-
 export type ScoreColumn = {
   key: string;
   name: string;
