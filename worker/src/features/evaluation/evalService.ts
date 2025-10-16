@@ -738,6 +738,14 @@ export const evaluate = async ({
   // Use deterministic trace ID from job execution ID. Retries will be in same trace.
   const executionTraceId = createW3CTraceId(event.jobExecutionId);
 
+  const executionMetadata = {
+    job_execution_id: event.jobExecutionId,
+    job_configuration_id: job.jobConfigurationId,
+    target_trace_id: job.jobInputTraceId,
+    target_observation_id: job.jobInputObservationId,
+    target_dataset_item_id: job.jobInputDatasetItemId,
+  };
+
   const llmOutput = await fetchLLMCompletion({
     streaming: false,
     llmConnection: modelConfig.config.apiKey,
@@ -756,11 +764,7 @@ export const evaluate = async ({
       traceName: `Execute eval: ${template.name}`,
       environment: "langfuse-llm-as-a-judge",
       metadata: {
-        job_execution_id: event.jobExecutionId,
-        job_configuration_id: job.jobConfigurationId,
-        target_trace_id: job.jobInputTraceId,
-        target_observation_id: job.jobInputObservationId,
-        target_dataset_item_id: job.jobInputDatasetItemId,
+        ...executionMetadata,
         score_id: scoreId,
       },
     },
@@ -787,6 +791,7 @@ export const evaluate = async ({
     source: ScoreSource.EVAL,
     environment: environment ?? "default",
     executionTraceId: executionTraceId,
+    metadata: executionMetadata,
   };
 
   // Write score to S3 and ingest into queue for Clickhouse processing
