@@ -65,7 +65,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -93,7 +93,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -128,7 +128,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -174,7 +174,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -204,7 +204,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -241,7 +241,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -301,7 +301,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -330,7 +330,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -366,7 +366,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -442,7 +442,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -472,7 +472,7 @@ describe("LLM Connection Tests", () => {
     test.skip("structured output - eval schema", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -505,7 +505,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -552,7 +552,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -581,7 +581,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -617,7 +617,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -664,7 +664,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -694,7 +694,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -731,7 +731,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {

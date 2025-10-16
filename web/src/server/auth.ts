@@ -30,6 +30,7 @@ import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import WorkOSProvider from "next-auth/providers/workos";
+import WordPressProvider from "next-auth/providers/wordpress";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -386,6 +387,20 @@ if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: "client_secret_post",
       },
+    }),
+  );
+
+if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
+  staticProviders.push(
+    WordPressProvider({
+      clientId: env.AUTH_WORDPRESS_CLIENT_ID,
+      clientSecret: env.AUTH_WORDPRESS_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_WORDPRESS_CHECKS,
     }),
   );
 

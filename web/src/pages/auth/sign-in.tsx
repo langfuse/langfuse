@@ -20,6 +20,7 @@ import {
   SiGoogle,
   SiGitlab,
   SiGithub,
+  SiWordpress,
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
@@ -72,6 +73,7 @@ export type PageProps = {
           connectionId: string;
         }
       | boolean;
+    wordpress: boolean;
     custom:
       | {
           name: string;
@@ -133,6 +135,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
                 ? { connectionId: env.AUTH_WORKOS_CONNECTION_ID }
                 : true
             : false,
+        wordpress:
+          env.AUTH_WORDPRESS_CLIENT_ID !== undefined &&
+          env.AUTH_WORDPRESS_CLIENT_SECRET !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -392,6 +397,17 @@ export function SSOButtons({
                 }
               />
             </>
+          )}
+          {authProviders.wordpress && (
+            <AuthProviderButton
+              icon={<SiWordpress className="mr-3" size={18} />}
+              label="WordPress"
+              onClick={() => handleSignIn("wordpress")}
+              loading={providerSigningIn === "wordpress"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "wordpress"
+              }
+            />
           )}
           {authProviders.custom && (
             <AuthProviderButton

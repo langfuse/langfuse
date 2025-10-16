@@ -7648,6 +7648,9 @@ components:
       properties:
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/PromptType'
+          description: Indicates whether the prompt is a text or chat prompt.
         versions:
           type: array
           items:
@@ -7669,6 +7672,7 @@ components:
             filters (if any are provided)
       required:
         - name
+        - type
         - versions
         - labels
         - tags
@@ -7784,6 +7788,12 @@ components:
             - $ref: '#/components/schemas/TextPrompt'
           required:
             - type
+    PromptType:
+      title: PromptType
+      type: string
+      enum:
+        - chat
+        - text
     BasePrompt:
       title: BasePrompt
       type: object

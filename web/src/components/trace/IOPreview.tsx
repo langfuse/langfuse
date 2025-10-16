@@ -18,7 +18,13 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useLocalStorage from "@/src/components/useLocalStorage";
 import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
-import { mapToLangfuseChatML } from "@/src/utils/langfuse-chatml";
+import {
+  normalizeInput,
+  normalizeOutput,
+  combineInputOutputMessages,
+  cleanLegacyOutput,
+  extractAdditionalInput,
+} from "@/src/utils/chatml";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -65,19 +71,25 @@ export const IOPreview: React.FC<{
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  const chatML = useMemo(
-    () =>
-      mapToLangfuseChatML(
-        input,
-        output,
-        metadata,
-        props.observationName ?? undefined,
-      ),
-    [input, output, metadata, props.observationName],
-  );
-  const canDisplayAsChat = chatML.canDisplayAsChat();
-  const allMessages = chatML.getAllMessages();
-  const additionalInput = chatML.input.additional;
+  const { canDisplayAsChat, allMessages, additionalInput } = useMemo(() => {
+    const ctx = { metadata, observationName: props.observationName };
+    const inResult = normalizeInput(input, ctx);
+    const outResult = normalizeOutput(output, ctx);
+    const outputClean = cleanLegacyOutput(output, output);
+    const messages = combineInputOutputMessages(
+      inResult,
+      outResult,
+      outputClean,
+    );
+
+    return {
+      // display as chat if normalization succeeded AND we have messages to show
+      canDisplayAsChat:
+        (inResult.success || outResult.success) && messages.length > 0,
+      allMessages: messages,
+      additionalInput: extractAdditionalInput(input),
+    };
+  }, [input, output, metadata, props.observationName]);
 
   // Pretty view is available for ChatML content OR any JSON content
   const isPrettyViewAvailable = true; // Always show the toggle, let individual components decide how to render

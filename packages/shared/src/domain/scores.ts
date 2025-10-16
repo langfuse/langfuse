@@ -29,6 +29,7 @@ export const ScoreSchema = z.object({
   configId: z.string().nullable(),
   stringValue: z.string().nullable(),
   queueId: z.string().nullable(),
+  executionTraceId: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
   dataType: z.enum(ScoreDataType),
