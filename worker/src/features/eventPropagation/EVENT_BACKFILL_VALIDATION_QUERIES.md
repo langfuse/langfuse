@@ -323,7 +323,7 @@ SELECT
     arrayStringConcat(mapKeys(o_metadata), ', ') AS obs_value,
     arrayStringConcat(e_metadata_names, ', ') AS event_value
 FROM obs_event_joined
-WHERE arrayAll(k -> has(e_metadata_names, k), mapKeys(o_metadata))
+WHERE NOT arrayAll(k -> has(e_metadata_names, k), mapKeys(o_metadata))
 
 -- ORDER BY validation_category, issue_type, observation_id
 SETTINGS join_algorithm = 'partial_merge'
