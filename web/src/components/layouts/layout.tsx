@@ -340,7 +340,7 @@ export default function Layout(props: PropsWithChildren) {
         <SidebarProvider>
           <div className="flex h-dvh w-full flex-col">
             <PaymentBanner />
-            <div className="pt-banner-offset flex min-h-0 flex-1">
+            <div className="flex min-h-0 flex-1 pt-banner-offset">
               <AppSidebar
                 navItems={mainNavigation}
                 secondaryNavItems={secondaryNavigation}
@@ -381,7 +381,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
         <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
           <DrawerContent
             id="support-drawer"
-            className="min-h-screen-with-banner inset-x-0 bottom-0 top-[calc(var(--banner-offset)+10px)]"
+            className="inset-x-0 bottom-0 top-[calc(var(--banner-offset)+10px)] min-h-screen-with-banner"
             size="full"
           >
             <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
