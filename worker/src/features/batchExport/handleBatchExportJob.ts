@@ -4,6 +4,7 @@ import {
   BatchExportQuerySchema,
   BatchExportStatus,
   exportOptions,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -48,7 +49,7 @@ export const handleBatchExportJob = async (
   });
 
   if (!jobDetails) {
-    throw new Error(
+    throw new LangfuseNotFoundError(
       `Job not found for project: ${projectId} and export ${batchExportId}`,
     );
   }
