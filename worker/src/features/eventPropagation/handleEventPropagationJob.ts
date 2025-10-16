@@ -88,6 +88,8 @@ export const handleEventPropagationJob = async (
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
             and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
+          order by t.event_ts desc
+          limit 1 by t.project_id, t.id
         )
 
         INSERT INTO events (
@@ -205,7 +207,7 @@ export const handleEventPropagationJob = async (
           obs.event_ts,
           obs.is_deleted
         FROM relevant_traces t
-        RIGHT JOIN observations_batch_staging AS obs
+        RIGHT JOIN observations_batch_staging obs FINAL
         ON (
           obs.project_id = t.project_id AND
           obs.trace_id = t.id
