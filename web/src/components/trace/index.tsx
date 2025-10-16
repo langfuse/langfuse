@@ -152,7 +152,8 @@ export function Trace(props: {
         setIsTreePanelCollapsed(collapsed);
       }
     }
-  }, [isTreePanelCollapsed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
