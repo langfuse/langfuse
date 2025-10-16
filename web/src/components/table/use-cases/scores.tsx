@@ -71,7 +71,7 @@ export type ScoresTableRow = {
   jobConfigurationId?: string;
   traceTags?: string[];
   environment?: string;
-  evalExecutionTraceId?: string;
+  executionTraceId?: string;
 };
 
 function createFilterState(
@@ -328,15 +328,15 @@ export default function ScoresTable({
       },
     },
     {
-      accessorKey: "evalExecutionTraceId",
-      id: "evalExecutionTraceId",
+      accessorKey: "executionTraceId",
+      id: "executionTraceId",
       header: "Execution Trace",
       enableSorting: false,
       enableHiding: true,
       defaultHidden: true,
       size: 100,
       cell: ({ row }) => {
-        const value = row.getValue("evalExecutionTraceId");
+        const value = row.getValue("executionTraceId");
         return typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
@@ -635,7 +635,7 @@ export default function ScoresTable({
       jobConfigurationId: score.jobConfigurationId ?? undefined,
       traceTags: score.traceTags ?? undefined,
       environment: score.environment ?? undefined,
-      evalExecutionTraceId: score.evalExecutionTraceId ?? undefined,
+      executionTraceId: score.executionTraceId ?? undefined,
     };
   };
 

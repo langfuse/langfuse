@@ -786,7 +786,7 @@ export const evaluate = async ({
     comment: parsedLLMOutput.data.reasoning,
     source: ScoreSource.EVAL,
     environment: environment ?? "default",
-    evalExecutionTraceId: executionTraceId,
+    executionTraceId: executionTraceId,
   };
 
   // Write score to S3 and ingest into queue for Clickhouse processing

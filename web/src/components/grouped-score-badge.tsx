@@ -80,11 +80,11 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
                 </HoverCardTrigger>
                 <HoverCardContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
                   <p className="whitespace-pre-wrap">{s.comment}</p>
-                  {"evalExecutionTraceId" in s &&
-                    s.evalExecutionTraceId &&
+                  {"executionTraceId" in s &&
+                    s.executionTraceId &&
                     projectId && (
                       <Link
-                        href={`/project/${projectId}/traces/${encodeURIComponent(s.evalExecutionTraceId)}`}
+                        href={`/project/${projectId}/traces/${encodeURIComponent(s.executionTraceId)}`}
                         className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
                         target="_blank"
                       >

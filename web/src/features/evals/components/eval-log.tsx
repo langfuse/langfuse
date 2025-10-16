@@ -24,7 +24,7 @@ export type JobExecutionRow = {
   startTime?: string;
   endTime?: string;
   traceId?: string;
-  evalExecutionTraceId?: string;
+  executionTraceId?: string;
   templateId: string;
   evaluatorId: string;
   error?: string;
@@ -134,8 +134,8 @@ export default function EvalLogTable({
         ) : undefined;
       },
     }),
-    columnHelper.accessor("evalExecutionTraceId", {
-      id: "evalExecutionTraceId",
+    columnHelper.accessor("executionTraceId", {
+      id: "executionTraceId",
       header: "Execution Trace",
       enableHiding: true,
       cell: (row) => {
@@ -201,7 +201,7 @@ export default function EvalLogTable({
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
-      evalExecutionTraceId: jobConfig.executionTraceId ?? undefined,
+      executionTraceId: jobConfig.executionTraceId ?? undefined,
       templateId: jobConfig.jobTemplateId ?? "",
       evaluatorId: jobConfig.jobConfigurationId,
       error: jobConfig.error ?? undefined,
