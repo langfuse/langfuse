@@ -18,6 +18,7 @@ import {
   createDatasetRunItem,
   createOrgProjectAndApiKey,
   LLMCompletionError,
+  LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -2479,7 +2480,7 @@ describe("eval service tests", () => {
         "Execute evaluator: test-evaluator",
       );
       expect(capturedTraceSinkParams.environment).toBe(
-        "langfuse-llm-as-a-judge",
+        LangfuseInternalTraceEnvironment.LLMAsAJudge,
       );
       expect(capturedTraceSinkParams.metadata).toMatchObject({
         job_execution_id: jobExecutionId,
@@ -2489,5 +2490,367 @@ describe("eval service tests", () => {
       });
       expect(capturedTraceSinkParams.metadata.score_id).toBeDefined();
     }, 15_000);
+  });
+
+  describe("internal trace environment filtering", () => {
+    test("does not create eval jobs for trace-upsert with LLMAsAJudge environment", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      // Create trace with LLMAsAJudge environment
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        environment: LangfuseInternalTraceEnvironment.LLMAsAJudge,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create an active eval configuration
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId,
+        traceEnvironment: LangfuseInternalTraceEnvironment.LLMAsAJudge,
+      };
+
+      // Attempt to create eval jobs
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      // Verify no eval jobs were created
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(0);
+    }, 10_000);
+
+    test("does not create eval jobs for trace-upsert with PromptExperiments environment", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      // Create trace with PromptExperiments environment
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create an active eval configuration
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId,
+        traceEnvironment: LangfuseInternalTraceEnvironment.PromptExperiments,
+      };
+
+      // Attempt to create eval jobs
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      // Verify no eval jobs were created
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(0);
+    }, 10_000);
+
+    test("creates eval jobs for dataset-run-item-upsert with PromptExperiments environment", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+      const datasetId = randomUUID();
+      const datasetItemId = randomUUID();
+      const datasetRunId = randomUUID();
+
+      // Create dataset infrastructure
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values({
+          id: datasetId,
+          project_id: projectId,
+          name: "test-dataset",
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: projectId,
+          dataset_id: datasetId,
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_runs")
+        .values({
+          id: datasetRunId,
+          name: randomUUID(),
+          dataset_id: datasetId,
+          project_id: projectId,
+        })
+        .execute();
+
+      // Create clickhouse run item
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          project_id: projectId,
+          dataset_id: datasetId,
+          dataset_run_id: datasetRunId,
+          dataset_item_id: datasetItemId,
+          trace_id: traceId,
+        }),
+      ]);
+
+      // Create trace with PromptExperiments environment
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create an active dataset eval configuration
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "dataset",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId,
+        datasetItemId,
+        traceEnvironment: LangfuseInternalTraceEnvironment.PromptExperiments,
+      };
+
+      // Attempt to create eval jobs via dataset-run-item-upsert
+      await createEvalJobs({
+        sourceEventType: "dataset-run-item-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      // Verify eval jobs WERE created (experiments need this)
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+      expect(jobs[0].job_input_dataset_item_id).toBe(datasetItemId);
+    }, 10_000);
+
+    test("creates eval jobs for trace-upsert with production environment", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      // Create trace with production environment
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        environment: "production",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create an active eval configuration
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId,
+        traceEnvironment: "production",
+      };
+
+      // Attempt to create eval jobs
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      // Verify eval jobs WERE created (normal traces should be evaluated)
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+    }, 10_000);
+
+    test("creates eval jobs for trace-upsert with undefined environment", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      // Create trace with undefined environment
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create an active eval configuration
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId,
+        // traceEnvironment intentionally omitted
+      };
+
+      // Attempt to create eval jobs
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      // Verify eval jobs WERE created (traces without environment should be evaluated)
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+    }, 10_000);
+
+    test("creates eval jobs for trace-upsert with 'langfuse' environment without hyphen", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      // Create trace with "langfuse" environment (no hyphen)
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        environment: "langfuse",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      // Create an active eval configuration
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId,
+        traceEnvironment: "langfuse",
+      };
+
+      // Attempt to create eval jobs
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      // Verify eval jobs WERE created (only "langfuse-" prefix is blocked)
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+    }, 10_000);
   });
 });

@@ -30,6 +30,7 @@ import {
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
   fetchLLMCompletion,
+  LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -218,11 +219,22 @@ export const createEvalJobs = async ({
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
 
-  // Early exit: Skip eval job creation for internal Langfuse traces from trace upsert queue
-  // This excludes traces from prompt experiments that are coming via dataset run item upsert queue.
-  // Internal traces (e.g., for eval executions) have environment starting with "langfuse-"
-  // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
-  // See corresponding validation in packages/shared/src/server/llm/fetchLLMCompletion.ts
+  // Early exit: Skip eval job creation for internal Langfuse traces from trace-upsert queue
+  //
+  // CONTEXT: Prevent infinite eval loops
+  // Without this safeguard: user trace → eval → eval trace → another eval → infinite loop
+  //
+  // IMPLEMENTATION:
+  // - Block ALL traces with environment starting with "langfuse-" when coming from trace-upsert queue
+  // - This excludes traces from prompt experiments that come via dataset-run-item-upsert queue
+  // - Internal traces (e.g., eval executions) use LangfuseInternalTraceEnvironment enum values
+  //
+  // DUAL SAFEGUARD:
+  // - This check prevents eval job CREATION for internal traces
+  // - fetchLLMCompletion.ts enforces that internal traces MUST use "langfuse-" prefix
+  //
+  // See: packages/shared/src/server/llm/fetchLLMCompletion.ts (enforcement)
+  // See: packages/shared/src/server/llm/types.ts (LangfuseInternalTraceEnvironment enum)
   if (
     sourceEventType === "trace-upsert" &&
     event.traceEnvironment?.startsWith("langfuse-")
@@ -764,7 +776,7 @@ export const evaluate = async ({
       targetProjectId: event.projectId,
       traceId: executionTraceId,
       traceName: `Execute evaluator: ${template.name}`,
-      environment: "langfuse-llm-as-a-judge",
+      environment: LangfuseInternalTraceEnvironment.LLMAsAJudge,
       metadata: {
         ...executionMetadata,
         score_id: scoreId,

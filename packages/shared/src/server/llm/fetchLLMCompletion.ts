@@ -146,12 +146,12 @@ export async function fetchLLMCompletion(
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceSinkParams) {
-    // Safeguard: All internal traces must have environment starting with "langfuse-"
+    // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
     // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
     // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
     if (!traceSinkParams.environment?.startsWith("langfuse-")) {
       logger.warn(
-        "Skipping trace creation: environment must start with 'langfuse-' prefix",
+        "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
         {
           environment: traceSinkParams.environment,
           traceId: traceSinkParams.traceId,
