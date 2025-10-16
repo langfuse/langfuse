@@ -223,7 +223,8 @@ export class CategoryOptionsFilter implements Filter {
 }
 
 // stringObject filter is used when we want to filter on a key value pair in a clickhouse map.
-// As we use the MAP form clickhouse, we can only filter efficiently on the first level of a json obj.
+// For single-level keys, we use the MAP form for efficient access.
+// For nested keys (with dots), we use JSONExtract to support multiple levels of nesting.
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -247,37 +248,56 @@ export class StringObjectFilter implements Filter {
     this.tablePrefix = opts.tablePrefix;
     this.key = opts.key;
   }
-
   apply(): ClickhouseFilter {
     const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
 
-    //  const query: `${column}['{varKeyName: String}'] ${this.operator} {${varValueName}: String}`,
+    // Check if the key contains dots for nested object access
+    const keyParts = this.key.split('.');
+    let columnAccess: string;
+    
+    if (keyParts.length === 1) {
+      // Single-level key: use map access syntax for better performance
+      columnAccess = `${column}[{${varKeyName}: String}]`;
+    } else {
+      // Multi-level key: use JSONExtract for nested access
+      // Build the JSON path like '$.user_api_key_metadata.user_id'
+      const jsonPath = '$.' + keyParts.join('.');
+      columnAccess = `JSONExtractString(${column}, '${jsonPath}')`;
+    }
+
     let query: string;
     switch (this.operator) {
       case "=":
-        query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+        query = `${columnAccess} = {${varValueName}: String}`;
         break;
       case "contains":
-        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+        query = `position(${columnAccess}, {${varValueName}: String}) > 0`;
         break;
       case "does not contain":
-        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+        query = `position(${columnAccess}, {${varValueName}: String}) = 0`;
         break;
       case "starts with":
-        query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+        query = `startsWith(${columnAccess}, {${varValueName}: String})`;
         break;
       case "ends with":
-        query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+        query = `endsWith(${columnAccess}, {${varValueName}: String})`;
         break;
       default:
         throw new Error(`Unsupported operator: ${this.operator}`);
     }
 
+    const params: Record<string, any> = { [varValueName]: this.value };
+    
+    // Only add the key parameter for single-level keys (map access)
+    if (keyParts.length === 1) {
+      params[varKeyName] = this.key;
+    }
+
     return {
       query,
-      params: { [varKeyName]: this.key, [varValueName]: this.value },
+      params,
     };
   }
 }
@@ -379,15 +399,29 @@ export class NumberObjectFilter implements Filter {
     this.tablePrefix = opts.tablePrefix;
     this.key = opts.key;
   }
-
   apply(): ClickhouseFilter {
     const varKeyName = `numberObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `numberObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
-    return {
-      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
-      params: { [varKeyName]: this.key, [varValueName]: this.value },
-    };
+    
+    // Check if the key contains dots for nested object access
+    const keyParts = this.key.split('.');
+    
+    if (keyParts.length === 1) {
+      // Single-level key: use arrayFilter for map access
+      return {
+        query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
+        params: { [varKeyName]: this.key, [varValueName]: this.value },
+      };
+    } else {
+      // Multi-level key: use JSONExtract for nested access
+      const jsonPath = '$.' + keyParts.join('.');
+      const columnAccess = `JSONExtractFloat(${column}, '${jsonPath}')`;
+      return {
+        query: `${columnAccess} ${this.operator} {${varValueName}: Decimal64(12)}`,
+        params: { [varValueName]: this.value },
+      };
+    }
   }
 }
 
