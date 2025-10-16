@@ -152,7 +152,7 @@ export function Trace(props: {
         setIsTreePanelCollapsed(collapsed);
       }
     }
-  }, []);
+  }, [isTreePanelCollapsed]);
 
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
