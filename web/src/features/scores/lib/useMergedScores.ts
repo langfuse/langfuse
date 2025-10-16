@@ -6,27 +6,35 @@ import { type ScoreTarget } from "@/src/features/scores/types";
 /**
  * Hook for merging server scores with cached scores
  *
- * Overlays cached scores onto server data for a specific target.
+ * Applies all cache operations to server scores:
+ * - Adds new cache-only scores
+ * - Updates existing scores with cached values
+ * - Removes deleted scores
+ *
  * Used in trace detail annotation drawer for flat score list.
  *
  * @param serverScores - Flat scores from tRPC query
  * @param target - Target to filter cache by (traceId, observationId, sessionId)
- * @returns Merged flat scores with cache overlay
+ * @returns Merged flat scores with all cache operations applied
  */
 export function useMergedScores(
   serverScores: APIScoreV2[],
   target: ScoreTarget,
 ): APIScoreV2[] {
-  const cache = useScoreCache();
+  const { getAllForTarget, isDeleted } = useScoreCache();
 
   return useMemo(() => {
     const merged = new Map<string, APIScoreV2>();
 
-    // Start with server scores
-    serverScores.forEach((s) => merged.set(s.id, s));
+    // Start with server scores (filter out deleted ones)
+    serverScores.forEach((s) => {
+      if (!isDeleted(s.id)) {
+        merged.set(s.id, s);
+      }
+    });
 
     // Overlay cached scores for this target
-    const cachedForTarget = cache.getAllForTarget({
+    const cachedForTarget = getAllForTarget({
       traceId: target.type === "trace" ? target.traceId : undefined,
       observationId: target.type === "trace" ? target.observationId : undefined,
       sessionId: target.type === "session" ? target.sessionId : undefined,
@@ -37,5 +45,5 @@ export function useMergedScores(
     });
 
     return Array.from(merged.values());
-  }, [serverScores, cache, target]);
+  }, [serverScores, getAllForTarget, isDeleted, target]);
 }

@@ -1,12 +1,11 @@
 import { type ScoreDataType } from "@langfuse/shared";
 import {
   createContext,
-  useContext,
-  useRef,
-  useEffect,
   type ReactNode,
+  useCallback,
+  useContext,
+  useState,
 } from "react";
-import { useRouter } from "next/router";
 
 /**
  * Cached score shape - stored in client-side cache for optimistic updates
@@ -26,100 +25,121 @@ export type CachedScore = {
   stringValue: string | null;
   comment: string | null;
 
-  // Target (for filtering)
+  // Target
   traceId?: string;
   observationId?: string;
   sessionId?: string;
-
-  // Cache metadata
-  deleted?: boolean;
 };
 
-/**
- * Score cache class for storing pending mutations
- * Provides methods to set, get, delete, and filter cached scores
- */
-class ScoreCache {
-  private cache = new Map<string, CachedScore>();
+type ScoreCacheContextValue = {
+  set: (id: string, score: CachedScore) => void;
+  get: (id: string) => CachedScore | undefined;
+  delete: (id: string) => void;
+  isDeleted: (id: string) => boolean;
+  clear: () => void;
 
-  set(id: string, score: CachedScore): void {
-    this.cache.set(id, score);
-  }
-
-  get(id: string): CachedScore | undefined {
-    return this.cache.get(id);
-  }
-
-  delete(id: string): void {
-    this.cache.delete(id);
-  }
-
-  clear(): void {
-    this.cache.clear();
-  }
-
-  /**
-   * Get all cached scores for a specific target (trace, observation, or session)
-   * Filters out deleted scores
-   */
-  getAllForTarget(target: {
+  getAllForTarget: (target: {
     traceId?: string;
     observationId?: string;
     sessionId?: string;
-  }): CachedScore[] {
-    return Array.from(this.cache.values()).filter((s) => {
-      if (s.deleted) return false;
+  }) => CachedScore[];
 
-      // Session target
-      if (target.sessionId) {
-        return s.sessionId === target.sessionId;
-      }
-
-      // Trace/observation target
-      return (
-        s.traceId === target.traceId && s.observationId === target.observationId
-      );
-    });
-  }
-
-  /**
-   * Get all non-deleted scores in the cache
-   */
-  getAll(): CachedScore[] {
-    return Array.from(this.cache.values()).filter((s) => !s.deleted);
-  }
-}
-
-type ScoreCacheContextValue = ScoreCache;
+  getAll: () => CachedScore[];
+};
 
 const ScoreCacheContext = createContext<ScoreCacheContextValue | undefined>(
   undefined,
 );
 
-/**
- * Provider for score cache - clears cache on navigation
- * Mount at project level or around features that need score caching
- */
 export function ScoreCacheProvider({ children }: { children: ReactNode }) {
-  const cacheRef = useRef(new ScoreCache());
-  const router = useRouter();
+  const [cache, setCache] = useState<Map<string, CachedScore>>(new Map());
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
-  // Clear cache on any router query change (navigation, filter changes, etc.)
-  useEffect(() => {
-    cacheRef.current.clear();
-  }, [router.query]);
+  const set = useCallback((id: string, score: CachedScore) => {
+    setCache((prev) => {
+      const newCache = new Map(prev);
+      newCache.set(id, score);
+      return newCache;
+    });
+  }, []);
+
+  const get = useCallback(
+    (id: string) => {
+      return cache.get(id);
+    },
+    [cache],
+  );
+
+  const deleteScore = useCallback((id: string) => {
+    setDeletedIds((prev) => {
+      const newSet = new Set(prev);
+      newSet.add(id);
+      return newSet;
+    });
+    // Also remove from cache if present
+    setCache((prev) => {
+      if (!prev.has(id)) return prev;
+      const newCache = new Map(prev);
+      newCache.delete(id);
+      return newCache;
+    });
+  }, []);
+
+  const isDeleted = useCallback(
+    (id: string) => {
+      return deletedIds.has(id);
+    },
+    [deletedIds],
+  );
+
+  const clear = useCallback(() => {
+    setCache(new Map());
+    setDeletedIds(new Set());
+  }, []);
+
+  const getAllForTarget = useCallback(
+    (target: {
+      traceId?: string;
+      observationId?: string;
+      sessionId?: string;
+    }) => {
+      return Array.from(cache.values()).filter((s) => {
+        // Session target
+        if (target.sessionId) {
+          return s.sessionId === target.sessionId;
+        }
+
+        // Trace/observation target
+        return (
+          s.traceId === target.traceId &&
+          s.observationId === target.observationId
+        );
+      });
+    },
+    [cache],
+  );
+
+  const getAll = useCallback(() => {
+    return Array.from(cache.values());
+  }, [cache]);
 
   return (
-    <ScoreCacheContext.Provider value={cacheRef.current}>
+    <ScoreCacheContext.Provider
+      value={{
+        set,
+        get,
+        delete: deleteScore,
+        isDeleted,
+        clear,
+        getAllForTarget,
+        getAll,
+      }}
+    >
       {children}
     </ScoreCacheContext.Provider>
   );
 }
 
-/**
- * Hook to access the score cache
- * @throws Error if used outside of ScoreCacheProvider
- */
 export function useScoreCache() {
   const context = useContext(ScoreCacheContext);
   if (!context) {

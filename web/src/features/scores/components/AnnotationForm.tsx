@@ -59,7 +59,7 @@ import { type ScoreTarget } from "@/src/features/scores/types";
 import { AnnotateFormSchema } from "@/src/features/scores/schema";
 import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
 import {
-  enrichCategories,
+  enrichCategoryOptionsWithStaleScoreValue,
   resolveConfigValue,
   validateNumericScore,
 } from "@/src/features/scores/lib/annotationFormHelpers";
@@ -353,6 +353,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     // Clear errors
     form.clearErrors(`scoreData.${index}.value`);
 
+    // Keep form state in sync - update both value and stringValue
+    form.setValue(`scoreData.${index}.value`, value);
+    form.setValue(`scoreData.${index}.stringValue`, stringValue);
+
     // Fire mutation
     const { id: scoreId, ...fieldWithoutId } = field;
 
@@ -495,14 +499,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                       (config) => config.id === score.configId,
                     );
                     if (!config) return null;
-                    const categories = enrichCategories(
+                    const categories = enrichCategoryOptionsWithStaleScoreValue(
                       config.categories ?? [],
                       score.stringValue,
                     );
 
                     return (
                       <div
-                        key={score.id}
+                        key={fields[index]?.id}
                         className="grid w-full grid-cols-[1fr,2fr] items-center gap-8 text-left"
                       >
                         <div className="grid h-full grid-cols-[1fr,auto] items-center">
@@ -719,7 +723,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                             />
                           )}
                           {config.isArchived ? (
-                            <Popover key={score.id}>
+                            <Popover>
                               <PopoverTrigger asChild>
                                 <Button
                                   variant="link"

@@ -18,7 +18,6 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
-import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import {
   ActiveCellProvider,
   useActiveCell,
@@ -210,10 +209,8 @@ function DatasetCompareInternal() {
 
 export default function DatasetCompare() {
   return (
-    <ScoreCacheProvider>
-      <ActiveCellProvider>
-        <DatasetCompareInternal />
-      </ActiveCellProvider>
-    </ScoreCacheProvider>
+    <ActiveCellProvider>
+      <DatasetCompareInternal />
+    </ActiveCellProvider>
   );
 }

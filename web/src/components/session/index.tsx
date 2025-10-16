@@ -33,7 +33,6 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;

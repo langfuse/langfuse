@@ -8,7 +8,7 @@ export function useScoreMutations({
 }: {
   scoreTarget: ScoreTarget;
 }) {
-  const cache = useScoreCache();
+  const { set: cacheSet, get: cacheGet, delete: cacheDelete } = useScoreCache();
 
   // Create mutations with cache writes
   const createMutation = api.scores.createAnnotationScore.useMutation({
@@ -16,7 +16,7 @@ export function useScoreMutations({
       if (!variables.id) return;
 
       // Write to cache for optimistic update
-      cache.set(variables.id, {
+      cacheSet(variables.id, {
         id: variables.id,
         traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : undefined,
         observationId: isTraceScore(scoreTarget)
@@ -38,26 +38,43 @@ export function useScoreMutations({
 
   const updateMutation = api.scores.updateAnnotationScore.useMutation({
     onMutate: (variables) => {
-      const existing = cache.get(variables.id);
-      if (!existing) return;
+      const existing = cacheGet(variables.id);
 
-      // Merge update into existing cache entry
-      cache.set(variables.id, {
-        ...existing,
-        value: variables.value ?? existing.value,
-        stringValue: variables.stringValue ?? existing.stringValue,
-        comment: variables.comment ?? existing.comment,
-      });
+      if (!existing) {
+        // Write to cache for optimistic update
+        cacheSet(variables.id, {
+          id: variables.id,
+          traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : undefined,
+          observationId: isTraceScore(scoreTarget)
+            ? scoreTarget.observationId
+            : undefined,
+          sessionId: isTraceScore(scoreTarget)
+            ? undefined
+            : scoreTarget.sessionId,
+          configId: variables.configId,
+          name: variables.name,
+          dataType: variables.dataType,
+          source: "ANNOTATION",
+          value: variables.value ?? null,
+          stringValue: variables.stringValue ?? null,
+          comment: variables.comment ?? null,
+        });
+      } else {
+        // Merge update into existing cache entry
+        cacheSet(variables.id, {
+          ...existing,
+          value: variables.value ?? existing.value,
+          stringValue: variables.stringValue ?? existing.stringValue,
+          comment: variables.comment ?? null,
+        });
+      }
     },
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
     onMutate: (variables) => {
-      const existing = cache.get(variables.id);
-      if (!existing) return;
-
-      // Mark as deleted in cache
-      cache.set(variables.id, { ...existing, deleted: true });
+      // Mark score as deleted
+      cacheDelete(variables.id);
     },
   });
 

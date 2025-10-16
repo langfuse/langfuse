@@ -1,11 +1,12 @@
 import { type APIScoreV2, type ScoreConfigDomain } from "@langfuse/shared";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { type AnnotationScore } from "@/src/features/scores/types";
-import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
 import {
   decomposeAggregateScoreKey,
   normalizeScoreName,
 } from "@/src/features/scores/lib/aggregateScores";
+
+// TODO: review this file.
 
 /**
  * Transform flat merged scores to annotation scores (Trace/Observation/Session Detail)
