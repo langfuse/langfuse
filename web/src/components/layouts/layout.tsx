@@ -373,49 +373,6 @@ export function ResizableContent({ children }: PropsWithChildren) {
   const { open, setOpen } = useSupportDrawer();
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
 
-  // Keep cookie-based layout only for desktop
-  const COOKIE_KEY = "react-resizable-panels:layout:supportDrawer";
-  const [mounted, setMounted] = useState(false);
-  const [defaultLayout, setDefaultLayout] = useState<number[] | undefined>(
-    undefined,
-  );
-
-  useEffect(() => {
-    setMounted(true);
-    if (!isDesktop /* || !open */) return; // no layout restore needed on mobile (and you can also gate on open if you want)
-    try {
-      if (typeof document !== "undefined") {
-        const match = document.cookie.match(
-          new RegExp(
-            "(?:^|; )" +
-              COOKIE_KEY.replace(/([.$?*|{}()\[\]\\\/\+^])/g, "\\$1") +
-              "=([^;]*)",
-          ),
-        );
-        if (match?.[1]) {
-          const parsed = JSON.parse(decodeURIComponent(match[1]));
-          if (Array.isArray(parsed) && parsed.length === 2) {
-            setDefaultLayout(parsed as number[]);
-          }
-        }
-      }
-    } catch {
-      // ignore cookie parse errors
-    }
-  }, [isDesktop /*, open */]);
-
-  const onLayout = (sizes: number[]) => {
-    if (!isDesktop) return;
-    try {
-      document.cookie = `${COOKIE_KEY}=${encodeURIComponent(
-        JSON.stringify(sizes),
-      )}; path=/; max-age=${60 * 60 * 24 * 365}`;
-    } catch {
-      // ignore cookie write errors
-    }
-  };
-
-  // MOBILE: main + overlay drawer
   if (!isDesktop) {
     return (
       <>
@@ -451,19 +408,11 @@ export function ResizableContent({ children }: PropsWithChildren) {
     return <main className="h-full flex-1">{children}</main>;
   }
 
-  if (!mounted) {
-    return <main className="h-full flex-1">{children}</main>;
-  }
-
-  const mainDefault = defaultLayout?.[0] ?? 70;
-  const drawerDefault = defaultLayout?.[1] ?? 30;
+  const mainDefault = 70;
+  const drawerDefault = 30;
 
   return (
-    <ResizablePanelGroup
-      direction="horizontal"
-      className="flex h-full w-full"
-      onLayout={onLayout}
-    >
+    <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
       <ResizablePanel defaultSize={mainDefault} minSize={30}>
         <main className="relative h-full w-full overflow-scroll">
           {children}
