@@ -1,6 +1,7 @@
 import {
   BatchExportQueryType,
   FilterCondition,
+  OrderByState,
   ScoreDataType,
   TimeFilter,
   TracingSearchType,
@@ -12,101 +13,239 @@ import {
   logger,
   convertObservation,
   ObservationRecordReadType,
+  StringFilter,
+  FilterList,
+  createFilterFromFilterState,
+  observationsTableUiColumnDefinitions,
+  enrichObservationWithModelData,
+  clickhouseSearchCondition,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import { Readable } from "stream";
 import { env } from "../../env";
-import { log } from "console";
+import {
+  getChunkWithFlattenedScores,
+  prepareScoresForOutput,
+} from "./getDatabaseReadStream";
+import type { Model, Price } from "@prisma/client";
 
-export const getObservationStream = async ({
-  projectId,
-  filter,
-  orderBy,
-  cutoffCreatedAt,
-  searchQuery,
-  searchType,
-  rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
-}: {
+type ModelWithPrice = Model & { Price: Price[] };
+
+/**
+ * Creates a model cache that fetches models from the database on demand and stores them in memory.
+ * Only queries the database if a model ID is not already in the cache.
+ *
+ * @param projectId - The project ID to filter models by
+ * @returns Object with getModel function to retrieve models by ID
+ */
+const createModelCache = (projectId: string) => {
+  const modelCache = new Map<string, ModelWithPrice | null>();
+
+  const getModel = async (
+    internalModelId: string | null | undefined,
+  ): Promise<ModelWithPrice | null> => {
+    if (!internalModelId) return null;
+
+    // Check if model is already in cache
+    if (modelCache.has(internalModelId)) {
+      logger.info(`Model ${internalModelId} found in cache`);
+      return modelCache.get(internalModelId) ?? null;
+    }
+
+    // Fetch model from database
+    const model = await prisma.model.findFirst({
+      where: {
+        id: internalModelId,
+        OR: [{ projectId }, { projectId: null }],
+      },
+      include: {
+        Price: true,
+      },
+    });
+
+    // Store in cache (even if null to avoid repeated queries)
+    modelCache.set(internalModelId, model);
+
+    logger.info(`Model ${internalModelId} fetched from database`);
+    return model;
+  };
+
+  return { getModel };
+};
+
+export const getObservationStream = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;
+  filter?: FilterCondition[];
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
-} & BatchExportQueryType): Promise<Readable> => {
+}): Promise<Readable> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter = [],
+    searchQuery,
+    searchType,
+    rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  } = props;
   const clickhouseConfigs = {
     request_timeout: 120_000,
+    join_algorithm: "partial_merge",
   };
 
-  const createdAtCutoffFilterCh = {
-    column: "observations",
-    operator: "<" as const,
-    value: cutoffCreatedAt,
-    type: "datetime" as const,
-  };
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: filter
-      ? [...filter, createdAtCutoffFilterCh]
-      : [createdAtCutoffFilterCh],
+    filter: filter ?? [],
     isTimestampFilter: (filter: FilterCondition): filter is TimeFilter => {
       return filter.column === "Start Time" && filter.type === "datetime";
     },
     clickhouseConfigs,
   });
 
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  const appliedScoresFilter = scoresFilter.apply();
+
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  const search = clickhouseSearchCondition(searchQuery, searchType, "o");
+
   const query = `
-    SELECT
-      id,
-      trace_id,
-      project_id,
-      type,
-      parent_observation_id,
-      start_time,
-      end_time,
-      name,
-      metadata,
-      level,
-      status_message,
-      version,
-      input, 
-      output,
-      provided_model_name,
-      internal_model_id,
-      model_parameters,
-      provided_usage_details,
-      usage_details,
-      provided_cost_details,
-      cost_details,
-      total_cost,
-      completion_start_time,
-      prompt_id,
-      prompt_name,
-      prompt_version,
-      created_at,
-      updated_at,
-      event_ts,
-      groupArray(tuple(s.name, s.value, s.data_type, s.string_value)) as scores_avg
-    FROM observations o
-     LEFT JOIN scores s on s.observation_id=o.id and s.trace_id=o.trace_id and s.project_id=o.project_id
-    WHERE project_id = {projectId: String}
-    AND start_time <= {cutoffCreatedAt: DateTime64(3)}
+   
+      WITH scores_agg AS (
+        SELECT
+          trace_id,
+          observation_id,
+          -- For numeric scores, use tuples of (name, avg_value)
+          groupArrayIf(
+            tuple(name, avg_value),
+            data_type IN ('NUMERIC', 'BOOLEAN')
+          ) AS scores_avg,
+          -- For categorical scores, use name:value format for improved query performance
+          groupArrayIf(
+            concat(name, ':', string_value),
+            data_type = 'CATEGORICAL' AND notEmpty(string_value)
+          ) AS score_categories
+        FROM (
+          SELECT
+            trace_id,
+            observation_id,
+            name,
+            avg(value) avg_value,
+            string_value,
+            data_type,
+            comment
+          FROM
+            scores final
+          WHERE ${appliedScoresFilter.query}
+          GROUP BY
+            trace_id,
+            observation_id,
+            name,
+            string_value,
+            data_type,
+            comment
+          ORDER BY
+            trace_id
+          ) tmp
+        GROUP BY
+          trace_id,
+          observation_id
+      )
+      SELECT
+        o.id as id,
+        o.type as type,
+        o.project_id as "project_id",
+        o.name as name,
+        o."model_parameters" as model_parameters,
+        o.start_time as "start_time",
+        o.end_time as "end_time",
+        o.trace_id as "trace_id",
+        o.completion_start_time as "completion_start_time",
+        o.provided_usage_details as "provided_usage_details",
+        o.usage_details as "usage_details",
+        o.provided_cost_details as "provided_cost_details",
+        o.cost_details as "cost_details",
+        o.level as level,
+        o.environment as "environment",
+        o.status_message as "status_message",
+        o.version as version,
+        o.parent_observation_id as "parent_observation_id",
+        o.created_at as "created_at",
+        o.updated_at as "updated_at",
+        o.provided_model_name as "provided_model_name",
+        o.total_cost as "total_cost",
+        o.prompt_id as "prompt_id",
+        o.prompt_name as "prompt_name",
+        o.prompt_version as "prompt_version",
+        internal_model_id as "internal_model_id",
+        if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
+        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token", 
+        o.input, 
+        o.output, 
+        o.metadata, 
+        t.name as traceName, 
+        t.tags as traceTags,
+        t.timestamp as traceTimestamp,
+        t.user_id as userId
+      FROM observations o
+        LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
+        LEFT JOIN scores_agg sa ON sa.trace_id = o.trace_id AND sa.observation_id = o.id
+      WHERE ${appliedObservationsFilter.query}
+
+      LIMIT 1 BY o.id, o.project_id
+      limit {rowLimit: Int64}
   `;
 
-  // Create an async generator from ClickHouse
   const asyncGenerator = queryClickhouseStream<
     ObservationRecordReadType & {
-      scores_avg: {
-        name: string;
-        value: number;
-        dataType: ScoreDataType;
-        stringValue: string;
-      }[];
+      scores_avg:
+        | {
+            name: string;
+            value: number;
+            dataType: ScoreDataType;
+            stringValue: string;
+          }[]
+        | undefined;
+    } & {
+      traceName: string;
+      traceTags: string[];
+      traceTimestamp: Date;
+      userId: string | null;
     }
   >({
     query,
     params: {
       projectId,
-      cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
+      rowLimit,
+      ...appliedScoresFilter.params,
+      ...appliedObservationsFilter.params,
     },
     clickhouseConfigs,
     tags: {
@@ -119,28 +258,48 @@ export const getObservationStream = async ({
 
   // Convert async generator to Node.js Readable stream
   let recordsProcessed = 0;
+  const modelCache = createModelCache(projectId);
 
   return Readable.from(
     (async function* () {
       for await (const row of asyncGenerator) {
         recordsProcessed++;
+        if (recordsProcessed % 5000 === 0)
+          logger.info(
+            `Batch export for project ${projectId}: processed ${recordsProcessed} rows`,
+          );
 
-        logger.info(`Processed ${recordsProcessed} rows`);
+        // Fetch model data from cache (or database if not cached)
+        const model = await modelCache.getModel(row.internal_model_id);
+        const modelData = enrichObservationWithModelData(model);
 
-        // Stop if we've hit the row limit
-        if (rowLimit && recordsProcessed > rowLimit) {
-          break;
-        }
-
-        yield {
-          ...convertObservation(row),
-          scores: row.scores_avg.map((score) => ({
-            name: score.name,
-            value: score.value,
-            dataType: score.dataType,
-            stringValue: score.stringValue,
-          })),
-        };
+        yield getChunkWithFlattenedScores(
+          [
+            {
+              ...convertObservation(row, {
+                truncated: false,
+                shouldJsonParse: true,
+              }),
+              traceName: row.traceName,
+              traceTags: row.traceTags,
+              traceTimestamp: row.traceTimestamp,
+              userId: row.userId,
+              ...modelData,
+              scores: prepareScoresForOutput(
+                (row.scores_avg ?? []).map((score) => ({
+                  name: score.name,
+                  value: score.value,
+                  dataType: score.dataType,
+                  stringValue: score.stringValue,
+                })),
+              ),
+            },
+          ],
+          distinctScoreNames.reduce(
+            (acc, name) => ({ ...acc, [name]: null }),
+            {} as Record<string, null>,
+          ),
+        );
       }
     })(),
   );

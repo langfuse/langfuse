@@ -60,7 +60,7 @@ const isTraceTimestampFilter = (
 ): filter is TimeFilter => {
   return filter.column === "Timestamp" && filter.type === "datetime";
 };
-const getChunkWithFlattenedScores = <
+export const getChunkWithFlattenedScores = <
   T extends BatchExportTracesRow[] | FullObservationsWithScores,
 >(
   chunk: T,

@@ -7,7 +7,10 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  enrichObservationWithModelData,
+  getObservationById,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -60,13 +63,7 @@ export default withMiddlewares({
 
       const observation = {
         ...clickhouseObservation,
-        modelId: model?.id ?? null,
-        inputPrice:
-          model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-        outputPrice:
-          model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-        totalPrice:
-          model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+        ...enrichObservationWithModelData(model),
       };
 
       if (!observation) {
