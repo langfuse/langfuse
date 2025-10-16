@@ -49,6 +49,7 @@ export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
   exactTimestamp: z.date().optional(),
+  traceEnvironment: z.string().optional(), // Optional to maintain backward compatibility with existing jobs in queue during deployment. 'optional()' can be removed after queue was exhausted
 });
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),

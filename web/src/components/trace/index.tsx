@@ -37,6 +37,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
+  type ImperativePanelHandle,
 } from "@/src/components/ui/resizable";
 
 const getNestedObservationKeys = (
@@ -64,6 +65,7 @@ export function Trace(props: {
   scores: APIScoreV2[];
   projectId: string;
   viewType?: "detailed" | "focused";
+  context?: "peek" | "fullscreen"; // are we in peek or fullscreen mode?
   isValidObservationId?: boolean;
   defaultMinObservationLevel?: ObservationLevelType;
   selectedTab?: string;
@@ -73,6 +75,7 @@ export function Trace(props: {
   ) => void;
 }) {
   const viewType = props.viewType ?? "detailed";
+  const context = props.context ?? "fullscreen";
   const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -92,11 +95,10 @@ export function Trace(props: {
   ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
-  const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useLocalStorage(
-    "traceTreePanelCollapsed",
-    false,
-  );
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
+
+  // Use imperative panel API for collapse/expand
+  const treePanelRef = useRef<ImperativePanelHandle>(null);
 
   // TODO: remove, kinda hacky
   // when user clicks Log View, we want to show them that you can collapse the tree panel
@@ -129,11 +131,17 @@ export function Trace(props: {
   const containerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const panelGroupId = `trace-panel-group-${context}`;
   const panelState = usePanelState(
-    containerRef,
+    panelGroupId,
     props.selectedTab?.includes("timeline") ? "timeline" : "tree",
   );
 
+  const TREE_DEFAULT_WIDTH = 30;
+
+  // Derive collapsed state from actual panel size (single source of truth = autoSaveId)
+  // This avoids cross-tab sync issues from storing collapsed state separately
+  const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -536,28 +544,41 @@ export function Trace(props: {
         {/* Desktop: Horizontal resizable panels */}
         <div className="hidden md:block md:h-full">
           <ResizablePanelGroup
+            id={panelGroupId}
             direction="horizontal"
             className="flex-1 md:h-full"
-            onLayout={panelState.onLayout}
+            autoSaveId={
+              context === "peek"
+                ? "trace-layout-peek"
+                : "trace-layout-fullscreen"
+            }
           >
             <ResizablePanel
-              defaultSize={isTreePanelCollapsed ? 0 : panelState.sizes[0]}
-              minSize={isTreePanelCollapsed ? 0 : panelState.minSize}
-              maxSize={isTreePanelCollapsed ? 0 : panelState.maxSize}
+              ref={treePanelRef}
+              id="trace-tree-panel"
+              order={1}
+              defaultSize={TREE_DEFAULT_WIDTH}
+              minSize={panelState.minSize}
+              maxSize={panelState.maxSize}
+              collapsible={true}
+              collapsedSize={3}
+              onResize={(size) => {
+                // Derive collapsed state from actual panel size
+                // This is the ONLY source of truth (autoSaveId handles persistence)
+                const collapsed = size <= 5;
+                if (collapsed !== isTreePanelCollapsed) {
+                  setIsTreePanelCollapsed(collapsed);
+                }
+              }}
               className="md:flex md:h-full md:flex-col md:overflow-hidden"
-              style={
-                isTreePanelCollapsed
-                  ? { flex: "0 0 48px", minWidth: "48px", maxWidth: "48px" }
-                  : undefined
-              }
             >
               {isTreePanelCollapsed ? (
-                <div className="flex h-full w-12 items-start justify-center border-r pt-1">
+                <div className="flex h-full w-full items-start justify-center border-r pt-1">
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      setIsTreePanelCollapsed(false);
+                      treePanelRef.current?.resize(TREE_DEFAULT_WIDTH);
                       capture("trace_detail:tree_panel_toggle", {
                         collapsed: false,
                       });
@@ -720,10 +741,13 @@ export function Trace(props: {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            const newCollapsedState = !isTreePanelCollapsed;
-                            setIsTreePanelCollapsed(newCollapsedState);
+                            if (isTreePanelCollapsed) {
+                              treePanelRef.current?.resize(TREE_DEFAULT_WIDTH);
+                            } else {
+                              treePanelRef.current?.collapse();
+                            }
                             capture("trace_detail:tree_panel_toggle", {
-                              collapsed: newCollapsedState,
+                              collapsed: !isTreePanelCollapsed,
                             });
                           }}
                           title={
@@ -871,7 +895,12 @@ export function Trace(props: {
 
             <ResizableHandle className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:-translate-x-px after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100" />
 
-            <ResizablePanel className="min-w-56 overflow-hidden md:h-full">
+            <ResizablePanel
+              id="trace-preview-panel"
+              order={2}
+              defaultSize={70}
+              className="min-w-56 overflow-hidden md:h-full"
+            >
               <div className="h-full pl-3">{previewContent}</div>
             </ResizablePanel>
           </ResizablePanelGroup>
