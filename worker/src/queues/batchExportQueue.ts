@@ -24,7 +24,7 @@ export const batchExportQueueProcessor = async (
   } catch (e) {
     if (e instanceof LangfuseNotFoundError) {
       logger.warn(
-        `Batch export ${job.data.payload.batchExportId} not found. Job will be retried.`,
+        `Batch export ${job.data.payload.batchExportId} not found. Job will be skipped.`,
       );
       return true;
     }
