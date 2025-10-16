@@ -133,6 +133,7 @@ WITH
             e.start_time AS e_start_time,
             e.end_time AS e_end_time,
             e.completion_start_time AS e_completion_start_time,
+            e.metadata_names AS e_metadata_names,
             e.name AS e_name,
             e.type AS e_type,
             e.environment AS e_environment,
@@ -311,12 +312,24 @@ SELECT
     e_output AS event_value
 FROM obs_event_joined
 WHERE o_output != e_output
+    
+UNION ALL
+
+SELECT
+    'METADATA_FIELD' AS validation_category,
+    'metadata_key_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    arrayStringConcat(mapKeys(o_metadata), ', ') AS obs_value,
+    arrayStringConcat(e_metadata_names, ', ') AS event_value
+FROM obs_event_joined
+WHERE arrayAll(k -> has(e_metadata_names, k), mapKeys(o_metadata))
 
 -- ORDER BY validation_category, issue_type, observation_id
 SETTINGS join_algorithm = 'partial_merge'
 ```
 
-## [WIP] Query 3: Trace Join & User/Session/Metadata Propagation
+## Query 3: Trace Join & User/Session/Metadata Propagation
 
 ```sql
 WITH
@@ -333,195 +346,66 @@ WITH
         WHERE o.start_time >= (SELECT min_time FROM time_range)
           AND o.start_time <= (SELECT max_time FROM time_range)
         ORDER BY rand()
-        LIMIT 100
+        LIMIT 10
     ),
 
-    -- Join observations, events, and traces
+    -- Join events and traces
     full_join AS (
         SELECT
-            o.id,
-            o.project_id,
-            o.trace_id,
-            o.metadata AS o_metadata,
+            e.span_id as span_id,
+            e.project_id as project_id,
+            e.trace_id as trace_id,
             t.user_id AS t_user_id,
             t.session_id AS t_session_id,
             t.metadata AS t_metadata,
             e.user_id AS e_user_id,
             e.session_id AS e_session_id,
-            e.metadata AS e_metadata,
-            t.id IS NOT NULL AS trace_exists
-        FROM observations o
-        INNER JOIN events e
-            ON o.id = e.span_id
-            AND o.project_id = e.project_id
-        LEFT JOIN traces t
-            ON o.trace_id = t.id
-            AND o.project_id = t.project_id
-        WHERE o.start_time >= (SELECT min_time FROM time_range)
-          AND o.start_time <= (SELECT max_time FROM time_range)
-          AND e.start_time >= (SELECT min_time FROM time_range)
+            e.metadata_names AS e_metadata_names
+        FROM traces t
+                 LEFT JOIN events e
+                           ON e.trace_id = t.id
+                               AND e.project_id = t.project_id
+        WHERE e.start_time >= (SELECT min_time FROM time_range)
           AND e.start_time <= (SELECT max_time FROM time_range)
-          AND o.project_id IN (SELECT project_id FROM sampled_projects)
+          AND t.timestamp >= (SELECT min_time FROM time_range)
+          AND t.timestamp <= (SELECT max_time FROM time_range)
+          and t.project_id IN (SELECT project_id FROM sampled_projects)
+          and e.project_id IN (SELECT project_id FROM sampled_projects)
           AND e.source = 'ingestion-api'
     )
 
 SELECT
-    'WITH_TRACE_JOIN' AS scenario,
-    countIf(trace_exists) AS total_with_trace,
-    countIf(trace_exists AND t_user_id IS NOT NULL AND e_user_id != coalesce(t_user_id, '')) AS user_id_mismatch,
-    countIf(trace_exists AND t_session_id IS NOT NULL AND e_session_id != coalesce(t_session_id, '')) AS session_id_mismatch,
-    countIf(trace_exists AND t_user_id IS NULL AND e_user_id != '') AS user_id_should_be_empty,
-    countIf(trace_exists AND t_session_id IS NULL AND e_session_id != '') AS session_id_should_be_empty,
-    CASE
-        WHEN countIf(trace_exists AND t_user_id IS NOT NULL AND e_user_id != coalesce(t_user_id, '')) = 0
-             AND countIf(trace_exists AND t_session_id IS NOT NULL AND e_session_id != coalesce(t_session_id, '')) = 0
-             AND countIf(trace_exists AND t_user_id IS NULL AND e_user_id != '') = 0
-             AND countIf(trace_exists AND t_session_id IS NULL AND e_session_id != '') = 0
-        THEN '✓ PASS'
-        ELSE '✗ FAIL'
-    END AS status
+    'user_id_mismatch' AS issue_type,
+    span_id,
+    project_id,
+    t_user_id AS obs_value,
+    e_user_id AS event_value
 FROM full_join
+WHERE t_user_id != e_user_id
 
 UNION ALL
 
 SELECT
-    'WITHOUT_TRACE_JOIN' AS scenario,
-    countIf(NOT trace_exists) AS total_without_trace,
-    countIf(NOT trace_exists AND e_user_id != '') AS user_id_not_empty,
-    countIf(NOT trace_exists AND e_session_id != '') AS session_id_not_empty,
-    0 AS user_id_should_be_empty,
-    0 AS session_id_should_be_empty,
-    CASE
-        WHEN countIf(NOT trace_exists AND e_user_id != '') = 0
-             AND countIf(NOT trace_exists AND e_session_id != '') = 0
-        THEN '✓ PASS'
-        ELSE '✗ FAIL'
-    END AS status
+    'session_id_mismatch' AS issue_type,
+    span_id,
+    project_id,
+    t_session_id AS obs_value,
+    e_session_id AS event_value
 FROM full_join
+WHERE t_session_id != e_session_id
 
 UNION ALL
 
 SELECT
-    'MISSING_TRACES' AS scenario,
-    countIf(NOT trace_exists) AS observations_without_trace,
-    0 AS user_id_not_empty,
-    0 AS session_id_not_empty,
-    0 AS user_id_should_be_empty,
-    0 AS session_id_should_be_empty,
-    CASE
-        WHEN (countIf(NOT trace_exists) * 100.0 / count()) < 1.0 THEN '✓ PASS'
-        WHEN (countIf(NOT trace_exists) * 100.0 / count()) < 5.0 THEN '⚠ WARN'
-        ELSE '✗ FAIL'
-    END AS status
+    'metadata_keys_missing' AS issue_type,
+    span_id,
+    project_id,
+    arrayStringConcat(mapKeys(t_metadata), ', ') AS obs_value,
+    arrayStringConcat(e_metadata_names, ', ') AS event_value
 FROM full_join
+WHERE NOT arrayAll(k -> has(e_metadata_names, k), mapKeys(t_metadata))
 
-UNION ALL
-
--- Metadata validation: observation metadata preserved
-SELECT
-    'OBS_METADATA_PRESERVED' AS scenario,
-    countIf(trace_exists AND mapSize(o_metadata) > 0) AS total_with_obs_metadata,
-    countIf(
-        trace_exists AND mapSize(o_metadata) > 0 AND
-        arrayAll(
-            key -> mapContains(e_metadata, key) AND e_metadata[key] = o_metadata[key],
-            mapKeys(o_metadata)
-        )
-    ) AS correctly_preserved,
-    countIf(
-        trace_exists AND mapSize(o_metadata) > 0 AND NOT
-        arrayAll(
-            key -> mapContains(e_metadata, key) AND e_metadata[key] = o_metadata[key],
-            mapKeys(o_metadata)
-        )
-    ) AS preservation_failures,
-    0 AS unused_column,
-    CASE
-        WHEN countIf(
-            trace_exists AND mapSize(o_metadata) > 0 AND NOT
-            arrayAll(
-                key -> mapContains(e_metadata, key) AND e_metadata[key] = o_metadata[key],
-                mapKeys(o_metadata)
-            )
-        ) = 0 THEN '✓ PASS'
-        ELSE '✗ FAIL'
-    END AS status
-FROM full_join
-
-UNION ALL
-
--- Metadata validation: trace metadata merged (for keys not in observation metadata)
-SELECT
-    'TRACE_METADATA_MERGED' AS scenario,
-    countIf(
-        trace_exists AND mapSize(t_metadata) > 0 AND
-        length(arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))) > 0
-    ) AS total_with_trace_only_keys,
-    countIf(
-        trace_exists AND mapSize(t_metadata) > 0 AND
-        arrayAll(
-            key -> mapContains(e_metadata, key) AND e_metadata[key] = t_metadata[key],
-            arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))
-        )
-    ) AS correctly_merged,
-    countIf(
-        trace_exists AND mapSize(t_metadata) > 0 AND NOT
-        arrayAll(
-            key -> mapContains(e_metadata, key) AND e_metadata[key] = t_metadata[key],
-            arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))
-        )
-    ) AS merge_failures,
-    0 AS unused_column,
-    CASE
-        WHEN countIf(
-            trace_exists AND mapSize(t_metadata) > 0 AND NOT
-            arrayAll(
-                key -> mapContains(e_metadata, key) AND e_metadata[key] = t_metadata[key],
-                arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))
-            )
-        ) = 0 THEN '✓ PASS'
-        ELSE '✗ FAIL'
-    END AS status
-FROM full_join
-
-UNION ALL
-
--- Metadata validation: observation metadata takes precedence over trace metadata for conflicting keys
-SELECT
-    'OBS_PRECEDENCE_OVER_TRACE' AS scenario,
-    countIf(
-        trace_exists AND
-        length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0
-    ) AS records_with_conflicts,
-    countIf(
-        trace_exists AND
-        length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0 AND
-        arrayAll(
-            key -> e_metadata[key] = o_metadata[key],
-            arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))
-        )
-    ) AS obs_precedence_correct,
-    countIf(
-        trace_exists AND
-        length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0 AND NOT
-        arrayAll(
-            key -> e_metadata[key] = o_metadata[key],
-            arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))
-        )
-    ) AS precedence_violations,
-    0 AS unused_column,
-    CASE
-        WHEN countIf(
-            trace_exists AND
-            length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0 AND NOT
-            arrayAll(
-                key -> e_metadata[key] = o_metadata[key],
-                arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))
-            )
-        ) = 0 THEN '✓ PASS'
-        ELSE '✗ FAIL'
-    END AS status
-FROM full_join;
+    SETTINGS join_algorithm = 'partial_merge'
 ```
 
 ## [WIP] Query 4: Metadata Merging Validation
