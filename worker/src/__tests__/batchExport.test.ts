@@ -12,6 +12,7 @@ import {
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
+import { getObservationStream } from "../features/database-read-stream/observation-stream";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
@@ -46,12 +47,10 @@ describe("batch export test suite", () => {
     await createScoresCh([score]);
     await createObservationsCh(observations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getObservationStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "startTime", order: "DESC" },
     });
 
     const rows: any[] = [];
@@ -112,9 +111,8 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(observations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getObservationStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
@@ -124,7 +122,6 @@ describe("batch export test suite", () => {
           value: ["test1", "test2"],
         },
       ],
-      orderBy: { column: "startTime", order: "ASC" },
     });
 
     const rows: any[] = [];

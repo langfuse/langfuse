@@ -1,7 +1,5 @@
 import {
-  BatchExportQueryType,
   FilterCondition,
-  OrderByState,
   ScoreDataType,
   TimeFilter,
   TracingSearchType,
@@ -9,7 +7,6 @@ import {
 import {
   getDistinctScoreNames,
   queryClickhouseStream,
-  convertDateToClickhouseDateTime,
   logger,
   convertObservation,
   ObservationRecordReadType,
@@ -48,7 +45,6 @@ const createModelCache = (projectId: string) => {
 
     // Check if model is already in cache
     if (modelCache.has(internalModelId)) {
-      logger.info(`Model ${internalModelId} found in cache`);
       return modelCache.get(internalModelId) ?? null;
     }
 
@@ -66,7 +62,7 @@ const createModelCache = (projectId: string) => {
     // Store in cache (even if null to avoid repeated queries)
     modelCache.set(internalModelId, model);
 
-    logger.info(`Model ${internalModelId} fetched from database`);
+    logger.debug(`Model ${internalModelId} fetched from database`);
     return model;
   };
 
@@ -127,7 +123,15 @@ export const getObservationStream = async (props: {
 
   observationsFilter.push(
     ...createFilterFromFilterState(
-      filter ?? [],
+      [
+        ...(filter ?? []),
+        {
+          column: "start_time",
+          operator: "<" as const,
+          value: cutoffCreatedAt,
+          type: "datetime" as const,
+        },
+      ],
       observationsTableUiColumnDefinitions,
     ),
   );
@@ -218,7 +222,7 @@ export const getObservationStream = async (props: {
         LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_agg sa ON sa.trace_id = o.trace_id AND sa.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
-
+        ${search.query}
       LIMIT 1 BY o.id, o.project_id
       limit {rowLimit: Int64}
   `;
