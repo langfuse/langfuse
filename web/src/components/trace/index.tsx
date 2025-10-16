@@ -37,6 +37,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
+  type ImperativePanelHandle,
 } from "@/src/components/ui/resizable";
 
 const getNestedObservationKeys = (
@@ -92,17 +93,12 @@ export function Trace(props: {
   ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
-  const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useLocalStorage(
-    "traceTreePanelCollapsed",
-    false,
-  );
-  const [traceTreeWidth, setTraceTreeWidth] = useLocalStorage(
-    "traceTreeWidth",
-    30,
-  );
-  // Counter that increments on collapse/uncollapse to force remount
-  const [collapseToggleCount, setCollapseToggleCount] = useState(0);
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
+
+  // Use imperative panel API for collapse/expand
+  const treePanelRef = useRef<ImperativePanelHandle>(null);
+  // Track UI state for collapsed button (for rendering only, not for controlling panel)
+  const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useState(false);
 
   // TODO: remove, kinda hacky
   // when user clicks Log View, we want to show them that you can collapse the tree panel
@@ -139,25 +135,6 @@ export function Trace(props: {
     containerRef,
     props.selectedTab?.includes("timeline") ? "timeline" : "tree",
   );
-
-  // store trace tree width in local storage
-  const handleLayout = useCallback(
-    (sizes: number[]) => {
-      // TODO: fix race confition with multiple tabs open!
-      // Only save when not collapsed AND width is meaningful (> 5%)
-      if (!isTreePanelCollapsed && sizes[0] !== undefined && sizes[0] > 5) {
-        setTraceTreeWidth(sizes[0]);
-      }
-    },
-    [isTreePanelCollapsed, setTraceTreeWidth],
-  );
-
-  // Memoize collapsed panel style to avoid recreation on every render
-  const collapsedPanelStyle = useMemo(
-    () => ({ flex: "0 0 48px", minWidth: "48px", maxWidth: "48px" }) as const,
-    [],
-  );
-
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -562,24 +539,26 @@ export function Trace(props: {
           <ResizablePanelGroup
             direction="horizontal"
             className="flex-1 md:h-full"
-            onLayout={handleLayout}
-            key={`panel-${collapseToggleCount}`}
+            autoSaveId="trace-tree-layout"
           >
             <ResizablePanel
-              defaultSize={isTreePanelCollapsed ? 0 : traceTreeWidth}
-              minSize={isTreePanelCollapsed ? 0 : panelState.minSize}
-              maxSize={isTreePanelCollapsed ? 0 : panelState.maxSize}
+              ref={treePanelRef}
+              defaultSize={30}
+              minSize={27}
+              maxSize={panelState.maxSize}
+              collapsible={true}
+              collapsedSize={3}
+              onCollapse={() => setIsTreePanelCollapsed(true)}
+              onExpand={() => setIsTreePanelCollapsed(false)}
               className="md:flex md:h-full md:flex-col md:overflow-hidden"
-              style={isTreePanelCollapsed ? collapsedPanelStyle : undefined}
             >
               {isTreePanelCollapsed ? (
-                <div className="flex h-full w-12 items-start justify-center border-r pt-1">
+                <div className="flex h-full w-full items-start justify-center border-r pt-1">
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      setIsTreePanelCollapsed(false);
-                      setCollapseToggleCount((c) => c + 1);
+                      treePanelRef.current?.expand();
                       capture("trace_detail:tree_panel_toggle", {
                         collapsed: false,
                       });
@@ -743,8 +722,12 @@ export function Trace(props: {
                           size="icon"
                           onClick={() => {
                             const newCollapsedState = !isTreePanelCollapsed;
+                            if (newCollapsedState) {
+                              treePanelRef.current?.collapse();
+                            } else {
+                              treePanelRef.current?.expand();
+                            }
                             setIsTreePanelCollapsed(newCollapsedState);
-                            setCollapseToggleCount((c) => c + 1);
                             capture("trace_detail:tree_panel_toggle", {
                               collapsed: newCollapsedState,
                             });
