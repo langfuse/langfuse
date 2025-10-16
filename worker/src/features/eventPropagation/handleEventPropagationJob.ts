@@ -152,9 +152,12 @@ export const handleEventPropagationJob = async (
           obs.project_id,
           obs.trace_id,
           obs.id AS span_id,
-          -- if parent_observation_id is null, use trace_id as parent_span_id
-          -- this way we threat the case as the "wrapper" for spans backfilled this way.
-          coalesce(obs.parent_observation_id, obs.trace_id) AS parent_span_id,
+          -- When the observation IS the trace itself (id = trace_id), parent should be NULL
+          -- Otherwise, use standard wrapper logic: parent_observation_id or trace_id as fallback
+          CASE
+            WHEN obs.id = obs.trace_id THEN NULL
+            ELSE coalesce(obs.parent_observation_id, obs.trace_id)
+          END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
           -- Clamp start_time to 1970-01-01 or later (Unix epoch minimum) to avoid toUnixTimestamp() errors
           greatest(obs.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
@@ -201,7 +204,7 @@ export const handleEventPropagationJob = async (
           NULL AS telemetry_sdk_version,
           '' AS blob_storage_file_path,
           '' AS event_raw,
-          0 AS event_bytes,
+          byteSize(*) AS event_bytes,
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
@@ -255,7 +258,7 @@ export const handleEventPropagationJob = async (
         await queue.add(
           QueueJobs.EventPropagationJob,
           { timestamp: new Date(), id: randomUUID() },
-          { delay: 10000 }, // 10 second delay
+          { delay: 1000 }, // 1 second delay
         );
         logger.info(
           `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
