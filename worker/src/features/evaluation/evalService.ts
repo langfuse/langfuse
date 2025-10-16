@@ -738,13 +738,15 @@ export const evaluate = async ({
   // Use deterministic trace ID from job execution ID. Retries will be in same trace.
   const executionTraceId = createW3CTraceId(event.jobExecutionId);
 
-  const executionMetadata = {
-    job_execution_id: event.jobExecutionId,
-    job_configuration_id: job.jobConfigurationId,
-    target_trace_id: job.jobInputTraceId,
-    target_observation_id: job.jobInputObservationId,
-    target_dataset_item_id: job.jobInputDatasetItemId,
-  };
+  const executionMetadata = Object.fromEntries(
+    Object.entries({
+      job_execution_id: event.jobExecutionId,
+      job_configuration_id: job.jobConfigurationId,
+      target_trace_id: job.jobInputTraceId,
+      target_observation_id: job.jobInputObservationId,
+      target_dataset_item_id: job.jobInputDatasetItemId,
+    }).filter(([, v]) => v != null),
+  );
 
   const llmOutput = await fetchLLMCompletion({
     streaming: false,
@@ -761,7 +763,7 @@ export const evaluate = async ({
     traceSinkParams: {
       targetProjectId: event.projectId,
       traceId: executionTraceId,
-      traceName: `Execute eval: ${template.name}`,
+      traceName: `Execute evaluator: ${template.name}`,
       environment: "langfuse-llm-as-a-judge",
       metadata: {
         ...executionMetadata,
