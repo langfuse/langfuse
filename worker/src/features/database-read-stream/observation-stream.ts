@@ -268,9 +268,9 @@ export const getObservationStream = async (props: {
     (async function* () {
       for await (const row of asyncGenerator) {
         recordsProcessed++;
-        if (recordsProcessed % 5000 === 0)
+        if (recordsProcessed % 10000 === 0)
           logger.info(
-            `Batch export for project ${projectId}: processed ${recordsProcessed} rows`,
+            `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
           );
 
         // Fetch model data from cache (or database if not cached)
@@ -303,7 +303,7 @@ export const getObservationStream = async (props: {
             (acc, name) => ({ ...acc, [name]: null }),
             {} as Record<string, null>,
           ),
-        );
+        )[0];
       }
     })(),
   );

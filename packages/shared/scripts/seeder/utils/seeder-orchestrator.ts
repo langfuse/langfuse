@@ -260,6 +260,7 @@ export class SeederOrchestrator {
           this.fileContent || undefined,
           { numberOfDays: opts.numberOfDays },
         );
+
         const observationQuery = this.queryBuilder.buildBulkObservationsInsert(
           projectId,
           tracesPerProject,

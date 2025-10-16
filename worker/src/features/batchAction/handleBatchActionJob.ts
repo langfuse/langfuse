@@ -197,6 +197,7 @@ export const handleBatchActionJob = async (
     // 1. Read all records
     const records: any[] = [];
     for await (const record of dbReadStream) {
+      logger.info(`Processing record: ${JSON.stringify(record)}`);
       if (record?.id) {
         records.push(record);
       }
