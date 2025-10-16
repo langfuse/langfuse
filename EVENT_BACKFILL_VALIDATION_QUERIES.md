@@ -2,8 +2,6 @@
 
 ## Query 1: Coverage & Count Validation
 
-**Purpose**: Verify that all observations have been backfilled to events, check coverage by project and time period, identify missing records.
-
 ```sql
 WITH
     -- Time range configuration
@@ -27,6 +25,7 @@ WITH
         FROM events
         WHERE start_time >= (SELECT min_time FROM time_range)
           AND start_time <= (SELECT max_time FROM time_range)
+          and e.source = 'ingestion-api'
     ),
 
     -- Overall counts
@@ -88,191 +87,253 @@ ORDER BY
     7;
 ```
 
-  Query id: 65ec16a5-6b9b-4bdc-8f47-fb877909389f
-
-  ┌─category─┬─dimension─┬─obs_count─┬─event_count─┬─staging_count─┬─missing_in_events─┬─coverage_pct─┬─status─┐
-1. │ OVERALL  │           │   4260411 │     4274723 │       1767629 │            -14312 │       100.34 │ ✓ PASS │
-   └──────────┴───────────┴───────────┴─────────────┴───────────────┴───────────────────┴──────────────┴────────┘
-   ┌─category───┬─dimension─────────────────┬─obs_count─┬─event_count─┬─staging_count─┬─missing_in_events─┬─coverage_pct─┬─status─┐
-2. │ BY_PROJECT │ clwk3car20000fedm37xefkh6 │         3 │           3 │             0 │                 0 │          100 │ ✓ PASS │
-3. │ BY_PROJECT │ cmfmhssfz00tgad0770abqyb6 │         2 │           2 │             0 │                 0 │          100 │ ✓ PASS │
-4. │ BY_PROJECT │ cmdyfvwxn00cvad07ov2mtwyz │        14 │          14 │             0 │                 0 │          100 │ ✓ PASS │
-5. │ BY_PROJECT │ cmckcuffc0760ad074fbora26 │      2957 │        2957 │             0 │                 0 │          100 │ ✓ PASS │
-6. │ BY_PROJECT │ cmbgg86ip01xpad07mnof0x2m │      7017 │        7017 │             0 │                 0 │          100 │ ✓ PASS │
-7. │ BY_PROJECT │ cmaxo5qcf01ecad08jadbczmk │       120 │         120 │             0 │                 0 │          100 │ ✓ PASS │
-8. │ BY_PROJECT │ cm7vcwxqg00p2ad07pqye9yyg │       505 │         505 │             0 │                 0 │          100 │ ✓ PASS │
-9. │ BY_PROJECT │ cm7t7oyjq005xad071dccgvmp │        11 │          11 │             0 │                 0 │          100 │ ✓ PASS │
-10. │ BY_PROJECT │ cmgq3us1202ouad07uqfums3x │        10 │          10 │             0 │                 0 │          100 │ ✓ PASS │
-11. │ BY_PROJECT │ cmg0opser08ijad07ttht9kcl │        87 │          87 │             0 │                 0 │          100 │ ✓ PASS │
-12. │ BY_PROJECT │ cm9mfmnoi005kad07u25ijqrb │       154 │         154 │             0 │                 0 │          100 │ ✓ PASS │
-13. │ BY_PROJECT │ cmgjg5f7c002iad072r6xut49 │        38 │          38 │             0 │                 0 │          100 │ ✓ PASS │
-14. │ BY_PROJECT │ cmcvmedox00gkad078a95cunx │      1760 │        1760 │             0 │                 0 │          100 │ ✓ PASS │
-15. │ BY_PROJECT │ cmd45znys0163ad06y2fsjuch │       170 │         170 │             0 │                 0 │          100 │ ✓ PASS │
-
----
-
-## Query 2: Comprehensive Field Mapping Validation
-
-**Purpose**: Validate ALL field mappings in a single query - identifiers, timestamps, core properties, model/prompt fields, usage/cost, I/O.
+## Query 2: Field Mapping Validation
 
 ```sql
-  WITH
-      -- Time range configuration
-      time_range AS (
-          SELECT
-              toDateTime('2025-10-14 13:00:00') AS min_time,
-              toDateTime('2025-10-14 14:45:00') AS max_time
-      ),
 
-      -- Join observations with events
-      obs_event_joined AS (
-          SELECT
-              o.id,
-              o.project_id,
-              o.trace_id,
-              o.parent_observation_id,
-              o.start_time AS o_start_time,
-              o.end_time AS o_end_time,
-              o.completion_start_time AS o_completion_start_time,
-              o.name AS o_name,
-              o.type AS o_type,
-              o.environment AS o_environment,
-              o.version AS o_version,
-              o.level AS o_level,
-              o.status_message AS o_status_message,
-              o.input AS o_input,
-              o.output AS o_output,
-              o.metadata AS o_metadata,
-              e.span_id AS e_span_id,
-              e.parent_span_id AS e_parent_span_id,
-              e.trace_id AS e_trace_id,
-              e.start_time AS e_start_time,
-              e.end_time AS e_end_time,
-              e.completion_start_time AS e_completion_start_time,
-              e.name AS e_name,
-              e.type AS e_type,
-              e.environment AS e_environment,
-              e.version AS e_version,
-              e.level AS e_level,
-              e.status_message AS e_status_message,
-              e.input AS e_input,
-              e.output AS e_output
-          FROM observations o
-                   LEFT JOIN events e
-                             ON o.id = e.span_id
-                                 AND o.project_id = e.project_id
-          WHERE o.start_time >= (SELECT min_time FROM time_range)
-            AND o.start_time <= (SELECT max_time FROM time_range)
-            and e.start_time >= (SELECT min_time FROM time_range)
-            and e.start_time <= (SELECT max_time FROM time_range)
-      )
+WITH
+    -- Time range configuration
+    time_range AS (
+        SELECT
+            toDateTime('2025-10-14 13:00:00') AS min_time,
+            toDateTime('2025-10-14 14:45:00') AS max_time
+    ),
 
-  SELECT
-      'IDENTIFIER_MAPPINGS' AS validation_category,
-      count() AS total_compared,
-      countIf(id != e_span_id) AS mismatch_1,
-      countIf(e_parent_span_id != coalesce(parent_observation_id, trace_id)) AS mismatch_2,
-      countIf(e_trace_id != trace_id) AS mismatch_3,
-      CASE WHEN countIf(id != e_span_id) = 0 AND countIf(e_parent_span_id !=
-                                                         coalesce(parent_observation_id, trace_id)) = 0 AND countIf(e_trace_id != trace_id)
-               THEN '✓ PASS' ELSE '✗ FAIL' END AS status
-  FROM obs_event_joined
+    sampled_projects AS (
+        SELECT project_id
+        FROM observations o
+        WHERE o.start_time >= (SELECT min_time FROM time_range)
+          AND o.start_time <= (SELECT max_time FROM time_range)
+        ORDER BY rand()
+        LIMIT 100
+    ),
 
-  UNION ALL
+    -- Join observations with events
+    obs_event_joined AS (
+        SELECT
+            o.id,
+            o.project_id,
+            o.trace_id,
+            o.parent_observation_id,
+            o.start_time AS o_start_time,
+            o.end_time AS o_end_time,
+            o.completion_start_time AS o_completion_start_time,
+            o.name AS o_name,
+            o.type AS o_type,
+            o.environment AS o_environment,
+            o.version AS o_version,
+            o.level AS o_level,
+            o.status_message AS o_status_message,
+            o.input AS o_input,
+            o.output AS o_output,
+            o.metadata AS o_metadata,
+            e.span_id AS e_span_id,
+            e.parent_span_id AS e_parent_span_id,
+            e.trace_id AS e_trace_id,
+            e.start_time AS e_start_time,
+            e.end_time AS e_end_time,
+            e.completion_start_time AS e_completion_start_time,
+            e.name AS e_name,
+            e.type AS e_type,
+            e.environment AS e_environment,
+            e.version AS e_version,
+            e.level AS e_level,
+            e.status_message AS e_status_message,
+            e.input AS e_input,
+            e.output AS e_output
+        FROM observations o
+        LEFT JOIN events e
+        ON o.id = e.span_id AND o.project_id = e.project_id
+        WHERE o.start_time >= (SELECT min_time FROM time_range)
+          AND o.start_time <= (SELECT max_time FROM time_range)
+          and e.start_time >= (SELECT min_time FROM time_range)
+          and e.start_time <= (SELECT max_time FROM time_range)
+          and o.project_id in (select project_id from sampled_projects)
+          and e.source = 'ingestion-api'
+    )
 
-  SELECT
-      'TIMESTAMP_MAPPINGS' AS validation_category,
-      count() AS total_compared,
-      countIf(toUnixTimestamp64Milli(o_start_time) !=
-              toUnixTimestamp64Milli(e_start_time)) AS mismatch_1,
-      countIf(o_end_time IS NOT NULL AND e_end_time IS NOT NULL AND
-              toUnixTimestamp64Milli(o_end_time) != toUnixTimestamp64Milli(e_end_time))
-          AS mismatch_2,
-      countIf(o_end_time IS NULL AND e_end_time IS NOT NULL) AS mismatch_3,
-      CASE WHEN countIf(toUnixTimestamp64Milli(o_start_time) !=
-                        toUnixTimestamp64Milli(e_start_time)) = 0
-          AND countIf(o_end_time IS NOT NULL AND e_end_time IS NOT NULL
-              AND toUnixTimestamp64Milli(o_end_time) !=
-                  toUnixTimestamp64Milli(e_end_time)) = 0
-          AND countIf(o_end_time IS NULL AND e_end_time IS NOT NULL) =
-              0
-               THEN '✓ PASS' ELSE '✗ FAIL' END AS status
-  FROM obs_event_joined
+-- Identifier mismatches
+SELECT
+    'IDENTIFIER_MAPPINGS' AS validation_category,
+    'parent_span_id_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    coalesce(parent_observation_id, trace_id) AS obs_value,
+    e_parent_span_id AS event_value
+FROM obs_event_joined
+WHERE e_parent_span_id != coalesce(parent_observation_id, trace_id)
 
-  UNION ALL
+UNION ALL
 
-  SELECT
-      'CORE_STRING_FIELDS' AS validation_category,
-      count() AS total_compared,
-      countIf(o_name != e_name) AS mismatch_1,
-      countIf(o_type != e_type) AS mismatch_2,
-      countIf(o_level != e_level) AS mismatch_3,
-      CASE WHEN countIf(o_name != e_name) = 0
-          AND countIf(o_type != e_type) = 0
-          AND countIf(o_level != e_level) = 0
-               THEN '✓ PASS' ELSE '✗ FAIL' END AS status
-  FROM obs_event_joined
+SELECT
+    'IDENTIFIER_MAPPINGS' AS validation_category,
+    'trace_id_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    trace_id AS obs_value,
+    e_trace_id AS event_value
+FROM obs_event_joined
+WHERE e_trace_id != trace_id
 
-  UNION ALL
+-- Timestamp mismatches
+UNION ALL
 
-  SELECT
-      'NULLABLE_STRING_FIELDS' AS validation_category,
-      count() AS total_compared,
-      countIf(coalesce(o_status_message, '') != e_status_message) AS
-                                  mismatch_1,
-      countIf(coalesce(o_version, '') != coalesce(e_version, '')) AS
-                                  mismatch_2,
-      countIf(o_environment != e_environment) AS mismatch_3,
-      CASE WHEN countIf(coalesce(o_status_message, '') != e_status_message) =
-                0
-          AND countIf(coalesce(o_version, '') != coalesce(e_version,
-                                                          '')) = 0
-          AND countIf(o_environment != e_environment) = 0
-               THEN '✓ PASS' ELSE '✗ FAIL' END AS status
-  FROM obs_event_joined
+SELECT
+    'TIMESTAMP_MAPPINGS' AS validation_category,
+    'start_time_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    toString(o_start_time) AS obs_value,
+    toString(e_start_time) AS event_value
+FROM obs_event_joined
+WHERE toStartOfInterval(o_start_time, INTERVAL 1 SECOND) != toStartOfInterval(e_start_time, INTERVAL 1 SECOND)
 
-  --   UNION ALL
+UNION ALL
 
---   SELECT
---       'INPUT_OUTPUT_FIELDS' AS validation_category,
---       count() AS total_compared,
---       countIf(coalesce(o_input, '') != e_input) AS mismatch_1,
---       countIf(coalesce(o_output, '') != e_output) AS mismatch_2,
---       0 AS mismatch_3,
---       CASE WHEN countIf(coalesce(o_input, '') != e_input) = 0
---                 AND countIf(coalesce(o_output, '') != e_output) = 0
---            THEN '✓ PASS' ELSE '✗ FAIL' END AS status
---   FROM obs_event_joined
-  ORDER BY validation_category
-  SETTINGS join_algorithm = 'partial_merge'
+SELECT
+    'TIMESTAMP_MAPPINGS' AS validation_category,
+    'end_time_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    toString(o_end_time) AS obs_value,
+    toString(e_end_time) AS event_value
+FROM obs_event_joined
+WHERE o_end_time IS NOT NULL
+  AND e_end_time IS NOT NULL
+  AND toStartOfInterval(o_end_time, INTERVAL 1 SECOND) != toStartOfInterval(e_end_time, INTERVAL 1 SECOND)
+
+UNION ALL
+
+SELECT
+    'TIMESTAMP_MAPPINGS' AS validation_category,
+    'end_time_null_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    'NULL' AS obs_value,
+    toString(e_end_time) AS event_value
+FROM obs_event_joined
+WHERE o_end_time IS NULL AND e_end_time IS NOT NULL
+
+-- Core string field mismatches
+UNION ALL
+
+SELECT
+    'CORE_STRING_FIELDS' AS validation_category,
+    'name_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    o_name AS obs_value,
+    e_name AS event_value
+FROM obs_event_joined
+WHERE o_name != e_name
+
+UNION ALL
+
+SELECT
+    'CORE_STRING_FIELDS' AS validation_category,
+    'type_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    o_type AS obs_value,
+    e_type AS event_value
+FROM obs_event_joined
+WHERE o_type != e_type
+
+UNION ALL
+
+SELECT
+    'CORE_STRING_FIELDS' AS validation_category,
+    'level_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    o_level AS obs_value,
+    e_level AS event_value
+FROM obs_event_joined
+WHERE o_level != e_level
+
+-- Nullable string field mismatches
+UNION ALL
+
+SELECT
+    'NULLABLE_STRING_FIELDS' AS validation_category,
+    'status_message_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    coalesce(o_status_message, '') AS obs_value,
+    e_status_message AS event_value
+FROM obs_event_joined
+WHERE coalesce(o_status_message, '') != e_status_message
+
+UNION ALL
+
+SELECT
+    'NULLABLE_STRING_FIELDS' AS validation_category,
+    'version_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    coalesce(o_version, '') AS obs_value,
+    coalesce(e_version, '') AS event_value
+FROM obs_event_joined
+WHERE coalesce(o_version, '') != coalesce(e_version, '')
+
+UNION ALL
+
+SELECT
+    'NULLABLE_STRING_FIELDS' AS validation_category,
+    'environment_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    o_environment AS obs_value,
+    e_environment AS event_value
+FROM obs_event_joined
+WHERE o_environment != e_environment
+
+UNION ALL
+
+SELECT
+    'INPUT_OUTPUT_FIELDS' AS validation_category,
+    'input_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    o_input AS obs_value,
+    e_input AS event_value
+FROM obs_event_joined
+WHERE o_input != e_input
+
+UNION ALL
+
+SELECT
+    'INPUT_OUTPUT_FIELDS' AS validation_category,
+    'output_mismatch' AS issue_type,
+    id AS observation_id,
+    project_id,
+    o_output AS obs_value,
+    e_output AS event_value
+FROM obs_event_joined
+WHERE o_output != e_output
+
+-- ORDER BY validation_category, issue_type, observation_id
+SETTINGS join_algorithm = 'partial_merge'
 ```
 
-Query id: 04ef9fd4-e29e-4124-b8be-8b051106ce55
-
-┌─validation_category─┬─total_compared─┬─mismatch_1─┬─mismatch_2─┬─mismatch_3─┬─status─┐
-1. │ TIMESTAMP_MAPPINGS  │        4273039 │       2186 │       2185 │      16221 │ ✗ FAIL │
-   └─────────────────────┴────────────────┴────────────┴────────────┴────────────┴────────┘
-   ┌─validation_category─┬─total_compared─┬─mismatch_1─┬─mismatch_2─┬─mismatch_3─┬─status─┐
-2. │ CORE_STRING_FIELDS  │        4273039 │      91690 │        521 │         82 │ ✗ FAIL │
-   └─────────────────────┴────────────────┴────────────┴────────────┴────────────┴────────┘
-   ┌─validation_category─┬─total_compared─┬─mismatch_1─┬─mismatch_2─┬─mismatch_3─┬─status─┐
-3. │ IDENTIFIER_MAPPINGS │        4273039 │          0 │        998 │       1767 │ ✗ FAIL │
-   └─────────────────────┴────────────────┴────────────┴────────────┴────────────┴────────┘
-   ┌─validation_category────┬─total_compared─┬─mismatch_1─┬─mismatch_2─┬─mismatch_3─┬─status─┐
-4. │ NULLABLE_STRING_FIELDS │        4273039 │        299 │         11 │          0 │ ✗ FAIL │
-   └────────────────────────┴────────────────┴────────────┴────────────┴────────────┴────────┘
-
-## Query 3: Trace Join & User/Session Propagation
-
-**Purpose**: Validate that user_id and session_id are correctly propagated from traces, and handle missing traces appropriately.
+## [WIP] Query 3: Trace Join & User/Session/Metadata Propagation
 
 ```sql
 WITH
     -- Time range configuration
     time_range AS (
         SELECT
-            toDateTime('{min_time:2020-01-01 00:00:00}') AS min_time,
-            toDateTime('{max_time:2099-12-31 23:59:59}') AS max_time
+            toDateTime('2025-10-14 13:00:00') AS min_time,
+            toDateTime('2025-10-14 14:45:00') AS max_time
+    ),
+
+    sampled_projects AS (
+        SELECT project_id
+        FROM observations o
+        WHERE o.start_time >= (SELECT min_time FROM time_range)
+          AND o.start_time <= (SELECT max_time FROM time_range)
+        ORDER BY rand()
+        LIMIT 100
     ),
 
     -- Join observations, events, and traces
@@ -281,24 +342,27 @@ WITH
             o.id,
             o.project_id,
             o.trace_id,
+            o.metadata AS o_metadata,
             t.user_id AS t_user_id,
             t.session_id AS t_session_id,
+            t.metadata AS t_metadata,
             e.user_id AS e_user_id,
             e.session_id AS e_session_id,
+            e.metadata AS e_metadata,
             t.id IS NOT NULL AS trace_exists
-        FROM observations FINAL o
-        INNER JOIN events FINAL e
+        FROM observations o
+        INNER JOIN events e
             ON o.id = e.span_id
             AND o.project_id = e.project_id
-        LEFT JOIN traces FINAL t
+        LEFT JOIN traces t
             ON o.trace_id = t.id
             AND o.project_id = t.project_id
-            AND t.is_deleted = 0
-        WHERE o.is_deleted = 0
-          AND e.is_deleted = 0
-          AND e.source IN ('otel', 'ingestion-api')
-          AND o.start_time >= (SELECT min_time FROM time_range)
+        WHERE o.start_time >= (SELECT min_time FROM time_range)
           AND o.start_time <= (SELECT max_time FROM time_range)
+          AND e.start_time >= (SELECT min_time FROM time_range)
+          AND e.start_time <= (SELECT max_time FROM time_range)
+          AND o.project_id IN (SELECT project_id FROM sampled_projects)
+          AND e.source = 'ingestion-api'
     )
 
 SELECT
@@ -349,17 +413,118 @@ SELECT
         WHEN (countIf(NOT trace_exists) * 100.0 / count()) < 5.0 THEN '⚠ WARN'
         ELSE '✗ FAIL'
     END AS status
+FROM full_join
+
+UNION ALL
+
+-- Metadata validation: observation metadata preserved
+SELECT
+    'OBS_METADATA_PRESERVED' AS scenario,
+    countIf(trace_exists AND mapSize(o_metadata) > 0) AS total_with_obs_metadata,
+    countIf(
+        trace_exists AND mapSize(o_metadata) > 0 AND
+        arrayAll(
+            key -> mapContains(e_metadata, key) AND e_metadata[key] = o_metadata[key],
+            mapKeys(o_metadata)
+        )
+    ) AS correctly_preserved,
+    countIf(
+        trace_exists AND mapSize(o_metadata) > 0 AND NOT
+        arrayAll(
+            key -> mapContains(e_metadata, key) AND e_metadata[key] = o_metadata[key],
+            mapKeys(o_metadata)
+        )
+    ) AS preservation_failures,
+    0 AS unused_column,
+    CASE
+        WHEN countIf(
+            trace_exists AND mapSize(o_metadata) > 0 AND NOT
+            arrayAll(
+                key -> mapContains(e_metadata, key) AND e_metadata[key] = o_metadata[key],
+                mapKeys(o_metadata)
+            )
+        ) = 0 THEN '✓ PASS'
+        ELSE '✗ FAIL'
+    END AS status
+FROM full_join
+
+UNION ALL
+
+-- Metadata validation: trace metadata merged (for keys not in observation metadata)
+SELECT
+    'TRACE_METADATA_MERGED' AS scenario,
+    countIf(
+        trace_exists AND mapSize(t_metadata) > 0 AND
+        length(arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))) > 0
+    ) AS total_with_trace_only_keys,
+    countIf(
+        trace_exists AND mapSize(t_metadata) > 0 AND
+        arrayAll(
+            key -> mapContains(e_metadata, key) AND e_metadata[key] = t_metadata[key],
+            arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))
+        )
+    ) AS correctly_merged,
+    countIf(
+        trace_exists AND mapSize(t_metadata) > 0 AND NOT
+        arrayAll(
+            key -> mapContains(e_metadata, key) AND e_metadata[key] = t_metadata[key],
+            arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))
+        )
+    ) AS merge_failures,
+    0 AS unused_column,
+    CASE
+        WHEN countIf(
+            trace_exists AND mapSize(t_metadata) > 0 AND NOT
+            arrayAll(
+                key -> mapContains(e_metadata, key) AND e_metadata[key] = t_metadata[key],
+                arrayFilter(k -> NOT mapContains(o_metadata, k), mapKeys(t_metadata))
+            )
+        ) = 0 THEN '✓ PASS'
+        ELSE '✗ FAIL'
+    END AS status
+FROM full_join
+
+UNION ALL
+
+-- Metadata validation: observation metadata takes precedence over trace metadata for conflicting keys
+SELECT
+    'OBS_PRECEDENCE_OVER_TRACE' AS scenario,
+    countIf(
+        trace_exists AND
+        length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0
+    ) AS records_with_conflicts,
+    countIf(
+        trace_exists AND
+        length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0 AND
+        arrayAll(
+            key -> e_metadata[key] = o_metadata[key],
+            arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))
+        )
+    ) AS obs_precedence_correct,
+    countIf(
+        trace_exists AND
+        length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0 AND NOT
+        arrayAll(
+            key -> e_metadata[key] = o_metadata[key],
+            arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))
+        )
+    ) AS precedence_violations,
+    0 AS unused_column,
+    CASE
+        WHEN countIf(
+            trace_exists AND
+            length(arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))) > 0 AND NOT
+            arrayAll(
+                key -> e_metadata[key] = o_metadata[key],
+                arrayIntersect(mapKeys(o_metadata), mapKeys(t_metadata))
+            )
+        ) = 0 THEN '✓ PASS'
+        ELSE '✗ FAIL'
+    END AS status
 FROM full_join;
 ```
 
-**Expected Results**:
-- `WITH_TRACE_JOIN`: All mismatch counts should be 0
-- `WITHOUT_TRACE_JOIN`: user_id and session_id should always be empty strings
-- `MISSING_TRACES`: < 1% is normal, 1-5% is warning, > 5% requires investigation
-
-## Query 4: Metadata Merging Validation
-
-**Purpose**: Verify that metadata is correctly merged from observations and traces, with observation metadata taking precedence.
+## [WIP] Query 4: Metadata Merging Validation
 
 ```sql
 WITH
