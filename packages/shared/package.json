@@ -89,7 +89,7 @@
     "jsonpath-plus": "10.3.0",
     "kysely": "^0.27.4",
     "langchain": "^0.3.30",
-    "langfuse-langchain": "3.38.4",
+    "langfuse-langchain": "3.38.6",
     "lodash": "^4.17.21",
     "lossless-json": "^4.1.1",
     "next-auth": "^4.24.11",
