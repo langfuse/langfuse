@@ -49,7 +49,7 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
     <div className={cn(props.className, props.level === "h3" && "mb-2")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3 md:gap-5">
-          <div className="flex min-w-0 flex-row justify-center align-middle">
+          <div className="flex min-w-0 flex-row items-center">
             <HeaderTitle title={props.title} level={props.level} />
             {props.help ? (
               <DocPopup

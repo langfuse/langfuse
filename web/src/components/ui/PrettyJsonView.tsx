@@ -135,14 +135,15 @@ function isChatMLFormat(json: unknown): boolean {
   if (Array.isArray(json)) {
     const directArray = ChatMlArraySchema.safeParse(json);
     if (directArray.success) {
-      // had some false positives, so we really check for role/content to validate ChatML
-      const hasRoleOrContent = json.some(
+      // had some false positives, so we really check for role AND content to validate ChatML
+      const hasRoleAndContent = json.some(
         (item) =>
           typeof item === "object" &&
           item !== null &&
-          ("role" in item || "content" in item),
+          "role" in item &&
+          "content" in item,
       );
-      return hasRoleOrContent;
+      return hasRoleAndContent;
     }
   }
 
