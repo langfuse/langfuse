@@ -76,7 +76,7 @@ const createModelCache = (projectId: string) => {
 export const getObservationStream = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;
-  filter?: FilterCondition[];
+  filter: FilterCondition[] | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
