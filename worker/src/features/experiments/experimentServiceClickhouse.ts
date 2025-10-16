@@ -64,7 +64,7 @@ async function processItem(
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
-  const newTraceId = createW3CTraceId();
+  const newTraceId = createW3CTraceId(`${config.runId}-${datasetItem.id}`);
   const runItemId = v4();
   const timestamp = new Date().toISOString();
 
