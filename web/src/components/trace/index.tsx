@@ -137,71 +137,43 @@ export function Trace(props: {
   );
 
   const TREE_DEFAULT_WIDTH = 30;
-  // store collapsed state per viewType: peek vs fullscreen
-  const [isTreePanelCollapsedPeek, setIsTreePanelCollapsedPeek] =
-    useLocalStorage("trace-tree-collapsed-peek", false);
-  const [isTreePanelCollapsedFullscreen, setIsTreePanelCollapsedFullscreen] =
-    useLocalStorage("trace-tree-collapsed-fullscreen", false);
 
-  const isTreePanelCollapsed =
-    context === "peek"
-      ? isTreePanelCollapsedPeek
-      : isTreePanelCollapsedFullscreen;
-  const setIsTreePanelCollapsed =
-    context === "peek"
-      ? setIsTreePanelCollapsedPeek
-      : setIsTreePanelCollapsedFullscreen;
+  // Derive collapsed state from actual panel size (single source of truth = autoSaveId)
+  // This avoids cross-tab sync issues from storing collapsed state separately
+  const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useState(false);
 
-  // DEBUG: Log context to understand the issue
-  console.log(
-    "DEBUG collapsed state routing:",
-    JSON.stringify({
-      propsContext: props.context,
-      derivedContext: context,
-      isPeekContext: context === "peek",
-      isFullscreenContext: context === "fullscreen",
-      usingPeekStorage: context === "peek",
-      usingFullscreenStorage: context === "fullscreen",
-    }),
-  );
-
-  // Sync panel's collapsed state on mount and check actual panel state
+  // DEBUG: Check what's in localStorage on mount
   useEffect(() => {
-    const panel = treePanelRef.current;
-    if (!panel) return;
+    const autoSaveKey =
+      context === "peek" ? "trace-layout-peek" : "trace-layout-fullscreen";
+    const storageKey = `react-resizable-panels:${autoSaveKey}`;
+    const storedValue = localStorage.getItem(storageKey);
+    console.log(
+      "DEBUG autoSaveId check:",
+      JSON.stringify({
+        context,
+        autoSaveKey,
+        storageKey,
+        storedValue,
+        parsedValue: storedValue ? JSON.parse(storedValue) : null,
+      }),
+    );
 
-    // Small delay to let autoSaveId restore the layout first
-    const timer = setTimeout(() => {
-      const isActuallyCollapsed = panel.isCollapsed();
-
-      // IMPORTANT: Decide which setter to use based on CURRENT context
-      // to avoid stale closure bugs when switching contexts
-      const currentCollapsedState =
-        context === "peek"
-          ? isTreePanelCollapsedPeek
-          : isTreePanelCollapsedFullscreen;
-      const setCurrentCollapsedState =
-        context === "peek"
-          ? setIsTreePanelCollapsedPeek
-          : setIsTreePanelCollapsedFullscreen;
-
-      // Sync our state with actual panel state (cross-tab sync case)
-      if (isActuallyCollapsed !== currentCollapsedState) {
-        setCurrentCollapsedState(isActuallyCollapsed);
+    // Check if panel actually restores to saved size
+    setTimeout(() => {
+      const panel = treePanelRef.current;
+      if (panel) {
+        console.log(
+          "DEBUG panel after autoSaveId restore:",
+          JSON.stringify({
+            panelSize: panel.getSize(),
+            isCollapsed: panel.isCollapsed(),
+            expectedFromStorage: storedValue ? JSON.parse(storedValue) : null,
+          }),
+        );
       }
-
-      // If our state says collapsed but panel is expanded, collapse it
-      if (currentCollapsedState && !isActuallyCollapsed) {
-        panel.collapse();
-      }
-    }, 0);
-
-    return () => clearTimeout(timer);
-    // Only re-run on context changes (mount and peek↔fullscreen switching)
-    // Do NOT run when isTreePanelCollapsed changes - that causes cross-tab ping-pong
-    // The onCollapse/onExpand callbacks handle all state syncing during interactions
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context]); // ONLY context, NOT isTreePanelCollapsed
+    }, 100);
+  }, [context]);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -621,14 +593,13 @@ export function Trace(props: {
               maxSize={panelState.maxSize}
               collapsible={true}
               collapsedSize={3}
-              onCollapse={() => {
-                // sync our state -> collapse detected
-                console.log("DEBUG onCollapse called, context:", context);
-                setIsTreePanelCollapsed(true);
-              }}
-              onExpand={() => {
-                console.log("DEBUG onExpand called, context:", context);
-                setIsTreePanelCollapsed(false);
+              onResize={(size) => {
+                // Derive collapsed state from actual panel size
+                // This is the ONLY source of truth (autoSaveId handles persistence)
+                const collapsed = size <= 5;
+                if (collapsed !== isTreePanelCollapsed) {
+                  setIsTreePanelCollapsed(collapsed);
+                }
               }}
               className="md:flex md:h-full md:flex-col md:overflow-hidden"
             >
