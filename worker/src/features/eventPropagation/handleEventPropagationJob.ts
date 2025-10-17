@@ -371,7 +371,7 @@ export const handleEventPropagationJob = async (
         operation_name: "dropPartition",
       },
       clickhouseConfigs: {
-        request_timeout: 120000, // 2 minutes timeout
+        request_timeout: 180000, // 3 minutes timeout
       },
     });
 
