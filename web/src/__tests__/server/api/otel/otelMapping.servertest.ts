@@ -4644,7 +4644,7 @@ describe("OTel Resource Span Mapping", () => {
                   {
                     key: "gcp.vertex.agent.tool_response",
                     value: {
-                      stringValue: '{"result": "particularily juicy cake"}',
+                      stringValue: '{"result": "particularly juicy cake"}',
                     },
                   },
                   // These are empty for tool calls in Google ADK - bug trigger
@@ -4726,7 +4726,7 @@ describe("OTel Resource Span Mapping", () => {
 
       // Verify output is correctly extracted from tool_response
       expect(toolObservation?.body.output).toBe(
-        '{"result": "particularily juicy cake"}',
+        '{"result": "particularly juicy cake"}',
       );
 
       // Verify Google ADK attributes are NOT in metadata.attributes
