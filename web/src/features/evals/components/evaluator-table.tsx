@@ -48,6 +48,8 @@ import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfig
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -70,6 +72,7 @@ export type EvaluatorDataRow = {
   }[];
   logs?: string;
   actions?: string;
+  totalCost?: number | null;
 };
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
@@ -121,6 +124,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
+  // Fetch costs for all evaluators
+  const evaluatorIds =
+    evaluators.data?.configs.map((config) => config.id) ?? [];
+  const costs = api.evals.costByEvaluatorIds.useQuery(
+    {
+      projectId,
+      evaluatorIds,
+    },
+    {
+      enabled: evaluators.isSuccess && evaluatorIds.length > 0,
+    },
+  );
+
   useEffect(() => {
     if (evaluators.isSuccess) {
       const { configs: configList = [] } = evaluators.data ?? {};
@@ -155,6 +171,28 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             className={row.getValue() === "FINISHED" ? "pl-3" : ""}
           />
         );
+      },
+    }),
+    columnHelper.accessor("totalCost", {
+      header: "Total Cost (1d)",
+      id: "totalCost",
+      size: 120,
+      enableSorting: true,
+      cell: (row) => {
+        const totalCost = row.getValue();
+
+        // Show skeleton while loading
+        if (costs.isLoading) {
+          return <Skeleton className="h-4 w-16" />;
+        }
+
+        // Show cost if available
+        if (totalCost !== undefined && totalCost !== null) {
+          return usdFormatter(totalCost, 2, 6);
+        }
+
+        // Show dash if no data
+        return "–";
       },
     }),
     columnHelper.accessor("result", {
@@ -325,6 +363,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
     const result = generateJobExecutionCounts(jobConfig.jobExecutionsByState);
+    const costData = costs.data?.[jobConfig.id];
 
     return {
       id: jobConfig.id,
@@ -349,6 +388,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             ? "Langfuse and Ragas maintained"
             : "Langfuse maintained"
         : "Not available",
+      totalCost: costData,
     };
   };
 
