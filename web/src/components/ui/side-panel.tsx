@@ -26,16 +26,16 @@ const SidePanelContext = React.createContext<{
  * Side panel component with controlled/uncontrolled modes.
  *
  * **Uncontrolled mode** (default):
- * - Omit `open` prop
+ * - Omit `openState` prop
  * - Panel state persisted in session storage
  * - User can toggle via chevron button
  * - Example: `<SidePanel id="details">{content}</SidePanel>`
  *
  * **Controlled mode**:
- * - Provide `open` and `onOpenChange` props
+ * - Provide `openState` with `open` and `onOpenChange`
  * - No session storage, no toggle button
  * - Parent controls open/close state
- * - Example: `<SidePanel id="annotate" open={isOpen} onOpenChange={setIsOpen}>{content}</SidePanel>`
+ * - Example: `<SidePanel id="annotate" openState={{ open: isOpen, onOpenChange: setIsOpen }}>{content}</SidePanel>`
  */
 const SidePanel = ({
   id,
@@ -43,8 +43,7 @@ const SidePanel = ({
   className,
   mobileTitle,
   scrollable = true,
-  open: controlledOpen,
-  onOpenChange,
+  openState,
 }: {
   id: string;
   children: ReactNode;
@@ -52,11 +51,14 @@ const SidePanel = ({
   mobileTitle?: string;
   scrollable?: boolean;
   /** Controlled mode: provide to control panel state externally */
-  open?: boolean;
-  /** Controlled mode: callback when panel should open/close */
-  onOpenChange?: (open: boolean) => void;
+  openState?: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
 }) => {
-  const isControlled = controlledOpen !== undefined;
+  const isControlled = openState !== undefined;
+  const controlledOpen = openState?.open;
+  const onOpenChange = openState?.onOpenChange;
   const [uncontrolledOpen, setUncontrolledOpen] = useSessionStorage<boolean>(
     `${id}-showPanel`,
     true,
@@ -64,7 +66,7 @@ const SidePanel = ({
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const isMobile = useIsMobile();
 
-  const showPanel = isControlled ? controlledOpen : uncontrolledOpen;
+  const showPanel = isControlled ? (controlledOpen ?? false) : uncontrolledOpen;
 
   const setShowPanel = useCallback(
     (value: boolean) => {

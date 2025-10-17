@@ -23,11 +23,8 @@ import {
   isPresent,
   type ScoreConfigDomain,
   type ScoreConfigCategoryDomain,
-  type APIScoreV2,
   type UpdateAnnotationScoreData,
   type CreateAnnotationScoreData,
-  type ScoreDataType,
-  type ScoreAggregate,
 } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import {
