@@ -144,19 +144,21 @@ export const handleEventPropagationJob = async (
     if (partition) {
       // Try to acquire lock for this partition
       const lockAcquired = await acquirePartitionLock(partition);
-      if (!lockAcquired) {
+      if (lockAcquired) {
+        partitionToProcess = partition;
         logger.info(
-          `Partition ${partition} is already locked by another worker, skipping`,
+          `Processing partition ${partitionToProcess} (targeted) for events table fill`,
         );
-        return;
+      } else {
+        logger.info(
+          `Partition ${partition} is already locked by another worker, falling back to discovery mode`,
+        );
       }
+    }
 
-      partitionToProcess = partition;
-      logger.info(
-        `Processing partition ${partitionToProcess} (targeted) for events table fill`,
-      );
-    } else {
-      // Discovery mode (cron job) - process oldest safe partition
+    // If no partition was processed yet (either no partition specified or it was locked),
+    // fall back to discovery mode - process oldest safe partition
+    if (!partitionToProcess) {
       // We sort partitions from newest to oldest and then remove elements from the back.
       // This means that the oldest, unlocked element will be processed.
       // Later, we can continue to process from the back until two elements remain.
