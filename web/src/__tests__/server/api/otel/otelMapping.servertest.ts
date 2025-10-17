@@ -4543,7 +4543,7 @@ describe("OTel Resource Span Mapping", () => {
     });
 
     it("should extract Google ADK tool call I/O from tool_call_args/tool_response when llm_request/llm_response are empty", async () => {
-      const traceId = "some-trace-id";
+      const traceId = "abcdef1234567890abcdef1234567890";
 
       const googleADKToolSpan = {
         resource: {
