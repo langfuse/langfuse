@@ -38,6 +38,7 @@ export default withMiddlewares({
         fromStartTime: query.fromStartTime ?? undefined,
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
+        advancedFilters: query.filter,
       };
 
       // Use events table if query parameter is explicitly set, otherwise use environment variable

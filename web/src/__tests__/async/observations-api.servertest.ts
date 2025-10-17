@@ -556,4 +556,181 @@ describe("/api/public/observations API Endpoint", () => {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
+
+  // Advanced Filtering Tests
+  describe("Advanced Filtering", () => {
+    const runAdvancedFilterTestSuite = (useEventsTable: boolean) => {
+      const suiteName = useEventsTable
+        ? "with events table"
+        : "with observations table";
+      const queryParam = useEventsTable
+        ? "?useEventsTable=true"
+        : "?useEventsTable=false";
+
+      describe(`${suiteName}`, () => {
+        it("should support metadata field filtering with contains", async () => {
+          const traceId = randomUUID();
+          const timestamp = new Date();
+          const timeValue = useEventsTable
+            ? timestamp.getTime() * 1000
+            : timestamp.getTime();
+
+          const createdTrace = createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: timestamp.getTime(),
+          });
+
+          await createAndInsertObservations(useEventsTable, createdTrace, [
+            {
+              trace_id: traceId,
+              project_id: projectId,
+              name: "generation-1",
+              type: "GENERATION",
+              level: "DEFAULT",
+              metadata: { source: "api-server", region: "us-east" },
+              start_time: timeValue,
+            },
+            {
+              trace_id: traceId,
+              project_id: projectId,
+              name: "event-1",
+              type: "EVENT",
+              level: "DEFAULT",
+              metadata: { source: "ui", region: "us-west" },
+              start_time: timeValue + 1000,
+            },
+          ]);
+
+          const filterParam = JSON.stringify([
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "contains",
+              key: "source",
+              value: "api",
+            },
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}&traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+          );
+
+          expect(response.body.data.length).toBe(1);
+          expect(response.body.data[0]?.name).toBe("generation-1");
+        });
+
+        it("should merge non-conflicting simple and advanced filters", async () => {
+          const traceId = randomUUID();
+          const timestamp = new Date();
+          const timeValue = useEventsTable
+            ? timestamp.getTime() * 1000
+            : timestamp.getTime();
+
+          const createdTrace = createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: timestamp.getTime(),
+          });
+
+          await createAndInsertObservations(useEventsTable, createdTrace, [
+            {
+              trace_id: traceId,
+              project_id: projectId,
+              name: "test-generation",
+              type: "GENERATION",
+              level: "DEFAULT",
+              start_time: timeValue,
+            },
+            {
+              trace_id: traceId,
+              project_id: projectId,
+              name: "test-event",
+              type: "EVENT",
+              level: "DEFAULT",
+              start_time: timeValue + 1000,
+            },
+          ]);
+
+          // Simple param: type=GENERATION, Advanced filter: name contains "test"
+          const filterParam = JSON.stringify([
+            {
+              type: "string",
+              column: "Name",
+              operator: "contains",
+              value: "test",
+            },
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}&traceId=${traceId}&type=GENERATION&filter=${encodeURIComponent(filterParam)}`,
+          );
+
+          // Should match only test-generation (both filters applied)
+          expect(response.body.data.length).toBe(1);
+          expect(response.body.data[0]?.name).toBe("test-generation");
+          expect(response.body.data[0]?.type).toBe("GENERATION");
+        });
+
+        it("should return validation error for malformed filter JSON", async () => {
+          const malformedFilter = "invalid-json";
+
+          try {
+            await makeZodVerifiedAPICall(
+              GetObservationsV1Response,
+              "GET",
+              `/api/public/observations${queryParam}&filter=${encodeURIComponent(malformedFilter)}`,
+            );
+            fail("Should have thrown an error");
+          } catch (error) {
+            expect(error).toBeDefined();
+          }
+        });
+
+        it("should handle empty string filter parameter", async () => {
+          const traceId = randomUUID();
+          const timestamp = new Date();
+          const timeValue = useEventsTable
+            ? timestamp.getTime() * 1000
+            : timestamp.getTime();
+
+          const createdTrace = createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: timestamp.getTime(),
+          });
+
+          await createAndInsertObservations(useEventsTable, createdTrace, [
+            {
+              trace_id: traceId,
+              project_id: projectId,
+              name: "obs-1",
+              type: "GENERATION",
+              level: "DEFAULT",
+              start_time: timeValue,
+            },
+          ]);
+
+          // Empty filter should be ignored
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}&traceId=${traceId}&filter=`,
+          );
+
+          expect(response.body.data.length).toBe(1);
+        });
+      });
+    };
+
+    // Run all advanced filtering tests for both implementations
+    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+      runAdvancedFilterTestSuite(true); // with events table
+    }
+    runAdvancedFilterTestSuite(false); // with observations table
+  });
 });

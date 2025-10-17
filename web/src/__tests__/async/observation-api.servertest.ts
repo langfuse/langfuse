@@ -112,13 +112,20 @@ describe("/api/public/observations API Endpoint", () => {
             "GET",
             `/api/public/observations/${observationId}?useEventsTable=${useEventsTable}`,
           );
+
+          const expectedModelId = useEventsTable
+            ? "model_id" in observation
+              ? observation.model_id
+              : undefined
+            : "internal_model_id" in observation
+              ? observation.internal_model_id
+              : undefined;
+
           expect(getEventRes.body).toMatchObject({
             id: observationId,
             traceId: traceId,
             type: observation.type,
-            modelId: useEventsTable
-              ? observation.model_id
-              : observation.internal_model_id,
+            modelId: expectedModelId,
             inputPrice: 0.000005,
             input: observation.input,
             output: observation.output,
