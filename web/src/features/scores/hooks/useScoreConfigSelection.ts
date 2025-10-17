@@ -1,4 +1,4 @@
-import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
+import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 import { resolveConfigValue } from "@/src/features/scores/lib/annotationFormHelpers";
 import {
   type AnnotateFormSchemaType,
@@ -36,7 +36,7 @@ export function useScoreConfigSelection({
   ) => void;
 } {
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
-    useEmptyConfigs();
+    useEmptyScoreConfigs();
 
   const selectionOptions = useMemo(() => {
     return configs.map((config) => {

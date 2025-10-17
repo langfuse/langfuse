@@ -48,12 +48,12 @@ export type ScoreTargetSession = z.infer<typeof ScoreTargetSession>;
 export type ScoreTarget = z.infer<typeof ScoreTarget>;
 
 const CreateAnnotationScoreBase = z.object({
-  id: z.string(), // TODO: need to make optional for backward compatibility later
+  id: z.string().optional(),
   name: StringNoHTMLNonEmpty,
   projectId: z.string(),
   environment: z.string().default("default"),
   scoreTarget: ScoreTarget,
-  configId: z.string(), // TODO: need to make optional for backward compatibility later
+  configId: z.string(),
   comment: StringNoHTML.nullish(),
   queueId: z.string().nullish(),
 });

@@ -55,7 +55,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { type ScoreTarget } from "@/src/features/scores/types";
+import {
+  type AnnotationScoreFormData,
+  type InnerAnnotationFormProps,
+  type ScoreTarget,
+  type AnnotationForm as AnnotationFormType,
+} from "@/src/features/scores/types";
 import { AnnotateFormSchema } from "@/src/features/scores/schema";
 import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
 import {
@@ -65,12 +70,13 @@ import {
 } from "@/src/features/scores/lib/annotationFormHelpers";
 import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAnnotationScores";
 import { v4 as uuid } from "uuid";
-import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
 import { useRouter } from "next/router";
+import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 const CHAR_CUTOFF = 6;
 
@@ -210,61 +216,17 @@ const isInputDisabled = (config: ScoreConfigDomain) => {
   return config.isArchived;
 };
 
-type AnalyticsData = {
-  type: "trace" | "session";
-  source:
-    | "TraceDetail"
-    | "SessionDetail"
-    | "AnnotationQueue"
-    | "DatasetCompare";
-};
-
-type AnnotationForm<Target extends ScoreTarget> = {
-  scoreTarget: Target;
-  serverScores: APIScoreV2[] | ScoreAggregate;
-  configs: ScoreConfigDomain[];
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-  analyticsData?: AnalyticsData;
-  actionButtons?: React.ReactNode;
-};
-
-type AnnotationScoreFormData = {
-  id: string | null;
-  configId: string;
-  name: string;
-  dataType: ScoreDataType;
-  value?: number | null;
-  stringValue?: string | null;
-  comment?: string | null;
-};
-
-type InnerAnnotationFormProps<Target extends ScoreTarget> = {
-  scoreTarget: Target;
-  initialFormData: AnnotationScoreFormData[];
-  configs: ScoreConfigDomain[];
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-  analyticsData?: AnalyticsData;
-  actionButtons?: React.ReactNode;
-};
-
 function InnerAnnotationForm<Target extends ScoreTarget>({
   scoreTarget,
   initialFormData,
-  configs,
   scoreMetadata,
   analyticsData,
   actionButtons,
+  configControl,
 }: InnerAnnotationFormProps<Target>) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const { configs, allowManualSelection } = configControl;
 
   // Initialize form with initial data (never updates)
   const form = useForm({
@@ -451,40 +413,42 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           actionButtons={actionButtons}
           description={description}
         />
-        <div className="grid grid-flow-col items-center">
-          <MultiSelectKeyValues
-            placeholder="Value"
-            align="end"
-            items="empty scores"
-            className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
-            options={selectionOptions}
-            onValueChange={handleSelectionChange}
-            values={fields
-              .filter((field) => !!field.configId)
-              .map((field) => ({
-                key: field.configId as string,
-                value: resolveConfigValue({
-                  dataType: field.dataType,
-                  name: field.name,
-                }),
-              }))}
-            controlButtons={
-              <DropdownMenuItem
-                onSelect={() => {
-                  capture(
-                    "score_configs:manage_configs_item_click",
-                    analyticsData,
-                  );
-                  router.push(
-                    `/project/${scoreMetadata.projectId}/settings/scores`,
-                  );
-                }}
-              >
-                Manage score configs
-              </DropdownMenuItem>
-            }
-          />
-        </div>
+        {allowManualSelection ? (
+          <div className="grid grid-flow-col items-center">
+            <MultiSelectKeyValues
+              placeholder="Value"
+              align="end"
+              items="empty scores"
+              className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
+              options={selectionOptions}
+              onValueChange={handleSelectionChange}
+              values={fields
+                .filter((field) => !!field.configId)
+                .map((field) => ({
+                  key: field.configId as string,
+                  value: resolveConfigValue({
+                    dataType: field.dataType,
+                    name: field.name,
+                  }),
+                }))}
+              controlButtons={
+                <DropdownMenuItem
+                  onSelect={() => {
+                    capture(
+                      "score_configs:manage_configs_item_click",
+                      analyticsData,
+                    );
+                    router.push(
+                      `/project/${scoreMetadata.projectId}/settings/scores`,
+                    );
+                  }}
+                >
+                  Manage score configs
+                </DropdownMenuItem>
+              }
+            />
+          </div>
+        ) : null}
       </div>
       <Form {...form}>
         <form className="flex flex-col gap-4">
@@ -792,16 +756,21 @@ export function AnnotationForm<Target extends ScoreTarget>({
   scoreTarget,
   serverScores,
   scoreMetadata,
-  configs,
   analyticsData,
   actionButtons,
-}: AnnotationForm<Target>) {
-  const { emptySelectedConfigIds } = useEmptyConfigs();
+  configSelection = { mode: "selectable" },
+}: AnnotationFormType<Target>) {
+  const { projectId } = scoreMetadata;
+  const { isLoading, availableConfigs, selectedConfigIds } =
+    useAnnotationScoreConfigs({
+      projectId,
+      configSelection,
+    });
 
   // Prepare initial form data ONCE - merge cache + server, transform to annotation scores
   const annotationScores = useMergedAnnotationScores(
     serverScores,
-    configs,
+    availableConfigs,
     scoreTarget,
   );
 
@@ -820,9 +789,9 @@ export function AnnotationForm<Target extends ScoreTarget>({
     });
   });
 
-  emptySelectedConfigIds.forEach((configId) => {
+  selectedConfigIds.forEach((configId) => {
     if (!configIds.has(configId)) {
-      const config = configs.find((c) => c.id === configId);
+      const config = availableConfigs.find((c) => c.id === configId);
       initialFormData.push({
         id: null,
         configId,
@@ -835,14 +804,19 @@ export function AnnotationForm<Target extends ScoreTarget>({
     }
   });
 
-  return (
+  return isLoading ? (
+    <Skeleton className="h-full w-full" />
+  ) : (
     <InnerAnnotationForm
       scoreTarget={scoreTarget}
       initialFormData={initialFormData}
-      configs={configs}
       scoreMetadata={scoreMetadata}
       analyticsData={analyticsData}
       actionButtons={actionButtons}
+      configControl={{
+        configs: availableConfigs,
+        allowManualSelection: configSelection.mode === "selectable",
+      }}
     />
   );
 }

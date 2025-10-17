@@ -1,6 +1,6 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
 
-export function useEmptyConfigs() {
+export function useEmptyScoreConfigs() {
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);

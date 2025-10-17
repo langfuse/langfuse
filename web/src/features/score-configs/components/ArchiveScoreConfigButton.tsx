@@ -9,7 +9,7 @@ import React from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { useEmptyConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
+import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
 
 export const ArchiveScoreConfigButton = ({
   configId,
@@ -24,7 +24,7 @@ export const ArchiveScoreConfigButton = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
-    useEmptyConfigs();
+    useEmptyScoreConfigs();
 
   const hasAccess = useHasProjectAccess({
     projectId: projectId,

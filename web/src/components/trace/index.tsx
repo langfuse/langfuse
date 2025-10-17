@@ -38,6 +38,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/src/components/ui/resizable";
+import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 
 const getNestedObservationKeys = (
   observations: ObservationReturnTypeWithMetadata[],
@@ -265,6 +266,11 @@ export function Trace(props: {
     ],
   );
 
+  const treeScores = useMergedScores(props.scores, {
+    type: "trace",
+    traceId: props.trace.id,
+  });
+
   // Build UI data once
   const {
     tree: traceTree,
@@ -297,7 +303,7 @@ export function Trace(props: {
   const treeOrSearchContent = hasQuery ? (
     <TraceSearchList
       items={searchItems}
-      scores={props.scores}
+      scores={treeScores}
       onSelect={setCurrentObservationId}
       comments={commentsMap}
       showMetrics={metricsOnObservationTree}
@@ -311,7 +317,7 @@ export function Trace(props: {
       tree={traceTree}
       collapsedNodes={collapsedNodes}
       toggleCollapsedNode={toggleCollapsedNode}
-      scores={props.scores}
+      scores={treeScores}
       currentNodeId={currentObservationId ?? undefined}
       setCurrentNodeId={setCurrentObservationId}
       showMetrics={metricsOnObservationTree}
@@ -505,7 +511,7 @@ export function Trace(props: {
                     <TraceTimelineView
                       key={props.trace.id}
                       trace={props.trace}
-                      scores={props.scores}
+                      scores={treeScores}
                       observations={props.observations}
                       projectId={props.trace.projectId}
                       currentObservationId={currentObservationId ?? null}
@@ -760,7 +766,7 @@ export function Trace(props: {
                               <TraceTimelineView
                                 key={`timeline-${props.trace.id}`}
                                 trace={props.trace}
-                                scores={props.scores}
+                                scores={treeScores}
                                 observations={props.observations}
                                 projectId={props.trace.projectId}
                                 currentObservationId={
@@ -801,7 +807,7 @@ export function Trace(props: {
                             <TraceTimelineView
                               key={props.trace.id}
                               trace={props.trace}
-                              scores={props.scores}
+                              scores={treeScores}
                               observations={props.observations}
                               projectId={props.trace.projectId}
                               currentObservationId={

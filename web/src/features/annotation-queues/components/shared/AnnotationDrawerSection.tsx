@@ -62,7 +62,7 @@ export const AnnotationDrawerSection: React.FC<
             key={"annotation-drawer-content" + item.objectId}
             scoreTarget={scoreTarget}
             serverScores={scores}
-            configs={configs}
+            configSelection={{ mode: "fixed", configs }}
             scoreMetadata={{
               projectId: item.projectId,
               queueId: item.queueId,

@@ -9,7 +9,6 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
-import { api } from "@/src/utils/api";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -22,10 +21,6 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
     `annotationQueueDrawerVertical-compare-${projectId}`,
     60,
   );
-
-  const configsData = api.scoreConfigs.all.useQuery({
-    projectId,
-  });
 
   if (!activeCell) {
     return <Skeleton className="h-full w-full" />;
@@ -42,7 +37,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
         minSize={30}
         defaultSize={verticalSize}
       >
-        {configsData.data && activeCell ? (
+        {activeCell ? (
           <AnnotationForm
             key={`annotation-drawer-content-${activeCell.traceId}-${activeCell.observationId}`}
             scoreTarget={{
@@ -51,7 +46,6 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
               observationId: activeCell.observationId,
             }}
             serverScores={activeCell.scoreAggregates}
-            configs={configsData.data.configs}
             analyticsData={{
               type: "trace",
               source: "DatasetCompare",

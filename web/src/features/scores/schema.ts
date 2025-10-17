@@ -1,7 +1,6 @@
 import { ScoreDataType } from "@langfuse/shared";
 import { z } from "zod/v4";
 
-// TODO: review form schema
 export const AnnotationScoreDataSchema = z.object({
   name: z.string(),
   id: z.string().nullish(),
