@@ -1301,6 +1301,15 @@ export class OtelIngestionProcessor {
     // Google Vertex AI Agent-Developer-Kit (ADK)
     input = attributes["gcp.vertex.agent.llm_request"];
     output = attributes["gcp.vertex.agent.llm_response"];
+    // GCP Vertex Agent Tool call input and output
+    // see: https://github.com/google/adk-python/blob/9dce06f9b00259ec42241df4f6638955e783a9d1/src/google/adk/telemetry/tracing.py#L142
+    // Google sets llm_request and llm_response to {} when setting tool_call_args and tool_response
+    if (!input) {
+      input = attributes["gcp.vertex.agent.tool_call_args"];
+    }
+    if (!output) {
+      output = attributes["gcp.vertex.agent.tool_response"];
+    }
     if (input || output) {
       return { input, output, filteredAttributes };
     }
@@ -1372,13 +1381,6 @@ export class OtelIngestionProcessor {
     // Pydantic and Pipecat uses input and output
     input = attributes["input"];
     output = attributes["output"];
-    if (input || output) {
-      return { input, output, filteredAttributes };
-    }
-
-    // GCP Vertex Agent Tool call input and output
-    input = attributes["gcp.vertex.agent.tool_call_args"];
-    output = attributes["gcp.vertex.agent.tool_response"];
     if (input || output) {
       return { input, output, filteredAttributes };
     }
