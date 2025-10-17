@@ -21,7 +21,7 @@ import { type APIScoreV2 } from "@langfuse/shared";
 export function useMergedScores(
   serverScores: APIScoreV2[],
   target: ScoreTarget,
-): Omit<APIScoreV2, "timestamp" | "createdAt" | "updatedAt">[] {
+): APIScoreV2[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
   const cachedScores = getAllForTarget({
