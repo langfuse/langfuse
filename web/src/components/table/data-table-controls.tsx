@@ -28,6 +28,7 @@ import type {
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
+  TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 import {
@@ -174,6 +175,11 @@ export function DataTableControls({
                   onReset={filter.onReset}
                   operator={filter.operator}
                   onOperatorChange={filter.onOperatorChange}
+                  textFilters={filter.textFilters}
+                  onTextFilterAdd={filter.onTextFilterAdd}
+                  onTextFilterRemove={filter.onTextFilterRemove}
+                  hasTextFilters={filter.hasTextFilters}
+                  hasCheckboxSelections={filter.hasCheckboxSelections}
                 />
               );
             }
@@ -297,6 +303,17 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onOnlyChange?: (value: string) => void;
   operator?: "any of" | "all of";
   onOperatorChange?: (operator: "any of" | "all of") => void;
+  textFilters?: TextFilterEntry[];
+  onTextFilterAdd?: (
+    operator: "contains" | "does not contain",
+    value: string,
+  ) => void;
+  onTextFilterRemove?: (
+    operator: "contains" | "does not contain",
+    value: string,
+  ) => void;
+  hasTextFilters?: boolean;
+  hasCheckboxSelections?: boolean;
 }
 
 interface NumericFacetProps extends BaseFacetProps {
@@ -438,6 +455,11 @@ export function CategoricalFacet({
   onReset,
   operator,
   onOperatorChange,
+  textFilters,
+  onTextFilterAdd,
+  onTextFilterRemove,
+  hasTextFilters,
+  hasCheckboxSelections,
 }: CategoricalFacetProps) {
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -474,7 +496,22 @@ export function CategoricalFacet({
       onReset={onReset}
     >
       <div className="flex flex-col px-2">
-        {/* Operator toggle - show whenever onOperatorChange is provided and we have selections */}
+        {/* ANY/ALL Operator Toggle for arrayOptions filters
+
+            This toggle appears for multi-valued array columns (arrayOptions) like tags.
+            It allows switching between OR and AND logic:
+            - ANY: Match items with ANY selected value (OR logic)
+            - ALL: Match items with ALL selected values (AND logic)
+
+            The toggle is automatically enabled by useSidebarFilterState for any
+            arrayOptions column when selections exist. Other filter types (stringOptions,
+            boolean, numeric) don't get this toggle as "ALL" wouldn't be semantically meaningful.
+
+            Currently enabled for:
+            - Traces: tags
+            - Sessions: userIds, tags
+            - Prompts: labels, tags
+        */}
         {onOperatorChange && value.length > 0 && (
           <div className="mb-1.5 flex items-center gap-1.5 px-2">
             <span className="text-[10px] text-muted-foreground/80">Match:</span>
@@ -559,6 +596,7 @@ export function CategoricalFacet({
                       onOnlyChange ? () => onOnlyChange(option) : undefined
                     }
                     totalSelected={value.length}
+                    disabled={hasTextFilters}
                   />
                 ))}
                 {hasMoreFilteredOptions && !showAll && (
@@ -574,6 +612,22 @@ export function CategoricalFacet({
               </>
             )}
           </>
+        )}
+
+        {/* Text filter section - mutually exclusive with checkboxes */}
+        {onTextFilterAdd && (
+          <div className="mt-3 border-t pt-3">
+            <div className="mb-2 px-2 text-[10px] font-medium text-muted-foreground">
+              Or filter by text
+            </div>
+
+            <TextFilterSection
+              allFilters={textFilters ?? []}
+              onAdd={onTextFilterAdd}
+              onRemove={onTextFilterRemove}
+              disabled={hasCheckboxSelections}
+            />
+          </div>
         )}
       </div>
     </FilterAccordionItem>
@@ -919,6 +973,133 @@ export function StringKeyValueFacet({
   );
 }
 
+// Text filter section for categorical filters
+// Single input with DOES/DOES NOT toggle, allows adding multiple filters
+function TextFilterSection({
+  allFilters,
+  onAdd,
+  onRemove,
+  disabled,
+}: {
+  allFilters: TextFilterEntry[];
+  onAdd?: (op: "contains" | "does not contain", val: string) => void;
+  onRemove?: (op: "contains" | "does not contain", val: string) => void;
+  disabled?: boolean;
+}) {
+  const [inputValue, setInputValue] = useState("");
+  const [selectedOperator, setSelectedOperator] = useState<
+    "contains" | "does not contain"
+  >("contains");
+
+  const handleAdd = () => {
+    if (inputValue.trim() && onAdd) {
+      console.log(
+        `DEBUG [TextFilterSection] Adding filter: operator=${selectedOperator}, value=${inputValue}`,
+      );
+      onAdd(selectedOperator, inputValue.trim());
+      setInputValue("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Operator toggle + Input + Add button */}
+      <div className="flex items-center gap-2 px-2">
+        {/* DOES / DOES NOT toggle */}
+        <div className="inline-flex shrink-0 rounded border border-input/50 bg-background text-[10px]">
+          <button
+            onClick={() => setSelectedOperator("contains")}
+            disabled={disabled}
+            className={cn(
+              "rounded-l px-2 py-1 transition-colors",
+              selectedOperator === "contains"
+                ? "bg-accent font-medium text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground",
+              disabled && "cursor-not-allowed opacity-50",
+            )}
+          >
+            DOES
+          </button>
+          <div className="w-px bg-border/50" />
+          <button
+            onClick={() => setSelectedOperator("does not contain")}
+            disabled={disabled}
+            className={cn(
+              "rounded-r px-2 py-1 transition-colors",
+              selectedOperator === "does not contain"
+                ? "bg-accent font-medium text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground",
+              disabled && "cursor-not-allowed opacity-50",
+            )}
+          >
+            DOES NOT
+          </button>
+        </div>
+
+        {/* Input field */}
+        <Input
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleAdd();
+            }
+          }}
+          placeholder={
+            disabled ? "Disabled when checkboxes selected" : "contain..."
+          }
+          disabled={disabled}
+          className="h-7 flex-1 text-xs"
+        />
+
+        {/* Add button */}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleAdd}
+          disabled={disabled || !inputValue.trim()}
+          className="h-7 shrink-0 px-2 text-xs"
+        >
+          Add
+        </Button>
+      </div>
+
+      {/* Active filters list */}
+      {allFilters.length > 0 && (
+        <div className="space-y-0.5 px-2">
+          {allFilters.map((f, idx) => (
+            <div
+              key={idx}
+              className="group/textfilter flex items-center gap-2 text-xs"
+            >
+              <span className="shrink-0 text-[10px] font-medium text-muted-foreground/80">
+                {f.operator === "contains" ? "DOES" : "DOES NOT"}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                {f.value}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  console.log(
+                    `DEBUG [TextFilterSection] Removing filter: operator=${f.operator}, value=${f.value}`,
+                  );
+                  onRemove?.(f.operator, f.value);
+                }}
+                className="h-5 w-5 shrink-0 p-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/textfilter:opacity-100"
+              >
+                ×
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface FilterValueCheckboxProps {
   id: string;
   label: string;
@@ -927,6 +1108,7 @@ interface FilterValueCheckboxProps {
   onCheckedChange?: (checked: boolean) => void;
   onLabelClick?: () => void; // For "only this" behavior
   totalSelected?: number;
+  disabled?: boolean;
 }
 
 export function FilterValueCheckbox({
@@ -937,31 +1119,41 @@ export function FilterValueCheckbox({
   onCheckedChange,
   onLabelClick,
   totalSelected,
+  disabled = false,
 }: FilterValueCheckboxProps) {
   // Show "All" when clicking would reverse selection (only one item selected)
   const labelText = checked && totalSelected === 1 ? "All" : "Only";
 
   return (
-    <div className="relative flex items-center px-2">
+    <div
+      className={cn(
+        "relative flex items-center px-2",
+        disabled && "cursor-not-allowed opacity-50",
+      )}
+    >
       {/* Checkbox hover area */}
       <div className="group/checkbox flex items-center rounded-sm p-1 transition-colors hover:bg-accent">
         <Checkbox
           id={id}
           checked={checked}
           onCheckedChange={onCheckedChange}
+          disabled={disabled}
           className="pointer-events-auto"
         />
       </div>
 
       {/* Label hover area */}
       <div
-        className="group/label flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-1 transition-colors hover:bg-accent"
+        className={cn(
+          "group/label flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-1 transition-colors hover:bg-accent",
+          disabled && "pointer-events-none",
+        )}
         onClick={onLabelClick}
       >
         <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
 
         {/* "Only" or "All" indicator when hovering label */}
-        {onLabelClick && (
+        {onLabelClick && !disabled && (
           <span className="hidden pl-1 text-xs text-muted-foreground group-hover/label:block">
             {labelText}
           </span>
