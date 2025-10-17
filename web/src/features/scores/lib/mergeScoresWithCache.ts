@@ -1,6 +1,7 @@
 import { type APIScoreV2, type ScoreAggregate } from "@langfuse/shared";
 import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type AnnotationScore } from "@/src/features/scores/types";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 /**
  * Pure function: Merge APIScoreV2[] with cache
@@ -19,11 +20,8 @@ export function mergeScoresWithCache(
   serverScores: APIScoreV2[],
   cachedScores: CachedScore[],
   deletedIds: Set<string>,
-): Omit<APIScoreV2, "timestamp" | "createdAt" | "updatedAt">[] {
-  const merged = new Map<
-    string,
-    Omit<APIScoreV2, "timestamp" | "createdAt" | "updatedAt">
-  >();
+): APIScoreV2[] {
+  const merged = new Map<string, APIScoreV2>();
 
   // Start with server scores (filter out deleted ones)
   serverScores.forEach((s) => {
@@ -46,7 +44,7 @@ export function mergeScoresWithCache(
       } as APIScoreV2);
     } else {
       // New score: only exists in cache (incomplete but OK for optimistic UI)
-      merged.set(cached.id, cached);
+      merged.set(cached.id, cached as APIScoreV2);
     }
   });
 
@@ -79,7 +77,11 @@ export function mergeAggregatesWithCache(
 
   // Apply cached scores to aggregates
   cachedScores.forEach((cached) => {
-    const key = `${cached.name}-${cached.source}-${cached.dataType}`;
+    const key = composeAggregateScoreKey({
+      name: cached.name,
+      source: cached.source,
+      dataType: cached.dataType,
+    });
 
     // Add or update aggregate with cached values
     if (cached.dataType === "NUMERIC") {

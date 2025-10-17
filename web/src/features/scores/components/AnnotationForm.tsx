@@ -796,7 +796,7 @@ export function AnnotationForm<Target extends ScoreTarget>({
     configIds.add(score.configId);
     initialFormData.push({
       id: score.id,
-      configId: score.configId as string,
+      configId: score.configId,
       name: score.name,
       dataType: score.dataType,
       value: score.value,
@@ -808,11 +808,12 @@ export function AnnotationForm<Target extends ScoreTarget>({
   selectedConfigIds.forEach((configId) => {
     if (!configIds.has(configId)) {
       const config = availableConfigs.find((c) => c.id === configId);
+      if (!config) return;
       initialFormData.push({
         id: null,
         configId,
-        name: config?.name as string,
-        dataType: config?.dataType ?? "NUMERIC",
+        name: config.name,
+        dataType: config.dataType,
         value: null,
         stringValue: null,
         comment: null,
