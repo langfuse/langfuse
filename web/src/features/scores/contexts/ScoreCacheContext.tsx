@@ -6,6 +6,8 @@ import {
   useContext,
   useState,
 } from "react";
+import { type ScoreColumn } from "@/src/features/scores/types";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 /**
  * Cached score shape - stored in client-side cache for optimistic updates
@@ -49,6 +51,10 @@ type ScoreCacheContextValue = {
   }) => CachedScore[];
 
   getAll: () => CachedScore[];
+
+  // Score columns cache
+  setColumn: (column: Omit<ScoreColumn, "key">) => void;
+  getColumnsMap: () => Map<string, ScoreColumn>;
 };
 
 const ScoreCacheContext = createContext<ScoreCacheContextValue | undefined>(
@@ -58,6 +64,9 @@ const ScoreCacheContext = createContext<ScoreCacheContextValue | undefined>(
 export function ScoreCacheProvider({ children }: { children: ReactNode }) {
   const [cache, setCache] = useState<Map<string, CachedScore>>(new Map());
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [columnsCache, setColumnsCache] = useState<Map<string, ScoreColumn>>(
+    new Map(),
+  );
 
   const set = useCallback((id: string, score: CachedScore) => {
     setCache((prev) => {
@@ -127,6 +136,22 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
     return Array.from(cache.values());
   }, [cache]);
 
+  const setColumn = useCallback((column: Omit<ScoreColumn, "key">) => {
+    setColumnsCache((prev) => {
+      const key = composeAggregateScoreKey(column);
+      if (prev.has(key)) {
+        return prev;
+      }
+      const newCache = new Map(prev);
+      newCache.set(key, { ...column, key });
+      return newCache;
+    });
+  }, []);
+
+  const getColumnsMap = useCallback(() => {
+    return columnsCache;
+  }, [columnsCache]);
+
   return (
     <ScoreCacheContext.Provider
       value={{
@@ -137,6 +162,8 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
         clear,
         getAllForTarget,
         getAll,
+        setColumn,
+        getColumnsMap,
       }}
     >
       {children}

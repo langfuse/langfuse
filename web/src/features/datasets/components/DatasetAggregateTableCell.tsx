@@ -14,6 +14,7 @@ import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
+import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 
 const DatasetAggregateCell = ({
   value,
@@ -39,6 +40,9 @@ const DatasetAggregateCell = ({
     value.trace.id,
     value.observation?.id,
   );
+
+  // Merge server columns with cache-only columns
+  const mergedScoreColumns = useMergeScoreColumns(serverScoreColumns);
 
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -174,8 +178,8 @@ const DatasetAggregateCell = ({
       >
         <div className="mt-1 w-full min-w-0 overflow-hidden">
           <div className="flex max-h-full w-full flex-wrap gap-1 overflow-y-auto">
-            {serverScoreColumns.length > 0 ? (
-              serverScoreColumns.map((scoreColumn) => (
+            {mergedScoreColumns.length > 0 ? (
+              mergedScoreColumns.map((scoreColumn) => (
                 <ScoreRow
                   key={scoreColumn.key}
                   projectId={projectId}

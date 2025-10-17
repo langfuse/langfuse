@@ -14,12 +14,24 @@ export function useScoreMutations({
     environment?: string;
   };
 }) {
-  const { set: cacheSet, get: cacheGet, delete: cacheDelete } = useScoreCache();
+  const {
+    set: cacheSet,
+    get: cacheGet,
+    delete: cacheDelete,
+    setColumn: cacheSetColumn,
+  } = useScoreCache();
 
   // Create mutations with cache writes
   const createMutation = api.scores.createAnnotationScore.useMutation({
     onMutate: (variables) => {
       if (!variables.id) return;
+
+      // Write to columns cache
+      cacheSetColumn({
+        name: variables.name,
+        dataType: variables.dataType,
+        source: "ANNOTATION",
+      });
 
       // Write to cache for optimistic update
       cacheSet(variables.id, {
