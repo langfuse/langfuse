@@ -1,11 +1,7 @@
 import { useMemo } from "react";
-import {
-  type CategoricalAggregate,
-  type NumericAggregate,
-  type ScoreAggregate,
-} from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { mergeAggregatesWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
 
 /**
  * Hook for merging server aggregates with cached scores (F3: Compare View)
@@ -29,51 +25,19 @@ export function useMergedAggregates(
 ): ScoreAggregate {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
-  return useMemo(() => {
-    const merged = { ...serverAggregates };
+  const cachedScores = getAllForTarget({ traceId, observationId });
 
-    // Remove deleted scores from server aggregates
-    Object.entries(merged).forEach(([key, aggregate]) => {
-      if (aggregate.id && isDeleted(aggregate.id)) {
-        delete merged[key];
-      }
+  // Build deletedIds Set
+  const deletedIds = useMemo(() => {
+    const ids = new Set<string>();
+    Object.values(serverAggregates).forEach((agg) => {
+      if (agg.id && isDeleted(agg.id)) ids.add(agg.id);
     });
+    return ids;
+  }, [serverAggregates, isDeleted]);
 
-    // Apply cached scores to aggregates
-    getAllForTarget({ traceId, observationId }).forEach((cached) => {
-      const key = composeAggregateScoreKey({
-        name: cached.name,
-        source: cached.source,
-        dataType: cached.dataType,
-      });
-
-      // Add or update aggregate with cached values
-      if (cached.dataType === "NUMERIC") {
-        const numericAggregate: NumericAggregate = {
-          type: "NUMERIC",
-          values: [cached.value as number],
-          average: cached.value as number,
-          comment: cached.comment,
-          id: cached.id, // Include ID to indicate single-value aggregate
-        };
-        merged[key] = numericAggregate;
-      } else {
-        const categoricalAggregate: CategoricalAggregate = {
-          type: "CATEGORICAL",
-          values: [cached.stringValue as string],
-          valueCounts: [
-            {
-              value: cached.stringValue as string,
-              count: 1,
-            },
-          ],
-          comment: cached.comment,
-          id: cached.id, // Include ID to indicate single-value aggregate
-        };
-        merged[key] = categoricalAggregate;
-      }
-    });
-
-    return merged;
-  }, [serverAggregates, getAllForTarget, isDeleted, traceId, observationId]);
+  return useMemo(
+    () => mergeAggregatesWithCache(serverAggregates, cachedScores, deletedIds),
+    [serverAggregates, cachedScores, deletedIds],
+  );
 }

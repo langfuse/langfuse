@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -66,6 +66,7 @@ import {
   validateNumericScore,
 } from "@/src/features/scores/lib/annotationFormHelpers";
 import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAnnotationScores";
+import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import { v4 as uuid } from "uuid";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
@@ -250,6 +251,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   // Mutations - write to cache but form doesn't consume cache updates
   const { createMutation, updateMutation, deleteMutation } = useScoreMutations({
     scoreTarget,
+    scoreMetadata,
   });
 
   // Config selection
@@ -764,10 +766,25 @@ export function AnnotationForm<Target extends ScoreTarget>({
       configSelection,
     });
 
-  // Prepare initial form data ONCE - merge cache + server, transform to annotation scores
+  // Step 1: Transform server scores to annotation scores
+  const serverAnnotationScores = useMemo(() => {
+    if (Array.isArray(serverScores)) {
+      // Flat scores from trace/session detail
+      return transformToAnnotationScores(serverScores, availableConfigs);
+    } else {
+      // Aggregates from compare view
+      return transformToAnnotationScores(
+        serverScores,
+        availableConfigs,
+        scoreTarget.type === "trace" ? scoreTarget.traceId : "",
+        scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
+      );
+    }
+  }, [serverScores, availableConfigs, scoreTarget]);
+
+  // Step 2: Merge with cache
   const annotationScores = useMergedAnnotationScores(
-    serverScores,
-    availableConfigs,
+    serverAnnotationScores,
     scoreTarget,
   );
 

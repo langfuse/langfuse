@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { type APIScoreV2 } from "@langfuse/shared";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type ScoreTarget } from "@/src/features/scores/types";
+import { mergeScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
+import { type APIScoreV2 } from "@langfuse/shared";
 
 /**
  * Hook for merging server scores with cached scores
@@ -15,35 +16,31 @@ import { type ScoreTarget } from "@/src/features/scores/types";
  *
  * @param serverScores - Flat scores from tRPC query
  * @param target - Target to filter cache by (traceId, observationId, sessionId)
- * @returns Merged flat scores with all cache operations applied
+ * @returns APIScoreV2[] with all cache operations applied
  */
 export function useMergedScores(
   serverScores: APIScoreV2[],
   target: ScoreTarget,
-): APIScoreV2[] {
+): Omit<APIScoreV2, "timestamp" | "createdAt" | "updatedAt">[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
-  return useMemo(() => {
-    const merged = new Map<string, APIScoreV2>();
+  const cachedScores = getAllForTarget({
+    traceId: target.type === "trace" ? target.traceId : undefined,
+    observationId: target.type === "trace" ? target.observationId : undefined,
+    sessionId: target.type === "session" ? target.sessionId : undefined,
+  });
 
-    // Start with server scores (filter out deleted ones)
+  // Build deletedIds Set
+  const deletedIds = useMemo(() => {
+    const ids = new Set<string>();
     serverScores.forEach((s) => {
-      if (!isDeleted(s.id)) {
-        merged.set(s.id, s);
-      }
+      if (isDeleted(s.id)) ids.add(s.id);
     });
+    return ids;
+  }, [serverScores, isDeleted]);
 
-    // Overlay cached scores for this target
-    const cachedForTarget = getAllForTarget({
-      traceId: target.type === "trace" ? target.traceId : undefined,
-      observationId: target.type === "trace" ? target.observationId : undefined,
-      sessionId: target.type === "session" ? target.sessionId : undefined,
-    });
-
-    cachedForTarget.forEach((cached) => {
-      merged.set(cached.id, cached as unknown as APIScoreV2);
-    });
-
-    return Array.from(merged.values());
-  }, [serverScores, getAllForTarget, isDeleted, target]);
+  return useMemo(
+    () => mergeScoresWithCache(serverScores, cachedScores, deletedIds),
+    [serverScores, cachedScores, deletedIds],
+  );
 }

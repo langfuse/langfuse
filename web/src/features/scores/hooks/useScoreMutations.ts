@@ -5,8 +5,14 @@ import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext"
 
 export function useScoreMutations({
   scoreTarget,
+  scoreMetadata,
 }: {
   scoreTarget: ScoreTarget;
+  scoreMetadata: {
+    projectId: string;
+    queueId?: string;
+    environment?: string;
+  };
 }) {
   const { set: cacheSet, get: cacheGet, delete: cacheDelete } = useScoreCache();
 
@@ -18,6 +24,8 @@ export function useScoreMutations({
       // Write to cache for optimistic update
       cacheSet(variables.id, {
         id: variables.id,
+        projectId: scoreMetadata.projectId,
+        environment: scoreMetadata.environment ?? "default",
         traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : undefined,
         observationId: isTraceScore(scoreTarget)
           ? scoreTarget.observationId
@@ -44,6 +52,8 @@ export function useScoreMutations({
         // Write to cache for optimistic update
         cacheSet(variables.id, {
           id: variables.id,
+          projectId: scoreMetadata.projectId,
+          environment: scoreMetadata.environment ?? "default",
           traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : undefined,
           observationId: isTraceScore(scoreTarget)
             ? scoreTarget.observationId

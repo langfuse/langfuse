@@ -14,6 +14,10 @@ export type CachedScore = {
   // Required for cache operations
   id: string;
 
+  // Project context
+  projectId: string;
+  environment: string;
+
   // Score identity
   configId: string;
   name: string;

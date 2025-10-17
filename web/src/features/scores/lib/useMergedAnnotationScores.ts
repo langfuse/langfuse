@@ -1,58 +1,53 @@
 import { useMemo } from "react";
 import {
-  type APIScoreV2,
-  type ScoreAggregate,
-  type ScoreConfigDomain,
-} from "@langfuse/shared";
-import {
   type ScoreTarget,
   type AnnotationScore,
 } from "@/src/features/scores/types";
-import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
-import {
-  flattenAggregates,
-  transformToAnnotationScores,
-} from "@/src/features/scores/lib/transformScores";
+import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { mergeAnnotationScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
 
 /**
- * Hook for merging either flat scores or aggregates with cache, then transforming to annotation scores
+ * Hook for merging server annotation scores with cached scores
  *
- * This hook handles both data formats (flat APIScoreV2[] and ScoreAggregate) by:
- * 1. Normalizing aggregates to flat format
- * 2. Merging with cache (single path)
- * 3. Transforming to AnnotationScore[]
+ * Takes already-transformed AnnotationScore[] from server and overlays:
+ * - Cached creates/updates (optimistic)
+ * - Cached deletes (filters out)
  *
- * @param serverData - Either flat scores or aggregates from server
- * @param configs - Score configs for transformation
- * @param scoreTarget - Target for cache filtering
- * @returns Annotation scores with cache overlay
+ * This is the single merge point for AnnotationScore[] + cache.
+ * Callers must transform their server data to AnnotationScore[] first.
+ *
+ * @param serverAnnotationScores - Pre-transformed annotation scores from server
+ * @param target - Target for cache filtering
+ * @returns Merged annotation scores with cache overlay
  */
 export function useMergedAnnotationScores(
-  serverData: APIScoreV2[] | ScoreAggregate,
-  configs: ScoreConfigDomain[],
-  scoreTarget: ScoreTarget,
+  serverAnnotationScores: AnnotationScore[],
+  target: ScoreTarget,
 ): AnnotationScore[] {
-  // Normalize to flat format
-  const flatScores = useMemo(() => {
-    if (Array.isArray(serverData)) {
-      return serverData; // Already flat
-    } else {
-      // Convert aggregate to flat
-      return flattenAggregates(
-        serverData,
-        configs,
-        scoreTarget.type === "trace" ? scoreTarget.traceId : "",
-        scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
-      );
-    }
-  }, [serverData, configs, scoreTarget]);
+  const { getAllForTarget, isDeleted } = useScoreCache();
 
-  // Merge with cache
-  const mergedScores = useMergedScores(flatScores, scoreTarget);
+  const cachedScores = getAllForTarget({
+    traceId: target.type === "trace" ? target.traceId : undefined,
+    observationId: target.type === "trace" ? target.observationId : undefined,
+    sessionId: target.type === "session" ? target.sessionId : undefined,
+  });
 
-  // Transform to annotation scores
+  // Build deletedIds Set
+  const deletedIds = useMemo(() => {
+    const ids = new Set<string>();
+    serverAnnotationScores.forEach((s) => {
+      if (s.id && isDeleted(s.id)) ids.add(s.id);
+    });
+    return ids;
+  }, [serverAnnotationScores, isDeleted]);
+
   return useMemo(
-    () => transformToAnnotationScores(mergedScores, configs),
-    [mergedScores, configs],
+    () =>
+      mergeAnnotationScoresWithCache(
+        serverAnnotationScores,
+        cachedScores,
+        deletedIds,
+      ),
+    [serverAnnotationScores, cachedScores, deletedIds],
   );
 }

@@ -6,8 +6,6 @@ import {
   normalizeScoreName,
 } from "@/src/features/scores/lib/aggregateScores";
 
-// TODO: review this file.
-
 /**
  * Transform flat merged scores to annotation scores (Trace/Observation/Session Detail)
  */
@@ -131,52 +129,6 @@ function transformAggregates(
     }
 
     scores.push(score);
-  });
-
-  return scores;
-}
-
-/**
- * Flatten score aggregates to APIScoreV2[] format
- * Used to normalize aggregate input for AnnotateDrawerContent
- */
-export function flattenAggregates(
-  aggregates: ScoreAggregate,
-  configs: ScoreConfigDomain[],
-  traceId: string,
-  observationId?: string,
-): APIScoreV2[] {
-  const scores: APIScoreV2[] = [];
-
-  Object.entries(aggregates).forEach(([key, aggregate]) => {
-    const { name, source, dataType } = decomposeAggregateScoreKey(key);
-
-    // Only include if has single ID
-    if (!aggregate.id) return;
-
-    const config = configs.find(
-      (c) => normalizeScoreName(c.name) === name && c.dataType === dataType,
-    );
-    if (!config) return;
-
-    scores.push({
-      id: aggregate.id,
-      name,
-      dataType,
-      source,
-      configId: config.id,
-      value: aggregate.type === "NUMERIC" ? (aggregate.average ?? null) : null,
-      stringValue:
-        aggregate.type === "CATEGORICAL" ? (aggregate.values[0] ?? null) : null,
-      comment: aggregate.comment ?? null,
-      traceId,
-      observationId: observationId ?? null,
-      sessionId: null,
-      projectId: "", // Not needed for display
-      timestamp: new Date(),
-      authorUserId: null,
-      queueId: null,
-    } as APIScoreV2);
   });
 
   return scores;
