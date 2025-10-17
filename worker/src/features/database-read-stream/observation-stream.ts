@@ -146,9 +146,9 @@ export const getObservationStream = async (props: {
         SELECT
           trace_id,
           observation_id,
-          -- For numeric scores, use tuples of (name, avg_value)
+          -- For numeric scores, use tuples of (name, avg_value, data_type, string_value)
           groupArrayIf(
-            tuple(name, avg_value),
+            tuple(name, avg_value, data_type, string_value),
             data_type IN ('NUMERIC', 'BOOLEAN')
           ) AS scores_avg,
           -- For categorical scores, use name:value format for improved query performance
@@ -174,7 +174,8 @@ export const getObservationStream = async (props: {
             name,
             string_value,
             data_type,
-            comment
+            comment,
+            execution_trace_id
           ORDER BY
             trace_id
           ) tmp
@@ -214,10 +215,12 @@ export const getObservationStream = async (props: {
         o.input, 
         o.output, 
         o.metadata, 
-        t.name as traceName, 
+        t.name as traceName,
         t.tags as traceTags,
         t.timestamp as traceTimestamp,
-        t.user_id as userId
+        t.user_id as userId,
+        sa.scores_avg as scores_avg,
+        sa.score_categories as score_categories
       FROM observations o
         LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_agg sa ON sa.trace_id = o.trace_id AND sa.observation_id = o.id
@@ -290,11 +293,11 @@ export const getObservationStream = async (props: {
               userId: row.userId,
               ...modelData,
               scores: prepareScoresForOutput(
-                (row.scores_avg ?? []).map((score) => ({
-                  name: score.name,
-                  value: score.value,
-                  dataType: score.dataType,
-                  stringValue: score.stringValue,
+                (row.scores_avg ?? []).map((score: any) => ({
+                  name: score[0],
+                  value: score[1],
+                  dataType: score[2],
+                  stringValue: score[3],
                 })),
               ),
             },

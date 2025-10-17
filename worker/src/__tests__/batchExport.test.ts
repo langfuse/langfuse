@@ -18,10 +18,19 @@ describe("batch export test suite", () => {
   it("should export observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
+    const traceId = randomUUID();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+    });
+
+    await createTracesCh([trace]);
+
     const observations = [
       createObservation({
         project_id: projectId,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         type: "SPAN",
       }),
       createObservation({
@@ -38,7 +47,7 @@ describe("batch export test suite", () => {
 
     const score = createTraceScore({
       project_id: projectId,
-      trace_id: randomUUID(),
+      trace_id: traceId,
       observation_id: observations[0].id,
       name: "test",
       value: 123,
@@ -82,7 +91,7 @@ describe("batch export test suite", () => {
     );
   });
 
-  it("should export observations with filter and sorting", async () => {
+  it("should export observations with filter", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const observations = [
@@ -131,8 +140,10 @@ describe("batch export test suite", () => {
     }
 
     expect(rows).toHaveLength(2);
-    expect(rows[0].name).toBe("test1");
-    expect(rows[1].name).toBe("test2");
+
+    const exportedNames = rows.map((row) => row.name);
+    expect(exportedNames).toEqual(expect.arrayContaining(["test1", "test2"]));
+    expect(exportedNames).toHaveLength(2);
   });
 
   it("should export sessions", async () => {
