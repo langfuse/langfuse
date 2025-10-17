@@ -228,7 +228,7 @@ export const traceRouter = createTRPCRouter({
       ]);
 
       return {
-        name: traceNames.map((n) => ({ value: n.name })),
+        name: traceNames.map((n) => ({ value: n.name, count: n.count })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
         tags: tags,
