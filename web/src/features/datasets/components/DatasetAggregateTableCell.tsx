@@ -127,7 +127,8 @@ const DatasetAggregateCell = ({
     <div
       className={cn(
         "group relative flex h-full w-full flex-col gap-2 overflow-hidden",
-        isActiveCell && "rounded-md p-1 ring-2 ring-inset ring-primary-accent",
+        isActiveCell &&
+          "rounded-md p-1 ring-2 ring-inset ring-accent-dark-blue",
       )}
     >
       <div className="absolute bottom-2 right-2 z-10 flex flex-row gap-1">
