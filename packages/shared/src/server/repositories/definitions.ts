@@ -344,8 +344,8 @@ export const convertTraceToStagingObservation = (
   s3FirstSeenTimestamp: number,
 ): ObservationBatchStagingRecordInsertType => {
   return {
-    // Identity - trace acts as its own span
-    id: traceRecord.id,
+    // Identity - trace acts as its own span. Modify traceId to avoid cases where users set spanId = traceId.
+    id: `t-${traceRecord.id}`,
     trace_id: traceRecord.id,
     project_id: traceRecord.project_id,
 
