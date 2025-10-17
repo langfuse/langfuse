@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
-import { type ScoreTarget } from "../types";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { type ScoreTarget } from "@langfuse/shared";
 
 export function useScoreMutations({
   scoreTarget,
@@ -20,6 +20,11 @@ export function useScoreMutations({
     delete: cacheDelete,
     setColumn: cacheSetColumn,
   } = useScoreCache();
+
+  // Rather than rolling back optimistic updates, we reload the page to clear the cache and invalidate trpc queries
+  const onError = () => {
+    window.location.reload();
+  };
 
   // Create mutations with cache writes
   const createMutation = api.scores.createAnnotationScore.useMutation({
@@ -54,6 +59,7 @@ export function useScoreMutations({
         comment: variables.comment ?? null,
       });
     },
+    onError,
   });
 
   const updateMutation = api.scores.updateAnnotationScore.useMutation({
@@ -91,6 +97,7 @@ export function useScoreMutations({
         });
       }
     },
+    onError,
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
@@ -98,6 +105,7 @@ export function useScoreMutations({
       // Mark score as deleted
       cacheDelete(variables.id);
     },
+    onError,
   });
 
   return {
