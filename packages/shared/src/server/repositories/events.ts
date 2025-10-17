@@ -14,7 +14,6 @@ import {
   FilterList,
   FullObservations,
   orderByToClickhouseSql,
-  StringFilter,
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
   type ApiColumnMapping,
@@ -175,7 +174,31 @@ const FIELD_SETS = {
 } as const;
 
 /**
+ * Special symbol to explicitly opt-out of automatic project_id filtering
+ *
+ * @example
+ * // Use when you need to query across all projects (use with caution!)
+ * const builder = new EventsQueryBuilder({ projectId: NoProjectId });
+ */
+export const NoProjectId = Symbol("NoProjectId");
+export type NoProjectIdType = typeof NoProjectId;
+
+/**
  * EventsQueryBuilder - A fluent query builder for events table queries
+ *
+ * When project_id is provided in the constructor it is automatically
+ * added to the WHERE clause during build().
+ *
+ * @example
+ * // Standard usage with automatic project_id filtering
+ * const builder = new EventsQueryBuilder({ projectId: "my-project-id" })
+ *   .selectFieldSet("base", "calculated")
+ *   .selectIO(true, 1000)
+ *   .whereRaw("span_id = {id: String}", { id: "abc123" })
+ *   .orderBy("ORDER BY start_time DESC")
+ *   .limit(100, 0);
+ *
+ * const { query, params } = builder.buildWithParams();
  */
 class EventsQueryBuilder {
   private selectFields: Set<string> = new Set();
@@ -186,6 +209,22 @@ class EventsQueryBuilder {
   private orderByClause: string = "";
   private limitClause: string = "";
   private params: Record<string, any> = {};
+  private projectId: string | NoProjectIdType;
+
+  /**
+   * Constructor
+   * @param options.projectId - Project ID to automatically filter by, or NoProjectId to opt-out
+   *
+   * @example
+   * // Explicit opt-out (use sparingly!)
+   * const builder = new EventsQueryBuilder({ projectId: NoProjectId })
+   *   .selectFieldSet("base")
+   *   .whereRaw("span_id = {id: String}", { id: "abc123" });
+   * // No project_id filter will be added
+   */
+  constructor(options: { projectId: string | NoProjectIdType }) {
+    this.projectId = options.projectId;
+  }
 
   /**
    * Add SELECT fields from predefined field sets
@@ -374,8 +413,16 @@ class EventsQueryBuilder {
     }
 
     // WHERE
-    if (this.whereClauses.length > 0) {
-      const whereExpression = this.whereClauses.join("\n        AND ");
+    const allWhereClauses = [...this.whereClauses];
+
+    // Automatically add project_id filter if projectId is provided
+    if (this.projectId !== NoProjectId) {
+      allWhereClauses.unshift("e.project_id = {projectId: String}");
+      this.params.projectId = this.projectId;
+    }
+
+    if (allWhereClauses.length > 0) {
+      const whereExpression = allWhereClauses.join("\n        AND ");
       parts.push(`WHERE ${whereExpression}`);
     }
 
@@ -543,18 +590,8 @@ const getObservationsFromEventsTableInternal = async <T>(
   } = opts;
 
   // Build filter list
-  const observationsFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "events",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-      tablePrefix: "e",
-    }),
-  ]);
-
-  observationsFilter.push(
-    ...createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  const observationsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
@@ -602,7 +639,7 @@ const getObservationsFromEventsTableInternal = async <T>(
   ]);
 
   // Build query using EventsQueryBuilder
-  const queryBuilder = new EventsQueryBuilder();
+  const queryBuilder = new EventsQueryBuilder({ projectId });
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -744,7 +781,7 @@ const getObservationByIdFromEventsTableInternal = async ({
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   // Build query using EventsQueryBuilder with automatic param tracking
-  const queryBuilder = new EventsQueryBuilder()
+  const queryBuilder = new EventsQueryBuilder({ projectId })
     .selectFieldSet("byIdBase", "byIdModel", "byIdPrompt", "byIdTimestamps")
     .when(fetchWithInputOutput, (b) =>
       b.selectIO(
@@ -753,7 +790,6 @@ const getObservationByIdFromEventsTableInternal = async ({
       ),
     )
     .whereRaw("span_id = {id: String}", { id })
-    .whereRaw("project_id = {projectId: String}", { projectId })
     .when(Boolean(startTime), (b) =>
       b.whereRaw("toDate(start_time) = toDate({startTime: DateTime64(3)})", {
         startTime: convertDateToClickhouseDateTime(startTime!),
@@ -812,17 +848,6 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
     PUBLIC_API_EVENTS_COLUMN_MAPPING,
   );
 
-  // Add project filter
-  observationsFilter.push(
-    new StringFilter({
-      clickhouseTable: "events",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-      tablePrefix: "e",
-    }),
-  );
-
   // Determine if we need to join traces (for userId filter)
   const hasTraceFilter = Boolean(filterParams.userId);
 
@@ -831,7 +856,7 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
   const appliedFilter = observationsFilter.apply();
 
   // Build query using EventsQueryBuilder
-  const queryBuilder = new EventsQueryBuilder();
+  const queryBuilder = new EventsQueryBuilder({ projectId });
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");

@@ -682,9 +682,9 @@ describe("Clickhouse Events Repository Test", () => {
         const traceId1 = randomUUID();
         const traceId2 = randomUUID();
         const traceId3 = randomUUID();
-        const userId1 = "user-exclude-1";
-        const userId2 = "user-exclude-2";
-        const userId3 = "user-include";
+        const userId1 = `user-exclude-1-${randomUUID()}`;
+        const userId2 = `user-exclude-2-${randomUUID()}`;
+        const userId3 = `user-include-${randomUUID()}`;
 
         const events = [
           createEvent({
@@ -723,6 +723,12 @@ describe("Clickhouse Events Repository Test", () => {
           filter: [
             {
               type: "stringOptions",
+              column: "traceId",
+              operator: "any of",
+              value: [traceId1, traceId2, traceId3],
+            },
+            {
+              type: "stringOptions",
               column: "userId",
               operator: "none of",
               value: [userId1, userId2],
@@ -732,11 +738,9 @@ describe("Clickhouse Events Repository Test", () => {
           offset: 0,
         });
 
-        const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
-        );
-        expect(filteredObservations.length).toBe(1);
-        expect(filteredObservations[0].name).toBe("included");
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("included");
+        expect(result[0].traceId).toBe(traceId3);
       });
 
       it("should handle observations with null user IDs", async () => {
