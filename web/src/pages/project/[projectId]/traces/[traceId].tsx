@@ -1,4 +1,5 @@
 import { TracePage } from "@/src/components/trace/TracePage";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { useRouter } from "next/router";
 
 export default function Trace() {
@@ -10,5 +11,9 @@ export default function Trace() {
       ? new Date(decodeURIComponent(router.query.timestamp))
       : undefined;
 
-  return <TracePage traceId={traceId} timestamp={timestamp} />;
+  return (
+    <ScoreCacheProvider>
+      <TracePage traceId={traceId} timestamp={timestamp} />
+    </ScoreCacheProvider>
+  );
 }

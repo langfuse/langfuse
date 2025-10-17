@@ -73,9 +73,6 @@ export const TracePreview = ({
     "pretty",
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -157,10 +154,10 @@ export const TracePreview = ({
                       traceId: trace.id,
                     }}
                     scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
-                    environment={trace.environment}
+                    scoreMetadata={{
+                      projectId: trace.projectId,
+                      environment: trace.environment,
+                    }}
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}

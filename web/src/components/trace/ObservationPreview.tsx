@@ -69,9 +69,6 @@ export const ObservationPreview = ({
   );
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -169,10 +166,10 @@ export const ObservationPreview = ({
                       observationId: preloadedObservation.id,
                     }}
                     scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
-                    environment={preloadedObservation.environment}
+                    scoreMetadata={{
+                      projectId: projectId,
+                      environment: preloadedObservation.environment,
+                    }}
                   />
 
                   <CreateNewAnnotationQueueItem

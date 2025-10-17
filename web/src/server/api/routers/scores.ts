@@ -346,7 +346,7 @@ export const scoresRouter = createTRPCRouter({
             timestamp: new Date(),
           }
         : {
-            id: v4(),
+            id: input.id ?? v4(),
             projectId: input.projectId,
             environment: input.environment ?? "default",
             ...inflatedParams,
