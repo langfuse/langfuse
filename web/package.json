@@ -132,7 +132,7 @@
     "posthog-node": "^5.8.4",
     "prexit": "^2.2.0",
     "prism-react-renderer": "^2.4.1",
-    "prisma": "^6.10.1",
+    "prisma": "^6.17.1",
     "protobufjs": "^7.4.0",
     "rate-limiter-flexible": "^5.0.3",
     "react": "19.2.0",
