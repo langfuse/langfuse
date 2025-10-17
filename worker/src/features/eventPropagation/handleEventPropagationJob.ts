@@ -56,6 +56,40 @@ export const acquirePartitionLock = async (
 };
 
 /**
+ * Check if a partition lock exists without acquiring it.
+ *
+ * Returns true if the partition is available (not locked), false if locked.
+ * Used for scheduling follow-up jobs to avoid scheduling jobs for already-locked partitions.
+ */
+export const checkLock = async (partition: string): Promise<boolean> => {
+  if (!redis) {
+    logger.warn("Redis not available, assuming partition is unlocked");
+    return true; // Allow processing if Redis is unavailable
+  }
+
+  try {
+    // Sanitize partition string to be Redis key friendly (same as acquirePartitionLock)
+    const lockKey = `${PARTITION_LOCK_PREFIX}:${partition.replaceAll(/[^0-9_-]/g, "_")}`;
+
+    // Check if the lock key exists
+    const exists = await redis.exists(lockKey);
+    const isAvailable = exists === 0;
+
+    if (isAvailable) {
+      logger.debug(`Partition ${partition} is available (not locked)`);
+    } else {
+      logger.debug(`Partition ${partition} is locked`);
+    }
+
+    return isAvailable;
+  } catch (error) {
+    logger.error("Failed to check partition lock", error);
+    // On error, assume partition is available to avoid blocking the system
+    return true;
+  }
+};
+
+/**
  * Processes partitions from observations_batch_staging table and propagates
  * events to the events table. Supports both targeted partition processing
  * (when partition is specified in job data) and discovery mode (cron job).
@@ -347,8 +381,18 @@ export const handleEventPropagationJob = async (
       let additionalSchedules = 5;
       const queue = EventPropagationQueue.getInstance();
       while (queue && partitions.length > 3 && additionalSchedules > 0) {
-        additionalSchedules--;
         const internalPartition = partitions.pop()!;
+
+        // Check if partition is locked before scheduling
+        const isUnlocked = await checkLock(internalPartition.partition);
+        if (!isUnlocked) {
+          logger.debug(
+            `Skipping scheduling for partition ${internalPartition.partition} as it is locked by another worker`,
+          );
+          continue;
+        }
+
+        additionalSchedules--;
         await queue.add(QueueJobs.EventPropagationJob, {
           timestamp: new Date(),
           id: randomUUID(),
