@@ -142,6 +142,19 @@ export function Trace(props: {
   // Derive collapsed state from actual panel size (single source of truth = autoSaveId)
   // This avoids cross-tab sync issues from storing collapsed state separately
   const [isTreePanelCollapsed, setIsTreePanelCollapsed] = useState(false);
+
+  // Sync initial collapsed state from actual panel size on mount
+  useEffect(() => {
+    if (treePanelRef.current) {
+      const currentSize = treePanelRef.current.getSize();
+      const collapsed = currentSize <= 5;
+      if (collapsed !== isTreePanelCollapsed) {
+        setIsTreePanelCollapsed(collapsed);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -564,7 +577,6 @@ export function Trace(props: {
               collapsedSize={3}
               onResize={(size) => {
                 // Derive collapsed state from actual panel size
-                // This is the ONLY source of truth (autoSaveId handles persistence)
                 const collapsed = size <= 5;
                 if (collapsed !== isTreePanelCollapsed) {
                   setIsTreePanelCollapsed(collapsed);
@@ -578,7 +590,8 @@ export function Trace(props: {
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      treePanelRef.current?.resize(TREE_DEFAULT_WIDTH);
+                      // Use minSize as the smallest legal value we can expand to
+                      treePanelRef.current?.resize(panelState.minSize);
                       capture("trace_detail:tree_panel_toggle", {
                         collapsed: false,
                       });
@@ -742,7 +755,7 @@ export function Trace(props: {
                           size="icon"
                           onClick={() => {
                             if (isTreePanelCollapsed) {
-                              treePanelRef.current?.resize(TREE_DEFAULT_WIDTH);
+                              treePanelRef.current?.resize(panelState.minSize);
                             } else {
                               treePanelRef.current?.collapse();
                             }
