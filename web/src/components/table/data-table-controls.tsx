@@ -172,6 +172,8 @@ export function DataTableControls({
                   onOnlyChange={filter.onOnlyChange}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
+                  operator={filter.operator}
+                  onOperatorChange={filter.onOperatorChange}
                 />
               );
             }
@@ -293,6 +295,8 @@ interface CategoricalFacetProps extends BaseFacetProps {
   value: string[];
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  operator?: "any of" | "all of";
+  onOperatorChange?: (operator: "any of" | "all of") => void;
 }
 
 interface NumericFacetProps extends BaseFacetProps {
@@ -432,6 +436,8 @@ export function CategoricalFacet({
   onOnlyChange,
   isActive,
   onReset,
+  operator,
+  onOperatorChange,
 }: CategoricalFacetProps) {
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -468,6 +474,47 @@ export function CategoricalFacet({
       onReset={onReset}
     >
       <div className="flex flex-col px-2">
+        {/* Operator toggle - show whenever onOperatorChange is provided and we have selections */}
+        {onOperatorChange && value.length > 0 && (
+          <div className="mb-2 flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground">Match:</span>
+            <div className="inline-flex rounded border border-input bg-background">
+              <button
+                onClick={() => {
+                  console.log(
+                    `DEBUG [CategoricalFacet] Switching to "any of" for ${filterKey}`,
+                  );
+                  onOperatorChange("any of");
+                }}
+                className={cn(
+                  "px-2 py-0.5 text-xs transition-colors",
+                  operator === "any of" || !operator
+                    ? "bg-accent font-medium text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                ANY
+              </button>
+              <div className="w-px bg-border" />
+              <button
+                onClick={() => {
+                  console.log(
+                    `DEBUG [CategoricalFacet] Switching to "all of" for ${filterKey}`,
+                  );
+                  onOperatorChange("all of");
+                }}
+                className={cn(
+                  "px-2 py-0.5 text-xs transition-colors",
+                  operator === "all of"
+                    ? "bg-accent font-medium text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                ALL
+              </button>
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="pl-4 text-sm text-muted-foreground">Loading...</div>
         ) : options.length === 0 ? (
