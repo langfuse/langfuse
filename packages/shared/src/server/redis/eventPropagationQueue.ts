@@ -5,6 +5,7 @@ import {
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
+import { env } from "../../env";
 import { logger } from "../logger";
 
 export class EventPropagationQueue {
@@ -41,12 +42,18 @@ export class EventPropagationQueue {
     });
 
     if (EventPropagationQueue.instance) {
-      logger.debug("Setting global concurrency for EventPropagationQueue to 1");
-      EventPropagationQueue.instance.setGlobalConcurrency(1).catch(() => {
-        logger.warn(
-          "Failed to set global concurrency for EventPropagationQueue",
-        );
-      });
+      logger.debug(
+        `Setting global concurrency for EventPropagationQueue to ${env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY}`,
+      );
+      EventPropagationQueue.instance
+        .setGlobalConcurrency(
+          env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY,
+        )
+        .catch(() => {
+          logger.warn(
+            "Failed to set global concurrency for EventPropagationQueue",
+          );
+        });
 
       logger.debug("Scheduling jobs for EventPropagationQueue");
       EventPropagationQueue.instance

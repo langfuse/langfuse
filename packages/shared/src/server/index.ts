@@ -15,6 +15,7 @@ export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";
 export * from "./llm/fetchLLMCompletion";
+export * from "./llm/errors";
 export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./llm/compileChatMessages";

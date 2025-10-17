@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -16,6 +17,8 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { env } from "@/src/env.mjs";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 import { cn } from "@/src/utils/tailwind";
 import { SubHeader } from "@/src/components/layouts/header";
 
@@ -48,77 +51,108 @@ export function CreateApiKeyButton(props: {
   });
 
   const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
   const [generatedKeys, setGeneratedKeys] = useState<{
     secretKey: string;
     publicKey: string;
   } | null>(null);
 
-  const createApiKey = () => {
-    if (open) {
-      setOpen(false);
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      // Reset state when closing
       setGeneratedKeys(null);
+      setNote("");
+    }
+  };
+
+  const createApiKey = () => {
+    if (props.scope === "project") {
+      mutCreateProjectApiKey
+        .mutateAsync({
+          projectId: props.entityId,
+          note: note || undefined,
+        })
+        .then(({ secretKey, publicKey }) => {
+          setGeneratedKeys({
+            secretKey,
+            publicKey,
+          });
+          capture(`${props.scope}_settings:api_key_create`);
+        })
+        .catch((error) => {
+          console.error(error);
+        });
     } else {
-      if (props.scope === "project") {
-        mutCreateProjectApiKey
-          .mutateAsync({
-            projectId: props.entityId,
-          })
-          .then(({ secretKey, publicKey }) => {
-            setGeneratedKeys({
-              secretKey,
-              publicKey,
-            });
-            setOpen(true);
-            capture(`${props.scope}_settings:api_key_create`);
-          })
-          .catch((error) => {
-            console.error(error);
+      mutCreateOrgApiKey
+        .mutateAsync({
+          orgId: props.entityId,
+          note: note || undefined,
+        })
+        .then(({ secretKey, publicKey }) => {
+          setGeneratedKeys({
+            secretKey,
+            publicKey,
           });
-      } else {
-        mutCreateOrgApiKey
-          .mutateAsync({
-            orgId: props.entityId,
-          })
-          .then(({ secretKey, publicKey }) => {
-            setGeneratedKeys({
-              secretKey,
-              publicKey,
-            });
-            setOpen(true);
-            capture(`${props.scope}_settings:api_key_create`);
-          })
-          .catch((error) => {
-            console.error(error);
-          });
-      }
+          capture(`${props.scope}_settings:api_key_create`);
+        })
+        .catch((error) => {
+          console.error(error);
+        });
     }
   };
 
   if (!hasAccess) return null;
 
   return (
-    <Dialog open={open} onOpenChange={createApiKey}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          variant="secondary"
-          loading={
-            mutCreateProjectApiKey.isPending || mutCreateOrgApiKey.isPending
-          }
-        >
+        <Button variant="secondary">
           <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
           Create new API keys
         </Button>
       </DialogTrigger>
       <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>API Keys</DialogTitle>
+          <DialogTitle>
+            {generatedKeys ? "API Keys" : "Create API Keys"}
+          </DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <ApiKeyRender
-            scope={props.scope}
-            generatedKeys={generatedKeys ?? undefined}
-          />
+          {generatedKeys ? (
+            <ApiKeyRender scope={props.scope} generatedKeys={generatedKeys} />
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="note">Note (optional)</Label>
+                <Input
+                  id="note"
+                  placeholder="Production key"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      createApiKey();
+                    }
+                  }}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+          )}
         </DialogBody>
+        {!generatedKeys && (
+          <DialogFooter>
+            <Button
+              onClick={createApiKey}
+              loading={
+                mutCreateProjectApiKey.isPending || mutCreateOrgApiKey.isPending
+              }
+            >
+              Create API keys
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
