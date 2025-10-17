@@ -476,9 +476,9 @@ export function CategoricalFacet({
       <div className="flex flex-col px-2">
         {/* Operator toggle - show whenever onOperatorChange is provided and we have selections */}
         {onOperatorChange && value.length > 0 && (
-          <div className="mb-2 flex items-center gap-2 px-2">
-            <span className="text-xs text-muted-foreground">Match:</span>
-            <div className="inline-flex rounded border border-input bg-background">
+          <div className="mb-1.5 flex items-center gap-1.5 px-2">
+            <span className="text-[10px] text-muted-foreground/80">Match:</span>
+            <div className="inline-flex rounded border border-input/50 bg-background text-[10px]">
               <button
                 onClick={() => {
                   console.log(
@@ -487,7 +487,7 @@ export function CategoricalFacet({
                   onOperatorChange("any of");
                 }}
                 className={cn(
-                  "px-2 py-0.5 text-xs transition-colors",
+                  "rounded-l px-1.5 py-0.5 transition-colors",
                   operator === "any of" || !operator
                     ? "bg-accent font-medium text-accent-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -495,7 +495,7 @@ export function CategoricalFacet({
               >
                 ANY
               </button>
-              <div className="w-px bg-border" />
+              <div className="w-px bg-border/50" />
               <button
                 onClick={() => {
                   console.log(
@@ -504,7 +504,7 @@ export function CategoricalFacet({
                   onOperatorChange("all of");
                 }}
                 className={cn(
-                  "px-2 py-0.5 text-xs transition-colors",
+                  "rounded-r px-1.5 py-0.5 transition-colors",
                   operator === "all of"
                     ? "bg-accent font-medium text-accent-foreground"
                     : "text-muted-foreground hover:text-foreground",
