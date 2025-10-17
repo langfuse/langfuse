@@ -21,7 +21,12 @@ export const getEnvironmentsForProject = async (
       FROM observations
       WHERE project_id = {projectId: String}
       ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
-    )
+    ) UNION ALL (
+      SELECT distinct environment
+      FROM scores
+      WHERE project_id = {projectId: String}
+      ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
+    )  
   `;
 
   const results = await queryClickhouse<{

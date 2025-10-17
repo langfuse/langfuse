@@ -380,7 +380,8 @@ export const handleEventPropagationJob = async (
     );
 
     if (partitions.length > 3) {
-      let additionalSchedules = 5;
+      let additionalSchedules =
+        env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY;
       const queue = EventPropagationQueue.getInstance();
       while (queue && partitions.length > 3 && additionalSchedules > 0) {
         const internalPartition = partitions.pop()!;
