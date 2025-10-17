@@ -280,7 +280,7 @@ class EventsQueryBuilder {
       startTimeFrom: options?.startTimeFrom ?? null,
     };
 
-    if (generator && !!options) {
+    if (generator && Boolean(options)) {
       this.ctes.push(`${name} AS (${generator(params)})`);
 
       // Track CTE parameters
@@ -657,13 +657,13 @@ const getObservationsFromEventsTableInternal = async <T>(
         startTimeFrom,
       }),
     )
-    .when(!!needsTraceJoin, (b) =>
+    .when(Boolean(needsTraceJoin), (b) =>
       b.withCTE("traces", eventsTracesAggregation, {
         projectId,
         startTimeFrom,
       }),
     )
-    .when(!!needsTraceJoin, (b) =>
+    .when(Boolean(needsTraceJoin), (b) =>
       b.leftJoin(
         "traces t",
         "ON t.id = e.trace_id AND t.project_id = e.project_id",
