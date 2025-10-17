@@ -1334,17 +1334,17 @@ export const evalRouter = createTRPCRouter({
         }>
       >(Prisma.sql`
       SELECT DISTINCT
-        jc.id, 
+        jc.id,
         jc.score_name as "scoreName"
-      FROM 
+      FROM
         "job_configurations" as jc
-      WHERE 
+      WHERE
         jc.project_id = ${input.projectId}
         AND jc.job_type = 'EVAL'
         AND jc.target_object = 'dataset'
         AND jc.status = 'ACTIVE'
         AND (
-          jc.filter IS NULL 
+          jc.filter IS NULL
           OR jsonb_array_length(jc.filter) = 0
           OR EXISTS (
             SELECT 1
@@ -1353,7 +1353,7 @@ export const evalRouter = createTRPCRouter({
               AND f->>'type' = 'stringOptions'
               AND (
                 (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
-                OR 
+                OR
                 (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
               )
           )
@@ -1361,6 +1361,39 @@ export const evalRouter = createTRPCRouter({
       `);
 
       return evaluators;
+    }),
+
+  costByEvaluatorIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { getCostByEvaluatorIds } = await import(
+        "@langfuse/shared/src/server"
+      );
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const costs = await getCostByEvaluatorIds(
+        input.projectId,
+        input.evaluatorIds,
+      );
+
+      // Convert array to map for easier lookup
+      return costs.reduce(
+        (acc, { evaluatorId, totalCost }) => {
+          acc[evaluatorId] = totalCost;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
     }),
 });
 
