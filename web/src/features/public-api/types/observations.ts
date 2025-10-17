@@ -164,8 +164,8 @@ export const transformDbToApiObservation = (
 
 const useEventsTableSchema = z
   .union([z.literal("true"), z.literal("false"), z.boolean()])
-  .transform((val) => val === "true" || val === true)
-  .nullish();
+  .optional()
+  .transform((val) => val === "true" || val === true);
 
 // GET /observations
 export const GetObservationsV1Query = z.object({
