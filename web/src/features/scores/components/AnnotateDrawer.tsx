@@ -53,7 +53,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           <span>Annotate</span>
         </Button>
       </DrawerTrigger>
-      <DrawerContent>
+      <DrawerContent className="p-3">
         <AnnotationForm
           serverScores={scores}
           scoreTarget={scoreTarget}

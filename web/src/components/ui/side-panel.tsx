@@ -184,7 +184,7 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex h-fit w-full flex-row items-center justify-between gap-2">
+      <div className="flex h-fit w-full flex-row items-center justify-between p-2 pb-0">
         <div className="flex flex-row items-center gap-1">{children}</div>
         <Button
           variant="outline"

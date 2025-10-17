@@ -453,7 +453,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       </div>
       <Form {...form}>
         <form className="flex flex-col gap-4">
-          <div className="grid grid-flow-row gap-2 px-4">
+          <div className="grid grid-flow-row gap-2">
             <FormField
               control={form.control}
               name="scoreData"

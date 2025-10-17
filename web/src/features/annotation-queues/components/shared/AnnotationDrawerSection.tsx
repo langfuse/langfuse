@@ -54,7 +54,7 @@ export const AnnotationDrawerSection: React.FC<
         onLayout={(sizes) => setVerticalSize(sizes[0])}
       >
         <ResizablePanel
-          className="w-full overflow-y-auto"
+          className="w-full overflow-y-auto p-3"
           minSize={30}
           defaultSize={verticalSize}
         >
