@@ -526,6 +526,7 @@ export class IngestionService {
                 ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
                 : {},
               string_value: validatedScore.stringValue,
+              execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
               created_at: Date.now(),
               updated_at: Date.now(),
@@ -699,6 +700,7 @@ export class IngestionService {
           projectId,
           traceId: entityId,
           exactTimestamp: new Date(finalTraceRecord.timestamp),
+          traceEnvironment: finalTraceRecord.environment,
         },
         id: randomUUID(),
         timestamp: new Date(),
