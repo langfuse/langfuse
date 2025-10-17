@@ -135,6 +135,16 @@ export const GetDatasetV2Query = z.object({
 });
 export const GetDatasetV2Response = APIDataset.strict();
 
+// DELETE /v2/datasets/{datasetName}
+export const DeleteDatasetV2Query = z.object({
+  datasetName: queryStringZod,
+});
+export const DeleteDatasetV2Response = z
+  .object({
+    message: z.literal("Dataset successfully deleted"),
+  })
+  .strict();
+
 // GET /datasets/{name}/runs
 export const GetDatasetRunsV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1
