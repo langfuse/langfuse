@@ -9,7 +9,7 @@ export function usePanelState(
   panelGroupId: string,
   viewType: "timeline" | "tree",
 ) {
-  const MIN_WIDTH_PX = 355;
+  const MIN_WIDTH_PX = 255;
   const MAX_TREE_WIDTH_PX = 700;
 
   const [panelState, setPanelState] = useState<PanelState>({

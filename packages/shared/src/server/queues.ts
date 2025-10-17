@@ -452,6 +452,9 @@ export type TQueueJobTypes = {
   [QueueName.EventPropagationQueue]: {
     timestamp: Date;
     id: string;
+    payload?: {
+      partition?: string;
+    };
     name: QueueJobs.EventPropagationJob;
   };
 };

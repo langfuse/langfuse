@@ -51,6 +51,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   counts: Map<string, number>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  operator?: "any of" | "all of";
+  onOperatorChange?: (operator: "any of" | "all of") => void;
 }
 
 export interface NumericUIFilter extends BaseUIFilter {
@@ -127,7 +129,7 @@ const EMPTY_MAP: Map<string, number> = new Map();
 type UpdateFilter = (
   column: string,
   values: string[],
-  operator?: "any of" | "none of",
+  operator?: "any of" | "none of" | "all of",
 ) => void;
 
 export function useSidebarFilterState(
@@ -218,7 +220,7 @@ export function useSidebarFilterState(
       current: FilterState,
       column: string,
       values: string[],
-      operator?: "any of" | "none of",
+      operator?: "any of" | "none of" | "all of",
     ): FilterState => {
       const other = current.filter((f) => f.column !== column);
 
@@ -277,24 +279,24 @@ export function useSidebarFilterState(
 
       const availableValues = availableValuesRaw;
 
-      // If all items selected or none selected, remove filter
-      if (
-        values.length === 0 ||
-        (values.length === availableValues.length &&
-          availableValues.every((v) => values.includes(v)))
-      ) {
-        return other;
-      }
-
       // Determine operator and values based on context
-      let finalOperator: "any of" | "none of";
+      let finalOperator: "any of" | "none of" | "all of";
       let finalValues: string[];
 
       if (operator !== undefined) {
-        // Explicit operator provided (e.g., from "Only" button) - use as-is
+        // Explicit operator provided (e.g., from "Only" button or operator toggle) - use as-is
         finalOperator = operator;
         finalValues = values;
       } else {
+        // If all items selected or none selected, remove filter
+        // (only for implicit/checkbox-based selection, not when operator is explicitly set)
+        if (
+          values.length === 0 ||
+          (values.length === availableValues.length &&
+            availableValues.every((v) => values.includes(v)))
+        ) {
+          return other;
+        }
         // Checkbox interaction - smart operator selection
         const existingFilter = current.find((f) => f.column === column);
 
@@ -313,6 +315,13 @@ export function useSidebarFilterState(
           const deselected = availableValues.filter((v) => !values.includes(v));
           finalOperator = "none of";
           finalValues = deselected;
+        } else if (
+          existingFilter.operator === "all of" &&
+          existingFilter.type === "arrayOptions"
+        ) {
+          // Existing "all of" filter - keep "all of" with selected items
+          finalOperator = "all of";
+          finalValues = values;
         } else {
           // Existing "any of" filter or other - keep "any of" with selected items
           finalOperator = "any of";
@@ -349,7 +358,7 @@ export function useSidebarFilterState(
   );
 
   const updateFilter: UpdateFilter = useCallback(
-    (column, values, operator?: "any of" | "none of") => {
+    (column, values, operator?: "any of" | "none of" | "all of") => {
       const next = applySelection(filterState, column, values, operator);
       setFilterState(next);
     },
@@ -374,6 +383,63 @@ export function useSidebarFilterState(
       updateFilter(column, [value], "any of");
     },
     [config.facets, options, updateFilter],
+  );
+
+  const updateOperator = useCallback(
+    (column: string, newOperator: "any of" | "all of") => {
+      console.log(
+        `DEBUG [updateOperator] column: ${column}, newOperator: ${newOperator}`,
+      );
+      // Find the existing filter for this column
+      const existingFilter = filterState.find((f) => f.column === column);
+      if (!existingFilter) {
+        console.log(
+          `DEBUG [updateOperator] No existing filter found for ${column}`,
+        );
+        return;
+      }
+
+      console.log(
+        `DEBUG [updateOperator] existingFilter: ${JSON.stringify(existingFilter)}`,
+      );
+
+      // Only works for arrayOptions and stringOptions filters
+      if (
+        existingFilter.type !== "arrayOptions" &&
+        existingFilter.type !== "stringOptions"
+      ) {
+        console.log(
+          `DEBUG [updateOperator] Filter type ${existingFilter.type} not supported for operator toggle`,
+        );
+        return;
+      }
+
+      // Get the current selected values
+      // For "none of", we need to compute the actual selected values
+      const availableValuesRaw = options[column];
+      const availableValues = Array.isArray(availableValuesRaw)
+        ? availableValuesRaw
+        : [];
+
+      let currentValues: string[];
+      if (existingFilter.operator === "none of") {
+        // Convert "none of [excluded]" to selected values
+        const excluded = new Set(existingFilter.value);
+        currentValues = availableValues.filter((v) => !excluded.has(v));
+        console.log(
+          `DEBUG [updateOperator] Converted "none of" - excluded: ${JSON.stringify(existingFilter.value)}, currentValues: ${JSON.stringify(currentValues)}`,
+        );
+      } else {
+        currentValues = existingFilter.value;
+        console.log(
+          `DEBUG [updateOperator] Using existing values: ${JSON.stringify(currentValues)}`,
+        );
+      }
+
+      // Update the filter with the new operator
+      updateFilter(column, currentValues, newOperator);
+    },
+    [filterState, updateFilter, options],
   );
 
   const updateNumericFilter = useCallback(
@@ -800,13 +866,50 @@ export function useSidebarFilterState(
         const availableValues = Array.isArray(availableValuesRaw)
           ? availableValuesRaw
           : [];
+
+        // Check if this column supports operator toggle (only arrayOptions like tags)
+        const colDef = config.columnDefinitions.find(
+          (c) => c.id === facet.column,
+        );
+        const isArrayOptions = colDef?.type === "arrayOptions";
+
         const selectedValues = computeSelectedValues(
           availableValues,
           filterByColumn.get(facet.column),
         );
+
+        // Get current operator from existing filter
+        const currentFilter = filterByColumn.get(facet.column);
+        let currentOperator: "any of" | "all of" | undefined;
+        if (
+          currentFilter &&
+          (currentFilter.type === "arrayOptions" ||
+            currentFilter.type === "stringOptions") &&
+          (currentFilter.operator === "any of" ||
+            currentFilter.operator === "all of")
+        ) {
+          currentOperator = currentFilter.operator;
+        } else if (isArrayOptions && selectedValues.length > 0) {
+          // Default to "any of" for arrayOptions when selections exist but no explicit operator
+          currentOperator = "any of";
+        } else {
+          currentOperator = undefined;
+        }
+
+        // isActive check: filter is active if we have selections that differ from default state
+        // Special case: "all of" with all values selected is still an active filter
         const isActive =
-          selectedValues.length !== availableValues.length &&
-          selectedValues.length > 0;
+          currentOperator === "all of" &&
+          selectedValues.length === availableValues.length
+            ? true
+            : selectedValues.length !== availableValues.length &&
+              selectedValues.length > 0;
+
+        if (isArrayOptions) {
+          console.log(
+            `DEBUG [useSidebarFilterState] ${facet.column} - isArrayOptions: true, currentOperator: ${currentOperator}, selectedValues: ${JSON.stringify(selectedValues)}, isActive: ${isActive}, filter: ${JSON.stringify(currentFilter)}`,
+          );
+        }
 
         return {
           type: "categorical",
@@ -831,6 +934,11 @@ export function useSidebarFilterState(
             }
           },
           onReset: () => updateFilter(facet.column, []),
+          // Only add operator toggle for arrayOptions columns
+          operator: isArrayOptions ? currentOperator : undefined,
+          onOperatorChange: isArrayOptions
+            ? (op: "any of" | "all of") => updateOperator(facet.column, op)
+            : undefined,
         };
       })
       .filter((f): f is UIFilter => f !== null);
@@ -840,6 +948,7 @@ export function useSidebarFilterState(
     filterState,
     updateFilter,
     updateFilterOnly,
+    updateOperator,
     updateNumericFilter,
     updateStringFilter,
     expandedState,
@@ -851,6 +960,7 @@ export function useSidebarFilterState(
     setFilterState,
     updateFilter,
     updateFilterOnly,
+    updateOperator,
     clearAll,
     isFiltered: filterState.length > 0,
     filters,
