@@ -173,3 +173,5 @@ export const SpanItem: React.FC<SpanItemProps> = ({
     </div>
   );
 };
+
+SpanItem.whyDidYouRender = true;

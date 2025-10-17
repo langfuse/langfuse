@@ -125,3 +125,5 @@ export const IOTableCell = ({
 };
 
 export const MemoizedIOTableCell = memo(IOTableCell);
+IOTableCell.whyDidYouRender = true;
+MemoizedIOTableCell.whyDidYouRender = true;
