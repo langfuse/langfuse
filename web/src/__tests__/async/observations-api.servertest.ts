@@ -113,9 +113,7 @@ describe("/api/public/observations API Endpoint", () => {
     const suiteName = useEventsTable
       ? "with events table"
       : "with observations table";
-    const queryParam = useEventsTable
-      ? "?useEventsTable=true"
-      : "?useEventsTable=false";
+    const queryParam = useEventsTable ? "?useEventsTable=true&" : "?";
 
     describe(`GET /api/public/observations ${suiteName}`, () => {
       it("should fetch all observations with basic data structure", async () => {
@@ -457,7 +455,7 @@ describe("/api/public/observations API Endpoint", () => {
         const debugResponse = await makeZodVerifiedAPICall(
           GetObservationsV1Response,
           "GET",
-          `/api/public/observations${queryParam}&traceId=${traceId}&level=DEBUG`,
+          `/api/public/observations${queryParam}traceId=${traceId}&level=DEBUG`,
         );
 
         expect(debugResponse.body.data.length).toBe(1);
@@ -469,7 +467,7 @@ describe("/api/public/observations API Endpoint", () => {
         const defaultResponse = await makeZodVerifiedAPICall(
           GetObservationsV1Response,
           "GET",
-          `/api/public/observations${queryParam}&traceId=${traceId}&level=DEFAULT`,
+          `/api/public/observations${queryParam}traceId=${traceId}&level=DEFAULT`,
         );
 
         expect(defaultResponse.body.data.length).toBe(1);
@@ -481,7 +479,7 @@ describe("/api/public/observations API Endpoint", () => {
         const warningResponse = await makeZodVerifiedAPICall(
           GetObservationsV1Response,
           "GET",
-          `/api/public/observations${queryParam}&traceId=${traceId}&level=WARNING`,
+          `/api/public/observations${queryParam}traceId=${traceId}&level=WARNING`,
         );
 
         expect(warningResponse.body.data.length).toBe(1);
@@ -493,7 +491,7 @@ describe("/api/public/observations API Endpoint", () => {
         const errorResponse = await makeZodVerifiedAPICall(
           GetObservationsV1Response,
           "GET",
-          `/api/public/observations${queryParam}&traceId=${traceId}&level=ERROR`,
+          `/api/public/observations${queryParam}traceId=${traceId}&level=ERROR`,
         );
 
         expect(errorResponse.body.data.length).toBe(1);
@@ -541,7 +539,7 @@ describe("/api/public/observations API Endpoint", () => {
         const errorResponse = await makeZodVerifiedAPICall(
           GetObservationsV1Response,
           "GET",
-          `/api/public/observations${queryParam}&traceId=${traceId}&level=ERROR`,
+          `/api/public/observations${queryParam}traceId=${traceId}&level=ERROR`,
         );
 
         expect(errorResponse.body.data.length).toBe(0);
@@ -563,9 +561,7 @@ describe("/api/public/observations API Endpoint", () => {
       const suiteName = useEventsTable
         ? "with events table"
         : "with observations table";
-      const queryParam = useEventsTable
-        ? "?useEventsTable=true"
-        : "?useEventsTable=false";
+      const queryParam = useEventsTable ? "?useEventsTable=true&" : "?";
 
       describe(`${suiteName}`, () => {
         it("should support metadata field filtering with contains", async () => {
