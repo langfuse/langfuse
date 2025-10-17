@@ -1,4 +1,7 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
+import {
+  convertApiProvidedFilterToClickhouseFilter,
+  createPublicApiObservationsColumnMapping,
+} from "@langfuse/shared/src/server";
 import {
   StringFilter,
   type ObservationRecordReadType,
@@ -147,80 +150,11 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
   });
 };
 
-const filterParams = [
-  {
-    id: "userId",
-    clickhouseSelect: "user_id",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "traceId",
-    clickhouseSelect: "trace_id",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "name",
-    clickhouseSelect: "name",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "level",
-    clickhouseSelect: "level",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "type",
-    clickhouseSelect: "type",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "parentObservationId",
-    clickhouseSelect: "parent_observation_id",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "fromStartTime",
-    clickhouseSelect: "start_time",
-    operator: ">=" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "toStartTime",
-    clickhouseSelect: "start_time",
-    operator: "<" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "version",
-    clickhouseSelect: "version",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "environment",
-    clickhouseSelect: "environment",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-];
+const filterParams = createPublicApiObservationsColumnMapping(
+  "observations",
+  "o",
+  "parent_observation_id",
+);
 
 const generateFilter = (filter: QueryType) => {
   const observationsFilter = convertApiProvidedFilterToClickhouseFilter(
