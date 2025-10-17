@@ -29,8 +29,6 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
     scope: "scores:CUD",
   });
 
-  if (!hasAccess) return null;
-
   return (
     <Drawer>
       <DrawerTrigger asChild>
@@ -62,7 +60,6 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           analyticsData={analyticsData}
           scoreMetadata={scoreMetadata}
         />
-        {/* )} */}
       </DrawerContent>
     </Drawer>
   );

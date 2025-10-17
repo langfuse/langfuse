@@ -186,8 +186,10 @@ function DatasetCompareInternal() {
         </div>
         <SidePanel
           id="annotation-panel"
-          open={isAnnotationPanelOpen}
-          onOpenChange={handlePanelOpenChange}
+          openState={{
+            open: isAnnotationPanelOpen,
+            onOpenChange: handlePanelOpenChange,
+          }}
           mobileTitle="Annotate"
         >
           <SidePanelContent className="h-full">

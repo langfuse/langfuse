@@ -239,12 +239,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
 
   // Watch form values to keep fields in sync
   const watchedScoreData = form.watch("scoreData");
-  const controlledFields = fields.map((field, index) => {
-    return {
-      ...field,
-      ...watchedScoreData[index],
-    };
-  });
+  const controlledFields = fields
+    .map((field, index) => {
+      return {
+        ...field,
+        ...watchedScoreData[index],
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const description = formatAnnotateDescription(scoreTarget);
 

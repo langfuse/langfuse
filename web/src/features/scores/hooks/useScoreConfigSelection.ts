@@ -39,16 +39,18 @@ export function useScoreConfigSelection({
     useEmptyScoreConfigs();
 
   const selectionOptions = useMemo(() => {
-    return configs.map((config) => {
-      return {
-        key: config.id,
-        value: resolveConfigValue({
-          dataType: config.dataType,
-          name: config.name,
-        }),
-        disabled: isInputDisabled(config),
-      };
-    });
+    return configs
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((config) => {
+        return {
+          key: config.id,
+          value: resolveConfigValue({
+            dataType: config.dataType,
+            name: config.name,
+          }),
+          disabled: isInputDisabled(config),
+        };
+      });
   }, [configs, isInputDisabled]);
 
   const handleSelectionChange = useCallback(
