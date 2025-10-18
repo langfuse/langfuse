@@ -21,6 +21,7 @@ import {
 } from "@langfuse/shared";
 import {
   getQueue,
+  getCostByEvaluatorIds,
   getScoresByIds,
   logger,
   QueueName,
@@ -1371,10 +1372,6 @@ export const evalRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { getCostByEvaluatorIds } = await import(
-        "@langfuse/shared/src/server"
-      );
-
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
