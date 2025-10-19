@@ -1,8 +1,4 @@
-import {
-  queryClickhouse,
-  measureAndReturn,
-  getTimeframesTracesAMT,
-} from "@langfuse/shared/src/server";
+import { queryClickhouse, measureAndReturn } from "@langfuse/shared/src/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/types";
 
@@ -48,7 +44,6 @@ export async function executeQuery(
   return measureAndReturn({
     operationName: "executeQuery",
     projectId,
-    minStartTime: new Date(query.fromTimestamp),
     input: {
       query: compiledQuery,
       params: parameters,
@@ -61,7 +56,7 @@ export async function executeQuery(
         operation_name: "executeQuery",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       return queryClickhouse<Record<string, unknown>>({
         query: input.query,
         params: input.params,
@@ -70,20 +65,7 @@ export async function executeQuery(
             date_time_output_format: "iso",
           },
         },
-        tags: { ...input.tags, experiment_amt: "original" },
-      });
-    },
-    newExecution: async (input) => {
-      const traceTable = getTimeframesTracesAMT(new Date(input.fromTimestamp));
-      return queryClickhouse<Record<string, unknown>>({
-        query: input.query.replaceAll("traces", traceTable),
-        params: input.params,
-        clickhouseConfigs: {
-          clickhouse_settings: {
-            date_time_output_format: "iso",
-          },
-        },
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
       });
     },
   });

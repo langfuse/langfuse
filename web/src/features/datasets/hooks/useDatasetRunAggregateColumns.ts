@@ -1,24 +1,67 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
-import { type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
+import {
+  datasetRunItemsTableColsWithOptions,
+  type FilterState,
+} from "@langfuse/shared";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
-  runsData,
-  scoreKeyToDisplayName,
-  cellsLoading = false,
+  datasetId,
+  updateRunFilters,
+  getFiltersForRun,
 }: {
   projectId: string;
   runIds: string[];
-  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
-  scoreKeyToDisplayName: Map<string, string>;
-  cellsLoading?: boolean;
+  datasetId: string;
+  updateRunFilters: (runId: string, filters: FilterState) => void;
+  getFiltersForRun: (runId: string) => FilterState;
 }) {
+  const datasetRunItemsFilterOptionsResponse =
+    api.datasets.runItemFilterOptions.useQuery({
+      projectId,
+      datasetId,
+      datasetRunIds: runIds,
+    });
+
+  const runsData = api.datasets.baseRunDataByDatasetId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
+  );
+
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
+    {
+      projectId,
+      filter: scoreFilters.forDatasetRunItems({
+        datasetRunIds: runIds,
+        datasetId,
+      }),
+    },
+    {
+      enabled: runIds.length > 0,
+    },
+  );
+
+  const datasetRunItemsFilterOptions =
+    datasetRunItemsFilterOptionsResponse.data;
+
+  const datasetColumns = useMemo(() => {
+    return datasetRunItemsTableColsWithOptions(datasetRunItemsFilterOptions);
+  }, [datasetRunItemsFilterOptions]);
+
   const runAggregateColumnProps = runIds.map((runId) => {
-    const runNameAndMetadata = runsData.find((name) => name.id === runId);
+    const runNameAndMetadata = runsData.data?.find((name) => name.id === runId);
     return {
-      name: runNameAndMetadata?.name ?? `run${runId}`,
+      name: runNameAndMetadata?.name ?? `run-${runId}`,
       id: runId,
       description: runNameAndMetadata?.description ?? undefined,
       createdAt: runNameAndMetadata?.createdAt,
@@ -28,14 +71,25 @@ export function useDatasetRunAggregateColumns({
   const runAggregateColumns = useMemo(() => {
     return constructDatasetRunAggregateColumns({
       runAggregateColumnProps,
-      cellsLoading,
       projectId,
-      scoreKeyToDisplayName,
+      datasetColumns,
+      scoreColumns:
+        runIds.length > 0 ? scoreKeysAndProps.data?.scoreColumns : [],
+      updateRunFilters,
+      getFiltersForRun,
     });
-  }, [runAggregateColumnProps, cellsLoading, projectId, scoreKeyToDisplayName]);
+  }, [
+    runAggregateColumnProps,
+    projectId,
+    runIds,
+    datasetColumns,
+    scoreKeysAndProps.data?.scoreColumns,
+    updateRunFilters,
+    getFiltersForRun,
+  ]);
 
   return {
     runAggregateColumns,
-    isColumnLoading: cellsLoading,
+    isLoading: scoreKeysAndProps.isLoading,
   };
 }

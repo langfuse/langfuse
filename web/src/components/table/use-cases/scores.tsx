@@ -71,6 +71,7 @@ export type ScoresTableRow = {
   jobConfigurationId?: string;
   traceTags?: string[];
   environment?: string;
+  executionTraceId?: string;
 };
 
 function createFilterState(
@@ -131,11 +132,21 @@ export default function ScoresTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Timestamp",
+          column: "timestamp",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "timestamp",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
 
@@ -196,8 +207,12 @@ export default function ScoresTable({
     orderBy: orderByState,
   };
 
-  const scores = api.scores.all.useQuery(getAllPayload);
-  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
+  const scores = api.scores.all.useQuery(getAllPayload, {
+    enabled: !environmentFilterOptions.isLoading,
+  });
+  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload, {
+    enabled: !environmentFilterOptions.isLoading,
+  });
   const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const scoreDeleteMutation = api.scores.deleteMany.useMutation({
@@ -313,6 +328,24 @@ export default function ScoresTable({
               value={value}
             />
           </>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "executionTraceId",
+      id: "executionTraceId",
+      header: "Execution Trace",
+      enableSorting: false,
+      enableHiding: true,
+      defaultHidden: true,
+      size: 100,
+      cell: ({ row }) => {
+        const value = row.getValue("executionTraceId");
+        return typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
+            value={value}
+          />
         ) : undefined;
       },
     },
@@ -606,6 +639,7 @@ export default function ScoresTable({
       jobConfigurationId: score.jobConfigurationId ?? undefined,
       traceTags: score.traceTags ?? undefined,
       environment: score.environment ?? undefined,
+      executionTraceId: score.executionTraceId ?? undefined,
     };
   };
 

@@ -144,7 +144,7 @@ const UpdateEvalJobSchema = z.object({
   timeScope: TimeScopeSchema.optional(),
 });
 
-const fetchJobExecutionsByState = async ({
+const fetchJobExecutionsByStatus = async ({
   prisma,
   projectId,
   configIds,
@@ -155,11 +155,12 @@ const fetchJobExecutionsByState = async ({
 }) => {
   return prisma.jobExecution.groupBy({
     where: {
-      jobConfiguration: {
-        projectId: projectId,
-        jobType: "EVAL",
-        id: { in: configIds },
-      },
+      // jobConfiguration: {
+      //   projectId: projectId,
+      //   jobType: "EVAL",
+      //   id: { in: configIds },
+      // },
+      jobConfigurationId: { in: configIds },
       projectId: projectId,
     },
     by: ["status", "jobConfigurationId"],
@@ -326,7 +327,7 @@ export const evalRouter = createTRPCRouter({
         ),
       ]);
 
-      const jobExecutionsByState = await fetchJobExecutionsByState({
+      const jobExecutionsByState = await fetchJobExecutionsByStatus({
         prisma: ctx.prisma,
         projectId: input.projectId,
         configIds: configs.map((c) => c.id),
@@ -385,7 +386,7 @@ export const evalRouter = createTRPCRouter({
 
       if (!config) return null;
 
-      const jobExecutionsByState = await fetchJobExecutionsByState({
+      const jobExecutionsByStatus = await fetchJobExecutionsByStatus({
         prisma: ctx.prisma,
         projectId: input.projectId,
         configIds: [config.id],
@@ -394,12 +395,12 @@ export const evalRouter = createTRPCRouter({
       const finalStatus = calculateEvaluatorFinalStatus(
         config.status,
         Array.isArray(config.timeScope) ? config.timeScope : [],
-        jobExecutionsByState,
+        jobExecutionsByStatus,
       );
 
       return {
         ...config,
-        jobExecutionsByState: jobExecutionsByState,
+        jobExecutionsByState: jobExecutionsByStatus,
         finalStatus,
       };
     }),
@@ -1260,6 +1261,7 @@ export const evalRouter = createTRPCRouter({
               | "jobInputTraceId"
               | "jobTemplateId"
               | "jobConfigurationId"
+              | "executionTraceId"
               | "error"
             >
           >
@@ -1273,6 +1275,7 @@ export const evalRouter = createTRPCRouter({
             je.job_input_trace_id as "jobInputTraceId",
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
+            je.execution_trace_id as "executionTraceId",
             je.error
             `,
             input.projectId,

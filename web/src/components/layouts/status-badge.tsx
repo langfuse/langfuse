@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 const statusCategories = {
   active: ["production", "live", "active", "public"],
   pending: ["pending", "waiting", "queued"],
+  delayed: ["delayed"],
   inactive: ["disabled", "inactive"],
   completed: ["completed", "done", "finished"],
   error: ["error", "failed"],
@@ -38,6 +39,10 @@ export const StatusBadge = ({
     badgeColor = "bg-light-yellow text-dark-yellow";
     dotColor = "animate-ping bg-dark-yellow";
     dotPingColor = "bg-dark-yellow";
+  } else if (statusCategories.delayed.includes(type.toLowerCase())) {
+    badgeColor = "bg-light-blue text-dark-blue";
+    dotColor = "animate-ping bg-dark-blue";
+    dotPingColor = "bg-dark-blue";
   } else if (statusCategories.error.includes(type.toLowerCase())) {
     badgeColor = "bg-light-red text-dark-red";
     showDot = false;

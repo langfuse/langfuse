@@ -67,6 +67,17 @@ class WebhookTestServer {
         );
       }),
 
+      // 201 Created response endpoint (GitLab use case)
+      http.post("https://webhook-201.example.com/*", async ({ request }) => {
+        this.receivedRequests.push({
+          url: request.url,
+          method: request.method,
+          headers: Object.fromEntries(request.headers.entries()),
+          body: JSON.stringify(await request.json()),
+        });
+        return HttpResponse.json({ success: true }, { status: 201 });
+      }),
+
       // Timeout endpoint
       http.post("https://webhook-timeout.example.com/*", () => {
         return HttpResponse.error();
@@ -351,6 +362,81 @@ describe("Webhook Integration Tests", () => {
       expect(execution?.status).toBe(ActionExecutionStatus.PENDING);
     });
 
+    it("should accept 201 status code as success (GitLab use case)", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      // Update action to use 201 endpoint
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-201.example.com/test",
+          },
+        },
+      });
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt-version",
+          },
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      // Verify webhook request was made
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+
+      const request = requests[0];
+      expect(request.url).toBe("https://webhook-201.example.com/test");
+      expect(request.method).toBe("POST");
+
+      // Verify execution was marked as completed (not error)
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+      expect(execution?.startedAt).toBeDefined();
+      expect(execution?.finishedAt).toBeDefined();
+    });
+
     it("should handle webhook endpoint returning error", async () => {
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
@@ -413,7 +499,7 @@ describe("Webhook Integration Tests", () => {
       });
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain(
-        `Webhook does not return 200: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
+        `Webhook does not return 2xx status: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
       );
       expect(execution?.output).toMatchObject({
         httpStatus: 500,
@@ -488,7 +574,7 @@ describe("Webhook Integration Tests", () => {
 
         expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
         expect(execution?.error).toContain(
-          `Webhook does not return 200: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
+          `Webhook does not return 2xx status: failed with status 500 for url https://webhook-error.example.com/test and project ${projectId}`,
         );
       }
 

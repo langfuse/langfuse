@@ -4,13 +4,19 @@ import {
   authenticatedProcedure,
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import {
+  organizationOptionalNameSchema,
+  organizationNameSchema,
+} from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod/v4";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
+import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
+
+import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
   create: authenticatedProcedure
@@ -51,9 +57,14 @@ export const organizationsRouter = createTRPCRouter({
     }),
   update: protectedOrganizationProcedure
     .input(
-      organizationNameSchema.extend({
-        orgId: z.string(),
-      }),
+      organizationOptionalNameSchema
+        .extend({
+          orgId: z.string(),
+          aiFeaturesEnabled: z.boolean().optional(),
+        })
+        .refine((data) => data.name || data.aiFeaturesEnabled !== undefined, {
+          message: "At least one of name or aiFeaturesEnabled is required",
+        }),
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoOrganizationAccess({
@@ -61,6 +72,18 @@ export const organizationsRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:update",
       });
+
+      if (
+        input.aiFeaturesEnabled !== undefined &&
+        !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Natural language filtering is not available in self-hosted deployments.",
+        });
+      }
+
       const beforeOrganization = await ctx.prisma.organization.findFirst({
         where: {
           id: input.orgId,
@@ -72,6 +95,7 @@ export const organizationsRouter = createTRPCRouter({
         },
         data: {
           name: input.name,
+          aiFeaturesEnabled: input.aiFeaturesEnabled,
         },
       });
 
@@ -115,17 +139,19 @@ export const organizationsRouter = createTRPCRouter({
       }
 
       // Attempt to cancel Stripe subscription immediately (Cloud only) before deleting org
-      try {
-        const stripeBillingService = createBillingServiceFromContext(ctx);
-        await stripeBillingService.cancelImmediatelyAndInvoice(input.orgId);
-      } catch (e) {
-        // If billing cancellation fails for reasons other than no subscription, abort deletion
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message:
-            "Failed to cancel Stripe subscription prior to organization deletion",
-          cause: e as Error,
-        });
+      if (isCloudBillingEnabled()) {
+        try {
+          const stripeBillingService = createBillingServiceFromContext(ctx);
+          await stripeBillingService.cancelImmediatelyAndInvoice(input.orgId);
+        } catch (e) {
+          // If billing cancellation fails for reasons other than no subscription, abort deletion
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message:
+              "Failed to cancel Stripe subscription prior to organization deletion",
+            cause: e as Error,
+          });
+        }
       }
 
       const organization = await ctx.prisma.organization.delete({
@@ -135,7 +161,7 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       // the api keys contain which org they belong to, so we need to remove them from Redis
-      await new ApiAuthService(ctx.prisma, redis).invalidateOrgApiKeys(
+      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
         input.orgId,
       );
 

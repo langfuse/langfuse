@@ -5,7 +5,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^2.5.6 --global
+RUN npm install turbo@^2.5.8 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -116,7 +116,7 @@ ARG GID=1001
 RUN addgroup --system --gid ${GID} nodejs
 RUN adduser --system --uid ${UID} nextjs
 
-RUN npm install -g --no-package-lock --no-save prisma@6.3.0
+RUN npm install -g --no-package-lock --no-save prisma@6.17.1
 
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
@@ -125,7 +125,7 @@ RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
     fi
 
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
-    wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.3/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
+    wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
     mv migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .

@@ -10,27 +10,27 @@ export const useQueryProject = () => {
 
 export const useProject = (projectId: string | null) => {
   const session = useSession();
-  if (projectId === null) return { project: null, organization: null };
 
-  const data = session.data?.user?.organizations
-    // map to {project, organization}[]
-    .flatMap((org) =>
-      org.projects.map((project) => ({ project, organization: org })),
-    )
-    // find the project with the matching id
-    .find(({ project }) => project.id === projectId);
+  // Always call hooks first, then handle conditional logic in the return
+  const data = projectId
+    ? session.data?.user?.organizations
+        // map to {project, organization}[]
+        .flatMap((org) =>
+          org.projects.map((project) => ({ project, organization: org })),
+        )
+        // find the project with the matching id
+        .find(({ project }) => project.id === projectId)
+    : null;
 
-  if (!data)
-    return {
-      project: null,
-      organization: null,
-    };
-
-  // explicitly destructuring the data object to make it clear what is being returned
-  return {
-    project: data.project,
-    organization: data.organization,
-  };
+  return data
+    ? {
+        project: data.project,
+        organization: data.organization,
+      }
+    : {
+        project: null,
+        organization: null,
+      };
 };
 
 export const useQueryProjectOrOrganization = () => {

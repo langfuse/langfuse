@@ -1,10 +1,9 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
+import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src/server";
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
   TRACE_TO_OBSERVATIONS_INTERVAL,
   type DateTimeFilter,
-  getTimeframesTracesAMT,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
 
@@ -52,7 +51,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
         sumMap(o.usage_details)['total'] as totalUsage,
         sum(coalesce(o.total_cost, 0)) as totalCost
       FROM observations o FINAL ${hasNonTimestampsFilter ? " LEFT JOIN __TRACE_TABLE__ t FINAL on o.trace_id = t.id AND o.project_id = t.project_id" : ""}
-      WHERE o.project_id = {projectId: String} 
+      WHERE o.project_id = {projectId: String}
       ${hasNonTimestampsFilter ? `AND t.project_id = {projectId: String} AND ${appliedFilter.query}` : ""}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       GROUP BY date, model
@@ -81,14 +80,14 @@ export const generateDailyMetrics = async (props: QueryType) => {
       ${hasTracesFilter ? `AND ${appliedTracesFilter.query}` : ""}
       GROUP BY date
     )
-      
+
     SELECT
       COALESCE(dmu.date, tu.date) as date,
       COALESCE(tu.countTraces, 0) as countTraces,
       COALESCE(dmu.countObservations, 0) as countObservations,
       COALESCE(dmu.totalCost, 0) as totalCost,
-      dmu.daily_usage_tuple as usage  
-    FROM daily_model_usage dmu    
+      dmu.daily_usage_tuple as usage
+    FROM daily_model_usage dmu
     FULL OUTER JOIN trace_usage tu ON dmu.date = tu.date
     ORDER BY date DESC
     ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
@@ -101,7 +100,6 @@ export const generateDailyMetrics = async (props: QueryType) => {
   return measureAndReturn({
     operationName: "generateDailyMetrics",
     projectId: props.projectId,
-    minStartTime: timestamp,
     input: {
       params: {
         ...appliedTracesFilter.params,
@@ -126,7 +124,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       },
       timestamp,
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const result = await queryClickhouse<{
         date: string;
         countTraces: number;
@@ -136,40 +134,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       }>({
         query: query.replaceAll("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        clickhouseConfigs: {
-          request_timeout: 60_000, // Use 1 minute timeout for daily metrics
-        },
-      });
-
-      return result.map((record) => ({
-        date: record.date,
-        countTraces: Number(record.countTraces),
-        countObservations: Number(record.countObservations),
-        totalCost: Number(record.totalCost),
-        usage: record.usage.map((u) => ({
-          model: u[0],
-          inputUsage: Number(u[1]),
-          outputUsage: Number(u[2]),
-          totalUsage: Number(u[3]),
-          totalCost: Number(u[4]),
-          countObservations: Number(u[5]),
-          countTraces: Number(u[6]),
-        })),
-      }));
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      const result = await queryClickhouse<{
-        date: string;
-        countTraces: number;
-        countObservations: number;
-        totalCost: number;
-        usage: (string | null)[][];
-      }>({
-        query: query.replaceAll("__TRACE_TABLE__", traceAmt),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         clickhouseConfigs: {
           request_timeout: 60_000, // Use 1 minute timeout for daily metrics
         },
@@ -217,7 +182,6 @@ export const getDailyMetricsCount = async (props: QueryType) => {
   return measureAndReturn({
     operationName: "getDailyMetricsCount",
     projectId: props.projectId,
-    minStartTime: timestamp,
     input: {
       params: { ...appliedFilter.params, projectId: props.projectId },
       tags: {
@@ -229,20 +193,11 @@ export const getDailyMetricsCount = async (props: QueryType) => {
       },
       timestamp,
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", traceAmt),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
       });
       return records.map((record) => Number(record.count)).shift();
     },

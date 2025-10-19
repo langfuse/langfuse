@@ -26,6 +26,7 @@ import {
   BatchExportTableName,
   type ScoreDomain,
   CreateAnnotationScoreData,
+  type ScoreConfigDomain,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -45,6 +46,7 @@ import {
   getScoreMetadataById,
   deleteScores,
   getTracesIdentifierForSession,
+  validateConfigAgainstBody,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -70,6 +72,7 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
+  executionTraceId: string | null;
 };
 
 export const scoresRouter = createTRPCRouter({
@@ -359,6 +362,7 @@ export const scoresRouter = createTRPCRouter({
             authorUserId: ctx.session.user.id,
             source: ScoreSource.ANNOTATION,
             queueId: input.queueId ?? null,
+            executionTraceId: null,
             createdAt: new Date(),
             updatedAt: new Date(),
             timestamp: new Date(),
@@ -418,6 +422,39 @@ export const scoresRouter = createTRPCRouter({
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
         );
       } else {
+        // validate score against config
+        if (score.configId) {
+          const config = await ctx.prisma.scoreConfig.findFirst({
+            where: {
+              id: score.configId,
+              projectId: input.projectId,
+            },
+          });
+          if (!config) {
+            throw new LangfuseNotFoundError(
+              `No score config with id ${score.configId} in project ${input.projectId}`,
+            );
+          }
+          try {
+            validateConfigAgainstBody({
+              body: {
+                ...score,
+                value: input.value ?? null,
+                stringValue: input.stringValue ?? null,
+                comment: input.comment ?? null,
+              },
+              config: config as ScoreConfigDomain,
+              context: "ANNOTATION",
+            });
+          } catch (error) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message:
+                "Score does not comply with config schema. Please adjust or delete score.",
+            });
+          }
+        }
+
         await upsertScore({
           id: input.id,
           project_id: input.projectId,

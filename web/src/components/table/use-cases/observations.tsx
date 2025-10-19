@@ -210,11 +210,21 @@ export default function ObservationsTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Start Time",
+          column: "startTime",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "startTime",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
 
@@ -860,11 +870,11 @@ export default function ObservationsTable({
           enableSorting: true,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
-              promptTokens: number;
-              completionTokens: number;
-              totalTokens: number;
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
             } = row.getValue("usage");
-            return <span>{numberFormatter(value.promptTokens, 0)}</span>;
+            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
           },
         },
         {
@@ -877,11 +887,11 @@ export default function ObservationsTable({
           enableSorting: true,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
-              promptTokens: number;
-              completionTokens: number;
-              totalTokens: number;
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
             } = row.getValue("usage");
-            return <span>{numberFormatter(value.completionTokens, 0)}</span>;
+            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
           },
         },
         {
@@ -894,11 +904,11 @@ export default function ObservationsTable({
           enableSorting: true,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
-              promptTokens: number;
-              completionTokens: number;
-              totalTokens: number;
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
             } = row.getValue("usage");
-            return <span>{numberFormatter(value.totalTokens, 0)}</span>;
+            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
           },
         },
       ],
@@ -921,10 +931,13 @@ export default function ObservationsTable({
           header: "Input Cost",
           size: 120,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
-            const value: number | undefined = row.getValue("inputCost");
+            const value: {
+              inputCost: number | undefined;
+              outputCost: number | undefined;
+            } = row.getValue("cost");
 
-            return value !== undefined ? (
-              <span>{usdFormatter(value)}</span>
+            return value.inputCost !== undefined ? (
+              <span>{usdFormatter(value.inputCost)}</span>
             ) : undefined;
           },
           enableHiding: true,
@@ -937,10 +950,13 @@ export default function ObservationsTable({
           header: "Output Cost",
           size: 120,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
-            const value: number | undefined = row.getValue("outputCost");
+            const value: {
+              inputCost: number | undefined;
+              outputCost: number | undefined;
+            } = row.getValue("cost");
 
-            return value !== undefined ? (
-              <span>{usdFormatter(value)}</span>
+            return value.outputCost !== undefined ? (
+              <span>{usdFormatter(value.outputCost)}</span>
             ) : undefined;
           },
           enableHiding: true,
