@@ -1,0 +1,40 @@
+<clickhouse>
+  <trace_log>
+    <ttl>event_date + INTERVAL 60 DAY DELETE</ttl>
+  </trace_log>
+  <text_log>
+    <ttl>event_date + INTERVAL 60 DAY DELETE</ttl>
+  </text_log>
+  <storage_configuration>
+    <disks>
+      <hot>
+        <type>local</type>
+        <path>/var/lib/clickhouse/hot/</path>
+        <keep_free_space_bytes>3221225472</keep_free_space_bytes> <!-- 保留3GB，确保热数据最多1GB -->
+    	</hot>
+      <s3>
+        <type>s3</type>
+				<!-- https://${bucket}.oss-cn-hangzhou.aliyuncs.com/${prefix} -->
+        <endpoint>${LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT}</endpoint>
+        <region>${LANGFUSE_S3_EVENT_UPLOAD_REGION}</region>
+        <access_key_id>${LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID}</access_key_id>
+        <secret_access_key>${LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY}</secret_access_key>
+        <metadata_path>/var/lib/clickhouse/disks/s3/</metadata_path>
+      </s3>
+    </disks>
+    <policies>
+      <hot_to_s3>
+        <volumes>
+          <hot>
+            <disk>hot</disk>
+            <max_data_part_size_bytes>1073741824</max_data_part_size_bytes> <!-- 1GB -->
+          </hot>
+          <cold>
+            <disk>s3</disk>
+          </cold>
+        </volumes>
+        <move_factor>0.1</move_factor> <!-- 达到10%剩余空间时触发迁移 -->
+      </hot_to_s3>
+    </policies>
+  </storage_configuration>
+</clickhouse>

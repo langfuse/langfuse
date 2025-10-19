@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<clickhouse>
+  <trace_log>
+    <ttl>event_date + INTERVAL 60 DAY DELETE</ttl>
+  </trace_log>
+  <text_log>
+    <ttl>event_date + INTERVAL 60 DAY DELETE</ttl>
+  </text_log>
+  <merge_tree>
+    <storage_policy>s3</storage_policy>
+  </merge_tree>
+  <storage_configuration>
+    <disks>
+      <s3>
+        <type>object_storage</type>
+        <object_storage_type>s3</object_storage_type>
+        <metadata_type>local</metadata_type>
+        <!-- https://${bucket}.oss-cn-hangzhou.aliyuncs.com/${prefix} -->
+        <endpoint>${LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT}</endpoint>
+        <region>${LANGFUSE_S3_EVENT_UPLOAD_REGION}</region>
+        <access_key_id>${LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID}</access_key_id>
+        <secret_access_key>${LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY}</secret_access_key>
+      </s3>
+    </disks>
+    <policies>
+      <s3>
+        <volumes>
+          <main>
+            <disk>s3</disk>
+          </main>
+        </volumes>
+      </s3>
+    </policies>
+  </storage_configuration>
+</clickhouse>

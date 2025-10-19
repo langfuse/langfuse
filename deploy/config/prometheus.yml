@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'litellm'
+    static_configs:
+      - targets: ['litellm:4000']  # Assuming Litellm exposes metrics at port 4000
+
+
+# 远程写入配置（可选，用于长期存储）
+# remote_write:
+#   - url: "http://remote-storage-adapter:9201/write"
+
+# 远程读取配置（可选，用于长期存储）
+# remote_read:
+#   - url: "http://remote-storage-adapter:9201/read"
