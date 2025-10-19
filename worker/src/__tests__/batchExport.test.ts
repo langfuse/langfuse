@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 
 describe("batch export test suite", () => {
@@ -209,7 +209,7 @@ describe("batch export test suite", () => {
     await createScoresCh([score]);
     await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Sessions,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -306,7 +306,7 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Sessions,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -404,7 +404,7 @@ describe("batch export test suite", () => {
     await createScoresCh([score, qualitativeScore]);
     await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -473,7 +473,7 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),
@@ -590,7 +590,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with filter on name and sort by timestamp
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -672,7 +672,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export all scores
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -765,7 +765,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with date range filter
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -879,7 +879,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with multiple filter conditions
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -997,7 +997,7 @@ describe("batch export test suite", () => {
     await prisma.datasetItem.createMany({ data: datasetItems });
 
     // Export dataset items
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.DatasetItems,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1137,7 +1137,7 @@ describe("batch export test suite", () => {
     await prisma.datasetItem.createMany({ data: datasetItems });
 
     // Export dataset items
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.DatasetItems,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1238,7 +1238,7 @@ describe("batch export test suite", () => {
     });
 
     // Export audit logs
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.AuditLogs,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1314,7 +1314,7 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const streamByName = await getDatabaseReadStream({
+    const streamByName = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
