@@ -2,6 +2,8 @@ import {
   FilterCondition,
   TimeFilter,
   TracingSearchType,
+  ScoreDataType,
+  ObservationLevelType,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -17,7 +19,6 @@ import {
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
   DateTimeFilter,
 } from "@langfuse/shared/src/server";
-import { ScoreDataType } from "@langfuse/shared/src/features/scores";
 import { Readable } from "stream";
 import { env } from "../../env";
 import {
@@ -25,7 +26,6 @@ import {
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
 import Decimal from "decimal.js";
-import { ObservationLevelType } from "@langfuse/shared/src/domain";
 
 const isTraceTimestampFilter = (
   filter: FilterCondition,
