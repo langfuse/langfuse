@@ -30,7 +30,7 @@ import { ObservationLevelType } from "@langfuse/shared/src/domain";
 const isTraceTimestampFilter = (
   filter: FilterCondition,
 ): filter is TimeFilter => {
-  return filter.column === "Timestamp" && filter.type === "datetime";
+  return filter.column === "timestamp" && filter.type === "datetime";
 };
 
 export const getTraceStream = async (props: {
