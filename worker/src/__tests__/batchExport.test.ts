@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 
 describe("batch export test suite", () => {
