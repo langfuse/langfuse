@@ -87,7 +87,7 @@ export const getChunkWithFlattenedScores = <
   });
 };
 
-export const getDatabaseReadStream = async ({
+export const getDatabaseReadStreamPaginated = async ({
   projectId,
   tableName,
   filter,

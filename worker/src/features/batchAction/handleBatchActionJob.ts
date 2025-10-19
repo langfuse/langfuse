@@ -13,7 +13,7 @@ import {
   FilterCondition,
 } from "@langfuse/shared";
 import {
-  getDatabaseReadStream,
+  getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
@@ -183,7 +183,7 @@ export const handleBatchActionJob = async (
               searchQuery: query.searchQuery ?? undefined,
               searchType: query.searchType ?? ["id" as const],
             })
-          : await getDatabaseReadStream({
+          : await getDatabaseReadStreamPaginated({
               projectId: projectId,
               cutoffCreatedAt: new Date(cutoffCreatedAt),
               filter: convertDatesInFiltersFromStrings(query.filter ?? []),
@@ -244,7 +244,7 @@ export const handleBatchActionJob = async (
             searchType: query.searchType,
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           }) // when reading from clickhouse, we only want to read the necessary identifiers.
-        : await getDatabaseReadStream({
+        : await getDatabaseReadStreamPaginated({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),

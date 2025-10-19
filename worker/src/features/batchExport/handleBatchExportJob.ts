@@ -17,7 +17,7 @@ import {
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 
 export const handleBatchExportJob = async (
@@ -96,7 +96,7 @@ export const handleBatchExportJob = async (
           cutoffCreatedAt: jobDetails.createdAt,
           ...parsedQuery.data,
         })
-      : await getDatabaseReadStream({
+      : await getDatabaseReadStreamPaginated({
           projectId,
           cutoffCreatedAt: jobDetails.createdAt,
           ...parsedQuery.data,
