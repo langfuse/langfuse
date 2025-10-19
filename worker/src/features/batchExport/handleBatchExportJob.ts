@@ -19,7 +19,6 @@ import {
 import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../database-read-stream/observation-stream";
-import { getTraceStream } from "../database-read-stream/trace-stream";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -97,17 +96,11 @@ export const handleBatchExportJob = async (
           cutoffCreatedAt: jobDetails.createdAt,
           ...parsedQuery.data,
         })
-      : parsedQuery.data.tableName === BatchExportTableName.Traces
-        ? await getTraceStream({
-            projectId,
-            cutoffCreatedAt: jobDetails.createdAt,
-            ...parsedQuery.data,
-          })
-        : await getDatabaseReadStreamPaginated({
-            projectId,
-            cutoffCreatedAt: jobDetails.createdAt,
-            ...parsedQuery.data,
-          });
+      : await getDatabaseReadStreamPaginated({
+          projectId,
+          cutoffCreatedAt: jobDetails.createdAt,
+          ...parsedQuery.data,
+        });
 
   // Transform data to desired format
   let rowCount = 0;
