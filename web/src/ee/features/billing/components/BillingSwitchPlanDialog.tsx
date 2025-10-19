@@ -130,7 +130,15 @@ export const BillingSwitchPlanDialog = ({
                           {product.checkout?.price}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          + {product.checkout?.usagePrice}
+                          + {product.checkout?.usagePrice},{" "}
+                          <a
+                            href="https://langfuse.com/pricing#pricing-calculator"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            usage calculator ↗
+                          </a>
                         </div>
                       </div>
                     </div>
