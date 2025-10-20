@@ -8,7 +8,6 @@ import {
   UpdateAnnotationQueueItemResponse,
   DeleteAnnotationQueueItemQuery,
   DeleteAnnotationQueueItemResponse,
-  GetAnnotationQueueItemByIdBody,
 } from "@/src/features/public-api/types/annotation-queues";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { AnnotationQueueStatus } from "@langfuse/shared";
@@ -17,7 +16,6 @@ export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get annotation queue item by ID",
     querySchema: GetAnnotationQueueItemByIdQuery,
-    bodySchema: GetAnnotationQueueItemByIdBody,
     responseSchema: GetAnnotationQueueItemByIdResponse,
     fn: async ({ query, auth }) => {
       // Verify the queue exists
