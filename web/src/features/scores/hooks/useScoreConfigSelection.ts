@@ -7,22 +7,35 @@ import {
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { useCallback, useMemo } from "react";
 import {
-  type UseFieldArrayAppend,
   type UseFieldArrayRemove,
+  type UseFieldArrayInsert,
 } from "react-hook-form";
 import { toast } from "sonner";
+
+const resolveAlphabeticalPosition = (
+  name: string,
+  controlledFields: AnnotationScoreSchemaType[],
+) => {
+  const alphabeticalIndex = controlledFields.findIndex(
+    (f) => f.name.localeCompare(name) > 0,
+  );
+  // If no field comes after this one alphabetically (-1), insert at the end
+  if (alphabeticalIndex === -1) return controlledFields.length;
+
+  return alphabeticalIndex;
+};
 
 export function useScoreConfigSelection({
   configs,
   controlledFields,
   isInputDisabled,
-  append,
+  insert,
   remove,
 }: {
   configs: ScoreConfigDomain[];
   controlledFields: AnnotationScoreSchemaType[];
   isInputDisabled: (config: ScoreConfigDomain) => boolean;
-  append: UseFieldArrayAppend<AnnotateFormSchemaType, "scoreData">;
+  insert: UseFieldArrayInsert<AnnotateFormSchemaType, "scoreData">;
   remove: UseFieldArrayRemove;
 }): {
   selectionOptions: {
@@ -66,7 +79,13 @@ export function useScoreConfigSelection({
         // Config was just selected -> add empty row to form
         const config = configs.find((c) => c.id === changedValueId);
         if (config) {
-          append({
+          // find correct alphabetical position to insert new field at
+          const position = resolveAlphabeticalPosition(
+            config.name,
+            controlledFields,
+          );
+
+          insert(position, {
             id: null,
             configId: config.id,
             name: config.name,
@@ -98,7 +117,7 @@ export function useScoreConfigSelection({
     [
       controlledFields,
       configs,
-      append,
+      insert,
       remove,
       emptySelectedConfigIds,
       setEmptySelectedConfigIds,

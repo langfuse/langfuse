@@ -232,7 +232,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     defaultValues: { scoreData: initialFormData },
   });
 
-  const { fields, update, append, remove } = useFieldArray({
+  const { fields, update, remove, insert } = useFieldArray({
     control: form.control,
     name: "scoreData",
   });
@@ -259,7 +259,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     configs,
     controlledFields,
     isInputDisabled,
-    append,
+    insert,
     remove,
   });
 
@@ -819,12 +819,16 @@ export function AnnotationForm<Target extends ScoreTarget>({
     }
   });
 
+  const sortedInitialFormData = initialFormData.sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+
   return isLoading ? (
     <Skeleton className="h-full w-full" />
   ) : (
     <InnerAnnotationForm
       scoreTarget={scoreTarget}
-      initialFormData={initialFormData}
+      initialFormData={sortedInitialFormData}
       scoreMetadata={scoreMetadata}
       analyticsData={analyticsData}
       actionButtons={actionButtons}
