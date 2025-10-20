@@ -3,7 +3,6 @@ import {
   TimeFilter,
   TracingSearchType,
   ScoreDataType,
-  ObservationLevelType,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -14,10 +13,6 @@ import {
   tracesTableUiColumnDefinitions,
   clickhouseSearchCondition,
   parseClickhouseUTCDateTimeFormat,
-  reduceUsageOrCostDetails,
-  OBSERVATIONS_TO_TRACE_INTERVAL,
-  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
-  DateTimeFilter,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -25,12 +20,11 @@ import {
   getChunkWithFlattenedScores,
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
-import Decimal from "decimal.js";
 
 const isTraceTimestampFilter = (
   filter: FilterCondition,
 ): filter is TimeFilter => {
-  return filter.column === "timestamp" && filter.type === "datetime";
+  return filter.column === "Timestamp" && filter.type === "datetime";
 };
 
 export const getTraceStream = async (props: {
@@ -89,38 +83,31 @@ export const getTraceStream = async (props: {
 
   const appliedTracesFilter = tracesFilter.apply();
 
-  // Check if there's a timestamp filter for optimizing observations/scores queries
-  const timeStampFilter = tracesFilter.find(
-    (f) =>
-      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  ) as DateTimeFilter | undefined;
-
   const search = clickhouseSearchCondition(searchQuery, searchType, "t");
 
   const query = `
-    WITH observations_stats AS (
+    WITH traces_cte AS (
       SELECT
-        COUNT(*) AS observation_count,
-        sumMap(usage_details) as usage_details,
-        SUM(total_cost) AS total_cost,
-        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
-        countIf(level = 'ERROR') as error_count,
-        countIf(level = 'WARNING') as warning_count,
-        countIf(level = 'DEFAULT') as default_count,
-        countIf(level = 'DEBUG') as debug_count,
-        multiIf(
-          arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
-          arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
-          arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
-          'DEBUG'
-        ) AS aggregated_level,
-        sumMap(cost_details) as cost_details,
-        trace_id,
-        project_id
-      FROM observations FINAL
-      WHERE project_id = {projectId: String}
-        ${timeStampFilter ? `AND start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-      GROUP BY trace_id, project_id
+        t.id as trace_id,
+        t.project_id as project_id,
+        t.timestamp as timestamp,
+        t.name as name,
+        t.user_id as user_id,
+        t.session_id as session_id,
+        t.release as release,
+        t.version as version,
+        t.environment as environment,
+        t.tags as tags,
+        t.bookmarked as bookmarked,
+        t.public as public,
+        t.input as input,
+        t.output as output,
+        t.metadata as metadata
+      FROM traces t
+      WHERE t.project_id = {projectId: String}
+        ${appliedTracesFilter.query ? `AND ${appliedTracesFilter.query}` : ""}
+        ${search.query}
+      LIMIT {rowLimit: Int64}
     ),
     scores_agg AS (
       SELECT
@@ -146,7 +133,7 @@ export const getTraceStream = async (props: {
           avg(value) as avg_value
         FROM scores FINAL
         WHERE project_id = {projectId: String}
-          ${timeStampFilter ? `AND timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+          AND trace_id IN (SELECT trace_id FROM traces_cte)
         GROUP BY
           project_id,
           trace_id,
@@ -158,7 +145,7 @@ export const getTraceStream = async (props: {
       GROUP BY project_id, trace_id
     )
     SELECT
-      t.id as id,
+      t.trace_id as id,
       t.project_id as project_id,
       t.timestamp as timestamp,
       t.name as name,
@@ -173,26 +160,10 @@ export const getTraceStream = async (props: {
       t.input as input,
       t.output as output,
       t.metadata as metadata,
-      o.latency_milliseconds / 1000 as latency,
-      o.cost_details as cost_details,
-      o.usage_details as usage_details,
-      o.aggregated_level as level,
-      o.error_count as error_count,
-      o.warning_count as warning_count,
-      o.default_count as default_count,
-      o.debug_count as debug_count,
-      o.observation_count as observation_count,
       sa.scores_avg as scores_avg,
       sa.score_categories as score_categories
-    FROM traces t
-      LEFT JOIN observations_stats o ON o.project_id = t.project_id AND o.trace_id = t.id
-      LEFT JOIN scores_agg sa ON sa.project_id = t.project_id AND sa.trace_id = t.id
-    WHERE t.project_id = {projectId: String}
-      ${appliedTracesFilter.query ? `AND ${appliedTracesFilter.query}` : ""}
-      ${search.query}
-    LIMIT 1 BY t.id, t.project_id
-    LIMIT {rowLimit: Int64}
-  `;
+    FROM traces_cte t
+      LEFT JOIN scores_agg sa ON sa.trace_id = t.trace_id AND sa.project_id = t.project_id`;
 
   const asyncGenerator = queryClickhouseStream<{
     id: string;
@@ -210,15 +181,6 @@ export const getTraceStream = async (props: {
     input: unknown;
     output: unknown;
     metadata: unknown;
-    latency: string | null;
-    cost_details: Record<string, number>;
-    usage_details: Record<string, number>;
-    level: ObservationLevelType | null;
-    error_count: number | null;
-    warning_count: number | null;
-    default_count: number | null;
-    debug_count: number | null;
-    observation_count: number | null;
     scores_avg:
       | {
           name: string;
@@ -233,7 +195,6 @@ export const getTraceStream = async (props: {
     params: {
       projectId,
       rowLimit,
-      traceTimestamp: timeStampFilter?.value.getTime(),
       ...appliedTracesFilter.params,
       ...search.params,
     },
@@ -258,17 +219,29 @@ export const getTraceStream = async (props: {
             `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
           );
 
-        const usageDetails = reduceUsageOrCostDetails(row.usage_details ?? {});
+        // Process numeric/boolean scores
+        const numericScores = (row.scores_avg ?? []).map((score: any) => ({
+          name: score[0],
+          value: score[1],
+          dataType: score[2],
+          stringValue: score[3],
+        }));
+
+        // Process categorical scores (format: "name:value")
+        const categoricalScores = (row.score_categories ?? []).map(
+          (cat: string) => {
+            const [name, ...valueParts] = cat.split(":");
+            return {
+              name,
+              value: null,
+              dataType: "CATEGORICAL" as ScoreDataType,
+              stringValue: valueParts.join(":"), // rejoin in case value contains ':'
+            };
+          },
+        );
 
         const outputScores: Record<string, string[] | number[]> =
-          prepareScoresForOutput(
-            (row.scores_avg ?? []).map((score: any) => ({
-              name: score[0],
-              value: score[1],
-              dataType: score[2],
-              stringValue: score[3],
-            })),
-          );
+          prepareScoresForOutput([...numericScores, ...categoricalScores]);
 
         yield getChunkWithFlattenedScores(
           [
@@ -290,30 +263,6 @@ export const getTraceStream = async (props: {
               input: row.input,
               output: row.output,
               metadata: row.metadata,
-              latency: row.latency ? Number(row.latency) : null,
-              usage: {
-                promptTokens: BigInt(usageDetails.input ?? 0),
-                completionTokens: BigInt(usageDetails.output ?? 0),
-                totalTokens: BigInt(usageDetails.total ?? 0),
-              },
-              inputCost: row.cost_details?.input
-                ? new Decimal(row.cost_details.input)
-                : null,
-              outputCost: row.cost_details?.output
-                ? new Decimal(row.cost_details.output)
-                : null,
-              totalCost: row.cost_details?.total
-                ? new Decimal(row.cost_details.total)
-                : null,
-              level: row.level ?? "DEBUG",
-              errorCount: BigInt(row.error_count ?? 0),
-              warningCount: BigInt(row.warning_count ?? 0),
-              defaultCount: BigInt(row.default_count ?? 0),
-              debugCount: BigInt(row.debug_count ?? 0),
-              observationCount: Number(row.observation_count ?? 0),
-              inputTokens: BigInt(usageDetails.input ?? 0),
-              outputTokens: BigInt(usageDetails.output ?? 0),
-              totalTokens: BigInt(usageDetails.total ?? 0),
               scores: outputScores,
             },
           ],
