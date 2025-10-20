@@ -2374,7 +2374,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"note\": \"example\"\n}",
+              "raw": "{\n    \"note\": \"example\",\n    \"publicKey\": \"example\",\n    \"secretKey\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
