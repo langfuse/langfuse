@@ -102,6 +102,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       projectId,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
+      filter: filterState,
     },
     { enabled: hasAccess },
   );

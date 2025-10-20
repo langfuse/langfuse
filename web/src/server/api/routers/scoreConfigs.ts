@@ -27,7 +27,7 @@ import { scoreConfigsFilterCols } from "@/src/server/api/definitions/scoreConfig
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: z.array(singleFilter).optional(),
 });
 
 const ScoreConfigAllInputPaginated = ScoreConfigAllInput.extend({
@@ -67,7 +67,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        input.filter ?? [],
         scoreConfigsFilterCols,
         "score_configs",
       );
