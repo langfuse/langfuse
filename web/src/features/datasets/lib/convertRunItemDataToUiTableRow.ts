@@ -19,11 +19,9 @@ export const convertRunItemToItemsByItemUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: !!item.observation?.calculatedTotalCost
-      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : !!item.trace?.totalCost
-        ? usdFormatter(item.trace.totalCost)
-        : undefined,
+    totalCost: !!item.trace?.totalCost
+      ? usdFormatter(item.trace.totalCost)
+      : undefined,
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };
@@ -42,11 +40,9 @@ export const convertRunItemToItemsByRunUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: !!item.observation?.calculatedTotalCost
-      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : !!item.trace?.totalCost
-        ? usdFormatter(item.trace.totalCost)
-        : undefined,
+    totalCost: !!item.trace?.totalCost
+      ? usdFormatter(item.trace.totalCost)
+      : undefined,
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };
