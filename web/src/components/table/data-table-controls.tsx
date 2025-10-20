@@ -1005,34 +1005,34 @@ function TextFilterSection({
     <div className="space-y-2">
       {/* Operator toggle + Input + Add button */}
       <div className="flex items-center gap-2 px-2">
-        {/* DOES / DOES NOT toggle */}
-        <div className="inline-flex shrink-0 rounded border border-input/50 bg-background text-[10px]">
-          <button
-            onClick={() => setSelectedOperator("contains")}
-            disabled={disabled}
+        {/* DOES + NOT toggle */}
+        <div className="inline-flex shrink-0 items-center gap-1 text-[10px]">
+          <span
             className={cn(
-              "rounded-l px-2 py-1 transition-colors",
-              selectedOperator === "contains"
-                ? "bg-accent font-medium text-accent-foreground"
-                : "text-muted-foreground hover:text-foreground",
-              disabled && "cursor-not-allowed opacity-50",
+              "font-medium",
+              disabled ? "text-muted-foreground/50" : "text-foreground",
             )}
           >
             DOES
-          </button>
-          <div className="w-px bg-border/50" />
+          </span>
           <button
-            onClick={() => setSelectedOperator("does not contain")}
+            onClick={() =>
+              setSelectedOperator(
+                selectedOperator === "contains"
+                  ? "does not contain"
+                  : "contains",
+              )
+            }
             disabled={disabled}
             className={cn(
-              "rounded-r px-2 py-1 transition-colors",
+              "rounded px-1.5 py-0.5 font-medium transition-all",
               selectedOperator === "does not contain"
-                ? "bg-accent font-medium text-accent-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-accent text-foreground underline"
+                : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
               disabled && "cursor-not-allowed opacity-50",
             )}
           >
-            DOES NOT
+            NOT
           </button>
         </div>
 
