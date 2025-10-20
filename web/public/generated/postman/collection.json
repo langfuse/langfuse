@@ -1541,7 +1541,7 @@
           "_type": "endpoint",
           "name": "Metrics",
           "request": {
-            "description": "Get metrics from the Langfuse project using a query object",
+            "description": "Get metrics from the Langfuse project using a query object.\n\nFor more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).",
             "url": {
               "raw": "{{baseUrl}}/api/public/metrics?query=",
               "host": [
