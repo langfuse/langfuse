@@ -1,5 +1,8 @@
 import { api } from "@/src/utils/api";
-import { isTraceScore } from "@/src/features/scores/lib/helpers";
+import {
+  isSessionScore,
+  isTraceScore,
+} from "@/src/features/scores/lib/helpers";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type ScoreTarget } from "@langfuse/shared";
 
@@ -43,13 +46,11 @@ export function useScoreMutations({
         id: variables.id,
         projectId: scoreMetadata.projectId,
         environment: scoreMetadata.environment ?? "default",
-        traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : undefined,
+        traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
         observationId: isTraceScore(scoreTarget)
-          ? scoreTarget.observationId
-          : undefined,
-        sessionId: isTraceScore(scoreTarget)
-          ? undefined
-          : scoreTarget.sessionId,
+          ? (scoreTarget.observationId ?? null)
+          : null,
+        sessionId: isSessionScore(scoreTarget) ? scoreTarget.sessionId : null,
         configId: variables.configId,
         name: variables.name,
         dataType: variables.dataType,
@@ -72,13 +73,11 @@ export function useScoreMutations({
           id: variables.id,
           projectId: scoreMetadata.projectId,
           environment: scoreMetadata.environment ?? "default",
-          traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : undefined,
+          traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
           observationId: isTraceScore(scoreTarget)
-            ? scoreTarget.observationId
-            : undefined,
-          sessionId: isTraceScore(scoreTarget)
-            ? undefined
-            : scoreTarget.sessionId,
+            ? (scoreTarget.observationId ?? null)
+            : null,
+          sessionId: isSessionScore(scoreTarget) ? scoreTarget.sessionId : null,
           configId: variables.configId,
           name: variables.name,
           dataType: variables.dataType,
