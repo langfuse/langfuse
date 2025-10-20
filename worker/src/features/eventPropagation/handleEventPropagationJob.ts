@@ -206,6 +206,7 @@ export const handleEventPropagationJob = async (
         with batch_stats as (
           select
             groupUniqArray(project_id) as project_ids,
+            groupUniqArray(trace_id) as trace_ids,
             min(start_time) as min_start_time,
             max(start_time) as max_start_time
           from observations_batch_staging
@@ -219,6 +220,7 @@ export const handleEventPropagationJob = async (
             t.metadata
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
+            and t.id in (select arrayJoin(trace_ids) from batch_stats)
             and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
           order by t.event_ts desc
