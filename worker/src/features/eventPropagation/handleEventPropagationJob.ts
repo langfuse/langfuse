@@ -27,7 +27,9 @@ export const acquirePartitionLock = async (
   ttlSeconds: number = 300,
 ): Promise<boolean> => {
   if (!redis) {
-    logger.warn("Redis not available, skipping partition lock acquisition");
+    logger.warn(
+      "[DUAL WRITE] Redis not available, skipping partition lock acquisition",
+    );
     return true; // Allow processing if Redis is unavailable
   }
 
@@ -40,16 +42,16 @@ export const acquirePartitionLock = async (
     const acquired = result === "OK";
     if (acquired) {
       logger.debug(
-        `Acquired lock for partition ${partition} with TTL ${ttlSeconds}s`,
+        `[DUAL WRITE] Acquired lock for partition ${partition} with TTL ${ttlSeconds}s`,
       );
     } else {
       logger.debug(
-        `Partition ${partition} is already locked by another worker`,
+        `[DUAL WRITE] Partition ${partition} is already locked by another worker`,
       );
     }
     return acquired;
   } catch (error) {
-    logger.error("Failed to acquire partition lock", error);
+    logger.error("[DUAL WRITE] Failed to acquire partition lock", error);
     // On error, allow processing to avoid blocking the system
     return true;
   }
@@ -63,7 +65,9 @@ export const acquirePartitionLock = async (
  */
 export const checkLock = async (partition: string): Promise<boolean> => {
   if (!redis) {
-    logger.warn("Redis not available, assuming partition is unlocked");
+    logger.warn(
+      "[DUAL WRITE] Redis not available, assuming partition is unlocked",
+    );
     return true; // Allow processing if Redis is unavailable
   }
 
@@ -76,14 +80,16 @@ export const checkLock = async (partition: string): Promise<boolean> => {
     const isAvailable = exists === 0;
 
     if (isAvailable) {
-      logger.debug(`Partition ${partition} is available (not locked)`);
+      logger.debug(
+        `[DUAL WRITE] Partition ${partition} is available (not locked)`,
+      );
     } else {
-      logger.debug(`Partition ${partition} is locked`);
+      logger.debug(`[DUAL WRITE] Partition ${partition} is locked`);
     }
 
     return isAvailable;
   } catch (error) {
-    logger.error("Failed to check partition lock", error);
+    logger.error("[DUAL WRITE] Failed to check partition lock", error);
     // On error, assume partition is available to avoid blocking the system
     return true;
   }
@@ -107,12 +113,14 @@ export const handleEventPropagationJob = async (
   }
 
   if (env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB === "true") {
-    logger.info("Early exit for event propagation job due to experiment flag");
+    logger.info(
+      "[DUAL WRITE] Early exit for event propagation job due to experiment flag",
+    );
     return;
   }
 
   try {
-    logger.debug("Starting event propagation batch processing", {
+    logger.debug("[DUAL WRITE] Starting event propagation batch processing", {
       jobId: job.data.id,
       partition: partition,
     });
@@ -134,7 +142,7 @@ export const handleEventPropagationJob = async (
 
     if (partitions.length < 3) {
       logger.info(
-        `Not enough partitions for processing. Found ${partitions.length} partition(s), need at least 3`,
+        `[DUAL WRITE] Not enough partitions for processing. Found ${partitions.length} partition(s), need at least 3`,
       );
       return;
     }
@@ -147,11 +155,11 @@ export const handleEventPropagationJob = async (
       if (lockAcquired) {
         partitionToProcess = partition;
         logger.info(
-          `Processing partition ${partitionToProcess} (targeted) for events table fill`,
+          `[DUAL WRITE] Processing partition ${partitionToProcess} (targeted) for events table fill`,
         );
       } else {
         logger.info(
-          `Partition ${partition} is already locked by another worker, falling back to discovery mode`,
+          `[DUAL WRITE] Partition ${partition} is already locked by another worker, falling back to discovery mode`,
         );
       }
     }
@@ -169,20 +177,20 @@ export const handleEventPropagationJob = async (
         );
         if (!lockAcquired) {
           logger.debug(
-            `Skipping partition ${internalPartition.partition} as it is locked by another worker`,
+            `[DUAL WRITE] Skipping partition ${internalPartition.partition} as it is locked by another worker`,
           );
           continue;
         }
         partitionToProcess = internalPartition.partition;
         logger.info(
-          `Processing partition ${partitionToProcess} (discovery) for events table fill`,
+          `[DUAL WRITE] Processing partition ${partitionToProcess} (discovery) for events table fill`,
         );
       }
     }
 
     if (!partitionToProcess) {
       logger.info(
-        "No available partitions to process after checking locks, exiting",
+        "[DUAL WRITE] No available partitions to process after checking locks, exiting",
       );
       return;
     }
@@ -356,7 +364,7 @@ export const handleEventPropagationJob = async (
     });
 
     logger.info(
-      `Successfully propagated observations from partition ${partitionToProcess} to events table`,
+      `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
 
     // Step 3: Detach the processed partition (fast, synchronous operation)
@@ -376,7 +384,7 @@ export const handleEventPropagationJob = async (
     });
 
     logger.info(
-      `Detached partition ${partitionToProcess} after successful processing`,
+      `[DUAL WRITE] Detached partition ${partitionToProcess} after successful processing`,
     );
 
     // Step 4: Drop the detached partition asynchronously (no await for better throughput)
@@ -395,14 +403,14 @@ export const handleEventPropagationJob = async (
       },
     }).catch((error) => {
       logger.error(
-        `Failed to drop detached partition ${partitionToProcess}`,
+        `[DUAL WRITE] Failed to drop detached partition ${partitionToProcess}`,
         error,
       );
       traceException(error);
     });
 
     logger.info(
-      `Scheduled async drop for detached partition ${partitionToProcess}`,
+      `[DUAL WRITE] Scheduled async drop for detached partition ${partitionToProcess}`,
     );
 
     if (partitions.length > 3) {
@@ -416,7 +424,7 @@ export const handleEventPropagationJob = async (
         const isUnlocked = await checkLock(internalPartition.partition);
         if (!isUnlocked) {
           logger.debug(
-            `Skipping scheduling for partition ${internalPartition.partition} as it is locked by another worker`,
+            `[DUAL WRITE] Skipping scheduling for partition ${internalPartition.partition} as it is locked by another worker`,
           );
           continue;
         }
@@ -430,13 +438,16 @@ export const handleEventPropagationJob = async (
           },
         });
         logger.info(
-          `Scheduled additional event propagation job for partition ${internalPartition.partition}. ` +
+          `[DUAL WRITE] Scheduled additional event propagation job for partition ${internalPartition.partition}. ` +
             `Remaining partitions: ${partitions.length}`,
         );
       }
     }
   } catch (error) {
-    logger.error("Failed to process event propagation batch", error);
+    logger.error(
+      "[DUAL WRITE] Failed to process event propagation batch",
+      error,
+    );
     traceException(error);
     throw error;
   }
