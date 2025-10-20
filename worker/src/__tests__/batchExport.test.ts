@@ -77,16 +77,26 @@ describe("batch export test suite", () => {
           name: observations[0].name,
           type: observations[0].type,
           test: [score.value],
+          input: "Hello World",
+          output: "Hello John",
+          metadata: expect.objectContaining({
+            source: "API",
+            server: "Node",
+          }),
         }),
         expect.objectContaining({
           id: observations[1].id,
           name: observations[1].name,
           type: observations[1].type,
+          input: "Hello World",
+          output: "Hello John",
         }),
         expect.objectContaining({
           id: observations[2].id,
           name: observations[2].name,
           type: observations[2].type,
+          input: "Hello World",
+          output: "Hello John",
         }),
       ]),
     );
@@ -102,6 +112,7 @@ describe("batch export test suite", () => {
         type: "GENERATION",
         name: "test1",
         start_time: new Date("2024-01-01").getTime(),
+        // Using default input/output/metadata from factory
       }),
       createObservation({
         project_id: projectId,
@@ -109,6 +120,7 @@ describe("batch export test suite", () => {
         type: "EVENT",
         name: "test2",
         start_time: new Date("2024-01-02").getTime(),
+        // Using default input/output/metadata from factory
       }),
       createObservation({
         project_id: projectId,
@@ -116,6 +128,7 @@ describe("batch export test suite", () => {
         type: "SPAN",
         name: "test3",
         start_time: new Date("2024-01-03").getTime(),
+        // Using default input/output/metadata from factory
       }),
     ];
 
@@ -145,6 +158,86 @@ describe("batch export test suite", () => {
     const exportedNames = rows.map((row) => row.name);
     expect(exportedNames).toEqual(expect.arrayContaining(["test1", "test2"]));
     expect(exportedNames).toHaveLength(2);
+
+    // Verify input/output/metadata are properly exported
+    rows.forEach((row) => {
+      expect(row.input).toBe("Hello World");
+      expect(row.output).toBe("Hello John");
+      expect(row.metadata).toEqual(
+        expect.objectContaining({
+          source: "API",
+          server: "Node",
+        }),
+      );
+    });
+  });
+
+  it("should export observations with filter", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test1",
+        start_time: new Date("2024-01-01").getTime(),
+        // Using default input/output/metadata from factory
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "EVENT",
+        name: "test2",
+        start_time: new Date("2024-01-02").getTime(),
+        // Using default input/output/metadata from factory
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "SPAN",
+        name: "test3",
+        start_time: new Date("2024-01-03").getTime(),
+        // Using default input/output/metadata from factory
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "name",
+          value: ["test1", "test2"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
+
+    const exportedNames = rows.map((row) => row.name);
+    expect(exportedNames).toEqual(expect.arrayContaining(["test1", "test2"]));
+    expect(exportedNames).toHaveLength(2);
+
+    // Verify input/output/metadata are present
+    rows.forEach((row) => {
+      expect(row.input).toBe("Hello World");
+      expect(row.output).toBe("Hello John");
+      expect(row.metadata).toMatchObject({
+        source: "API",
+        server: "Node",
+      });
+    });
   });
 
   it("should export sessions", async () => {
