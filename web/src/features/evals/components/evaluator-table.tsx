@@ -181,17 +181,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const totalCost = row.getValue();
 
-        // Show skeleton while loading
-        if (!costs.data) {
-          return <Skeleton className="h-4 w-16" />;
-        }
+        if (!costs.data) return <Skeleton className="h-4 w-16" />;
 
-        // Show cost if available
-        if (totalCost != null) {
-          return usdFormatter(totalCost, 2, 6);
-        }
+        if (totalCost != null) return usdFormatter(totalCost, 2, 6);
 
-        // Show dash when loaded but no cost data for this evaluator
         return "–";
       },
     }),

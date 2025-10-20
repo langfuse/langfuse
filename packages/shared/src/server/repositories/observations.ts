@@ -1687,9 +1687,7 @@ export const getCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
 ): Promise<Array<{ evaluatorId: string; totalCost: number }>> => {
-  if (evaluatorIds.length === 0) {
-    return [];
-  }
+  if (evaluatorIds.length === 0) return [];
 
   const query = `
     SELECT
@@ -1698,7 +1696,7 @@ export const getCostByEvaluatorIds = async (
     FROM observations FINAL
     WHERE project_id = {projectId: String}
       AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
-      AND start_time > today() - INTERVAL 1 DAY
+      AND start_time > now() - INTERVAL 24 HOURS
     GROUP BY metadata['job_configuration_id']
   `;
 
