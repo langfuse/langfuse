@@ -177,7 +177,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       header: "Total Cost (1d)",
       id: "totalCost",
       size: 120,
-      enableSorting: true,
       cell: (row) => {
         const totalCost = row.getValue();
 
