@@ -75,6 +75,10 @@ export const GetAnnotationQueueByIdQuery = z
   })
   .strict();
 
+export const GetAnnotationQueueByIdBody = z.object({
+  ...publicApiPaginationZod,
+});
+
 export const GetAnnotationQueueByIdResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId/items
@@ -100,6 +104,10 @@ export const GetAnnotationQueueItemByIdQuery = z
     itemId: z.string(),
   })
   .strict();
+
+export const GetAnnotationQueueItemByIdBody = z.object({
+  ...publicApiPaginationZod,
+});
 
 export const GetAnnotationQueueItemByIdResponse = AnnotationQueueItemSchema;
 

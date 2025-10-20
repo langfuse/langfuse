@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  GetAnnotationQueueByIdBody,
   GetAnnotationQueueByIdQuery,
   GetAnnotationQueueByIdResponse,
 } from "@/src/features/public-api/types/annotation-queues";
@@ -11,6 +12,7 @@ export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get annotation queue by ID",
     querySchema: GetAnnotationQueueByIdQuery,
+    bodySchema: GetAnnotationQueueByIdBody,
     responseSchema: GetAnnotationQueueByIdResponse,
     fn: async ({ query, auth }) => {
       const queue = await prisma.annotationQueue.findUnique({
