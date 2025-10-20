@@ -182,16 +182,16 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         const totalCost = row.getValue();
 
         // Show skeleton while loading
-        if (costs.isLoading) {
+        if (!costs.data) {
           return <Skeleton className="h-4 w-16" />;
         }
 
         // Show cost if available
-        if (totalCost !== undefined && totalCost !== null) {
+        if (totalCost != null) {
           return usdFormatter(totalCost, 2, 6);
         }
 
-        // Show dash if no data
+        // Show dash when loaded but no cost data for this evaluator
         return "–";
       },
     }),
@@ -421,7 +421,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
             ],
           },
-          tableDataUpdatedAt: evaluators.dataUpdatedAt,
+          tableDataUpdatedAt: Math.max(
+            evaluators.dataUpdatedAt,
+            costs.dataUpdatedAt,
+          ),
           children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
           ...peekNavigationProps,
         }}
