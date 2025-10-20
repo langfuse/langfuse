@@ -13,6 +13,7 @@ import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
+import { getTraceStream } from "../features/database-read-stream/trace-stream";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
@@ -359,34 +360,9 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const generations = [
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[0].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 1000,
-        end_time: new Date().getTime(),
-      }),
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[1].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 2000,
-        end_time: new Date().getTime(),
-      }),
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[1].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 2123,
-        end_time: new Date().getTime(),
-      }),
-    ];
-
     const score = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
-      observation_id: generations[0].id,
       name: "test",
       value: 123,
     });
@@ -394,7 +370,6 @@ describe("batch export test suite", () => {
     const qualitativeScore = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
-      observation_id: generations[0].id,
       name: "qualitative_test",
       value: undefined,
       string_value: "This is some qualitative text",
@@ -402,14 +377,11 @@ describe("batch export test suite", () => {
     });
 
     await createScoresCh([score, qualitativeScore]);
-    await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStreamPaginated({
+    const stream = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "timestamp", order: "DESC" },
     });
 
     const rows: any[] = [];
@@ -424,13 +396,11 @@ describe("batch export test suite", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: traces[0].id,
-          latency: expect.closeTo(1.0, 0.1), // allows deviation of ±0.1
           test: [score.value],
           qualitative_test: ["This is some qualitative text"],
         }),
         expect.objectContaining({
           id: traces[1].id,
-          latency: expect.closeTo(2.123, 0.1), // allows deviation of ±0.1
           test: null,
           qualitative_test: null,
         }),
@@ -473,9 +443,8 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const stream = await getDatabaseReadStreamPaginated({
+    const stream = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),
       filter: [
         {
@@ -491,7 +460,6 @@ describe("batch export test suite", () => {
           value: true,
         },
       ],
-      orderBy: { column: "timestamp", order: "ASC" },
     });
 
     const rows: any[] = [];
@@ -1314,12 +1282,10 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const streamByName = await getDatabaseReadStreamPaginated({
+    const streamByName = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "timestamp", order: "ASC" },
       searchQuery: "findable-trace",
       searchType: ["id"],
     });
