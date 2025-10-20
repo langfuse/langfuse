@@ -399,15 +399,24 @@ export const handleEventPropagationJob = async (
         operation_name: "dropDetachedPartition",
       },
       clickhouseConfigs: {
-        request_timeout: 180000, // 3 minutes timeout
+        request_timeout: 60000 * 15, // 15 minutes timeout
+        clickhouse_settings: {
+          allow_drop_detached: 1,
+        },
       },
-    }).catch((error) => {
-      logger.error(
-        `[DUAL WRITE] Failed to drop detached partition ${partitionToProcess}`,
-        error,
-      );
-      traceException(error);
-    });
+    })
+      .then(() => {
+        logger.info(
+          `[DUAL WRITE] Successfully dropped detached partition ${partitionToProcess}`,
+        );
+      })
+      .catch((error) => {
+        logger.error(
+          `[DUAL WRITE] Failed to drop detached partition ${partitionToProcess}`,
+          error,
+        );
+        traceException(error);
+      });
 
     logger.info(
       `[DUAL WRITE] Scheduled async drop for detached partition ${partitionToProcess}`,
