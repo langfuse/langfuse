@@ -149,5 +149,29 @@ describe("Webhook URL Validation", () => {
         validateWebhookURL("http://exam%ple.com/hook"),
       ).rejects.toThrow(/Invalid URL encoding|Invalid URL syntax/);
     });
+
+    it("should allow local hostname, if it is included in the whitelist", async () => {
+      await expect(
+        validateWebhookURL("http://internal.company.com/hook", {
+          hosts: ["internal.company.com"],
+          ips: [],
+          ip_ranges: []
+        }),
+      ).resolves.not.toThrow();
+      await expect(
+        validateWebhookURL("http://app.internal/hook", {
+          hosts: ["app.internal"],
+          ips: [],
+          ip_ranges: []
+        }),
+      ).resolves.not.toThrow();
+      await expect(
+        validateWebhookURL("http://intranet/hook", {
+          hosts: ["intranet"],
+          ips: [],
+          ip_ranges: []
+        }),
+      ).resolves.not.toThrow();
+    });
   });
 });
