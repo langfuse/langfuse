@@ -1,4 +1,4 @@
-import { type ScoreDataType } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import {
   createContext,
   type ReactNode,
@@ -12,29 +12,28 @@ import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateSco
 /**
  * Cached score shape - stored in client-side cache for optimistic updates
  */
-export type CachedScore = {
+export type CachedScore = Pick<
+  ScoreDomain,
   // Required for cache operations
-  id: string;
-
+  | "id"
   // Project context
-  projectId: string;
-  environment: string;
-
+  | "projectId"
+  | "environment"
   // Score identity
-  configId: string;
-  name: string;
-  dataType: ScoreDataType;
-  source: "ANNOTATION";
-
+  | "name"
+  | "dataType"
   // Score values
-  value: number | null;
-  stringValue: string | null;
-  comment: string | null;
-
+  | "value"
+  | "stringValue"
+  | "comment"
   // Target
-  traceId?: string;
-  observationId?: string;
-  sessionId?: string;
+  | "traceId"
+  | "observationId"
+  | "sessionId"
+> & {
+  // Score identity - non-nullable
+  configId: string;
+  source: "ANNOTATION";
 };
 
 type ScoreCacheContextValue = {
