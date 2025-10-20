@@ -25,10 +25,7 @@ export type BatchExportTracesRow = {
   timestamp: Date;
   name: string;
   userId?: string | null;
-  level?: ObservationLevelType | null;
-  observationCount?: number | null;
   scores?: Record<string, string[] | number[]> | null;
-  latency?: number | null;
   release?: string | null;
   version?: string | null;
   sessionId?: string | null;
@@ -36,12 +33,4 @@ export type BatchExportTracesRow = {
   output?: unknown | null;
   metadata?: unknown | null;
   tags: string[];
-  usage: {
-    promptTokens?: bigint | null;
-    completionTokens?: bigint | null;
-    totalTokens?: bigint | null;
-  };
-  inputCost?: Decimal | null;
-  outputCost?: Decimal | null;
-  totalCost?: Decimal | null;
 };

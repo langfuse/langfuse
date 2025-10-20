@@ -256,7 +256,7 @@ export const getTraceStream = async (props: {
               sessionId: row.session_id,
               release: row.release,
               version: row.version,
-              environment: row.environment,
+              environment: row.environment ?? undefined,
               tags: row.tags,
               bookmarked: row.bookmarked,
               public: row.public,
