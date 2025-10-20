@@ -278,10 +278,10 @@ export const handleEventPropagationJob = async (
           obs.trace_id,
           obs.id AS span_id,
           -- When the observation IS the trace itself (id = trace_id), parent should be NULL
-          -- Otherwise, use standard wrapper logic: parent_observation_id or trace_id as fallback
+          -- Otherwise, use standard wrapper logic: parent_observation_id or prefixed trace_id as fallback
           CASE
             WHEN obs.id = obs.trace_id THEN NULL
-            ELSE coalesce(obs.parent_observation_id, obs.trace_id)
+            ELSE coalesce(obs.parent_observation_id, concat('t-', obs.trace_id))
           END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
           -- Clamp start_time to 1970-01-01 or later (Unix epoch minimum) to avoid toUnixTimestamp() errors

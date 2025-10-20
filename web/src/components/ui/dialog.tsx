@@ -99,7 +99,7 @@ const DialogHeader = ({
     )}
     {...props}
   >
-    <div className="flex w-full items-start justify-between gap-4 text-center sm:text-left">
+    <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
       <div className="min-w-0 flex-1">{children}</div>
       <DialogPrimitive.Close
         className="z-20 ml-4 mt-1 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
