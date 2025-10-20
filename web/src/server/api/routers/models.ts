@@ -346,6 +346,9 @@ export const modelRouter = createTRPCRouter({
         before: deletedModel,
       });
 
+      // Clear model cache for the project after successful deletion
+      await clearModelCacheForProject(input.projectId);
+
       return deletedModel;
     }),
 });
