@@ -1,9 +1,11 @@
-import { pipeline } from "stream";
+import { pipeline, Transform } from "stream";
 import {
   BatchExportFileFormat,
   BatchExportQuerySchema,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -15,7 +17,8 @@ import {
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
+import { getObservationStream } from "../database-read-stream/observation-stream";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -48,7 +51,7 @@ export const handleBatchExportJob = async (
   });
 
   if (!jobDetails) {
-    throw new Error(
+    throw new LangfuseNotFoundError(
       `Job not found for project: ${projectId} and export ${batchExportId}`,
     );
   }
@@ -77,20 +80,55 @@ export const handleBatchExportJob = async (
     );
   }
 
+  if (span) {
+    span.setAttribute(
+      "messaging.bullmq.job.input.query",
+      JSON.stringify(parsedQuery.data),
+    );
+  }
+
   // handle db read stream
-  const dbReadStream = await getDatabaseReadStream({
-    projectId,
-    cutoffCreatedAt: jobDetails.createdAt,
-    ...parsedQuery.data,
-  });
+
+  const dbReadStream =
+    parsedQuery.data.tableName === BatchExportTableName.Observations
+      ? await getObservationStream({
+          projectId,
+          cutoffCreatedAt: jobDetails.createdAt,
+          ...parsedQuery.data,
+        })
+      : await getDatabaseReadStreamPaginated({
+          projectId,
+          cutoffCreatedAt: jobDetails.createdAt,
+          ...parsedQuery.data,
+        });
 
   // Transform data to desired format
+  let rowCount = 0;
+
+  const loggingTransform = new Transform({
+    objectMode: true,
+    transform(chunk, encoding, callback) {
+      rowCount++;
+      if (rowCount % 5000 === 0) {
+        logger.info(
+          `Batch export ${batchExportId}: processed ${rowCount} rows`,
+        );
+      }
+      callback(null, chunk);
+    },
+  });
+
   const fileStream = pipeline(
     dbReadStream,
+    loggingTransform,
     streamTransformations[jobDetails.format as BatchExportFileFormat](),
     (err) => {
       if (err) {
         logger.error("Getting data from DB and transform failed: ", err);
+      } else {
+        logger.info(
+          `Batch export ${batchExportId}: completed processing ${rowCount} total rows`,
+        );
       }
     },
   );

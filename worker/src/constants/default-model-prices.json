@@ -1734,6 +1734,25 @@
     "tokenizer_id": "openai"
   },
   {
+    "id": "c5qmrqolku82tra3vgdixmys",
+    "model_name": "claude-sonnet-4-5-20250929",
+    "match_pattern": "(?i)^(claude-sonnet-4-5-20250929|(eu\\.|us\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
+    "created_at": "2025-09-29T00:00:00.000Z",
+    "updated_at": "2025-09-29T00:00:00.000Z",
+    "prices": {
+      "input": 3e-6,
+      "input_tokens": 3e-6,
+      "output": 15e-6,
+      "output_tokens": 15e-6,
+      "cache_creation_input_tokens": 3.75e-6,
+      "input_cache_creation": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6,
+      "input_cache_read": 0.3e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
+  },
+  {
     "id": "cmazmkzlm00000djp1e1qe4k4",
     "model_name": "claude-sonnet-4-20250514",
     "match_pattern": "(?i)^(claude-sonnet-4-20250514|(eu\\.|us\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
@@ -1876,7 +1895,7 @@
     "model_name": "gemini-2.5-flash-lite",
     "match_pattern": "(?i)^(gemini-2.5-flash-lite)$",
     "created_at": "2025-07-03T13:44:06.964Z",
-    "updated_at": "2025-07-03T13:44:06.964Z",
+    "updated_at": "2025-09-22T20:04:00.000Z",
     "prices": {
       "input": 0.1e-6,
       "prompt_token_count": 0.1e-6,
@@ -2057,5 +2076,62 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "cmgg9zco3000004l258um9xk8",
+    "model_name": "gpt-5-pro",
+    "match_pattern": "(?i)^(gpt-5-pro)$",
+    "created_at": "2025-10-07T08:03:54.727Z",
+    "updated_at": "2025-10-07T08:03:54.727Z",
+    "prices": {
+      "input": 15e-6,
+      "output": 120e-6,
+      "output_reasoning_tokens": 120e-6,
+      "output_reasoning": 120e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cmgga0vh9000104l22qe4fes4",
+    "model_name": "gpt-5-pro-2025-10-06",
+    "match_pattern": "(?i)^(gpt-5-pro-2025-10-06)$",
+    "created_at": "2025-10-07T08:03:54.727Z",
+    "updated_at": "2025-10-07T08:03:54.727Z",
+    "prices": {
+      "input": 15e-6,
+      "output": 120e-6,
+      "output_reasoning_tokens": 120e-6,
+      "output_reasoning": 120e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cmgt5gnkv000104jx171tbq4e",
+    "model_name": "claude-haiku-4-5-20251001",
+    "match_pattern": "(?i)^(claude-haiku-4-5-20251001|(eu\\.|us\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "created_at": "2025-10-16T08:20:44.558Z",
+    "updated_at": "2025-10-16T08:20:44.558Z",
+    "prices": {
+      "input": 1e-6,
+      "input_tokens": 1e-6,
+      "output": 5e-6,
+      "output_tokens": 5e-6,
+      "cache_creation_input_tokens": 1.25e-6,
+      "input_cache_creation": 1.25e-6,
+      "cache_read_input_tokens": 0.1e-6,
+      "input_cache_read": 0.1e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
   }
 ]

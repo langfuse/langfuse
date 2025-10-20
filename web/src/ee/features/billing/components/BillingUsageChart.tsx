@@ -7,8 +7,6 @@ import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { type Plan } from "@langfuse/shared";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
-import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
 
 export const BillingUsageChart = () => {
   const organization = useQueryOrganization();
@@ -35,6 +33,12 @@ export const BillingUsageChart = () => {
       usage.data.usageType.slice(1)
     : "Events";
 
+  if (usage.data === null) {
+    // Might happen in dev mode if STRIPE_SECRET_KEY is not set
+    // This avoids errors for all developers not working on or testing the billing features
+    return null;
+  }
+
   return (
     <div>
       <Card className="p-3">
@@ -42,7 +46,7 @@ export const BillingUsageChart = () => {
           <>
             <p className="text-sm text-muted-foreground">
               {usage.data.billingPeriod
-                ? `${usageType} in current billing period`
+                ? `${usageType} in current billing period (updated about once every 60 minutes)`
                 : `${usageType} / last 30d`}
             </p>
             <div className="text-3xl font-bold">
@@ -72,14 +76,6 @@ export const BillingUsageChart = () => {
           </span>
         )}
       </Card>
-      <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-        <BillingCurrentPlanLabel />
-        {usage.data?.billingPeriod && (
-          <p>
-            {`Billing period: ${formatLocalIsoDate(usage.data.billingPeriod.start, false, "day")} - ${formatLocalIsoDate(usage.data.billingPeriod.end, false, "day")}`}
-          </p>
-        )}
-      </div>
     </div>
   );
 };

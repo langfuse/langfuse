@@ -357,7 +357,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
             typeof completion.content === "string"
               ? completion.content
               : (completion.content.find(
-                  (m): m is { type: "text"; text: string } => m.type === "text",
+                  (m): m is { type: "text"; text: string } =>
+                    "type" in m && m.type === "text",
                 )?.text as string);
 
           setOutput(displayContent);

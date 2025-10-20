@@ -8,6 +8,7 @@ import {
   JobExecutionStatus,
   PrismaClient,
   type Project,
+  ScoreConfigCategoryDomain,
   ScoreDataType,
 } from "../../src/index";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
@@ -28,11 +29,6 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
-
-type ConfigCategory = {
-  label: string;
-  value: number;
-};
 
 const options = {
   environment: { type: "string" },
@@ -726,6 +722,7 @@ async function generatePrompts(project: Project) {
         createdBy: version.createdBy,
         prompt: version.prompt,
         name: version.name,
+        type: version.type ?? "text",
         config: version.config,
         version: version.version,
         labels: version.labels,
@@ -747,7 +744,7 @@ async function generateConfigsForProject(projects: Project[]) {
       name: string;
       id: string;
       dataType: ScoreDataType;
-      categories: ConfigCategory[] | null;
+      categories: ScoreConfigCategoryDomain[] | null;
     }[]
   > = new Map();
 
@@ -797,7 +794,7 @@ async function generateConfigs(project: Project) {
     name: string;
     id: string;
     dataType: ScoreDataType;
-    categories: ConfigCategory[] | null;
+    categories: ScoreConfigCategoryDomain[] | null;
   }[] = [];
 
   const configs = [
@@ -874,7 +871,7 @@ async function generateQueuesForProject(
       name: string;
       id: string;
       dataType: ScoreDataType;
-      categories: ConfigCategory[] | null;
+      categories: ScoreConfigCategoryDomain[] | null;
     }[]
   >,
 ) {
@@ -898,7 +895,7 @@ async function generateQueues(
     name: string;
     id: string;
     dataType: ScoreDataType;
-    categories: ConfigCategory[] | null;
+    categories: ScoreConfigCategoryDomain[] | null;
   }[],
 ) {
   const queue = {

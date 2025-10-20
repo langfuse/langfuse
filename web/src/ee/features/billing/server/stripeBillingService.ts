@@ -6,10 +6,9 @@ import { env } from "@/src/env.mjs";
 
 import { parseDbOrg } from "@langfuse/shared";
 import {
-  getTraceCountOfProjectsSinceCreationDate,
-  getObservationCountOfProjectsSinceCreationDate,
-  getScoreCountOfProjectsSinceCreationDate,
   logger,
+  getBillingCycleStart,
+  getBillingCycleEnd,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -28,7 +27,6 @@ import {
   IdempotencyKind,
 } from "@/src/ee/features/billing/utils/stripeIdempotencyKey";
 
-import { UsageAlertService } from "./usageAlertService";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
 
 type ProductWithDefaultPrice = Expanded<Stripe.Product, "default_price">;
@@ -46,6 +44,21 @@ export type BillingSubscriptionInfo = {
     newProductId?: string;
     message?: string | null;
   } | null;
+  billingPeriod?: {
+    start: Date;
+    end: Date;
+  } | null;
+  discounts?: Array<{
+    id: string;
+    code: string | null;
+    name: string | null;
+    kind: "percent" | "amount";
+    value: number; // percent value or amount in currency minor units (e.g. cents)
+    currency: string | null;
+    duration: "forever" | "once" | "repeating" | null;
+    durationInMonths: number | null;
+  }>;
+  hasValidPaymentMethod: boolean;
 };
 
 class BillingService {
@@ -92,12 +105,18 @@ class BillingService {
     return { org, parsedOrg: parseDbOrg(org) };
   }
 
-  private async retrieveSubscriptionWithSchedule(
+  private async retrieveSubscriptionWithScheduleAndDiscounts(
     client: Stripe,
     subscriptionId: string,
   ): Promise<SubscriptionWithSchedule> {
     const subscription = await client.subscriptions.retrieve(subscriptionId, {
-      expand: ["schedule"],
+      expand: [
+        "schedule",
+        // Expand discounts for promotion code display
+        "discounts",
+        "discounts.coupon",
+        "discounts.promotion_code",
+      ],
     });
 
     const schedule = subscription.schedule;
@@ -108,6 +127,8 @@ class BillingService {
         message: `Stripe Error: Could not expand schedule on subscription ${subscriptionId}`,
       });
     }
+
+    // Note: Discounts - We cannot easily type arrays here, so we leave it to the calling component to type it
 
     return { ...subscription, schedule: schedule };
   }
@@ -134,16 +155,17 @@ class BillingService {
 
   private async retrieveInvoiceList(
     stripeCustomerId: string,
-    subscriptionId: string,
     limit: number,
     startingAfter?: string,
     endingBefore?: string,
   ) {
     const client = this.stripe;
 
+    // Note: We assume each stripe Customer has only one subscription
+    // if this changes, we need to update the code to not leak other subscriptions
+
     const result = await client.invoices.list({
       customer: stripeCustomerId,
-      subscription: subscriptionId, // one customer may have multiple subscriptions (one per org)
       limit: limit,
       starting_after: startingAfter,
       ending_before: endingBefore,
@@ -236,19 +258,32 @@ class BillingService {
   async getSubscriptionInfo(orgId: string): Promise<BillingSubscriptionInfo> {
     const client = this.stripe;
 
-    const { parsedOrg } = await this.getParsedOrg(orgId);
+    const { org, parsedOrg } = await this.getParsedOrg(orgId);
 
     const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
     if (!subscriptionId) {
-      // No active subscription → nothing scheduled
-      return { cancellation: null, scheduledChange: null };
+      // No active subscription (Hobby plan) → calculate billing period from cached data
+      const now = new Date();
+      const billingCycleStart = getBillingCycleStart(org, now);
+      const billingCycleEnd = getBillingCycleEnd(org, now);
+
+      return {
+        cancellation: null,
+        scheduledChange: null,
+        billingPeriod: {
+          start: billingCycleStart,
+          end: billingCycleEnd,
+        },
+        hasValidPaymentMethod: false,
+      };
     }
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     // Cancellation info (supports classic and flexible billing)
     const nowSec = Math.floor(Date.now() / 1000);
@@ -270,6 +305,18 @@ class BillingService {
         };
       }
     }
+
+    // Current billing period (based on first subscription item)
+    const firstItem = subscription.items?.data?.[0];
+    const billingPeriod =
+      firstItem &&
+      typeof firstItem.current_period_start === "number" &&
+      typeof firstItem.current_period_end === "number"
+        ? {
+            start: new Date(firstItem.current_period_start * 1000),
+            end: new Date(firstItem.current_period_end * 1000),
+          }
+        : null;
 
     // Next scheduled change from subscription schedule phases
     let scheduledChange: {
@@ -350,7 +397,84 @@ class BillingService {
       }
     }
 
-    return { cancellation, scheduledChange };
+    // Active discounts / promotion codes
+    const discounts = subscription.discounts
+      .map((discount) => {
+        if (!isExpandedOrNullable(discount)) {
+          return null;
+        }
+
+        const coupon = discount.coupon;
+        const promotion_code = discount.promotion_code;
+
+        if (!isExpandedOrNullable(coupon)) {
+          return null;
+        }
+
+        if (!isExpandedOrNullable(promotion_code)) {
+          return null;
+        }
+
+        const amountOff = coupon?.amount_off;
+        const percentOff = coupon?.percent_off;
+        const kind: "percent" | "amount" =
+          percentOff !== null ? "percent" : "amount";
+
+        const value = kind === "percent" ? (percentOff ?? 0) : (amountOff ?? 0);
+
+        return {
+          id: discount.id,
+          code: promotion_code?.code ?? null,
+          name: coupon?.name,
+          kind,
+          value,
+          currency: coupon?.currency,
+          duration: coupon?.duration,
+          durationInMonths: coupon?.duration_in_months,
+        };
+      })
+      .filter((d) => d !== null);
+
+    // Check if customer has a valid payment method
+    let hasValidPaymentMethod = false;
+    try {
+      const customerId =
+        typeof subscription.customer === "string"
+          ? subscription.customer
+          : subscription.customer.id;
+
+      const paymentMethods = await client.customers.listPaymentMethods(
+        customerId,
+        { limit: 1 },
+      );
+
+      hasValidPaymentMethod = paymentMethods.data.length > 0;
+    } catch (error) {
+      logger.error(
+        "StripeBillingService.getSubscriptionInfo:failed to check payment method",
+        {
+          userId: this.ctx.session.user?.id,
+          userEmail: this.ctx.session.user?.email,
+          customerId:
+            typeof subscription.customer === "string"
+              ? subscription.customer
+              : subscription.customer.id,
+          subscriptionId: parsedOrg.cloudConfig?.stripe?.activeSubscriptionId,
+          orgId: parsedOrg.id,
+          error,
+        },
+      );
+      // Default to false if there's an error checking
+      hasValidPaymentMethod = false;
+    }
+
+    return {
+      cancellation,
+      scheduledChange,
+      billingPeriod,
+      discounts,
+      hasValidPaymentMethod,
+    };
   }
 
   /**
@@ -466,6 +590,7 @@ class BillingService {
             },
           }
         : {}),
+      payment_method_collection: "if_required",
       billing_address_collection: "required",
       success_url: returnUrl,
       cancel_url: returnUrl,
@@ -539,10 +664,11 @@ class BillingService {
         message: "Organization does not have an active subscription",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      stripeSubscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        stripeSubscriptionId,
+      );
 
     if (
       ["canceled", "paused", "incomplete", "incomplete_expired"].includes(
@@ -897,10 +1023,11 @@ class BillingService {
         message: "No active subscription to cancel",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     // If the user cancels the subscription, we want to release the existing schedule
     await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
@@ -958,10 +1085,11 @@ class BillingService {
         message: "No active subscription to reactivate",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     // If the user reactivates the subscription, we want to remove the cancellation
     const cancellationPayload = subscription.cancel_at
@@ -1007,6 +1135,78 @@ class BillingService {
   }
 
   /**
+   * Cancel the active subscription immediately and generate a final invoice.
+   * - Releases any active/not-started schedules first
+   * - Invoices outstanding usage now
+   * - No proration is applied
+   *
+   * Designed for destructive flows (e.g., org deletion). If no active
+   * subscription exists, this method is a no-op and returns success.
+   */
+  async cancelImmediatelyAndInvoice(orgId: string, opId?: string) {
+    const client = this.stripe;
+
+    const { parsedOrg } = await this.getParsedOrg(orgId);
+
+    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+    if (!subscriptionId) {
+      logger.info(
+        "stripeBillingService.subscription.cancel.now:noop.noActiveSubscription",
+        {
+          orgId,
+        },
+      );
+      return { status: "noop" as const };
+    }
+
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
+
+    // Release any pending schedule before immediate cancel
+    await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
+
+    const cancelNowKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.cancel.now"],
+      fields: { subscriptionId },
+      opId,
+    });
+
+    logger.info("stripeBillingService.subscription.cancel.now", {
+      subscriptionId,
+      customerId: subscription.customer,
+      orgId,
+      idempotencyKey: cancelNowKey,
+      opId,
+      userId: this.ctx.session.user?.id,
+      userEmail: this.ctx.session.user?.email,
+    });
+
+    await client.subscriptions.cancel(
+      subscriptionId,
+      {
+        invoice_now: true,
+        prorate: false,
+      } as any,
+      { idempotencyKey: cancelNowKey },
+    );
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.cancelImmediatelyAndInvoice",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
+
+    return { status: "success" as const };
+  }
+
+  /**
    * Clear any active or not-started subscription schedule for the org's subscription.
    *
    * @param orgId Organization id
@@ -1023,10 +1223,11 @@ class BillingService {
         message: "No active subscription found",
       });
 
-    const subscription = await this.retrieveSubscriptionWithSchedule(
-      client,
-      subscriptionId,
-    );
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
 
     await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
@@ -1067,44 +1268,45 @@ class BillingService {
     const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
     const stripeSubscriptionId =
       parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-
-    if (!stripeCustomerId || !stripeSubscriptionId) {
+    if (!stripeCustomerId) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "No stripe customer or subscription found",
       });
     }
 
+    // retrieve all invoices for the customer (also past subscriptions when cancelled)
     const list = await this.retrieveInvoiceList(
       stripeCustomerId,
-      stripeSubscriptionId,
       pagination.limit,
       pagination.startingAfter,
       pagination.endingBefore,
     );
 
-    const preview = await this.createInvoicePreview(
-      client,
-      stripeCustomerId,
-      stripeSubscriptionId,
-    );
+    const preview = stripeSubscriptionId
+      ? await this.createInvoicePreview(
+          client,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        )
+      : null;
 
     const priceCache = new Map<string, Stripe.Price>();
 
     // Anonymous function to get the price from Stripe or the emepheral cache here.
     // In practice a customer will have at least two prices, and maybe a few more.
-    const getPrice = async (priceId?: string) => {
-      if (!priceId) {
-        return undefined;
-      }
-
+    const getPrice = async (priceId: string): Promise<Stripe.Price> => {
       const cached = priceCache.get(priceId);
       if (cached) {
         return cached;
       }
 
-      const p = await client.prices.retrieve(priceId);
+      const p = await client.prices.retrieve(priceId, {
+        expand: ["tiers"],
+      });
+
       priceCache.set(priceId, p);
+
       return p;
     };
 
@@ -1124,6 +1326,7 @@ class BillingService {
         totalCents: number;
       };
     };
+
     // Anonymous function to map the invoice to a row
     const mapInvoiceToTableRow = async (
       invoice: Stripe.Invoice,
@@ -1137,11 +1340,39 @@ class BillingService {
         const amount = typeof l.amount === "number" ? l.amount : 0;
 
         const priceId = l.pricing?.price_details?.price;
+
+        if (!priceId) {
+          logger.error("Failed to get price for line item", { line: l });
+          continue;
+        }
+
         const price = await getPrice(priceId);
 
         const isMetered = this.isMetered(price);
         if (isMetered) {
-          usageCents += amount;
+          // For legacy prices, figure out what items go into usage vs base-fee
+          // [a] ------------------
+          const unitPrice = l.pricing?.unit_amount_decimal;
+          let lineUsageCents = 0;
+
+          if (typeof unitPrice == "number") {
+            lineUsageCents = (l.quantity ?? 0) * unitPrice;
+          } else if (typeof unitPrice == "string") {
+            const unitPriceFromString = Number(unitPrice);
+            if (unitPriceFromString >= 0) {
+              // >=0 takes care of NaN
+              lineUsageCents = (l.quantity ?? 0) * unitPriceFromString;
+            }
+          }
+
+          const flatFeeAmount = l.amount - lineUsageCents;
+          const unitPriceAmount = lineUsageCents;
+          // [a] end ------------------
+
+          // Add flat amounts to subscription costs
+          subscriptionCents += flatFeeAmount;
+          // Add unit amounts to usage costs
+          usageCents += unitPriceAmount;
         } else {
           subscriptionCents += amount;
         }
@@ -1250,10 +1481,11 @@ class BillingService {
     // ------------------------------------------------------------------------------------------------
     if (stripeCustomerId && stripeSubscriptionId) {
       try {
-        const subscription = await this.retrieveSubscriptionWithSchedule(
-          client,
-          stripeSubscriptionId,
-        );
+        const subscription =
+          await this.retrieveSubscriptionWithScheduleAndDiscounts(
+            client,
+            stripeSubscriptionId,
+          );
 
         const usageItem = subscription.items.data.find((item) =>
           this.isMetered(item.price),
@@ -1324,7 +1556,6 @@ class BillingService {
           billingPeriod,
         };
       } catch (e) {
-        // Fail softly and fallback to Clickhouse
         logger.error(
           "Failed to get usage from Stripe, using usage from Clickhouse",
           { error: e },
@@ -1332,147 +1563,178 @@ class BillingService {
       }
     }
     // [A] End ----------------------------------------------------------------------------------------
-
-    // [B] We have no active subscription -> get usage from Clickhouse for past 30 days (likely hobby plan or fallback)
+    // [B] We have no active subscription -> get usage from cached Organization data (likely hobby plan or fallback)
     // ------------------------------------------------------------------------------------------------
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-    const projectIds = org.projects.map((p) => p.id);
+    // Use cached usage data populated by background job (runs every 60 minutes)
+    const cachedUsage = org.cloudCurrentCycleUsage ?? 0;
 
-    const [countTraces, countObservations, countScores] = await Promise.all([
-      getTraceCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-      getObservationCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-      getScoreCountOfProjectsSinceCreationDate({
-        projectIds,
-        start: thirtyDaysAgo,
-      }),
-    ]);
+    // Calculate billing period using the billing cycle anchor
+    const now = new Date();
+    const billingCycleStart = getBillingCycleStart(org, now);
+    const billingCycleEnd = getBillingCycleEnd(org, now);
 
     return {
-      usageCount: countTraces + countObservations + countScores,
+      usageCount: cachedUsage,
       usageType: "units",
+      billingPeriod: {
+        start: billingCycleStart,
+        end: billingCycleEnd,
+      },
     };
-
     // [B] End ----------------------------------------------------------------------------------------
   }
 
-  // TODO: Currently not working as expected, need to fix
   /**
-   * Create/update/deactivate Stripe usage alerts for an organization.
-   *
-   * Preconditions: Org must have a Stripe customer and active subscription.
-   *
-   * @param orgId Organization id
-   * @param payload Usage alert configuration
+   * Apply a promotion code to the organization's active Stripe subscription.
+   * Preserves existing discounts and adds the new promotion code if valid and not already applied.
    */
-  async upsertUsageAlerts(
-    orgId: string,
-    payload: {
-      enabled: boolean;
-      threshold: number;
-      notifications: { email: boolean; recipients: string[] };
-    },
-  ) {
-    const { parsedOrg } = await this.getParsedOrg(orgId);
-    const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
-    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
-    const currentAlerts = parsedOrg.cloudConfig?.usageAlerts;
-    if (!stripeCustomerId || !subscriptionId)
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message:
-          "Organization must have a Stripe customer with active subscription to configure usage alerts",
-      });
+  async applyPromotionCode(orgId: string, code: string, opId?: string) {
     const client = this.stripe;
-    let updatedAlerts = payload;
 
-    const subscription = await client.subscriptions.retrieve(subscriptionId);
-    if (!subscription)
+    const { parsedOrg } = await this.getParsedOrg(orgId);
+
+    const subscriptionId = parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
+    if (!subscriptionId)
       throw new TRPCError({
-        code: "NOT_FOUND",
-        message: "Stripe subscription not found",
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Organization does not have an active subscription",
       });
-    const meterId = subscription.items.data.filter((subItem) =>
-      Boolean((subItem as any).plan.meter),
-    )[0]?.plan.meter as string | undefined;
 
-    const updatedUsageAlertConfig: any = {
-      enabled: updatedAlerts.enabled,
-      type: "STRIPE",
-      threshold: updatedAlerts.threshold,
-      alertId: currentAlerts?.alertId ?? null,
-      meterId: meterId ?? null,
-      notifications: {
-        email: updatedAlerts.notifications.email,
-        recipients: updatedAlerts.notifications.recipients,
-      },
-    };
-
-    if (
-      !updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      currentAlerts?.enabled
-    ) {
-      await UsageAlertService.getInstance({ stripeClient: client }).deactivate({
-        id: currentAlerts?.alertId,
-      });
-    }
-    if (!currentAlerts?.alertId) {
-      const alert = await UsageAlertService.getInstance({
-        stripeClient: client,
-      }).create({
-        orgId,
-        customerId: stripeCustomerId,
-        meterId,
-        amount: updatedAlerts.threshold,
-      });
-      updatedUsageAlertConfig.alertId = alert.id;
-    }
-    if (
-      updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      (currentAlerts?.threshold !== updatedAlerts.threshold ||
-        currentAlerts.meterId !== meterId)
-    ) {
-      const alert = await UsageAlertService.getInstance({
-        stripeClient: client,
-      }).recreate({
-        orgId,
-        customerId: stripeCustomerId,
-        meterId,
-        existingAlertId: currentAlerts.alertId,
-        amount: updatedAlerts.threshold,
-      });
-      updatedUsageAlertConfig.alertId = alert.id;
-    }
-    if (
-      updatedAlerts.enabled &&
-      currentAlerts?.alertId &&
-      !currentAlerts.enabled
-    ) {
-      await UsageAlertService.getInstance({ stripeClient: client }).activate({
-        id: currentAlerts.alertId,
-      });
-    }
-
-    const newCloudConfig = {
-      ...parsedOrg.cloudConfig,
-      usageAlerts: updatedUsageAlertConfig,
-    };
-    await this.ctx.prisma.organization.update({
-      where: { id: orgId },
-      data: { cloudConfig: newCloudConfig },
+    // Validate the promotion code exists and is active
+    const promoList = await client.promotionCodes.list({
+      code,
+      active: true,
+      limit: 1,
     });
 
-    return updatedAlerts;
+    const promo = promoList.data[0];
+    if (!promo) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid or expired promotion code",
+      });
+    }
+
+    const subscription =
+      await this.retrieveSubscriptionWithScheduleAndDiscounts(
+        client,
+        subscriptionId,
+      );
+
+    // Avoid adding duplicate promotion codes
+    const alreadyApplied = (subscription.discounts || []).some((d) => {
+      if (!isExpandedOrNullable(d)) return false;
+      const pc = d.promotion_code;
+      if (!isExpandedOrNullable(pc) || pc === null) return false;
+      // match by id or code
+      return (
+        (typeof pc === "string" && pc === promo.id) ||
+        (typeof pc !== "string" && (pc.id === promo.id || pc.code === code))
+      );
+    });
+
+    if (alreadyApplied) {
+      return { ok: true as const };
+    }
+
+    // Preserve existing discounts similar to schedule update logic
+    const existingDiscounts = (subscription.discounts || [])
+      .map((discount) => {
+        if (!isExpandedOrNullable(discount)) return undefined;
+
+        const coupon = discount.coupon;
+        const promotionCode = discount.promotion_code;
+
+        if (isExpandedOrNullable(coupon) && coupon) {
+          const couponId = typeof coupon === "string" ? coupon : coupon.id;
+          return {
+            coupon: couponId,
+          } as Stripe.SubscriptionUpdateParams.Discount;
+        }
+
+        if (isExpandedOrNullable(promotionCode) && promotionCode) {
+          const promoId =
+            typeof promotionCode === "string"
+              ? promotionCode
+              : promotionCode.id;
+          return {
+            promotion_code: promoId,
+          } as Stripe.SubscriptionUpdateParams.Discount;
+        }
+
+        return undefined;
+      })
+      .filter(
+        (d): d is Stripe.SubscriptionUpdateParams.Discount => d !== undefined,
+      );
+
+    const idempotencyKey = makeIdempotencyKey({
+      kind: IdempotencyKind.enum["subscription.update.discounts.add"],
+      fields: { subscriptionId, promotionCodeId: promo.id },
+      opId,
+    });
+
+    logger.info("stripeBillingService.subscription.update.discounts.add", {
+      subscriptionId,
+      customerId: subscription.customer,
+      orgId: parsedOrg.id,
+      promotionCodeId: promo.id,
+      idempotencyKey,
+      opId,
+      userId: this.ctx.session.user?.id,
+      userEmail: this.ctx.session.user?.email,
+    });
+
+    try {
+      await client.subscriptions.update(
+        subscriptionId,
+        {
+          discounts: [...existingDiscounts, { promotion_code: promo.id }],
+          proration_behavior: "none",
+        },
+        { idempotencyKey },
+      );
+    } catch (error: any) {
+      logger.error(
+        "StripeBillingService.applyPromotionCode:stripe.subscription.update.failed",
+        {
+          userId: this.ctx.session.user?.id,
+          userEmail: this.ctx.session.user?.email,
+          customerId: subscription.customer,
+          subscriptionId,
+          orgId: parsedOrg.id,
+          promotionCodeId: promo.id,
+          error,
+        },
+      );
+
+      // Provide user-friendly error message
+      let errorMessage = "Failed to apply promotion code";
+
+      if (error?.message?.includes("prior transactions")) {
+        errorMessage = "Promotion code only valid for new customers";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: errorMessage,
+      });
+    }
+
+    void auditLog({
+      session: this.ctx.session,
+      orgId: parsedOrg.id,
+      resourceType: "organization",
+      resourceId: parsedOrg.id,
+      action: "BillingService.applyPromotionCode",
+      before: parsedOrg.cloudConfig,
+      after: "webhook",
+    });
+
+    return { ok: true as const };
   }
 }
 

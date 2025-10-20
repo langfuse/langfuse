@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { env } from "../../env";
 import {
   CloudUsageMeteringQueue,
+  CloudSpendAlertQueue,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
@@ -15,7 +16,7 @@ import {
 } from "./constants";
 import {
   QueueJobs,
-  recordGauge,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
@@ -117,11 +118,17 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
             deletedAt: null,
           },
         },
+        cloudSpendAlerts: {
+          select: {
+            id: true,
+          },
+        },
       },
     })
-  ).map(({ projects, ...org }) => ({
+  ).map(({ projects, cloudSpendAlerts, ...org }) => ({
     ...parseDbOrg(org),
     projectIds: projects.map((p) => p.id),
+    cloudSpendAlertIds: cloudSpendAlerts.map((a) => a.id),
   }));
   logger.info(
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
@@ -160,6 +167,20 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       );
       logger.error(
         `[CLOUD USAGE METERING] Stripe customer id not found for org ${org.id}`,
+      );
+      recordIncrement(
+        "langfuse.queue.cloud_usage_metering_queue.skipped_orgs",
+        1,
+        {
+          unit: "organizations",
+        },
+      );
+      recordIncrement(
+        "langfuse.queue.cloud_usage_metering_queue.skipped_orgs_with_errors",
+        1,
+        {
+          unit: "organizations",
+        },
       );
       continue;
     }
@@ -218,24 +239,63 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       );
     }
 
+    if (countEvents === 0 && countObservations === 0) {
+      recordIncrement(
+        "langfuse.queue.cloud_usage_metering_queue.skipped_orgs",
+        1,
+        {
+          unit: "organizations",
+        },
+      );
+    }
+
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.processed_orgs",
+      1,
+      {
+        unit: "organizations",
+      },
+    );
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.processed_observations",
+      countObservations,
+      {
+        unit: "observations",
+      },
+    );
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.processed_events",
+      countEvents,
+      {
+        unit: "events",
+      },
+    );
     countProcessedOrgs++;
     countProcessedObservations += countObservations;
     countProcessedEvents += countEvents;
-  }
 
-  recordGauge("cloud_usage_metering_processed_orgs", countProcessedOrgs, {
-    unit: "organizations",
-  });
-  recordGauge(
-    "cloud_usage_metering_processed_observations",
-    countProcessedObservations,
-    {
-      unit: "observations",
-    },
-  );
-  recordGauge("cloud_usage_metering_processed_events", countProcessedEvents, {
-    unit: "events",
-  });
+    // Trigger spend alert job for orgs with activity and spend alerts configured
+    if (org.cloudSpendAlertIds.length > 0) {
+      if (countEvents > 0 || countObservations > 0) {
+        try {
+          await CloudSpendAlertQueue.getInstance()?.add(
+            QueueJobs.CloudSpendAlertJob,
+            { orgId: org.id },
+            { delay: 5 * 60 * 1000 }, // 5 minutes delay
+          );
+          logger.info(
+            `[CLOUD USAGE METERING] Enqueued spend alert job for org ${org.id} with 5min delay`,
+          );
+        } catch (error) {
+          logger.error(
+            `[CLOUD USAGE METERING] Failed to enqueue spend alert job for org ${org.id}`,
+            { error },
+          );
+          // Don't fail the metering job if spend alert enqueueing fails
+        }
+      }
+    }
+  }
 
   // update cron job
   await prisma.cronJobs.update({
@@ -260,9 +320,13 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     logger.info(
       `[CLOUD USAGE METERING] Enqueueing next Cloud Usage Metering Job to catch up `,
     );
-    recordGauge("cloud_usage_metering_scheduled_catchup_jobs", 1, {
-      unit: "jobs",
-    });
+    recordIncrement(
+      "langfuse.queue.cloud_usage_metering_queue.scheduled_catchup_jobs",
+      1,
+      {
+        unit: "jobs",
+      },
+    );
     await CloudUsageMeteringQueue.getInstance()?.add(
       QueueJobs.CloudUsageMeteringJob,
       {},

@@ -39,6 +39,8 @@ import {
   convertDateToClickhouseDateTime,
   getAgentGraphData,
   tracesTableUiColumnDefinitions,
+  getTracesGroupedByUsers,
+  getTracesGroupedBySessionId,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -184,32 +186,60 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { timestampFilter } = input;
 
-      const [numericScoreNames, categoricalScoreNames, traceNames, tags] =
-        await Promise.all([
-          getNumericScoresGroupedByName(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getTracesGroupedByName(
-            input.projectId,
-            tracesTableUiColumnDefinitions,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getTracesGroupedByTags({
-            projectId: input.projectId,
-            filter: timestampFilter ? [timestampFilter] : [],
-          }),
-        ]);
+      const [
+        numericScoreNames,
+        categoricalScoreNames,
+        traceNames,
+        tags,
+        userIds,
+        sessionIds,
+      ] = await Promise.all([
+        getNumericScoresGroupedByName(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+        getTracesGroupedByName(
+          input.projectId,
+          tracesTableUiColumnDefinitions,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+        getTracesGroupedByTags({
+          projectId: input.projectId,
+          filter: timestampFilter ? [timestampFilter] : [],
+        }),
+        getTracesGroupedByUsers(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+          undefined,
+          100,
+          0,
+        ),
+        getTracesGroupedBySessionId(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+          undefined,
+          100,
+          0,
+        ),
+      ]);
 
       return {
         name: traceNames.map((n) => ({ value: n.name })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
         tags: tags,
+        users: userIds.map((u) => ({
+          value: u.user,
+          count: u.count,
+        })),
+        sessions: sessionIds.map((s) => ({
+          value: s.session_id,
+          count: s.count,
+        })),
       };
     }),
   byId: protectedGetTraceProcedure

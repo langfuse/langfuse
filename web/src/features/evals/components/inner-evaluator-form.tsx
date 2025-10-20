@@ -101,7 +101,7 @@ const TracesPreview = memo(
       return {
         from: getDateFromOption({
           filterSource: "TABLE",
-          option: "24 hours",
+          option: "last1Day",
         }),
       } as TableDateRange;
     }, []);

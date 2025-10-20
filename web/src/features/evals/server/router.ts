@@ -21,6 +21,7 @@ import {
 } from "@langfuse/shared";
 import {
   getQueue,
+  getCostByEvaluatorIds,
   getScoresByIds,
   logger,
   QueueName,
@@ -144,7 +145,7 @@ const UpdateEvalJobSchema = z.object({
   timeScope: TimeScopeSchema.optional(),
 });
 
-const fetchJobExecutionsByState = async ({
+const fetchJobExecutionsByStatus = async ({
   prisma,
   projectId,
   configIds,
@@ -155,11 +156,12 @@ const fetchJobExecutionsByState = async ({
 }) => {
   return prisma.jobExecution.groupBy({
     where: {
-      jobConfiguration: {
-        projectId: projectId,
-        jobType: "EVAL",
-        id: { in: configIds },
-      },
+      // jobConfiguration: {
+      //   projectId: projectId,
+      //   jobType: "EVAL",
+      //   id: { in: configIds },
+      // },
+      jobConfigurationId: { in: configIds },
       projectId: projectId,
     },
     by: ["status", "jobConfigurationId"],
@@ -326,7 +328,7 @@ export const evalRouter = createTRPCRouter({
         ),
       ]);
 
-      const jobExecutionsByState = await fetchJobExecutionsByState({
+      const jobExecutionsByState = await fetchJobExecutionsByStatus({
         prisma: ctx.prisma,
         projectId: input.projectId,
         configIds: configs.map((c) => c.id),
@@ -385,7 +387,7 @@ export const evalRouter = createTRPCRouter({
 
       if (!config) return null;
 
-      const jobExecutionsByState = await fetchJobExecutionsByState({
+      const jobExecutionsByStatus = await fetchJobExecutionsByStatus({
         prisma: ctx.prisma,
         projectId: input.projectId,
         configIds: [config.id],
@@ -394,12 +396,12 @@ export const evalRouter = createTRPCRouter({
       const finalStatus = calculateEvaluatorFinalStatus(
         config.status,
         Array.isArray(config.timeScope) ? config.timeScope : [],
-        jobExecutionsByState,
+        jobExecutionsByStatus,
       );
 
       return {
         ...config,
-        jobExecutionsByState: jobExecutionsByState,
+        jobExecutionsByState: jobExecutionsByStatus,
         finalStatus,
       };
     }),
@@ -1260,6 +1262,7 @@ export const evalRouter = createTRPCRouter({
               | "jobInputTraceId"
               | "jobTemplateId"
               | "jobConfigurationId"
+              | "executionTraceId"
               | "error"
             >
           >
@@ -1273,6 +1276,7 @@ export const evalRouter = createTRPCRouter({
             je.job_input_trace_id as "jobInputTraceId",
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
+            je.execution_trace_id as "executionTraceId",
             je.error
             `,
             input.projectId,
@@ -1331,17 +1335,17 @@ export const evalRouter = createTRPCRouter({
         }>
       >(Prisma.sql`
       SELECT DISTINCT
-        jc.id, 
+        jc.id,
         jc.score_name as "scoreName"
-      FROM 
+      FROM
         "job_configurations" as jc
-      WHERE 
+      WHERE
         jc.project_id = ${input.projectId}
         AND jc.job_type = 'EVAL'
         AND jc.target_object = 'dataset'
         AND jc.status = 'ACTIVE'
         AND (
-          jc.filter IS NULL 
+          jc.filter IS NULL
           OR jsonb_array_length(jc.filter) = 0
           OR EXISTS (
             SELECT 1
@@ -1350,7 +1354,7 @@ export const evalRouter = createTRPCRouter({
               AND f->>'type' = 'stringOptions'
               AND (
                 (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
-                OR 
+                OR
                 (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
               )
           )
@@ -1358,6 +1362,35 @@ export const evalRouter = createTRPCRouter({
       `);
 
       return evaluators;
+    }),
+
+  costByEvaluatorIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const costs = await getCostByEvaluatorIds(
+        input.projectId,
+        input.evaluatorIds,
+      );
+
+      // Convert array to map for easier lookup
+      return costs.reduce(
+        (acc, { evaluatorId, totalCost }) => {
+          acc[evaluatorId] = totalCost;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
     }),
 });
 

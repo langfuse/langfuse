@@ -6,8 +6,10 @@ import { Badge } from "@/src/components/ui/badge";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Download, ExternalLink } from "lucide-react";
-import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useEffect, useMemo, useState } from "react";
+
+import { useBillingInformation } from "./useBillingInformation";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 
 type InvoiceRow = {
   id: string;
@@ -26,7 +28,13 @@ type InvoiceRow = {
   };
 };
 
-export function BillingInvoiceTable({ orgId }: { orgId: string }) {
+export function BillingInvoiceTable() {
+  const { organization } = useBillingInformation();
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const shouldShowTable =
+    isCloudBillingAvailable &&
+    Boolean(organization?.cloudConfig?.stripe?.customerId);
+
   const [virtualTotal, setVirtualTotal] = useState(9999);
   const [paginationState, setPaginationState] = useState<{
     pageIndex: number;
@@ -35,12 +43,18 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
     endingBefore?: string;
   }>({ pageIndex: 0, pageSize: 10 });
 
-  const invoicesQuery = api.cloudBilling.getInvoices.useQuery({
-    orgId,
-    limit: paginationState.pageSize,
-    startingAfter: paginationState.startingAfter,
-    endingBefore: paginationState.endingBefore,
-  });
+  const invoicesQuery = api.cloudBilling.getInvoices.useQuery(
+    {
+      orgId: organization?.id ?? "",
+      limit: paginationState.pageSize,
+      startingAfter: paginationState.startingAfter,
+      endingBefore: paginationState.endingBefore,
+    },
+    {
+      enabled: shouldShowTable,
+      retry: false,
+    },
+  );
 
   const isFirstPage =
     !paginationState.startingAfter && !paginationState.endingBefore;
@@ -65,23 +79,20 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       return { isLoading: true, isError: false } as const;
     }
     if (invoicesQuery.isError) {
+      // setting the error causes the table to remaining in loading state
+      // instead we just return an empty array
       return {
         isLoading: false,
-        isError: true,
-        error: invoicesQuery.error.message,
+        isError: false,
+        data: [] as InvoiceRow[],
       } as const;
     }
     return { isLoading: false, isError: false, data: rows } as const;
-  }, [
-    rows,
-    invoicesQuery.isPending,
-    invoicesQuery.isError,
-    invoicesQuery.error,
-  ]);
+  }, [rows, invoicesQuery.isPending, invoicesQuery.isError]);
 
   useEffect(() => {
     if (isFirstPage) setVirtualTotal(9999);
-  }, [orgId, paginationState.pageSize, isFirstPage]);
+  }, [organization?.id, paginationState.pageSize, isFirstPage]);
 
   // When we fetch a page that reports hasMore === false, lock in the exact size
   useEffect(() => {
@@ -105,9 +116,12 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       header: "Date",
       cell: ({ row }) => {
         const value = row.getValue("created") as InvoiceRow["created"];
-        return value
-          ? formatLocalIsoDate(new Date(value), false, "day")
-          : undefined;
+        if (!value) return undefined;
+        const date = new Date(value);
+        const year = date.getFullYear();
+        const month = date.toLocaleDateString("en-US", { month: "short" });
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
       },
       size: 90,
     },
@@ -135,7 +149,7 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       size: 100,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.subscriptionCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -145,7 +159,7 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.usageCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -155,7 +169,7 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.discountCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -165,7 +179,7 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.taxCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -175,7 +189,7 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       size: 90,
       cell: ({ row }) => {
         const cents = row.original.breakdown?.totalCents ?? 0;
-        return usdFormatter(cents / 100);
+        return usdFormatter(cents / 100, 2, 2);
       },
     },
     {
@@ -259,6 +273,11 @@ export function BillingInvoiceTable({ orgId }: { orgId: string }) {
       });
     }
   };
+
+  if (!shouldShowTable) {
+    // users on hobby plan who never had a subscription
+    return null;
+  }
 
   return (
     <div className="space-y-0">

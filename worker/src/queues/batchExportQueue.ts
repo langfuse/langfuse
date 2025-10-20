@@ -1,6 +1,10 @@
 import { Job } from "bullmq";
 
-import { BaseError, BatchExportStatus } from "@langfuse/shared";
+import {
+  BaseError,
+  BatchExportStatus,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 import { traceException, logger } from "@langfuse/shared/src/server";
@@ -18,6 +22,12 @@ export const batchExportQueueProcessor = async (
 
     return true;
   } catch (e) {
+    if (e instanceof LangfuseNotFoundError) {
+      logger.warn(
+        `Batch export ${job.data.payload.batchExportId} not found. Job will be skipped.`,
+      );
+      return true;
+    }
     const displayError =
       e instanceof BaseError ? e.message : "An internal error occurred";
 

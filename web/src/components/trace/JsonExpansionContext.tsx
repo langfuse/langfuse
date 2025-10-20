@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useCallback } from "react";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 // Context Provider to store expanded/collapsed state of JSONs across different JSONs with similar structure
 // Used for traces (input/output/metadata) but can be reused at other places.
@@ -14,6 +15,7 @@ type JsonExpansionState = {
   input: ExpandedState;
   output: ExpandedState;
   metadata: ExpandedState;
+  log: ExpandedState; // for the Trace Log View
 };
 
 type JsonExpansionContextType = {
@@ -25,7 +27,7 @@ type JsonExpansionContextType = {
 };
 
 const JsonExpansionContext = createContext<JsonExpansionContextType>({
-  expansionState: { input: {}, output: {}, metadata: {} },
+  expansionState: { input: {}, output: {}, metadata: {}, log: {} },
   setFieldExpansion: () => {},
 });
 
@@ -36,11 +38,13 @@ export function JsonExpansionProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [expansionState, setExpansionState] = useState<JsonExpansionState>({
-    input: {},
-    output: {},
-    metadata: {},
-  });
+  const [expansionState, setExpansionState] =
+    useSessionStorage<JsonExpansionState>("jsonExpansionState", {
+      input: {},
+      output: {},
+      metadata: {},
+      log: {},
+    });
 
   const setFieldExpansion = useCallback(
     (
@@ -52,7 +56,7 @@ export function JsonExpansionProvider({
         [field]: expansion,
       }));
     },
-    [],
+    [setExpansionState],
   );
 
   return (

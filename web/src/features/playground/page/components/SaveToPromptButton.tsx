@@ -16,6 +16,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -85,71 +91,92 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   };
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          className={cn("h-6 w-6 p-0 hover:bg-muted", className)}
-          title="Save current configuration as a prompt template for reuse across your project"
-        >
-          <Save size={14} />
-          <span className="sr-only">Save as prompt</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <Button className="mt-2 w-full" onClick={handleNewPrompt}>
-          Save as new prompt
-        </Button>
-        <Divider />
-        <InputCommand className="min-h-[8rem]">
-          <InputCommandInput placeholder="Search chat prompts..." />
-          <InputCommandEmpty>
-            No chat prompt found
-            <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />
-          </InputCommandEmpty>
-          <InputCommandGroup className="mt-2">
-            <InputCommandList>
-              {allChatPromptNamesWithIds.map((chatPrompt) => (
-                <InputCommandItem
-                  key={chatPrompt.id}
-                  title={chatPrompt.name}
-                  value={chatPrompt.name}
-                  onSelect={(currentValue) => {
-                    const promptId =
-                      allChatPromptNamesWithIds.find(
-                        (prompt) => prompt.name === currentValue,
-                      )?.id ?? "";
+    <TooltipProvider delayDuration={300}>
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "h-7 gap-1.5 px-2.5 text-xs @xl:hidden",
+                  className,
+                )}
+              >
+                <Save size={14} />
+                <span className="sr-only">Save as prompt</span>
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="text-xs">Save as prompt</TooltipContent>
+        </Tooltip>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex",
+              className,
+            )}
+          >
+            <Save size={14} />
+            <span>Save as prompt</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent>
+          <Button className="mt-2 w-full" onClick={handleNewPrompt}>
+            Save as new prompt
+          </Button>
+          <Divider />
+          <InputCommand className="min-h-[8rem]">
+            <InputCommandInput placeholder="Search chat prompts..." />
+            <InputCommandEmpty>
+              No chat prompt found
+              <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />
+            </InputCommandEmpty>
+            <InputCommandGroup className="mt-2">
+              <InputCommandList>
+                {allChatPromptNamesWithIds.map((chatPrompt) => (
+                  <InputCommandItem
+                    key={chatPrompt.id}
+                    title={chatPrompt.name}
+                    value={chatPrompt.name}
+                    onSelect={(currentValue) => {
+                      const promptId =
+                        allChatPromptNamesWithIds.find(
+                          (prompt) => prompt.name === currentValue,
+                        )?.id ?? "";
 
-                    setSelectedPromptId(
-                      promptId === selectedPromptId ? "" : promptId,
-                    );
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      selectedPromptId === chatPrompt.id
-                        ? "opacity-100"
-                        : "opacity-0",
-                    )}
-                  />
-                  <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                    {chatPrompt.name}
-                  </span>
-                </InputCommandItem>
-              ))}
-            </InputCommandList>
-          </InputCommandGroup>
-        </InputCommand>
-        <Button
-          className="mt-2 w-full"
-          disabled={!Boolean(selectedPromptId)}
-          onClick={handleNewPromptVersion}
-        >
-          Save as new prompt version
-        </Button>
-      </PopoverContent>
-    </Popover>
+                      setSelectedPromptId(
+                        promptId === selectedPromptId ? "" : promptId,
+                      );
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedPromptId === chatPrompt.id
+                          ? "opacity-100"
+                          : "opacity-0",
+                      )}
+                    />
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                      {chatPrompt.name}
+                    </span>
+                  </InputCommandItem>
+                ))}
+              </InputCommandList>
+            </InputCommandGroup>
+          </InputCommand>
+          <Button
+            className="mt-2 w-full"
+            disabled={!Boolean(selectedPromptId)}
+            onClick={handleNewPromptVersion}
+          >
+            Save as new prompt version
+          </Button>
+        </PopoverContent>
+      </Popover>
+    </TooltipProvider>
   );
 };
 

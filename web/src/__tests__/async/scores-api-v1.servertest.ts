@@ -248,10 +248,11 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
-    it("should post score with score config if in valid range", async () => {
+    it("should post score with score config and queue id if in valid range", async () => {
       const configId = v4();
       const traceId = v4();
       const scoreId = v4();
+      const queueId = v4();
 
       const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
 
@@ -283,6 +284,7 @@ describe("/api/public/scores API Endpoint", () => {
         observation_id: null,
         environment: "production",
         config_id: config.id,
+        queue_id: queueId,
       });
       await createScoresCh([score]);
 
@@ -304,6 +306,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.source).toBe("API");
       expect(fetchedScore.body?.projectId).toBe(projectId);
       expect(fetchedScore.body?.environment).toBe("production");
+      expect(fetchedScore.body?.queueId).toBe(queueId);
       expect(fetchedScore.body?.metadata).toEqual({
         "test-key": "test-value",
       });
