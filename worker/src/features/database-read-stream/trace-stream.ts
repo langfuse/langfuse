@@ -220,29 +220,15 @@ export const getTraceStream = async (props: {
             `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
           );
 
-        // Process numeric/boolean scores
-        const numericScores = (row.scores_avg ?? []).map((score: any) => ({
-          name: score[0],
-          value: score[1],
-          dataType: score[2],
-          stringValue: score[3],
-        }));
-
-        // Process categorical scores (format: "name:value")
-        const categoricalScores = (row.score_categories ?? []).map(
-          (cat: string) => {
-            const [name, ...valueParts] = cat.split(":");
-            return {
-              name,
-              value: null,
-              dataType: "CATEGORICAL" as ScoreDataType,
-              stringValue: valueParts.join(":"), // rejoin in case value contains ':'
-            };
-          },
-        );
-
         const outputScores: Record<string, string[] | number[]> =
-          prepareScoresForOutput([...numericScores, ...categoricalScores]);
+          prepareScoresForOutput(
+            (row.scores_avg ?? []).map((score) => ({
+              name: score.name,
+              value: score.avg_value,
+              dataType: score.data_type,
+              stringValue: score.string_value,
+            })),
+          );
 
         yield getChunkWithFlattenedScores(
           [
