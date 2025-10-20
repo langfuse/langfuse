@@ -36,7 +36,7 @@ const parseRedisNodes = (
     const [host, port] = node.trim().split(":");
     if (!host || !port) {
       throw new Error(
-        `Invalid redis node format: ${node}. Expected format: host:port`,
+        `Invalid Redis node format: ${node}. Expected format: host:port`,
       );
     }
     return { host, port: parseInt(port, 10) };
