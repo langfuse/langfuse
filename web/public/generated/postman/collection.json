@@ -149,7 +149,7 @@
           "request": {
             "description": "Get items for a specific annotation queue",
             "url": {
-              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items?status=&page=&limit=",
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items?status=&traceIds=&observationIds=&sessionIds=&page=&limit=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -165,6 +165,21 @@
                   "key": "status",
                   "value": "",
                   "description": "Filter by status"
+                },
+                {
+                  "key": "traceIds",
+                  "value": "",
+                  "description": "Filter by trace IDs"
+                },
+                {
+                  "key": "observationIds",
+                  "value": "",
+                  "description": "Filter by observation IDs"
+                },
+                {
+                  "key": "sessionIds",
+                  "value": "",
+                  "description": "Filter by session IDs"
                 },
                 {
                   "key": "page",

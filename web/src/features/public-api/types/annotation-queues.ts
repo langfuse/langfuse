@@ -85,8 +85,11 @@ export const GetAnnotationQueueByIdResponse = AnnotationQueueSchema;
 export const GetAnnotationQueueItemsQuery = z
   .object({
     ...publicApiPaginationZod,
-    queueId: z.string(),
+    queueId: z.string(), // path parameter
     status: z.enum(AnnotationQueueStatus).optional(),
+    traceIds: z.array(z.string()).nullish(),
+    observationIds: z.array(z.string()).nullish(),
+    sessionIds: z.array(z.string()).nullish(),
   })
   .strict();
 

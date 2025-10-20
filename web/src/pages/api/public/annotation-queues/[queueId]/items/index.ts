@@ -7,8 +7,49 @@ import {
   CreateAnnotationQueueItemBody,
   CreateAnnotationQueueItemResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  AnnotationQueueObjectType,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { AnnotationQueueStatus } from "@langfuse/shared";
+import type z from "zod/v4";
+
+const isArrayNotNull = <T>(array: T[] | null | undefined): array is T[] => {
+  return array !== null && array !== undefined && array.length > 0;
+};
+
+const buildWhereClause = (
+  query: z.infer<typeof GetAnnotationQueueItemsQuery>,
+  projectId: string,
+) => {
+  const where: {
+    projectId: string;
+    queueId: string;
+    status?: AnnotationQueueStatus;
+    objectType?: AnnotationQueueObjectType;
+    objectId?: { in: string[] };
+  } = {
+    projectId: projectId,
+    queueId: query.queueId,
+  };
+  if (query.status) {
+    where.status = query.status;
+  }
+  if (isArrayNotNull(query.traceIds)) {
+    where.objectType = AnnotationQueueObjectType.TRACE;
+    where.objectId = { in: query.traceIds };
+  }
+  if (isArrayNotNull(query.observationIds)) {
+    where.objectType = AnnotationQueueObjectType.OBSERVATION;
+    where.objectId = { in: query.observationIds };
+  }
+  if (isArrayNotNull(query.sessionIds)) {
+    where.objectType = AnnotationQueueObjectType.SESSION;
+    where.objectId = { in: query.sessionIds };
+  }
+  return where;
+};
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -28,19 +69,20 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Annotation queue not found");
       }
 
-      // Build the where clause based on the query parameters
-      const where: {
-        projectId: string;
-        queueId: string;
-        status?: AnnotationQueueStatus;
-      } = {
-        projectId: auth.scope.projectId,
-        queueId: query.queueId,
-      };
-
-      if (query.status) {
-        where.status = query.status;
+      // Verify that the user did not specify more than one of the object type filters
+      const objectTypeFilters = [
+        query.traceIds,
+        query.observationIds,
+        query.sessionIds,
+      ];
+      if (objectTypeFilters.filter(isArrayNotNull).length > 1) {
+        throw new InvalidRequestError(
+          "Only one of traceIds, observationIds, or sessionIds can be specified",
+        );
       }
+
+      // Build the where clause based on the query parameters
+      const where = buildWhereClause(query, auth.scope.projectId);
 
       const [items, totalItems] = await Promise.all([
         prisma.annotationQueueItem.findMany({

@@ -447,6 +447,207 @@ describe("Annotation Queues API Endpoints", () => {
 
       expect(response.status).toBe(404);
     });
+
+    it("should filter by trace IDs", async () => {
+      // Create queue items with specific trace IDs
+      const traceId1 = uuidv4();
+      const traceId2 = uuidv4();
+      const traceId3 = uuidv4();
+
+      await Promise.all([
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: traceId1,
+            objectType: AnnotationQueueObjectType.TRACE,
+          },
+          auth,
+        ),
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: traceId2,
+            objectType: AnnotationQueueObjectType.TRACE,
+          },
+          auth,
+        ),
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: traceId3,
+            objectType: AnnotationQueueObjectType.TRACE,
+          },
+          auth,
+        ),
+      ]);
+
+      // Filter by multiple trace IDs
+      const response = await makeZodVerifiedAPICall(
+        GetAnnotationQueueItemsResponse,
+        "GET",
+        `/api/public/annotation-queues/${queueId}/items?traceIds=${traceId1}&traceIds=${traceId2}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBe(2);
+      expect(
+        response.body.data.every(
+          (item) =>
+            item.objectType === AnnotationQueueObjectType.TRACE &&
+            [traceId1, traceId2].includes(item.objectId),
+        ),
+      ).toBe(true);
+    });
+
+    it("should filter for single trace ID", async () => {
+      // Create a queue item with a specific trace ID
+      const traceId = uuidv4();
+
+      await makeZodVerifiedAPICall(
+        CreateAnnotationQueueItemResponse,
+        "POST",
+        `/api/public/annotation-queues/${queueId}/items`,
+        {
+          objectId: traceId,
+          objectType: AnnotationQueueObjectType.TRACE,
+        },
+        auth,
+      );
+
+      // Filter by single trace ID
+      const response = await makeZodVerifiedAPICall(
+        GetAnnotationQueueItemsResponse,
+        "GET",
+        `/api/public/annotation-queues/${queueId}/items?traceIds=${traceId}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBe(1);
+      expect(response.body.data[0].objectId).toBe(traceId);
+      expect(response.body.data[0].objectType).toBe(
+        AnnotationQueueObjectType.TRACE,
+      );
+    });
+
+    it("should filter by observation IDs", async () => {
+      // Create queue items with specific observation IDs
+      const observationId1 = uuidv4();
+      const observationId2 = uuidv4();
+
+      await Promise.all([
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: observationId1,
+            objectType: AnnotationQueueObjectType.OBSERVATION,
+          },
+          auth,
+        ),
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: observationId2,
+            objectType: AnnotationQueueObjectType.OBSERVATION,
+          },
+          auth,
+        ),
+      ]);
+
+      // Filter by observation IDs
+      const response = await makeZodVerifiedAPICall(
+        GetAnnotationQueueItemsResponse,
+        "GET",
+        `/api/public/annotation-queues/${queueId}/items?observationIds=${observationId1}&observationIds=${observationId2}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBe(2);
+      expect(
+        response.body.data.every(
+          (item) =>
+            item.objectType === AnnotationQueueObjectType.OBSERVATION &&
+            [observationId1, observationId2].includes(item.objectId),
+        ),
+      ).toBe(true);
+    });
+
+    it("should filter by session IDs", async () => {
+      // Create queue items with specific session IDs
+      const sessionId1 = uuidv4();
+      const sessionId2 = uuidv4();
+
+      await Promise.all([
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: sessionId1,
+            objectType: AnnotationQueueObjectType.SESSION,
+          },
+          auth,
+        ),
+        makeZodVerifiedAPICall(
+          CreateAnnotationQueueItemResponse,
+          "POST",
+          `/api/public/annotation-queues/${queueId}/items`,
+          {
+            objectId: sessionId2,
+            objectType: AnnotationQueueObjectType.SESSION,
+          },
+          auth,
+        ),
+      ]);
+
+      // Filter by session IDs
+      const response = await makeZodVerifiedAPICall(
+        GetAnnotationQueueItemsResponse,
+        "GET",
+        `/api/public/annotation-queues/${queueId}/items?sessionIds=${sessionId1}&sessionIds=${sessionId2}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBe(2);
+      expect(
+        response.body.data.every(
+          (item) =>
+            item.objectType === AnnotationQueueObjectType.SESSION &&
+            [sessionId1, sessionId2].includes(item.objectId),
+        ),
+      ).toBe(true);
+    });
+
+    it("should return 400 if more than one of trace IDs, observation IDs, or session IDs are provided", async () => {
+      const traceId = uuidv4();
+      const observationId = uuidv4();
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/annotation-queues/${queueId}/items?traceIds=${traceId}&observationIds=${observationId}`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe("GET /annotation-queues/:queueId/items/:itemId", () => {
