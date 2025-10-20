@@ -43,7 +43,7 @@ import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
 export const ObservationPreview = ({
   observations,
   projectId,
-  scores,
+  serverScores: scores,
   currentObservationId,
   traceId,
   commentCounts,
@@ -52,7 +52,7 @@ export const ObservationPreview = ({
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  scores: APIScoreV2[];
+  serverScores: APIScoreV2[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -79,6 +79,10 @@ export const ObservationPreview = ({
 
   const currentObservation = observations.find(
     (o) => o.id === currentObservationId,
+  );
+
+  const currentObservationScores = scores.filter(
+    (s) => s.observationId === currentObservationId,
   );
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
@@ -165,7 +169,7 @@ export const ObservationPreview = ({
                       traceId: traceId,
                       observationId: preloadedObservation.id,
                     }}
-                    scores={scores}
+                    scores={currentObservationScores}
                     scoreMetadata={{
                       projectId: projectId,
                       environment: preloadedObservation.environment,

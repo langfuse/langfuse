@@ -157,14 +157,14 @@ export const SpanItem: React.FC<SpanItemProps> = ({
 
       {showScores &&
         ((node.type === "TRACE" &&
-          scores.find((s) => s.observationId == null)) ||
+          scores.find((s) => s.observationId === null)) ||
           scores.find((s) => s.observationId === node.id)) && (
           <div className="flex flex-wrap gap-1">
             <GroupedScoreBadges
               compact
               scores={
                 node.type === "TRACE"
-                  ? scores.filter((s) => s.observationId == null)
+                  ? scores.filter((s) => s.observationId === null)
                   : scores.filter((s) => s.observationId === node.id)
               }
             />

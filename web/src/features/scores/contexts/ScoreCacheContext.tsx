@@ -44,11 +44,14 @@ type ScoreCacheContextValue = {
   isDeleted: (id: string) => boolean;
   clear: () => void;
 
-  getAllForTarget: (target: {
-    traceId?: string;
-    observationId?: string;
-    sessionId?: string;
-  }) => CachedScore[];
+  getAllForTarget: (
+    mode: "target-and-child-scores" | "target-scores-only",
+    target: {
+      traceId?: string;
+      observationId?: string;
+      sessionId?: string;
+    },
+  ) => CachedScore[];
 
   getAll: () => CachedScore[];
 
@@ -111,11 +114,27 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getAllForTarget = useCallback(
-    (target: {
-      traceId?: string;
-      observationId?: string;
-      sessionId?: string;
-    }) => {
+    (
+      mode: "target-and-child-scores" | "target-scores-only",
+      target: {
+        traceId?: string;
+        observationId?: string;
+        sessionId?: string;
+      },
+    ) => {
+      const matchObservationScore = (
+        mode: "target-and-child-scores" | "target-scores-only",
+      ) => {
+        switch (mode) {
+          case "target-and-child-scores":
+            return () => true;
+          case "target-scores-only":
+            return (s: CachedScore) => s.observationId === target.observationId;
+          default:
+            throw new Error(`Invalid mode: ${mode}`);
+        }
+      };
+
       return Array.from(cache.values()).filter((s) => {
         // Session target
         if (target.sessionId) {
@@ -123,10 +142,7 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
         }
 
         // Trace/observation target
-        return (
-          s.traceId === target.traceId &&
-          s.observationId === target.observationId
-        );
+        return s.traceId === target.traceId && matchObservationScore(mode)(s);
       });
     },
     [cache],

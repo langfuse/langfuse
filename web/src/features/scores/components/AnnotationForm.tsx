@@ -75,6 +75,7 @@ import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreCon
 import { useRouter } from "next/router";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { cp } from "fs";
 
 const CHAR_CUTOFF = 6;
 

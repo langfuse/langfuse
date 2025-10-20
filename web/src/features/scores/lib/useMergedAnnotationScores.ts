@@ -18,15 +18,17 @@ import { mergeAnnotationScoresWithCache } from "@/src/features/scores/lib/mergeS
  *
  * @param serverAnnotationScores - Pre-transformed annotation scores from server
  * @param target - Target for cache filtering
+ * @param mode - Describes whether to include child observation scores or only target scores. Defaults to only target scores.
  * @returns Merged annotation scores with cache overlay
  */
 export function useMergedAnnotationScores(
   serverAnnotationScores: AnnotationScore[],
   target: ScoreTarget,
+  mode: "target-and-child-scores" | "target-scores-only" = "target-scores-only",
 ): AnnotationScore[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
-  const cachedScores = getAllForTarget({
+  const cachedScores = getAllForTarget(mode, {
     traceId: target.type === "trace" ? target.traceId : undefined,
     observationId: target.type === "trace" ? target.observationId : undefined,
     sessionId: target.type === "session" ? target.sessionId : undefined,

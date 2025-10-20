@@ -16,15 +16,17 @@ import { type APIScoreV2 } from "@langfuse/shared";
  *
  * @param serverScores - Flat scores from tRPC query
  * @param target - Target to filter cache by (traceId, observationId, sessionId)
+ * @param mode - Describes whether to include child observation scores or only target scores. Defaults to only target scores.
  * @returns APIScoreV2[] with all cache operations applied
  */
 export function useMergedScores(
   serverScores: APIScoreV2[],
   target: ScoreTarget,
+  mode: "target-and-child-scores" | "target-scores-only" = "target-scores-only",
 ): APIScoreV2[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
-  const cachedScores = getAllForTarget({
+  const cachedScores = getAllForTarget(mode, {
     traceId: target.type === "trace" ? target.traceId : undefined,
     observationId: target.type === "trace" ? target.observationId : undefined,
     sessionId: target.type === "session" ? target.sessionId : undefined,
