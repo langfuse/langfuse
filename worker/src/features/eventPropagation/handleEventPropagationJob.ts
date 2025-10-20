@@ -359,16 +359,16 @@ export const handleEventPropagationJob = async (
       `Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
 
-    // Step 3: Drop the processed partition
+    // Step 3: Detach the processed partition (fast, synchronous operation)
     await commandClickhouse({
       query: `
         ALTER TABLE observations_batch_staging
-        DROP PARTITION '${partitionToProcess}'
+        DETACH PARTITION '${partitionToProcess}'
       `,
       tags: {
         feature: "ingestion",
         partition: partitionToProcess,
-        operation_name: "dropPartition",
+        operation_name: "detachPartition",
       },
       clickhouseConfigs: {
         request_timeout: 180000, // 3 minutes timeout
@@ -376,7 +376,33 @@ export const handleEventPropagationJob = async (
     });
 
     logger.info(
-      `Dropped partition ${partitionToProcess} after successful processing`,
+      `Detached partition ${partitionToProcess} after successful processing`,
+    );
+
+    // Step 4: Drop the detached partition asynchronously (no await for better throughput)
+    commandClickhouse({
+      query: `
+        ALTER TABLE observations_batch_staging
+        DROP DETACHED PARTITION '${partitionToProcess}'
+      `,
+      tags: {
+        feature: "ingestion",
+        partition: partitionToProcess,
+        operation_name: "dropDetachedPartition",
+      },
+      clickhouseConfigs: {
+        request_timeout: 180000, // 3 minutes timeout
+      },
+    }).catch((error) => {
+      logger.error(
+        `Failed to drop detached partition ${partitionToProcess}`,
+        error,
+      );
+      traceException(error);
+    });
+
+    logger.info(
+      `Scheduled async drop for detached partition ${partitionToProcess}`,
     );
 
     if (partitions.length > 3) {
