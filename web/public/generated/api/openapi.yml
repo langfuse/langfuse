@@ -1959,7 +1959,12 @@ paths:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
   /api/public/metrics:
     get:
-      description: Get metrics from the Langfuse project using a query object
+      description: >-
+        Get metrics from the Langfuse project using a query object.
+
+
+        For more details, see the [Metrics API
+        documentation](https://langfuse.com/docs/metrics/features/metrics-api).
       operationId: metrics_metrics
       tags:
         - Metrics
