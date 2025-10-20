@@ -369,52 +369,29 @@ export const handleEventPropagationJob = async (
       `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
 
-    // Step 3: Detach the processed partition (fast, synchronous operation)
-    await commandClickhouse({
-      query: `
-        ALTER TABLE observations_batch_staging
-        DETACH PARTITION '${partitionToProcess}'
-      `,
-      tags: {
-        feature: "ingestion",
-        partition: partitionToProcess,
-        operation_name: "detachPartition",
-      },
-      clickhouseConfigs: {
-        request_timeout: 180000, // 3 minutes timeout
-      },
-    });
-
-    logger.info(
-      `[DUAL WRITE] Detached partition ${partitionToProcess} after successful processing`,
-    );
-
-    // Step 4: Drop the detached partition asynchronously (no await for better throughput)
+    // Step 3: DROP the processed partition without an await as this is a slow operation
     commandClickhouse({
       query: `
         ALTER TABLE observations_batch_staging
-        DROP DETACHED PARTITION '${partitionToProcess}'
+        DROP PARTITION '${partitionToProcess}'
       `,
       tags: {
         feature: "ingestion",
         partition: partitionToProcess,
-        operation_name: "dropDetachedPartition",
+        operation_name: "dropPartition",
       },
       clickhouseConfigs: {
         request_timeout: 60000 * 15, // 15 minutes timeout
-        clickhouse_settings: {
-          allow_drop_detached: 1,
-        },
       },
     })
       .then(() => {
         logger.info(
-          `[DUAL WRITE] Successfully dropped detached partition ${partitionToProcess}`,
+          `[DUAL WRITE] Successfully dropped partition ${partitionToProcess}`,
         );
       })
       .catch((error) => {
         logger.error(
-          `[DUAL WRITE] Failed to drop detached partition ${partitionToProcess}`,
+          `[DUAL WRITE] Failed to drop partition ${partitionToProcess}`,
           error,
         );
         traceException(error);
