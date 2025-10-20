@@ -26,6 +26,11 @@ const EnvSchema = z.object({
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_SENTINEL_NODES: z.string().optional(),
+  REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
+  REDIS_SENTINEL_USERNAME: z.string().optional(),
+  REDIS_SENTINEL_PASSWORD: z.string().optional(),
   ENCRYPTION_KEY: z
     .string()
     .length(
