@@ -1015,9 +1015,17 @@ export function useSidebarFilterState(
         );
         const isArrayOptions = colDef?.type === "arrayOptions";
 
+        // Get the checkbox filter (stringOptions/arrayOptions) for this column
+        // NOT text filters (string type) - they're handled separately
+        const checkboxFilter = filterState.find(
+          (f) =>
+            f.column === facet.column &&
+            (f.type === "stringOptions" || f.type === "arrayOptions"),
+        );
+
         const selectedValues = computeSelectedValues(
           availableValues,
-          filterByColumn.get(facet.column),
+          checkboxFilter,
         );
 
         // Determine current operator for ANY/ALL toggle
@@ -1026,16 +1034,15 @@ export function useSidebarFilterState(
         // - "any of" (OR logic): match if item has ANY selected value
         // - "all of" (AND logic): match if item has ALL selected values
         // This operator is persisted in the filter state and URL
-        const currentFilter = filterByColumn.get(facet.column);
         let currentOperator: "any of" | "all of" | undefined;
         if (
-          currentFilter &&
-          (currentFilter.type === "arrayOptions" ||
-            currentFilter.type === "stringOptions") &&
-          (currentFilter.operator === "any of" ||
-            currentFilter.operator === "all of")
+          checkboxFilter &&
+          (checkboxFilter.type === "arrayOptions" ||
+            checkboxFilter.type === "stringOptions") &&
+          (checkboxFilter.operator === "any of" ||
+            checkboxFilter.operator === "all of")
         ) {
-          currentOperator = currentFilter.operator;
+          currentOperator = checkboxFilter.operator;
         } else if (isArrayOptions && selectedValues.length > 0) {
           // Default to "any of" for arrayOptions when selections exist but no explicit operator
           currentOperator = "any of";
@@ -1069,11 +1076,9 @@ export function useSidebarFilterState(
             selectedValues.length === availableValues.length) ||
           hasCheckboxSelections;
 
-        if (isArrayOptions) {
-          console.log(
-            `DEBUG [useSidebarFilterState] ${facet.column} - isArrayOptions: true, currentOperator: ${currentOperator}, selectedValues: ${JSON.stringify(selectedValues)}, isActive: ${isActive}, filter: ${JSON.stringify(currentFilter)}, textFilters: ${JSON.stringify(textFilters)}`,
-          );
-        }
+        console.log(
+          `DEBUG [useSidebarFilterState] ${facet.column} - checkboxFilter: ${JSON.stringify(checkboxFilter)}, textFilters: ${JSON.stringify(textFilters)}, hasTextFilters: ${hasTextFilters}, hasCheckboxSelections: ${hasCheckboxSelections}, selectedValues: ${JSON.stringify(selectedValues)}, availableValues.length: ${availableValues.length}`,
+        );
 
         return {
           type: "categorical",

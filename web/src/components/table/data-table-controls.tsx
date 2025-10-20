@@ -616,7 +616,7 @@ export function CategoricalFacet({
 
         {/* Text filter section - mutually exclusive with checkboxes */}
         {onTextFilterAdd && (
-          <div className="mt-3 border-t pt-3">
+          <div className="pt-3">
             <div className="mb-2 px-2 text-[10px] font-medium text-muted-foreground">
               Or filter by text
             </div>
