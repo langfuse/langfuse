@@ -24,7 +24,7 @@ import {
 const isTraceTimestampFilter = (
   filter: FilterCondition,
 ): filter is TimeFilter => {
-  return filter.column === "Timestamp" && filter.type === "datetime";
+  return filter.column === "timestamp" && filter.type === "datetime";
 };
 
 export const getTraceStream = async (props: {
@@ -107,6 +107,7 @@ export const getTraceStream = async (props: {
       WHERE t.project_id = {projectId: String}
         ${appliedTracesFilter.query ? `AND ${appliedTracesFilter.query}` : ""}
         ${search.query}
+      LIMIT 1 BY id, project_id
       LIMIT {rowLimit: Int64}
     ),
     scores_agg AS (
