@@ -12,13 +12,7 @@ import {
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  useQueryParam,
-  StringParam,
-} from "use-query-params";
+import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
 import { useEffect } from "react";
@@ -31,6 +25,8 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
+import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 
 type RowData = {
   key: {
@@ -48,15 +44,25 @@ type RowData = {
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
-  });
+
+  const {
+    paginationState,
+    currentFolderPath,
+    navigateToFolder,
+    resetPaginationAndFolder,
+    setPaginationAndFolderState,
+  } = useFolderPagination();
 
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
   );
+
+  // Reset pagination when search query changes
+  useEffect(() => {
+    resetPaginationAndFolder();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
@@ -257,8 +263,16 @@ export function DatasetsTable(props: { projectId: string }) {
     },
   });
 
+  // Backend returns folder representatives with row_type metadata
+
   return (
     <>
+      {currentFolderPath && (
+        <FolderBreadcrumb
+          currentFolderPath={currentFolderPath}
+          navigateToFolder={navigateToFolder}
+        />
+      )}
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -303,7 +317,7 @@ export function DatasetsTable(props: { projectId: string }) {
         }
         pagination={{
           totalCount: datasets.data?.totalDatasets ?? null,
-          onChange: setPaginationState,
+          onChange: setPaginationAndFolderState,
           state: paginationState,
         }}
         columnVisibility={columnVisibility}

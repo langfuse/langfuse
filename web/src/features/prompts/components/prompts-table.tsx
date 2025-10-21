@@ -16,22 +16,12 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/src/components/ui/breadcrumb";
-import { Slash, Folder, Home } from "lucide-react";
 import { promptsTableColsWithOptions } from "@langfuse/shared";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
-import {
-  buildFullPath,
-  createBreadcrumbItems,
-} from "@/src/features/folders/utils";
+import { buildFullPath } from "@/src/features/folders/utils";
+import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 
 type PromptTableRow = {
   id: string;
@@ -230,18 +220,9 @@ export function PromptTable() {
 
         if (rowData.type === "folder") {
           return (
-            <TableLink
-              path={""}
-              value={name} // To satisfy table-link, fallback
-              className="flex items-center gap-2"
-              icon={
-                <>
-                  <Folder className="h-4 w-4" />
-                  {name}
-                </>
-              }
+            <FolderBreadcrumbLink
+              name={name}
               onClick={() => navigateToFolder(rowData.fullPath)}
-              title={name || ""}
             />
           );
         }
@@ -352,41 +333,10 @@ export function PromptTable() {
   return (
     <>
       {currentFolderPath && (
-        <div className="ml-2 pt-2">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  className="cursor-pointer hover:underline"
-                  onClick={() => navigateToFolder(undefined)}
-                >
-                  <Home className="h-4 w-4" />
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              {createBreadcrumbItems(currentFolderPath).flatMap(
-                (item, index, array) => [
-                  index > 0 && (
-                    <BreadcrumbSeparator key={`sep-${item.folderPath}`}>
-                      <Slash />
-                    </BreadcrumbSeparator>
-                  ),
-                  <BreadcrumbItem key={item.folderPath}>
-                    {index === array.length - 1 ? (
-                      <BreadcrumbPage>{item.name}</BreadcrumbPage>
-                    ) : (
-                      <BreadcrumbLink
-                        className="cursor-pointer hover:underline"
-                        onClick={() => navigateToFolder(item.folderPath)}
-                      >
-                        {item.name}
-                      </BreadcrumbLink>
-                    )}
-                  </BreadcrumbItem>,
-                ],
-              )}
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
+        <FolderBreadcrumb
+          currentFolderPath={currentFolderPath}
+          navigateToFolder={navigateToFolder}
+        />
       )}
       <DataTableToolbar
         columns={promptColumns}
