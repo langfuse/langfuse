@@ -11,12 +11,6 @@ import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import {
-  NumberParam,
-  StringParam,
-  useQueryParams,
-  withDefault,
-} from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -33,6 +27,11 @@ import {
 import { Slash, Folder, Home } from "lucide-react";
 import { promptsTableColsWithOptions } from "@langfuse/shared";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
+import {
+  buildFullPath,
+  createBreadcrumbItems,
+} from "@/src/features/folders/utils";
 
 type PromptTableRow = {
   id: string;
@@ -64,19 +63,6 @@ function createRow(
   };
 }
 
-function createBreadcrumbItems(currentFolderPath: string) {
-  if (!currentFolderPath) return [];
-
-  const segments = currentFolderPath.split("/");
-  return segments.map((name, i) => {
-    const folderPath = segments.slice(0, i + 1).join("/");
-    return {
-      name,
-      folderPath,
-    };
-  });
-}
-
 export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
@@ -91,34 +77,23 @@ export function PromptTable() {
     column: "createdAt",
     order: "DESC",
   });
-  const [queryParams, setQueryParams] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
-    folder: StringParam,
-  });
+
+  const {
+    paginationState,
+    currentFolderPath,
+    navigateToFolder,
+    resetPaginationAndFolder,
+    setPaginationAndFolderState,
+  } = useFolderPagination();
 
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
 
   // Reset pagination when search query changes
   useEffect(() => {
-    setQueryParams({
-      pageIndex: 0,
-      pageSize: queryParams.pageSize,
-      folder: queryParams.folder,
-    });
+    resetPaginationAndFolder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
-
-  const paginationState = {
-    pageIndex: queryParams.pageIndex,
-    pageSize: queryParams.pageSize,
-  };
-
-  const currentFolderPath = queryParams.folder || "";
-
-  const buildFullPath = (currentFolder: string, itemName: string) =>
-    currentFolder ? `${currentFolder}/${itemName}` : itemName;
 
   const prompts = api.prompts.all.useQuery(
     {
@@ -265,13 +240,7 @@ export function PromptTable() {
                   {name}
                 </>
               }
-              onClick={() => {
-                setQueryParams({
-                  folder: rowData.fullPath,
-                  pageIndex: 0,
-                  pageSize: queryParams.pageSize,
-                });
-              }}
+              onClick={() => navigateToFolder(rowData.fullPath)}
               title={name || ""}
             />
           );
@@ -389,13 +358,7 @@ export function PromptTable() {
               <BreadcrumbItem>
                 <BreadcrumbLink
                   className="cursor-pointer hover:underline"
-                  onClick={() => {
-                    setQueryParams({
-                      folder: undefined,
-                      pageIndex: 0,
-                      pageSize: queryParams.pageSize,
-                    });
-                  }}
+                  onClick={() => navigateToFolder(undefined)}
                 >
                   <Home className="h-4 w-4" />
                 </BreadcrumbLink>
@@ -413,13 +376,7 @@ export function PromptTable() {
                     ) : (
                       <BreadcrumbLink
                         className="cursor-pointer hover:underline"
-                        onClick={() => {
-                          setQueryParams({
-                            folder: item.folderPath,
-                            pageIndex: 0,
-                            pageSize: queryParams.pageSize,
-                          });
-                        }}
+                        onClick={() => navigateToFolder(item.folderPath)}
                       >
                         {item.name}
                       </BreadcrumbLink>
@@ -485,7 +442,7 @@ export function PromptTable() {
         setOrderBy={setOrderByState}
         pagination={{
           totalCount,
-          onChange: setQueryParams,
+          onChange: setPaginationAndFolderState,
           state: paginationState,
         }}
       />
