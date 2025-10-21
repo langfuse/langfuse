@@ -272,6 +272,12 @@ export const commentsRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+
         const clickhouseTraces = await getTracesIdentifierForSession(
           input.projectId,
           input.sessionId,
@@ -313,6 +319,12 @@ export const commentsRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+
         const clickhouseTraces = await getTracesIdentifierForSession(
           input.projectId,
           input.sessionId,
