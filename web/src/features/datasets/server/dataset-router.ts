@@ -48,6 +48,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import {
+  updateDataset,
+  upsertDataset,
+} from "@/src/features/datasets/server/actions/createDataset";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -94,6 +98,21 @@ const addSearchCondition = <T extends Record<string, any>>(
 
   // Add case-insensitive search condition
   return query.where(columnName, "ilike", `%${searchQuery}%`) as T;
+};
+
+const resolveMetadata = (metadata: string | null | undefined) => {
+  if (metadata === "") return Prisma.DbNull;
+  try {
+    return !!metadata
+      ? (JSON.parse(metadata) as Prisma.InputJsonObject)
+      : undefined;
+  } catch (e) {
+    logger.info(
+      "[trpc.datasets.resolveMetadata] failed to parse dataset metadata",
+      e,
+    );
+    return undefined;
+  }
 };
 
 export const datasetRouter = createTRPCRouter({
@@ -587,18 +606,15 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      const dataset = await ctx.prisma.dataset.create({
-        data: {
+
+      const dataset = await upsertDataset({
+        input: {
           name: input.name,
           description: input.description ?? undefined,
-          projectId: input.projectId,
-          metadata:
-            input.metadata === ""
-              ? Prisma.DbNull
-              : !!input.metadata
-                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
-                : undefined,
+          metadata: resolveMetadata(input.metadata),
         },
+        projectId: input.projectId,
+        prisma: ctx.prisma,
       });
 
       await auditLog({
@@ -627,24 +643,18 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      const dataset = await ctx.prisma.dataset.update({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
+
+      const dataset = await updateDataset({
+        input: {
+          id: input.datasetId,
           name: input.name ?? undefined,
-          description: input.description,
-          metadata:
-            input.metadata === ""
-              ? Prisma.DbNull
-              : !!input.metadata
-                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
-                : undefined,
+          description: input.description ?? undefined,
+          metadata: resolveMetadata(input.metadata),
         },
+        projectId: input.projectId,
+        prisma: ctx.prisma,
       });
+
       await auditLog({
         session: ctx.session,
         resourceType: "dataset",
@@ -807,26 +817,28 @@ export const datasetRouter = createTRPCRouter({
         counter++;
       }
 
-      const newDataset = await ctx.prisma.dataset.create({
-        data: {
+      const newDataset = await upsertDataset({
+        input: {
           name: duplicateDatasetName(counter),
-          description: dataset.description,
-          projectId: input.projectId,
+          description: dataset.description ?? undefined,
           metadata: dataset.metadata ?? undefined,
-          datasetItems: {
-            createMany: {
-              data: dataset.datasetItems.map((item) => ({
-                // the items get new ids as they need to be unique on project level
-                input: item.input ?? undefined,
-                expectedOutput: item.expectedOutput ?? undefined,
-                metadata: item.metadata ?? undefined,
-                sourceTraceId: item.sourceTraceId,
-                sourceObservationId: item.sourceObservationId,
-                status: item.status,
-              })),
-            },
-          },
         },
+        projectId: input.projectId,
+        prisma: ctx.prisma,
+      });
+
+      await ctx.prisma.datasetItem.createMany({
+        data: dataset.datasetItems.map((item) => ({
+          // the items get new ids as they need to be unique on project level
+          input: item.input ?? undefined,
+          expectedOutput: item.expectedOutput ?? undefined,
+          metadata: item.metadata ?? undefined,
+          sourceTraceId: item.sourceTraceId,
+          sourceObservationId: item.sourceObservationId,
+          status: item.status,
+          projectId: input.projectId,
+          datasetId: newDataset.id,
+        })),
       });
 
       await auditLog({
@@ -1492,17 +1504,14 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const updatedDataset = await ctx.prisma.dataset.update({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
+      const updatedDataset = await updateDataset({
+        input: {
+          id: input.datasetId,
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
         },
+        projectId: input.projectId,
+        prisma: ctx.prisma,
       });
 
       await auditLog({
@@ -1648,17 +1657,14 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const updatedDataset = await ctx.prisma.dataset.update({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        data: {
+      const updatedDataset = await updateDataset({
+        input: {
+          id: input.datasetId,
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
         },
+        projectId: input.projectId,
+        prisma: ctx.prisma,
       });
 
       await auditLog({
