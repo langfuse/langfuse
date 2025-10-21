@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { SubHeader } from "@/src/components/layouts/header";
@@ -19,47 +19,102 @@ const SidePanelContext = React.createContext<{
   showPanel: boolean;
   setShowPanel: (value: boolean) => void;
   isMobile: boolean;
+  isControlled: boolean;
 } | null>(null);
 
+/**
+ * Side panel component with controlled/uncontrolled modes.
+ *
+ * **Uncontrolled mode** (default):
+ * - Omit `openState` prop
+ * - Panel state persisted in session storage
+ * - User can toggle via chevron button
+ * - Example: `<SidePanel id="details">{content}</SidePanel>`
+ *
+ * **Controlled mode**:
+ * - Provide `openState` with `open` and `onOpenChange`
+ * - No session storage, no toggle button
+ * - Parent controls open/close state
+ * - Example: `<SidePanel id="annotate" openState={{ open: isOpen, onOpenChange: setIsOpen }}>{content}</SidePanel>`
+ */
 const SidePanel = ({
   id,
   children,
   className,
   mobileTitle,
   scrollable = true,
+  openState,
 }: {
   id: string;
   children: ReactNode;
   className?: string;
   mobileTitle?: string;
   scrollable?: boolean;
+  /** Controlled mode: provide to control panel state externally */
+  openState?: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  };
 }) => {
-  const [showPanel, setShowPanel] = useSessionStorage<boolean>(
+  const isControlled = openState !== undefined;
+  const controlledOpen = openState?.open;
+  const onOpenChange = openState?.onOpenChange;
+  const [uncontrolledOpen, setUncontrolledOpen] = useSessionStorage<boolean>(
     `${id}-showPanel`,
     true,
   );
-  const [isOpen, setIsOpen] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const isMobile = useIsMobile();
+
+  const showPanel = isControlled ? (controlledOpen ?? false) : uncontrolledOpen;
+
+  const setShowPanel = useCallback(
+    (value: boolean) => {
+      if (isControlled) {
+        onOpenChange?.(value);
+      } else {
+        setUncontrolledOpen(value);
+      }
+    },
+    [isControlled, onOpenChange, setUncontrolledOpen],
+  );
+
+  const handleMobileOpenChange = useCallback(
+    (open: boolean) => {
+      if (isControlled) {
+        onOpenChange?.(open);
+      } else {
+        setMobileSheetOpen(open);
+      }
+    },
+    [isControlled, onOpenChange],
+  );
 
   const contextValue = React.useMemo(
     () => ({
       showPanel,
       setShowPanel,
       isMobile,
+      isControlled,
     }),
-    [showPanel, setShowPanel, isMobile],
+    [showPanel, setShowPanel, isMobile, isControlled],
   );
 
   if (isMobile) {
     return (
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <div className="border-l px-1 pt-2">
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-          </SheetTrigger>
-        </div>
+      <Sheet
+        open={isControlled ? showPanel : mobileSheetOpen}
+        onOpenChange={handleMobileOpenChange}
+      >
+        {!isControlled && (
+          <div className="border-l px-1 pt-2">
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </SheetTrigger>
+          </div>
+        )}
         <SheetContent>
           <SheetHeader>
             <SheetTitle>{mobileTitle}</SheetTitle>
@@ -85,7 +140,6 @@ const SidePanel = ({
           <div
             className={cn(
               "flex h-full w-full flex-col gap-2",
-              showPanel ? "p-2" : "p-1 pr-2 pt-2",
               scrollable ? "overflow-y-auto" : "overflow-hidden",
             )}
           >
@@ -100,10 +154,20 @@ const SidePanel = ({
 const SidePanelHeader = ({ children }: { children: ReactNode }) => {
   const context = React.useContext(SidePanelContext);
 
-  // Don't throw if we're in mobile mode (no context)
   if (!context) return null;
 
-  const { showPanel, setShowPanel } = context;
+  const { showPanel, setShowPanel, isControlled } = context;
+
+  if (isControlled) {
+    if (!showPanel) return null;
+
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-row items-center gap-1">{children}</div>
+        <Separator />
+      </div>
+    );
+  }
 
   if (!showPanel) {
     return (
@@ -120,7 +184,7 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex h-fit w-full flex-row items-center justify-between gap-2">
+      <div className="flex h-fit w-full flex-row items-center justify-between p-2 pb-0">
         <div className="flex flex-row items-center gap-1">{children}</div>
         <Button
           variant="outline"

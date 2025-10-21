@@ -1,6 +1,7 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -11,18 +12,38 @@ import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import { useRouter } from "next/router";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
+import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 
 const DatasetAggregateCell = ({
   value,
   projectId,
-  scoreColumns,
+  serverScoreColumns,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
-  scoreColumns: ScoreColumn[];
+  serverScoreColumns: ScoreColumn[];
 }) => {
   const { selectedFields } = useDatasetCompareFields();
+  const { activeCell, setActiveCell } = useActiveCell();
   const router = useRouter();
+
+  const hasAnnotationWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
+
+  // Merge cached score writes into aggregates for optimistic display
+  const displayScores = useMergedAggregates(
+    value.scores,
+    value.trace.id,
+    value.observation?.id,
+  );
+
+  // Merge server columns with cache-only columns
+  const mergedScoreColumns = useMergeScoreColumns(serverScoreColumns);
+
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
     { traceId: value.trace.id, projectId },
@@ -89,30 +110,56 @@ const DatasetAggregateCell = ({
     );
   };
 
+  const handleOpenReview = () => {
+    setActiveCell({
+      traceId: value.trace.id,
+      observationId: value.observation?.id,
+      scoreAggregates: displayScores,
+      environment: data?.environment,
+    });
+  };
+
+  const isActiveCell =
+    activeCell?.traceId === value.trace.id &&
+    activeCell?.observationId === value.observation?.id;
+
   return (
     <div
       className={cn(
         "group relative flex h-full w-full flex-col gap-2 overflow-hidden",
+        isActiveCell &&
+          "rounded-md p-1 ring-2 ring-inset ring-accent-dark-blue",
       )}
     >
-      {/* Triggers peek view */}
-      <Button
-        variant="outline"
-        size="icon"
-        className="absolute bottom-2 right-2 z-10 h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-        title="View trace/observation"
-        onClick={handleOpenPeek}
-      >
-        <ListTree className="h-3 w-3" />
-      </Button>
+      <div className="absolute bottom-2 right-2 z-10 flex flex-row gap-1">
+        {/* Triggers review/annotation */}
+        <Button
+          disabled={!hasAnnotationWriteAccess}
+          variant="outline"
+          className="h-6 px-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={handleOpenReview}
+        >
+          Annotate
+        </Button>
+        {/* Triggers peek view */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+          title="View trace/observation"
+          onClick={handleOpenPeek}
+        >
+          <ListTree className="h-3 w-3" />
+        </Button>
+      </div>
       {/* Displays trace/observation output */}
       <div
         className={cn(
-          "relative max-h-[50%] w-full min-w-0 overflow-auto",
+          "relative h-[50%] w-full min-w-0 flex-shrink-0 overflow-auto",
           !selectedFields.includes("output") && "hidden",
         )}
       >
-        <IOTableCell
+        <MemoizedIOTableCell
           isLoading={
             (!value.observation ? trace.isLoading : observation.isLoading) ||
             !data
@@ -126,20 +173,20 @@ const DatasetAggregateCell = ({
       {/* Displays scores */}
       <div
         className={cn(
-          "flex max-h-[50%] flex-shrink-0 overflow-hidden px-1",
+          "flex max-h-[50%] flex-shrink overflow-hidden px-1",
           !selectedFields.includes("scores") && "hidden",
         )}
       >
         <div className="mt-1 w-full min-w-0 overflow-hidden">
           <div className="flex max-h-full w-full flex-wrap gap-1 overflow-y-auto">
-            {scoreColumns.length > 0 ? (
-              scoreColumns.map((scoreColumn) => (
+            {mergedScoreColumns.length > 0 ? (
+              mergedScoreColumns.map((scoreColumn) => (
                 <ScoreRow
                   key={scoreColumn.key}
                   projectId={projectId}
                   name={scoreColumn.name}
                   source={scoreColumn.source}
-                  aggregate={value.scores[scoreColumn.key] ?? null}
+                  aggregate={displayScores[scoreColumn.key] ?? null}
                 />
               ))
             ) : (
@@ -180,19 +227,19 @@ const DatasetAggregateCell = ({
 type DatasetAggregateTableCellProps = {
   projectId: string;
   value: EnrichedDatasetRunItem;
-  scoreColumns: ScoreColumn[];
+  serverScoreColumns: ScoreColumn[];
 };
 
 export const DatasetAggregateTableCell = ({
   projectId,
   value,
-  scoreColumns,
+  serverScoreColumns,
 }: DatasetAggregateTableCellProps) => {
   return (
     <DatasetAggregateCell
       projectId={projectId}
       value={value}
-      scoreColumns={scoreColumns}
+      serverScoreColumns={serverScoreColumns}
     />
   );
 };
