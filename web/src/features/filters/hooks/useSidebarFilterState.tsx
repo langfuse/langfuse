@@ -1121,12 +1121,15 @@ export function useSidebarFilterState(
           onOperatorChange: isArrayOptions
             ? (op: "any of" | "all of") => updateOperator(facet.column, op)
             : undefined,
-          // Text filter support
-          textFilters,
-          onTextFilterAdd: (op, val) => addTextFilter(facet.column, op, val),
-          onTextFilterRemove: (op, val) =>
-            removeTextFilter(facet.column, op, val),
-          hasTextFilters,
+          // Text filter support - ONLY for stringOptions, NOT arrayOptions or boolean
+          textFilters: !isArrayOptions ? textFilters : undefined,
+          onTextFilterAdd: !isArrayOptions
+            ? (op, val) => addTextFilter(facet.column, op, val)
+            : undefined,
+          onTextFilterRemove: !isArrayOptions
+            ? (op, val) => removeTextFilter(facet.column, op, val)
+            : undefined,
+          hasTextFilters: !isArrayOptions ? hasTextFilters : undefined,
           hasCheckboxSelections,
         };
       })
