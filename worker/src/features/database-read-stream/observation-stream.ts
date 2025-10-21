@@ -266,10 +266,12 @@ export const getObservationStream = async (props: {
     },
   });
 
-  // Convert async generator to Node.js Readable stream
-  let recordsProcessed = 0;
+  // Helper function to process a single observation row
   const modelCache = createModelCache(projectId);
-  const BATCH_SIZE = 100; // Fetch comments in batches for efficiency
+  const emptyScoreColumns = distinctScoreNames.reduce(
+    (acc, name) => ({ ...acc, [name]: null }),
+    {} as Record<string, null>,
+  );
 
   type ObservationRow = ObservationRecordReadType & {
     scores_avg:
@@ -287,6 +289,65 @@ export const getObservationStream = async (props: {
     traceTimestamp: Date;
     userId: string | null;
   };
+
+  const processObservationRow = async (
+    bufferedRow: ObservationRow,
+    commentsByObservation: Map<string, any[]>,
+  ) => {
+    // Fetch model data from cache (or database if not cached)
+    const model = await modelCache.getModel(bufferedRow.internal_model_id);
+    const modelData = enrichObservationWithModelData(model);
+
+    // Process numeric/boolean scores (tuples from ClickHouse)
+    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
+      name: score[0],
+      value: score[1],
+      dataType: score[2],
+      stringValue: score[3],
+    }));
+
+    // Process categorical scores (format: "name:value")
+    const categoricalScores = (bufferedRow.score_categories ?? []).map(
+      (cat: string) => {
+        const [name, ...valueParts] = cat.split(":");
+        return {
+          name,
+          value: null,
+          dataType: "CATEGORICAL" as ScoreDataType,
+          stringValue: valueParts.join(":"),
+        };
+      },
+    );
+
+    const outputScores: Record<string, string[] | number[]> =
+      prepareScoresForOutput([...numericScores, ...categoricalScores]);
+
+    // Get comments for this observation
+    const observationComments = commentsByObservation.get(bufferedRow.id) ?? [];
+
+    return getChunkWithFlattenedScores(
+      [
+        {
+          ...convertObservation(bufferedRow, {
+            truncated: false,
+            shouldJsonParse: true,
+          }),
+          traceName: bufferedRow.traceName,
+          traceTags: bufferedRow.traceTags,
+          traceTimestamp: bufferedRow.traceTimestamp,
+          userId: bufferedRow.userId,
+          ...modelData,
+          scores: outputScores,
+          comments: observationComments,
+        },
+      ],
+      emptyScoreColumns,
+    )[0];
+  };
+
+  // Convert async generator to Node.js Readable stream
+  let recordsProcessed = 0;
+  const BATCH_SIZE = 100; // Fetch comments in batches for efficiency
 
   return Readable.from(
     (async function* () {
@@ -314,63 +375,10 @@ export const getObservationStream = async (props: {
                 `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
               );
 
-            // Fetch model data from cache (or database if not cached)
-            const model = await modelCache.getModel(
-              bufferedRow.internal_model_id,
+            yield await processObservationRow(
+              bufferedRow,
+              commentsByObservation,
             );
-            const modelData = enrichObservationWithModelData(model);
-
-            // Process numeric/boolean scores (tuples from ClickHouse)
-            const numericScores = (bufferedRow.scores_avg ?? []).map(
-              (score: any) => ({
-                name: score[0],
-                value: score[1],
-                dataType: score[2],
-                stringValue: score[3],
-              }),
-            );
-
-            // Process categorical scores (format: "name:value")
-            const categoricalScores = (bufferedRow.score_categories ?? []).map(
-              (cat: string) => {
-                const [name, ...valueParts] = cat.split(":");
-                return {
-                  name,
-                  value: null,
-                  dataType: "CATEGORICAL" as ScoreDataType,
-                  stringValue: valueParts.join(":"),
-                };
-              },
-            );
-
-            const outputScores: Record<string, string[] | number[]> =
-              prepareScoresForOutput([...numericScores, ...categoricalScores]);
-
-            // Get comments for this observation
-            const observationComments =
-              commentsByObservation.get(bufferedRow.id) ?? [];
-
-            yield getChunkWithFlattenedScores(
-              [
-                {
-                  ...convertObservation(bufferedRow, {
-                    truncated: false,
-                    shouldJsonParse: true,
-                  }),
-                  traceName: bufferedRow.traceName,
-                  traceTags: bufferedRow.traceTags,
-                  traceTimestamp: bufferedRow.traceTimestamp,
-                  userId: bufferedRow.userId,
-                  ...modelData,
-                  scores: outputScores,
-                  comments: observationComments,
-                },
-              ],
-              distinctScoreNames.reduce(
-                (acc, name) => ({ ...acc, [name]: null }),
-                {} as Record<string, null>,
-              ),
-            )[0];
           }
 
           // Reset buffers
@@ -394,63 +402,7 @@ export const getObservationStream = async (props: {
               `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
             );
 
-          // Fetch model data from cache (or database if not cached)
-          const model = await modelCache.getModel(
-            bufferedRow.internal_model_id,
-          );
-          const modelData = enrichObservationWithModelData(model);
-
-          // Process numeric/boolean scores (tuples from ClickHouse)
-          const numericScores = (bufferedRow.scores_avg ?? []).map(
-            (score: any) => ({
-              name: score[0],
-              value: score[1],
-              dataType: score[2],
-              stringValue: score[3],
-            }),
-          );
-
-          // Process categorical scores (format: "name:value")
-          const categoricalScores = (bufferedRow.score_categories ?? []).map(
-            (cat: string) => {
-              const [name, ...valueParts] = cat.split(":");
-              return {
-                name,
-                value: null,
-                dataType: "CATEGORICAL" as ScoreDataType,
-                stringValue: valueParts.join(":"),
-              };
-            },
-          );
-
-          const outputScores: Record<string, string[] | number[]> =
-            prepareScoresForOutput([...numericScores, ...categoricalScores]);
-
-          // Get comments for this observation
-          const observationComments =
-            commentsByObservation.get(bufferedRow.id) ?? [];
-
-          yield getChunkWithFlattenedScores(
-            [
-              {
-                ...convertObservation(bufferedRow, {
-                  truncated: false,
-                  shouldJsonParse: true,
-                }),
-                traceName: bufferedRow.traceName,
-                traceTags: bufferedRow.traceTags,
-                traceTimestamp: bufferedRow.traceTimestamp,
-                userId: bufferedRow.userId,
-                ...modelData,
-                scores: outputScores,
-                comments: observationComments,
-              },
-            ],
-            distinctScoreNames.reduce(
-              (acc, name) => ({ ...acc, [name]: null }),
-              {} as Record<string, null>,
-            ),
-          )[0];
+          yield await processObservationRow(bufferedRow, commentsByObservation);
         }
       }
     })(),
