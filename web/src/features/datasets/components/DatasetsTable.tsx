@@ -15,7 +15,7 @@ import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { TableViewPresetTableName, type Prisma } from "@langfuse/shared";
@@ -27,19 +27,44 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import { buildFullPath } from "@/src/features/folders/utils";
+import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 
-type RowData = {
+type DatasetTableRow = {
   key: {
     id: string;
     name: string;
   };
-  description?: string;
-  createdAt: Date;
-  lastRunAt?: Date;
-  countItems: number;
-  countRuns: number;
-  metadata: Prisma.JsonValue;
+  isFolder: boolean;
+  fullPath: string; // used for navigation/API calls
+  description?: string | null;
+  createdAt?: Date | null;
+  lastRunAt: Date | null;
+  countItems: number | null;
+  countRuns: number | null;
+  metadata: Prisma.JsonValue | null;
 };
+
+function createRow(
+  data: Partial<DatasetTableRow> & {
+    key: {
+      id: string;
+      name: string;
+    };
+    fullPath: string;
+    isFolder: boolean;
+  },
+): DatasetTableRow {
+  return {
+    description: null,
+    createdAt: null,
+    lastRunAt: null,
+    countItems: null,
+    countRuns: null,
+    metadata: null,
+    ...data,
+  };
+}
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
@@ -69,6 +94,7 @@ export function DatasetsTable(props: { projectId: string }) {
     searchQuery,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    pathPrefix: currentFolderPath,
   });
 
   const metrics = api.datasets.allDatasetsMetrics.useQuery(
@@ -91,7 +117,7 @@ export function DatasetsTable(props: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasets.isSuccess, datasets.data]);
 
-  const columns: LangfuseColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<DatasetTableRow>[] = [
     {
       accessorKey: "key",
       header: "Name",
@@ -99,7 +125,18 @@ export function DatasetsTable(props: { projectId: string }) {
       size: 150,
       isFixedPosition: true,
       cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
+        const key: DatasetTableRow["key"] = row.getValue("key");
+        const rowData = row.original;
+
+        if (rowData.isFolder) {
+          return (
+            <FolderBreadcrumbLink
+              name={key.name}
+              onClick={() => navigateToFolder(rowData.fullPath)}
+            />
+          );
+        }
+
         return (
           <TableLink
             path={`/project/${props.projectId}/datasets/${key.id}`}
@@ -115,7 +152,8 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 200,
       cell: ({ row }) => {
-        const description: RowData["description"] = row.getValue("description");
+        const description: DatasetTableRow["description"] =
+          row.getValue("description");
         return (
           <div className="max-h-full max-w-full overflow-y-auto overflow-x-hidden break-words">
             {description}
@@ -144,8 +182,8 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 150,
       cell: ({ row }) => {
-        const value: RowData["createdAt"] = row.getValue("createdAt");
-        return <LocalIsoDate date={value} />;
+        const value: DatasetTableRow["createdAt"] = row.getValue("createdAt");
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {
@@ -155,7 +193,7 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 150,
       cell: ({ row }) => {
-        const value: RowData["lastRunAt"] = row.getValue("lastRunAt");
+        const value: DatasetTableRow["lastRunAt"] = row.getValue("lastRunAt");
         return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
@@ -166,7 +204,7 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 300,
       cell: ({ row }) => {
-        const metadata: RowData["metadata"] = row.getValue("metadata");
+        const metadata: DatasetTableRow["metadata"] = row.getValue("metadata");
         return !!metadata ? (
           <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
         ) : null;
@@ -178,7 +216,7 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Actions",
       size: 70,
       cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
+        const key: DatasetTableRow["key"] = row.getValue("key");
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -221,31 +259,15 @@ export function DatasetsTable(props: { projectId: string }) {
   type MetricsOutput =
     RouterOutput["datasets"]["allDatasetsMetrics"]["metrics"][number];
 
-  const datasetsRowData = joinTableCoreAndMetrics<CoreOutput, MetricsOutput>(
-    datasets.data?.datasets,
-    metrics.data?.metrics,
-  );
+  const datasetsDatasetTableRow = joinTableCoreAndMetrics<
+    CoreOutput,
+    MetricsOutput
+  >(datasets.data?.datasets, metrics.data?.metrics);
 
-  const convertToTableRow = (
-    row: CoreOutput & Partial<MetricsOutput>,
-  ): RowData => {
-    return {
-      key: { id: row.id, name: row.name },
-      description: row.description ?? "",
-      createdAt: row.createdAt,
-      lastRunAt: row.lastRunAt ?? undefined,
-      countItems: row.countDatasetItems ?? 0,
-      countRuns: row.countDatasetRuns ?? 0,
-      metadata: row.metadata,
-    };
-  };
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<DatasetTableRow>("datasetsColumnVisibility", columns);
 
-  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
-    "datasetsColumnVisibility",
-    columns,
-  );
-
-  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+  const [columnOrder, setColumnOrder] = useColumnOrder<DatasetTableRow>(
     "datasetsColumnOrder",
     columns,
   );
@@ -264,6 +286,44 @@ export function DatasetsTable(props: { projectId: string }) {
   });
 
   // Backend returns folder representatives with row_type metadata
+  const processedRowData = useMemo(() => {
+    if (!datasetsDatasetTableRow.rows)
+      return { ...datasetsDatasetTableRow, rows: [] };
+
+    const combinedRows: DatasetTableRow[] = [];
+
+    for (const dataset of datasetsDatasetTableRow.rows) {
+      const isFolder = dataset.row_type === "folder";
+      const itemName = dataset.id; // id actually contains the name due to type mapping
+      const fullPath = buildFullPath(currentFolderPath, itemName);
+
+      combinedRows.push(
+        createRow({
+          key: {
+            id: `${dataset.row_type}-${fullPath}`, // Unique ID for React keys
+            name: dataset.name,
+          },
+          fullPath,
+          isFolder,
+          ...(isFolder
+            ? {}
+            : {
+                description: dataset.description,
+                createdAt: dataset.createdAt,
+                lastRunAt: dataset.lastRunAt,
+                countItems: dataset.countDatasetItems,
+                countRuns: dataset.countDatasetRuns,
+                metadata: dataset.metadata,
+              }),
+        }),
+      );
+    }
+
+    return {
+      ...datasetsDatasetTableRow,
+      rows: combinedRows,
+    };
+  }, [datasetsDatasetTableRow, currentFolderPath]);
 
   return (
     <>
@@ -310,9 +370,7 @@ export function DatasetsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: (datasetsRowData.rows ?? []).map((t) =>
-                    convertToTableRow(t),
-                  ),
+                  data: processedRowData.rows,
                 }
         }
         pagination={{
