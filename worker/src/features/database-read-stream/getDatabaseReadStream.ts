@@ -3,10 +3,10 @@ import {
   FilterCondition,
   TimeFilter,
   BatchExportQueryType,
-  ScoreDomain,
   evalDatasetFormFilterCols,
   OrderByState,
   TracingSearchType,
+  ScoreDataType,
   isPresent,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -54,12 +54,12 @@ const isGenerationTimestampFilter = (
 ): filter is TimeFilter => {
   return filter.column === "Start Time" && filter.type === "datetime";
 };
-const isTraceTimestampFilter = (
+export const isTraceTimestampFilter = (
   filter: FilterCondition,
 ): filter is TimeFilter => {
   return filter.column === "Timestamp" && filter.type === "datetime";
 };
-const getChunkWithFlattenedScores = <
+export const getChunkWithFlattenedScores = <
   T extends BatchExportTracesRow[] | FullObservationsWithScores,
 >(
   chunk: T,
@@ -87,7 +87,7 @@ const getChunkWithFlattenedScores = <
   });
 };
 
-export const getDatabaseReadStream = async ({
+export const getDatabaseReadStreamPaginated = async ({
   projectId,
   tableName,
   filter,
@@ -581,14 +581,21 @@ export const getDatabaseReadStream = async ({
 };
 
 export function prepareScoresForOutput(
-  filteredScores: ScoreDomain[],
+  scores: {
+    name: string;
+    stringValue: string | null;
+    dataType: ScoreDataType;
+    value: number | null;
+  }[],
 ): Record<string, string[] | number[]> {
-  return filteredScores.reduce(
+  return scores.reduce(
     (acc, score) => {
       // If this score name already exists in acc, use its existing type
       const existingValues = acc[score.name];
       const newValue =
-        score.dataType === "NUMERIC" ? score.value : score.stringValue;
+        score.dataType === "NUMERIC" || score.dataType === "BOOLEAN"
+          ? score.value
+          : score.stringValue;
       if (!isPresent(newValue)) return acc;
 
       if (!existingValues) {

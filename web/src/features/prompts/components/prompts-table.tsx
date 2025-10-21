@@ -118,6 +118,9 @@ export function PromptTable() {
 
   const currentFolderPath = queryParams.folder || "";
 
+  const buildFullPath = (currentFolder: string, itemName: string) =>
+    currentFolder ? `${currentFolder}/${itemName}` : itemName;
+
   const prompts = api.prompts.all.useQuery(
     {
       page: paginationState.pageIndex,
@@ -141,7 +144,10 @@ export function PromptTable() {
   const promptMetrics = api.prompts.metrics.useQuery(
     {
       projectId: projectId as string,
-      promptNames: prompts.data?.prompts.map((p) => p.name) ?? [],
+      promptNames:
+        prompts.data?.prompts.map((p) =>
+          buildFullPath(currentFolderPath, p.name),
+        ) ?? [],
     },
     {
       enabled:
@@ -169,9 +175,6 @@ export function PromptTable() {
       id: pm.promptName,
     })),
   );
-
-  const buildFullPath = (currentFolder: string, itemName: string) =>
-    currentFolder ? `${currentFolder}/${itemName}` : itemName;
 
   // Backend returns folder representatives with row_type metadata
   const processedRowData = useMemo(() => {
