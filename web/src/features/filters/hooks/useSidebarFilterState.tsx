@@ -814,7 +814,11 @@ export function useSidebarFilterState(
           const availableKeys = options[facet.column];
           const keyOptions =
             facet.keyOptions ??
-            (Array.isArray(availableKeys) ? availableKeys : undefined);
+            (Array.isArray(availableKeys)
+              ? availableKeys.map((opt) =>
+                  typeof opt === "string" ? opt : opt.value,
+                )
+              : undefined);
 
           return {
             type: "numericKeyValue",
@@ -890,7 +894,11 @@ export function useSidebarFilterState(
           const availableKeys = options[facet.column];
           const keyOptions =
             facet.keyOptions ??
-            (Array.isArray(availableKeys) ? availableKeys : undefined);
+            (Array.isArray(availableKeys)
+              ? availableKeys.map((opt) =>
+                  typeof opt === "string" ? opt : opt.value,
+                )
+              : undefined);
 
           return {
             type: "stringKeyValue",

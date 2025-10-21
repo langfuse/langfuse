@@ -237,15 +237,23 @@ export function PromptTable() {
     () => ({
       type: ["text", "chat"],
       labels:
-        promptFilterOptions.data?.labels?.map((l) => ({
-          value: l.value,
-          count: l.count !== undefined ? Number(l.count) : undefined,
-        })) || [],
+        promptFilterOptions.data?.labels?.map((l) => {
+          // API type says { value: string }[], but for some items, there is an optional count
+          const item = l as { value: string; count?: number };
+          return {
+            value: item.value,
+            count: item.count !== undefined ? Number(item.count) : undefined,
+          };
+        }) || [],
       tags:
-        promptFilterOptions.data?.tags?.map((t) => ({
-          value: t.value,
-          count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        promptFilterOptions.data?.tags?.map((t) => {
+          // API type says { value: string }[], but for some items, there is an optional count
+          const item = t as { value: string; count?: number };
+          return {
+            value: item.value,
+            count: item.count !== undefined ? Number(item.count) : undefined,
+          };
+        }) || [],
       version: [],
     }),
     [promptFilterOptions.data],
