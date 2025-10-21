@@ -415,6 +415,9 @@ export function useSidebarFilterState(
       }
 
       // stringOptions only supports "any of" | "none of", not "all of"
+      // finalOperator can be "all of" because UpdateFilter type signature allows it,
+      // but this shouldn't happen. UI only shows operator toggle for arrayOptions,
+      // which cannot be set to "all of". We just prevent a TS build error here.
       const stringOperator: "any of" | "none of" =
         finalOperator === "all of" ? "any of" : finalOperator;
 
