@@ -34,11 +34,6 @@ export const useFolderPagination = () => {
     folder: StringParam,
   });
 
-  const paginationState = {
-    pageIndex: queryParams.pageIndex,
-    pageSize: queryParams.pageSize,
-  };
-
   const currentFolderPath = queryParams.folder || "";
 
   /**
@@ -74,9 +69,11 @@ export const useFolderPagination = () => {
 
     /**
      * Pagination state for table component
-     * { pageIndex: number, pageSize: number }
      */
-    paginationState,
+    paginationState: {
+      pageIndex: queryParams.pageIndex,
+      pageSize: queryParams.pageSize,
+    },
 
     /**
      * Function to update pagination state
