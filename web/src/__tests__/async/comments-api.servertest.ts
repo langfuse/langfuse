@@ -278,7 +278,7 @@ describe("GET /api/public/comments API Endpoint", () => {
       page: 1,
       limit: 50,
       totalItems: 0,
-      totalPages: 1,
+      totalPages: 0,
     });
   });
 
