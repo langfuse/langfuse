@@ -102,7 +102,7 @@ describe("batch export test suite", () => {
     );
   });
 
-  it("should export observations with filter", async () => {
+  it("should export filtered observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const observations = [
@@ -469,7 +469,15 @@ describe("batch export test suite", () => {
       data_type: "CATEGORICAL",
     });
 
-    await createScoresCh([score, qualitativeScore]);
+    const booleanScore = createTraceScore({
+      project_id: projectId,
+      trace_id: traces[0].id,
+      name: "is_correct",
+      value: 1,
+      data_type: "BOOLEAN",
+    });
+
+    await createScoresCh([score, qualitativeScore, booleanScore]);
 
     const stream = await getTraceStream({
       projectId: projectId,
@@ -491,15 +499,18 @@ describe("batch export test suite", () => {
           id: traces[0].id,
           test: [score.value],
           qualitative_test: ["This is some qualitative text"],
+          is_correct: [1],
         }),
         expect.objectContaining({
           id: traces[1].id,
           test: null,
           qualitative_test: null,
+          is_correct: null,
         }),
       ]),
     );
   });
+
   it("should export traces with filter and sort", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 

@@ -281,8 +281,29 @@ export const getObservationStream = async (props: {
         const model = await modelCache.getModel(row.internal_model_id);
         const modelData = enrichObservationWithModelData(model);
 
+        // Process numeric/boolean scores (tuples from ClickHouse)
+        const numericScores = (row.scores_avg ?? []).map((score: any) => ({
+          name: score[0],
+          value: score[1],
+          dataType: score[2],
+          stringValue: score[3],
+        }));
+
+        // Process categorical scores (format: "name:value")
+        const categoricalScores = (row.score_categories ?? []).map(
+          (cat: string) => {
+            const [name, ...valueParts] = cat.split(":");
+            return {
+              name,
+              value: null,
+              dataType: "CATEGORICAL" as ScoreDataType,
+              stringValue: valueParts.join(":"),
+            };
+          },
+        );
+
         const outputScores: Record<string, string[] | number[]> =
-          prepareScoresForOutput(row.scores_avg ?? []);
+          prepareScoresForOutput([...numericScores, ...categoricalScores]);
 
         yield getChunkWithFlattenedScores(
           [
