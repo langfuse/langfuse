@@ -211,10 +211,10 @@ export const getObservationStream = async (props: {
         o.prompt_version as "prompt_version",
         internal_model_id as "internal_model_id",
         if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
-        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token", 
-        o.input, 
-        o.output, 
-        o.metadata, 
+        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token",
+        o.input as input,
+        o.output as output,
+        o.metadata as metadata, 
         t.name as traceName,
         t.tags as traceTags,
         t.timestamp as traceTimestamp,
@@ -240,6 +240,7 @@ export const getObservationStream = async (props: {
             stringValue: string;
           }[]
         | undefined;
+      score_categories: string[] | undefined;
     } & {
       traceName: string;
       traceTags: string[];
@@ -280,6 +281,30 @@ export const getObservationStream = async (props: {
         const model = await modelCache.getModel(row.internal_model_id);
         const modelData = enrichObservationWithModelData(model);
 
+        // Process numeric/boolean scores (tuples from ClickHouse)
+        const numericScores = (row.scores_avg ?? []).map((score: any) => ({
+          name: score[0],
+          value: score[1],
+          dataType: score[2],
+          stringValue: score[3],
+        }));
+
+        // Process categorical scores (format: "name:value")
+        const categoricalScores = (row.score_categories ?? []).map(
+          (cat: string) => {
+            const [name, ...valueParts] = cat.split(":");
+            return {
+              name,
+              value: null,
+              dataType: "CATEGORICAL" as ScoreDataType,
+              stringValue: valueParts.join(":"),
+            };
+          },
+        );
+
+        const outputScores: Record<string, string[] | number[]> =
+          prepareScoresForOutput([...numericScores, ...categoricalScores]);
+
         yield getChunkWithFlattenedScores(
           [
             {
@@ -292,14 +317,7 @@ export const getObservationStream = async (props: {
               traceTimestamp: row.traceTimestamp,
               userId: row.userId,
               ...modelData,
-              scores: prepareScoresForOutput(
-                (row.scores_avg ?? []).map((score: any) => ({
-                  name: score[0],
-                  value: score[1],
-                  dataType: score[2],
-                  stringValue: score[3],
-                })),
-              ),
+              scores: outputScores,
             },
           ],
           distinctScoreNames.reduce(
