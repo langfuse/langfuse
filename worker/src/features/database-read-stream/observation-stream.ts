@@ -181,7 +181,7 @@ export const getObservationStream = async (props: {
           ) tmp
         GROUP BY
           trace_id,
-          observation_id
+          observation_ids
       )
       SELECT
         o.id as id,
@@ -219,11 +219,11 @@ export const getObservationStream = async (props: {
         t.tags as traceTags,
         t.timestamp as traceTimestamp,
         t.user_id as userId,
-        sa.scores_avg as scores_avg,
-        sa.score_categories as score_categories
+        s.scores_avg as scores_avg,
+        s.score_categories as score_categories
       FROM observations o
         LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id
-        LEFT JOIN scores_agg sa ON sa.trace_id = o.trace_id AND sa.observation_id = o.id
+        LEFT JOIN scores_agg s ON s.trace_id = o.trace_id AND s.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
         ${search.query}
       LIMIT 1 BY o.id, o.project_id
