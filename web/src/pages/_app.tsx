@@ -29,6 +29,62 @@ import "core-js/features/array/to-sorted";
 
 import "react18-json-view/src/style.css";
 
+// Polyfill prevents React crashes when Google Translate modifies the DOM.
+// GTranslate wraps text nodes in <font>, which breaks React's
+// reconciliation when it tries to remove/insert nodes that no longer exist
+// in the expected location after navigation. Polyfill catches errors and prevents
+// the app from crashing while allowing the translation to work.
+// See: https://github.com/facebook/react/issues/11538
+// See also: https://issues.chromium.org/issues/41407169
+if (typeof window !== "undefined") {
+  const originalRemoveChild = Element.prototype.removeChild;
+  const originalInsertBefore = Element.prototype.insertBefore;
+
+  Element.prototype.removeChild = function <T extends Node>(child: T): T {
+    try {
+      return originalRemoveChild.call(this, child) as T;
+    } catch (error) {
+      // Silently fail if node doesn't exist (likely moved by Google Translate)
+      if (
+        error instanceof DOMException &&
+        (error.name === "NotFoundError" ||
+          error.message.includes("not a child"))
+      ) {
+        console.debug(
+          "[Google Translate Polyfill] Prevented removeChild error:",
+          error.message,
+        );
+        return child;
+      }
+      throw error;
+    }
+  };
+
+  Element.prototype.insertBefore = function <T extends Node>(
+    newNode: T,
+    referenceNode: Node | null,
+  ): T {
+    try {
+      return originalInsertBefore.call(this, newNode, referenceNode) as T;
+    } catch (error) {
+      // Silently fail if reference node doesn't exist (likely moved by Google Translate)
+      if (
+        error instanceof DOMException &&
+        (error.name === "NotFoundError" ||
+          error.message.includes("not a child"))
+      ) {
+        console.debug(
+          "[Google Translate Polyfill] Prevented insertBefore error:",
+          error.message,
+        );
+        // Fallback: append to end if reference node is missing
+        return this.appendChild(newNode) as T;
+      }
+      throw error;
+    }
+  };
+}
+
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
