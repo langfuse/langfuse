@@ -250,9 +250,10 @@ export const getDatabaseReadStreamPaginated = async ({
           // Fetch all trace IDs for all sessions
           const allTraceIds = sessions.flatMap((s) => s.trace_ids);
 
-          // Fetch trace data and scores if there are any traces
+          // Fetch trace data, scores, and comments if there are any traces
           let tracesData: any[] = [];
           let scoresData: any[] = [];
+          let traceComments = new Map<string, any[]>();
 
           if (allTraceIds.length > 0) {
             const minTimestamp = sessions.reduce(
@@ -263,7 +264,7 @@ export const getDatabaseReadStreamPaginated = async ({
               undefined as Date | undefined,
             );
 
-            [tracesData, scoresData] = await Promise.all([
+            [tracesData, scoresData, traceComments] = await Promise.all([
               getTracesByIds(
                 allTraceIds,
                 projectId,
@@ -275,6 +276,7 @@ export const getDatabaseReadStreamPaginated = async ({
                 traceIds: allTraceIds,
                 clickhouseConfigs,
               }),
+              fetchCommentsForExport(projectId, "TRACE", allTraceIds),
             ]);
           }
 
@@ -284,7 +286,7 @@ export const getDatabaseReadStreamPaginated = async ({
             const sessionTraces = sessions.find((s) => s.session_id === row.id);
             const traceIdsForSession = sessionTraces?.trace_ids ?? [];
 
-            // Build traces array with scores
+            // Build traces array with scores and comments
             const traces = traceIdsForSession
               .map((traceId) => {
                 const trace = tracesData.find((t) => t.id === traceId);
@@ -320,6 +322,7 @@ export const getDatabaseReadStreamPaginated = async ({
                     authorUserId: score.authorUserId,
                     timestamp: score.timestamp,
                   })),
+                  comments: traceComments.get(traceId) ?? [],
                 };
               })
               .filter(isPresent);
