@@ -293,14 +293,42 @@ export default function ObservationsTable({
     () => ({
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
-      name: filterOptions.data?.name?.map((n) => n.value) || [],
-      type: filterOptions.data?.type?.map((t) => t.value) || [],
-      traceName: filterOptions.data?.traceName?.map((tn) => tn.value) || [],
+      name:
+        filterOptions.data?.name?.map((n) => ({
+          value: n.value,
+          count: n.count !== undefined ? Number(n.count) : undefined,
+        })) || [],
+      type:
+        filterOptions.data?.type?.map((t) => ({
+          value: t.value,
+          count: t.count !== undefined ? Number(t.count) : undefined,
+        })) || [],
+      traceName:
+        filterOptions.data?.traceName?.map((tn) => ({
+          value: tn.value,
+          count: tn.count !== undefined ? Number(tn.count) : undefined,
+        })) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-      model: filterOptions.data?.model?.map((m) => m.value) || [],
-      modelId: filterOptions.data?.modelId?.map((mid) => mid.value) || [],
-      promptName: filterOptions.data?.promptName?.map((pn) => pn.value) || [],
-      tags: filterOptions.data?.tags?.map((t) => t.value) || [],
+      model:
+        filterOptions.data?.model?.map((m) => ({
+          value: m.value,
+          count: m.count !== undefined ? Number(m.count) : undefined,
+        })) || [],
+      modelId:
+        filterOptions.data?.modelId?.map((mid) => ({
+          value: mid.value,
+          count: mid.count !== undefined ? Number(mid.count) : undefined,
+        })) || [],
+      promptName:
+        filterOptions.data?.promptName?.map((pn) => ({
+          value: pn.value,
+          count: pn.count !== undefined ? Number(pn.count) : undefined,
+        })) || [],
+      tags:
+        filterOptions.data?.tags?.map((t) => ({
+          value: t.value,
+          count: t.count !== undefined ? Number(t.count) : undefined,
+        })) || [],
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],

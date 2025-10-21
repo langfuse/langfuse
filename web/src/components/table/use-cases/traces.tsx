@@ -230,15 +230,30 @@ export default function TracesTable({
     const scoresNumeric = traceFilterOptionsResponse.data?.scores_avg || [];
 
     return {
-      name: traceFilterOptionsResponse.data?.name?.map((n) => n.value) || [],
-      tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
+      name:
+        traceFilterOptionsResponse.data?.name?.map((n) => ({
+          value: n.value,
+          count: Number(n.count),
+        })) || [],
+      tags:
+        traceFilterOptionsResponse.data?.tags?.map((t) => ({
+          value: t.value,
+          count: t.count !== undefined ? Number(t.count) : undefined,
+        })) || [],
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       bookmarked: ["Bookmarked", "Not bookmarked"],
-      userId: traceFilterOptionsResponse.data?.users?.map((u) => u.value) || [],
+      userId:
+        traceFilterOptionsResponse.data?.users?.map((u) => ({
+          value: u.value,
+          count: Number(u.count),
+        })) || [],
       sessionId:
-        traceFilterOptionsResponse.data?.sessions?.map((s) => s.value) || [],
+        traceFilterOptionsResponse.data?.sessions?.map((s) => ({
+          value: s.value,
+          count: Number(s.count),
+        })) || [],
       latency: [],
       inputTokens: [],
       outputTokens: [],

@@ -273,7 +273,11 @@ export default function ScoresTable({
 
   const newFilterOptions = React.useMemo(
     () => ({
-      name: filterOptions.data?.name?.map((n) => n.value) || [],
+      name:
+        filterOptions.data?.name?.map((n) => ({
+          value: n.value,
+          count: n.count !== undefined ? Number(n.count) : undefined,
+        })) || [],
       source: ["ANNOTATION", "API", "EVAL"],
       dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
       value: [],
