@@ -233,8 +233,16 @@ export function PromptTable() {
   const newFilterOptions = useMemo(
     () => ({
       type: ["text", "chat"],
-      labels: promptFilterOptions.data?.labels?.map((l) => l.value) || [],
-      tags: promptFilterOptions.data?.tags?.map((t) => t.value) || [],
+      labels:
+        promptFilterOptions.data?.labels?.map((l) => ({
+          value: l.value,
+          count: l.count !== undefined ? Number(l.count) : undefined,
+        })) || [],
+      tags:
+        promptFilterOptions.data?.tags?.map((t) => ({
+          value: t.value,
+          count: t.count !== undefined ? Number(t.count) : undefined,
+        })) || [],
       version: [],
     }),
     [promptFilterOptions.data],

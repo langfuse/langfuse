@@ -496,11 +496,11 @@ export function CategoricalFacet({
       onReset={onReset}
     >
       <div className="flex flex-col px-2">
-        {/* ANY/ALL Operator Toggle for arrayOptions filters
+        {/* SOME/ALL Operator Toggle for arrayOptions filters
 
             This toggle appears for multi-valued array columns (arrayOptions) like tags.
             It allows switching between OR and AND logic:
-            - ANY: Match items with ANY selected value (OR logic)
+            - SOME: Match items with ANY selected value (OR logic)
             - ALL: Match items with ALL selected values (AND logic)
 
             The toggle is automatically enabled by useSidebarFilterState for any
@@ -530,7 +530,7 @@ export function CategoricalFacet({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                ANY
+                SOME
               </button>
               <div className="w-px bg-border/50" />
               <button

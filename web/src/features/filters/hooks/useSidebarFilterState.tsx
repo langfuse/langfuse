@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { type FilterState, singleFilter } from "@langfuse/shared";
+import type { SingleValueOption } from "@langfuse/shared/src/tableDefinitions/types";
 import {
   computeSelectedValues,
   encodeFiltersGeneric,
@@ -172,6 +173,29 @@ export type UIFilter =
 
 const EMPTY_MAP: Map<string, number> = new Map();
 
+// extract values and counts from options array
+// for both string[] and SingleValueOption[]
+function processOptions(options: (string | SingleValueOption)[]): {
+  values: string[];
+  counts: Map<string, number>;
+} {
+  const values: string[] = [];
+  const counts = new Map<string, number>();
+
+  for (const opt of options) {
+    if (typeof opt === "string") {
+      values.push(opt);
+    } else if (typeof opt === "object" && "value" in opt) {
+      values.push(opt.value);
+      if (opt.count !== undefined) {
+        counts.set(opt.value, opt.count);
+      }
+    }
+  }
+
+  return { values, counts: counts.size > 0 ? counts : EMPTY_MAP };
+}
+
 type UpdateFilter = (
   column: string,
   values: string[],
@@ -180,7 +204,10 @@ type UpdateFilter = (
 
 export function useSidebarFilterState(
   config: FilterConfig,
-  options: Record<string, string[] | Record<string, string[]>>,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]>
+  >,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -323,7 +350,9 @@ export function useSidebarFilterState(
         return current;
       }
 
-      const availableValues = availableValuesRaw;
+      const availableValues = availableValuesRaw.map((opt) =>
+        typeof opt === "string" ? opt : opt.value,
+      );
 
       // Determine operator and values based on context
       let finalOperator: "any of" | "none of" | "all of";
@@ -405,10 +434,6 @@ export function useSidebarFilterState(
 
   const updateFilter: UpdateFilter = useCallback(
     (column, values, operator?: "any of" | "none of" | "all of") => {
-      console.log(
-        `DEBUG [updateFilter] column: ${column}, values: ${JSON.stringify(values)}, operator: ${operator}`,
-      );
-
       // Remove text filters for this column (they're mutually exclusive with checkboxes)
       const withoutTextFilters = filterState.filter(
         (f) =>
@@ -417,10 +442,6 @@ export function useSidebarFilterState(
             f.type === "string" &&
             (f.operator === "contains" || f.operator === "does not contain")
           ),
-      );
-
-      console.log(
-        `DEBUG [updateFilter] After removing text filters: ${JSON.stringify(withoutTextFilters)}`,
       );
 
       const next = applySelection(withoutTextFilters, column, values, operator);
@@ -451,30 +472,21 @@ export function useSidebarFilterState(
 
   const updateOperator = useCallback(
     (column: string, newOperator: "any of" | "all of") => {
-      console.log(
-        `DEBUG [updateOperator] column: ${column}, newOperator: ${newOperator}`,
-      );
       // Find the existing filter for this column
       const existingFilter = filterState.find((f) => f.column === column);
       if (!existingFilter) {
-        console.log(
-          `DEBUG [updateOperator] No existing filter found for ${column}`,
-        );
+        // Create a filter with the operator and empty values
+        // important so users set the operator preference before selecting values,
+        // in case for ALL on TAGS filter
+        updateFilter(column, [], newOperator);
         return;
       }
-
-      console.log(
-        `DEBUG [updateOperator] existingFilter: ${JSON.stringify(existingFilter)}`,
-      );
 
       // Only works for arrayOptions and stringOptions filters
       if (
         existingFilter.type !== "arrayOptions" &&
         existingFilter.type !== "stringOptions"
       ) {
-        console.log(
-          `DEBUG [updateOperator] Filter type ${existingFilter.type} not supported for operator toggle`,
-        );
         return;
       }
 
@@ -482,7 +494,9 @@ export function useSidebarFilterState(
       // For "none of", we need to compute the actual selected values
       const availableValuesRaw = options[column];
       const availableValues = Array.isArray(availableValuesRaw)
-        ? availableValuesRaw
+        ? availableValuesRaw.map((opt) =>
+            typeof opt === "string" ? opt : opt.value,
+          )
         : [];
 
       let currentValues: string[];
@@ -490,14 +504,8 @@ export function useSidebarFilterState(
         // Convert "none of [excluded]" to selected values
         const excluded = new Set(existingFilter.value);
         currentValues = availableValues.filter((v) => !excluded.has(v));
-        console.log(
-          `DEBUG [updateOperator] Converted "none of" - excluded: ${JSON.stringify(existingFilter.value)}, currentValues: ${JSON.stringify(currentValues)}`,
-        );
       } else {
         currentValues = existingFilter.value;
-        console.log(
-          `DEBUG [updateOperator] Using existing values: ${JSON.stringify(currentValues)}`,
-        );
       }
 
       // Update the filter with the new operator
@@ -577,12 +585,7 @@ export function useSidebarFilterState(
       operator: "contains" | "does not contain",
       value: string,
     ) => {
-      console.log(
-        `DEBUG [addTextFilter] column: ${column}, operator: ${operator}, value: ${value}`,
-      );
-
       if (!value.trim()) {
-        console.log(`DEBUG [addTextFilter] Empty value, skipping`);
         return;
       }
 
@@ -604,9 +607,6 @@ export function useSidebarFilterState(
       };
 
       const next: FilterState = [...withoutCheckboxFilters, newFilter];
-      console.log(
-        `DEBUG [addTextFilter] New filter state: ${JSON.stringify(next)}`,
-      );
       setFilterState(next);
     },
     [filterState, setFilterState],
@@ -618,10 +618,6 @@ export function useSidebarFilterState(
       operator: "contains" | "does not contain",
       value: string,
     ) => {
-      console.log(
-        `DEBUG [removeTextFilter] column: ${column}, operator: ${operator}, value: ${value}`,
-      );
-
       const newFilters = filterState.filter(
         (f) =>
           !(
@@ -632,9 +628,6 @@ export function useSidebarFilterState(
           ),
       );
 
-      console.log(
-        `DEBUG [removeTextFilter] New filter state: ${JSON.stringify(newFilters)}`,
-      );
       setFilterState(newFilters);
     },
     [filterState, setFilterState],
@@ -998,9 +991,16 @@ export function useSidebarFilterState(
         // Handle categorical
         const availableValuesRaw = options[facet.column] ?? [];
         // For nested structures, default to empty array (shouldn't happen for categorical)
-        const availableValues = Array.isArray(availableValuesRaw)
+        const availableValuesWithOptions = Array.isArray(availableValuesRaw)
           ? availableValuesRaw
           : [];
+
+        // Extract counts and values to display along multi-select values
+        const { values: availableValues, counts } = Array.isArray(
+          availableValuesWithOptions,
+        )
+          ? processOptions(availableValuesWithOptions)
+          : { values: [], counts: EMPTY_MAP };
 
         // Check if this column supports operator toggle
         // IMPORTANT: Only arrayOptions columns get the ANY/ALL toggle
@@ -1076,10 +1076,6 @@ export function useSidebarFilterState(
             selectedValues.length === availableValues.length) ||
           hasCheckboxSelections;
 
-        console.log(
-          `DEBUG [useSidebarFilterState] ${facet.column} - checkboxFilter: ${JSON.stringify(checkboxFilter)}, textFilters: ${JSON.stringify(textFilters)}, hasTextFilters: ${hasTextFilters}, hasCheckboxSelections: ${hasCheckboxSelections}, selectedValues: ${JSON.stringify(selectedValues)}, availableValues.length: ${availableValues.length}`,
-        );
-
         return {
           type: "categorical",
           column: facet.column,
@@ -1087,7 +1083,7 @@ export function useSidebarFilterState(
           shortKey: getShortKey(facet.column),
           value: selectedValues,
           options: availableValues,
-          counts: EMPTY_MAP,
+          counts,
           loading: false,
           expanded: expandedSet.has(facet.column),
           isActive,
