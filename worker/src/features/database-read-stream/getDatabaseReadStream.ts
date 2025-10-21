@@ -247,11 +247,89 @@ export const getDatabaseReadStreamPaginated = async ({
             sessions.map((s) => s.session_id),
           );
 
-          // Add comments to each session
-          return rows.map((row) => ({
-            ...row,
-            comments: sessionComments.get(row.id) ?? [],
-          }));
+          // Fetch all trace IDs for all sessions
+          const allTraceIds = sessions.flatMap((s) => s.trace_ids);
+
+          // Fetch trace data and scores if there are any traces
+          let tracesData: any[] = [];
+          let scoresData: any[] = [];
+
+          if (allTraceIds.length > 0) {
+            const minTimestamp = sessions.reduce(
+              (min, s) => {
+                const sessionTime = new Date(s.min_timestamp);
+                return !min || sessionTime < min ? sessionTime : min;
+              },
+              undefined as Date | undefined,
+            );
+
+            [tracesData, scoresData] = await Promise.all([
+              getTracesByIds(
+                allTraceIds,
+                projectId,
+                minTimestamp,
+                clickhouseConfigs,
+              ),
+              getScoresForTraces({
+                projectId,
+                traceIds: allTraceIds,
+                clickhouseConfigs,
+              }),
+            ]);
+          }
+
+          // Add comments and traces to each session
+          return rows.map((row) => {
+            // Get traces for this session
+            const sessionTraces = sessions.find((s) => s.session_id === row.id);
+            const traceIdsForSession = sessionTraces?.trace_ids ?? [];
+
+            // Build traces array with scores
+            const traces = traceIdsForSession
+              .map((traceId) => {
+                const trace = tracesData.find((t) => t.id === traceId);
+                if (!trace) return null;
+
+                const traceScores = scoresData.filter(
+                  (s) => s.traceId === traceId,
+                );
+
+                return {
+                  id: trace.id,
+                  timestamp: trace.timestamp,
+                  name: trace.name,
+                  userId: trace.userId,
+                  metadata: trace.metadata,
+                  release: trace.release,
+                  version: trace.version,
+                  environment: trace.environment,
+                  public: trace.public,
+                  bookmarked: trace.bookmarked,
+                  tags: trace.tags,
+                  input: trace.input,
+                  output: trace.output,
+                  sessionId: trace.sessionId,
+                  scores: traceScores.map((score) => ({
+                    id: score.id,
+                    name: score.name,
+                    value: score.value,
+                    stringValue: score.stringValue,
+                    dataType: score.dataType,
+                    source: score.source,
+                    comment: score.comment,
+                    authorUserId: score.authorUserId,
+                    timestamp: score.timestamp,
+                  })),
+                };
+              })
+              .filter(isPresent);
+
+            return {
+              ...row,
+              traces,
+              comments: sessionComments.get(row.id) ?? [],
+            };
+          });
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,

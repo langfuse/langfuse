@@ -145,6 +145,7 @@ export const SessionPage: React.FC<{
   const { setDetailPageList } = useDetailPageLists();
   const userSession = useSession();
   const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byIdWithScores.useQuery(
     {
@@ -170,12 +171,29 @@ export const SessionPage: React.FC<{
   });
 
   const downloadSessionAsJson = useCallback(async () => {
-    // Fetch fresh comments data
-    const comments = await sessionComments.refetch();
+    // Fetch fresh session and trace comments data
+    const [sessionCommentsData, traceCommentsData] = await Promise.all([
+      sessionComments.refetch(),
+      utils.comments.getTraceCommentsBySessionId.fetch({
+        projectId,
+        sessionId,
+      }),
+    ]);
+
+    // Add comments to each trace
+    const sessionWithTraceComments = session.data
+      ? {
+          ...session.data,
+          traces: session.data.traces.map((trace) => ({
+            ...trace,
+            comments: traceCommentsData.get(trace.id) ?? [],
+          })),
+        }
+      : session.data;
 
     const exportData = {
-      session: session.data,
-      comments: comments.data ?? [],
+      session: sessionWithTraceComments,
+      comments: sessionCommentsData.data ?? [],
     };
 
     const jsonString = JSON.stringify(exportData, null, 2);
@@ -191,7 +209,7 @@ export const SessionPage: React.FC<{
     URL.revokeObjectURL(url);
 
     capture("session_detail:download_button_click");
-  }, [session.data, sessionId, capture, sessionComments]);
+  }, [session.data, sessionId, projectId, capture, sessionComments, utils]);
 
   const { openPeek, closePeek, resolveDetailNavigationPath, expandPeek } =
     usePeekNavigation({

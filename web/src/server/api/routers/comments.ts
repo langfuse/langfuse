@@ -304,4 +304,108 @@ export const commentsRouter = createTRPCRouter({
         });
       }
     }),
+  getTraceCommentsBySessionId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const clickhouseTraces = await getTracesIdentifierForSession(
+          input.projectId,
+          input.sessionId,
+        );
+
+        const traceIds = clickhouseTraces.map((t) => t.id);
+
+        if (traceIds.length === 0) {
+          return new Map();
+        }
+
+        // Fetch all comments for the traces
+        const allTraceComments = await ctx.prisma.comment.findMany({
+          where: {
+            projectId: input.projectId,
+            objectType: "TRACE",
+            objectId: { in: traceIds },
+          },
+          select: {
+            id: true,
+            objectId: true,
+            content: true,
+            authorUserId: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        // Get unique author user IDs
+        const authorUserIds = [
+          ...new Set(
+            allTraceComments
+              .map((c) => c.authorUserId)
+              .filter((id): id is string => id !== null),
+          ),
+        ];
+
+        // Fetch user information for authors (only users in the same organization)
+        const users = await ctx.prisma.user.findMany({
+          where: {
+            id: { in: authorUserIds },
+            organizationMemberships: {
+              some: {
+                orgId: ctx.session.orgId,
+              },
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        });
+
+        // Create a map of userId -> user info
+        const userMap = new Map(users.map((u) => [u.id, u]));
+
+        // Enrich comments with user information
+        const enrichedComments = allTraceComments.map((comment) => {
+          const user = comment.authorUserId
+            ? userMap.get(comment.authorUserId)
+            : null;
+
+          return {
+            id: comment.id,
+            objectId: comment.objectId,
+            content: comment.content,
+            createdAt: comment.createdAt,
+            authorUserId: comment.authorUserId,
+            authorUserImage: user?.image ?? null,
+            authorUserName: user?.name ?? null,
+          };
+        });
+
+        // Group comments by trace ID
+        const commentsByTrace = new Map<string, typeof enrichedComments>();
+        for (const comment of enrichedComments) {
+          if (!commentsByTrace.has(comment.objectId)) {
+            commentsByTrace.set(comment.objectId, []);
+          }
+          commentsByTrace.get(comment.objectId)!.push(comment);
+        }
+
+        return commentsByTrace;
+      } catch (error) {
+        logger.error(
+          "Failed to call comments.getTraceCommentsBySessionId",
+          error,
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to get trace comments by session id",
+        });
+      }
+    }),
 });

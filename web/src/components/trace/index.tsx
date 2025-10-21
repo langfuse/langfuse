@@ -258,10 +258,29 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const downloadTraceAsJson = useCallback(() => {
+  const traceComments = api.comments.getByObjectId.useQuery(
+    {
+      projectId: props.projectId,
+      objectId: props.trace.id,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const downloadTraceAsJson = useCallback(async () => {
+    // Fetch fresh comments data
+    const comments = await traceComments.refetch();
+
     const exportData = {
       trace: props.trace,
       observations: props.observations,
+      comments: comments.data ?? [],
     };
 
     const jsonString = JSON.stringify(exportData, null, 2);
@@ -277,7 +296,7 @@ export function Trace(props: {
     URL.revokeObjectURL(url);
 
     capture("trace_detail:download_button_click");
-  }, [props.trace, props.observations, capture]);
+  }, [props.trace, props.observations, capture, traceComments]);
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
