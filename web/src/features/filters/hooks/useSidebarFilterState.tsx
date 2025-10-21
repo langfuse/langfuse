@@ -1,7 +1,10 @@
 import { useCallback, useMemo } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { type FilterState, singleFilter } from "@langfuse/shared";
-import type { SingleValueOption } from "@langfuse/shared/src/tableDefinitions/types";
+import {
+  type FilterState,
+  singleFilter,
+  type SingleValueOption,
+} from "@langfuse/shared";
 import {
   computeSelectedValues,
   encodeFiltersGeneric,

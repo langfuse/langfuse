@@ -1062,8 +1062,8 @@ function TextFilterSection({
   >("contains");
 
   const handleAdd = () => {
-    if (inputValue.trim() && onAdd) {
-      onAdd(selectedOperator, inputValue.trim());
+    if (inputValue.length > 0 && onAdd) {
+      onAdd(selectedOperator, inputValue);
       setInputValue("");
     }
   };
@@ -1117,7 +1117,7 @@ function TextFilterSection({
           size="sm"
           variant="ghost"
           onClick={handleAdd}
-          disabled={!inputValue.trim()}
+          disabled={inputValue.length === 0}
           className="h-7 shrink-0 px-2 text-xs"
         >
           Add
