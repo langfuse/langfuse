@@ -235,11 +235,8 @@ export default function TracesTable({
           value: n.value,
           count: Number(n.count),
         })) || [],
-      tags:
-        traceFilterOptionsResponse.data?.tags?.map((t) => ({
-          value: t.value,
-          count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+      // tags don't have counts
+      tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
