@@ -1659,8 +1659,6 @@ describe("batch export test suite", () => {
           value: ["taboola-trs", "kfc-search-engine-qna", "default"],
         },
       ],
-      searchQuery: "###",
-      searchType: ["id", "content"],
     });
 
     const rows: any[] = [];
