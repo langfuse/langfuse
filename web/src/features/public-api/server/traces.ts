@@ -1,4 +1,3 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
@@ -9,9 +8,8 @@ import {
   convertClickhouseToDomain,
   type TraceRecordReadType,
   measureAndReturn,
-  FilterList,
   tracesTableUiColumnDefinitions,
-  createFilterFromFilterState,
+  deriveFilters,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
@@ -40,35 +38,6 @@ export type TraceQueryType = {
   fields?: TraceFieldGroup[];
 };
 
-function deriveFilters(
-  props: TraceQueryType,
-  advancedFilters?: FilterState,
-): FilterList {
-  const filterList = new FilterList(
-    createFilterFromFilterState(
-      advancedFilters ?? [],
-      tracesTableUiColumnDefinitions,
-    ),
-  );
-
-  let simpleFilters = convertApiProvidedFilterToClickhouseFilter(
-    props,
-    filterParams,
-  );
-
-  // Advanced filter takes precedence. Remove all simple filters that are also in advanced filter
-  const advancedFilterColumns = new Set();
-  filterList.forEach((f) => advancedFilterColumns.add(f.field));
-  simpleFilters
-    .filter((sf) => {
-      return !advancedFilterColumns.has(sf.field);
-    })
-    .forEach((f) => filterList.push(f));
-
-  // Return merged filters
-  return filterList;
-}
-
 export const generateTracesForPublicApi = async ({
   props,
   advancedFilters,
@@ -84,7 +53,12 @@ export const generateTracesForPublicApi = async ({
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
 
-  let filter = deriveFilters(props, advancedFilters);
+  let filter = deriveFilters(
+    props,
+    filterParams,
+    advancedFilters,
+    tracesTableUiColumnDefinitions,
+  );
   const appliedFilter = filter.apply();
 
   const timeFilter = filter.find(
@@ -269,7 +243,12 @@ export const getTracesCountForPublicApi = async ({
   props: TraceQueryType;
   advancedFilters?: FilterState;
 }) => {
-  let filter = deriveFilters(props, advancedFilters);
+  let filter = deriveFilters(
+    props,
+    filterParams,
+    advancedFilters,
+    tracesTableUiColumnDefinitions,
+  );
   const appliedFilter = filter.apply();
 
   const query = `

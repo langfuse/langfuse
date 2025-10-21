@@ -10,7 +10,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
@@ -53,6 +52,8 @@ import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -75,6 +76,7 @@ export type EvaluatorDataRow = {
   }[];
   logs?: string;
   actions?: string;
+  totalCost?: number | null;
 };
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
@@ -90,8 +92,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
-
-  const [filterState] = useQueryFilterState([], "eval_configs", projectId);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -112,7 +112,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
-    filter: filterState,
+    filter: queryFilter.filterState,
     orderBy: orderByState,
     searchQuery: searchQuery,
   });
@@ -131,6 +131,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
+
+  // Fetch costs for all evaluators
+  const evaluatorIds =
+    evaluators.data?.configs.map((config) => config.id) ?? [];
+  const costs = api.evals.costByEvaluatorIds.useQuery(
+    {
+      projectId,
+      evaluatorIds,
+    },
+    {
+      enabled: evaluators.isSuccess && evaluatorIds.length > 0,
+    },
+  );
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -166,6 +179,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             className={row.getValue() === "FINISHED" ? "pl-3" : ""}
           />
         );
+      },
+    }),
+    columnHelper.accessor("totalCost", {
+      header: "Total Cost (1d)",
+      id: "totalCost",
+      size: 120,
+      cell: (row) => {
+        const totalCost = row.getValue();
+
+        if (!costs.data) return <Skeleton className="h-4 w-16" />;
+
+        if (totalCost != null) return usdFormatter(totalCost, 2, 6);
+
+        return "–";
       },
     }),
     columnHelper.accessor("result", {
@@ -336,6 +363,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
     const result = generateJobExecutionCounts(jobConfig.jobExecutionsByState);
+    const costData = costs.data?.[jobConfig.id];
 
     return {
       id: jobConfig.id,
@@ -360,6 +388,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             ? "Langfuse and Ragas maintained"
             : "Langfuse maintained"
         : "Not available",
+      totalCost: costData,
     };
   };
 
@@ -398,7 +427,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                     "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
                   ],
                 },
-                tableDataUpdatedAt: evaluators.dataUpdatedAt,
+                tableDataUpdatedAt: Math.max(
+                  evaluators.dataUpdatedAt,
+                  costs.dataUpdatedAt,
+                ),
                 children: (
                   <PeekViewEvaluatorConfigDetail projectId={projectId} />
                 ),
@@ -431,54 +463,53 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={setColumnVisibility}
             />
-            <Dialog
-              open={!!editConfigId && existingEvaluator.isSuccess}
-              onOpenChange={(open) => {
-                if (!open) setEditConfigId(null);
-              }}
-            >
-              <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit configuration</DialogTitle>
-                </DialogHeader>
-                {existingEvaluator.isLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : (
-                  <EvaluatorForm
-                    projectId={projectId}
-                    evalTemplates={[]}
-                    existingEvaluator={
-                      existingEvaluator.data &&
-                      existingEvaluator.data.evalTemplate
-                        ? {
-                            ...existingEvaluator.data,
-                            evalTemplate: {
-                              ...existingEvaluator.data.evalTemplate,
-                            },
-                          }
-                        : undefined
-                    }
-                    shouldWrapVariables={true}
-                    useDialog={true}
-                    mode="edit"
-                    onFormSuccess={() => {
-                      setEditConfigId(null);
-                      void utils.evals.allConfigs.invalidate();
-                      showSuccessToast({
-                        title: "Evaluator updated successfully",
-                        description:
-                          "Changes will automatically be reflected future evaluator runs",
-                      });
-                    }}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
       </div>
+      <Dialog
+        open={!!editConfigId && existingEvaluator.isSuccess}
+        onOpenChange={(open) => {
+          if (!open) setEditConfigId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-screen-xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit configuration</DialogTitle>
+          </DialogHeader>
+          {existingEvaluator.isLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : (
+            <EvaluatorForm
+              projectId={projectId}
+              evalTemplates={[]}
+              existingEvaluator={
+                existingEvaluator.data && existingEvaluator.data.evalTemplate
+                  ? {
+                      ...existingEvaluator.data,
+                      evalTemplate: {
+                        ...existingEvaluator.data.evalTemplate,
+                      },
+                    }
+                  : undefined
+              }
+              shouldWrapVariables={true}
+              useDialog={true}
+              mode="edit"
+              onFormSuccess={() => {
+                setEditConfigId(null);
+                void utils.evals.allConfigs.invalidate();
+                showSuccessToast({
+                  title: "Evaluator updated successfully",
+                  description:
+                    "Changes will automatically be reflected future evaluator runs",
+                });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </DataTableControlsProvider>
   );
 }

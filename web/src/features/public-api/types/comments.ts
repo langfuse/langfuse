@@ -1,6 +1,7 @@
 import {
   CommentObjectType,
   CreateCommentData,
+  paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
@@ -54,6 +55,7 @@ export const GetCommentsV1Query = z
 export const GetCommentsV1Response = z
   .object({
     data: z.array(APIComment),
+    meta: paginationMetaResponseZod,
   })
   .strict();
 

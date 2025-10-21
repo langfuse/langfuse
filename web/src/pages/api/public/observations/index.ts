@@ -1,4 +1,9 @@
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  getObservationsFromEventsTableForPublicApi,
+  getObservationsCountFromEventsTableForPublicApi,
+} from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -21,8 +26,8 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const filterProps = {
         projectId: auth.scope.projectId,
-        page: query.page ?? undefined,
-        limit: query.limit ?? undefined,
+        page: query.page,
+        limit: query.limit,
         traceId: query.traceId ?? undefined,
         userId: query.userId ?? undefined,
         level: query.level ?? undefined,
@@ -33,7 +38,33 @@ export default withMiddlewares({
         fromStartTime: query.fromStartTime ?? undefined,
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
+        advancedFilters: query.filter,
       };
+
+      // Use events table if query parameter is explicitly set, otherwise use environment variable
+      const useEventsTable =
+        query.useEventsTable !== undefined && query.useEventsTable !== null
+          ? query.useEventsTable === true
+          : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+
+      if (useEventsTable) {
+        const [items, count] = await Promise.all([
+          getObservationsFromEventsTableForPublicApi(filterProps),
+          getObservationsCountFromEventsTableForPublicApi(filterProps),
+        ]);
+
+        return {
+          data: items.map(transformDbToApiObservation),
+          meta: {
+            page: query.page,
+            limit: query.limit,
+            totalItems: count,
+            totalPages: Math.ceil(count / query.limit),
+          },
+        };
+      }
+
+      // Legacy code path using observations table
       const [items, count] = await Promise.all([
         generateObservationsForPublicApi(filterProps),
         getObservationsCountForPublicApi(filterProps),

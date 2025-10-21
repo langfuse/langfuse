@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.119.1",
+  "version": "3.120.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -60,7 +60,7 @@
     "@opentelemetry/sdk-trace-base": "^1.26.0",
     "@opentelemetry/sdk-trace-node": "^1.26.0",
     "@paralleldrive/cuid2": "^2.2.2",
-    "@prisma/instrumentation": "^6.10.1",
+    "@prisma/instrumentation": "^6.17.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -132,7 +132,7 @@
     "posthog-node": "^5.8.4",
     "prexit": "^2.2.0",
     "prism-react-renderer": "^2.4.1",
-    "prisma": "^6.10.1",
+    "prisma": "^6.17.1",
     "protobufjs": "^7.4.0",
     "rate-limiter-flexible": "^5.0.3",
     "react": "19.2.0",
