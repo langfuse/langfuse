@@ -7,7 +7,7 @@ import {
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { StringParam, withDefault } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -23,6 +23,7 @@ interface TableStateUpdaters {
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
   setOrderBy?: (orderBy: OrderByState) => void;
   setFilters?: (filters: FilterState) => void;
+  setFiltersDirectly?: (filters: FilterState) => void; // Bypass URL encoding for programmatic updates
   setSearchQuery?: (searchQuery: string) => void;
 }
 
@@ -34,6 +35,7 @@ interface UseTableStateProps {
     columns?: LangfuseColumnDef<any, any>[];
     filterColumnDefinition?: ColumnDefinition[];
   };
+  currentFilterState?: FilterState;
 }
 
 function isFunction(fn: unknown): fn is (...args: unknown[]) => void {
@@ -48,12 +50,14 @@ export function useTableViewManager({
   tableName,
   stateUpdaters,
   validationContext = {},
+  currentFilterState,
 }: UseTableStateProps) {
   const router = useRouter();
   const { viewId } = router.query;
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const capture = usePostHogClientCapture();
+  const pendingFiltersRef = useRef<FilterState | null>(null);
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
     `${tableName}-${projectId}-viewId`,
@@ -73,14 +77,27 @@ export function useTableViewManager({
     [setStoredViewId, setSelectedViewId],
   );
 
-  // Extract updater functions
+  // Extract updater functions and store in refs to avoid stale closures
   const {
     setOrderBy,
     setFilters,
+    setFiltersDirectly,
     setColumnOrder,
     setColumnVisibility,
     setSearchQuery,
   } = stateUpdaters;
+
+  // Use refs to always get latest function references
+  const setFiltersRef = useRef(setFilters);
+  const setFiltersDirectlyRef = useRef(setFiltersDirectly);
+  const setOrderByRef = useRef(setOrderBy);
+  const setSearchQueryRef = useRef(setSearchQuery);
+
+  // Always update refs immediately (not in useEffect)
+  setFiltersRef.current = setFilters;
+  setFiltersDirectlyRef.current = setFiltersDirectly;
+  setOrderByRef.current = setOrderBy;
+  setSearchQueryRef.current = setSearchQuery;
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -148,12 +165,32 @@ export function useTableViewManager({
         );
       }
 
-      if (isFunction(setOrderBy)) setOrderBy(validOrderBy);
-      if (isFunction(setFilters)) setFilters(validFilters);
+      if (setOrderByRef.current) setOrderByRef.current(validOrderBy);
 
-      // Handle search query
-      if (viewData.searchQuery !== undefined && isFunction(setSearchQuery)) {
-        setSearchQuery(viewData.searchQuery);
+      if (setFiltersRef.current) {
+        console.log(
+          "DEBUG: About to call setFiltersRef.current with:",
+          JSON.stringify(validFilters),
+        );
+        setFiltersRef.current(validFilters);
+        console.log("DEBUG: setFiltersRef.current call completed");
+        // Track expected filters to observe when state actually updates
+        pendingFiltersRef.current = validFilters;
+        console.log(
+          "DEBUG: pendingFiltersRef set to:",
+          JSON.stringify(validFilters),
+        );
+      }
+
+      // Handle search query (only if it has a value - don't set empty string)
+      if (viewData.searchQuery && setSearchQueryRef.current) {
+        console.log("DEBUG: Setting searchQuery to:", viewData.searchQuery);
+        setSearchQueryRef.current(viewData.searchQuery);
+      } else {
+        console.log(
+          "DEBUG: NOT setting searchQuery (undefined or empty):",
+          viewData.searchQuery,
+        );
       }
 
       // Apply column order and visibility without validation since UI will handle gracefully
@@ -161,17 +198,9 @@ export function useTableViewManager({
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
 
-      // unlock table
-      setIsLoading(false);
+      // Don't unlock here - let the useEffect below handle it after observing state update
     },
-    [
-      setOrderBy,
-      setFilters,
-      setColumnOrder,
-      setColumnVisibility,
-      setSearchQuery,
-      validationContext,
-    ],
+    [setColumnOrder, setColumnVisibility, validationContext],
   );
 
   // Handle successful view data fetch
@@ -187,7 +216,7 @@ export function useTableViewManager({
       // Apply view state
       applyViewState(viewData);
       setIsInitialized(true);
-      setIsLoading(false);
+      // Note: setIsLoading(false) is called inside applyViewState after state sync
     }
   }, [
     viewData,
@@ -218,6 +247,35 @@ export function useTableViewManager({
       setIsLoading(false);
     }
   }, [isInitialized, isViewLoading, viewId]);
+
+  // Elegant React solution: Observe when filter state actually updates
+  // When loading a saved view, we set filters which update URL asynchronously.
+  // This effect watches currentFilterState and unlocks when it matches what we set.
+  useEffect(() => {
+    console.log(
+      "DEBUG: useEffect fired, currentFilterState:",
+      JSON.stringify(currentFilterState),
+    );
+    console.log(
+      "DEBUG: pendingFiltersRef.current:",
+      JSON.stringify(pendingFiltersRef.current),
+    );
+
+    if (pendingFiltersRef.current && currentFilterState) {
+      const matches = isEqual(currentFilterState, pendingFiltersRef.current);
+      console.log("DEBUG: isEqual result:", matches);
+
+      // Check if current filter state matches what we're expecting
+      if (matches) {
+        // State has propagated! Safe to unlock
+        console.log("DEBUG: States match! Unlocking table");
+        pendingFiltersRef.current = null;
+        setIsLoading(false);
+      } else {
+        console.log("DEBUG: States don't match yet, staying locked");
+      }
+    }
+  }, [currentFilterState]);
 
   return {
     isLoading,

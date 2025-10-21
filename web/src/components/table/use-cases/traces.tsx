@@ -14,7 +14,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import type Decimal from "decimal.js";
 import {
@@ -264,6 +264,10 @@ export default function TracesTable({
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
   const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions);
+  console.log(
+    "RENDER: queryFilter.setFilterState is:",
+    queryFilter.setFilterState,
+  );
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
@@ -352,37 +356,6 @@ export default function TracesTable({
   // This here happens in the background.
 
   const traceFilterOptions = traceFilterOptionsResponse.data;
-
-  const transformedFilterOptions = useMemo(() => {
-    // Normalize API response to match TraceOptions in shared package
-    const normalizedOptions = traceFilterOptions
-      ? {
-          name: traceFilterOptions.name?.map((n) => ({
-            value: n.value,
-            count: Number(n.count),
-          })),
-          scores_avg: traceFilterOptions.scores_avg,
-          score_categories: traceFilterOptions.score_categories,
-          tags: traceFilterOptions.tags?.map((t) => ({ value: t.value })),
-          userId: traceFilterOptions.users?.map((u) => ({
-            value: u.value,
-            count: Number(u.count),
-          })),
-          sessionId: traceFilterOptions.sessions?.map((s) => ({
-            value: s.value,
-            count: Number(s.count),
-          })),
-        }
-      : undefined;
-
-    return tracesTableColsWithOptions(normalizedOptions).filter(
-      (c) =>
-        c.id !== "environment" &&
-        c.id !== "timestamp" &&
-        !omittedFilter?.includes(c.name) &&
-        !omittedFilter?.includes(c.id),
-    );
-  }, [traceFilterOptions, omittedFilter]);
 
   const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
     "traces",
@@ -1116,20 +1089,50 @@ export default function TracesTable({
     traceMetrics.dataUpdatedAt,
   ]);
 
+  // Create ref to always get latest queryFilter
+  const queryFilterRef = useRef(queryFilter);
+  queryFilterRef.current = queryFilter; // Update immediately on every render
+
+  // Create stable wrapper for setFilterState to avoid stale closure
+  const setFiltersWrapper = useCallback(
+    (filters: FilterState) => {
+      console.log("DEBUG wrapper: INSIDE WRAPPER FUNCTION");
+      console.log(
+        "DEBUG wrapper: queryFilterRef.current:",
+        queryFilterRef.current,
+      );
+      console.log(
+        "DEBUG wrapper: typeof setFilterState:",
+        typeof queryFilterRef.current?.setFilterState,
+      );
+      if (queryFilterRef.current?.setFilterState) {
+        console.log("DEBUG wrapper: Calling setFilterState");
+        queryFilterRef.current.setFilterState(filters);
+        console.log("DEBUG wrapper: setFilterState returned");
+      } else {
+        console.error("DEBUG wrapper: ERROR - setFilterState not found!");
+      }
+    },
+    [], // No dependencies - always uses ref
+  );
+
+  console.log("RENDER: setFiltersWrapper created:", setFiltersWrapper);
+
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: queryFilter.setFilterState,
+      setFilters: setFiltersWrapper,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
       setSearchQuery: setSearchQuery,
     },
     validationContext: {
       columns,
-      filterColumnDefinition: transformedFilterOptions,
+      filterColumnDefinition: traceFilterConfig.columnDefinitions,
     },
+    currentFilterState: queryFilter.filterState,
   });
 
   const rows = useMemo(() => {

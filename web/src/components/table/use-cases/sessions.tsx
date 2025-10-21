@@ -649,12 +649,6 @@ export default function SessionsTable({
     },
   ];
 
-  const transformFilterOptions = () => {
-    return sessionsTableColsWithOptions(filterOptions.data).filter(
-      (c) => c.id !== "createdAt" && !omittedFilter?.includes(c.name),
-    );
-  };
-
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<SessionTableRow>("sessionsColumnVisibility", columns);
 
@@ -674,8 +668,9 @@ export default function SessionsTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: transformFilterOptions(),
+      filterColumnDefinition: sessionFilterConfig.columnDefinitions,
     },
+    currentFilterState: userFilterState,
   });
 
   return (

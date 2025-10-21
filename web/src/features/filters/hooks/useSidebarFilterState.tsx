@@ -9,6 +9,7 @@ import {
 } from "../lib/filter-query-encoding";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
+import { useRouter } from "next/router";
 
 function computeNumericRange(
   column: string,
@@ -209,6 +210,7 @@ export function useSidebarFilterState(
     (string | SingleValueOption)[] | Record<string, string[]>
   >,
 ) {
+  const router = useRouter();
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
 
@@ -230,6 +232,8 @@ export function useSidebarFilterState(
     "filter",
     withDefault(StringParam, ""),
   );
+
+  console.log("RENDER useSidebarFilterState: filtersQuery =", filtersQuery);
 
   const filterState: FilterState = useMemo(() => {
     try {
@@ -273,12 +277,22 @@ export function useSidebarFilterState(
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
+      console.log(
+        "DEBUG setFilterState: Received filters:",
+        JSON.stringify(newFilters),
+      );
       const encoded = encodeFiltersGeneric(
         newFilters,
         config.columnToQueryKey,
         options,
       );
+      console.log("DEBUG setFilterState: Encoded to:", encoded);
+      console.log(
+        "DEBUG setFilterState: Calling setFiltersQuery with:",
+        encoded,
+      );
       setFiltersQuery(encoded || null);
+      console.log("DEBUG setFilterState: setFiltersQuery returned");
     },
     [config.columnToQueryKey, options, setFiltersQuery],
   );

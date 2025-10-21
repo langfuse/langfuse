@@ -420,17 +420,6 @@ export default function ObservationsTable({
       fromTimestamp: dateRange?.from,
     });
 
-  const transformFilterOptions = (
-    filterOptions: ObservationOptions | undefined,
-  ) => {
-    return observationsTableColsWithOptions(filterOptions).filter(
-      (col) =>
-        col.id !== "startTime" &&
-        col.id !== "endTime" &&
-        !omittedFilter?.includes(col.name),
-    );
-  };
-
   const { selectActionColumn } = TableSelectionManager<ObservationsTableRow>({
     projectId,
     tableName: "observations",
@@ -1076,8 +1065,9 @@ export default function ObservationsTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: transformFilterOptions(filterOptions.data),
+      filterColumnDefinition: observationFilterConfig.columnDefinitions,
     },
+    currentFilterState: inputFilterState,
   });
 
   const peekConfig: DataTablePeekViewProps = useMemo(

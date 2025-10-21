@@ -665,17 +665,6 @@ export default function ScoresTable({
     };
   };
 
-  const transformFilterOptions = (
-    traceFilterOptions: ScoreOptions | undefined,
-  ) => {
-    return scoresTableColsWithOptions(traceFilterOptions).filter(
-      (c) =>
-        c.id !== "timestamp" &&
-        !omittedFilter?.includes(c.name) &&
-        !hiddenColumns.includes(c.id),
-    );
-  };
-
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
     projectId,
@@ -687,8 +676,9 @@ export default function ScoresTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: transformFilterOptions(filterOptions.data),
+      filterColumnDefinition: scoreFilterConfig.columnDefinitions,
     },
+    currentFilterState: userFilterState,
   });
 
   return (
