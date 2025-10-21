@@ -82,6 +82,7 @@ export function useTableViewManager({
   } = stateUpdaters;
 
   // Use refs to always get latest function references to avoid stale closures in applyViewState
+  // for restoring view state from the saved views
   const setFiltersRef = useRef(setFilters);
   const setOrderByRef = useRef(setOrderBy);
   const setSearchQueryRef = useRef(setSearchQuery);
@@ -175,7 +176,9 @@ export function useTableViewManager({
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
 
-      // Note: Table remains locked until useEffect observer detects filter state propagation
+      // NOTE: Table remains locked until useEffect observer detects filter state propagation
+      // This is relevant for the saved views. Because the URL lazy updates and we don't want to wait
+      // for a page reload
     },
     [setColumnOrder, setColumnVisibility, validationContext],
   );

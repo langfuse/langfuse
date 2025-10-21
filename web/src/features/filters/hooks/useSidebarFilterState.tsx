@@ -81,27 +81,19 @@ export interface CategoricalUIFilter extends BaseUIFilter {
    * Mutually exclusive with checkbox selections
    */
   textFilters?: TextFilterEntry[];
-  /**
-   * Add a new text filter. Automatically clears checkbox selections.
-   */
+  // Add a new text filter. Automatically clears checkbox selections.
   onTextFilterAdd?: (
     operator: "contains" | "does not contain",
     value: string,
   ) => void;
-  /**
-   * Remove a text filter by operator and value
-   */
+  // Remove a text filter by operator and value
   onTextFilterRemove?: (
     operator: "contains" | "does not contain",
     value: string,
   ) => void;
-  /**
-   * True if any text filters are active for this column
-   */
+  // True if any text filters are active for this column
   hasTextFilters?: boolean;
-  /**
-   * True if any checkboxes are selected (excluding "all selected" state)
-   */
+  // True if any checkboxes are selected (excluding "all selected" state)
   hasCheckboxSelections?: boolean;
 }
 
@@ -422,12 +414,16 @@ export function useSidebarFilterState(
         ];
       }
 
+      // stringOptions only supports "any of" | "none of", not "all of"
+      const stringOperator: "any of" | "none of" =
+        finalOperator === "all of" ? "any of" : finalOperator;
+
       return [
         ...other,
         {
           column,
           type: "stringOptions" as const,
-          operator: finalOperator,
+          operator: stringOperator,
           value: finalValues,
         },
       ];
@@ -1006,20 +1002,15 @@ export function useSidebarFilterState(
           : { values: [], counts: EMPTY_MAP };
 
         // Check if this column supports operator toggle
-        // IMPORTANT: Only arrayOptions columns get the ANY/ALL toggle
+        // Only arrayOptions columns get the ANY/ALL toggle
         // - arrayOptions: multi-valued arrays (e.g., tags on a trace)
         // - stringOptions: single-valued strings (e.g., environment)
-        // Semantic difference:
-        // - tags with "any of [A, B]" = traces with tag A OR tag B
-        // - tags with "all of [A, B]" = traces with BOTH tags A AND B
-        // - environment with "all of [prod, dev]" = nonsensical (trace has one environment)
         const colDef = config.columnDefinitions.find(
           (c) => c.id === facet.column,
         );
         const isArrayOptions = colDef?.type === "arrayOptions";
 
         // Get the checkbox filter (stringOptions/arrayOptions) for this column
-        // NOT text filters (string type) - they're handled separately
         const checkboxFilter = filterState.find(
           (f) =>
             f.column === facet.column &&
@@ -1062,7 +1053,7 @@ export function useSidebarFilterState(
               (f.operator === "contains" || f.operator === "does not contain"),
           )
           .map((f) => ({
-            operator: f.operator,
+            operator: f.operator as "contains" | "does not contain",
             value: f.value,
           }));
 

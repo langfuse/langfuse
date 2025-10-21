@@ -23,21 +23,19 @@ export function validateOrderBy(
 
 /**
  * Validates if filters reference valid columns and normalizes column names to IDs
- *
- * Historical Context (commit ab942e5fa - "unify column id v display handling"):
  * - Old system: filters used display names (e.g., "User ID", "Name", "⭐️")
  * - New system: filters use column IDs (e.g., "userId", "name", "bookmarked")
  *
- * Why the change:
- * - Display names can change for UX or i18n, IDs are stable
+ * Switched to IDs because better:
+ * - Display names can change for UX or i18n (in future), IDs are stable
  * - IDs match database field names and rest of codebase
- * - Special characters in display names caused issues
+ * - Special characters in display names can cause issues
  * - Better type safety and predictability
  *
- * This function provides backward compatibility by:
- * 1. Validating that filter columns exist
- * 2. Normalizing old display names to new IDs
- * 3. Filtering out invalid/deleted columns
+ * Here, we:
+ * - validate that filter columns exist
+ * - normalize old display names to new IDs
+ * - filter out invalid/deleted columns
  */
 export function validateFilters(
   filters: FilterState,
