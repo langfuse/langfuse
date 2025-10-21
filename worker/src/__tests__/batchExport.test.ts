@@ -112,7 +112,6 @@ describe("batch export test suite", () => {
         type: "GENERATION",
         name: "test1",
         start_time: new Date("2024-01-01").getTime(),
-        // Using default input/output/metadata from factory
       }),
       createObservation({
         project_id: projectId,
@@ -120,7 +119,6 @@ describe("batch export test suite", () => {
         type: "EVENT",
         name: "test2",
         start_time: new Date("2024-01-02").getTime(),
-        // Using default input/output/metadata from factory
       }),
       createObservation({
         project_id: projectId,
@@ -128,7 +126,6 @@ describe("batch export test suite", () => {
         type: "SPAN",
         name: "test3",
         start_time: new Date("2024-01-03").getTime(),
-        // Using default input/output/metadata from factory
       }),
     ];
 
@@ -182,7 +179,6 @@ describe("batch export test suite", () => {
         type: "GENERATION",
         name: "test1",
         start_time: new Date("2024-01-01").getTime(),
-        // Using default input/output/metadata from factory
       }),
       createObservation({
         project_id: projectId,
@@ -190,7 +186,6 @@ describe("batch export test suite", () => {
         type: "EVENT",
         name: "test2",
         start_time: new Date("2024-01-02").getTime(),
-        // Using default input/output/metadata from factory
       }),
       createObservation({
         project_id: projectId,
@@ -198,7 +193,6 @@ describe("batch export test suite", () => {
         type: "SPAN",
         name: "test3",
         start_time: new Date("2024-01-03").getTime(),
-        // Using default input/output/metadata from factory
       }),
     ];
 

@@ -1,6 +1,5 @@
 import {
   FilterCondition,
-  TimeFilter,
   TracingSearchType,
   ScoreDataType,
 } from "@langfuse/shared";
