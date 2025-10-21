@@ -511,6 +511,11 @@ class S3StorageService implements StorageService {
           Body: data,
           ContentType: fileType,
         }),
+        // Set part size to 100 MB to stay within AWS's 10,000 part limit
+        // This supports files up to ~1 TB (100 MB × 10,000 parts)
+        // Default part size is 5 MB which only supports ~50 GB
+        partSize: 100 * 1024 * 1024, // 100 MB in bytes
+        queueSize: 4, // Number of concurrent part uploads
       }).done();
 
       return;
