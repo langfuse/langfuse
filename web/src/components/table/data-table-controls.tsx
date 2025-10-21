@@ -1062,6 +1062,7 @@ function TextFilterSection({
   >("contains");
 
   const handleAdd = () => {
+    // people have filtered for a single " ", e.g. does not contain " " on sessionID to get all traces with a session id
     if (inputValue.length > 0 && onAdd) {
       onAdd(selectedOperator, inputValue);
       setInputValue("");

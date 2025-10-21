@@ -1,11 +1,15 @@
-import { type FilterState, singleFilter } from "@langfuse/shared";
+import {
+  type FilterState,
+  singleFilter,
+  type SingleValueOption,
+} from "@langfuse/shared";
 import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 
 // Generic helpers for reusable encoding/decoding across feature areas
 export type ColumnToQueryKeyMap = Record<string, string>;
 export type GenericFilterOptions = Record<
   string,
-  string[] | Record<string, string[]>
+  string[] | (string | SingleValueOption)[] | Record<string, string[]>
 >;
 
 export const createShortKeyGetter =
