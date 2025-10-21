@@ -209,6 +209,12 @@ describe("GET /api/public/comments API Endpoint", () => {
       "/api/public/comments",
     );
     expect(comments.body.data).toHaveLength(5);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 5,
+      totalPages: 1,
+    });
   });
 
   it("should return comments for a specific objectId and objectType", async () => {
@@ -222,6 +228,12 @@ describe("GET /api/public/comments API Endpoint", () => {
     );
 
     expect(comments.body.data).toHaveLength(4);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 4,
+      totalPages: 1,
+    });
     expect(comments.body.data.map((comment) => comment.id)).toEqual([
       "comment-2021-01-01",
       "comment-2021-03-01",
@@ -242,6 +254,12 @@ describe("GET /api/public/comments API Endpoint", () => {
     );
 
     expect(comments.body.data).toHaveLength(2);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 2,
+      totalPages: 1,
+    });
     expect(comments.body.data.map((comment) => comment.id)).toEqual([
       "comment-2021-01-01",
       "comment-2021-03-01",
@@ -256,6 +274,12 @@ describe("GET /api/public/comments API Endpoint", () => {
     );
 
     expect(comments.body.data).toHaveLength(0);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 0,
+      totalPages: 1,
+    });
   });
 
   it("should throw 400 error with descriptive error message if objectType is provided but invalid", async () => {
@@ -282,6 +306,12 @@ describe("GET /api/public/comments API Endpoint", () => {
       "/api/public/comments?objectType=TRACE",
     );
     expect(comments.body.data).toHaveLength(4);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 4,
+      totalPages: 1,
+    });
     expect(comments.body.data.map((comment) => comment.id)).toEqual([
       "comment-2021-01-01",
       "comment-2021-03-01",
