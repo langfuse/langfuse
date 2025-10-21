@@ -80,6 +80,7 @@ export type SessionTableProps = {
 export default function SessionsTable({
   projectId,
   userId,
+  omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
