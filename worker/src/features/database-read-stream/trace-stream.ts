@@ -45,11 +45,21 @@ export const getTraceStream = async (props: {
     join_algorithm: "partial_merge",
   };
 
+  // Filter out observation-level filters since we don't join the observations table
+  // This prevents batch export failures when observation-level filters are present
+  const traceOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = tracesTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+    // Keep the filter if it's not an observation-level filter
+    return columnDef?.clickhouseTableName !== "observations";
+  });
+
   // Get distinct score names for empty columns
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: filter ?? [],
+    filter: traceOnlyFilters,
     isTimestampFilter: isTraceTimestampFilter,
     clickhouseConfigs,
   });
@@ -65,7 +75,7 @@ export const getTraceStream = async (props: {
   tracesFilter.push(
     ...createFilterFromFilterState(
       [
-        ...(filter ?? []),
+        ...traceOnlyFilters,
         {
           column: "timestamp",
           operator: "<" as const,

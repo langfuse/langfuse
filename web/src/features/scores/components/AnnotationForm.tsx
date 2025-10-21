@@ -101,7 +101,7 @@ function CommentField({
   return (
     <div className="relative">
       <div className="mb-1 flex items-center justify-between">
-        <FormLabel className="text-sm">Score Notes</FormLabel>
+        <FormLabel className="text-sm">Score Comment</FormLabel>
         <div className="relative">
           {savedComment && (
             <PopoverClose asChild>
