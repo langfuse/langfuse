@@ -17,10 +17,6 @@ import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import {
-  type ScoreOptions,
-  scoresTableColsWithOptions,
-} from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 
 import type { RouterOutput } from "@/src/utils/types";
@@ -100,7 +96,6 @@ export default function ScoresTable({
   userId,
   traceId,
   observationId,
-  omittedFilter = [],
   hiddenColumns = [],
   localStorageSuffix = "",
 }: {

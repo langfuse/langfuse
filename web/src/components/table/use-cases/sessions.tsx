@@ -14,7 +14,6 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { sessionFilterConfig } from "@/src/features/filters/config/sessions-config";
 import {
   type FilterState,
-  sessionsTableColsWithOptions,
   BatchExportTableName,
   TableViewPresetTableName,
   AnnotationQueueObjectType,
@@ -81,7 +80,6 @@ export type SessionTableProps = {
 export default function SessionsTable({
   projectId,
   userId,
-  omittedFilter = [],
 }: SessionTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -239,27 +237,6 @@ export default function SessionsTable({
     SessionCoreOutput,
     SessionMetricOutput
   >(sessions.data?.sessions, sessionMetrics.data);
-
-  const filterOptions = api.sessions.filterOptions.useQuery(
-    {
-      projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
 
   const newFilterOptions = useMemo(
     () => ({

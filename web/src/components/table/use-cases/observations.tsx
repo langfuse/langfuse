@@ -17,7 +17,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ObservationLevelType,
   type FilterState,
-  type ObservationOptions,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
@@ -27,7 +26,6 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
@@ -120,7 +118,6 @@ export default function ObservationsTable({
   promptName,
   promptVersion,
   modelId,
-  omittedFilter = [],
 }: ObservationsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
