@@ -3,7 +3,9 @@ import {
   BatchExportFileFormat,
   BatchExportQuerySchema,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -15,7 +17,9 @@ import {
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
+import { getObservationStream } from "../database-read-stream/observation-stream";
+import { getTraceStream } from "../database-read-stream/trace-stream";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -48,7 +52,7 @@ export const handleBatchExportJob = async (
   });
 
   if (!jobDetails) {
-    throw new Error(
+    throw new LangfuseNotFoundError(
       `Job not found for project: ${projectId} and export ${batchExportId}`,
     );
   }
@@ -77,12 +81,33 @@ export const handleBatchExportJob = async (
     );
   }
 
+  if (span) {
+    span.setAttribute(
+      "messaging.bullmq.job.input.query",
+      JSON.stringify(parsedQuery.data),
+    );
+  }
+
   // handle db read stream
-  const dbReadStream = await getDatabaseReadStream({
-    projectId,
-    cutoffCreatedAt: jobDetails.createdAt,
-    ...parsedQuery.data,
-  });
+
+  const dbReadStream =
+    parsedQuery.data.tableName === BatchExportTableName.Observations
+      ? await getObservationStream({
+          projectId,
+          cutoffCreatedAt: jobDetails.createdAt,
+          ...parsedQuery.data,
+        })
+      : parsedQuery.data.tableName === BatchExportTableName.Traces
+        ? await getTraceStream({
+            projectId,
+            cutoffCreatedAt: jobDetails.createdAt,
+            ...parsedQuery.data,
+          })
+        : await getDatabaseReadStreamPaginated({
+            projectId,
+            cutoffCreatedAt: jobDetails.createdAt,
+            ...parsedQuery.data,
+          });
 
   // Transform data to desired format
   let rowCount = 0;

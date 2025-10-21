@@ -226,7 +226,8 @@ CREATE TABLE IF NOT EXISTS events
   ENGINE = ReplacingMergeTree(event_ts, is_deleted)
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
-  ORDER BY (project_id, toUnixTimestamp(start_time), trace_id, span_id);
+  ORDER BY (project_id, toUnixTimestamp(start_time), xxHash32(trace_id), span_id)
+  SAMPLE BY xxHash32(trace_id);
 
 EOF
 

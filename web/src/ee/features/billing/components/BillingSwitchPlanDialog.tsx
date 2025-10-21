@@ -72,13 +72,16 @@ export const BillingSwitchPlanDialog = ({
         <Button disabled={disabled}>Change plan</Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle>Plans</DialogTitle>
-          <Button variant="secondary" asChild>
-            <Link href="https://langfuse.com/pricing" target="_blank">
+        <DialogHeader>
+          <div className="flex flex-row items-center justify-between">
+            <DialogTitle>Plans</DialogTitle>
+            <ActionButton
+              variant="secondary"
+              href="https://langfuse.com/pricing"
+            >
               Comparison of plans ↗
-            </Link>
-          </Button>
+            </ActionButton>
+          </div>
         </DialogHeader>
         <DialogBody>
           <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -127,7 +130,15 @@ export const BillingSwitchPlanDialog = ({
                           {product.checkout?.price}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          + {product.checkout?.usagePrice}
+                          + {product.checkout?.usagePrice},{" "}
+                          <a
+                            href="https://langfuse.com/pricing#pricing-calculator"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            usage calculator ↗
+                          </a>
                         </div>
                       </div>
                     </div>

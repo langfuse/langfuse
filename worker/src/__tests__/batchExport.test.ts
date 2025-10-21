@@ -11,16 +11,27 @@ import {
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
+import { getObservationStream } from "../features/database-read-stream/observation-stream";
+import { getTraceStream } from "../features/database-read-stream/trace-stream";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
+    const traceId = randomUUID();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+    });
+
+    await createTracesCh([trace]);
+
     const observations = [
       createObservation({
         project_id: projectId,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         type: "SPAN",
       }),
       createObservation({
@@ -37,7 +48,7 @@ describe("batch export test suite", () => {
 
     const score = createTraceScore({
       project_id: projectId,
-      trace_id: randomUUID(),
+      trace_id: traceId,
       observation_id: observations[0].id,
       name: "test",
       value: 123,
@@ -46,12 +57,10 @@ describe("batch export test suite", () => {
     await createScoresCh([score]);
     await createObservationsCh(observations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getObservationStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "startTime", order: "DESC" },
     });
 
     const rows: any[] = [];
@@ -68,22 +77,32 @@ describe("batch export test suite", () => {
           name: observations[0].name,
           type: observations[0].type,
           test: [score.value],
+          input: "Hello World",
+          output: "Hello John",
+          metadata: expect.objectContaining({
+            source: "API",
+            server: "Node",
+          }),
         }),
         expect.objectContaining({
           id: observations[1].id,
           name: observations[1].name,
           type: observations[1].type,
+          input: "Hello World",
+          output: "Hello John",
         }),
         expect.objectContaining({
           id: observations[2].id,
           name: observations[2].name,
           type: observations[2].type,
+          input: "Hello World",
+          output: "Hello John",
         }),
       ]),
     );
   });
 
-  it("should export observations with filter and sorting", async () => {
+  it("should export filtered observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const observations = [
@@ -112,9 +131,8 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(observations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getObservationStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
@@ -124,7 +142,6 @@ describe("batch export test suite", () => {
           value: ["test1", "test2"],
         },
       ],
-      orderBy: { column: "startTime", order: "ASC" },
     });
 
     const rows: any[] = [];
@@ -134,8 +151,87 @@ describe("batch export test suite", () => {
     }
 
     expect(rows).toHaveLength(2);
-    expect(rows[0].name).toBe("test1");
-    expect(rows[1].name).toBe("test2");
+
+    const exportedNames = rows.map((row) => row.name);
+    expect(exportedNames).toEqual(expect.arrayContaining(["test1", "test2"]));
+    expect(exportedNames).toHaveLength(2);
+
+    // Verify input/output/metadata are properly exported
+    rows.forEach((row) => {
+      expect(row.input).toBe("Hello World");
+      expect(row.output).toBe("Hello John");
+      expect(row.metadata).toEqual(
+        expect.objectContaining({
+          source: "API",
+          server: "Node",
+        }),
+      );
+    });
+  });
+
+  it("should export observations with filter", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test1",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "EVENT",
+        name: "test2",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "SPAN",
+        name: "test3",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "name",
+          value: ["test1", "test2"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
+
+    const exportedNames = rows.map((row) => row.name);
+    expect(exportedNames).toEqual(expect.arrayContaining(["test1", "test2"]));
+    expect(exportedNames).toHaveLength(2);
+
+    // Verify input/output/metadata are present
+    rows.forEach((row) => {
+      expect(row.input).toBe("Hello World");
+      expect(row.output).toBe("Hello John");
+      expect(row.metadata).toMatchObject({
+        source: "API",
+        server: "Node",
+      });
+    });
   });
 
   it("should export sessions", async () => {
@@ -201,7 +297,7 @@ describe("batch export test suite", () => {
     await createScoresCh([score]);
     await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Sessions,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -298,7 +394,7 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Sessions,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -351,34 +447,9 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const generations = [
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[0].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 1000,
-        end_time: new Date().getTime(),
-      }),
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[1].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 2000,
-        end_time: new Date().getTime(),
-      }),
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[1].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 2123,
-        end_time: new Date().getTime(),
-      }),
-    ];
-
     const score = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
-      observation_id: generations[0].id,
       name: "test",
       value: 123,
     });
@@ -386,22 +457,26 @@ describe("batch export test suite", () => {
     const qualitativeScore = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
-      observation_id: generations[0].id,
       name: "qualitative_test",
       value: undefined,
       string_value: "This is some qualitative text",
       data_type: "CATEGORICAL",
     });
 
-    await createScoresCh([score, qualitativeScore]);
-    await createObservationsCh(generations);
+    const booleanScore = createTraceScore({
+      project_id: projectId,
+      trace_id: traces[0].id,
+      name: "is_correct",
+      value: 1,
+      data_type: "BOOLEAN",
+    });
 
-    const stream = await getDatabaseReadStream({
+    await createScoresCh([score, qualitativeScore, booleanScore]);
+
+    const stream = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "timestamp", order: "DESC" },
     });
 
     const rows: any[] = [];
@@ -416,19 +491,20 @@ describe("batch export test suite", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: traces[0].id,
-          latency: expect.closeTo(1.0, 0.1), // allows deviation of ±0.1
           test: [score.value],
           qualitative_test: ["This is some qualitative text"],
+          is_correct: [1],
         }),
         expect.objectContaining({
           id: traces[1].id,
-          latency: expect.closeTo(2.123, 0.1), // allows deviation of ±0.1
           test: null,
           qualitative_test: null,
+          is_correct: null,
         }),
       ]),
     );
   });
+
   it("should export traces with filter and sort", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -465,9 +541,8 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),
       filter: [
         {
@@ -483,7 +558,6 @@ describe("batch export test suite", () => {
           value: true,
         },
       ],
-      orderBy: { column: "timestamp", order: "ASC" },
     });
 
     const rows: any[] = [];
@@ -582,7 +656,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with filter on name and sort by timestamp
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -664,7 +738,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export all scores
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -757,7 +831,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with date range filter
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -871,7 +945,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with multiple filter conditions
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -989,7 +1063,7 @@ describe("batch export test suite", () => {
     await prisma.datasetItem.createMany({ data: datasetItems });
 
     // Export dataset items
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.DatasetItems,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1129,7 +1203,7 @@ describe("batch export test suite", () => {
     await prisma.datasetItem.createMany({ data: datasetItems });
 
     // Export dataset items
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.DatasetItems,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1230,7 +1304,7 @@ describe("batch export test suite", () => {
     });
 
     // Export audit logs
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.AuditLogs,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1306,12 +1380,10 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const streamByName = await getDatabaseReadStream({
+    const streamByName = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "timestamp", order: "ASC" },
       searchQuery: "findable-trace",
       searchType: ["id"],
     });

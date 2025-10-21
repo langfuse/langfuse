@@ -21,27 +21,25 @@ export const testModelCall = async ({
   prompt?: string;
   modelConfig?: ModelConfig | null;
 }) => {
-  (
-    await fetchLLMCompletion({
-      streaming: false,
-      llmConnection: apiKey,
-      messages: [
-        {
-          role: ChatMessageRole.User,
-          content: prompt ?? "mock content",
-          type: ChatMessageType.User,
-        },
-      ],
-      modelParams: {
-        provider: provider,
-        model: model,
-        adapter: apiKey.adapter,
-        ...modelConfig,
+  await fetchLLMCompletion({
+    streaming: false,
+    llmConnection: apiKey,
+    messages: [
+      {
+        role: ChatMessageRole.User,
+        content: prompt ?? "mock content",
+        type: ChatMessageType.User,
       },
-      structuredOutputSchema: zodV3.object({
-        score: zodV3.string(),
-        reasoning: zodV3.string(),
-      }),
-    })
-  ).completion;
+    ],
+    modelParams: {
+      provider: provider,
+      model: model,
+      adapter: apiKey.adapter,
+      ...modelConfig,
+    },
+    structuredOutputSchema: zodV3.object({
+      score: zodV3.string(),
+      reasoning: zodV3.string(),
+    }),
+  });
 };

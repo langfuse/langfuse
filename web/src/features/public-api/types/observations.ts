@@ -3,6 +3,8 @@ import {
   ObservationLevel,
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  singleFilter,
+  InvalidRequestError,
 } from "@langfuse/shared";
 
 import {
@@ -160,6 +162,11 @@ export const transformDbToApiObservation = (
  * Endpoints
  */
 
+const useEventsTableSchema = z
+  .union([z.literal("true"), z.literal("false"), z.boolean()])
+  .optional()
+  .transform((val) => val === "true" || val === true);
+
 // GET /observations
 export const GetObservationsV1Query = z.object({
   ...publicApiPaginationZod,
@@ -173,6 +180,21 @@ export const GetObservationsV1Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
+  useEventsTable: useEventsTableSchema,
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
 });
 export const GetObservationsV1Response = z
   .object({
@@ -184,5 +206,6 @@ export const GetObservationsV1Response = z
 // GET /observations/{observationId}
 export const GetObservationV1Query = z.object({
   observationId: z.string(),
+  useEventsTable: useEventsTableSchema,
 });
 export const GetObservationV1Response = APIObservation;

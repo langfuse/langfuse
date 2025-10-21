@@ -15,6 +15,7 @@ import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/Bill
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { BillingTransitionInfoCard } from "./BillingTransitionInfoCard";
+import { useBillingInformation } from "./useBillingInformation";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -27,6 +28,7 @@ export const BillingSettings = () => {
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
   const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
+  const { hasActiveSubscription } = useBillingInformation();
 
   // Don't render billing settings if cloud billing is not available
   if (!isCloudBillingAvailable) {
@@ -62,7 +64,9 @@ export const BillingSettings = () => {
         <BillingActionButtons />
         <BillingTransitionInfoCard />
         <BillingInvoiceTable />
-        {isSpendAlertEntitled && orgId && <SpendAlertsSection orgId={orgId} />}
+        {isSpendAlertEntitled && orgId && hasActiveSubscription && (
+          <SpendAlertsSection orgId={orgId} />
+        )}
       </div>
     </div>
   );
