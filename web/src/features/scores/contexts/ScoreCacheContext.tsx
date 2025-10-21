@@ -128,7 +128,8 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
           case "target-and-child-scores":
             return () => true;
           case "target-scores-only":
-            return (s: CachedScore) => s.observationId === target.observationId;
+            return (s: CachedScore) =>
+              s.observationId === (target.observationId ?? null);
           default:
             throw new Error(`Invalid mode: ${mode}`);
         }
