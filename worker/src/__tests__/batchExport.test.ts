@@ -234,6 +234,111 @@ describe("batch export test suite", () => {
     });
   });
 
+  it("should export observations filtered by scores", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: randomUUID(),
+    });
+
+    await createTracesCh([trace]);
+
+    // Create observations with different score values
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "high-accuracy",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "medium-accuracy",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "low-accuracy",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Create scores with different values
+    const scores = [
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[0].id,
+        name: "accuracy",
+        value: 0.95,
+        data_type: "NUMERIC",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[1].id,
+        name: "accuracy",
+        value: 0.75,
+        data_type: "NUMERIC",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[2].id,
+        name: "accuracy",
+        value: 0.45,
+        data_type: "NUMERIC",
+      }),
+    ];
+
+    await createScoresCh(scores);
+
+    // Filter observations with accuracy >= 0.7
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "numberObject",
+          column: "Scores",
+          key: "accuracy",
+          operator: ">=",
+          value: 0.7,
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only include observations with accuracy >= 0.7
+    expect(rows).toHaveLength(2);
+
+    const exportedNames = rows.map((row) => row.name).sort();
+    expect(exportedNames).toEqual(["high-accuracy", "medium-accuracy"]);
+
+    // Verify scores are included in the export
+    const highAccuracyRow = rows.find((r) => r.name === "high-accuracy");
+    expect(highAccuracyRow?.accuracy).toEqual([0.95]);
+
+    const mediumAccuracyRow = rows.find((r) => r.name === "medium-accuracy");
+    expect(mediumAccuracyRow?.accuracy).toEqual([0.75]);
+  });
+
   it("should export sessions", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
