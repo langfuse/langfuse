@@ -80,6 +80,12 @@ service:
             note:
               type: optional<string>
               docs: Optional note for the API key
+            publicKey:
+              type: optional<string>
+              docs: Optional predefined public key. Must start with 'pk-lf-'. If provided, secretKey must also be provided.
+            secretKey:
+              type: optional<string>
+              docs: Optional predefined secret key. Must start with 'sk-lf-'. If provided, publicKey must also be provided.
       response: ApiKeyResponse
 
     deleteApiKey:
