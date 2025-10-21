@@ -1,11 +1,15 @@
-import { type FilterState, singleFilter } from "@langfuse/shared";
+import {
+  type FilterState,
+  singleFilter,
+  type SingleValueOption,
+} from "@langfuse/shared";
 import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 
 // Generic helpers for reusable encoding/decoding across feature areas
 export type ColumnToQueryKeyMap = Record<string, string>;
 export type GenericFilterOptions = Record<
   string,
-  string[] | Record<string, string[]>
+  string[] | (string | SingleValueOption)[] | Record<string, string[]>
 >;
 
 export const createShortKeyGetter =
@@ -120,6 +124,8 @@ export function decodeFiltersGeneric(
       continue;
     }
 
+    const decodedOperator = decodeURIComponent(operator);
+    const decodedKey = key ? decodeURIComponent(key) : "";
     const decodedValue = decodeURIComponent(encodedValue);
 
     // Parse value based on type
@@ -133,7 +139,7 @@ export function decodeFiltersGeneric(
       type === "arrayOptions" ||
       type === "categoryOptions"
     ) {
-      parsedValue = decodedValue.split("|");
+      parsedValue = decodedValue ? decodedValue.split("|") : [];
     } else if (type === "boolean") {
       parsedValue = decodedValue === "true";
     } else {
@@ -144,18 +150,18 @@ export function decodeFiltersGeneric(
     const filter: any = {
       column,
       type,
-      operator,
+      operator: decodedOperator,
       value: parsedValue,
     };
 
     // Add key field for types that need it
     if (
-      key &&
+      decodedKey &&
       (type === "categoryOptions" ||
         type === "numberObject" ||
         type === "stringObject")
     ) {
-      filter.key = key;
+      filter.key = decodedKey;
     }
 
     // Validate with zod

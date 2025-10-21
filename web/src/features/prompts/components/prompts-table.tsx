@@ -236,8 +236,24 @@ export function PromptTable() {
   const newFilterOptions = useMemo(
     () => ({
       type: ["text", "chat"],
-      labels: promptFilterOptions.data?.labels?.map((l) => l.value) || [],
-      tags: promptFilterOptions.data?.tags?.map((t) => t.value) || [],
+      labels:
+        promptFilterOptions.data?.labels?.map((l) => {
+          // API type says { value: string }[], but for some items, there is an optional count
+          const item = l as { value: string; count?: number };
+          return {
+            value: item.value,
+            count: item.count !== undefined ? Number(item.count) : undefined,
+          };
+        }) || [],
+      tags:
+        promptFilterOptions.data?.tags?.map((t) => {
+          // API type says { value: string }[], but for some items, there is an optional count
+          const item = t as { value: string; count?: number };
+          return {
+            value: item.value,
+            count: item.count !== undefined ? Number(item.count) : undefined,
+          };
+        }) || [],
       version: [],
     }),
     [promptFilterOptions.data],
@@ -397,7 +413,10 @@ export function PromptTable() {
   ] as LangfuseColumnDef<PromptTableRow>[];
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider
+      tableName={promptFilterConfig.tableName}
+      defaultSidebarCollapsed={promptFilterConfig.defaultSidebarCollapsed}
+    >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {currentFolderPath && (

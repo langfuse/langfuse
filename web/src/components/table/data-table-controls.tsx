@@ -28,6 +28,7 @@ import type {
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
+  TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 import {
@@ -48,10 +49,18 @@ export const ControlsContext = createContext<ControlsContextType | null>(null);
 
 export function DataTableControlsProvider({
   children,
+  tableName,
+  defaultSidebarCollapsed,
 }: {
   children: React.ReactNode;
+  tableName?: string;
+  defaultSidebarCollapsed?: boolean;
 }) {
-  const [open, setOpen] = useLocalStorage("data-table-controls", true);
+  const storageKey = tableName
+    ? `data-table-controls-${tableName}`
+    : "data-table-controls";
+  const defaultOpen = !defaultSidebarCollapsed;
+  const [open, setOpen] = useLocalStorage(storageKey, defaultOpen);
 
   return (
     <ControlsContext.Provider value={{ open, setOpen }}>
@@ -172,6 +181,11 @@ export function DataTableControls({
                   onOnlyChange={filter.onOnlyChange}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
+                  operator={filter.operator}
+                  onOperatorChange={filter.onOperatorChange}
+                  textFilters={filter.textFilters}
+                  onTextFilterAdd={filter.onTextFilterAdd}
+                  onTextFilterRemove={filter.onTextFilterRemove}
                 />
               );
             }
@@ -228,6 +242,7 @@ export function DataTableControls({
                   onChange={filter.onChange}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
+                  keyPlaceholder="Name"
                 />
               );
             }
@@ -246,6 +261,7 @@ export function DataTableControls({
                   onChange={filter.onChange}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
+                  keyPlaceholder="Name"
                 />
               );
             }
@@ -293,6 +309,17 @@ interface CategoricalFacetProps extends BaseFacetProps {
   value: string[];
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  operator?: "any of" | "all of";
+  onOperatorChange?: (operator: "any of" | "all of") => void;
+  textFilters?: TextFilterEntry[];
+  onTextFilterAdd?: (
+    operator: "contains" | "does not contain",
+    value: string,
+  ) => void;
+  onTextFilterRemove?: (
+    operator: "contains" | "does not contain",
+    value: string,
+  ) => void;
 }
 
 interface NumericFacetProps extends BaseFacetProps {
@@ -313,18 +340,21 @@ interface KeyValueFacetProps extends BaseFacetProps {
   availableValues: Record<string, string[]>;
   value: KeyValueFilterEntry[];
   onChange: (filters: KeyValueFilterEntry[]) => void;
+  keyPlaceholder?: string;
 }
 
 interface NumericKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
   value: NumericKeyValueFilterEntry[];
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
+  keyPlaceholder?: string;
 }
 
 interface StringKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
   value: StringKeyValueFilterEntry[];
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
+  keyPlaceholder?: string;
 }
 
 // Non-animated accordion components for filters
@@ -432,9 +462,16 @@ export function CategoricalFacet({
   onOnlyChange,
   isActive,
   onReset,
+  operator,
+  onOperatorChange,
+  textFilters,
+  onTextFilterAdd,
+  onTextFilterRemove,
 }: CategoricalFacetProps) {
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Track which filter mode is active (select checkboxes vs text filters)
+  const [filterMode, setFilterMode] = useState<"select" | "text">("select");
 
   // Reset showAll and searchQuery state when accordion is collapsed
   useEffect(() => {
@@ -443,6 +480,21 @@ export function CategoricalFacet({
       setSearchQuery("");
     }
   }, [expanded]);
+
+  // Handle mode change with auto-clear of filters from the other mode
+  const handleModeChange = useCallback(
+    (newMode: "select" | "text") => {
+      setFilterMode(newMode);
+
+      // Clear filters from the other mode
+      if (newMode === "select") {
+        textFilters?.forEach((f) => onTextFilterRemove?.(f.operator, f.value));
+      } else {
+        onChange([]);
+      }
+    },
+    [textFilters, onTextFilterRemove, onChange],
+  );
 
   const MAX_VISIBLE_OPTIONS = 12;
   const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
@@ -467,66 +519,142 @@ export function CategoricalFacet({
       isActive={isActive}
       onReset={onReset}
     >
-      <div className="flex flex-col px-2">
-        {loading ? (
-          <div className="pl-4 text-sm text-muted-foreground">Loading...</div>
-        ) : options.length === 0 ? (
-          <div className="py-1 text-center text-sm text-muted-foreground">
-            No options found
-          </div>
-        ) : (
-          <>
-            {hasMoreOptions && (
-              <div className="mb-2 px-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Filter values"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 pl-7 text-xs"
-                  />
+      <div className="flex flex-col">
+        {/* Tab switcher - only show when text filtering is supported */}
+        {onTextFilterAdd && (
+          <FilterModeTabs mode={filterMode} onModeChange={handleModeChange} />
+        )}
+
+        {/* SELECT MODE: Checkboxes with optional counts */}
+        {filterMode === "select" && (
+          <div className="px-2">
+            {/* SOME/ALL Operator Toggle for arrayOptions filters
+
+                This toggle appears for multi-valued array columns (arrayOptions) like tags.
+                It allows switching between OR and AND logic:
+                - SOME: Match items with ANY selected value (OR logic)
+                - ALL: Match items with ALL selected values (AND logic)
+
+                The toggle is automatically enabled by useSidebarFilterState for any
+                arrayOptions column when selections exist. Other filter types (stringOptions,
+                boolean, numeric) don't get this toggle as "ALL" wouldn't be semantically meaningful.
+
+                Currently enabled for:
+                - Traces: tags
+                - Sessions: userIds, tags
+                - Prompts: labels, tags
+            */}
+            {onOperatorChange && value.length > 0 && (
+              <div className="mb-1.5 flex items-center gap-1.5 px-2">
+                <span className="text-[10px] text-muted-foreground/80">
+                  Match:
+                </span>
+                <div className="inline-flex rounded border border-input/50 bg-background text-[10px]">
+                  <button
+                    onClick={() => onOperatorChange("any of")}
+                    className={cn(
+                      "rounded-l px-1.5 py-0.5 transition-colors",
+                      operator === "any of" || !operator
+                        ? "bg-accent font-medium text-accent-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    SOME
+                  </button>
+                  <div className="w-px bg-border/50" />
+                  <button
+                    onClick={() => onOperatorChange("all of")}
+                    className={cn(
+                      "rounded-r px-1.5 py-0.5 transition-colors",
+                      operator === "all of"
+                        ? "bg-accent font-medium text-accent-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    ALL
+                  </button>
                 </div>
               </div>
             )}
-            {filteredOptions.length === 0 ? (
+
+            {/* Loading / Empty / Options */}
+            {loading ? (
+              <div className="pl-4 text-sm text-muted-foreground">
+                Loading...
+              </div>
+            ) : options.length === 0 ? (
               <div className="py-1 text-center text-sm text-muted-foreground">
-                No matches found
+                No options found
               </div>
             ) : (
               <>
-                {visibleOptions.map((option: string) => (
-                  <FilterValueCheckbox
-                    key={option}
-                    id={`${filterKey}-${option}`}
-                    label={option}
-                    count={counts.get(option) || 0}
-                    checked={value.includes(option)}
-                    onCheckedChange={(checked) => {
-                      const newValues = checked
-                        ? [...value, option]
-                        : value.filter((v: string) => v !== option);
-                      onChange(newValues);
-                    }}
-                    onLabelClick={
-                      onOnlyChange ? () => onOnlyChange(option) : undefined
-                    }
-                    totalSelected={value.length}
-                  />
-                ))}
-                {hasMoreFilteredOptions && !showAll && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAll(true)}
-                    className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
-                  >
-                    Show more values
-                  </Button>
+                {/* Search box for many options */}
+                {hasMoreOptions && (
+                  <div className="mb-2 px-2">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        placeholder="Filter values"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-8 pl-7 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Checkbox list */}
+                {filteredOptions.length === 0 ? (
+                  <div className="py-1 text-center text-sm text-muted-foreground">
+                    No matches found
+                  </div>
+                ) : (
+                  <>
+                    {visibleOptions.map((option: string) => (
+                      <FilterValueCheckbox
+                        key={option}
+                        id={`${filterKey}-${option}`}
+                        label={option}
+                        count={counts.get(option) || 0}
+                        checked={value.includes(option)}
+                        onCheckedChange={(checked) => {
+                          const newValues = checked
+                            ? [...value, option]
+                            : value.filter((v: string) => v !== option);
+                          onChange(newValues);
+                        }}
+                        onLabelClick={
+                          onOnlyChange ? () => onOnlyChange(option) : undefined
+                        }
+                        totalSelected={value.length}
+                      />
+                    ))}
+                    {hasMoreFilteredOptions && !showAll && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAll(true)}
+                        className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
+                      >
+                        Show more values
+                      </Button>
+                    )}
+                  </>
                 )}
               </>
             )}
-          </>
+          </div>
+        )}
+
+        {/* TEXT MODE: Contains/Does Not Contain filters */}
+        {filterMode === "text" && onTextFilterAdd && (
+          <div className="px-2 py-1">
+            <TextFilterSection
+              allFilters={textFilters ?? []}
+              onAdd={onTextFilterAdd}
+              onRemove={onTextFilterRemove}
+            />
+          </div>
         )}
       </div>
     </FilterAccordionItem>
@@ -774,6 +902,7 @@ export function KeyValueFacet({
   onChange,
   isActive,
   onReset,
+  keyPlaceholder,
 }: KeyValueFacetProps) {
   return (
     <FilterAccordionItem
@@ -794,6 +923,7 @@ export function KeyValueFacet({
           availableValues={availableValues}
           activeFilters={value}
           onChange={onChange}
+          keyPlaceholder={keyPlaceholder}
         />
       )}
     </FilterAccordionItem>
@@ -811,6 +941,7 @@ export function NumericKeyValueFacet({
   onChange,
   isActive,
   onReset,
+  keyPlaceholder,
 }: NumericKeyValueFacetProps) {
   return (
     <FilterAccordionItem
@@ -830,6 +961,7 @@ export function NumericKeyValueFacet({
           keyOptions={keyOptions}
           activeFilters={value}
           onChange={onChange}
+          keyPlaceholder={keyPlaceholder}
         />
       )}
     </FilterAccordionItem>
@@ -847,6 +979,7 @@ export function StringKeyValueFacet({
   onChange,
   isActive,
   onReset,
+  keyPlaceholder,
 }: StringKeyValueFacetProps) {
   return (
     <FilterAccordionItem
@@ -866,9 +999,159 @@ export function StringKeyValueFacet({
           keyOptions={keyOptions}
           activeFilters={value}
           onChange={onChange}
+          keyPlaceholder={keyPlaceholder}
         />
       )}
     </FilterAccordionItem>
+  );
+}
+
+// Filter mode tabs for switching between Select (checkboxes) and Text (contains) modes
+interface FilterModeTabsProps {
+  mode: "select" | "text";
+  onModeChange: (mode: "select" | "text") => void;
+}
+
+function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 px-4">
+      <span className="text-[10px] text-muted-foreground/80">Mode:</span>
+      <div className="inline-flex flex-1 rounded border border-input/50 bg-background text-[10px]">
+        <button
+          onClick={() => onModeChange("select")}
+          className={cn(
+            "flex-1 rounded-l px-3 py-0.5 transition-colors",
+            mode === "select"
+              ? "bg-accent font-medium text-accent-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          SELECT
+        </button>
+        <div className="w-px bg-border/50" />
+        <button
+          onClick={() => onModeChange("text")}
+          className={cn(
+            "flex-1 rounded-r px-3 py-0.5 transition-colors",
+            mode === "text"
+              ? "bg-accent font-medium text-accent-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          TEXT
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Text filter section for categorical filters
+// Single input with DOES/DOES NOT toggle, allows adding multiple filters
+function TextFilterSection({
+  allFilters,
+  onAdd,
+  onRemove,
+}: {
+  allFilters: TextFilterEntry[];
+  onAdd?: (op: "contains" | "does not contain", val: string) => void;
+  onRemove?: (op: "contains" | "does not contain", val: string) => void;
+}) {
+  const [inputValue, setInputValue] = useState("");
+  const [selectedOperator, setSelectedOperator] = useState<
+    "contains" | "does not contain"
+  >("contains");
+
+  const handleAdd = () => {
+    // people have filtered for a single " ", e.g. does not contain " " on sessionID to get all traces with a session id
+    if (inputValue.length > 0 && onAdd) {
+      onAdd(selectedOperator, inputValue);
+      setInputValue("");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Operator toggle */}
+      <div className="flex items-center gap-1 px-2">
+        <div className="inline-flex rounded border border-input/50 bg-background text-[10px]">
+          <button
+            onClick={() => setSelectedOperator("contains")}
+            className={cn(
+              "rounded-l px-2 py-0.5 transition-colors",
+              selectedOperator === "contains"
+                ? "bg-accent font-medium text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            contains
+          </button>
+          <div className="w-px bg-border/50" />
+          <button
+            onClick={() => setSelectedOperator("does not contain")}
+            className={cn(
+              "rounded-r px-2 py-0.5 transition-colors",
+              selectedOperator === "does not contain"
+                ? "bg-accent font-medium text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            does not contain
+          </button>
+        </div>
+      </div>
+
+      {/* Input + Add button */}
+      <div className="flex items-center gap-2 px-2">
+        <Input
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleAdd();
+            }
+          }}
+          placeholder="Enter value..."
+          className="h-7 flex-1 text-xs"
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleAdd}
+          disabled={inputValue.length === 0}
+          className="h-7 shrink-0 px-2 text-xs"
+        >
+          Add
+        </Button>
+      </div>
+
+      {/* Active filters list */}
+      {allFilters.length > 0 && (
+        <div className="space-y-1 px-2">
+          {allFilters.map((f, idx) => (
+            <div
+              key={idx}
+              className="group/textfilter flex items-center gap-2 rounded border border-border/40 bg-muted/30 px-2 py-1 text-xs"
+            >
+              <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
+                {f.operator === "contains" ? "contains" : "does not contain"}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-medium">
+                {f.value}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onRemove?.(f.operator, f.value)}
+                className="h-4 w-4 shrink-0 p-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/textfilter:opacity-100"
+              >
+                ×
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -880,6 +1163,7 @@ interface FilterValueCheckboxProps {
   onCheckedChange?: (checked: boolean) => void;
   onLabelClick?: () => void; // For "only this" behavior
   totalSelected?: number;
+  disabled?: boolean;
 }
 
 export function FilterValueCheckbox({
@@ -890,31 +1174,41 @@ export function FilterValueCheckbox({
   onCheckedChange,
   onLabelClick,
   totalSelected,
+  disabled = false,
 }: FilterValueCheckboxProps) {
   // Show "All" when clicking would reverse selection (only one item selected)
   const labelText = checked && totalSelected === 1 ? "All" : "Only";
 
   return (
-    <div className="relative flex items-center px-2">
+    <div
+      className={cn(
+        "relative flex items-center px-2",
+        disabled && "cursor-not-allowed opacity-50",
+      )}
+    >
       {/* Checkbox hover area */}
       <div className="group/checkbox flex items-center rounded-sm p-1 transition-colors hover:bg-accent">
         <Checkbox
           id={id}
           checked={checked}
           onCheckedChange={onCheckedChange}
+          disabled={disabled}
           className="pointer-events-auto"
         />
       </div>
 
       {/* Label hover area */}
       <div
-        className="group/label flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-1 transition-colors hover:bg-accent"
+        className={cn(
+          "group/label flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-1 transition-colors hover:bg-accent",
+          disabled && "pointer-events-none",
+        )}
         onClick={onLabelClick}
       >
         <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
 
         {/* "Only" or "All" indicator when hovering label */}
-        {onLabelClick && (
+        {onLabelClick && !disabled && (
           <span className="hidden pl-1 text-xs text-muted-foreground group-hover/label:block">
             {labelText}
           </span>

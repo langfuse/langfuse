@@ -37,18 +37,21 @@ type KeyValueFilterBuilderProps =
       availableValues: Record<string, string[]>;
       activeFilters: KeyValueFilterEntry[];
       onChange: (filters: KeyValueFilterEntry[]) => void;
+      keyPlaceholder?: string;
     }
   | {
       mode: "numeric";
       keyOptions?: string[];
       activeFilters: NumericKeyValueFilterEntry[];
       onChange: (filters: NumericKeyValueFilterEntry[]) => void;
+      keyPlaceholder?: string;
     }
   | {
       mode: "string";
       keyOptions?: string[];
       activeFilters: StringKeyValueFilterEntry[];
       onChange: (filters: StringKeyValueFilterEntry[]) => void;
+      keyPlaceholder?: string;
     };
 
 // Map operators to human-readable labels
@@ -67,7 +70,13 @@ const STRING_OPERATOR_LABELS = {
 } as const;
 
 export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
-  const { mode, keyOptions, activeFilters, onChange } = props;
+  const {
+    mode,
+    keyOptions,
+    activeFilters,
+    onChange,
+    keyPlaceholder = "Key",
+  } = props;
   const availableValues = mode === "categorical" ? props.availableValues : {};
 
   // Local UI state for filter rows (includes incomplete filters)
@@ -205,7 +214,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                       <span
                         className={cn(!filter.key && "text-muted-foreground")}
                       >
-                        {filter.key || "Key"}
+                        {filter.key || keyPlaceholder}
                       </span>
                       <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -254,7 +263,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
               ) : (
                 // Text input for free-form keys
                 <Input
-                  placeholder="Key"
+                  placeholder={keyPlaceholder}
                   value={filter.key}
                   onChange={(e) => {
                     if (mode === "categorical") {

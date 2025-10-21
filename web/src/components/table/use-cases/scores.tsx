@@ -17,10 +17,6 @@ import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import {
-  type ScoreOptions,
-  scoresTableColsWithOptions,
-} from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 
 import type { RouterOutput } from "@/src/utils/types";
@@ -100,7 +96,6 @@ export default function ScoresTable({
   userId,
   traceId,
   observationId,
-  omittedFilter = [],
   hiddenColumns = [],
   localStorageSuffix = "",
 }: {
@@ -277,7 +272,11 @@ export default function ScoresTable({
 
   const newFilterOptions = React.useMemo(
     () => ({
-      name: filterOptions.data?.name?.map((n) => n.value) || [],
+      name:
+        filterOptions.data?.name?.map((n) => ({
+          value: n.value,
+          count: n.count !== undefined ? Number(n.count) : undefined,
+        })) || [],
       source: ["ANNOTATION", "API", "EVAL"],
       dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
       value: [],
@@ -665,17 +664,6 @@ export default function ScoresTable({
     };
   };
 
-  const transformFilterOptions = (
-    traceFilterOptions: ScoreOptions | undefined,
-  ) => {
-    return scoresTableColsWithOptions(traceFilterOptions).filter(
-      (c) =>
-        c.id !== "timestamp" &&
-        !omittedFilter?.includes(c.name) &&
-        !hiddenColumns.includes(c.id),
-    );
-  };
-
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
     projectId,
@@ -687,12 +675,16 @@ export default function ScoresTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: transformFilterOptions(filterOptions.data),
+      filterColumnDefinition: scoreFilterConfig.columnDefinitions,
     },
+    currentFilterState: userFilterState,
   });
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider
+      tableName={scoreFilterConfig.tableName}
+      defaultSidebarCollapsed={scoreFilterConfig.defaultSidebarCollapsed}
+    >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar

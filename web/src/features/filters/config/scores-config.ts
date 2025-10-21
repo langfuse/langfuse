@@ -18,6 +18,8 @@ export const scoreFilterConfig: FilterConfig = {
 
   defaultExpanded: ["name"],
 
+  defaultSidebarCollapsed: true,
+
   facets: [
     {
       type: "categorical" as const,

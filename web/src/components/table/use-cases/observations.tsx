@@ -17,7 +17,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ObservationLevelType,
   type FilterState,
-  type ObservationOptions,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
@@ -27,7 +26,6 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
@@ -120,7 +118,6 @@ export default function ObservationsTable({
   promptName,
   promptVersion,
   modelId,
-  omittedFilter = [],
 }: ObservationsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
@@ -293,14 +290,42 @@ export default function ObservationsTable({
     () => ({
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
-      name: filterOptions.data?.name?.map((n) => n.value) || [],
-      type: filterOptions.data?.type?.map((t) => t.value) || [],
-      traceName: filterOptions.data?.traceName?.map((tn) => tn.value) || [],
+      name:
+        filterOptions.data?.name?.map((n) => ({
+          value: n.value,
+          count: n.count !== undefined ? Number(n.count) : undefined,
+        })) || [],
+      type:
+        filterOptions.data?.type?.map((t) => ({
+          value: t.value,
+          count: t.count !== undefined ? Number(t.count) : undefined,
+        })) || [],
+      traceName:
+        filterOptions.data?.traceName?.map((tn) => ({
+          value: tn.value,
+          count: tn.count !== undefined ? Number(tn.count) : undefined,
+        })) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
-      model: filterOptions.data?.model?.map((m) => m.value) || [],
-      modelId: filterOptions.data?.modelId?.map((mid) => mid.value) || [],
-      promptName: filterOptions.data?.promptName?.map((pn) => pn.value) || [],
-      tags: filterOptions.data?.tags?.map((t) => t.value) || [],
+      model:
+        filterOptions.data?.model?.map((m) => ({
+          value: m.value,
+          count: m.count !== undefined ? Number(m.count) : undefined,
+        })) || [],
+      modelId:
+        filterOptions.data?.modelId?.map((mid) => ({
+          value: mid.value,
+          count: mid.count !== undefined ? Number(mid.count) : undefined,
+        })) || [],
+      promptName:
+        filterOptions.data?.promptName?.map((pn) => ({
+          value: pn.value,
+          count: pn.count !== undefined ? Number(pn.count) : undefined,
+        })) || [],
+      tags:
+        filterOptions.data?.tags?.map((t) => ({
+          value: t.value,
+          count: t.count !== undefined ? Number(t.count) : undefined,
+        })) || [],
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -391,17 +416,6 @@ export default function ObservationsTable({
       filter: scoreFilters.forObservations(),
       fromTimestamp: dateRange?.from,
     });
-
-  const transformFilterOptions = (
-    filterOptions: ObservationOptions | undefined,
-  ) => {
-    return observationsTableColsWithOptions(filterOptions).filter(
-      (col) =>
-        col.id !== "startTime" &&
-        col.id !== "endTime" &&
-        !omittedFilter?.includes(col.name),
-    );
-  };
 
   const { selectActionColumn } = TableSelectionManager<ObservationsTableRow>({
     projectId,
@@ -1048,8 +1062,9 @@ export default function ObservationsTable({
     },
     validationContext: {
       columns,
-      filterColumnDefinition: transformFilterOptions(filterOptions.data),
+      filterColumnDefinition: observationFilterConfig.columnDefinitions,
     },
+    currentFilterState: inputFilterState,
   });
 
   const peekConfig: DataTablePeekViewProps = useMemo(

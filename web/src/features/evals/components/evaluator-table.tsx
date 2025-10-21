@@ -393,7 +393,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   };
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider
+      tableName={evaluatorFilterConfig.tableName}
+      defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
+    >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar

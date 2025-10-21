@@ -153,9 +153,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: 5,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
-        "length;number;;%3E%3D;5",
-      );
+      expect(encodeFilters(filters, mockOptions)).toBe("length;number;;>=;5");
     });
 
     it("should encode numeric <= filter", () => {
@@ -167,9 +165,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: 10,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
-        "length;number;;%3C%3D;10",
-      );
+      expect(encodeFilters(filters, mockOptions)).toBe("length;number;;<=;10");
     });
 
     it("should encode numeric range with both >= and <=", () => {
@@ -188,7 +184,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "length;number;;%3E%3D;5,length;number;;%3C%3D;10",
+        "length;number;;>=;5,length;number;;<=;10",
       );
     });
 
@@ -232,7 +228,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "scoresNumeric;numberObject;accuracy;%3E%3D;0.8",
+        "scoresNumeric;numberObject;accuracy;>=;0.8",
       );
     });
 
@@ -261,7 +257,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ];
       expect(encodeFilters(filters, mockOptions)).toBe(
-        "extinct;boolean;;%3D;true",
+        "extinct;boolean;;=;true",
       );
     });
   });

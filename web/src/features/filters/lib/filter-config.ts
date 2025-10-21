@@ -65,5 +65,6 @@ export interface FilterConfig {
   columnToQueryKey: ColumnToQueryKeyMap;
   columnDefinitions: ColumnDefinition[];
   defaultExpanded?: string[];
+  defaultSidebarCollapsed?: boolean;
   facets: Facet[];
 }
