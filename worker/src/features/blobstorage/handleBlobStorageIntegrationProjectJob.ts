@@ -161,7 +161,7 @@ const processBlobStorageExport = async (config: {
       fileName: filePath,
       fileType: blobStorageProps.contentType,
       data: fileStream,
-      partSize: 100 * 1024 * 1024, // 100 MB for CSV
+      partSize: 100 * 1024 * 1024, // 100 MB part size
     });
 
     logger.info(
