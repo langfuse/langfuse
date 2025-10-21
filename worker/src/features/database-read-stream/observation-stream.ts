@@ -24,6 +24,7 @@ import {
   getChunkWithFlattenedScores,
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
+import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import type { Model, Price } from "@prisma/client";
 
 type ModelWithPrice = Model & { Price: Price[] };
@@ -268,64 +269,189 @@ export const getObservationStream = async (props: {
   // Convert async generator to Node.js Readable stream
   let recordsProcessed = 0;
   const modelCache = createModelCache(projectId);
+  const BATCH_SIZE = 100; // Fetch comments in batches for efficiency
+
+  type ObservationRow = ObservationRecordReadType & {
+    scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataType;
+          stringValue: string;
+        }[]
+      | undefined;
+    score_categories: string[] | undefined;
+  } & {
+    traceName: string;
+    traceTags: string[];
+    traceTimestamp: Date;
+    userId: string | null;
+  };
 
   return Readable.from(
     (async function* () {
+      let rowBuffer: ObservationRow[] = [];
+      let observationIds: string[] = [];
+
       for await (const row of asyncGenerator) {
-        recordsProcessed++;
-        if (recordsProcessed % 10000 === 0)
-          logger.info(
-            `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
+        rowBuffer.push(row);
+        observationIds.push(row.id);
+
+        // Process in batches
+        if (rowBuffer.length >= BATCH_SIZE) {
+          // Fetch comments for this batch
+          const commentsByObservation = await fetchCommentsForExport(
+            projectId,
+            "OBSERVATION",
+            observationIds,
           );
 
-        // Fetch model data from cache (or database if not cached)
-        const model = await modelCache.getModel(row.internal_model_id);
-        const modelData = enrichObservationWithModelData(model);
+          // Process each row in the buffer
+          for (const bufferedRow of rowBuffer) {
+            recordsProcessed++;
+            if (recordsProcessed % 10000 === 0)
+              logger.info(
+                `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
+              );
 
-        // Process numeric/boolean scores (tuples from ClickHouse)
-        const numericScores = (row.scores_avg ?? []).map((score: any) => ({
-          name: score[0],
-          value: score[1],
-          dataType: score[2],
-          stringValue: score[3],
-        }));
+            // Fetch model data from cache (or database if not cached)
+            const model = await modelCache.getModel(
+              bufferedRow.internal_model_id,
+            );
+            const modelData = enrichObservationWithModelData(model);
 
-        // Process categorical scores (format: "name:value")
-        const categoricalScores = (row.score_categories ?? []).map(
-          (cat: string) => {
-            const [name, ...valueParts] = cat.split(":");
-            return {
-              name,
-              value: null,
-              dataType: "CATEGORICAL" as ScoreDataType,
-              stringValue: valueParts.join(":"),
-            };
-          },
+            // Process numeric/boolean scores (tuples from ClickHouse)
+            const numericScores = (bufferedRow.scores_avg ?? []).map(
+              (score: any) => ({
+                name: score[0],
+                value: score[1],
+                dataType: score[2],
+                stringValue: score[3],
+              }),
+            );
+
+            // Process categorical scores (format: "name:value")
+            const categoricalScores = (bufferedRow.score_categories ?? []).map(
+              (cat: string) => {
+                const [name, ...valueParts] = cat.split(":");
+                return {
+                  name,
+                  value: null,
+                  dataType: "CATEGORICAL" as ScoreDataType,
+                  stringValue: valueParts.join(":"),
+                };
+              },
+            );
+
+            const outputScores: Record<string, string[] | number[]> =
+              prepareScoresForOutput([...numericScores, ...categoricalScores]);
+
+            // Get comments for this observation
+            const observationComments =
+              commentsByObservation.get(bufferedRow.id) ?? [];
+
+            yield getChunkWithFlattenedScores(
+              [
+                {
+                  ...convertObservation(bufferedRow, {
+                    truncated: false,
+                    shouldJsonParse: true,
+                  }),
+                  traceName: bufferedRow.traceName,
+                  traceTags: bufferedRow.traceTags,
+                  traceTimestamp: bufferedRow.traceTimestamp,
+                  userId: bufferedRow.userId,
+                  ...modelData,
+                  scores: outputScores,
+                  comments: observationComments,
+                },
+              ],
+              distinctScoreNames.reduce(
+                (acc, name) => ({ ...acc, [name]: null }),
+                {} as Record<string, null>,
+              ),
+            )[0];
+          }
+
+          // Reset buffers
+          rowBuffer = [];
+          observationIds = [];
+        }
+      }
+
+      // Process remaining rows in buffer
+      if (rowBuffer.length > 0) {
+        const commentsByObservation = await fetchCommentsForExport(
+          projectId,
+          "OBSERVATION",
+          observationIds,
         );
 
-        const outputScores: Record<string, string[] | number[]> =
-          prepareScoresForOutput([...numericScores, ...categoricalScores]);
+        for (const bufferedRow of rowBuffer) {
+          recordsProcessed++;
+          if (recordsProcessed % 10000 === 0)
+            logger.info(
+              `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
+            );
 
-        yield getChunkWithFlattenedScores(
-          [
-            {
-              ...convertObservation(row, {
-                truncated: false,
-                shouldJsonParse: true,
-              }),
-              traceName: row.traceName,
-              traceTags: row.traceTags,
-              traceTimestamp: row.traceTimestamp,
-              userId: row.userId,
-              ...modelData,
-              scores: outputScores,
+          // Fetch model data from cache (or database if not cached)
+          const model = await modelCache.getModel(
+            bufferedRow.internal_model_id,
+          );
+          const modelData = enrichObservationWithModelData(model);
+
+          // Process numeric/boolean scores (tuples from ClickHouse)
+          const numericScores = (bufferedRow.scores_avg ?? []).map(
+            (score: any) => ({
+              name: score[0],
+              value: score[1],
+              dataType: score[2],
+              stringValue: score[3],
+            }),
+          );
+
+          // Process categorical scores (format: "name:value")
+          const categoricalScores = (bufferedRow.score_categories ?? []).map(
+            (cat: string) => {
+              const [name, ...valueParts] = cat.split(":");
+              return {
+                name,
+                value: null,
+                dataType: "CATEGORICAL" as ScoreDataType,
+                stringValue: valueParts.join(":"),
+              };
             },
-          ],
-          distinctScoreNames.reduce(
-            (acc, name) => ({ ...acc, [name]: null }),
-            {} as Record<string, null>,
-          ),
-        )[0];
+          );
+
+          const outputScores: Record<string, string[] | number[]> =
+            prepareScoresForOutput([...numericScores, ...categoricalScores]);
+
+          // Get comments for this observation
+          const observationComments =
+            commentsByObservation.get(bufferedRow.id) ?? [];
+
+          yield getChunkWithFlattenedScores(
+            [
+              {
+                ...convertObservation(bufferedRow, {
+                  truncated: false,
+                  shouldJsonParse: true,
+                }),
+                traceName: bufferedRow.traceName,
+                traceTags: bufferedRow.traceTags,
+                traceTimestamp: bufferedRow.traceTimestamp,
+                userId: bufferedRow.userId,
+                ...modelData,
+                scores: outputScores,
+                comments: observationComments,
+              },
+            ],
+            distinctScoreNames.reduce(
+              (acc, name) => ({ ...acc, [name]: null }),
+              {} as Record<string, null>,
+            ),
+          )[0];
+        }
       }
     })(),
   );

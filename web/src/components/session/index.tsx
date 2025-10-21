@@ -13,11 +13,13 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
+import { Download } from "lucide-react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
   Popover,
@@ -142,6 +144,7 @@ export const SessionPage: React.FC<{
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const userSession = useSession();
+  const capture = usePostHogClientCapture();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byIdWithScores.useQuery(
     {
@@ -159,6 +162,36 @@ export const SessionPage: React.FC<{
       },
     },
   );
+
+  const sessionComments = api.comments.getByObjectId.useQuery({
+    projectId,
+    objectId: sessionId,
+    objectType: "SESSION",
+  });
+
+  const downloadSessionAsJson = useCallback(async () => {
+    // Fetch fresh comments data
+    const comments = await sessionComments.refetch();
+
+    const exportData = {
+      session: session.data,
+      comments: comments.data ?? [],
+    };
+
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `session-${sessionId}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    capture("session_detail:download_button_click");
+  }, [session.data, sessionId, capture, sessionComments]);
 
   const { openPeek, closePeek, resolveDetailNavigationPath, expandPeek } =
     usePeekNavigation({
@@ -259,6 +292,14 @@ export const SessionPage: React.FC<{
                 listKey="sessions"
               />
             )}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={downloadSessionAsJson}
+              title="Download session as JSON"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
             <CommentDrawerButton
               key="comment"
               variant="outline"
