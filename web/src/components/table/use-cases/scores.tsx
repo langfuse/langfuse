@@ -677,7 +677,10 @@ export default function ScoresTable({
   });
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider
+      tableName={scoreFilterConfig.tableName}
+      defaultSidebarCollapsed={scoreFilterConfig.defaultSidebarCollapsed}
+    >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar

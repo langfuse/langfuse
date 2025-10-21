@@ -402,7 +402,10 @@ export function PromptTable() {
   ] as LangfuseColumnDef<PromptTableRow>[];
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider
+      tableName={promptFilterConfig.tableName}
+      defaultSidebarCollapsed={promptFilterConfig.defaultSidebarCollapsed}
+    >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {currentFolderPath && (

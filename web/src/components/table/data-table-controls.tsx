@@ -49,10 +49,18 @@ export const ControlsContext = createContext<ControlsContextType | null>(null);
 
 export function DataTableControlsProvider({
   children,
+  tableName,
+  defaultSidebarCollapsed,
 }: {
   children: React.ReactNode;
+  tableName?: string;
+  defaultSidebarCollapsed?: boolean;
 }) {
-  const [open, setOpen] = useLocalStorage("data-table-controls", true);
+  const storageKey = tableName
+    ? `data-table-controls-${tableName}`
+    : "data-table-controls";
+  const defaultOpen = !defaultSidebarCollapsed;
+  const [open, setOpen] = useLocalStorage(storageKey, defaultOpen);
 
   return (
     <ControlsContext.Provider value={{ open, setOpen }}>
