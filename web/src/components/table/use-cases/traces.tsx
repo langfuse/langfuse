@@ -33,7 +33,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
-  tracesTableColsWithOptions,
   type ObservationLevelType,
   BatchExportTableName,
   AnnotationQueueObjectType,
@@ -264,10 +263,6 @@ export default function TracesTable({
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
   const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions);
-  console.log(
-    "RENDER: queryFilter.setFilterState is:",
-    queryFilter.setFilterState,
-  );
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
@@ -1089,34 +1084,14 @@ export default function TracesTable({
     traceMetrics.dataUpdatedAt,
   ]);
 
-  // Create ref to always get latest queryFilter
+  // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
-  queryFilterRef.current = queryFilter; // Update immediately on every render
+  queryFilterRef.current = queryFilter;
 
-  // Create stable wrapper for setFilterState to avoid stale closure
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => {
-      console.log("DEBUG wrapper: INSIDE WRAPPER FUNCTION");
-      console.log(
-        "DEBUG wrapper: queryFilterRef.current:",
-        queryFilterRef.current,
-      );
-      console.log(
-        "DEBUG wrapper: typeof setFilterState:",
-        typeof queryFilterRef.current?.setFilterState,
-      );
-      if (queryFilterRef.current?.setFilterState) {
-        console.log("DEBUG wrapper: Calling setFilterState");
-        queryFilterRef.current.setFilterState(filters);
-        console.log("DEBUG wrapper: setFilterState returned");
-      } else {
-        console.error("DEBUG wrapper: ERROR - setFilterState not found!");
-      }
-    },
-    [], // No dependencies - always uses ref
+    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    [],
   );
-
-  console.log("RENDER: setFiltersWrapper created:", setFiltersWrapper);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,

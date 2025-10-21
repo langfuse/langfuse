@@ -23,7 +23,6 @@ interface TableStateUpdaters {
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
   setOrderBy?: (orderBy: OrderByState) => void;
   setFilters?: (filters: FilterState) => void;
-  setFiltersDirectly?: (filters: FilterState) => void; // Bypass URL encoding for programmatic updates
   setSearchQuery?: (searchQuery: string) => void;
 }
 
@@ -36,10 +35,6 @@ interface UseTableStateProps {
     filterColumnDefinition?: ColumnDefinition[];
   };
   currentFilterState?: FilterState;
-}
-
-function isFunction(fn: unknown): fn is (...args: unknown[]) => void {
-  return typeof fn === "function";
 }
 
 /**
@@ -81,21 +76,18 @@ export function useTableViewManager({
   const {
     setOrderBy,
     setFilters,
-    setFiltersDirectly,
     setColumnOrder,
     setColumnVisibility,
     setSearchQuery,
   } = stateUpdaters;
 
-  // Use refs to always get latest function references
+  // Use refs to always get latest function references to avoid stale closures in applyViewState
   const setFiltersRef = useRef(setFilters);
-  const setFiltersDirectlyRef = useRef(setFiltersDirectly);
   const setOrderByRef = useRef(setOrderBy);
   const setSearchQueryRef = useRef(setSearchQuery);
 
-  // Always update refs immediately (not in useEffect)
+  // Update refs immediately on every render
   setFiltersRef.current = setFilters;
-  setFiltersDirectlyRef.current = setFiltersDirectly;
   setOrderByRef.current = setOrderBy;
   setSearchQueryRef.current = setSearchQuery;
 
@@ -168,29 +160,14 @@ export function useTableViewManager({
       if (setOrderByRef.current) setOrderByRef.current(validOrderBy);
 
       if (setFiltersRef.current) {
-        console.log(
-          "DEBUG: About to call setFiltersRef.current with:",
-          JSON.stringify(validFilters),
-        );
         setFiltersRef.current(validFilters);
-        console.log("DEBUG: setFiltersRef.current call completed");
-        // Track expected filters to observe when state actually updates
+        // Track expected filters to observe when state actually updates (for useEffect below)
         pendingFiltersRef.current = validFilters;
-        console.log(
-          "DEBUG: pendingFiltersRef set to:",
-          JSON.stringify(validFilters),
-        );
       }
 
-      // Handle search query (only if it has a value - don't set empty string)
+      // Handle search query (only set if non-empty to avoid use-query-params batching conflicts)
       if (viewData.searchQuery && setSearchQueryRef.current) {
-        console.log("DEBUG: Setting searchQuery to:", viewData.searchQuery);
         setSearchQueryRef.current(viewData.searchQuery);
-      } else {
-        console.log(
-          "DEBUG: NOT setting searchQuery (undefined or empty):",
-          viewData.searchQuery,
-        );
       }
 
       // Apply column order and visibility without validation since UI will handle gracefully
@@ -198,7 +175,7 @@ export function useTableViewManager({
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
 
-      // Don't unlock here - let the useEffect below handle it after observing state update
+      // Note: Table remains locked until useEffect observer detects filter state propagation
     },
     [setColumnOrder, setColumnVisibility, validationContext],
   );
@@ -213,10 +190,8 @@ export function useTableViewManager({
         name: viewData.name,
       });
 
-      // Apply view state
       applyViewState(viewData);
       setIsInitialized(true);
-      // Note: setIsLoading(false) is called inside applyViewState after state sync
     }
   }, [
     viewData,
@@ -248,31 +223,14 @@ export function useTableViewManager({
     }
   }, [isInitialized, isViewLoading, viewId]);
 
-  // Elegant React solution: Observe when filter state actually updates
-  // When loading a saved view, we set filters which update URL asynchronously.
-  // This effect watches currentFilterState and unlocks when it matches what we set.
+  // Observe when filter state propagates from saved view
+  // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion
   useEffect(() => {
-    console.log(
-      "DEBUG: useEffect fired, currentFilterState:",
-      JSON.stringify(currentFilterState),
-    );
-    console.log(
-      "DEBUG: pendingFiltersRef.current:",
-      JSON.stringify(pendingFiltersRef.current),
-    );
-
     if (pendingFiltersRef.current && currentFilterState) {
-      const matches = isEqual(currentFilterState, pendingFiltersRef.current);
-      console.log("DEBUG: isEqual result:", matches);
-
-      // Check if current filter state matches what we're expecting
-      if (matches) {
-        // State has propagated! Safe to unlock
-        console.log("DEBUG: States match! Unlocking table");
+      if (isEqual(currentFilterState, pendingFiltersRef.current)) {
+        // Filter state has synchronized - safe to unlock table
         pendingFiltersRef.current = null;
         setIsLoading(false);
-      } else {
-        console.log("DEBUG: States don't match yet, staying locked");
       }
     }
   }, [currentFilterState]);
