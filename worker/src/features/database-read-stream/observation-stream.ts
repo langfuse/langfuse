@@ -181,7 +181,7 @@ export const getObservationStream = async (props: {
           ) tmp
         GROUP BY
           trace_id,
-          observation_ids
+          observation_id
       )
       SELECT
         o.id as id,
@@ -254,6 +254,7 @@ export const getObservationStream = async (props: {
       rowLimit,
       ...appliedScoresFilter.params,
       ...appliedObservationsFilter.params,
+      ...search.params,
     },
     clickhouseConfigs,
     tags: {
