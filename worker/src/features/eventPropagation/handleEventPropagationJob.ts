@@ -125,13 +125,15 @@ export const handleEventPropagationJob = async (
       partition: partition,
     });
 
-    // Step 1: Get list of partitions ordered by time
+    // Step 1: Get list of partitions ordered by time, filtering for those older than 4 minutes
+    // Filter in ClickHouse for better performance - only return partitions older than 4 minutes
     const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
           AND active = 1
+          AND toDateTime(partition) < now() - INTERVAL 4 MINUTE
         ORDER BY partition DESC
       `,
       tags: {
@@ -140,12 +142,16 @@ export const handleEventPropagationJob = async (
       },
     });
 
-    if (partitions.length < 3) {
+    if (partitions.length === 0) {
       logger.info(
-        `[DUAL WRITE] Not enough partitions for processing. Found ${partitions.length} partition(s), need at least 3`,
+        `[DUAL WRITE] No partitions older than 4 minutes available for processing`,
       );
       return;
     }
+
+    logger.info(
+      `[DUAL WRITE] Found ${partitions.length} partition(s) older than 4 minutes to process`,
+    );
 
     // Determine which partition to process
     let partitionToProcess: string | null = null;
@@ -165,12 +171,12 @@ export const handleEventPropagationJob = async (
     }
 
     // If no partition was processed yet (either no partition specified or it was locked),
-    // fall back to discovery mode - process oldest safe partition
+    // fall back to discovery mode - process oldest partition that is unlocked
     if (!partitionToProcess) {
       // We sort partitions from newest to oldest and then remove elements from the back.
-      // This means that the oldest, unlocked element will be processed.
-      // Later, we can continue to process from the back until two elements remain.
-      while (partitionToProcess === null && partitions.length > 2) {
+      // This means that the oldest, unlocked partition will be processed.
+      // All partitions in the list are already verified to be older than 4 minutes.
+      while (partitionToProcess === null && partitions.length > 0) {
         const internalPartition = partitions.pop()!;
         const lockAcquired = await acquirePartitionLock(
           internalPartition.partition,
@@ -206,6 +212,7 @@ export const handleEventPropagationJob = async (
         with batch_stats as (
           select
             groupUniqArray(project_id) as project_ids,
+            groupUniqArray(trace_id) as trace_ids,
             min(start_time) as min_start_time,
             max(start_time) as max_start_time
           from observations_batch_staging
@@ -219,6 +226,7 @@ export const handleEventPropagationJob = async (
             t.metadata
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
+            and t.id in (select arrayJoin(trace_ids) from batch_stats)
             and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
           order by t.event_ts desc
@@ -288,7 +296,7 @@ export const handleEventPropagationJob = async (
           -- When the observation IS the trace itself (id = trace_id), parent should be NULL
           -- Otherwise, use standard wrapper logic: parent_observation_id or prefixed trace_id as fallback
           CASE
-            WHEN obs.id = obs.trace_id THEN NULL
+            WHEN obs.id = concat('t-', obs.trace_id) THEN NULL
             ELSE coalesce(obs.parent_observation_id, concat('t-', obs.trace_id))
           END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
@@ -367,66 +375,14 @@ export const handleEventPropagationJob = async (
       `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
 
-    // Step 3: Detach the processed partition (fast, synchronous operation)
-    await commandClickhouse({
-      query: `
-        ALTER TABLE observations_batch_staging
-        DETACH PARTITION '${partitionToProcess}'
-      `,
-      tags: {
-        feature: "ingestion",
-        partition: partitionToProcess,
-        operation_name: "detachPartition",
-      },
-      clickhouseConfigs: {
-        request_timeout: 180000, // 3 minutes timeout
-      },
-    });
-
-    logger.info(
-      `[DUAL WRITE] Detached partition ${partitionToProcess} after successful processing`,
-    );
-
-    // Step 4: Drop the detached partition asynchronously (no await for better throughput)
-    commandClickhouse({
-      query: `
-        ALTER TABLE observations_batch_staging
-        DROP DETACHED PARTITION '${partitionToProcess}'
-      `,
-      tags: {
-        feature: "ingestion",
-        partition: partitionToProcess,
-        operation_name: "dropDetachedPartition",
-      },
-      clickhouseConfigs: {
-        request_timeout: 60000 * 15, // 15 minutes timeout
-        clickhouse_settings: {
-          allow_drop_detached: 1,
-        },
-      },
-    })
-      .then(() => {
-        logger.info(
-          `[DUAL WRITE] Successfully dropped detached partition ${partitionToProcess}`,
-        );
-      })
-      .catch((error) => {
-        logger.error(
-          `[DUAL WRITE] Failed to drop detached partition ${partitionToProcess}`,
-          error,
-        );
-        traceException(error);
-      });
-
-    logger.info(
-      `[DUAL WRITE] Scheduled async drop for detached partition ${partitionToProcess}`,
-    );
-
-    if (partitions.length > 3) {
+    // Step 3: Schedule additional jobs for remaining partitions (all are already verified to be >4 minutes old).
+    // We do this before the drop as this is a fast operation that shouldn't wait for the slow dropping call.
+    // We're only running this if there are more than one left to be processed as this means we have some catch-up to do.
+    if (partitions.length > 1) {
       let additionalSchedules =
         env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY;
       const queue = EventPropagationQueue.getInstance();
-      while (queue && partitions.length > 3 && additionalSchedules > 0) {
+      while (queue && partitions.length > 1 && additionalSchedules > 0) {
         const internalPartition = partitions.pop()!;
 
         // Check if partition is locked before scheduling
@@ -452,6 +408,26 @@ export const handleEventPropagationJob = async (
         );
       }
     }
+
+    // Step 4: Drop the processed partition (single synchronous operation)
+    await commandClickhouse({
+      query: `
+        ALTER TABLE observations_batch_staging
+        DROP PARTITION '${partitionToProcess}'
+      `,
+      tags: {
+        feature: "ingestion",
+        partition: partitionToProcess,
+        operation_name: "dropPartition",
+      },
+      clickhouseConfigs: {
+        request_timeout: 60000 * 20, // 20 minutes timeout
+      },
+    });
+
+    logger.info(
+      `[DUAL WRITE] Successfully dropped partition ${partitionToProcess}`,
+    );
   } catch (error) {
     logger.error(
       "[DUAL WRITE] Failed to process event propagation batch",
