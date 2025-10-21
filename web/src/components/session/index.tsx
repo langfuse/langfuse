@@ -192,7 +192,7 @@ export const SessionPage: React.FC<{
       : session.data;
 
     const exportData = {
-      session: sessionWithTraceComments,
+      ...sessionWithTraceComments,
       comments: sessionCommentsData.data ?? [],
     };
 
