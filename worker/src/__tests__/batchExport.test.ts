@@ -1582,10 +1582,7 @@ describe("batch export test suite", () => {
     // Latency filter should be ignored since it's observation-level
     expect(rows).toHaveLength(2);
     const exportedNames = rows.map((row) => row.name).sort();
-    expect(exportedNames).toEqual([
-      "another-trace",
-      "trace-with-observations",
-    ]);
+    expect(exportedNames).toEqual(["another-trace", "trace-with-observations"]);
   });
 
   it("should successfully export traces with mixed trace-level and observation-level filters", async () => {
