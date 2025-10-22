@@ -202,13 +202,13 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
   },
   {
     uiTableName: "Scores (numeric)",
-    uiTableId: "scores",
+    uiTableId: "scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
-    uiTableId: "scores",
+    uiTableId: "score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",
   },
