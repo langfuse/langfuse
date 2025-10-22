@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
+import { Input } from "@/src/components/ui/input";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
@@ -28,7 +29,7 @@ import {
   CreateCommentData,
   extractMentionedUserIds,
 } from "@langfuse/shared";
-import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
+import { ArrowUpToLine, LoaderCircle, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
   useCallback,
@@ -51,6 +52,7 @@ export function CommentList({
   className,
   onDraftChange,
   onMentionDropdownChange,
+  isDrawerOpen = false,
 }: {
   projectId: string;
   objectId: string;
@@ -59,14 +61,17 @@ export function CommentList({
   className?: string;
   onDraftChange?: (hasDraft: boolean) => void;
   onMentionDropdownChange?: (isOpen: boolean) => void;
+  isDrawerOpen?: boolean;
 }) {
   const session = useSession();
   const router = useRouter();
   const [textareaKey, setTextareaKey] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [textareaValue, setTextareaValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Extract comment ID from hash for highlighting
   const highlightedCommentId = useMemo(() => {
@@ -117,6 +122,7 @@ export function CommentList({
   useEffect(() => {
     form.reset({ content: "", projectId, objectId, objectType });
     setTextareaValue("");
+    setSearchQuery(""); // Reset search when switching objects
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectId, objectType]);
 
@@ -192,6 +198,35 @@ export function CommentList({
     }
   }, [comments.data, highlightedCommentId]);
 
+  // CMD+F keyboard shortcut to focus search (only when drawer is open)
+  useEffect(() => {
+    if (!isDrawerOpen) return; // Only capture when drawer is open
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Don't trigger if user is typing in input/textarea
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        (event.target instanceof HTMLElement &&
+          event.target.getAttribute("role") === "textbox")
+      ) {
+        return;
+      }
+
+      // Capture CMD+F or Ctrl+F
+      if ((event.metaKey || event.ctrlKey) && event.key === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    // Use capture phase to intercept before browser default handler
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [isDrawerOpen]);
+
   const utils = api.useUtils();
 
   const createCommentMutation = api.comments.create.useMutation({
@@ -261,6 +296,20 @@ export function CommentList({
       timestamp: getRelativeTimestampFromNow(comment.createdAt),
     }));
   }, [comments.data]);
+
+  // Client-side filtering based on search query
+  const filteredComments = useMemo(() => {
+    if (!searchQuery.trim()) return commentsWithFormattedTimestamp;
+
+    const query = searchQuery.toLowerCase();
+    return commentsWithFormattedTimestamp?.filter((comment) => {
+      const contentMatch = comment.content.toLowerCase().includes(query);
+      const authorMatch = (comment.authorUserName || comment.authorUserId || "")
+        .toLowerCase()
+        .includes(query);
+      return contentMatch || authorMatch;
+    });
+  }, [commentsWithFormattedTimestamp, searchQuery]);
 
   if (
     !hasReadAccess ||
@@ -356,8 +405,51 @@ export function CommentList({
       )}
       <div className="flex min-h-0 flex-1 flex-col">
         {!cardView && (
-          <div className="flex-shrink-0 border-b px-2 py-1.5 text-sm font-medium">
-            Comments ({comments.data?.length ?? 0})
+          <div className="flex-shrink-0 border-b">
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+              <div className="text-sm font-medium">Comments</div>
+              <div className="relative max-w-xs flex-1">
+                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search comments..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-7 pl-7 pr-7 text-xs"
+                />
+                {searchQuery && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+                {!searchQuery && (
+                  <kbd className="pointer-events-none absolute right-1 top-1/2 h-5 -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-50 sm:inline-flex">
+                    {typeof navigator !== "undefined" &&
+                    navigator.platform.toLowerCase().includes("mac") ? (
+                      <>
+                        <span className="text-xs">⌘</span>F
+                      </>
+                    ) : (
+                      <>Ctrl+F</>
+                    )}
+                  </kbd>
+                )}
+              </div>
+            </div>
+            <div className="px-2 pb-1 text-xs text-muted-foreground">
+              {searchQuery.trim()
+                ? filteredComments && filteredComments.length > 0
+                  ? `Showing ${filteredComments.length} of ${comments.data?.length ?? 0} comments`
+                  : "No comments match your search"
+                : `${comments.data?.length ?? 0} comments`}
+            </div>
           </div>
         )}
         <div
@@ -365,7 +457,7 @@ export function CommentList({
           className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto"
         >
           <div className="max-h-full p-1">
-            {commentsWithFormattedTimestamp?.map((comment) => (
+            {filteredComments?.map((comment) => (
               <div
                 key={comment.id}
                 id={`comment-${comment.id}`}
