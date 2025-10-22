@@ -25,3 +25,20 @@ service:
               type: list<string>
               docs: New labels for the prompt version. Labels are unique across versions. The "latest" label is reserved and managed by Langfuse.
       response: prompts.Prompt
+    delete:
+      docs: Delete a specific prompt version
+      method: DELETE
+      path: /prompts/{name}/versions/{version}
+      path-parameters:
+        name:
+          type: string
+          docs: The name of the prompt
+        version:
+          type: integer
+          docs: Version of the prompt to delete
+      response: DeletePromptVersionResponse
+
+types:
+  DeletePromptVersionResponse:
+    properties:
+      message: string
