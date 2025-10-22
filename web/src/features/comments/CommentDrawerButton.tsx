@@ -33,6 +33,7 @@ export function CommentDrawerButton({
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Note: We manually control to keep the drawer open on ESC press when the mention dropdown is open
   const hasAutoOpenedRef = useRef(false); // Track if we've already auto-opened for current deep link
+  const hasFocusedRef = useRef(false); // Track if we've already focused the drawer
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -104,6 +105,11 @@ export function CommentDrawerButton({
         }
         setIsDrawerOpen(open);
 
+        // Reset focus tracking when drawer closes
+        if (!open) {
+          hasFocusedRef.current = false;
+        }
+
         // Clear URL parameters and hash when drawer is closed
         if (!open && router.query.comments === "open") {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -144,8 +150,9 @@ export function CommentDrawerButton({
           className="mx-auto flex h-full w-full flex-col overflow-hidden md:max-h-full"
           tabIndex={-1}
           ref={(el) => {
-            // Auto-focus drawer content when it opens
-            if (el && isDrawerOpen) {
+            // Auto-focus drawer content when it opens (only once)
+            if (el && isDrawerOpen && !hasFocusedRef.current) {
+              hasFocusedRef.current = true;
               setTimeout(() => el.focus(), 100);
             }
           }}
