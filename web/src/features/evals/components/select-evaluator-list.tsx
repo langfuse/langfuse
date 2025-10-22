@@ -16,7 +16,7 @@ import { SetupDefaultEvalModelCard } from "@/src/features/evals/components/set-u
 import { useTemplateValidation } from "@/src/features/evals/hooks/useTemplateValidation";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared";
 
 type SelectEvaluatorListProps = {
   projectId: string;

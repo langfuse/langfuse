@@ -149,6 +149,7 @@ export function EvaluatorSelector({
                             href={`/project/${projectId}/evals/default-model`}
                             className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
                             target="_blank"
+                            rel="noopener noreferrer"
                           >
                             <ExternalLinkIcon className="h-3 w-3" />
                             Configure default model
@@ -229,6 +230,7 @@ export function EvaluatorSelector({
                             href={`/project/${projectId}/evals/default-model`}
                             className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
                             target="_blank"
+                            rel="noopener noreferrer"
                           >
                             <ExternalLinkIcon className="h-3 w-3" />
                             Configure default model
