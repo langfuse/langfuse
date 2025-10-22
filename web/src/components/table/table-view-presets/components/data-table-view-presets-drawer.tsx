@@ -7,8 +7,8 @@ import {
   MoreVertical,
   Pen,
   Lock,
+  RotateCcw,
 } from "lucide-react";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -89,7 +89,7 @@ interface SystemPreset {
 const SYSTEM_PRESETS: { DEFAULT: SystemPreset } = {
   DEFAULT: {
     id: "__langfuse_default__",
-    name: "Langfuse Default",
+    name: "My view",
     isSystem: true,
   },
 };
@@ -102,6 +102,7 @@ interface TableViewPresetsDrawerProps {
       selectedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
       applyViewState: (viewData: TableViewPresetDomain) => void;
+      resetToDefaults: () => void;
     };
   };
   currentState: {
@@ -123,7 +124,8 @@ export function TableViewPresetsDrawer({
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const { handleSetViewId, applyViewState, selectedViewId } = controllers;
+  const { handleSetViewId, applyViewState, selectedViewId, resetToDefaults } =
+    controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -168,9 +170,8 @@ export function TableViewPresetsDrawer({
   });
 
   const handleSelectView = async (viewId: string) => {
-    // Handle system preset
+    // Handle system preset - just select it like any view
     if (viewId === SYSTEM_PRESETS.DEFAULT.id) {
-      // Clear selection
       handleSetViewId(null);
       return;
     }
@@ -370,12 +371,25 @@ export function TableViewPresetsDrawer({
                     )}
                   >
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium text-muted-foreground">
                         {SYSTEM_PRESETS.DEFAULT.name}
                       </span>
                     </div>
-                    <div className="flex items-center">
-                      <LangfuseIcon size={32} />
+                    <div className="flex h-8 items-center">
+                      {selectedViewId === null && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            resetToDefaults();
+                          }}
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                          title="Reset to Langfuse defaults"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </CommandItem>
 
