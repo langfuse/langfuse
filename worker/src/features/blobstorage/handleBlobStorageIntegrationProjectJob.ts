@@ -154,10 +154,15 @@ const processBlobStorageExport = async (config: {
     );
 
     // Upload the file to cloud storage
+    // For CSV exports, use larger part size to handle big files
+    // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
+    // This prevents hitting AWS's 10,000 part limit on large exports
+
     await storageService.uploadFile({
       fileName: filePath,
       fileType: blobStorageProps.contentType,
       data: fileStream,
+      partSize: 100 * 1024 * 1024, // 100 MB part size
     });
 
     logger.info(

@@ -62,14 +62,14 @@ export const TraceAnnotationProcessor: React.FC<
           <TracePreview
             key={data.id}
             trace={data}
-            scores={data.scores}
+            serverScores={data.scores}
             observations={data.observations}
             viewType="focused"
           />
         ) : (
           <ObservationPreview
             observations={data.observations}
-            scores={data.scores}
+            serverScores={data.scores}
             projectId={item.projectId}
             currentObservationId={item.objectId}
             traceId={traceId}

@@ -234,6 +234,111 @@ describe("batch export test suite", () => {
     });
   });
 
+  it("should export observations filtered by scores", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: randomUUID(),
+    });
+
+    await createTracesCh([trace]);
+
+    // Create observations with different score values
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "high-accuracy",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "medium-accuracy",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "low-accuracy",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Create scores with different values
+    const scores = [
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[0].id,
+        name: "accuracy",
+        value: 0.95,
+        data_type: "NUMERIC",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[1].id,
+        name: "accuracy",
+        value: 0.75,
+        data_type: "NUMERIC",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[2].id,
+        name: "accuracy",
+        value: 0.45,
+        data_type: "NUMERIC",
+      }),
+    ];
+
+    await createScoresCh(scores);
+
+    // Filter observations with accuracy >= 0.7
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "numberObject",
+          column: "Scores",
+          key: "accuracy",
+          operator: ">=",
+          value: 0.7,
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only include observations with accuracy >= 0.7
+    expect(rows).toHaveLength(2);
+
+    const exportedNames = rows.map((row) => row.name).sort();
+    expect(exportedNames).toEqual(["high-accuracy", "medium-accuracy"]);
+
+    // Verify scores are included in the export
+    const highAccuracyRow = rows.find((r) => r.name === "high-accuracy");
+    expect(highAccuracyRow?.accuracy).toEqual([0.95]);
+
+    const mediumAccuracyRow = rows.find((r) => r.name === "medium-accuracy");
+    expect(mediumAccuracyRow?.accuracy).toEqual([0.75]);
+  });
+
   it("should export sessions", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -1396,5 +1501,183 @@ describe("batch export test suite", () => {
     expect(rowsByName).toHaveLength(1);
     expect(rowsByName[0].name).toBe("findable-trace-name");
     expect(rowsByName[0].id).toBe("search-test-id-1");
+  });
+
+  it("should ignore observation-level filters when exporting traces", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with different names
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-with-observations",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "another-trace",
+        timestamp: new Date("2024-01-02").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "third-trace",
+        timestamp: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Create observations with varying latencies
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+        start_time: new Date("2024-01-01T00:00:00Z").getTime(),
+        end_time: new Date("2024-01-01T00:00:10Z").getTime(), // 10 seconds
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+        start_time: new Date("2024-01-02T00:00:00Z").getTime(),
+        end_time: new Date("2024-01-02T00:00:02Z").getTime(), // 2 seconds
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Apply filters that include observation-level filters
+    // These should be ignored and all traces matching trace-level filters should be returned
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        // Observation-level filter (should be ignored)
+        {
+          type: "number",
+          operator: ">",
+          column: "Latency (s)",
+          value: 5,
+        },
+        // Trace-level filter (should be applied)
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "Name",
+          value: ["trace-with-observations", "another-trace"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should return both traces matching the name filter
+    // Latency filter should be ignored since it's observation-level
+    expect(rows).toHaveLength(2);
+    const exportedNames = rows.map((row) => row.name).sort();
+    expect(exportedNames).toEqual(["another-trace", "trace-with-observations"]);
+  });
+
+  it("should successfully export traces with mixed trace-level and observation-level filters", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "question_generator",
+        environment: "taboola-trs",
+        timestamp: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "question_generator",
+        environment: "kfc-search-engine-qna",
+        timestamp: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "other_trace",
+        environment: "taboola-trs",
+        timestamp: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "question_generator",
+        environment: "production",
+        timestamp: new Date("2025-10-21T03:00:00Z").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // This mirrors the query from the issue
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date("2025-10-22T00:00:00Z"),
+      filter: [
+        // Observation-level filter (should be ignored)
+        {
+          type: "number",
+          column: "Latency (s)",
+          operator: ">",
+          value: 5,
+        },
+        // Trace-level filters (should be applied)
+        {
+          type: "stringOptions",
+          column: "Name",
+          operator: "any of",
+          value: ["question_generator"],
+        },
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: ">=",
+          value: new Date("2025-10-20T13:39:58.045Z"),
+        },
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: "<=",
+          value: new Date("2025-10-21T13:39:58.045Z"),
+        },
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["taboola-trs", "kfc-search-engine-qna", "default"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only return traces matching all trace-level filters
+    // Observation-level latency filter should be ignored
+    expect(rows).toHaveLength(2);
+    const exportedEnvironments = rows.map((row) => row.environment).sort();
+    expect(exportedEnvironments).toEqual([
+      "kfc-search-engine-qna",
+      "taboola-trs",
+    ]);
+
+    // All should have the correct name
+    rows.forEach((row) => {
+      expect(row.name).toBe("question_generator");
+    });
   });
 });
