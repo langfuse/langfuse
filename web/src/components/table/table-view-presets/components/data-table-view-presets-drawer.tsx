@@ -8,6 +8,7 @@ import {
   Pen,
   Lock,
 } from "lucide-react";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -78,6 +79,20 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+
+interface SystemPreset {
+  id: string;
+  name: string;
+  isSystem: true;
+}
+
+const SYSTEM_PRESETS: { DEFAULT: SystemPreset } = {
+  DEFAULT: {
+    id: "__langfuse_default__",
+    name: "Langfuse Default",
+    isSystem: true,
+  },
+};
 
 interface TableViewPresetsDrawerProps {
   viewConfig: {
@@ -153,6 +168,13 @@ export function TableViewPresetsDrawer({
   });
 
   const handleSelectView = async (viewId: string) => {
+    // Handle system preset
+    if (viewId === SYSTEM_PRESETS.DEFAULT.id) {
+      // Clear selection
+      handleSetViewId(null);
+      return;
+    }
+
     capture("saved_views:view_selected", {
       tableName,
       viewId,
@@ -338,6 +360,26 @@ export function TableViewPresetsDrawer({
               <CommandList>
                 <CommandEmpty>No saved table views found</CommandEmpty>
                 <CommandGroup className="pb-0">
+                  {/* System Preset: Langfuse Default */}
+                  <CommandItem
+                    key={SYSTEM_PRESETS.DEFAULT.id}
+                    onSelect={() => handleSelectView(SYSTEM_PRESETS.DEFAULT.id)}
+                    className={cn(
+                      "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                      selectedViewId === null && "bg-muted font-medium",
+                    )}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">
+                        {SYSTEM_PRESETS.DEFAULT.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <LangfuseIcon size={32} />
+                    </div>
+                  </CommandItem>
+
+                  {/* User Presets */}
                   {TableViewPresetsList?.map((view) => (
                     <CommandItem
                       key={view.id}
