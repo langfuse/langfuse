@@ -722,6 +722,157 @@ describe("Projects API", () => {
       expect(result.status).toBe(404);
       expect(result.body.message).toContain("Project not found");
     });
+
+    it("should create an API key with predefined keys", async () => {
+      const note = `Test API Key with Predefined Keys ${randomUUID().substring(0, 8)}`;
+      const predefinedPublicKey = `pk-lf-${randomUUID()}`;
+      const predefinedSecretKey = `sk-lf-${randomUUID()}`;
+
+      const response = await makeZodVerifiedAPICall(
+        ApiKeyCreationResponseSchema,
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+          publicKey: predefinedPublicKey,
+          secretKey: predefinedSecretKey,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        201,
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty("id");
+      expect(response.body.publicKey).toBe(predefinedPublicKey);
+      expect(response.body.secretKey).toBe(predefinedSecretKey);
+      expect(response.body.note).toBe(note);
+
+      // Store for cleanup
+      createdApiKeyId = response.body.id;
+
+      // Verify the API key was created with the predefined keys
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(apiKey).not.toBeNull();
+      expect(apiKey?.publicKey).toBe(predefinedPublicKey);
+    });
+
+    it("should return 400 when only publicKey is provided without secretKey", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+      const predefinedPublicKey = `pk-lf-${randomUUID()}`;
+
+      const result = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+          publicKey: predefinedPublicKey,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "Both publicKey and secretKey must be provided together",
+      );
+    });
+
+    it("should return 400 when only secretKey is provided without publicKey", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+      const predefinedSecretKey = `sk-lf-${randomUUID()}`;
+
+      const result = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+          secretKey: predefinedSecretKey,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "Both publicKey and secretKey must be provided together",
+      );
+    });
+
+    it("should return 400 when publicKey does not start with pk-lf-", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+      const invalidPublicKey = `invalid-${randomUUID()}`;
+      const predefinedSecretKey = `sk-lf-${randomUUID()}`;
+
+      const result = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+          publicKey: invalidPublicKey,
+          secretKey: predefinedSecretKey,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain("publicKey must start with");
+    });
+
+    it("should return 400 when secretKey does not start with sk-lf-", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+      const predefinedPublicKey = `pk-lf-${randomUUID()}`;
+      const invalidSecretKey = `invalid-${randomUUID()}`;
+
+      const result = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+          publicKey: predefinedPublicKey,
+          secretKey: invalidSecretKey,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain("secretKey must start with");
+    });
+
+    it("should return 409 when predefined publicKey already exists", async () => {
+      const note = `Test API Key ${randomUUID().substring(0, 8)}`;
+      const duplicatePublicKey = `pk-lf-${randomUUID()}`;
+      const secretKey1 = `sk-lf-${randomUUID()}`;
+      const secretKey2 = `sk-lf-${randomUUID()}`;
+
+      // Create first API key with predefined keys
+      const firstResponse = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note,
+          publicKey: duplicatePublicKey,
+          secretKey: secretKey1,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(firstResponse.status).toBe(201);
+      createdApiKeyId = firstResponse.body.id;
+
+      // Try to create second API key with same publicKey but different secretKey
+      const secondResponse = await makeAPICall(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        {
+          note: `${note} duplicate`,
+          publicKey: duplicatePublicKey,
+          secretKey: secretKey2,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(secondResponse.status).toBe(409);
+      expect(secondResponse.body.message).toContain("already exists");
+    });
   });
 
   describe("DELETE /api/public/projects/[projectId]/apiKeys/[apiKeyId]", () => {

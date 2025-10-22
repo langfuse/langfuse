@@ -25,6 +25,8 @@ type UploadFile = {
   fileName: string;
   fileType: string;
   data: Readable | string;
+  partSize?: number; // Optional: Part size in bytes for multipart uploads (S3 only)
+  queueSize?: number; // Optional: Number of concurrent part uploads (S3 only)
 };
 
 type UploadWithSignedUrl = UploadFile & {
@@ -501,6 +503,8 @@ class S3StorageService implements StorageService {
     fileName,
     fileType,
     data,
+    partSize,
+    queueSize,
   }: UploadFile): Promise<void> {
     try {
       await new Upload({
@@ -511,6 +515,11 @@ class S3StorageService implements StorageService {
           Body: data,
           ContentType: fileType,
         }),
+        // Use provided partSize and queueSize, or fall back to defaults
+        // Default: 5 MB part size supports files up to ~50 GB (5 MB × 10,000 parts)
+        // For large files, use partSize: 100 * 1024 * 1024 (100 MB) to support up to ~1 TB
+        partSize: partSize,
+        queueSize: queueSize,
       }).done();
 
       return;
@@ -525,9 +534,11 @@ class S3StorageService implements StorageService {
     fileType,
     data,
     expiresInSeconds,
+    partSize,
+    queueSize,
   }: UploadWithSignedUrl): Promise<{ signedUrl: string }> {
     try {
-      await this.uploadFile({ fileName, data, fileType });
+      await this.uploadFile({ fileName, data, fileType, partSize, queueSize });
 
       const signedUrl = await this.getSignedUrl(fileName, expiresInSeconds);
 

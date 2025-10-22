@@ -3246,6 +3246,18 @@ paths:
                   type: string
                   nullable: true
                   description: Optional note for the API key
+                publicKey:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional predefined public key. Must start with 'pk-lf-'. If
+                    provided, secretKey must also be provided.
+                secretKey:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional predefined secret key. Must start with 'sk-lf-'. If
+                    provided, publicKey must also be provided.
   /api/public/projects/{projectId}/apiKeys/{apiKeyId}:
     delete:
       description: Delete an API key for a project (requires organization-scoped API key)
@@ -4921,6 +4933,7 @@ components:
       enum:
         - TRACE
         - OBSERVATION
+        - SESSION
     AnnotationQueue:
       title: AnnotationQueue
       type: object
