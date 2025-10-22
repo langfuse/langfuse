@@ -585,6 +585,9 @@ export const createEvalJobs = async ({
           where: {
             id: existingJob[0].id,
             projectId: event.projectId,
+            status: {
+              not: JobExecutionStatus.COMPLETED,
+            },
           },
           data: {
             status: JobExecutionStatus.CANCELLED,
