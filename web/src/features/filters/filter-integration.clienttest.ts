@@ -4,7 +4,11 @@
  * using browser URLSearchParams APIs to simulate real-world usage.
  */
 
-import { type FilterState, tracesTableCols } from "@langfuse/shared";
+import {
+  type FilterState,
+  tracesTableCols,
+  observationsTableCols,
+} from "@langfuse/shared";
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
@@ -12,6 +16,8 @@ import {
   type GenericFilterOptions,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
+import { traceFilterConfig } from "./config/traces-config";
+import { observationFilterConfig } from "./config/observations-config";
 
 const mockColumnMap: ColumnToQueryKeyMap = {
   name: "name",
@@ -422,7 +428,7 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
       {
         key: "projectName",
         type: "stringObject",
-        value: "anyshift",
+        value: "myproject",
         column: "Metadata", // Display name (capital M)
         operator: "contains",
       },
@@ -525,5 +531,39 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     expect(decoded).toHaveLength(2);
     expect(decoded[0]?.column).toBe("score_categories");
     expect(decoded[1]?.column).toBe("scores_avg");
+  });
+});
+
+describe("Config Validation of old saved views", () => {
+  it("should validate traces config uses column IDs not display names", () => {
+    // Validate all keys in columnToQueryKey exist as column IDs
+    const columnIds = new Set(tracesTableCols.map((col) => col.id));
+    const invalidKeys = Object.keys(traceFilterConfig.columnToQueryKey).filter(
+      (key) => !columnIds.has(key),
+    );
+
+    expect(invalidKeys).toEqual([]);
+
+    // Validate all facet columns exist as column IDs
+    const invalidFacets = traceFilterConfig.facets.filter(
+      (facet) => !columnIds.has(facet.column),
+    );
+
+    expect(invalidFacets).toEqual([]);
+  });
+
+  it("should validate observations config uses column IDs not display names", () => {
+    const columnIds = new Set(observationsTableCols.map((col) => col.id));
+    const invalidKeys = Object.keys(
+      observationFilterConfig.columnToQueryKey,
+    ).filter((key) => !columnIds.has(key));
+
+    expect(invalidKeys).toEqual([]);
+
+    const invalidFacets = observationFilterConfig.facets.filter(
+      (facet) => !columnIds.has(facet.column),
+    );
+
+    expect(invalidFacets).toEqual([]);
   });
 });
