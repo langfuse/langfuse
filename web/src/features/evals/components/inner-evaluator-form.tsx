@@ -101,7 +101,7 @@ const TracesPreview = memo(
       return {
         from: getDateFromOption({
           filterSource: "TABLE",
-          option: "24 hours",
+          option: "last1Day",
         }),
       } as TableDateRange;
     }, []);
@@ -1131,7 +1131,10 @@ export const InnerEvaluatorForm = (props: {
     <Form {...form}>
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => {
+          e.stopPropagation(); // Prevent event bubbling to parent forms
+          form.handleSubmit(onSubmit)(e);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
             e.preventDefault();

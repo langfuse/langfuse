@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
@@ -8,6 +14,12 @@ import {
   buildGraphFromStepData,
   transformLanggraphToGeneralized,
 } from "../buildGraphCanvasData";
+import {
+  LANGFUSE_START_NODE_NAME,
+  LANGFUSE_END_NODE_NAME,
+  LANGGRAPH_START_NODE_NAME,
+  LANGGRAPH_END_NODE_NAME,
+} from "../types";
 
 const MAX_NODE_NUMBER_FOR_PHYSICS = 500;
 
@@ -23,6 +35,13 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     "observation",
     StringParam,
   );
+  const [currentObservationIndices, setCurrentObservationIndices] = useState<{
+    [nodeName: string]: number;
+  }>({});
+  const [previousSelectedNode, setPreviousSelectedNode] = useState<
+    string | null
+  >(null);
+  const isClickNavigationRef = useRef(false);
 
   const normalizedData = useMemo(() => {
     const hasStepData = agentGraphData.some(
@@ -44,43 +63,116 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     }
   }, [agentGraphData]);
 
-  const { graph, nodeToParentObservationMap } = useMemo(() => {
+  const { graph, nodeToObservationsMap } = useMemo(() => {
     return buildGraphFromStepData(normalizedData);
   }, [normalizedData]);
 
   const shouldDisablePhysics =
     agentGraphData.length >= MAX_NODE_NUMBER_FOR_PHYSICS;
 
+  // Reset indices when graph data changes (new trace loaded)
   useEffect(() => {
-    const nodeName = Object.keys(nodeToParentObservationMap).find(
-      (nodeKey) => nodeToParentObservationMap[nodeKey] === currentObservationId,
-    );
+    setCurrentObservationIndices({});
+  }, [normalizedData]);
 
-    // Only set selectedNodeName if the node actually exists in the graph
-    if (nodeName && graph.nodes.some((node) => node.id === nodeName)) {
-      setSelectedNodeName(nodeName);
+  useEffect(() => {
+    // if this observation ID change came from a click -> skip
+    if (isClickNavigationRef.current) {
+      isClickNavigationRef.current = false;
+      return;
+    }
+
+    // Find which node and index corresponds to currentObservationId
+    let foundNodeName = null;
+    let foundIndex = 0;
+
+    for (const [nodeName, observations] of Object.entries(
+      nodeToObservationsMap,
+    )) {
+      const index = observations.findIndex(
+        (obsId) => obsId === currentObservationId,
+      );
+      if (index !== -1) {
+        foundNodeName = nodeName;
+        foundIndex = index;
+        break;
+      }
+    }
+
+    if (
+      foundNodeName &&
+      graph.nodes.some((node) => node.id === foundNodeName)
+    ) {
+      setSelectedNodeName(foundNodeName);
+      setCurrentObservationIndices((prev) => ({
+        ...prev,
+        [foundNodeName]: foundIndex,
+      }));
+      setPreviousSelectedNode(foundNodeName);
     } else {
       setSelectedNodeName(null);
+      setPreviousSelectedNode(null);
     }
   }, [
     currentObservationId,
     agentGraphData,
     graph.nodes,
-    nodeToParentObservationMap,
+    nodeToObservationsMap,
   ]);
 
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {
-      setSelectedNodeName(nodeName);
-
       if (nodeName) {
-        const nodeParentObservationId = nodeToParentObservationMap[nodeName];
+        // Don't cycle through system nodes (start/end nodes)
+        const isSystemNode =
+          nodeName === LANGFUSE_START_NODE_NAME ||
+          nodeName === LANGFUSE_END_NODE_NAME ||
+          nodeName === LANGGRAPH_START_NODE_NAME ||
+          nodeName === LANGGRAPH_END_NODE_NAME;
 
-        if (nodeParentObservationId)
-          setCurrentObservationId(nodeParentObservationId);
+        if (isSystemNode) {
+          // For system nodes, don't set observation ID (they're synthetic)
+          setPreviousSelectedNode(nodeName);
+          setSelectedNodeName(nodeName);
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(null);
+          return;
+        }
+
+        const observations = nodeToObservationsMap[nodeName] || [];
+
+        if (observations.length > 0) {
+          let targetIndex = 0;
+
+          // If clicking the same node as before, cycle to next observation
+          if (previousSelectedNode === nodeName && observations.length > 1) {
+            const currentIndex = currentObservationIndices[nodeName] || 0;
+            targetIndex = (currentIndex + 1) % observations.length;
+          }
+
+          setCurrentObservationIndices((prev) => ({
+            ...prev,
+            [nodeName]: targetIndex,
+          }));
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(observations[targetIndex]);
+        } else {
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(null);
+        }
+        setPreviousSelectedNode(nodeName);
+      } else {
+        setPreviousSelectedNode(null);
       }
+
+      setSelectedNodeName(nodeName);
     },
-    [nodeToParentObservationMap, setCurrentObservationId],
+    [
+      nodeToObservationsMap,
+      currentObservationIndices,
+      previousSelectedNode,
+      setCurrentObservationId,
+    ],
   );
 
   return (
@@ -90,6 +182,8 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
         disablePhysics={shouldDisablePhysics}
+        nodeToObservationsMap={nodeToObservationsMap}
+        currentObservationIndices={currentObservationIndices}
       />
     </div>
   );

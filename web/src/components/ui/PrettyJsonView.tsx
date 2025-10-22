@@ -40,6 +40,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import {
   convertRowIdToKeyPath,
   getRowChildren,
@@ -50,6 +51,7 @@ import {
   ValueCell,
   getValueStringLength,
 } from "@/src/components/table/ValueCell";
+import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 
 // Constants for table layout
 const INDENTATION_PER_LEVEL = 16;
@@ -59,7 +61,11 @@ const MARGIN_LEFT_1 = 4;
 const CELL_PADDING_X = 8; // px-2
 
 // Constants for smart expansion logic
+// Used for nested objects to control smart expansion depth
 const DEFAULT_MAX_ROWS = 20;
+// Used for root-level objects where user has no parent to expand from. Therefore,
+// set higher to ensure objects like metadata with many keys are still displayed
+const DEFAULT_MAX_ROWS_IF_ROOT = 100;
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
 const MAX_CELL_DISPLAY_CHARS = 2000;
@@ -69,6 +75,27 @@ const SYSTEM_TITLES = ["system", "Input"];
 
 const MONO_TEXT_CLASSES = "font-mono text-xs break-words";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+
+function shouldShowValue(value: unknown, showNullValues: boolean): boolean {
+  if (showNullValues) return true;
+  return value !== null && value !== "" && value !== 0;
+}
+
+function filterTableRows(
+  rows: JsonTableRow[],
+  showNullValues: boolean,
+): JsonTableRow[] {
+  if (showNullValues) return rows;
+
+  return rows
+    .filter((row) => shouldShowValue(row.value, showNullValues))
+    .map((row) => ({
+      ...row,
+      subRows: row.subRows
+        ? filterTableRows(row.subRows, showNullValues)
+        : row.subRows,
+    }));
+}
 
 function getEmptyValueDisplay(value: unknown): string | null {
   if (value === null) return "null";
@@ -108,14 +135,15 @@ function isChatMLFormat(json: unknown): boolean {
   if (Array.isArray(json)) {
     const directArray = ChatMlArraySchema.safeParse(json);
     if (directArray.success) {
-      // had some false positives, so we really check for role/content to validate ChatML
-      const hasRoleOrContent = json.some(
+      // had some false positives, so we really check for role AND content to validate ChatML
+      const hasRoleAndContent = json.some(
         (item) =>
           typeof item === "object" &&
           item !== null &&
-          ("role" in item || "content" in item),
+          "role" in item &&
+          "content" in item,
       );
-      return hasRoleOrContent;
+      return hasRoleAndContent;
     }
   }
 
@@ -136,6 +164,11 @@ function isMarkdownContent(json: unknown): {
   isMarkdown: boolean;
   content?: string;
 } {
+  const contentSize = JSON.stringify(json || {}).length;
+  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
+    return { isMarkdown: false };
+  }
+
   if (typeof json === "string") {
     const markdownResult = StringOrMarkdownSchema.safeParse(json);
     if (markdownResult.success) {
@@ -315,6 +348,8 @@ function JsonPrettyTable({
   smartDefaultsLevel,
   expandedCells,
   toggleCellExpansion,
+  stickyTopLevelKey = false,
+  showObservationTypeBadge = false,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
@@ -329,7 +364,31 @@ function JsonPrettyTable({
   smartDefaultsLevel?: number | null;
   expandedCells: Set<string>;
   toggleCellExpansion: (cellId: string) => void;
+  stickyTopLevelKey?: boolean;
+  showObservationTypeBadge?: boolean;
 }) {
+  const headerRef = useRef<HTMLTableRowElement>(null);
+  const topLevelRowRef = useRef<HTMLTableRowElement>(null);
+  const [stickyOffsets, setStickyOffsets] = useState({ header: 32, row: 32 });
+
+  // calculate height of top row to calculate offsets for other headings to not go beneath sticky rows
+  useEffect(() => {
+    if (stickyTopLevelKey && headerRef.current) {
+      const headerHeight = headerRef.current.offsetHeight;
+
+      // get first top-level row height (if it exists)
+      let rowHeight = 32; // default fallback
+      if (topLevelRowRef.current) {
+        rowHeight = topLevelRowRef.current.offsetHeight;
+      }
+
+      setStickyOffsets({
+        header: headerHeight,
+        row: rowHeight,
+      });
+    }
+  }, [stickyTopLevelKey, data, expanded]);
+
   const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
     {
       accessorKey: "key",
@@ -343,7 +402,22 @@ function JsonPrettyTable({
         const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
         const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
-        return (
+        const valueLength = getValueStringLength(row.original.value);
+        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+
+        const itemBadgeType =
+          showObservationTypeBadge &&
+          row.original.level === 0 &&
+          row.original.value &&
+          typeof row.original.value === "object" &&
+          !Array.isArray(row.original.value) &&
+          "type" in row.original.value &&
+          typeof (row.original.value as any).type === "string" &&
+          (row.original.value as any).type
+            ? ((row.original.value as any).type as LangfuseItemType)
+            : null;
+
+        const content = (
           <div className="flex items-start break-words">
             <div
               className="flex flex-shrink-0 items-center justify-end"
@@ -376,10 +450,36 @@ function JsonPrettyTable({
               className={`ml-1 ${MONO_TEXT_CLASSES} font-medium`}
               style={{ maxWidth: availableTextWidth }}
             >
+              {itemBadgeType && (
+                <span className="mr-1 inline-block align-middle">
+                  <ItemBadge type={itemBadgeType} isSmall={true} />
+                </span>
+              )}
               {row.original.key}
             </span>
           </div>
         );
+
+        if (isLongValue) {
+          // calculate sticky position based on level and stickyTopLevelKey setting
+          let topPosition = "0";
+          if (stickyTopLevelKey) {
+            // Level 0: position below header
+            // Level > 0: position below header + one top-level row
+            topPosition =
+              row.original.level === 0
+                ? `${stickyOffsets.header}px`
+                : `${stickyOffsets.header + stickyOffsets.row}px`;
+          }
+
+          return (
+            <div className="sticky z-[5] py-1" style={{ top: topPosition }}>
+              {content}
+            </div>
+          );
+        }
+
+        return content;
       },
     },
     {
@@ -511,12 +611,19 @@ function JsonPrettyTable({
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
       <Table>
         <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
+          {table.getHeaderGroups().map((headerGroup, index) => (
+            <TableRow
+              key={headerGroup.id}
+              ref={index === 0 ? headerRef : undefined}
+              className={stickyTopLevelKey ? "sticky top-0 z-20" : ""}
+            >
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
-                  className="h-8 bg-transparent px-2 py-1"
+                  className={cn(
+                    "h-8 px-2 py-1",
+                    stickyTopLevelKey ? "bg-background" : "bg-transparent",
+                  )}
                   style={{ width: `${header.column.columnDef.size}%` }}
                 >
                   {header.isPlaceholder
@@ -531,9 +638,15 @@ function JsonPrettyTable({
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map((row) => (
+          {table.getRowModel().rows.map((row, rowIndex) => (
             <TableRow
               key={row.id}
+              ref={
+                rowIndex === 0 && row.original.level === 0
+                  ? topLevelRowRef
+                  : undefined
+              }
+              data-observation-id={row.id}
               onClick={() =>
                 handleRowExpansion(
                   row,
@@ -542,21 +655,29 @@ function JsonPrettyTable({
                   toggleCellExpansion,
                 )
               }
-              className={
+              className={cn(
                 row.original.hasChildren ||
-                (!row.original.hasChildren &&
-                  row.original.type !== "array" &&
-                  row.original.type !== "object" &&
-                  getValueStringLength(row.original.value) >
-                    MAX_CELL_DISPLAY_CHARS)
+                  (!row.original.hasChildren &&
+                    row.original.type !== "array" &&
+                    row.original.type !== "object" &&
+                    getValueStringLength(row.original.value) >
+                      MAX_CELL_DISPLAY_CHARS)
                   ? "cursor-pointer"
-                  : ""
+                  : "",
+                row.original.level === 0 && stickyTopLevelKey
+                  ? "sticky z-10 bg-background shadow-sm"
+                  : "",
+              )}
+              style={
+                row.original.level === 0 && stickyTopLevelKey
+                  ? { top: `${stickyOffsets.header}px` }
+                  : undefined
               }
             >
               {row.getVisibleCells().map((cell) => (
                 <TableCell
                   key={cell.id}
-                  className="whitespace-normal px-2 py-1"
+                  className="whitespace-normal px-2 py-1 align-top"
                   style={{ width: `${cell.column.columnDef.size}%` }}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -586,6 +707,9 @@ export function PrettyJsonView(props: {
   onExternalExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  showNullValues?: boolean;
+  stickyTopLevelKey?: boolean;
+  showObservationTypeBadge?: boolean;
 }) {
   const jsonDependency = useMemo(
     () =>
@@ -632,7 +756,7 @@ export function PrettyJsonView(props: {
           const topLevelKeys = Object.keys(
             parsedJson as Record<string, unknown>,
           );
-          if (topLevelKeys.length > DEFAULT_MAX_ROWS) {
+          if (topLevelKeys.length > DEFAULT_MAX_ROWS_IF_ROOT) {
             // return empty array to skip expansion directly
             return [];
           }
@@ -791,8 +915,14 @@ export function PrettyJsonView(props: {
       });
     };
 
-    return updateRowWithChildren(baseTableData);
-  }, [baseTableData, expandedRowsWithChildren, actualExpansionState]);
+    const dataWithChildren = updateRowWithChildren(baseTableData);
+    return filterTableRows(dataWithChildren, props.showNullValues ?? true);
+  }, [
+    baseTableData,
+    expandedRowsWithChildren,
+    actualExpansionState,
+    props.showNullValues,
+  ]);
 
   const handleLazyLoadChildren = useCallback((rowId: string) => {
     setExpandedRowsWithChildren((prev) => {
@@ -968,6 +1098,8 @@ export function PrettyJsonView(props: {
                 smartDefaultsLevel={null}
                 expandedCells={expandedCells}
                 toggleCellExpansion={toggleCellExpansion}
+                stickyTopLevelKey={props.stickyTopLevelKey}
+                showObservationTypeBadge={props.showObservationTypeBadge}
               />
             )}
           </div>

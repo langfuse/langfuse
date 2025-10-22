@@ -13,6 +13,7 @@ import { z } from "zod/v4";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
+  searchQuery: z.string().optional(),
   ...paginationZod,
 });
 
@@ -27,33 +28,54 @@ async function getMembers(
     | z.infer<typeof projectLevelMemberQuery>,
   showAllOrgMembers: boolean = true,
 ) {
-  const orgMemberships = await prisma.organizationMembership.findMany({
-    where: {
-      orgId: query.orgId,
-      // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
-      ...("projectId" in query && !showAllOrgMembers
-        ? {
-            // either org level role or project level role
-            OR: [
-              {
-                role: {
-                  not: Role.NONE,
-                },
+  // Build common where clause to ensure consistency between findMany and count queries
+  const whereClause = {
+    orgId: query.orgId,
+    // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
+    ...("projectId" in query && !showAllOrgMembers
+      ? {
+          // either org level role or project level role
+          OR: [
+            {
+              role: {
+                not: Role.NONE,
               },
-              {
-                ProjectMemberships: {
-                  some: {
-                    projectId: query.projectId,
-                    role: {
-                      not: Role.NONE,
-                    },
+            },
+            {
+              ProjectMemberships: {
+                some: {
+                  projectId: query.projectId,
+                  role: {
+                    not: Role.NONE,
                   },
                 },
               },
-            ],
-          }
-        : {}),
-    },
+            },
+          ],
+        }
+      : {}),
+    ...(query.searchQuery && {
+      user: {
+        OR: [
+          {
+            name: {
+              contains: query.searchQuery,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            email: {
+              contains: query.searchQuery,
+              mode: "insensitive" as const,
+            },
+          },
+        ],
+      },
+    }),
+  };
+
+  const orgMemberships = await prisma.organizationMembership.findMany({
+    where: whereClause,
     include: {
       user: {
         select: {
@@ -74,9 +96,7 @@ async function getMembers(
   });
 
   const totalCount = await prisma.organizationMembership.count({
-    where: {
-      orgId: query.orgId,
-    },
+    where: whereClause,
   });
 
   const projectMemberships =

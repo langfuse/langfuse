@@ -32,6 +32,7 @@ export interface SplashScreenProps {
   primaryAction?: ActionConfig;
   secondaryAction?: ActionConfig;
   gettingStarted?: string | React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
 }
 
@@ -77,6 +78,7 @@ export function SplashScreen({
   primaryAction,
   secondaryAction,
   gettingStarted,
+  children,
 }: SplashScreenProps) {
   return (
     <div className={cn("mx-auto flex max-w-4xl flex-col items-center p-8")}>
@@ -131,6 +133,8 @@ export function SplashScreen({
           />
         </div>
       )}
+
+      {children && <div className="my-6 w-full max-w-3xl">{children}</div>}
 
       {valuePropositions.length > 0 && (
         <div className="my-6 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">

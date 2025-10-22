@@ -2,24 +2,26 @@ import {
   filterAndValidateDbScoreList,
   Prisma,
   type PrismaClient,
-  type DatasetRunItems,
   optionalPaginationZod,
   type FilterState,
   datasetItemFilterColumns,
   type DatasetItem,
   type TracingSearchType,
   singleFilter,
+  type DatasetRunItemDomain,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import {
+  type EnrichedDatasetRunItem,
   getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
   getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
   traceException,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
+import { groupBy } from "lodash";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -187,14 +189,17 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   };
 };
 
-export const getRunItemsByRunIdOrItemId = async (
+export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
   projectId: string,
-  runItems: DatasetRunItems[],
-) => {
-  const minTimestamp = runItems
-    .map((ri) => ri.createdAt)
-    .sort((a, b) => a.getTime() - b.getTime())
-    .shift();
+  runItems: DatasetRunItemDomain<WithIO>[],
+  fromTimestamp?: Date,
+): Promise<EnrichedDatasetRunItem[]> => {
+  const minTimestamp =
+    fromTimestamp ??
+    runItems
+      .map((ri) => ri.createdAt)
+      .sort((a, b) => a.getTime() - b.getTime())
+      .shift();
   // We assume that all events started at most 24h before the earliest run item.
   const filterTimestamp = minTimestamp
     ? new Date(minTimestamp.getTime() - 24 * 60 * 60 * 1000)
@@ -268,9 +273,48 @@ export const getRunItemsByRunIdOrItemId = async (
       id: ri.id,
       createdAt: ri.createdAt,
       datasetItemId: ri.datasetItemId,
+      datasetRunId: ri.datasetRunId,
+      datasetRunName: ri.datasetRunName,
       observation,
       trace,
       scores,
     };
   });
+};
+
+export const enrichAndMapToDatasetItemId = async (
+  projectId: string,
+  datasetRunItems: DatasetRunItemDomain<false>[],
+): Promise<Map<string, Record<string, EnrichedDatasetRunItem>>> => {
+  // Step 1: Group by dataset run id
+  const runItemsByRunId = groupBy(datasetRunItems, "datasetRunId");
+
+  // Step 2: Parallel enrichment per run (with timestamp)
+  const enrichmentPromises = Object.entries(runItemsByRunId).map(
+    // eslint-disable-next-line no-unused-vars
+    async ([_runId, items]) => {
+      const timestamp = items[0].datasetRunCreatedAt;
+      const enriched = await getRunItemsByRunIdOrItemId<false>(
+        projectId,
+        items,
+        timestamp,
+      );
+      return enriched;
+    },
+  );
+  const enrichedRunItems = await Promise.all(enrichmentPromises);
+
+  // Step 3: Group by dataset item ID -> Record of runId -> enriched data
+  const result: Map<string, Record<string, EnrichedDatasetRunItem>> = new Map();
+
+  enrichedRunItems.flat().forEach((enrichedItem) => {
+    if (!result.has(enrichedItem.datasetItemId)) {
+      result.set(enrichedItem.datasetItemId, {});
+    }
+
+    result.get(enrichedItem.datasetItemId)![enrichedItem.datasetRunId] =
+      enrichedItem;
+  });
+
+  return result;
 };

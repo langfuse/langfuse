@@ -20,6 +20,7 @@ import {
   SiGoogle,
   SiGitlab,
   SiGithub,
+  SiWordpress,
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
@@ -38,6 +39,11 @@ import { Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
+import { cn } from "@/src/utils/tailwind";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import DOMPurify from "dompurify";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -67,6 +73,7 @@ export type PageProps = {
           connectionId: string;
         }
       | boolean;
+    wordpress: boolean;
     custom:
       | {
           name: string;
@@ -128,6 +135,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
                 ? { connectionId: env.AUTH_WORKOS_CONNECTION_ID }
                 : true
             : false,
+        wordpress:
+          env.AUTH_WORDPRESS_CLIENT_ID !== undefined &&
+          env.AUTH_WORDPRESS_CLIENT_SECRET !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -152,17 +162,31 @@ type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 export function SSOButtons({
   authProviders,
   action = "sign in",
+  lastUsedMethod,
+  onProviderSelect,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
+  lastUsedMethod?: NextAuthProvider | null;
+  onProviderSelect?: (provider: NextAuthProvider) => void;
 }) {
   const capture = usePostHogClientCapture();
   const [providerSigningIn, setProviderSigningIn] =
     useState<NextAuthProvider | null>(null);
 
+  // Count available auth methods (including credentials if available)
+  const availableProviders = Object.entries(authProviders).filter(
+    ([name, enabled]) => enabled && name !== "sso", // sso is just a flag, not an actual provider
+  );
+  const hasMultipleAuthMethods = availableProviders.length > 1;
+
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
     capture("sign_in:button_click", { provider });
+
+    // Notify parent component about provider selection
+    onProviderSelect?.(provider);
+
     signIn(provider)
       .then(() => {
         // do not reset loadingProvider here, as the page will reload
@@ -179,183 +203,222 @@ export function SSOButtons({
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        {authProviders.credentials && (
-          <Divider className="text-muted-foreground">or {action} with</Divider>
+        {action === "sign in" ? (
+          <div className="my-6 border-t border-border"></div>
+        ) : (
+          <div className="my-6 text-center text-xs text-muted-foreground">
+            or {action} with
+          </div>
         )}
-        <div className="flex flex-row flex-wrap items-center justify-center gap-4">
+        <div className="flex flex-row flex-wrap items-center justify-center gap-2">
           {authProviders.google && (
-            <Button
+            <AuthProviderButton
+              icon={<SiGoogle className="mr-3" size={18} />}
+              label="Google"
               onClick={() => handleSignIn("google")}
-              variant="secondary"
               loading={providerSigningIn === "google"}
-            >
-              <SiGoogle className="mr-3" size={18} />
-              Google
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "google"
+              }
+            />
           )}
           {authProviders.github && (
-            <Button
+            <AuthProviderButton
+              icon={<SiGithub className="mr-3" size={18} />}
+              label="GitHub"
               onClick={() => handleSignIn("github")}
-              variant="secondary"
               loading={providerSigningIn === "github"}
-            >
-              <SiGithub className="mr-3" size={18} />
-              GitHub
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "github"
+              }
+            />
           )}
           {authProviders.githubEnterprise && (
-            <Button
+            <AuthProviderButton
+              icon={<SiGithub className="mr-3" size={18} />}
+              label="GitHub Enterprise"
               onClick={() => handleSignIn("github-enterprise")}
-              variant="secondary"
               loading={providerSigningIn === "github-enterprise"}
-            >
-              <SiGithub className="mr-3" size={18} />
-              GitHub Enterprise
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "github-enterprise"
+              }
+            />
           )}
           {authProviders.gitlab && (
-            <Button
+            <AuthProviderButton
+              icon={<SiGitlab className="mr-3" size={18} />}
+              label="Gitlab"
               onClick={() => handleSignIn("gitlab")}
-              variant="secondary"
               loading={providerSigningIn === "gitlab"}
-            >
-              <SiGitlab className="mr-3" size={18} />
-              Gitlab
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "gitlab"
+              }
+            />
           )}
           {authProviders.azureAd && (
-            <Button
+            <AuthProviderButton
+              icon={<TbBrandAzure className="mr-3" size={18} />}
+              label="Azure AD"
               onClick={() => handleSignIn("azure-ad")}
-              variant="secondary"
               loading={providerSigningIn === "azure-ad"}
-            >
-              <TbBrandAzure className="mr-3" size={18} />
-              Azure AD
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "azure-ad"
+              }
+            />
           )}
           {authProviders.okta && (
-            <Button
+            <AuthProviderButton
+              icon={<SiOkta className="mr-3" size={18} />}
+              label="Okta"
               onClick={() => handleSignIn("okta")}
-              variant="secondary"
               loading={providerSigningIn === "okta"}
-            >
-              <SiOkta className="mr-3" size={18} />
-              Okta
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "okta"
+              }
+            />
           )}
           {authProviders.auth0 && (
-            <Button
+            <AuthProviderButton
+              icon={<SiAuth0 className="mr-3" size={18} />}
+              label="Auth0"
               onClick={() => handleSignIn("auth0")}
-              variant="secondary"
               loading={providerSigningIn === "auth0"}
-            >
-              <SiAuth0 className="mr-3" size={18} />
-              Auth0
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "auth0"
+              }
+            />
           )}
           {authProviders.cognito && (
-            <Button
+            <AuthProviderButton
+              icon={<SiAmazoncognito className="mr-3" size={18} />}
+              label="Cognito"
               onClick={() => handleSignIn("cognito")}
-              variant="secondary"
               loading={providerSigningIn === "cognito"}
-            >
-              <SiAmazoncognito className="mr-3" size={18} />
-              Cognito
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "cognito"
+              }
+            />
           )}
           {authProviders.keycloak && (
-            <Button
+            <AuthProviderButton
+              icon={<SiKeycloak className="mr-3" size={18} />}
+              label="Keycloak"
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
+                onProviderSelect?.("keycloak");
                 void signIn("keycloak");
               }}
-              variant="secondary"
-            >
-              <SiKeycloak className="mr-3" size={18} />
-              Keycloak
-            </Button>
+              loading={providerSigningIn === "keycloak"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "keycloak"
+              }
+            />
           )}
           {typeof authProviders.workos === "object" &&
             "connectionId" in authProviders.workos && (
-              <Button
+              <AuthProviderButton
+                icon={<Code className="mr-3" size={18} />}
+                label="WorkOS"
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
+                  onProviderSelect?.("workos");
                   void signIn("workos", undefined, {
                     connection: (
                       authProviders.workos as { connectionId: string }
                     ).connectionId,
                   });
                 }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS
-              </Button>
+                loading={providerSigningIn === "workos"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "workos"
+                }
+              />
             )}
           {typeof authProviders.workos === "object" &&
             "organizationId" in authProviders.workos && (
-              <Button
+              <AuthProviderButton
+                icon={<Code className="mr-3" size={18} />}
+                label="WorkOS"
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
+                  onProviderSelect?.("workos");
                   void signIn("workos", undefined, {
                     organization: (
                       authProviders.workos as { organizationId: string }
                     ).organizationId,
                   });
                 }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS
-              </Button>
+                loading={providerSigningIn === "workos"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "workos"
+                }
+              />
             )}
           {authProviders.workos === true && (
             <>
-              <Button
+              <AuthProviderButton
+                icon={<Code className="mr-3" size={18} />}
+                label="WorkOS (organization)"
                 onClick={() => {
                   const organization = window.prompt(
                     "Please enter your organization ID",
                   );
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
+                    onProviderSelect?.("workos");
                     void signIn("workos", undefined, {
                       organization,
                     });
                   }
                 }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS (organization)
-              </Button>
-              <Button
+                loading={providerSigningIn === "workos"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "workos"
+                }
+              />
+              <AuthProviderButton
+                icon={<Code className="mr-3" size={18} />}
+                label="WorkOS (connection)"
                 onClick={() => {
                   const connection = window.prompt(
                     "Please enter your connection ID",
                   );
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
+                    onProviderSelect?.("workos");
                     void signIn("workos", undefined, {
                       connection,
                     });
                   }
                 }}
-                variant="secondary"
-              >
-                <Code className="mr-3" size={18} />
-                WorkOS (connection)
-              </Button>
+                loading={providerSigningIn === "workos"}
+                showLastUsedBadge={
+                  hasMultipleAuthMethods && lastUsedMethod === "workos"
+                }
+              />
             </>
           )}
+          {authProviders.wordpress && (
+            <AuthProviderButton
+              icon={<SiWordpress className="mr-3" size={18} />}
+              label="WordPress"
+              onClick={() => handleSignIn("wordpress")}
+              loading={providerSigningIn === "wordpress"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "wordpress"
+              }
+            />
+          )}
           {authProviders.custom && (
-            <Button
+            <AuthProviderButton
+              icon={<TbBrandOauth className="mr-3" size={18} />}
+              label={authProviders.custom.name}
               onClick={() => handleSignIn("custom")}
-              variant="secondary"
               loading={providerSigningIn === "custom"}
-            >
-              <TbBrandOauth className="mr-3" size={18} />
-              {authProviders.custom.name}
-            </Button>
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "custom"
+              }
+            />
           )}
         </div>
       </div>
@@ -430,19 +493,47 @@ export default function SignIn({
     !authProviders.sso,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
+  const [lastUsedAuthMethod, setLastUsedAuthMethod] =
+    useLocalStorage<NextAuthProvider | null>(
+      "langfuse_last_used_auth_method",
+      null,
+    );
 
   const capture = usePostHogClientCapture();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
     new Date().getTime().toString(),
   );
 
+  // Count available auth methods to determine if we should show "Last used" badge
+  const availableProviders = Object.entries(authProviders).filter(
+    ([name, enabled]) => enabled && name !== "sso", // sso is just a flag, not an actual provider
+  );
+  const hasMultipleAuthMethods = availableProviders.length > 1;
+
+  // Read query params for targetPath and email pre-population
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const emailParam = router.query.email as string | undefined;
+
+  // Validate targetPath to prevent open redirect attacks
+  const sanitizedTargetPath = queryTargetPath
+    ? DOMPurify.sanitize(queryTargetPath)
+    : undefined;
+
+  // Only allow relative links (must start with '/' but not '//')
+  const targetPath =
+    sanitizedTargetPath?.startsWith("/") &&
+    !sanitizedTargetPath.startsWith("//")
+      ? sanitizedTargetPath
+      : undefined;
+
   // Credentials
   const credentialsForm = useForm({
     resolver: zodResolver(credentialAuthForm),
     defaultValues: {
-      email: "",
+      email: emailParam ?? "",
       password: "",
     },
   });
@@ -452,10 +543,14 @@ export default function SignIn({
     setCredentialsFormError(null);
     try {
       capture("sign_in:button_click", { provider: "email/password" });
+
+      // Store credentials as the last used auth method before signing in
+      setLastUsedAuthMethod("credentials");
+
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/",
+        callbackUrl: targetPath ?? "/",
         redirect: false,
         turnstileToken,
       });
@@ -528,6 +623,10 @@ export default function SignIn({
         // Enterprise SSO found – redirect straight away
         const { providerId } = await res.json();
         capture("sign_in:button_click", { provider: "sso_auto" });
+
+        // Store the SSO provider as the last used auth method
+        setLastUsedAuthMethod(providerId as NextAuthProvider);
+
         void signIn(providerId);
         return; // stop further execution – page redirect expected
       }
@@ -569,7 +668,7 @@ export default function SignIn({
           </h2>
         </div>
 
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+        {isLangfuseCloud && (
           <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache. We are working
@@ -589,95 +688,112 @@ export default function SignIn({
           <div className="space-y-6">
             {/* Email / (optional) password form – only when credentials auth is enabled */}
             {authProviders.credentials && (
-              <Form {...credentialsForm}>
-                <form
-                  className="space-y-6"
-                  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                  onSubmit={
-                    showPasswordStep
-                      ? credentialsForm.handleSubmit(onCredentialsSubmit)
-                      : (e) => {
-                          e.preventDefault();
-                          void handleContinue();
-                        }
-                  }
-                >
-                  {/* Email input – always visible */}
-                  <FormField
-                    control={credentialsForm.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input placeholder="jsdoe@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Password only shown once we know SSO is not configured */}
-                  {showPasswordStep && (
+              <div>
+                <Form {...credentialsForm}>
+                  <form
+                    className="space-y-6"
+                    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                    onSubmit={
+                      showPasswordStep
+                        ? credentialsForm.handleSubmit(onCredentialsSubmit)
+                        : (e) => {
+                            e.preventDefault();
+                            void handleContinue();
+                          }
+                    }
+                  >
+                    {/* Email input – always visible */}
                     <FormField
                       control={credentialsForm.control}
-                      name="password"
+                      name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            Password{" "}
-                            <Link
-                              href="/auth/reset-password"
-                              className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
-                              tabIndex={-1}
-                              title="What is this?"
-                            >
-                              (forgot password?)
-                            </Link>
-                          </FormLabel>
+                          <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <PasswordInput {...field} />
+                            <Input placeholder="jsdoe@example.com" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  )}
 
-                  {/* Primary action button */}
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    loading={
-                      showPasswordStep
-                        ? credentialsForm.formState.isSubmitting
-                        : continueLoading
-                    }
-                    disabled={
-                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                        showPasswordStep &&
-                        turnstileToken === undefined) ||
-                      credentialsForm.watch("email") === "" ||
-                      (showPasswordStep &&
-                        credentialsForm.watch("password") === "")
-                    }
-                    data-testid="submit-email-password-sign-in-form"
-                  >
-                    {showPasswordStep ? "Sign in" : "Continue"}
-                  </Button>
-                </form>
-              </Form>
+                    {/* Password only shown once we know SSO is not configured */}
+                    {showPasswordStep && (
+                      <FormField
+                        control={credentialsForm.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Password{" "}
+                              <Link
+                                href="/auth/reset-password"
+                                className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                                tabIndex={-1}
+                                title="What is this?"
+                              >
+                                (forgot password?)
+                              </Link>
+                            </FormLabel>
+                            <FormControl>
+                              <PasswordInput {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* Primary action button */}
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      loading={
+                        showPasswordStep
+                          ? credentialsForm.formState.isSubmitting
+                          : continueLoading
+                      }
+                      disabled={
+                        (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                          showPasswordStep &&
+                          turnstileToken === undefined) ||
+                        credentialsForm.watch("email") === "" ||
+                        (showPasswordStep &&
+                          credentialsForm.watch("password") === "")
+                      }
+                      data-testid="submit-email-password-sign-in-form"
+                    >
+                      {showPasswordStep ? "Sign in" : "Continue"}
+                    </Button>
+                  </form>
+                </Form>
+                <div
+                  className={cn(
+                    "mt-1 text-center text-xs text-muted-foreground",
+                    hasMultipleAuthMethods &&
+                      lastUsedAuthMethod === "credentials"
+                      ? "block"
+                      : "hidden",
+                  )}
+                >
+                  Last used
+                </div>
+              </div>
             )}
             {credentialsFormError ? (
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}
                 <br />
                 Contact support if this error is unexpected.{" "}
-                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+                {isLangfuseCloud &&
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
-            <SSOButtons authProviders={authProviders} />
+            <SSOButtons
+              authProviders={authProviders}
+              lastUsedMethod={lastUsedAuthMethod}
+              onProviderSelect={setLastUsedAuthMethod}
+            />
           </div>
           {
             // Turnstile exists copy-paste also on sign-up.tsx
@@ -704,7 +820,7 @@ export default function SignIn({
             <p className="mt-10 text-center text-sm text-muted-foreground">
               No account yet?{" "}
               <Link
-                href="/auth/sign-up"
+                href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
                 className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
                 Sign up

@@ -56,6 +56,8 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
+    hideTotalCount?: boolean;
+    canJumpPages?: boolean;
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
@@ -234,6 +236,7 @@ export function DataTable<TData extends object, TValue>({
       maxSize: Number.MAX_SAFE_INTEGER,
     },
     columnResizeMode: "onChange",
+    autoResetPageIndex: false,
   });
 
   const handleOnRowClick = useCallback(
@@ -245,13 +248,13 @@ export function DataTable<TData extends object, TValue>({
       if (peekView && !event?.defaultPrevented) {
         const rowId =
           "id" in row && typeof row.id === "string" ? row.id : undefined;
-        peekView.openPeek(rowId, row);
+        peekView.openPeek?.(rowId, row);
       }
     },
     [onRowClick, peekView],
   );
 
-  const hasRowClickAction = !!onRowClick || !!peekView;
+  const hasRowClickAction = !!onRowClick || !!peekView?.openPeek;
 
   // memo column sizes for performance
   // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
@@ -288,7 +291,7 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          className={cn("relative w-full overflow-auto border-t")}
+          className={cn("relative min-h-full w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
           <Table>
@@ -428,7 +431,6 @@ export function DataTable<TData extends object, TValue>({
             )}
           </Table>
         </div>
-        <div className="grow"></div>
       </div>
       {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
@@ -441,6 +443,8 @@ export function DataTable<TData extends object, TValue>({
             table={table}
             isLoading={data.isLoading}
             paginationOptions={pagination.options}
+            hideTotalCount={pagination.hideTotalCount}
+            canJumpPages={pagination.canJumpPages}
           />
         </div>
       ) : null}

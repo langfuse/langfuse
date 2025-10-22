@@ -35,6 +35,10 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ## Project Overview
 
+We recommend checking out DeepWiki to familiarize yourself with the project:
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/langfuse/langfuse)
+
 ### Technologies we use
 
 - Application (this repository)
@@ -111,12 +115,16 @@ Requirements
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
 - Pnpm v.9.5.0
 - Docker to run the database locally
+- Clickhouse client
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
 **Steps**
 
-1. Install [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+1. Install development dependencies:
+	- [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+	- [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
+
 2. Fork the repository and clone it locally
 
    ```bash
@@ -416,3 +424,4 @@ npx fern-api generate --api organizations  # for the organizations API
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
+

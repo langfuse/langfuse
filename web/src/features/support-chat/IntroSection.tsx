@@ -16,8 +16,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isCloudPlan } from "@langfuse/shared";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-
-import { env } from "@/src/env.mjs";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 type SupportType = "in-app-support" | "custom" | "community";
 
@@ -28,6 +27,7 @@ export function IntroSection({
   displayDensity?: "default" | "compact";
 }) {
   const uiCustomization = useUiCustomization();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   // Note: We previously added an entitlement for in-app support, but removed it for now.
   //       The issue was that on global routes e.g., https://langfuse.com/setup, the entitlement
@@ -35,7 +35,7 @@ export function IntroSection({
   //       false if asked. However on these pages, the in-app-chat should be available.
   //       Therefore we now check for whether wer are in a cloud deployment instead.
   // const hasInAppSupportEntitlement = useHasEntitlement("in-app-support");
-  const hasInAppSupportEntitlement = !!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const hasInAppSupportEntitlement = !!isLangfuseCloud;
   const plan = usePlan();
 
   const supportType: SupportType = useMemo(() => {

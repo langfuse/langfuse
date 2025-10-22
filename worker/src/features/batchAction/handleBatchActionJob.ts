@@ -13,7 +13,7 @@ import {
   FilterCondition,
 } from "@langfuse/shared";
 import {
-  getDatabaseReadStream,
+  getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
@@ -28,6 +28,7 @@ import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
+import { getObservationStream } from "../database-read-stream/observation-stream";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -174,15 +175,23 @@ export const handleBatchActionJob = async (
             searchQuery: query.searchQuery ?? undefined,
             searchType: query.searchType ?? ["id" as const],
           })
-        : await getDatabaseReadStream({
-            projectId: projectId,
-            cutoffCreatedAt: new Date(cutoffCreatedAt),
-            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-            orderBy: query.orderBy,
-            tableName: tableName as BatchTableNames,
-            searchQuery: query.searchQuery ?? undefined,
-            searchType: query.searchType ?? ["id" as const],
-          });
+        : tableName === BatchTableNames.Observations
+          ? await getObservationStream({
+              projectId: projectId,
+              cutoffCreatedAt: new Date(cutoffCreatedAt),
+              filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+              searchQuery: query.searchQuery ?? undefined,
+              searchType: query.searchType ?? ["id" as const],
+            })
+          : await getDatabaseReadStreamPaginated({
+              projectId: projectId,
+              cutoffCreatedAt: new Date(cutoffCreatedAt),
+              filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+              orderBy: query.orderBy,
+              tableName: tableName as BatchTableNames,
+              searchQuery: query.searchQuery ?? undefined,
+              searchType: query.searchType ?? ["id" as const],
+            });
 
     // Process stream in database-sized batches
     // 1. Read all records
@@ -235,7 +244,7 @@ export const handleBatchActionJob = async (
             searchType: query.searchType,
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           }) // when reading from clickhouse, we only want to read the necessary identifiers.
-        : await getDatabaseReadStream({
+        : await getDatabaseReadStreamPaginated({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),

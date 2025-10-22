@@ -4,8 +4,8 @@ services:
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
-      CLICKHOUSE_USER: clickhouse
-      CLICKHOUSE_PASSWORD: clickhouse
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
@@ -21,8 +21,8 @@ services:
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
-      MINIO_ACCESS_KEY: minio
-      MINIO_SECRET_KEY: miniosecret
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
     ports:
       - 127.0.0.1:9090:9000
       - 127.0.0.1:9091:9001
@@ -36,7 +36,7 @@ services:
       start_period: 1s
 
   postgres:
-    image: docker.io/postgres:${POSTGRES_VERSION:-latest}
+    image: docker.io/postgres:${POSTGRES_VERSION:-17}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -45,9 +45,11 @@ services:
       retries: 10
     command: ["postgres", "-c", "log_statement=all"]
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - TZ=UTC
+      - PGTZ=UTC
     ports:
       - 127.0.0.1:5432:5432
     volumes:
@@ -55,7 +57,7 @@ services:
 
   # Redis Cluster. Requires a Unix host to work for network_mode: host. I.e. tests will fail on windows and mac with this setup.
   redis-node-0:
-    image: docker.io/bitnami/redis-cluster:8.0
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
     network_mode: host
     volumes:
       - redis-cluster_data-0:/bitnami/redis/data
@@ -65,7 +67,7 @@ services:
       REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
 
   redis-node-1:
-    image: docker.io/bitnami/redis-cluster:8.0
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
     network_mode: host
     volumes:
       - redis-cluster_data-1:/bitnami/redis/data
@@ -75,7 +77,7 @@ services:
       REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
 
   redis-node-2:
-    image: docker.io/bitnami/redis-cluster:8.0
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
     network_mode: host
     volumes:
       - redis-cluster_data-2:/bitnami/redis/data
@@ -85,7 +87,7 @@ services:
       REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
 
   redis-node-3:
-    image: docker.io/bitnami/redis-cluster:8.0
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
     network_mode: host
     volumes:
       - redis-cluster_data-3:/bitnami/redis/data
@@ -95,7 +97,7 @@ services:
       REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
 
   redis-node-4:
-    image: docker.io/bitnami/redis-cluster:8.0
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
     network_mode: host
     volumes:
       - redis-cluster_data-4:/bitnami/redis/data
@@ -105,7 +107,7 @@ services:
       REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
 
   redis-node-5:
-    image: docker.io/bitnami/redis-cluster:8.0
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
     network_mode: host
     volumes:
       - redis-cluster_data-5:/bitnami/redis/data

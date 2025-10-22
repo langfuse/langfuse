@@ -1,4 +1,4 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
+import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src/server";
 import {
   convertToScore,
   StringFilter,
@@ -20,6 +20,7 @@ export type ScoreQueryType = {
   value?: number;
   scoreId?: string;
   configId?: string;
+  sessionId?: string;
   queueId?: string;
   traceTags?: string | string[];
   operator?: string;
@@ -69,7 +70,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.session_id as session_id,
           s.dataset_run_id as dataset_run_id
       FROM
-          scores s 
+          scores s
           LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
@@ -123,7 +124,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         operation_name: "_handleGenerateScoresForPublicApi",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const records = await queryClickhouse<
         ScoreRecordReadType & {
           tags: string[];
@@ -133,33 +134,7 @@ export const _handleGenerateScoresForPublicApi = async ({
       >({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-
-      return records.map((record) => ({
-        ...convertToScore(record),
-        trace:
-          record.trace_id !== null
-            ? {
-                userId: record.user_id,
-                tags: record.tags,
-                environment: record.trace_environment,
-              }
-            : null,
-      }));
-    },
-    newExecution: async (input) => {
-      const records = await queryClickhouse<
-        ScoreRecordReadType & {
-          tags: string[];
-          user_id: string;
-          trace_environment: string;
-        }
-      >({
-        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
 
@@ -199,7 +174,7 @@ export const _handleGetScoresCountForPublicApi = async ({
       SELECT
         count() as count
       FROM
-        scores s 
+        scores s
           LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
@@ -243,20 +218,11 @@ export const _handleGetScoresCountForPublicApi = async ({
         operation_name: "_handleGetScoresCountForPublicApi",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
-    newExecution: async (input) => {
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
@@ -319,6 +285,13 @@ const secureScoreFilterOptions = [
   {
     id: "configId",
     clickhouseSelect: "config_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
     clickhousePrefix: "s",

@@ -6,6 +6,7 @@ import {
   CommandList,
 } from "@/src/components/ui/command";
 import { SpanItem } from "@/src/components/trace/SpanItem";
+import { ItemBadge } from "@/src/components/ItemBadge";
 import { type APIScoreV2 } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import { type TreeNode } from "./lib/types";
@@ -19,7 +20,7 @@ export interface TraceSearchListItem {
 
 export interface TraceSearchListProps {
   items: TraceSearchListItem[];
-  scores: APIScoreV2[];
+  displayScores: APIScoreV2[];
   onSelect: (observationId: string | undefined) => void;
   comments?: Map<string, number>;
   showMetrics: boolean;
@@ -31,7 +32,8 @@ export interface TraceSearchListProps {
 
 export const TraceSearchList: React.FC<TraceSearchListProps> = ({
   items,
-  scores,
+  // Note: displayScores are merged with client-side score cache; handling optimistic updates
+  displayScores: scores,
   onSelect,
   comments,
   showMetrics,
@@ -54,6 +56,9 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
               >
                 <div className="flex w-full">
                   <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <div className="relative z-20 flex-shrink-0">
+                      <ItemBadge type={node.type} isSmall className="!size-3" />
+                    </div>
                     <SpanItem
                       node={node}
                       scores={scores}

@@ -12,6 +12,7 @@ import {
   logger,
   traceException,
   contextWithLangfuseProps,
+  ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 
@@ -27,6 +28,11 @@ type Handlers = {
 const defaultHandler = () => {
   throw new MethodNotAllowedError();
 };
+
+const CH_ERROR_ADVICE_FULL = [
+  ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+  "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",
+].join("\n");
 
 export function withMiddlewares(handlers: Handlers) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
@@ -70,6 +76,22 @@ export function withMiddlewares(handlers: Handlers) {
           return res.status(error.httpCode).json({
             message: error.message,
             error: error.name,
+          });
+        }
+
+        // Handle ClickHouse resource errors
+        if (error instanceof ClickHouseResourceError) {
+          const resourceError = error as ClickHouseResourceError;
+
+          logger.error("ClickHouse resource limit exceeded", {
+            errorType: resourceError.errorType,
+            message: resourceError.message,
+            suggestion: CH_ERROR_ADVICE_FULL,
+          });
+
+          return res.status(524).json({
+            message: CH_ERROR_ADVICE_FULL,
+            error: "Request is taking too long to process.",
           });
         }
 

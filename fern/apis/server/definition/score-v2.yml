@@ -50,6 +50,9 @@ service:
           configId:
             type: optional<string>
             docs: Retrieve only scores with a specific configId.
+          sessionId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific sessionId.
           queueId:
             type: optional<string>
             docs: Retrieve only scores with a specific annotation queueId.

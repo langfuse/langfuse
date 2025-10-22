@@ -1,28 +1,18 @@
-import { useState } from "react";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
-  dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
-  isValidDashboardDateRangeAggregationOption,
-  type DashboardDateRangeOptions,
-  DASHBOARD_AGGREGATION_PLACEHOLDER,
-  type DashboardDateRange,
+  DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  DASHBOARD_AGGREGATION_OPTIONS,
+  rangeToString,
+  rangeFromString,
+  getAbbreviatedTimeRange,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
-import { addMinutes } from "date-fns";
+import { useMemo } from "react";
 
 export interface UseDashboardDateRangeOutput {
-  selectedOption: DashboardDateRangeOptions;
-  dateRange: DashboardDateRange | undefined;
-  setDateRangeAndOption: (
-    option: DashboardDateRangeOptions,
-    range?: DashboardDateRange,
-  ) => void;
-}
-
-function isDashboardDateRangeAggregationOption(
-  dateRange?: string | null,
-): dateRange is DashboardDateRangeAggregationOption {
-  return !!dateRange && dateRange in dashboardDateRangeAggregationSettings;
+  timeRange: TimeRange;
+  setTimeRange: (timeRange: TimeRange) => void;
 }
 
 export function useDashboardDateRange(
@@ -30,64 +20,31 @@ export function useDashboardDateRange(
     defaultRelativeAggregation?: DashboardDateRangeAggregationOption;
   } = {},
 ): UseDashboardDateRangeOutput {
+  const fallbackAggregation =
+    options.defaultRelativeAggregation ??
+    DEFAULT_DASHBOARD_AGGREGATION_SELECTION;
+
   const [queryParams, setQueryParams] = useQueryParams({
-    dateRange: withDefault(StringParam, "Select a date range"),
-    from: StringParam,
-    to: StringParam,
+    dateRange: withDefault(
+      StringParam,
+      getAbbreviatedTimeRange(fallbackAggregation),
+    ),
   });
 
-  const fallbackAggregation = options.defaultRelativeAggregation ?? "24 hours";
-  const initialRangeOption: DashboardDateRangeAggregationOption =
-    isDashboardDateRangeAggregationOption(queryParams.dateRange)
-      ? queryParams.dateRange
-      : fallbackAggregation;
+  return useMemo(() => {
+    const timeRange = rangeFromString(
+      queryParams.dateRange,
+      DASHBOARD_AGGREGATION_OPTIONS,
+      fallbackAggregation,
+    );
 
-  const initialRange: DashboardDateRange | undefined =
-    queryParams.dateRange !== "Select a date range" &&
-    queryParams.from &&
-    queryParams.to
-      ? {
-          from: new Date(queryParams.from),
-          to: new Date(queryParams.to),
-        }
-      : {
-          from: addMinutes(
-            new Date(),
-            -dashboardDateRangeAggregationSettings[initialRangeOption].minutes,
-          ),
-          to: new Date(),
-        };
-
-  const validatedInitialRangeOption =
-    isValidDashboardDateRangeAggregationOption(queryParams.dateRange) ||
-    queryParams.dateRange === DASHBOARD_AGGREGATION_PLACEHOLDER
-      ? (queryParams.dateRange as DashboardDateRangeAggregationOption)
-      : initialRangeOption;
-
-  const [selectedOption, setSelectedOption] =
-    useState<DashboardDateRangeOptions>(validatedInitialRangeOption);
-  const [dateRange, setDateRange] = useState<DashboardDateRange | undefined>(
-    initialRange,
-  );
-
-  const setDateRangeAndOption = (
-    option: DashboardDateRangeOptions,
-    range?: DashboardDateRange,
-  ) => {
-    setSelectedOption(option);
-    setDateRange(range);
-
-    const newParams: typeof queryParams = {
-      dateRange: option,
-      from: undefined,
-      to: undefined,
+    const setTimeRange = (timeRange: TimeRange) => {
+      setQueryParams({ dateRange: rangeToString(timeRange) });
     };
-    if (option === DASHBOARD_AGGREGATION_PLACEHOLDER && range) {
-      newParams.from = range.from.toISOString();
-      newParams.to = range.to.toISOString();
-    }
-    setQueryParams(newParams);
-  };
 
-  return { selectedOption, dateRange, setDateRangeAndOption };
+    return {
+      timeRange,
+      setTimeRange,
+    };
+  }, [queryParams.dateRange, fallbackAggregation, setQueryParams]);
 }

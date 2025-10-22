@@ -235,13 +235,11 @@ export function TableViewPresetsDrawer({
   };
 
   const onSubmit = (id?: string) => (data: { name: string }) => {
-    console.log("submitting");
     if (id) {
       handleUpdateViewName({ id, name: data.name });
       setIsEditPopoverOpen(false);
       setDropdownId(null);
     } else {
-      console.log("Creating view");
       handleCreateView({ name: data.name });
     }
   };
@@ -292,8 +290,8 @@ export function TableViewPresetsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button variant="outline" title={selectedViewName ?? "Table View"}>
-            <span>{selectedViewName ?? "Table View"}</span>
+          <Button variant="outline" title={selectedViewName ?? "Saved Views"}>
+            <span>{selectedViewName ?? "Saved Views"}</span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (

@@ -1,6 +1,7 @@
 export {
   type FullObservations,
   type FullObservationsWithScores,
+  type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
   FilterList,
@@ -18,3 +19,10 @@ export {
 } from "./clickhouse-sql/clickhouse-filter";
 export { orderByToClickhouseSql } from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";
+export { clickhouseSearchCondition } from "./clickhouse-sql/search";
+export {
+  convertApiProvidedFilterToClickhouseFilter,
+  createPublicApiObservationsColumnMapping,
+  deriveFilters,
+  type ApiColumnMapping,
+} from "./public-api-filter-builder";

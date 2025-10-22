@@ -1019,6 +1019,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
+    const queueId = randomUUID();
     const scoreEventList: ScoreEventType[] = [
       {
         id: randomUUID(),
@@ -1033,6 +1034,7 @@ describe("Ingestion end-to-end tests", () => {
           source: ScoreSource.API,
           value: 100.5,
           observationId: generationId,
+          queueId,
           environment,
         },
       },
@@ -1112,6 +1114,170 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.observation_id).toBe(generationId);
     expect(score.value).toBe(100.5);
     expect(score.config_id).toBe(scoreConfigId);
+    expect(score.queue_id).toBe(queueId);
+  });
+
+  it("should silently reject invalid scores while processing valid ones", async () => {
+    const traceId = randomUUID();
+    const validScoreId1 = randomUUID();
+    const validScoreId2 = randomUUID();
+    const invalidScoreId1 = randomUUID(); // Will have value out of range
+    const invalidScoreId2 = randomUUID(); // Will use archived config
+
+    // Create a trace first
+    const traceEventList: TraceEventType[] = [
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: traceId,
+          name: "test-trace",
+          timestamp: new Date().toISOString(),
+          environment,
+        },
+      },
+    ];
+
+    await ingestionService.processTraceEventList({
+      projectId,
+      entityId: traceId,
+      createdAtTimestamp: new Date(),
+      traceEventList,
+    });
+
+    // Create score configs
+    const validScoreConfigId = randomUUID();
+    const archivedScoreConfigId = randomUUID();
+
+    await Promise.all([
+      // Valid numeric config with range 0-100
+      prisma.scoreConfig.create({
+        data: {
+          id: validScoreConfigId,
+          dataType: "NUMERIC",
+          name: "valid-config",
+          minValue: 0,
+          maxValue: 100,
+          projectId,
+        },
+      }),
+      // Archived config that should be rejected
+      prisma.scoreConfig.create({
+        data: {
+          id: archivedScoreConfigId,
+          dataType: "NUMERIC",
+          name: "archived-config",
+          isArchived: true,
+          projectId,
+        },
+      }),
+    ]);
+
+    // Process all scores - invalid ones should be rejected silently
+    // and valid ones should be processed
+    await Promise.all([
+      // Valid score 1
+      ingestionService.processScoreEventList({
+        projectId,
+        entityId: validScoreId1,
+        createdAtTimestamp: new Date(),
+        scoreEventList: [
+          {
+            id: validScoreId1,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: validScoreId1,
+              dataType: "NUMERIC",
+              name: "valid-config",
+              value: 85.5, // Within range 0-100
+              source: ScoreSource.API,
+              traceId: traceId,
+              environment,
+              configId: validScoreConfigId,
+            },
+          },
+        ],
+      }),
+      // One valid score, two invalid scores
+      ingestionService.processScoreEventList({
+        projectId,
+        entityId: validScoreId2,
+        createdAtTimestamp: new Date(),
+        scoreEventList: [
+          // invalid score 1
+          {
+            id: invalidScoreId1,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: invalidScoreId1,
+              dataType: "NUMERIC",
+              configId: validScoreConfigId,
+              name: "valid-config",
+              traceId: traceId,
+              source: ScoreSource.API,
+              value: 150, // Outside range 0-100, should fail validation
+              environment,
+            },
+          },
+          // valid score 2
+          {
+            id: validScoreId2,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: validScoreId2,
+              dataType: "NUMERIC",
+              configId: validScoreConfigId,
+              name: "archived-config",
+              traceId: traceId,
+              source: ScoreSource.API,
+              value: 50,
+              environment,
+            },
+          },
+          // invalid score 2
+          {
+            id: invalidScoreId2,
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: invalidScoreId2,
+              dataType: "NUMERIC",
+              configId: archivedScoreConfigId,
+              name: "archived-config",
+              traceId: traceId,
+              source: ScoreSource.API,
+              value: 50, // Valid value but config is archived
+              environment,
+            },
+          },
+        ],
+      }),
+    ]);
+
+    await clickhouseWriter.flushAll(true);
+
+    // Verify that valid scores were inserted
+    const validScore1 = await getClickhouseRecord(
+      TableName.Scores,
+      validScoreId1,
+    );
+    expect(validScore1).toBeDefined();
+    expect(validScore1.trace_id).toBe(traceId);
+    expect(validScore1.value).toBe(85.5);
+    expect(validScore1.config_id).toBe(validScoreConfigId);
+
+    // Verify that invalid scores were silently rejected (not inserted)
+    await expect(
+      getClickhouseRecord(TableName.Scores, invalidScoreId1),
+    ).rejects.toThrow();
+
+    await expect(
+      getClickhouseRecord(TableName.Scores, invalidScoreId2),
+    ).rejects.toThrow();
   });
 
   it("should upsert traces", async () => {
@@ -2130,11 +2296,11 @@ async function getClickhouseRecord<T extends TableName>(
                 version as version,
                 project_id,
                 environment,
-                finalizeAggregation(public) as public,
-                finalizeAggregation(bookmarked) as bookmarked,
+                public as public,
+                bookmarked as bookmarked,
                 tags,
-                finalizeAggregation(input) as input,
-                finalizeAggregation(output) as output,
+                input as input,
+                output as output,
                 session_id as session_id,
                 0 as is_deleted,
                 start_time as timestamp,

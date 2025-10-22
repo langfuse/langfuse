@@ -8,7 +8,9 @@ export const GetScoreQueryV2 = GetScoreQuery;
 export const GetScoreResponseV2 = APIScoreSchemaV2;
 
 // GET /scores v2
-export const GetScoresQueryV2 = GetScoresQuery;
+export const GetScoresQueryV2 = GetScoresQuery.extend({
+  sessionId: z.string().nullish(),
+});
 export const GetScoreResponseDataV2 = z.intersection(
   APIScoreSchemaV2,
   z.object({

@@ -11,6 +11,7 @@ import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
@@ -70,6 +71,7 @@ export type ScoresTableRow = {
   jobConfigurationId?: string;
   traceTags?: string[];
   environment?: string;
+  executionTraceId?: string;
 };
 
 function createFilterState(
@@ -114,8 +116,12 @@ export default function ScoresTable({
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = React.useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -126,11 +132,21 @@ export default function ScoresTable({
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
-          column: "Timestamp",
+          column: "timestamp",
           type: "datetime",
           operator: ">=",
           value: dateRange.from,
         },
+        ...(dateRange.to
+          ? [
+              {
+                column: "timestamp",
+                type: "datetime",
+                operator: "<=",
+                value: dateRange.to,
+              } as const,
+            ]
+          : []),
       ]
     : [];
 
@@ -191,8 +207,12 @@ export default function ScoresTable({
     orderBy: orderByState,
   };
 
-  const scores = api.scores.all.useQuery(getAllPayload);
-  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
+  const scores = api.scores.all.useQuery(getAllPayload, {
+    enabled: !environmentFilterOptions.isLoading,
+  });
+  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload, {
+    enabled: !environmentFilterOptions.isLoading,
+  });
   const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const scoreDeleteMutation = api.scores.deleteMany.useMutation({
@@ -308,6 +328,24 @@ export default function ScoresTable({
               value={value}
             />
           </>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "executionTraceId",
+      id: "executionTraceId",
+      header: "Execution Trace",
+      enableSorting: false,
+      enableHiding: true,
+      defaultHidden: true,
+      size: 100,
+      cell: ({ row }) => {
+        const value = row.getValue("executionTraceId");
+        return typeof value === "string" ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
+            value={value}
+          />
         ) : undefined;
       },
     },
@@ -601,6 +639,7 @@ export default function ScoresTable({
       jobConfigurationId: score.jobConfigurationId ?? undefined,
       traceTags: score.traceTags ?? undefined,
       environment: score.environment ?? undefined,
+      executionTraceId: score.executionTraceId ?? undefined,
     };
   };
 
@@ -608,7 +647,10 @@ export default function ScoresTable({
     traceFilterOptions: ScoreOptions | undefined,
   ) => {
     return scoresTableColsWithOptions(traceFilterOptions).filter(
-      (c) => !omittedFilter?.includes(c.name) && !hiddenColumns.includes(c.id),
+      (c) =>
+        c.id !== "timestamp" &&
+        !omittedFilter?.includes(c.name) &&
+        !hiddenColumns.includes(c.id),
     );
   };
 
@@ -662,8 +704,8 @@ export default function ScoresTable({
         ]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        selectedOption={selectedOption}
-        setDateRangeAndOption={setDateRangeAndOption}
+        timeRange={timeRange}
+        setTimeRange={setTimeRange}
         multiSelect={{
           selectAll,
           setSelectAll,

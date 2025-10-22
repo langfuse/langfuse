@@ -64,6 +64,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
         limit: query.limit ?? undefined,
+        fields: query.fields ?? undefined,
         userId: query.userId ?? undefined,
         name: query.name ?? undefined,
         tags: query.tags ?? undefined,
@@ -73,16 +74,17 @@ export default withMiddlewares({
         release: query.release ?? undefined,
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
-        fields: query.fields ?? undefined,
       };
 
       const [items, count] = await Promise.all([
         generateTracesForPublicApi({
           props: filterProps,
+          advancedFilters: query.filter,
           orderBy: query.orderBy ?? null,
         }),
         getTracesCountForPublicApi({
           props: filterProps,
+          advancedFilters: query.filter,
         }),
       ]);
 
