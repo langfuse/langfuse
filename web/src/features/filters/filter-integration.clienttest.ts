@@ -416,4 +416,114 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     expect(validated[0]?.column).toBe("userId"); // Normalized!
     expect(validated[1]?.column).toBe("name"); // Already correct
   });
+
+  it("should handle old saved view metadata filter with column name metadata key", () => {
+    const savedFilter: FilterState = [
+      {
+        key: "projectName",
+        type: "stringObject",
+        value: "anyshift",
+        column: "Metadata", // Display name (capital M)
+        operator: "contains",
+      },
+    ];
+
+    // 1. Validate: normalizes "Metadata" → "metadata"
+    const validated = validateFilters(savedFilter, tracesTableCols);
+    expect(validated).toHaveLength(1);
+    expect(validated[0]?.column).toBe("metadata"); // Normalized to lowercase ID
+
+    // 2. Encode: should find "metadata" in columnToQueryKey
+    const encoded = encodeFiltersGeneric(
+      validated,
+      {
+        metadata: "metadata",
+        name: "name",
+        userId: "userId",
+      },
+      {},
+    );
+
+    // Should successfully encode (not drop the filter!)
+    expect(encoded).toBeTruthy();
+    expect(encoded).toContain(
+      "metadata;stringObject;projectName;contains;myproject",
+    );
+
+    // 3. Decode: should restore correctly
+    const decoded = decodeFiltersGeneric(
+      encoded,
+      {
+        metadata: "metadata",
+        name: "name",
+        userId: "userId",
+      },
+      {},
+    );
+
+    expect(decoded).toHaveLength(1);
+    expect(decoded[0]).toEqual({
+      column: "metadata",
+      type: "stringObject",
+      key: "projectName",
+      operator: "contains",
+      value: "myproject",
+    });
+  });
+
+  it("should handle saved score filters with display names", () => {
+    // Real saved filters for scores
+    const savedFilters: FilterState = [
+      {
+        key: "hallucination",
+        type: "categoryOptions",
+        value: ["high"],
+        column: "Scores (categorical)", // Display name
+        operator: "any of",
+      },
+      {
+        key: "accuracy",
+        type: "numberObject",
+        value: 0.8,
+        column: "Scores (numeric)", // Display name
+        operator: ">=",
+      },
+    ];
+
+    // 1. Validate: normalizes display names → IDs
+    const validated = validateFilters(savedFilters, tracesTableCols);
+    expect(validated).toHaveLength(2);
+    expect(validated[0]?.column).toBe("score_categories");
+    expect(validated[1]?.column).toBe("scores_avg");
+
+    // 2. Encode: should find column IDs in columnToQueryKey
+    const encoded = encodeFiltersGeneric(
+      validated,
+      {
+        score_categories: "score_categories",
+        scores_avg: "scores_avg",
+      },
+      {},
+    );
+
+    expect(encoded).toBeTruthy();
+    expect(encoded).toContain(
+      "score_categories;categoryOptions;hallucination;any of;high",
+    );
+    expect(encoded).toContain("scores_avg;numberObject;accuracy");
+
+    // 3. Round-trip: decode should restore
+    const decoded = decodeFiltersGeneric(
+      encoded,
+      {
+        score_categories: "score_categories",
+        scores_avg: "scores_avg",
+      },
+      {},
+    );
+
+    expect(decoded).toHaveLength(2);
+    expect(decoded[0]?.column).toBe("score_categories");
+    expect(decoded[1]?.column).toBe("scores_avg");
+  });
 });
