@@ -19,6 +19,7 @@ jest.mock("@langfuse/shared", () => ({
 
 import { normalizeInput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
+import { extractTools } from "./extractTools";
 
 describe("Playground Jump Full Pipeline", () => {
   it("should convert full trace with tool calls through mapper and playground conversion", () => {
@@ -324,14 +325,7 @@ describe("Playground Jump Full Pipeline", () => {
     expect(toolMessages[1].content.function.name).toBe("get_user_info");
   });
 
-  it("documents expected tool extraction from Gemini format for parseTools", () => {
-    // This test documents that parseTools in JumpToPlaygroundButton.tsx
-    // SHOULD extract tool definitions from Gemini format where tools are
-    // embedded as messages with role="tool" and content.type="function"
-    //
-    // Note: parseTools is not exported so we can't directly test it yet.
-    // This test documents the required data structure and extraction logic.
-
+  it("should extract tools from Gemini format using extractTools utility", () => {
     const geminiInput = [
       {
         role: "system",
@@ -379,38 +373,25 @@ describe("Playground Jump Full Pipeline", () => {
       },
     ];
 
-    // Document the structure that parseTools receives (as JSON string)
-    // const mockGenerationInput = JSON.stringify(geminiInput);
+    // Test the exported extractTools utility directly
+    const tools = extractTools(geminiInput);
 
-    // Document what parseTools SHOULD extract
-    const expectedToolDefinitions = geminiInput
-      .filter(
-        (msg: any) =>
-          msg.role === "tool" &&
-          typeof msg.content === "object" &&
-          msg.content?.type === "function" &&
-          msg.content?.function,
-      )
-      .map((msg: any) => ({
-        // parseTools should return PlaygroundTool[] with these fields
-        id: expect.any(String), // random ID
-        name: msg.content.function.name,
-        description: msg.content.function.description || "",
-        parameters: msg.content.function.parameters || {},
-      }));
-
-    // Verify the expected structure
-    expect(expectedToolDefinitions.length).toBe(2);
-    expect(expectedToolDefinitions[0].name).toBe("get_weather");
-    expect(expectedToolDefinitions[0].description).toBe(
-      "Get the current weather in a location",
-    );
-    expect(expectedToolDefinitions[1].name).toBe("search_web");
-
-    // NOTE: parseTools in JumpToPlaygroundButton.tsx now uses extractGeminiToolDefinitions()
-    // to extract tools from Array inputs where messages have:
-    // - role: "tool"
-    // - content.type: "function"
-    // - content.function: {name, description, parameters}
+    expect(tools.length).toBe(2);
+    expect(tools[0]).toEqual({
+      id: expect.any(String),
+      name: "get_weather",
+      description: "Get the current weather in a location",
+      parameters: {
+        type: "object",
+        properties: {
+          location: {
+            type: "string",
+            description: "The city name",
+          },
+        },
+        required: ["location"],
+      },
+    });
+    expect(tools[1].name).toBe("search_web");
   });
 });
