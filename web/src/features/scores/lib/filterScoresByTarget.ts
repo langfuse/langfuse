@@ -27,7 +27,7 @@ export function filterScoresByTarget<T extends APIScoreV2 | AnnotationScore>(
     // Trace target: match both traceId AND observationId
     return (
       score.traceId === target.traceId &&
-      score.observationId === (target.observationId ?? null)
+      (score.observationId ?? null) === (target.observationId ?? null)
     );
   });
 }
