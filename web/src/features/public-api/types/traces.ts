@@ -9,6 +9,7 @@ import {
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
+import { useEventsTableSchema } from "../../query";
 
 /**
  * Field groups for selective field fetching
@@ -94,6 +95,7 @@ export const GetTracesV1Query = z.object({
         .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
     })
     .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
+  useEventsTable: useEventsTableSchema,
   filter: z
     .string()
     .optional()

@@ -128,3 +128,8 @@ export const query = z
       // Ensure fromTimestamp is before toTimestamp
       new Date(query.fromTimestamp) < new Date(query.toTimestamp),
   );
+
+export const useEventsTableSchema = z
+  .union([z.literal("true"), z.literal("false"), z.boolean()])
+  .optional()
+  .transform((val) => val === "true" || val === true);

@@ -19,6 +19,7 @@ import {
 } from "@/src/features/public-api/types/traces";
 
 import type { FilterState } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 export type TraceQueryType = {
   page: number;
@@ -36,6 +37,7 @@ export type TraceQueryType = {
   fromTimestamp?: string;
   toTimestamp?: string;
   fields?: TraceFieldGroup[];
+  useEventsTable?: boolean | null;
 };
 
 export const generateTracesForPublicApi = async ({
