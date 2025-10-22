@@ -287,10 +287,15 @@ describe("Playground Jump Full Pipeline", () => {
     // Tool definition messages should be filtered out by the converter
     expect(playgroundMessages.length).toBe(3);
 
+    // Filter out placeholder messages for role testing
+    const regularMessages = playgroundMessages.filter(
+      (msg) => msg.type !== "placeholder",
+    );
+
     // Verify message roles
-    expect(playgroundMessages[0]?.role).toBe("system");
-    expect(playgroundMessages[1]?.role).toBe("assistant");
-    expect(playgroundMessages[2]?.role).toBe("user");
+    expect(regularMessages[0]?.role).toBe("system");
+    expect(regularMessages[1]?.role).toBe("assistant");
+    expect(regularMessages[2]?.role).toBe("user");
 
     // All should have type public-api-created (regular messages)
     expect(playgroundMessages[0]?.type).toBe("public-api-created");

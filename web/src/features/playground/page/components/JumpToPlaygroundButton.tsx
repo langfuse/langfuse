@@ -1,7 +1,6 @@
 import { Terminal, ChevronDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
-import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
@@ -28,7 +27,6 @@ import {
   type UIModelParams,
   ZodModelConfig,
   ChatMessageType,
-  OpenAIToolSchema,
   type ChatMessage,
   OpenAIResponseFormatSchema,
   type Prisma,
@@ -36,8 +34,8 @@ import {
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
-import { normalizeInput, extractAdditionalInput } from "@/src/utils/chatml";
-import { extractGeminiToolDefinitions } from "@/src/utils/chatml/adapters/gemini";
+import { normalizeInput } from "@/src/utils/chatml";
+import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -260,7 +258,7 @@ const parseGeneration = (
   if (!isGenerationLike(generation.type)) return null;
 
   let modelParams = parseModelParams(generation, modelToProviderMap);
-  const tools = parseTools(generation);
+  const tools = parseTools(generation.input);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
@@ -402,68 +400,15 @@ function parseModelParams(
   return modelParams;
 }
 
-function parseTools(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
-    input: string | null;
-    output: string | null;
-    metadata: string | null;
-  },
-): PlaygroundTool[] {
+function parseTools(inputString: string | null): PlaygroundTool[] {
+  if (!inputString) return [];
+
   try {
-    const input = JSON.parse(generation.input as string);
-
-    // Check additional.tools , langchain puts tools there
-    const additionalInput = extractAdditionalInput(input);
-    if (additionalInput?.tools && Array.isArray(additionalInput.tools)) {
-      return additionalInput.tools.map((tool: any) => ({
-        id: Math.random().toString(36).substring(2),
-        name: tool.name || tool.function?.name,
-        description: tool.description || tool.function?.description,
-        parameters: tool.parameters || tool.function?.parameters,
-      }));
-    }
-
-    // OpenAI format: tools in input.tools field
-    if (typeof input === "object" && input !== null && "tools" in input) {
-      const parsedTools = z.array(OpenAIToolSchema).safeParse(input["tools"]);
-
-      if (parsedTools.success)
-        return parsedTools.data.map((tool) => ({
-          id: Math.random().toString(36).substring(2),
-          ...tool.function,
-        }));
-    }
-
-    // Gemini format: tool definitions embedded in messages array
-    // Messages with role="tool" and content.type="function" contain tool definitions
-    if (Array.isArray(input)) {
-      const geminiTools = extractGeminiToolDefinitions(input);
-      if (geminiTools.length > 0) {
-        return geminiTools.map((tool) => ({
-          id: Math.random().toString(36).substring(2),
-          ...tool,
-        }));
-      }
-    }
-
-    // Also check messages field within input object for Gemini format
-    if (
-      typeof input === "object" &&
-      input !== null &&
-      "messages" in input &&
-      Array.isArray(input.messages)
-    ) {
-      const geminiTools = extractGeminiToolDefinitions(input.messages);
-      if (geminiTools.length > 0) {
-        return geminiTools.map((tool) => ({
-          id: Math.random().toString(36).substring(2),
-          ...tool,
-        }));
-      }
-    }
-  } catch {}
-
-  return [];
+    const input = JSON.parse(inputString);
+    return extractTools(input);
+  } catch {
+    return [];
+  }
 }
 
 function parseStructuredOutputSchema(
