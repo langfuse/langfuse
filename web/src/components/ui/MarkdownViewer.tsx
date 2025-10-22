@@ -315,12 +315,14 @@ export function MarkdownView({
   customCodeHeaderClassName,
   audio,
   media,
+  className,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
+  className?: string;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -359,6 +361,7 @@ export function MarkdownView({
           title === "system" || title === "Input"
             ? "bg-primary-foreground"
             : "",
+          className,
         )}
       >
         {typeof markdown === "string" ? (

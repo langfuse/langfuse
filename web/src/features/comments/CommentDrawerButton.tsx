@@ -150,12 +150,12 @@ export function CommentDrawerButton({
             }
           }}
         >
-          <DrawerHeader className="flex-shrink-0 rounded-sm bg-background">
+          <DrawerHeader className="sr-only flex-shrink-0 rounded-sm bg-background">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
-          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pb-2">
+          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pt-2">
             <CommentList
               projectId={projectId}
               objectId={objectId}
