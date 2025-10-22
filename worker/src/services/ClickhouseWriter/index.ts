@@ -18,7 +18,6 @@ import {
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 
 export class ClickhouseWriter {
