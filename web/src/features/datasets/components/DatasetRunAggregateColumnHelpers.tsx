@@ -40,7 +40,6 @@ function RunAggregateHeader({
         onChange={(filters: FilterState) =>
           debouncedUpdateRunFilters(runId, filters)
         }
-        variant="icon"
       />
     </div>
   );
@@ -65,19 +64,16 @@ export const constructDatasetRunAggregateColumns = ({
   datasetColumns,
   updateRunFilters,
   getFiltersForRun,
-  scoreColumns,
+  serverScoreColumns,
 }: {
   runAggregateColumnProps: RunAggregateColumnProps[];
   projectId: string;
   datasetColumns: ColumnDefinition[];
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
-  scoreColumns?: ScoreColumn[];
+  serverScoreColumns?: ScoreColumn[];
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
-  const isDataLoading = !isScoreColumnsAvailable(scoreColumns);
-  const sortedScoreColumns = !isDataLoading
-    ? [...scoreColumns].sort((a, b) => a.name.localeCompare(b.name))
-    : [];
+  const isDataLoading = !isScoreColumnsAvailable(serverScoreColumns);
 
   return runAggregateColumnProps.map((col) => {
     const { id, name, createdAt } = col;
@@ -116,7 +112,7 @@ export const constructDatasetRunAggregateColumns = ({
           <DatasetAggregateTableCell
             value={value}
             projectId={projectId}
-            scoreColumns={sortedScoreColumns}
+            serverScoreColumns={serverScoreColumns}
           />
         );
       },

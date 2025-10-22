@@ -69,7 +69,7 @@ const ScoreRowContent = ({
       </span>
       <div className="flex flex-shrink-0 items-center gap-1">
         {aggregate ? (
-          <span className="line-clamp-1 text-sm font-medium">
+          <span className="line-clamp-1 font-medium">
             {resolveScoreValue(aggregate)}
           </span>
         ) : (

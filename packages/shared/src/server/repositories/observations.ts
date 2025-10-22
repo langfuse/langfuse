@@ -29,7 +29,10 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { convertObservation } from "./observations_converters";
+import {
+  convertObservation,
+  enrichObservationWithModelData,
+} from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -583,13 +586,7 @@ export const getObservationsTableWithModelData = async (
       traceTags: trace?.tags ?? [],
       traceTimestamp: trace?.timestamp ?? null,
       userId: trace?.userId ?? null,
-      modelId: model?.id ?? null,
-      inputPrice:
-        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-      outputPrice:
-        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-      totalPrice:
-        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+      ...enrichObservationWithModelData(model),
     };
   });
 };
@@ -1676,5 +1673,52 @@ export const getObservationCountsByProjectAndDay = async ({
     count: Number(row.count),
     projectId: row.project_id,
     date: row.date,
+  }));
+};
+
+/**
+ * Get total cost grouped by evaluator ID (job_configuration_id) for the last day.
+ *
+ * @param projectId - Project ID
+ * @param evaluatorIds - Array of evaluator IDs (job_configuration_id from metadata)
+ * @returns Array of { evaluatorId, totalCost } objects
+ */
+export const getCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+): Promise<Array<{ evaluatorId: string; totalCost: number }>> => {
+  if (evaluatorIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      metadata['job_configuration_id'] as evaluator_id,
+      sum(total_cost) as total_cost
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+      AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
+      AND start_time > now() - INTERVAL 24 HOURS
+    GROUP BY metadata['job_configuration_id']
+  `;
+
+  const rows = await queryClickhouse<{
+    evaluator_id: string;
+    total_cost: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      evaluatorIds,
+    },
+    tags: {
+      feature: "evals",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    evaluatorId: row.evaluator_id,
+    totalCost: Number(row.total_cost),
   }));
 };

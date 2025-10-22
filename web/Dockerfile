@@ -116,7 +116,7 @@ ARG GID=1001
 RUN addgroup --system --gid ${GID} nodejs
 RUN adduser --system --uid ${UID} nextjs
 
-RUN npm install -g --no-package-lock --no-save prisma@6.3.0
+RUN npm install -g --no-package-lock --no-save prisma@6.17.1
 
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION

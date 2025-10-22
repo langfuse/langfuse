@@ -8,40 +8,133 @@ import {
   traceException,
   EventPropagationQueue,
   QueueJobs,
+  redis,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { env } from "../../env";
 import { randomUUID } from "crypto";
 
+const PARTITION_LOCK_PREFIX = "langfuse:partition-lock:event-propagation";
+
 /**
- * Processes the oldest partition from observations_batch_staging table
- * and propagates events to the events table. Only processes when at least
- * 2 partitions exist to ensure the oldest partition is complete.
+ * Attempt to acquire a distributed lock for processing a specific partition.
+ *
+ * The lock automatically expires after the specified TTL to prevent stuck locks
+ * if a worker crashes or fails to complete processing.
+ */
+export const acquirePartitionLock = async (
+  partition: string,
+  ttlSeconds: number = 300,
+): Promise<boolean> => {
+  if (!redis) {
+    logger.warn(
+      "[DUAL WRITE] Redis not available, skipping partition lock acquisition",
+    );
+    return true; // Allow processing if Redis is unavailable
+  }
+
+  try {
+    // Sanitize partition string to be Redis key friendly
+    const lockKey = `${PARTITION_LOCK_PREFIX}:${partition.replaceAll(/[^0-9_-]/g, "_")}`;
+
+    // Returns "OK" if key was set (lock acquired), null if key already exists
+    const result = await redis.set(lockKey, "true", "EX", ttlSeconds, "NX");
+    const acquired = result === "OK";
+    if (acquired) {
+      logger.debug(
+        `[DUAL WRITE] Acquired lock for partition ${partition} with TTL ${ttlSeconds}s`,
+      );
+    } else {
+      logger.debug(
+        `[DUAL WRITE] Partition ${partition} is already locked by another worker`,
+      );
+    }
+    return acquired;
+  } catch (error) {
+    logger.error("[DUAL WRITE] Failed to acquire partition lock", error);
+    // On error, allow processing to avoid blocking the system
+    return true;
+  }
+};
+
+/**
+ * Check if a partition lock exists without acquiring it.
+ *
+ * Returns true if the partition is available (not locked), false if locked.
+ * Used for scheduling follow-up jobs to avoid scheduling jobs for already-locked partitions.
+ */
+export const checkLock = async (partition: string): Promise<boolean> => {
+  if (!redis) {
+    logger.warn(
+      "[DUAL WRITE] Redis not available, assuming partition is unlocked",
+    );
+    return true; // Allow processing if Redis is unavailable
+  }
+
+  try {
+    // Sanitize partition string to be Redis key friendly (same as acquirePartitionLock)
+    const lockKey = `${PARTITION_LOCK_PREFIX}:${partition.replaceAll(/[^0-9_-]/g, "_")}`;
+
+    // Check if the lock key exists
+    const exists = await redis.exists(lockKey);
+    const isAvailable = exists === 0;
+
+    if (isAvailable) {
+      logger.debug(
+        `[DUAL WRITE] Partition ${partition} is available (not locked)`,
+      );
+    } else {
+      logger.debug(`[DUAL WRITE] Partition ${partition} is locked`);
+    }
+
+    return isAvailable;
+  } catch (error) {
+    logger.error("[DUAL WRITE] Failed to check partition lock", error);
+    // On error, assume partition is available to avoid blocking the system
+    return true;
+  }
+};
+
+/**
+ * Processes partitions from observations_batch_staging table and propagates
+ * events to the events table. Supports both targeted partition processing
+ * (when partition is specified in job data) and discovery mode (cron job).
  */
 export const handleEventPropagationJob = async (
   job: Job<TQueueJobTypes[QueueName.EventPropagationQueue]>,
 ) => {
   const span = getCurrentSpan();
+  const partition = job.data.payload?.partition;
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
+    if (partition) {
+      span.setAttribute("messaging.bullmq.job.input.partition", partition);
+    }
   }
 
   if (env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB === "true") {
-    logger.info("Early exit for event propagation job due to experiment flag");
+    logger.info(
+      "[DUAL WRITE] Early exit for event propagation job due to experiment flag",
+    );
     return;
   }
 
   try {
-    logger.debug("Starting event propagation batch processing");
+    logger.debug("[DUAL WRITE] Starting event propagation batch processing", {
+      jobId: job.data.id,
+      partition: partition,
+    });
 
-    // Step 1: Get list of partitions ordered by time
+    // Step 1: Get list of partitions ordered by time, filtering for those older than 4 minutes
+    // Filter in ClickHouse for better performance - only return partitions older than 4 minutes
     const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
           AND active = 1
-        ORDER BY partition ASC
+          AND toDateTime(partition) < now() - INTERVAL 4 MINUTE
+        ORDER BY partition DESC
       `,
       tags: {
         feature: "ingestion",
@@ -49,20 +142,66 @@ export const handleEventPropagationJob = async (
       },
     });
 
-    if (partitions.length < 3) {
+    if (partitions.length === 0) {
       logger.info(
-        `Not enough partitions for processing. Found ${partitions.length} partition(s), need at least 3`,
+        `[DUAL WRITE] No partitions older than 4 minutes available for processing`,
       );
       return;
     }
 
-    // Step 2: Process the oldest partition
-    const oldestPartition = partitions[0].partition;
     logger.info(
-      `Processing partition ${oldestPartition} for events table fill`,
+      `[DUAL WRITE] Found ${partitions.length} partition(s) older than 4 minutes to process`,
     );
 
-    // Step 3: Join observations_batch_staging with traces and insert into events
+    // Determine which partition to process
+    let partitionToProcess: string | null = null;
+    if (partition) {
+      // Try to acquire lock for this partition
+      const lockAcquired = await acquirePartitionLock(partition);
+      if (lockAcquired) {
+        partitionToProcess = partition;
+        logger.info(
+          `[DUAL WRITE] Processing partition ${partitionToProcess} (targeted) for events table fill`,
+        );
+      } else {
+        logger.info(
+          `[DUAL WRITE] Partition ${partition} is already locked by another worker, falling back to discovery mode`,
+        );
+      }
+    }
+
+    // If no partition was processed yet (either no partition specified or it was locked),
+    // fall back to discovery mode - process oldest partition that is unlocked
+    if (!partitionToProcess) {
+      // We sort partitions from newest to oldest and then remove elements from the back.
+      // This means that the oldest, unlocked partition will be processed.
+      // All partitions in the list are already verified to be older than 4 minutes.
+      while (partitionToProcess === null && partitions.length > 0) {
+        const internalPartition = partitions.pop()!;
+        const lockAcquired = await acquirePartitionLock(
+          internalPartition.partition,
+        );
+        if (!lockAcquired) {
+          logger.debug(
+            `[DUAL WRITE] Skipping partition ${internalPartition.partition} as it is locked by another worker`,
+          );
+          continue;
+        }
+        partitionToProcess = internalPartition.partition;
+        logger.info(
+          `[DUAL WRITE] Processing partition ${partitionToProcess} (discovery) for events table fill`,
+        );
+      }
+    }
+
+    if (!partitionToProcess) {
+      logger.info(
+        "[DUAL WRITE] No available partitions to process after checking locks, exiting",
+      );
+      return;
+    }
+
+    // Step 2: Join observations_batch_staging with traces and insert into events
     // Use a time window for traces to limit the join scope
     // If clients send us an observation_start_time that is smaller than a previously received start_time
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
@@ -73,10 +212,11 @@ export const handleEventPropagationJob = async (
         with batch_stats as (
           select
             groupUniqArray(project_id) as project_ids,
+            groupUniqArray(trace_id) as trace_ids,
             min(start_time) as min_start_time,
             max(start_time) as max_start_time
           from observations_batch_staging
-          where _partition_value = tuple('${oldestPartition}')
+          where _partition_value = tuple('${partitionToProcess}')
         ), relevant_traces as (
           select
             t.id,
@@ -86,8 +226,11 @@ export const handleEventPropagationJob = async (
             t.metadata
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
+            and t.id in (select arrayJoin(trace_ids) from batch_stats)
             and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
+          order by t.event_ts desc
+          limit 1 by t.project_id, t.id
         )
 
         INSERT INTO events (
@@ -151,10 +294,10 @@ export const handleEventPropagationJob = async (
           obs.trace_id,
           obs.id AS span_id,
           -- When the observation IS the trace itself (id = trace_id), parent should be NULL
-          -- Otherwise, use standard wrapper logic: parent_observation_id or trace_id as fallback
+          -- Otherwise, use standard wrapper logic: parent_observation_id or prefixed trace_id as fallback
           CASE
-            WHEN obs.id = obs.trace_id THEN NULL
-            ELSE coalesce(obs.parent_observation_id, obs.trace_id)
+            WHEN obs.id = concat('t-', obs.trace_id) THEN NULL
+            ELSE coalesce(obs.parent_observation_id, concat('t-', obs.trace_id))
           END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
           -- Clamp start_time to 1970-01-01 or later (Unix epoch minimum) to avoid toUnixTimestamp() errors
@@ -208,16 +351,16 @@ export const handleEventPropagationJob = async (
           obs.event_ts,
           obs.is_deleted
         FROM relevant_traces t
-        RIGHT JOIN observations_batch_staging AS obs
+        RIGHT JOIN observations_batch_staging obs FINAL
         ON (
           obs.project_id = t.project_id AND
           obs.trace_id = t.id
         )
-        WHERE obs._partition_value = tuple('${oldestPartition}')
+        WHERE obs._partition_value = tuple('${partitionToProcess}')
       `,
       tags: {
         feature: "ingestion",
-        partition: oldestPartition,
+        partition: partitionToProcess,
         operation_name: "propagateObservationsToEvents",
       },
       clickhouseConfigs: {
@@ -229,42 +372,67 @@ export const handleEventPropagationJob = async (
     });
 
     logger.info(
-      `Successfully propagated observations from partition ${oldestPartition} to events table`,
+      `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
 
-    // Step 4: Drop the processed partition
+    // Step 3: Schedule additional jobs for remaining partitions (all are already verified to be >4 minutes old).
+    // We do this before the drop as this is a fast operation that shouldn't wait for the slow dropping call.
+    // We're only running this if there are more than one left to be processed as this means we have some catch-up to do.
+    if (partitions.length > 1) {
+      let additionalSchedules =
+        env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY;
+      const queue = EventPropagationQueue.getInstance();
+      while (queue && partitions.length > 1 && additionalSchedules > 0) {
+        const internalPartition = partitions.pop()!;
+
+        // Check if partition is locked before scheduling
+        const isUnlocked = await checkLock(internalPartition.partition);
+        if (!isUnlocked) {
+          logger.debug(
+            `[DUAL WRITE] Skipping scheduling for partition ${internalPartition.partition} as it is locked by another worker`,
+          );
+          continue;
+        }
+
+        additionalSchedules--;
+        await queue.add(QueueJobs.EventPropagationJob, {
+          timestamp: new Date(),
+          id: randomUUID(),
+          payload: {
+            partition: internalPartition.partition,
+          },
+        });
+        logger.info(
+          `[DUAL WRITE] Scheduled additional event propagation job for partition ${internalPartition.partition}. ` +
+            `Remaining partitions: ${partitions.length}`,
+        );
+      }
+    }
+
+    // Step 4: Drop the processed partition (single synchronous operation)
     await commandClickhouse({
       query: `
         ALTER TABLE observations_batch_staging
-        DROP PARTITION '${oldestPartition}'
+        DROP PARTITION '${partitionToProcess}'
       `,
       tags: {
         feature: "ingestion",
-        partition: oldestPartition,
+        partition: partitionToProcess,
         operation_name: "dropPartition",
+      },
+      clickhouseConfigs: {
+        request_timeout: 60000 * 20, // 20 minutes timeout
       },
     });
 
     logger.info(
-      `Dropped partition ${oldestPartition} after successful processing`,
+      `[DUAL WRITE] Successfully dropped partition ${partitionToProcess}`,
     );
-
-    // Schedule another job if we had more than 5 partitions remaining
-    if (partitions.length > 5) {
-      const queue = EventPropagationQueue.getInstance();
-      if (queue) {
-        await queue.add(
-          QueueJobs.EventPropagationJob,
-          { timestamp: new Date(), id: randomUUID() },
-          { delay: 1000 }, // 1 second delay
-        );
-        logger.info(
-          `Scheduled next event propagation job with 10s delay. Remaining partitions: ${partitions.length - 1}`,
-        );
-      }
-    }
   } catch (error) {
-    logger.error("Failed to process event propagation batch", error);
+    logger.error(
+      "[DUAL WRITE] Failed to process event propagation batch",
+      error,
+    );
     traceException(error);
     throw error;
   }

@@ -2114,5 +2114,24 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "cmgt5gnkv000104jx171tbq4e",
+    "model_name": "claude-haiku-4-5-20251001",
+    "match_pattern": "(?i)^(claude-haiku-4-5-20251001|(eu\\.|us\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "created_at": "2025-10-16T08:20:44.558Z",
+    "updated_at": "2025-10-16T08:20:44.558Z",
+    "prices": {
+      "input": 1e-6,
+      "input_tokens": 1e-6,
+      "output": 5e-6,
+      "output_tokens": 5e-6,
+      "cache_creation_input_tokens": 1.25e-6,
+      "input_cache_creation": 1.25e-6,
+      "cache_read_input_tokens": 0.1e-6,
+      "input_cache_read": 0.1e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
   }
 ]

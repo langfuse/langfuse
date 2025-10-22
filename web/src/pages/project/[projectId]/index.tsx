@@ -98,7 +98,11 @@ export default function Dashboard() {
   const { selectedEnvironments, setSelectedEnvironments } =
     useEnvironmentFilter(environmentOptions, projectId);
 
-  const nameOptions = traceFilterOptions.data?.name || [];
+  const nameOptions =
+    traceFilterOptions.data?.name?.map((n) => ({
+      value: n.value,
+      count: Number(n.count),
+    })) || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
 
   const filterColumns: ColumnDefinition[] = [

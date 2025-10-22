@@ -222,8 +222,10 @@ export class CategoryOptionsFilter implements Filter {
   }
 }
 
-// stringObject filter is used when we want to filter on a key value pair in a clickhouse map.
-// As we use the MAP form clickhouse, we can only filter efficiently on the first level of a json obj.
+// stringObject filter is used when we want to filter on a key value pair in metadata.
+// For observations/traces tables: uses Map column (metadata)
+// For events table: uses Array columns (metadata_names/metadata_values)
+// We can only filter efficiently on the first level of a json obj.
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -251,28 +253,61 @@ export class StringObjectFilter implements Filter {
   apply(): ClickhouseFilter {
     const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
-    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
 
-    //  const query: `${column}['{varKeyName: String}'] ${this.operator} {${varValueName}: String}`,
+    // Events table uses array columns (metadata_names/metadata_values)
+    // Observations/traces tables use Map column (metadata)
+    const isEventsTable = this.clickhouseTable === "events";
+
     let query: string;
-    switch (this.operator) {
-      case "=":
-        query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
-        break;
-      case "contains":
-        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
-        break;
-      case "does not contain":
-        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
-        break;
-      case "starts with":
-        query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
-        break;
-      case "ends with":
-        query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
-        break;
-      default:
-        throw new Error(`Unsupported operator: ${this.operator}`);
+    if (isEventsTable) {
+      // For events table, use array access: metadata_values[indexOf(metadata_names, key)]
+      const namesColumn = `${prefix}metadata_names`;
+      const valuesColumn = `${prefix}metadata_values`;
+      const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
+
+      switch (this.operator) {
+        case "=":
+          query = `${valueAccessor} = {${varValueName}: String}`;
+          break;
+        case "contains":
+          query = `position(${valueAccessor}, {${varValueName}: String}) > 0`;
+          break;
+        case "does not contain":
+          query = `position(${valueAccessor}, {${varValueName}: String}) = 0`;
+          break;
+        case "starts with":
+          query = `startsWith(${valueAccessor}, {${varValueName}: String})`;
+          break;
+        case "ends with":
+          query = `endsWith(${valueAccessor}, {${varValueName}: String})`;
+          break;
+        default:
+          throw new Error(`Unsupported operator: ${this.operator}`);
+      }
+    } else {
+      // For observations/traces tables, use Map access: metadata[key]
+      const column = `${prefix}${this.field}`;
+
+      switch (this.operator) {
+        case "=":
+          query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+          break;
+        case "contains":
+          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+          break;
+        case "does not contain":
+          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+          break;
+        case "starts with":
+          query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          break;
+        case "ends with":
+          query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          break;
+        default:
+          throw new Error(`Unsupported operator: ${this.operator}`);
+      }
     }
 
     return {

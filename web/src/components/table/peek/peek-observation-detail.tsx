@@ -40,6 +40,7 @@ export const PeekViewObservationDetail = ({
       observations={trace.data.observations}
       selectedTab={selectedTab}
       setSelectedTab={setSelectedTab}
+      context="peek"
     />
   );
 };

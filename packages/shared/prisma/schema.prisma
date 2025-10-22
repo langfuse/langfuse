@@ -901,6 +901,7 @@ enum JobExecutionStatus {
   ERROR
   PENDING
   CANCELLED
+  DELAYED
 }
 
 model JobExecution {
@@ -931,6 +932,8 @@ model JobExecution {
   jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
   jobOutputScoreId String? @map("job_output_score_id")
+
+  executionTraceId String? @map("execution_trace_id")
 
   @@index([projectId, jobConfigurationId, jobInputTraceId])
   @@index([projectId, status])

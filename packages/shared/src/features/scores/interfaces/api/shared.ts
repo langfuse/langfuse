@@ -50,6 +50,7 @@ export const ScoreFoundationSchema = z.object({
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   queueId: z.string().nullish(),
+  executionTraceId: z.string().nullish(),
 });
 
 /**

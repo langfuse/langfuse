@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.118.0",
+  "version": "3.121.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -39,7 +39,7 @@
     "@opentelemetry/resource-detector-container": "^0.4.2",
     "@opentelemetry/resources": "^1.26.0",
     "@opentelemetry/sdk-node": "^0.53.0",
-    "@prisma/instrumentation": "^6.3.0",
+    "@prisma/instrumentation": "^6.17.1",
     "backoff": "^2.5.0",
     "bullmq": "^5.34.10",
     "cors": "^2.8.5",
