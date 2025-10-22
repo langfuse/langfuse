@@ -155,21 +155,21 @@ describe("Webhook URL Validation", () => {
         validateWebhookURL("http://internal.company.com/hook", {
           hosts: ["internal.company.com"],
           ips: [],
-          ip_ranges: []
+          ip_ranges: [],
         }),
       ).resolves.not.toThrow();
       await expect(
         validateWebhookURL("http://app.internal/hook", {
           hosts: ["app.internal"],
           ips: [],
-          ip_ranges: []
+          ip_ranges: [],
         }),
       ).resolves.not.toThrow();
       await expect(
         validateWebhookURL("http://intranet/hook", {
           hosts: ["intranet"],
           ips: [],
-          ip_ranges: []
+          ip_ranges: [],
         }),
       ).resolves.not.toThrow();
     });
