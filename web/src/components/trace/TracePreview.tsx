@@ -400,3 +400,5 @@ export const TracePreview = ({
     </div>
   );
 };
+
+TracePreview.whyDidYouRender = true;

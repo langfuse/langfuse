@@ -728,3 +728,5 @@ export function TraceTimelineView({
     </div>
   );
 }
+
+TraceTimelineView.whyDidYouRender = true;
