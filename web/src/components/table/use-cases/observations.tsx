@@ -290,8 +290,19 @@ export default function ObservationsTable({
     },
   );
 
-  const newFilterOptions = useMemo(
-    () => ({
+  const newFilterOptions = useMemo(() => {
+    const scoreCategories =
+      filterOptions.data?.score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) || {};
+
+    const scoresNumeric = filterOptions.data?.scores_avg || [];
+
+    return {
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       name:
@@ -339,9 +350,10 @@ export default function ObservationsTable({
       inputCost: [],
       outputCost: [],
       totalCost: [],
-    }),
-    [environmentFilterOptions.data, filterOptions.data],
-  );
+      score_categories: scoreCategories,
+      scores_avg: scoresNumeric,
+    };
+  }, [environmentFilterOptions.data, filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
     observationFilterConfig,
