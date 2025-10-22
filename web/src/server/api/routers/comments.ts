@@ -264,7 +264,7 @@ export const commentsRouter = createTRPCRouter({
           AND c."object_type"::text = ${input.objectType}
         GROUP BY c.id, c.content, c.created_at, u.id, u.image, u.name
         ORDER BY
-          c.created_at DESC
+          c.created_at ASC
         `,
         );
 

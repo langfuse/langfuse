@@ -174,6 +174,24 @@ export function CommentList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedContent]);
 
+  // Scroll to bottom when comments initially load to show latest comments + input
+  // Skip auto-scroll if there's a highlighted comment (deeplink takes precedence)
+  useEffect(() => {
+    if (
+      comments.data &&
+      commentsContainerRef.current &&
+      !highlightedCommentId
+    ) {
+      // Use setTimeout to ensure DOM is fully rendered
+      setTimeout(() => {
+        if (commentsContainerRef.current) {
+          commentsContainerRef.current.scrollTop =
+            commentsContainerRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [comments.data, highlightedCommentId]);
+
   const utils = api.useUtils();
 
   const createCommentMutation = api.comments.create.useMutation({
@@ -183,10 +201,10 @@ export function CommentList({
       setTextareaValue("");
       setTextareaKey((prev) => prev + 1); // Force textarea remount to reset height
 
-      // Scroll to top of comments list
+      // Scroll to bottom of comments list (newest comment in chronological order)
       if (commentsContainerRef.current) {
         commentsContainerRef.current.scrollTo({
-          top: 0,
+          top: commentsContainerRef.current.scrollHeight,
           behavior: "smooth",
         });
       }
@@ -337,11 +355,16 @@ export function CommentList({
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col">
+        {!cardView && (
+          <div className="flex-shrink-0 border-b px-2 py-1.5 text-sm font-medium">
+            Comments ({comments.data?.length ?? 0})
+          </div>
+        )}
         <div
           ref={commentsContainerRef}
-          className="min-h-0 flex-1 overflow-y-auto"
+          className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto"
         >
-          <div className="p-1">
+          <div className="max-h-full p-1">
             {commentsWithFormattedTimestamp?.map((comment) => (
               <div
                 key={comment.id}
