@@ -1,7 +1,12 @@
 import { Processor } from "bullmq";
-import { logger, QueueJobs } from "@langfuse/shared/src/server";
+import {
+  instrumentAsync,
+  logger,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
 import { handleDataRetentionSchedule } from "../ee/dataRetention/handleDataRetentionSchedule";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
+import { SpanKind } from "@opentelemetry/api";
 
 export const dataRetentionProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.DataRetentionJob) {
@@ -17,11 +22,20 @@ export const dataRetentionProcessor: Processor = async (job) => {
 
 export const dataRetentionProcessingProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.DataRetentionProcessingJob) {
-    try {
-      return await handleDataRetentionProcessingJob(job);
-    } catch (error) {
-      logger.error("Error executing DataRetentionProcessingJob", error);
-      throw error;
-    }
+    return await instrumentAsync(
+      {
+        name: "process data-retention-project",
+        startNewTrace: true,
+        spanKind: SpanKind.CONSUMER,
+      },
+      async () => {
+        try {
+          return await handleDataRetentionProcessingJob(job);
+        } catch (error) {
+          logger.error("Error executing DataRetentionProcessingJob", error);
+          throw error;
+        }
+      },
+    );
   }
 };

@@ -104,7 +104,6 @@ export class ClickhouseWriter {
     return instrumentAsync(
       {
         name: "write-to-clickhouse",
-        spanKind: SpanKind.CONSUMER,
       },
       async () => {
         recordIncrement("langfuse.queue.clickhouse_writer.request");

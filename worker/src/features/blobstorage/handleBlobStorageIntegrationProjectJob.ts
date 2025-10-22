@@ -11,6 +11,7 @@ import {
   getObservationsForBlobStorageExport,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -175,6 +176,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
   const { projectId } = job.data.payload;
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
+    span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+  }
 
   logger.info(`Processing blob storage integration for project ${projectId}`);
 
