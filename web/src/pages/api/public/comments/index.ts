@@ -66,7 +66,24 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
-      return { data: comments };
+      const totalItems = await prisma.comment.count({
+        where: {
+          projectId: auth.scope.projectId,
+          objectType: objectType ?? undefined,
+          objectId: objectId ?? undefined,
+          authorUserId: authorUserId ?? undefined,
+        },
+      });
+
+      return {
+        data: comments,
+        meta: {
+          page: query.page,
+          limit: query.limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / query.limit),
+        },
+      };
     },
   }),
 });

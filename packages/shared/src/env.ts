@@ -131,38 +131,6 @@ const EnvSchema = z.object({
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
-  LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_ADD_QUERY_RESULT_TO_SPAN_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) =>
-      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
-    ),
-  LANGFUSE_EXPERIMENT_SAMPLING_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0.1),
-  LANGFUSE_EXPERIMENT_WHITELISTED_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) =>
-      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
-    ),
-  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT_SHORT_TERM: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES: z
-    .string()
-    .optional()
-    .transform((s) =>
-      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
-    ),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
     .optional()
@@ -201,6 +169,12 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -225,6 +199,11 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(600_000), // 10 minutes
+
+  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
 
   LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
     .number()

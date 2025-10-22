@@ -35,6 +35,7 @@ export type PageHeaderProps = {
   itemType?: LangfuseItemType;
   container?: boolean;
   tabsProps?: PageTabsProps;
+  className?: string;
 };
 
 const PageHeader = ({
@@ -46,10 +47,17 @@ const PageHeader = ({
   help,
   tabsProps,
   container = false,
+  className,
 }: PageHeaderProps) => {
   const router = useRouter();
   return (
-    <div className="sticky top-0 z-30 w-full border-b bg-background shadow-sm">
+    <div
+      className={cn([
+        "sticky top-banner-offset z-30 w-full border-b bg-background shadow-sm",
+        className,
+      ])}
+      id="page-header"
+    >
       <div className="flex flex-col justify-center">
         {/* Top Row */}
         <div className="border-b">

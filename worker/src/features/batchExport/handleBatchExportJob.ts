@@ -3,7 +3,9 @@ import {
   BatchExportFileFormat,
   BatchExportQuerySchema,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -15,7 +17,9 @@ import {
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
+import { getObservationStream } from "../database-read-stream/observation-stream";
+import { getTraceStream } from "../database-read-stream/trace-stream";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -48,10 +52,39 @@ export const handleBatchExportJob = async (
   });
 
   if (!jobDetails) {
-    throw new Error(
+    throw new LangfuseNotFoundError(
       `Job not found for project: ${projectId} and export ${batchExportId}`,
     );
   }
+
+  // Check if the batch export is older than 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  if (jobDetails.createdAt < thirtyDaysAgo) {
+    // For old exports, mark as failed with an informative message
+    const improvedExportMessage =
+      "We have improved the batch export feature. Please retry your export to benefit from the latest enhancements.";
+
+    await prisma.batchExport.update({
+      where: {
+        id: batchExportId,
+        projectId,
+      },
+      data: {
+        status: BatchExportStatus.FAILED,
+        finishedAt: new Date(),
+        log: improvedExportMessage,
+      },
+    });
+
+    logger.info(
+      `Batch export ${batchExportId} is older than 30 days. Marked as failed with retry message.`,
+    );
+
+    return; // Exit early without processing
+  }
+
   if (jobDetails.status !== BatchExportStatus.QUEUED) {
     logger.warn(
       `Job ${batchExportId} has invalid status: ${jobDetails.status}. Retrying anyway.`,
@@ -77,12 +110,33 @@ export const handleBatchExportJob = async (
     );
   }
 
+  if (span) {
+    span.setAttribute(
+      "messaging.bullmq.job.input.query",
+      JSON.stringify(parsedQuery.data),
+    );
+  }
+
   // handle db read stream
-  const dbReadStream = await getDatabaseReadStream({
-    projectId,
-    cutoffCreatedAt: jobDetails.createdAt,
-    ...parsedQuery.data,
-  });
+
+  const dbReadStream =
+    parsedQuery.data.tableName === BatchExportTableName.Observations
+      ? await getObservationStream({
+          projectId,
+          cutoffCreatedAt: jobDetails.createdAt,
+          ...parsedQuery.data,
+        })
+      : parsedQuery.data.tableName === BatchExportTableName.Traces
+        ? await getTraceStream({
+            projectId,
+            cutoffCreatedAt: jobDetails.createdAt,
+            ...parsedQuery.data,
+          })
+        : await getDatabaseReadStreamPaginated({
+            projectId,
+            cutoffCreatedAt: jobDetails.createdAt,
+            ...parsedQuery.data,
+          });
 
   // Transform data to desired format
   let rowCount = 0;
@@ -144,6 +198,8 @@ export const handleBatchExportJob = async (
       exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
     data: fileStream,
     expiresInSeconds,
+    partSize: 100 * 1024 * 1024, // 100 MB for CSV
+    queueSize: 4,
   });
 
   logger.info(`Batch export file ${fileName} uploaded to S3`);

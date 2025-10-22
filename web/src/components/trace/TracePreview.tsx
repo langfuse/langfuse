@@ -49,7 +49,7 @@ import {
 export const TracePreview = ({
   trace,
   observations,
-  scores,
+  serverScores: scores,
   commentCounts,
   viewType = "detailed",
 }: {
@@ -60,7 +60,7 @@ export const TracePreview = ({
     metadata: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  scores: APIScoreV2[];
+  serverScores: APIScoreV2[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
 }) => {
@@ -73,9 +73,6 @@ export const TracePreview = ({
     "pretty",
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -116,7 +113,7 @@ export const TracePreview = ({
   );
 
   // For performance reasons, we preemptively disable the log view if there are too many observations.
-  const isLogViewDisabled = observations.length > 50;
+  const isLogViewDisabled = observations.length > 150;
   const showLogViewTab = observations.length > 0;
   useEffect(() => {
     if ((isLogViewDisabled || !showLogViewTab) && selectedTab === "log") {
@@ -125,7 +122,7 @@ export const TracePreview = ({
   }, [isLogViewDisabled, showLogViewTab, selectedTab, setSelectedTab]);
 
   return (
-    <div className="ph-no-capture col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
+    <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
         <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
           <div className="flex w-full flex-row items-start gap-1">
@@ -157,10 +154,10 @@ export const TracePreview = ({
                       traceId: trace.id,
                     }}
                     scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
-                    environment={trace.environment}
+                    scoreMetadata={{
+                      projectId: trace.projectId,
+                      environment: trace.environment,
+                    }}
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}
@@ -278,7 +275,7 @@ export const TracePreview = ({
                       </TooltipTrigger>
                       <TooltipContent className="text-xs">
                         {isLogViewDisabled
-                          ? `Log View is disabled for traces with more than 50 observations (this trace has ${observations.length})`
+                          ? `Log View is disabled for traces with more than 150 observations (this trace has ${observations.length})`
                           : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
                       </TooltipContent>
                     </Tooltip>

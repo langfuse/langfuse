@@ -49,6 +49,7 @@ export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
   exactTimestamp: z.date().optional(),
+  traceEnvironment: z.string().optional(), // Optional to maintain backward compatibility with existing jobs in queue during deployment. 'optional()' can be removed after queue was exhausted
 });
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
@@ -243,8 +244,6 @@ export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
 
-export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
-
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),
   attempt: z.number(),
@@ -281,6 +280,7 @@ export enum QueueName {
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
+  EventPropagationQueue = "event-propagation-queue",
 }
 
 export enum QueueJobs {
@@ -312,6 +312,7 @@ export enum QueueJobs {
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
+  EventPropagationJob = "event-propagation-job",
 }
 
 export type TQueueJobTypes = {
@@ -447,5 +448,13 @@ export type TQueueJobTypes = {
     timestamp: Date;
     id: string;
     name: QueueJobs.CloudFreeTierUsageThresholdJob;
+  };
+  [QueueName.EventPropagationQueue]: {
+    timestamp: Date;
+    id: string;
+    payload?: {
+      partition?: string;
+    };
+    name: QueueJobs.EventPropagationJob;
   };
 };

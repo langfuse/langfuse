@@ -1019,6 +1019,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
+    const queueId = randomUUID();
     const scoreEventList: ScoreEventType[] = [
       {
         id: randomUUID(),
@@ -1033,6 +1034,7 @@ describe("Ingestion end-to-end tests", () => {
           source: ScoreSource.API,
           value: 100.5,
           observationId: generationId,
+          queueId,
           environment,
         },
       },
@@ -1112,6 +1114,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.observation_id).toBe(generationId);
     expect(score.value).toBe(100.5);
     expect(score.config_id).toBe(scoreConfigId);
+    expect(score.queue_id).toBe(queueId);
   });
 
   it("should silently reject invalid scores while processing valid ones", async () => {
@@ -2293,11 +2296,11 @@ async function getClickhouseRecord<T extends TableName>(
                 version as version,
                 project_id,
                 environment,
-                finalizeAggregation(public) as public,
-                finalizeAggregation(bookmarked) as bookmarked,
+                public as public,
+                bookmarked as bookmarked,
                 tags,
-                finalizeAggregation(input) as input,
-                finalizeAggregation(output) as output,
+                input as input,
+                output as output,
                 session_id as session_id,
                 0 as is_deleted,
                 start_time as timestamp,

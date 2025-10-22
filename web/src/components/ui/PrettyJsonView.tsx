@@ -135,14 +135,15 @@ function isChatMLFormat(json: unknown): boolean {
   if (Array.isArray(json)) {
     const directArray = ChatMlArraySchema.safeParse(json);
     if (directArray.success) {
-      // had some false positives, so we really check for role/content to validate ChatML
-      const hasRoleOrContent = json.some(
+      // had some false positives, so we really check for role AND content to validate ChatML
+      const hasRoleAndContent = json.some(
         (item) =>
           typeof item === "object" &&
           item !== null &&
-          ("role" in item || "content" in item),
+          "role" in item &&
+          "content" in item,
       );
-      return hasRoleOrContent;
+      return hasRoleAndContent;
     }
   }
 
@@ -348,6 +349,7 @@ function JsonPrettyTable({
   expandedCells,
   toggleCellExpansion,
   stickyTopLevelKey = false,
+  showObservationTypeBadge = false,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.MutableRefObject<(() => void) | null>;
@@ -363,6 +365,7 @@ function JsonPrettyTable({
   expandedCells: Set<string>;
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey?: boolean;
+  showObservationTypeBadge?: boolean;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -403,6 +406,7 @@ function JsonPrettyTable({
         const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
 
         const itemBadgeType =
+          showObservationTypeBadge &&
           row.original.level === 0 &&
           row.original.value &&
           typeof row.original.value === "object" &&
@@ -705,6 +709,7 @@ export function PrettyJsonView(props: {
   ) => void;
   showNullValues?: boolean;
   stickyTopLevelKey?: boolean;
+  showObservationTypeBadge?: boolean;
 }) {
   const jsonDependency = useMemo(
     () =>
@@ -1094,6 +1099,7 @@ export function PrettyJsonView(props: {
                 expandedCells={expandedCells}
                 toggleCellExpansion={toggleCellExpansion}
                 stickyTopLevelKey={props.stickyTopLevelKey}
+                showObservationTypeBadge={props.showObservationTypeBadge}
               />
             )}
           </div>

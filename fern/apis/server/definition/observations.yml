@@ -49,6 +49,32 @@ service:
           version:
             type: optional<string>
             docs: Optional filter to only include observations with a certain version.
+          filter:
+            type: optional<string>
+            docs: |
+              JSON string containing an array of filter conditions. When provided, this takes precedence over legacy filter parameters (userId, name, sessionId, tags, version, release, environment, fromTimestamp, toTimestamp).
+              Each filter condition has the following structure:
+              ```json
+              [
+                {
+                  "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                  "column": string,         // Required. Column to filter on
+                  "operator": string,       // Required. Operator based on type:
+                                            // - datetime: ">", "<", ">=", "<="
+                                            // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                            // - stringOptions: "any of", "none of"
+                                            // - categoryOptions: "any of", "none of"
+                                            // - arrayOptions: "any of", "none of", "all of"
+                                            // - number: "=", ">", "<", ">=", "<="
+                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                            // - numberObject: "=", ">", "<", ">=", "<="
+                                            // - boolean: "=", "<>"
+                                            // - null: "is null", "is not null"
+                  "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
+                  "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+                }
+              ]
+              ```
       response: ObservationsViews
 
 types:

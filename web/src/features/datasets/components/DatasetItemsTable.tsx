@@ -71,7 +71,7 @@ export function DatasetItemsTable({
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetItems",
-    "s",
+    "m",
   );
 
   const [filterState, setFilterState] = useQueryFilterState(
