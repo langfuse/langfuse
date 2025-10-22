@@ -11,7 +11,7 @@ import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
 import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
-import React from "react";
+import React, { useState } from "react";
 
 export function CommentDrawerButton({
   projectId,
@@ -28,6 +28,9 @@ export function CommentDrawerButton({
   variant?: "secondary" | "outline";
   className?: string;
 }) {
+  const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Note: We manually control to keep the drawer open on ESC press when the mention dropdown is open
+
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -45,7 +48,17 @@ export function CommentDrawerButton({
     );
 
   return (
-    <Drawer>
+    <Drawer
+      open={isDrawerOpen}
+      onOpenChange={(open) => {
+        // Prevent drawer from closing when mention dropdown is open
+        if (!open && isMentionDropdownOpen) {
+          // Keep drawer open
+          return;
+        }
+        setIsDrawerOpen(open);
+      }}
+    >
       <DrawerTrigger asChild>
         <Button type="button" variant={variant} className={className}>
           {!!count ? (
@@ -72,6 +85,7 @@ export function CommentDrawerButton({
               projectId={projectId}
               objectId={objectId}
               objectType={objectType}
+              onMentionDropdownChange={setIsMentionDropdownOpen}
             />
           </div>
         </div>

@@ -16,6 +16,7 @@ import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
@@ -139,6 +140,16 @@ function MarkdownRenderer({
               );
             },
             a({ children, href }) {
+              // Handle mention links
+              if (href?.startsWith("user:")) {
+                const userId = href.replace("user:", "");
+                const displayName = String(children);
+                return (
+                  <MentionBadge userId={userId} displayName={displayName} />
+                );
+              }
+
+              // Handle regular links
               const safeHref = getSafeUrl(href);
               if (safeHref) {
                 return (
