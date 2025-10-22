@@ -10,7 +10,11 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { observationFilterConfig } from "@/src/features/filters/config/observations-config";
+import {
+  observationFilterConfig,
+  OBSERVATION_COLUMN_TO_BACKEND_KEY,
+} from "@/src/features/filters/config/observations-config";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -352,9 +356,14 @@ export default function ObservationsTable({
     environmentFilter,
   );
 
+  const backendFilterState = transformFiltersForBackend(
+    filterState,
+    OBSERVATION_COLUMN_TO_BACKEND_KEY,
+  );
+
   const getCountPayload = {
     projectId,
-    filter: filterState,
+    filter: backendFilterState,
     searchQuery,
     searchType,
     page: 0,
@@ -442,7 +451,7 @@ export default function ObservationsTable({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: filterState,
+        filter: backendFilterState,
         orderBy: orderByState,
       },
     });
