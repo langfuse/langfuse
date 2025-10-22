@@ -91,6 +91,7 @@ import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -156,13 +157,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     enableSystem
                     disableTransitionOnChange
                   >
-                    <SupportDrawerProvider defaultOpen={false}>
-                      <Layout>
-                        <Component {...pageProps} />
-                        <UserTracking />
-                      </Layout>
-                    </SupportDrawerProvider>
-                    <BetterStackUptimeStatusMessage />
+                    <ScoreCacheProvider>
+                      <SupportDrawerProvider defaultOpen={false}>
+                        <Layout>
+                          <Component {...pageProps} />
+                          <UserTracking />
+                        </Layout>
+                      </SupportDrawerProvider>
+                      <BetterStackUptimeStatusMessage />
+                    </ScoreCacheProvider>
                   </ThemeProvider>
                 </MarkdownContextProvider>
               </DetailPageListsProvider>

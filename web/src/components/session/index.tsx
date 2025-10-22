@@ -16,7 +16,6 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
 import Page from "@/src/components/layouts/page";
@@ -186,10 +185,6 @@ export const SessionPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
 
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
-
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
@@ -287,10 +282,11 @@ export const SessionPage: React.FC<{
                     updatedAt: new Date(score.updatedAt),
                   })) ?? []
                 }
-                emptySelectedConfigIds={emptySelectedConfigIds}
-                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.data?.environment,
+                }}
                 buttonVariant="outline"
-                hasGroupedButton={true}
               />
               <CreateNewAnnotationQueueItem
                 projectId={projectId}
@@ -370,22 +366,22 @@ export const SessionPage: React.FC<{
                         buttonVariant="outline"
                       />
                       <AnnotateDrawer
+                        key={"annotation-drawer" + trace.id}
                         projectId={projectId}
                         scoreTarget={{
                           type: "trace",
                           traceId: trace.id,
                         }}
                         scores={trace.scores}
-                        emptySelectedConfigIds={emptySelectedConfigIds}
-                        setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                        variant="button"
                         buttonVariant="outline"
                         analyticsData={{
                           type: "trace",
                           source: "SessionDetail",
                         }}
-                        key={"annotation-drawer" + trace.id}
-                        environment={trace.environment}
+                        scoreMetadata={{
+                          projectId: projectId,
+                          environment: trace.environment,
+                        }}
                       />
                       <CommentDrawerButton
                         projectId={projectId}
