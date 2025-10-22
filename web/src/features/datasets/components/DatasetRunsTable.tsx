@@ -276,6 +276,7 @@ export function DatasetRunsTable(props: {
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<DatasetRunRowData>({
+      displayFormat: "aggregate",
       scoreColumnKey: "runItemScores",
       projectId: props.projectId,
       filter: runs.data?.runs?.length
