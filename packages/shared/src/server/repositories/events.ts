@@ -240,16 +240,16 @@ const getObservationsFromEventsTableInternal = async <T>(
 
   queryBuilder
     .when(hasScoresFilter, (b) =>
-      b.withCTE("scores_agg", eventsScoresAggregation, {
-        projectId,
-        startTimeFrom,
-      }),
+      b.withCTE(
+        "scores_agg",
+        eventsScoresAggregation({ projectId, startTimeFrom }),
+      ),
     )
     .when(Boolean(needsTraceJoin), (b) =>
-      b.withCTE("traces", eventsTracesAggregation, {
-        projectId,
-        startTimeFrom,
-      }),
+      b.withCTE(
+        "traces",
+        eventsTracesAggregation({ projectId, startTimeFrom }).buildWithParams(),
+      ),
     )
     .when(Boolean(needsTraceJoin), (b) =>
       b.leftJoin(
@@ -457,10 +457,10 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
 
   queryBuilder
     .when(hasTraceFilter, (b) =>
-      b.withCTE("traces", eventsTracesAggregation, {
-        projectId,
-        startTimeFrom,
-      }),
+      b.withCTE(
+        "traces",
+        eventsTracesAggregation({ projectId, startTimeFrom }).buildWithParams(),
+      ),
     )
     .when(hasTraceFilter, (b) =>
       b.leftJoin(
