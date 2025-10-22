@@ -28,7 +28,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import {
   type CreateQueueWithAssignments,
   CreateQueueWithAssignmentsData,
-  type ValidatedScoreConfig,
+  type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
@@ -88,7 +88,7 @@ export const CreateOrEditAnnotationQueueButton = ({
         name: queueQuery.data.name,
         description: queueQuery.data.description || undefined,
         scoreConfigIds: queueQuery.data.scoreConfigs.map(
-          (config: ValidatedScoreConfig) => config.id,
+          (config: ScoreConfigDomain) => config.id,
         ),
         newAssignmentUserIds: [],
       });

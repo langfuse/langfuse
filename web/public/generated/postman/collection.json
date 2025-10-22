@@ -1180,7 +1180,7 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+            "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
               "host": [
@@ -1219,7 +1219,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -1261,7 +1261,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -1303,7 +1303,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -1541,7 +1541,7 @@
           "_type": "endpoint",
           "name": "Metrics",
           "request": {
-            "description": "Get metrics from the Langfuse project using a query object",
+            "description": "Get metrics from the Langfuse project using a query object.\n\nFor more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).",
             "url": {
               "raw": "{{baseUrl}}/api/public/metrics?query=",
               "host": [
@@ -1753,7 +1753,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=&filter=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1822,6 +1822,11 @@
                   "key": "version",
                   "value": "",
                   "description": "Optional filter to only include observations with a certain version."
+                },
+                {
+                  "key": "filter",
+                  "value": "",
+                  "description": "JSON string containing an array of filter conditions. When provided, this takes precedence over legacy filter parameters (userId, name, sessionId, tags, version, release, environment, fromTimestamp, toTimestamp).\nEach filter condition has the following structure:\n```json\n[\n  {\n    \"type\": string,           // Required. One of: \"datetime\", \"string\", \"number\", \"stringOptions\", \"categoryOptions\", \"arrayOptions\", \"stringObject\", \"numberObject\", \"boolean\", \"null\"\n    \"column\": string,         // Required. Column to filter on\n    \"operator\": string,       // Required. Operator based on type:\n                              // - datetime: \">\", \"<\", \">=\", \"<=\"\n                              // - string: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - stringOptions: \"any of\", \"none of\"\n                              // - categoryOptions: \"any of\", \"none of\"\n                              // - arrayOptions: \"any of\", \"none of\", \"all of\"\n                              // - number: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - stringObject: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - numberObject: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - boolean: \"=\", \"<>\"\n                              // - null: \"is null\", \"is not null\"\n    \"value\": any,             // Required (except for null type). Value to compare against. Type depends on filter type\n    \"key\": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata\n  }\n]\n```"
                 }
               ],
               "variable": []
@@ -1832,6 +1837,99 @@
             "body": null
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Opentelemetry",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Export Traces",
+          "request": {
+            "description": "**OpenTelemetry Traces Ingestion Endpoint**\n\nThis endpoint implements the OTLP/HTTP specification for trace ingestion, providing native OpenTelemetry integration for Langfuse Observability.\n\n**Supported Formats:**\n- Binary Protobuf: `Content-Type: application/x-protobuf`\n- JSON Protobuf: `Content-Type: application/json`\n- Supports gzip compression via `Content-Encoding: gzip` header\n\n**Specification Compliance:**\n- Conforms to [OTLP/HTTP Trace Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)\n- Implements `ExportTraceServiceRequest` message format\n\n**Documentation:**\n- Integration guide: https://langfuse.com/integrations/native/opentelemetry\n- Data model: https://langfuse.com/docs/observability/data-model",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/otel/v1/traces",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "otel",
+                "v1",
+                "traces"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "type": "text",
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resourceSpans\": [\n        {\n            \"resource\": {\n                \"attributes\": [\n                    {\n                        \"key\": \"service.name\",\n                        \"value\": {\n                            \"stringValue\": \"my-service\"\n                        }\n                    },\n                    {\n                        \"key\": \"service.version\",\n                        \"value\": {\n                            \"stringValue\": \"1.0.0\"\n                        }\n                    }\n                ]\n            },\n            \"scopeSpans\": [\n                {\n                    \"scope\": {\n                        \"name\": \"langfuse-sdk\",\n                        \"version\": \"2.60.3\"\n                    },\n                    \"spans\": [\n                        {\n                            \"traceId\": \"0123456789abcdef0123456789abcdef\",\n                            \"spanId\": \"0123456789abcdef\",\n                            \"name\": \"my-operation\",\n                            \"kind\": 1,\n                            \"startTimeUnixNano\": \"1747872000000000000\",\n                            \"endTimeUnixNano\": \"1747872001000000000\",\n                            \"attributes\": [\n                                {\n                                    \"key\": \"langfuse.observation.type\",\n                                    \"value\": {\n                                        \"stringValue\": \"generation\"\n                                    }\n                                }\n                            ],\n                            \"status\": {}\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "originalRequest": {
+                "description": "**OpenTelemetry Traces Ingestion Endpoint**\n\nThis endpoint implements the OTLP/HTTP specification for trace ingestion, providing native OpenTelemetry integration for Langfuse Observability.\n\n**Supported Formats:**\n- Binary Protobuf: `Content-Type: application/x-protobuf`\n- JSON Protobuf: `Content-Type: application/json`\n- Supports gzip compression via `Content-Encoding: gzip` header\n\n**Specification Compliance:**\n- Conforms to [OTLP/HTTP Trace Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)\n- Implements `ExportTraceServiceRequest` message format\n\n**Documentation:**\n- Integration guide: https://langfuse.com/integrations/native/opentelemetry\n- Data model: https://langfuse.com/docs/observability/data-model",
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/otel/v1/traces",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "otel",
+                    "v1",
+                    "traces"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "type": "text",
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "auth": null,
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"resourceSpans\": [\n        {\n            \"resource\": {\n                \"attributes\": [\n                    {\n                        \"key\": \"service.name\",\n                        \"value\": {\n                            \"stringValue\": \"my-service\"\n                        }\n                    },\n                    {\n                        \"key\": \"service.version\",\n                        \"value\": {\n                            \"stringValue\": \"1.0.0\"\n                        }\n                    }\n                ]\n            },\n            \"scopeSpans\": [\n                {\n                    \"scope\": {\n                        \"name\": \"langfuse-sdk\",\n                        \"version\": \"2.60.3\"\n                    },\n                    \"spans\": [\n                        {\n                            \"traceId\": \"0123456789abcdef0123456789abcdef\",\n                            \"spanId\": \"0123456789abcdef\",\n                            \"name\": \"my-operation\",\n                            \"kind\": 1,\n                            \"startTimeUnixNano\": \"1747872000000000000\",\n                            \"endTimeUnixNano\": \"1747872001000000000\",\n                            \"attributes\": [\n                                {\n                                    \"key\": \"langfuse.observation.type\",\n                                    \"value\": {\n                                        \"stringValue\": \"generation\"\n                                    }\n                                }\n                            ],\n                            \"status\": {}\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "description": null,
+              "body": "{}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
         }
       ]
     },
@@ -2276,7 +2374,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"note\": \"example\"\n}",
+              "raw": "{\n    \"note\": \"example\",\n    \"publicKey\": \"example\",\n    \"secretKey\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2861,6 +2959,46 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update a score config",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs/:configId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs",
+                ":configId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score config"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"isArchived\": true,\n    \"name\": \"example\",\n    \"categories\": [\n        {\n            \"value\": 0,\n            \"label\": \"example\"\n        }\n    ],\n    \"minValue\": 0,\n    \"maxValue\": 0,\n    \"description\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -3248,7 +3386,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=&fields=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=&fields=&filter=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3322,6 +3460,11 @@
                   "key": "fields",
                   "value": "",
                   "description": "Comma-separated list of fields to include in the response. Available field groups: 'core' (always included), 'io' (input, output, metadata), 'scores', 'observations', 'metrics'. If not specified, all fields are returned. Example: 'core,scores,metrics'. Note: Excluded 'observations' or 'scores' fields return empty arrays; excluded 'metrics' returns -1 for 'totalCost' and 'latency'."
+                },
+                {
+                  "key": "filter",
+                  "value": "",
+                  "description": "JSON string containing an array of filter conditions. When provided, this takes precedence over legacy filter parameters (userId, name, sessionId, tags, version, release, environment, fromTimestamp, toTimestamp).\nEach filter condition has the following structure:\n```json\n[\n  {\n    \"type\": string,           // Required. One of: \"datetime\", \"string\", \"number\", \"stringOptions\", \"categoryOptions\", \"arrayOptions\", \"stringObject\", \"numberObject\", \"boolean\", \"null\"\n    \"column\": string,         // Required. Column to filter on\n    \"operator\": string,       // Required. Operator based on type:\n                              // - datetime: \">\", \"<\", \">=\", \"<=\"\n                              // - string: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - stringOptions: \"any of\", \"none of\"\n                              // - categoryOptions: \"any of\", \"none of\"\n                              // - arrayOptions: \"any of\", \"none of\", \"all of\"\n                              // - number: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - stringObject: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - numberObject: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - boolean: \"=\", \"<>\"\n                              // - null: \"is null\", \"is not null\"\n    \"value\": any,             // Required (except for null type). Value to compare against. Type depends on filter type\n    \"key\": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata\n  }\n]\n```"
                 }
               ],
               "variable": []

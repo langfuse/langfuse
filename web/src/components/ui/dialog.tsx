@@ -89,23 +89,26 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({
   className,
+  children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "dialog-header sticky top-0 z-30 flex flex-shrink-0 flex-col space-y-1.5 rounded-t-lg border-b bg-background p-6 pb-4 text-center sm:text-left",
+      "dialog-header sticky top-0 z-30 flex flex-shrink-0 flex-col space-y-1.5 rounded-t-lg border-b bg-background p-4",
       className,
     )}
     {...props}
   >
-    <DialogPrimitive.Close
-      className="absolute right-3 top-3 z-20 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-      tabIndex={-1}
-    >
-      <X className="h-4 w-4" />
-      <span className="sr-only">Close</span>
-    </DialogPrimitive.Close>
-    {props.children}
+    <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
+      <div className="min-w-0 flex-1">{children}</div>
+      <DialogPrimitive.Close
+        className="z-20 ml-4 mt-1 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+        tabIndex={-1}
+      >
+        <X className="h-4 w-4" />
+        <span className="sr-only">Close</span>
+      </DialogPrimitive.Close>
+    </div>
   </div>
 );
 DialogHeader.displayName = "DialogHeader";
@@ -116,10 +119,7 @@ const DialogBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      "flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-4",
-      className,
-    )}
+    className={cn("flex flex-1 flex-col gap-4 overflow-y-auto p-4", className)}
     {...props}
   />
 ));

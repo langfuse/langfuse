@@ -93,13 +93,16 @@ async function testLLMConnection(
         provider: params.provider,
         model,
       },
-      baseURL: params.baseURL || undefined,
-      apiKey: params.secretKey,
-      extraHeaders: params.extraHeaders,
+      llmConnection: {
+        secretKey: encrypt(params.secretKey),
+        extraHeaders:
+          params.extraHeaders && encrypt(JSON.stringify(params.extraHeaders)),
+        baseURL: params.baseURL || undefined,
+        config: parsedConfig,
+      },
       messages: testMessages,
       streaming: false,
       maxRetries: 1,
-      config: parsedConfig,
     });
 
     return { success: true };

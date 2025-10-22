@@ -28,6 +28,9 @@ import {
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Divider } from "@tremor/react";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useRouter } from "next/router";
+import DOMPurify from "dompurify";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -37,6 +40,24 @@ export default function SignIn({
   runningOnHuggingFaceSpaces,
 }: PageProps) {
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
+  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const router = useRouter();
+
+  // Read query params for targetPath and email pre-population
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const emailParam = router.query.email as string | undefined;
+
+  // Validate targetPath to prevent open redirect attacks
+  const sanitizedTargetPath = queryTargetPath
+    ? DOMPurify.sanitize(queryTargetPath)
+    : undefined;
+
+  // Only allow relative links (must start with '/' but not '//')
+  const targetPath =
+    sanitizedTargetPath?.startsWith("/") &&
+    !sanitizedTargetPath.startsWith("//")
+      ? sanitizedTargetPath
+      : undefined;
 
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
@@ -49,7 +70,7 @@ export default function SignIn({
     resolver: zodResolver(signupSchema),
     defaultValues: {
       name: "",
-      email: "",
+      email: emailParam ?? "",
       password: "",
     },
   });
@@ -75,9 +96,9 @@ export default function SignIn({
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl:
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+        callbackUrl: targetPath
+          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${targetPath}`
+          : isLangfuseCloud && region !== "DEV"
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`,
         turnstileToken,
@@ -110,7 +131,7 @@ export default function SignIn({
             Create new account
           </h2>
         </div>
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined ? (
+        {isLangfuseCloud ? (
           <div className="text-center sm:mx-auto sm:w-full sm:max-w-[480px]">
             No credit card required.
           </div>
@@ -205,7 +226,7 @@ export default function SignIn({
           <p className="mt-10 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link
-              href="/auth/sign-in"
+              href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
               className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
             >
               Sign in

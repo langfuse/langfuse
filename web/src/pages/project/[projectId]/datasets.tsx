@@ -24,6 +24,24 @@ export default function Datasets() {
 
   const showOnboarding = !isLoading && !hasAnyDataset;
 
+  if (showOnboarding) {
+    return (
+      <Page
+        headerProps={{
+          title: "Datasets",
+          help: {
+            description:
+              "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
+            href: "https://langfuse.com/docs/evaluation/dataset-runs/datasets",
+          },
+        }}
+        scrollable
+      >
+        <DatasetsOnboarding projectId={projectId} />
+      </Page>
+    );
+  }
+
   return (
     <Page
       headerProps={{
@@ -37,14 +55,8 @@ export default function Datasets() {
           <DatasetActionButton projectId={projectId} mode="create" />
         ),
       }}
-      scrollable={showOnboarding}
     >
-      {/* Show onboarding screen if project has no datasets */}
-      {showOnboarding ? (
-        <DatasetsOnboarding projectId={projectId} />
-      ) : (
-        <DatasetsTable projectId={projectId} />
-      )}
+      <DatasetsTable projectId={projectId} />
     </Page>
   );
 }

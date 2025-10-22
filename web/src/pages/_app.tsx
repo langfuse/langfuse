@@ -34,6 +34,8 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -99,13 +101,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     enableSystem
                     disableTransitionOnChange
                   >
-                    <SupportDrawerProvider defaultOpen={false}>
-                      <Layout>
-                        <Component {...pageProps} />
-                        <UserTracking />
-                      </Layout>
-                    </SupportDrawerProvider>
-                    <BetterStackUptimeStatusMessage />
+                    <ScoreCacheProvider>
+                      <SupportDrawerProvider defaultOpen={false}>
+                        <Layout>
+                          <Component {...pageProps} />
+                          <UserTracking />
+                        </Layout>
+                      </SupportDrawerProvider>
+                      <BetterStackUptimeStatusMessage />
+                    </ScoreCacheProvider>
                   </ThemeProvider>
                 </MarkdownContextProvider>
               </DetailPageListsProvider>
@@ -121,6 +125,7 @@ export default api.withTRPC(MyApp);
 
 function UserTracking() {
   const session = useSession();
+  const { region } = useLangfuseCloudRegion();
   const sessionUser = session.data?.user;
 
   // Track user identity and properties
@@ -146,7 +151,7 @@ function UserTracking() {
                 organization: org,
               })),
             ) ?? undefined,
-          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          LANGFUSE_CLOUD_REGION: region,
         });
 
       // Sentry
@@ -163,7 +168,7 @@ function UserTracking() {
       // Sentry
       setUser(null);
     }
-  }, [sessionUser, session.status]);
+  }, [sessionUser, session.status, region]);
 
   // add stripe link to chat
   // const orgStripeLink = organization?.cloudConfig?.stripe?.customerId
@@ -194,7 +199,8 @@ if (
 }
 
 function BetterStackUptimeStatusMessage() {
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  if (!isLangfuseCloud) return null;
   return (
     <script
       src="https://uptime.betterstack.com/widgets/announcement.js"

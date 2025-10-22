@@ -33,6 +33,12 @@ export const BillingUsageChart = () => {
       usage.data.usageType.slice(1)
     : "Events";
 
+  if (usage.data === null) {
+    // Might happen in dev mode if STRIPE_SECRET_KEY is not set
+    // This avoids errors for all developers not working on or testing the billing features
+    return null;
+  }
+
   return (
     <div>
       <Card className="p-3">
@@ -40,7 +46,7 @@ export const BillingUsageChart = () => {
           <>
             <p className="text-sm text-muted-foreground">
               {usage.data.billingPeriod
-                ? `${usageType} in current billing period`
+                ? `${usageType} in current billing period (updated about once every 60 minutes)`
                 : `${usageType} / last 30d`}
             </p>
             <div className="text-3xl font-bold">

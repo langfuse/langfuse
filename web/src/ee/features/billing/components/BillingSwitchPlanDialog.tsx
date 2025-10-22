@@ -28,7 +28,11 @@ import { StripeCancellationButton } from "./StripeCancellationButton";
 import { StripeSwitchPlanButton } from "./StripeSwitchPlanButton";
 import { StripeKeepPlanButton } from "./StripeKeepPlanButton";
 
-export const BillingSwitchPlanDialog = () => {
+export const BillingSwitchPlanDialog = ({
+  disabled = false,
+}: {
+  disabled?: boolean;
+}) => {
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
   const [_opId, setOpId] = useState<string | null>(null);
 
@@ -38,6 +42,7 @@ export const BillingSwitchPlanDialog = () => {
     cancellation,
     scheduledPlanSwitch,
     isLegacySubscription,
+    hasValidPaymentMethod,
   } = useBillingInformation();
   const capture = usePostHogClientCapture();
 
@@ -64,19 +69,22 @@ export const BillingSwitchPlanDialog = () => {
       }}
     >
       <DialogTrigger asChild>
-        <Button>Change plan</Button>
+        <Button disabled={disabled}>Change plan</Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle>Plans</DialogTitle>
-          <Button variant="secondary" asChild>
-            <Link href="https://langfuse.com/pricing" target="_blank">
+        <DialogHeader>
+          <div className="flex flex-row items-center justify-between">
+            <DialogTitle>Plans</DialogTitle>
+            <ActionButton
+              variant="secondary"
+              href="https://langfuse.com/pricing"
+            >
               Comparison of plans ↗
-            </Link>
-          </Button>
+            </ActionButton>
+          </div>
         </DialogHeader>
         <DialogBody>
-          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
             {stripeProducts
               .filter((product) => Boolean(product.checkout))
               .map((product) => {
@@ -122,7 +130,15 @@ export const BillingSwitchPlanDialog = () => {
                           {product.checkout?.price}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          + {product.checkout?.usagePrice}
+                          + {product.checkout?.usagePrice},{" "}
+                          <a
+                            href="https://langfuse.com/pricing#pricing-calculator"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            usage calculator ↗
+                          </a>
                         </div>
                       </div>
                     </div>
@@ -174,7 +190,9 @@ export const BillingSwitchPlanDialog = () => {
                             {!cancellation?.isCancelled &&
                               !scheduledPlanSwitch && (
                                 <Button className="w-full" disabled>
-                                  Current plan
+                                  {!hasValidPaymentMethod
+                                    ? "Payment method required"
+                                    : "Current plan"}
                                 </Button>
                               )}
                           </>
@@ -193,7 +211,8 @@ export const BillingSwitchPlanDialog = () => {
                         {!isCurrentPlan &&
                           scheduledPlanSwitch &&
                           scheduledPlanSwitch.newPlanId !==
-                            product.stripeProductId && (
+                            product.stripeProductId &&
+                          (hasValidPaymentMethod ? (
                             <StripeSwitchPlanButton
                               orgId={organization?.id}
                               currentPlan={organization?.plan}
@@ -206,23 +225,33 @@ export const BillingSwitchPlanDialog = () => {
                                 processingPlanId === product.stripeProductId
                               }
                             />
-                          )}
+                          ) : (
+                            <Button className="w-full" disabled>
+                              Payment method required
+                            </Button>
+                          ))}
 
                         {/* The default behavior when it is not the current plan and no schedule exists*/}
-                        {!isCurrentPlan && !scheduledPlanSwitch && (
-                          <StripeSwitchPlanButton
-                            orgId={organization?.id}
-                            currentPlan={organization?.plan}
-                            newPlanTitle={product.checkout?.title}
-                            isLegacySubscription={isLegacySubscription}
-                            isUpgrade={isThisUpgrade}
-                            stripeProductId={product.stripeProductId}
-                            onProcessing={setProcessingPlanId}
-                            processing={
-                              processingPlanId === product.stripeProductId
-                            }
-                          />
-                        )}
+                        {!isCurrentPlan &&
+                          !scheduledPlanSwitch &&
+                          (hasValidPaymentMethod ? (
+                            <StripeSwitchPlanButton
+                              orgId={organization?.id}
+                              currentPlan={organization?.plan}
+                              newPlanTitle={product.checkout?.title}
+                              isLegacySubscription={isLegacySubscription}
+                              isUpgrade={isThisUpgrade}
+                              stripeProductId={product.stripeProductId}
+                              onProcessing={setProcessingPlanId}
+                              processing={
+                                processingPlanId === product.stripeProductId
+                              }
+                            />
+                          ) : (
+                            <Button className="w-full" disabled>
+                              Payment method required
+                            </Button>
+                          ))}
                       </div>
                     ) : (
                       // The default behavior when the user is not on a paid plan.

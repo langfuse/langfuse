@@ -351,6 +351,92 @@ describe("buildStepData", () => {
   });
 
   describe("edge cases", () => {
+    it("should handle child starting before parent causing infinite loop (bug from trace 9f6079ff)", () => {
+      // child starts BEFORE parent, creating infinite loop, see LFE-7096
+      // The key is having multiple nested levels with same start times
+      const observations: AgentGraphDataResponse[] = [
+        createMockObservation({
+          id: "root",
+          name: "Root",
+          startTime: "2025-10-07 12:27:33.826",
+          endTime: "2025-10-07 12:27:33.829",
+          parentObservationId: null,
+        }),
+        createMockObservation({
+          id: "sibling1",
+          name: "Sibling1",
+          startTime: "2025-10-07 12:27:33.830",
+          endTime: "2025-10-07 12:27:33.830",
+          parentObservationId: "root",
+        }),
+        createMockObservation({
+          id: "sibling2",
+          name: "Sibling2",
+          startTime: "2025-10-07 12:27:33.830",
+          endTime: "2025-10-07 12:27:33.830",
+          parentObservationId: "root",
+        }),
+        createMockObservation({
+          id: "parent",
+          name: "Parent",
+          startTime: "2025-10-07 12:27:33.846", // Starts AFTER child
+          endTime: "2025-10-07 12:27:39.276",
+          parentObservationId: "root",
+        }),
+        createMockObservation({
+          id: "child",
+          name: "Child",
+          startTime: "2025-10-07 12:27:33.830", // Starts BEFORE parent!
+          endTime: "2025-10-07 12:27:39.274",
+          parentObservationId: "parent",
+        }),
+        createMockObservation({
+          id: "grandchild",
+          name: "Grandchild",
+          startTime: "2025-10-07 12:27:33.830",
+          endTime: "2025-10-07 12:27:36.437",
+          parentObservationId: "child",
+        }),
+        createMockObservation({
+          id: "ggchild1",
+          name: "GGChild1",
+          startTime: "2025-10-07 12:27:33.830",
+          endTime: "2025-10-07 12:27:33.830",
+          parentObservationId: "grandchild",
+        }),
+        createMockObservation({
+          id: "ggchild2",
+          name: "GGChild2",
+          startTime: "2025-10-07 12:27:33.830",
+          endTime: "2025-10-07 12:27:33.830",
+          parentObservationId: "grandchild",
+        }),
+        createMockObservation({
+          id: "gggchild",
+          name: "GGGChild",
+          startTime: "2025-10-07 12:27:33.866",
+          endTime: "2025-10-07 12:27:36.435",
+          parentObservationId: "grandchild",
+        }),
+        createMockObservation({
+          id: "ggggchild",
+          name: "GGGGChild",
+          startTime: "2025-10-07 12:27:33.866",
+          endTime: "2025-10-07 12:27:36.434",
+          parentObservationId: "gggchild",
+        }),
+      ];
+
+      const result = buildStepData(observations);
+
+      const userObservations = result.filter((obs) => !obs.name.includes("__"));
+      const parent = userObservations.find((o) => o.name === "Parent");
+      const child = userObservations.find((o) => o.name === "Child");
+
+      // Constraint must be enforced
+      expect(parent!.step!).toBeLessThan(child!.step!);
+    });
+
     it("should handle empty array", () => {
       const result = buildStepData([]);
       // Should only have system nodes (__start__, __end__)

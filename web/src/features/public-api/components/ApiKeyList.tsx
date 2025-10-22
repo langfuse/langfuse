@@ -95,6 +95,7 @@ LANGFUSE_HOST = "https://cloud.langfuse.com" # 🇪🇺 EU region
               ? "https://langfuse.com/docs/api#authentication"
               : "https://langfuse.com/docs/api#org-scoped-routes",
         }}
+        actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
       />
       <CodeView content={envCode} title=".env" />
       <Card className="mb-4 overflow-hidden">
@@ -114,7 +115,7 @@ LANGFUSE_HOST = "https://cloud.langfuse.com" # 🇪🇺 EU region
           <TableBody className="text-muted-foreground">
             {apiKeysQuery.data?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={5} className="text-center">
                   None
                 </TableCell>
               </TableRow>
@@ -159,7 +160,6 @@ LANGFUSE_HOST = "https://cloud.langfuse.com" # 🇪🇺 EU region
           </TableBody>
         </Table>
       </Card>
-      <CreateApiKeyButton entityId={entityId} scope={scope} />
     </div>
   );
 }

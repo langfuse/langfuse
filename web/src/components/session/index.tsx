@@ -12,10 +12,10 @@ import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
 import Page from "@/src/components/layouts/page";
@@ -139,6 +139,7 @@ export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const userSession = useSession();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
@@ -165,7 +166,7 @@ export const SessionPage: React.FC<{
         // Expand peeked traces to the trace detail route; sessions list traces
         basePath: `/project/${projectId}/traces`,
       },
-      queryParams: ["timestamp"],
+      queryParams: ["observation", "display", "timestamp"],
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
       }),
@@ -183,10 +184,6 @@ export const SessionPage: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
-
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -252,14 +249,16 @@ export const SessionPage: React.FC<{
         ),
         actionButtonsRight: (
           <>
-            <DetailPageNav
-              key="nav"
-              currentId={encodeURIComponent(sessionId)}
-              path={(entry) =>
-                `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-              }
-              listKey="sessions"
-            />
+            {!router.query.peek && (
+              <DetailPageNav
+                key="nav"
+                currentId={encodeURIComponent(sessionId)}
+                path={(entry) =>
+                  `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                }
+                listKey="sessions"
+              />
+            )}
             <CommentDrawerButton
               key="comment"
               variant="outline"
@@ -283,10 +282,11 @@ export const SessionPage: React.FC<{
                     updatedAt: new Date(score.updatedAt),
                   })) ?? []
                 }
-                emptySelectedConfigIds={emptySelectedConfigIds}
-                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.data?.environment,
+                }}
                 buttonVariant="outline"
-                hasGroupedButton={true}
               />
               <CreateNewAnnotationQueueItem
                 projectId={projectId}
@@ -366,22 +366,22 @@ export const SessionPage: React.FC<{
                         buttonVariant="outline"
                       />
                       <AnnotateDrawer
+                        key={"annotation-drawer" + trace.id}
                         projectId={projectId}
                         scoreTarget={{
                           type: "trace",
                           traceId: trace.id,
                         }}
                         scores={trace.scores}
-                        emptySelectedConfigIds={emptySelectedConfigIds}
-                        setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                        variant="button"
                         buttonVariant="outline"
                         analyticsData={{
                           type: "trace",
                           source: "SessionDetail",
                         }}
-                        key={"annotation-drawer" + trace.id}
-                        environment={trace.environment}
+                        scoreMetadata={{
+                          projectId: projectId,
+                          environment: trace.environment,
+                        }}
                       />
                       <CommentDrawerButton
                         projectId={projectId}

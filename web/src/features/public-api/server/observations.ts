@@ -1,11 +1,14 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
+  createPublicApiObservationsColumnMapping,
+  deriveFilters,
   StringFilter,
   type ObservationRecordReadType,
   queryClickhouse,
   convertObservation,
   measureAndReturn,
+  observationsTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
+import type { FilterState } from "@langfuse/shared";
 
 type QueryType = {
   page: number;
@@ -19,6 +22,7 @@ type QueryType = {
   fromStartTime?: string;
   toStartTime?: string;
   version?: string;
+  advancedFilters?: FilterState;
 };
 
 export const generateObservationsForPublicApi = async (props: QueryType) => {
@@ -97,20 +101,11 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         operation_name: "generateObservationsForPublicApi",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const result = await queryClickhouse<ObservationRecordReadType>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-      return result.map((r) => convertObservation(r));
-    },
-    newExecution: async (input) => {
-      const result = await queryClickhouse<ObservationRecordReadType>({
-        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
       return result.map((r) => convertObservation(r));
@@ -144,20 +139,11 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
         operation_name: "getObservationsCountForPublicApi",
       },
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
-    newExecution: async (input) => {
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", "traces_all_amt"),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();
@@ -165,94 +151,29 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
   });
 };
 
-const filterParams = [
-  {
-    id: "userId",
-    clickhouseSelect: "user_id",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "traceId",
-    clickhouseSelect: "trace_id",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "name",
-    clickhouseSelect: "name",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "level",
-    clickhouseSelect: "level",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "type",
-    clickhouseSelect: "type",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "parentObservationId",
-    clickhouseSelect: "parent_observation_id",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "fromStartTime",
-    clickhouseSelect: "start_time",
-    operator: ">=" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "toStartTime",
-    clickhouseSelect: "start_time",
-    operator: "<" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "version",
-    clickhouseSelect: "version",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-  {
-    id: "environment",
-    clickhouseSelect: "environment",
-    filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
-  },
-];
+const filterParams = createPublicApiObservationsColumnMapping(
+  "observations",
+  "o",
+  "parent_observation_id",
+);
 
-const generateFilter = (filter: QueryType) => {
-  const observationsFilter = convertApiProvidedFilterToClickhouseFilter(
-    filter,
+const generateFilter = (query: QueryType) => {
+  const { advancedFilters, ...simpleFilterProps } = query;
+  const chFilter = deriveFilters(
+    simpleFilterProps,
     filterParams,
+    advancedFilters,
+    observationsTableUiColumnDefinitions,
   );
 
-  observationsFilter.push(
+  // Add project filter
+  chFilter.push(
     new StringFilter({
       clickhouseTable: "observations",
       field: "project_id",
       operator: "=",
-      value: filter.projectId,
+      value: query.projectId,
     }),
   );
-  return observationsFilter;
+  return chFilter;
 };

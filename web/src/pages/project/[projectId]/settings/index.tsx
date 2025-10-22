@@ -13,7 +13,6 @@ import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
-import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -27,6 +26,8 @@ import ConfigureRetention from "@/src/features/projects/components/ConfigureRete
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
 import { Slack } from "lucide-react";
+import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
+import { env } from "@/src/env.mjs";
 
 type ProjectSettingsPage = {
   title: string;
@@ -97,6 +98,9 @@ export const getProjectSettingsPages = ({
                 id: organization.id,
                 ...organization.metadata,
               },
+              ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
+                cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+              }),
             }}
           />
         </div>

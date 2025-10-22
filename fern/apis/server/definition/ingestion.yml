@@ -7,10 +7,13 @@ service:
   base-path: /api/public
   endpoints:
     batch:
+      availability:
+        status: deprecated
+        message: "Use the OpenTelemetry endpoint at /api/public/otel/v1/traces instead. Learn more: https://langfuse.com/integrations/native/opentelemetry"
       docs: |
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
-        -> Please use the OpenTelemetry endpoint (`/api/public/otel`). Learn more: https://langfuse.com/integrations/native/opentelemetry
+        -> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry
 
         Within each batch, there can be multiple events.
         Each event has a type, an id, a timestamp, metadata and a body.
@@ -277,6 +280,9 @@ types:
       datasetRunId: optional<string>
       name: string
       environment: optional<string>
+      queueId:
+        type: optional<string>
+        docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
       value:
         type: commons.CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)

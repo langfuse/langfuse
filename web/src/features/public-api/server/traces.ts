@@ -1,4 +1,3 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
@@ -8,8 +7,9 @@ import {
   type DateTimeFilter,
   convertClickhouseToDomain,
   type TraceRecordReadType,
-  getTimeframesTracesAMT,
   measureAndReturn,
+  tracesTableUiColumnDefinitions,
+  deriveFilters,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
@@ -17,6 +17,8 @@ import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
 } from "@/src/features/public-api/types/traces";
+
+import type { FilterState } from "@langfuse/shared";
 
 export type TraceQueryType = {
   page: number;
@@ -38,9 +40,11 @@ export type TraceQueryType = {
 
 export const generateTracesForPublicApi = async ({
   props,
+  advancedFilters,
   orderBy,
 }: {
   props: TraceQueryType;
+  advancedFilters?: FilterState;
   orderBy: OrderByState;
 }) => {
   const requestedFields = props.fields ?? TRACE_FIELD_GROUPS;
@@ -49,9 +53,11 @@ export const generateTracesForPublicApi = async ({
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
 
-  const filter = convertApiProvidedFilterToClickhouseFilter(
+  let filter = deriveFilters(
     props,
     filterParams,
+    advancedFilters,
+    tracesTableUiColumnDefinitions,
   );
   const appliedFilter = filter.apply();
 
@@ -122,7 +128,6 @@ export const generateTracesForPublicApi = async ({
   const result = await measureAndReturn({
     operationName: "getTracesForPublicApi",
     projectId: props.projectId,
-    minStartTime: timeFilter?.value,
     input: {
       params: {
         ...appliedEnvironmentFilter.params,
@@ -148,7 +153,7 @@ export const generateTracesForPublicApi = async ({
       fromTimestamp: timeFilter?.value ?? undefined,
       preferredClickhouseService: "ReadOnly",
     },
-    existingExecution: (input) => {
+    fn: (input) => {
       // If user provides an order we prefer it or fallback to timestamp as the default.
       // In both cases we append a t.event_ts desc order to pick the latest event in case of duplicates
       // if we want to use a skip index.
@@ -161,7 +166,7 @@ export const generateTracesForPublicApi = async ({
 
       const query = `
         ${withClause}
-    
+
         SELECT
           -- Core fields (always included)
           t.id as id,
@@ -208,68 +213,7 @@ export const generateTracesForPublicApi = async ({
       >({
         query,
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-    },
-    newExecution: (input) => {
-      const tracesAmt = getTimeframesTracesAMT(input.fromTimestamp);
-
-      // If user provides an order we prefer it or fallback to timestamp as the default.
-      const chOrderBy =
-        orderByToClickhouseSql(orderBy || [], orderByColumns, true) ||
-        "ORDER BY timestamp desc";
-
-      const query = `
-        ${withClause}
-        
-        SELECT
-          -- Core fields (always included)
-          t.id as id,
-          CONCAT('/project/', t.project_id, '/traces/', t.id) as "htmlPath",
-          t.project_id as project_id,
-          min(t.start_time) as timestamp,
-          anyLast(t.name) as name,
-          anyLast(t.environment) as environment,
-          anyLast(t.session_id) as session_id,
-          anyLast(t.user_id) as user_id,
-          anyLast(t.release) as release,
-          anyLast(t.version) as version,
-          argMaxMerge(t.bookmarked) as bookmarked,
-          argMaxMerge(t.public) as public,
-          groupUniqArrayArray(t.tags) as tags,
-          min(t.created_at) as created_at,
-          max(t.updated_at) as updated_at
-          -- IO fields (conditional)
-          ${includeIO ? ", argMaxMerge(t.input) as input, argMaxMerge(t.output) as output, maxMap(t.metadata) as metadata" : ""}
-          -- Scores (conditional)
-          ${includeScores ? ", groupUniqArrayArray(s.score_ids) as scores" : ""}
-          -- Observations (conditional)
-          ${includeObservations ? ", groupUniqArrayArray(o.observation_ids) as observations" : ""}
-          -- Metrics (conditional)
-          ${includeMetrics ? ", COALESCE(anyLast(o.latency_milliseconds) / 1000, 0) as latency, COALESCE(anyLast(o.total_cost), 0) as totalCost" : ""}
-        FROM ${tracesAmt} t
-        ${includeObservations || includeMetrics ? "LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
-        ${includeScores ? "LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
-        WHERE t.project_id = {projectId: String}
-        ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
-        GROUP BY project_id, id
-        ${chOrderBy}
-        ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-      `;
-
-      return queryClickhouse<
-        TraceRecordReadType & {
-          observations?: string[];
-          scores?: string[];
-          totalCost?: number;
-          latency?: number;
-          htmlPath: string;
-        }
-      >({
-        query,
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
     },
@@ -294,12 +238,16 @@ export const generateTracesForPublicApi = async ({
 
 export const getTracesCountForPublicApi = async ({
   props,
+  advancedFilters,
 }: {
   props: TraceQueryType;
+  advancedFilters?: FilterState;
 }) => {
-  const filter = convertApiProvidedFilterToClickhouseFilter(
+  let filter = deriveFilters(
     props,
     filterParams,
+    advancedFilters,
+    tracesTableUiColumnDefinitions,
   );
   const appliedFilter = filter.apply();
 
@@ -317,7 +265,6 @@ export const getTracesCountForPublicApi = async ({
   return measureAndReturn({
     operationName: "getTracesCountForPublicApi",
     projectId: props.projectId,
-    minStartTime: timestamp,
     input: {
       params: { ...appliedFilter.params, projectId: props.projectId },
       tags: {
@@ -329,21 +276,11 @@ export const getTracesCountForPublicApi = async ({
       },
       timestamp,
     },
-    existingExecution: async (input) => {
+    fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
         query: query.replace("__TRACE_TABLE__", "traces"),
         params: input.params,
-        tags: { ...input.tags, experiment_amt: "original" },
-        preferredClickhouseService: "ReadOnly",
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
-    newExecution: async (input) => {
-      const traceAmt = getTimeframesTracesAMT(input.timestamp);
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", traceAmt),
-        params: input.params,
-        tags: { ...input.tags, experiment_amt: "new" },
+        tags: input.tags,
         preferredClickhouseService: "ReadOnly",
       });
       return records.map((record) => Number(record.count)).shift();

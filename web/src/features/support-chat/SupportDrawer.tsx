@@ -33,7 +33,7 @@ export const SupportDrawer = ({
   return (
     <div
       className={cn([
-        "flex h-dvh w-full min-w-0 flex-col bg-background",
+        "flex h-full w-full min-w-0 flex-col bg-background",
         className,
       ])}
     >
