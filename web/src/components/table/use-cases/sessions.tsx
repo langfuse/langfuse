@@ -148,8 +148,11 @@ export default function SessionsTable({
       },
     );
 
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
+  const environmentOptions = useMemo(
+    () =>
+      environmentFilterOptions.data?.map((value) => value.environment) || [],
+    [environmentFilterOptions.data],
+  );
 
   const { selectedEnvironments } = useEnvironmentFilter(
     environmentOptions,
@@ -240,6 +243,24 @@ export default function SessionsTable({
     },
   );
 
+  // Extract and type-check the datetime filter from dateRangeFilter
+  // API expects specifically a datetime filter, but dateRangeFilter is FilterState which can contain any filter type
+  const createdAtFilter = dateRangeFilter.find((f) => f.column === "createdAt");
+  const filterOptions = api.sessions.filterOptions.useQuery(
+    {
+      projectId,
+      timestampFilter:
+        createdAtFilter?.type === "datetime" ? createdAtFilter : undefined,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
   type SessionCoreOutput = RouterOutput["sessions"]["all"]["sessions"][number];
   type SessionMetricOutput = RouterOutput["sessions"]["metrics"][number];
 
@@ -248,9 +269,28 @@ export default function SessionsTable({
     SessionMetricOutput
   >(sessions.data?.sessions, sessionMetrics.data);
 
-  const newFilterOptions = useMemo(
-    () => ({
+  const newFilterOptions = useMemo(() => {
+    // Process score data from API response
+    const scoreCategories =
+      filterOptions.data?.score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) || {};
+
+    const scoresNumeric = filterOptions.data?.scores_avg || [];
+
+    return {
       bookmarked: ["Bookmarked", "Not bookmarked"],
+      environment: environmentOptions,
+      userIds:
+        filterOptions.data?.userIds.map((u) => ({
+          value: u.value,
+          count: Number(u.count),
+        })) || [],
+      tags: filterOptions.data?.tags.map((t) => t.value) || [], // tags don't have counts
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -259,9 +299,10 @@ export default function SessionsTable({
       inputCost: [],
       outputCost: [],
       totalCost: [],
-    }),
-    [],
-  );
+      score_categories: scoreCategories,
+      scores_avg: scoresNumeric,
+    };
+  }, [environmentOptions, filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
     sessionFilterConfig,
