@@ -1,6 +1,7 @@
 import { observationsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
+import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
 const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   environment: "environment",
@@ -21,6 +22,14 @@ const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
+};
+
+/**
+ * Maps frontend column IDs to backend-expected column IDs
+ * Frontend uses "tags" but backend CH mapping expects "traceTags" for trace tags on observations table
+ */
+export const OBSERVATION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
+  tags: "traceTags",
 };
 
 export const observationFilterConfig: FilterConfig = {

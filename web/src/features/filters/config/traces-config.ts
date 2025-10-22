@@ -20,9 +20,9 @@ const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputCost: "inputCost",
   outputCost: "outputCost",
   totalCost: "totalCost",
-  "Scores (categorical)": "score_categories",
-  "Scores (numeric)": "scores_avg",
-  Metadata: "metadata",
+  score_categories: "score_categories",
+  scores_avg: "scores_avg",
+  metadata: "metadata",
 };
 
 export const traceFilterConfig: FilterConfig = {
@@ -62,7 +62,7 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "stringKeyValue" as const,
-      column: "Metadata",
+      column: "metadata",
       label: "Metadata",
     },
     {
@@ -147,12 +147,12 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "keyValue" as const,
-      column: "Scores (categorical)",
+      column: "score_categories",
       label: "Categorical Scores",
     },
     {
       type: "numericKeyValue" as const,
-      column: "Scores (numeric)",
+      column: "scores_avg",
       label: "Numeric Scores",
     },
   ],
