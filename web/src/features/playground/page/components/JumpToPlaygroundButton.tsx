@@ -37,6 +37,7 @@ import {
   isGenerationLike,
 } from "@langfuse/shared";
 import { normalizeInput, extractAdditionalInput } from "@/src/utils/chatml";
+import { extractGeminiToolDefinitions } from "@/src/utils/chatml/adapters/gemini";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -436,28 +437,12 @@ function parseTools(
     // Gemini format: tool definitions embedded in messages array
     // Messages with role="tool" and content.type="function" contain tool definitions
     if (Array.isArray(input)) {
-      const toolDefinitions = input
-        .filter((msg: any) => {
-          return (
-            msg?.role === "tool" &&
-            typeof msg?.content === "object" &&
-            msg?.content?.type === "function" &&
-            msg?.content?.function
-          );
-        })
-        .map((msg: any) => ({
+      const geminiTools = extractGeminiToolDefinitions(input);
+      if (geminiTools.length > 0) {
+        return geminiTools.map((tool) => ({
           id: Math.random().toString(36).substring(2),
-          name: msg.content.function.name,
-          description: msg.content.function.description || "",
-          parameters: msg.content.function.parameters || {},
+          ...tool,
         }));
-
-      if (toolDefinitions.length > 0) {
-        console.log(
-          "DEBUG: Extracted Gemini tools:",
-          JSON.stringify(toolDefinitions),
-        );
-        return toolDefinitions;
       }
     }
 
@@ -468,28 +453,12 @@ function parseTools(
       "messages" in input &&
       Array.isArray(input.messages)
     ) {
-      const toolDefinitions = input.messages
-        .filter((msg: any) => {
-          return (
-            msg?.role === "tool" &&
-            typeof msg?.content === "object" &&
-            msg?.content?.type === "function" &&
-            msg?.content?.function
-          );
-        })
-        .map((msg: any) => ({
+      const geminiTools = extractGeminiToolDefinitions(input.messages);
+      if (geminiTools.length > 0) {
+        return geminiTools.map((tool) => ({
           id: Math.random().toString(36).substring(2),
-          name: msg.content.function.name,
-          description: msg.content.function.description || "",
-          parameters: msg.content.function.parameters || {},
+          ...tool,
         }));
-
-      if (toolDefinitions.length > 0) {
-        console.log(
-          "DEBUG: Extracted Gemini tools from messages:",
-          JSON.stringify(toolDefinitions),
-        );
-        return toolDefinitions;
       }
     }
   } catch {}

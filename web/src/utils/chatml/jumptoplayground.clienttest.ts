@@ -278,17 +278,10 @@ describe("Playground Jump Full Pipeline", () => {
     expect(inResult.success).toBe(true);
     if (!inResult.data) throw new Error("Expected data to be defined");
 
-    console.log("DEBUG: Normalized input:", JSON.stringify(inResult.data));
-
     // Convert all messages to playground format
     const playgroundMessages = inResult.data
       .map(convertChatMlToPlayground)
       .filter((msg) => msg !== null);
-
-    console.log(
-      "DEBUG: Playground messages:",
-      JSON.stringify(playgroundMessages),
-    );
 
     // Should have 3 real messages (system, assistant, user)
     // Tool definition messages should be filtered out by the converter
@@ -303,11 +296,6 @@ describe("Playground Jump Full Pipeline", () => {
     expect(playgroundMessages[0]?.type).toBe("public-api-created");
     expect(playgroundMessages[1]?.type).toBe("public-api-created");
     expect(playgroundMessages[2]?.type).toBe("public-api-created");
-
-    console.log(
-      "DEBUG: Gemini tool test - playground messages:",
-      JSON.stringify(playgroundMessages),
-    );
 
     // IMPORTANT: Test that tools are extracted from the Gemini input format
     // The parseTools function in JumpToPlaygroundButton.tsx needs to handle Gemini format
@@ -329,17 +317,6 @@ describe("Playground Jump Full Pipeline", () => {
       "transition_to_next_stage",
     );
     expect(toolMessages[1].content.function.name).toBe("get_user_info");
-
-    console.log(
-      "DEBUG: Tool definitions in input that parseTools should extract:",
-      JSON.stringify(
-        toolMessages.map((msg: any) => ({
-          name: msg.content.function.name,
-          description: msg.content.function.description,
-          parameters: msg.content.function.parameters,
-        })),
-      ),
-    );
   });
 
   it("documents expected tool extraction from Gemini format for parseTools", () => {
@@ -397,8 +374,8 @@ describe("Playground Jump Full Pipeline", () => {
       },
     ];
 
-    // Document the structure that parseTools receives
-    const mockGenerationInput = JSON.stringify(geminiInput);
+    // Document the structure that parseTools receives (as JSON string)
+    // const mockGenerationInput = JSON.stringify(geminiInput);
 
     // Document what parseTools SHOULD extract
     const expectedToolDefinitions = geminiInput
@@ -425,12 +402,7 @@ describe("Playground Jump Full Pipeline", () => {
     );
     expect(expectedToolDefinitions[1].name).toBe("search_web");
 
-    console.log(
-      "DEBUG: Expected PlaygroundTool[] output from parseTools for Gemini format:",
-      JSON.stringify(expectedToolDefinitions, null, 2),
-    );
-
-    // ACTION REQUIRED: Update parseTools in JumpToPlaygroundButton.tsx
+    // NOTE: parseTools in JumpToPlaygroundButton.tsx now uses extractGeminiToolDefinitions()
     // to extract tools from Array inputs where messages have:
     // - role: "tool"
     // - content.type: "function"
