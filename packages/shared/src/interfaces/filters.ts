@@ -45,12 +45,17 @@ export const stringOptionsFilter = z.object({
   value: z.array(z.string()).refine((v) => v.length > 0),
   type: z.literal("stringOptions"),
 });
-export const arrayOptionsFilter = z.object({
-  column: z.string(),
-  operator: z.enum(filterOperators.arrayOptions),
-  value: z.array(z.string()).refine((v) => v.length > 0),
-  type: z.literal("arrayOptions"),
-});
+export const arrayOptionsFilter = z
+  .object({
+    column: z.string(),
+    operator: z.enum(filterOperators.arrayOptions),
+    value: z.array(z.string()),
+    type: z.literal("arrayOptions"),
+  })
+  .refine((data) => data.operator === "all of" || data.value.length > 0, {
+    message:
+      "Value array must not be empty unless operator is 'all of' (which represents waiting for selection)",
+  });
 export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
