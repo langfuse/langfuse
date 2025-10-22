@@ -366,10 +366,10 @@ export const sessionRouter = createTRPCRouter({
         return {
           userIds: userIds.map((row) => ({
             value: row.user,
+            count: Number(row.count),
           })),
-          tags: tags.map((row) => ({
-            value: row.value,
-          })),
+          environment: [], // Environment is fetched separately via api.projects.environmentFilterOptions
+          tags: tags,
           scores_avg: numericScoreNames.map((s) => s.name),
           score_categories: categoricalScoreNames,
         };
