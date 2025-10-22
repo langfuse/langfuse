@@ -11,7 +11,11 @@ import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { sessionFilterConfig } from "@/src/features/filters/config/sessions-config";
+import {
+  sessionFilterConfig,
+  SESSION_COLUMN_TO_BACKEND_KEY,
+} from "@/src/features/filters/config/sessions-config";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import {
   type FilterState,
   BatchExportTableName,
@@ -163,6 +167,11 @@ export default function SessionsTable({
     environmentFilter,
   );
 
+  const backendFilterState = transformFiltersForBackend(
+    filterState,
+    SESSION_COLUMN_TO_BACKEND_KEY,
+  );
+
   const { selectAll, setSelectAll } = useSelectAll(projectId, "sessions");
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -179,7 +188,7 @@ export default function SessionsTable({
 
   const payloadCount = {
     projectId,
-    filter: filterState,
+    filter: backendFilterState,
     orderBy: null,
     page: 0,
     limit: 1,
@@ -294,7 +303,7 @@ export default function SessionsTable({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: filterState,
+        filter: backendFilterState,
         orderBy: orderByState,
       },
     });
