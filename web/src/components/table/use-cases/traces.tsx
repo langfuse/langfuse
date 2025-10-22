@@ -1226,7 +1226,9 @@ export default function TracesTable({
 
         {/* Content area with sidebar and table */}
         <div className="flex flex-1 overflow-hidden">
-          <DataTableControls queryFilter={queryFilter} filterWithAI />
+          {!hideControls && (
+            <DataTableControls queryFilter={queryFilter} filterWithAI />
+          )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
