@@ -1,6 +1,5 @@
 import {
   FilterCondition,
-  TimeFilter,
   TracingSearchType,
   ScoreDataType,
 } from "@langfuse/shared";
@@ -13,19 +12,15 @@ import {
   tracesTableUiColumnDefinitions,
   clickhouseSearchCondition,
   parseClickhouseUTCDateTimeFormat,
+  StringFilter,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
 import {
   getChunkWithFlattenedScores,
+  isTraceTimestampFilter,
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
-
-const isTraceTimestampFilter = (
-  filter: FilterCondition,
-): filter is TimeFilter => {
-  return filter.column === "timestamp" && filter.type === "datetime";
-};
 
 export const getTraceStream = async (props: {
   projectId: string;
@@ -49,11 +44,21 @@ export const getTraceStream = async (props: {
     join_algorithm: "partial_merge",
   };
 
+  // Filter out observation-level filters since we don't join the observations table
+  // This prevents batch export failures when observation-level filters are present
+  const traceOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = tracesTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+    // Keep the filter if it's not an observation-level filter
+    return columnDef?.clickhouseTableName !== "observations";
+  });
+
   // Get distinct score names for empty columns
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: filter ?? [],
+    filter: traceOnlyFilters,
     isTimestampFilter: isTraceTimestampFilter,
     clickhouseConfigs,
   });
@@ -69,7 +74,7 @@ export const getTraceStream = async (props: {
   tracesFilter.push(
     ...createFilterFromFilterState(
       [
-        ...(filter ?? []),
+        ...traceOnlyFilters,
         {
           column: "timestamp",
           operator: "<" as const,
@@ -83,34 +88,21 @@ export const getTraceStream = async (props: {
 
   const appliedTracesFilter = tracesFilter.apply();
 
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
+
+  const appliedScoresFilter = scoresFilter.apply();
+
   const search = clickhouseSearchCondition(searchQuery, searchType, "t");
 
   const query = `
-    WITH traces_cte AS (
-      SELECT
-        t.id as trace_id,
-        t.project_id as project_id,
-        t.timestamp as timestamp,
-        t.name as name,
-        t.user_id as user_id,
-        t.session_id as session_id,
-        t.release as release,
-        t.version as version,
-        t.environment as environment,
-        t.tags as tags,
-        t.bookmarked as bookmarked,
-        t.public as public,
-        t.input as input,
-        t.output as output,
-        t.metadata as metadata
-      FROM traces t
-      WHERE t.project_id = {projectId: String}
-        ${appliedTracesFilter.query ? `AND ${appliedTracesFilter.query}` : ""}
-        ${search.query}
-      LIMIT 1 BY id, project_id
-      LIMIT {rowLimit: Int64}
-    ),
-    scores_agg AS (
+    WITH scores_agg AS (
       SELECT
         project_id,
         trace_id,
@@ -133,8 +125,7 @@ export const getTraceStream = async (props: {
           string_value,
           avg(value) as avg_value
         FROM scores FINAL
-        WHERE project_id = {projectId: String}
-          AND trace_id IN (SELECT trace_id FROM traces_cte)
+        WHERE ${appliedScoresFilter.query}
         GROUP BY
           project_id,
           trace_id,
@@ -145,26 +136,32 @@ export const getTraceStream = async (props: {
       ) tmp
       GROUP BY project_id, trace_id
     )
-    SELECT
-      t.trace_id as id,
-      t.project_id as project_id,
-      t.timestamp as timestamp,
-      t.name as name,
-      t.user_id as user_id,
-      t.session_id as session_id,
-      t.release as release,
-      t.version as version,
-      t.environment as environment,
-      t.tags as tags,
-      t.bookmarked as bookmarked,
-      t.public as public,
-      t.input as input,
-      t.output as output,
-      t.metadata as metadata,
-      sa.scores_avg as scores_avg,
-      sa.score_categories as score_categories
-    FROM traces_cte t
-      LEFT JOIN scores_agg sa ON sa.trace_id = t.trace_id AND sa.project_id = t.project_id`;
+      SELECT
+        t.id as id,
+        t.project_id as project_id,
+        t.timestamp as timestamp,
+        t.name as name,
+        t.user_id as user_id,
+        t.session_id as session_id,
+        t.release as release,
+        t.version as version,
+        t.environment as environment,
+        t.tags as tags,
+        t.bookmarked as bookmarked,
+        t.public as public,
+        t.input as input,
+        t.output as output,
+        t.metadata as metadata,
+        s.scores_avg as scores_avg,
+        s.score_categories as score_categories
+      FROM traces t
+        LEFT JOIN scores_agg s ON s.trace_id = t.id AND s.project_id = t.project_id
+      WHERE t.project_id = {projectId: String}
+        ${appliedTracesFilter.query ? `AND ${appliedTracesFilter.query}` : ""}
+        ${search.query}
+      LIMIT 1 BY id, project_id
+      LIMIT {rowLimit: Int64}
+    `;
 
   const asyncGenerator = queryClickhouseStream<{
     id: string;
@@ -197,6 +194,7 @@ export const getTraceStream = async (props: {
       projectId,
       rowLimit,
       ...appliedTracesFilter.params,
+      ...appliedScoresFilter.params,
       ...search.params,
     },
     clickhouseConfigs,
@@ -220,7 +218,7 @@ export const getTraceStream = async (props: {
             `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
           );
 
-        // Process numeric/boolean scores
+        // Process numeric/boolean scores (tuples from ClickHouse)
         const numericScores = (row.scores_avg ?? []).map((score: any) => ({
           name: score[0],
           value: score[1],
@@ -236,7 +234,7 @@ export const getTraceStream = async (props: {
               name,
               value: null,
               dataType: "CATEGORICAL" as ScoreDataType,
-              stringValue: valueParts.join(":"), // rejoin in case value contains ':'
+              stringValue: valueParts.join(":"),
             };
           },
         );

@@ -54,7 +54,7 @@ const isGenerationTimestampFilter = (
 ): filter is TimeFilter => {
   return filter.column === "Start Time" && filter.type === "datetime";
 };
-const isTraceTimestampFilter = (
+export const isTraceTimestampFilter = (
   filter: FilterCondition,
 ): filter is TimeFilter => {
   return filter.column === "Timestamp" && filter.type === "datetime";
@@ -593,7 +593,9 @@ export function prepareScoresForOutput(
       // If this score name already exists in acc, use its existing type
       const existingValues = acc[score.name];
       const newValue =
-        score.dataType === "NUMERIC" ? score.value : score.stringValue;
+        score.dataType === "NUMERIC" || score.dataType === "BOOLEAN"
+          ? score.value
+          : score.stringValue;
       if (!isPresent(newValue)) return acc;
 
       if (!existingValues) {

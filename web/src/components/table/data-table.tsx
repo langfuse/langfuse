@@ -291,7 +291,7 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          className={cn("relative w-full overflow-auto border-t")}
+          className={cn("relative min-h-full w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
           <Table>
@@ -431,7 +431,6 @@ export function DataTable<TData extends object, TValue>({
             )}
           </Table>
         </div>
-        <div className="grow"></div>
       </div>
       {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (

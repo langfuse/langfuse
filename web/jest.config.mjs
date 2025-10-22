@@ -40,13 +40,21 @@ const endToEndServerTestConfig = {
 };
 
 // To avoid the "Cannot use import statement outside a module" errors while transforming ESM.
-const esModules = ["superjson"];
+// jsonpath-plus is needed because @langfuse/shared barrel exports evals/utilities which imports it
+const esModules = ["superjson", "jsonpath-plus"];
 // Add any custom config to be passed to Jest
 /** @type {import('jest').Config} */
 const config = {
   // Add more setup options before each test is run
   projects: [
-    await createJestConfig(clientTestConfig)(),
+    {
+      ...(await createJestConfig(clientTestConfig)()),
+      // Added transformIgnorePatterns to client tests to handle ESM dependencies from @langfuse/shared
+      // Without this, importing from @langfuse/shared fails with "Unexpected token 'export'" errors
+      transformIgnorePatterns: [
+        `/web/node_modules/(?!(${esModules.join("|")})/)`,
+      ],
+    },
     {
       ...(await createJestConfig(serverTestConfig)()),
       transformIgnorePatterns: [

@@ -399,7 +399,8 @@ export function TraceTimelineView({
   trace,
   observations,
   projectId,
-  scores,
+  // Note: displayScores are merged with client-side score cache; handling optimistic updates
+  displayScores: scores,
   currentObservationId,
   setCurrentObservationId,
   expandedItems,
@@ -420,7 +421,7 @@ export function TraceTimelineView({
   };
   observations: Array<ObservationReturnTypeWithMetadata>;
   projectId: string;
-  scores: APIScoreV2[];
+  displayScores: APIScoreV2[];
   currentObservationId: string | null;
   setCurrentObservationId: (id: string | null) => void;
   expandedItems: string[];
