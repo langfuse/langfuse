@@ -19,8 +19,8 @@ function createScoreColumns<T extends Record<string, any>>(
     dataType: ScoreDataType;
   }>,
   scoreColumnKey: keyof T & string,
+  displayFormat: "smart" | "aggregate",
   prefix?: string,
-  displayFormat?: "smart" | "aggregate",
 ): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
     // Apply prefix to both column ID/accessor and header
@@ -96,10 +96,15 @@ export function useScoreColumns<T extends Record<string, any>>({
     return createScoreColumns<T>(
       toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
       scoreColumnKey,
-      prefix,
       displayFormat,
+      prefix,
     );
-  }, [scoreColumnsQuery.data?.scoreColumns, scoreColumnKey, prefix]);
+  }, [
+    scoreColumnsQuery.data?.scoreColumns,
+    scoreColumnKey,
+    prefix,
+    displayFormat,
+  ]);
 
   return {
     scoreColumns,

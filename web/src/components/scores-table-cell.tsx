@@ -48,7 +48,7 @@ export const ScoresTableCell = ({
   hasMetadata,
 }: {
   aggregate: AggregatedScoreData;
-  displayFormat?: "smart" | "aggregate";
+  displayFormat: "smart" | "aggregate";
   wrap?: boolean;
   hasMetadata?: boolean;
 }) => {
