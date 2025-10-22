@@ -716,16 +716,12 @@ enum CommentObjectType {
 
 enum NotificationChannel {
   EMAIL
-  IN_APP // Hidden in UI for MVP
-  SLACK // Future
+  // Extend by adding: IN_APP, SLACK
 }
 
 enum NotificationType {
   COMMENT_MENTION
-  COMMENT_REPLY // V3
-  COMMENT_NEW // V3
-  EVAL_COMPLETE // Future
-  EXPORT_READY // Future
+  // Extend by adding: COMMENT_REPLY, COMMENT_NEW, EVAL_COMPLETE, EXPORT_READY
 }
 
 model NotificationPreference {

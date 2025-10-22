@@ -1,8 +1,10 @@
 -- CreateEnum
-CREATE TYPE "NotificationChannel" AS ENUM ('EMAIL', 'IN_APP', 'SLACK');
+-- Extend by adding: IN_APP, SLACK
+CREATE TYPE "NotificationChannel" AS ENUM ('EMAIL');
 
 -- CreateEnum
-CREATE TYPE "NotificationType" AS ENUM ('COMMENT_MENTION', 'COMMENT_REPLY', 'COMMENT_NEW', 'EVAL_COMPLETE', 'EXPORT_READY');
+-- Extend by adding: COMMENT_REPLY, COMMENT_NEW, EVAL_COMPLETE, EXPORT_READY
+CREATE TYPE "NotificationType" AS ENUM ('COMMENT_MENTION');
 
 -- CreateTable
 CREATE TABLE "notification_preferences" (
