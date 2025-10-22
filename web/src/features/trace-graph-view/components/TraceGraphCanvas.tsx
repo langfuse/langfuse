@@ -198,7 +198,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         font: {
           size: 14,
           color: "#000000",
-          multi: true,
+          multi: "html",
         },
         shadow: {
           enabled: true,
@@ -390,7 +390,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         const currentIndex = currentObservationIndices[node.id] || 0;
         const counter =
           observations.length > 1
-            ? ` <u>(${observations.length - currentIndex}/${observations.length})</u>`
+            ? ` <i>(${observations.length - currentIndex}/${observations.length})</i>`
             : "";
 
         const newLabel = `${node.label}${counter}`;
