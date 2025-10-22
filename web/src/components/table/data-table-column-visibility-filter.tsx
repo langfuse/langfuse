@@ -96,7 +96,7 @@ function ColumnVisibilityListItem<TData, TValue>({
   columnVisibility: VisibilityState;
   isOrderable?: boolean;
 }) {
-  const isFixedPosition = column.isFixedPosition;
+  const isFixedPosition = column.isFixedPosition ?? false;
   const { attributes, isDragging, listeners, setNodeRef, transform } =
     useSortable({
       id: column.accessorKey,
