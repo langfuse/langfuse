@@ -29,11 +29,11 @@ import "core-js/features/array/to-sorted";
 
 import "react18-json-view/src/style.css";
 
-// Polyfill prevents React crashes when Google Translate modifies the DOM.
-// GTranslate wraps text nodes in <font>, which breaks React's
+// Polyfill to prevent React crashes when Google Translate modifies the DOM.
+// Google Translate wraps text nodes in <font> elements, which breaks React's
 // reconciliation when it tries to remove/insert nodes that no longer exist
-// in the expected location after navigation. Polyfill catches errors and prevents
-// the app from crashing while allowing the translation to work.
+// in the expected location. This catches NotFoundError and prevents crashes
+// while still allowing translation to work.
 // See: https://github.com/facebook/react/issues/11538
 // See also: https://issues.chromium.org/issues/41407169
 if (typeof window !== "undefined") {
@@ -44,16 +44,8 @@ if (typeof window !== "undefined") {
     try {
       return originalRemoveChild.call(this, child) as T;
     } catch (error) {
-      // Silently fail if node doesn't exist (likely moved by Google Translate)
-      if (
-        error instanceof DOMException &&
-        (error.name === "NotFoundError" ||
-          error.message.includes("not a child"))
-      ) {
-        console.debug(
-          "[Google Translate Polyfill] Prevented removeChild error:",
-          error.message,
-        );
+      if (error instanceof DOMException && error.name === "NotFoundError") {
+        // Node was likely moved by Google Translate - silently ignore
         return child;
       }
       throw error;
@@ -67,17 +59,9 @@ if (typeof window !== "undefined") {
     try {
       return originalInsertBefore.call(this, newNode, referenceNode) as T;
     } catch (error) {
-      // Silently fail if reference node doesn't exist (likely moved by Google Translate)
-      if (
-        error instanceof DOMException &&
-        (error.name === "NotFoundError" ||
-          error.message.includes("not a child"))
-      ) {
-        console.debug(
-          "[Google Translate Polyfill] Prevented insertBefore error:",
-          error.message,
-        );
-        // Fallback: append to end if reference node is missing
+      if (error instanceof DOMException && error.name === "NotFoundError") {
+        // Reference node was likely moved by Google Translate
+        // Fallback: append to end (DOM is already inconsistent anyway)
         return this.appendChild(newNode) as T;
       }
       throw error;
