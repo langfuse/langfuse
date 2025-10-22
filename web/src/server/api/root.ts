@@ -47,6 +47,7 @@ import { plainRouter } from "@/src/features/support-chat/trpc/plainRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignments";
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
+import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
 
 /**
  * This is the primary router for your server.
@@ -102,6 +103,7 @@ export const appRouter = createTRPCRouter({
   plainRouter: plainRouter,
   surveys: surveysRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
+  notificationPreferences: notificationPreferencesRouter,
 });
 
 // export type definition of API

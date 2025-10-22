@@ -1,0 +1,197 @@
+import { env } from "../../env";
+import {
+  logger,
+  sendCommentMentionEmail,
+  getObservationById,
+} from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+
+type CommentMentionPayload = {
+  commentId: string;
+  projectId: string;
+  mentionedUserIds: string[];
+};
+
+export async function handleCommentMentionNotification(
+  payload: CommentMentionPayload,
+) {
+  const { commentId, projectId, mentionedUserIds } = payload;
+
+  logger.info(
+    `Processing comment mention notification for comment ${commentId} in project ${projectId}`,
+  );
+
+  try {
+    // Fetch comment details with author and project information
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!comment) {
+      logger.warn(
+        `Comment ${commentId} not found. Skipping notification processing.`,
+      );
+      return;
+    }
+
+    // Fetch author information
+    const author = comment.authorUserId
+      ? await prisma.user.findUnique({
+          where: { id: comment.authorUserId },
+          select: {
+            name: true,
+            email: true,
+          },
+        })
+      : null;
+
+    const authorName = author?.name ?? author?.email ?? "A team member";
+
+    // Process each mentioned user
+    for (const userId of mentionedUserIds) {
+      try {
+        // Check notification preference (default: enabled)
+        const preference = await prisma.notificationPreference.findUnique({
+          where: {
+            userId_projectId_channel_type: {
+              userId,
+              projectId,
+              channel: "EMAIL",
+              type: "COMMENT_MENTION",
+            },
+          },
+        });
+
+        // If preference exists and is disabled, skip
+        if (preference && !preference.enabled) {
+          logger.info(
+            `User ${userId} has disabled email notifications for comment mentions in project ${projectId}. Skipping.`,
+          );
+          continue;
+        }
+
+        // Fetch mentioned user details
+        const mentionedUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            name: true,
+            email: true,
+          },
+        });
+
+        if (!mentionedUser?.email) {
+          logger.warn(
+            `User ${userId} not found or has no email. Skipping notification.`,
+          );
+          continue;
+        }
+
+        // Truncate comment content for preview (500 chars)
+        let commentPreview =
+          comment.content.length > 500
+            ? comment.content.substring(0, 497) + "..."
+            : comment.content;
+
+        // Strip markdown link syntax from mentions for plain text display
+        // Convert @[DisplayName](user:userId) to @DisplayName
+        commentPreview = commentPreview.replace(
+          /@\[([^\]]+)\]\(user:[^)]+\)/g,
+          "@$1",
+        );
+
+        // Construct comment link using NEXTAUTH_URL (which includes basePath if configured)
+        const baseUrl = env.NEXTAUTH_URL || "http://localhost:3000";
+
+        // Construct URL based on object type
+        let commentLink: string;
+        const commonParams = `comments=open&commentObjectType=${comment.objectType}&commentObjectId=${comment.objectId}`;
+
+        switch (comment.objectType) {
+          case "OBSERVATION": {
+            // For observations, link to trace page with observation query param
+            const observation = await getObservationById({
+              id: comment.objectId,
+              projectId,
+            });
+            if (!observation || !observation.traceId) {
+              logger.warn(
+                `Observation ${comment.objectId} not found or has no traceId. Skipping notification for user ${userId}.`,
+              );
+              continue;
+            }
+            commentLink = `${baseUrl}/project/${projectId}/traces/${observation.traceId}?observation=${comment.objectId}&${commonParams}#comment-${commentId}`;
+            break;
+          }
+          case "PROMPT": {
+            // For prompts, use prompt name and version instead of ID
+            const prompt = await prisma.prompt.findUnique({
+              where: { id: comment.objectId, projectId },
+              select: { name: true, version: true },
+            });
+            if (!prompt) {
+              logger.warn(
+                `Prompt ${comment.objectId} not found. Skipping notification for user ${userId}.`,
+              );
+              continue;
+            }
+            const encodedPromptName = encodeURIComponent(prompt.name);
+            commentLink = `${baseUrl}/project/${projectId}/prompts/${encodedPromptName}?version=${prompt.version}&${commonParams}#comment-${commentId}`;
+            break;
+          }
+          case "TRACE":
+          case "SESSION":
+          default: {
+            // For traces and sessions, use standard URL pattern
+            commentLink = `${baseUrl}/project/${projectId}/${comment.objectType.toLowerCase()}s/${comment.objectId}?${commonParams}#comment-${commentId}`;
+            break;
+          }
+        }
+
+        const settingsLink = `${baseUrl}/project/${projectId}/settings/notifications`;
+
+        // Send email
+        await sendCommentMentionEmail({
+          env: {
+            EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
+            SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
+          },
+          mentionedUserName: mentionedUser.name || mentionedUser.email,
+          mentionedUserEmail: mentionedUser.email,
+          authorName,
+          projectName: comment.project.name,
+          commentPreview,
+          commentLink,
+          settingsLink,
+        });
+
+        logger.info(
+          `Comment mention email sent to ${mentionedUser.email} for comment ${commentId}`,
+        );
+      } catch (error) {
+        logger.error(
+          `Failed to send comment mention notification to user ${userId}`,
+          error,
+        );
+        // Continue processing other users even if one fails
+      }
+    }
+
+    logger.info(
+      `Completed processing comment mention notification for comment ${commentId}`,
+    );
+  } catch (error) {
+    logger.error(
+      `Failed to process comment mention notification for comment ${commentId}`,
+      error,
+    );
+    throw error;
+  }
+}

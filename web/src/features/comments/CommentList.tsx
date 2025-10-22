@@ -332,6 +332,7 @@ export function CommentList({
             {commentsWithFormattedTimestamp?.map((comment) => (
               <div
                 key={comment.id}
+                id={`comment-${comment.id}`}
                 className="group grid grid-cols-[auto,1fr] gap-1 p-1"
               >
                 <Avatar className="mt-0.5 h-6 w-6">

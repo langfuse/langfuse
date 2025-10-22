@@ -19,6 +19,8 @@ import { validateCommentReferenceObject } from "@/src/features/comments/validate
 import {
   getTracesIdentifierForSession,
   logger,
+  NotificationQueue,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
 
@@ -116,6 +118,32 @@ export const commentsRouter = createTRPCRouter({
             mentionedUserIds: validMentionedUserIds,
           },
         });
+
+        // Enqueue notification job for mentioned users
+        if (validMentionedUserIds.length > 0) {
+          const notificationQueue = NotificationQueue.getInstance();
+          if (notificationQueue) {
+            try {
+              await notificationQueue.add(QueueJobs.NotificationJob, {
+                timestamp: new Date(),
+                id: comment.id,
+                payload: {
+                  type: "COMMENT_MENTION" as const,
+                  commentId: comment.id,
+                  projectId: input.projectId,
+                  mentionedUserIds: validMentionedUserIds,
+                },
+                name: QueueJobs.NotificationJob,
+              });
+              logger.info(
+                `Notification job enqueued for comment ${comment.id} with ${validMentionedUserIds.length} mentions`,
+              );
+            } catch (error) {
+              // Log but don't fail the request if notification queueing fails
+              logger.error("Failed to enqueue notification job", error);
+            }
+          }
+        }
 
         return comment;
       } catch (error) {

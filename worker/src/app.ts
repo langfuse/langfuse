@@ -66,6 +66,7 @@ import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
+import { notificationQueueProcessor } from "./queues/notificationQueue";
 
 const app = express();
 
@@ -466,6 +467,16 @@ if (env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true") {
     eventPropagationProcessor,
     {
       concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.NotificationQueue,
+    notificationQueueProcessor,
+    {
+      concurrency: 5, // Process up to 5 notification jobs concurrently
     },
   );
 }

@@ -58,7 +58,10 @@ export function MentionAutocomplete({
         value={selectedUserId}
         aria-label="Mention user autocomplete"
       >
-        <CommandList role="listbox" aria-activedescendant={selectedUserId || ""}>
+        <CommandList
+          role="listbox"
+          aria-activedescendant={selectedUserId || ""}
+        >
           {isLoading && (
             <div
               className="flex items-center justify-center p-3"

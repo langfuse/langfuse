@@ -79,6 +79,22 @@ export const CommentObjectType = {
 } as const;
 export type CommentObjectType =
   (typeof CommentObjectType)[keyof typeof CommentObjectType];
+export const NotificationChannel = {
+  EMAIL: "EMAIL",
+  IN_APP: "IN_APP",
+  SLACK: "SLACK",
+} as const;
+export type NotificationChannel =
+  (typeof NotificationChannel)[keyof typeof NotificationChannel];
+export const NotificationType = {
+  COMMENT_MENTION: "COMMENT_MENTION",
+  COMMENT_REPLY: "COMMENT_REPLY",
+  COMMENT_NEW: "COMMENT_NEW",
+  EVAL_COMPLETE: "EVAL_COMPLETE",
+  EXPORT_READY: "EXPORT_READY",
+} as const;
+export type NotificationType =
+  (typeof NotificationType)[keyof typeof NotificationType];
 export const AuditLogRecordType = {
   USER: "USER",
   API_KEY: "API_KEY",
@@ -641,6 +657,16 @@ export type Model = {
   tokenizer_id: string | null;
   tokenizer_config: unknown | null;
 };
+export type NotificationPreference = {
+  id: string;
+  user_id: string;
+  project_id: string;
+  channel: NotificationChannel;
+  type: NotificationType;
+  enabled: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type ObservationMedia = {
   id: string;
   project_id: string;
@@ -888,6 +914,7 @@ export type DB = {
   media: Media;
   membership_invitations: MembershipInvitation;
   models: Model;
+  notification_preferences: NotificationPreference;
   observation_media: ObservationMedia;
   observations: LegacyPrismaObservation;
   organization_memberships: OrganizationMembership;
