@@ -3,7 +3,13 @@ import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { type EvalTemplate } from "@langfuse/shared/src/db";
 
-export function useTemplateValidation({ projectId }: { projectId: string }) {
+export function useTemplateValidation({
+  projectId,
+  onValidSelection,
+}: {
+  projectId: string;
+  onValidSelection?: (template: EvalTemplate) => void;
+}) {
   const [selectedTemplate, setSelectedTemplate] = useState<EvalTemplate | null>(
     null,
   );
@@ -26,9 +32,12 @@ export function useTemplateValidation({ projectId }: { projectId: string }) {
         return;
       }
       setIsSelectionValid(true);
+
+      // Trigger callback when template becomes valid
+      onValidSelection?.(selectedTemplate);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTemplate?.id]);
+  }, [selectedTemplate?.id, onValidSelection]);
 
   return { isSelectionValid, selectedTemplate, setSelectedTemplate };
 }
