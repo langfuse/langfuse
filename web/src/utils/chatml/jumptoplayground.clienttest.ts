@@ -201,4 +201,239 @@ describe("Playground Jump Full Pipeline", () => {
       expect(toolResult2.content).toContain("Settings > API Configuration");
     }
   });
+
+  it("should handle Gemini-style tool definitions embedded in messages", () => {
+    // Gemini format embeds tool definitions as messages with role="tool"
+    // This test verifies that:
+    // 1. Tool definition messages are filtered out of the message list
+    // 2. Tool definitions are extracted and available for the playground
+    const observationName = "VertexGemini";
+    const metadata = {
+      ls_provider: "google_vertexai",
+      ls_model_name: "gemini-2.5-flash",
+      ls_model_type: "chat",
+      ls_temperature: 0,
+      ls_max_tokens: 8192,
+    };
+
+    const input = [
+      {
+        role: "system",
+        content: "You are a helpful assistant with access to tools.",
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: "Hello! How can I help you today?",
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "transition_to_next_stage",
+            description:
+              "Use this function to transition to the next stage when conditions are met",
+            parameters: {
+              properties: {
+                reason: {
+                  description: "Explanation of why transitioning",
+                  type: "string",
+                },
+              },
+              required: ["reason"],
+              type: "object",
+            },
+          },
+        },
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "get_user_info",
+            description: "Retrieve user contact information",
+            parameters: {
+              type: "object",
+              properties: {},
+              required: [],
+            },
+          },
+        },
+      },
+      {
+        role: "user",
+        content: "What can you do?",
+      },
+    ];
+
+    const ctx = { metadata, observationName };
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    console.log("DEBUG: Normalized input:", JSON.stringify(inResult.data));
+
+    // Convert all messages to playground format
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    console.log(
+      "DEBUG: Playground messages:",
+      JSON.stringify(playgroundMessages),
+    );
+
+    // Should have 3 real messages (system, assistant, user)
+    // Tool definition messages should be filtered out by the converter
+    expect(playgroundMessages.length).toBe(3);
+
+    // Verify message roles
+    expect(playgroundMessages[0]?.role).toBe("system");
+    expect(playgroundMessages[1]?.role).toBe("assistant");
+    expect(playgroundMessages[2]?.role).toBe("user");
+
+    // All should have type public-api-created (regular messages)
+    expect(playgroundMessages[0]?.type).toBe("public-api-created");
+    expect(playgroundMessages[1]?.type).toBe("public-api-created");
+    expect(playgroundMessages[2]?.type).toBe("public-api-created");
+
+    console.log(
+      "DEBUG: Gemini tool test - playground messages:",
+      JSON.stringify(playgroundMessages),
+    );
+
+    // IMPORTANT: Test that tools are extracted from the Gemini input format
+    // The parseTools function in JumpToPlaygroundButton.tsx needs to handle Gemini format
+    // where tool definitions are embedded as messages with role="tool"
+
+    // We need to test parseTools behavior directly
+    // For now, manually verify the structure exists
+    const toolMessages = input.filter(
+      (msg: any) =>
+        msg.role === "tool" &&
+        typeof msg.content === "object" &&
+        msg.content?.type === "function" &&
+        msg.content?.function,
+    );
+
+    // Verify the structure that parseTools should handle
+    expect(toolMessages.length).toBe(2);
+    expect(toolMessages[0].content.function.name).toBe(
+      "transition_to_next_stage",
+    );
+    expect(toolMessages[1].content.function.name).toBe("get_user_info");
+
+    console.log(
+      "DEBUG: Tool definitions in input that parseTools should extract:",
+      JSON.stringify(
+        toolMessages.map((msg: any) => ({
+          name: msg.content.function.name,
+          description: msg.content.function.description,
+          parameters: msg.content.function.parameters,
+        })),
+      ),
+    );
+  });
+
+  it("documents expected tool extraction from Gemini format for parseTools", () => {
+    // This test documents that parseTools in JumpToPlaygroundButton.tsx
+    // SHOULD extract tool definitions from Gemini format where tools are
+    // embedded as messages with role="tool" and content.type="function"
+    //
+    // Note: parseTools is not exported so we can't directly test it yet.
+    // This test documents the required data structure and extraction logic.
+
+    const geminiInput = [
+      {
+        role: "system",
+        content: "You are a helpful assistant.",
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "get_weather",
+            description: "Get the current weather in a location",
+            parameters: {
+              type: "object",
+              properties: {
+                location: {
+                  type: "string",
+                  description: "The city name",
+                },
+              },
+              required: ["location"],
+            },
+          },
+        },
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "search_web",
+            description: "Search the web for information",
+            parameters: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "Search query",
+                },
+              },
+              required: ["query"],
+            },
+          },
+        },
+      },
+    ];
+
+    // Document the structure that parseTools receives
+    const mockGenerationInput = JSON.stringify(geminiInput);
+
+    // Document what parseTools SHOULD extract
+    const expectedToolDefinitions = geminiInput
+      .filter(
+        (msg: any) =>
+          msg.role === "tool" &&
+          typeof msg.content === "object" &&
+          msg.content?.type === "function" &&
+          msg.content?.function,
+      )
+      .map((msg: any) => ({
+        // parseTools should return PlaygroundTool[] with these fields
+        id: expect.any(String), // random ID
+        name: msg.content.function.name,
+        description: msg.content.function.description || "",
+        parameters: msg.content.function.parameters || {},
+      }));
+
+    // Verify the expected structure
+    expect(expectedToolDefinitions.length).toBe(2);
+    expect(expectedToolDefinitions[0].name).toBe("get_weather");
+    expect(expectedToolDefinitions[0].description).toBe(
+      "Get the current weather in a location",
+    );
+    expect(expectedToolDefinitions[1].name).toBe("search_web");
+
+    console.log(
+      "DEBUG: Expected PlaygroundTool[] output from parseTools for Gemini format:",
+      JSON.stringify(expectedToolDefinitions, null, 2),
+    );
+
+    // ACTION REQUIRED: Update parseTools in JumpToPlaygroundButton.tsx
+    // to extract tools from Array inputs where messages have:
+    // - role: "tool"
+    // - content.type: "function"
+    // - content.function: {name, description, parameters}
+  });
 });

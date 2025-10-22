@@ -57,6 +57,20 @@ export function convertChatMlToPlayground(
     };
   }
 
+  // Filter out Gemini-style tool definitions (role="tool" with content.type="function")
+  // These are tool schemas embedded in messages, not actual tool results
+  if (
+    msg.role === "tool" &&
+    typeof msg.content === "object" &&
+    msg.content !== null &&
+    !Array.isArray(msg.content)
+  ) {
+    const content = msg.content as Record<string, unknown>;
+    if (content.type === "function" && content.function) {
+      return null; // Filter out tool definition messages
+    }
+  }
+
   // Handle regular messages
   const content =
     typeof msg.content === "string"

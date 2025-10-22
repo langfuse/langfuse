@@ -432,6 +432,66 @@ function parseTools(
           ...tool.function,
         }));
     }
+
+    // Gemini format: tool definitions embedded in messages array
+    // Messages with role="tool" and content.type="function" contain tool definitions
+    if (Array.isArray(input)) {
+      const toolDefinitions = input
+        .filter((msg: any) => {
+          return (
+            msg?.role === "tool" &&
+            typeof msg?.content === "object" &&
+            msg?.content?.type === "function" &&
+            msg?.content?.function
+          );
+        })
+        .map((msg: any) => ({
+          id: Math.random().toString(36).substring(2),
+          name: msg.content.function.name,
+          description: msg.content.function.description || "",
+          parameters: msg.content.function.parameters || {},
+        }));
+
+      if (toolDefinitions.length > 0) {
+        console.log(
+          "DEBUG: Extracted Gemini tools:",
+          JSON.stringify(toolDefinitions),
+        );
+        return toolDefinitions;
+      }
+    }
+
+    // Also check messages field within input object for Gemini format
+    if (
+      typeof input === "object" &&
+      input !== null &&
+      "messages" in input &&
+      Array.isArray(input.messages)
+    ) {
+      const toolDefinitions = input.messages
+        .filter((msg: any) => {
+          return (
+            msg?.role === "tool" &&
+            typeof msg?.content === "object" &&
+            msg?.content?.type === "function" &&
+            msg?.content?.function
+          );
+        })
+        .map((msg: any) => ({
+          id: Math.random().toString(36).substring(2),
+          name: msg.content.function.name,
+          description: msg.content.function.description || "",
+          parameters: msg.content.function.parameters || {},
+        }));
+
+      if (toolDefinitions.length > 0) {
+        console.log(
+          "DEBUG: Extracted Gemini tools from messages:",
+          JSON.stringify(toolDefinitions),
+        );
+        return toolDefinitions;
+      }
+    }
   } catch {}
 
   return [];
