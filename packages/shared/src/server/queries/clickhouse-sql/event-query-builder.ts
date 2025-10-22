@@ -140,12 +140,13 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(name, event_ts, isNull(parent_span_id)) AS name",
+  name: "argMaxIf(name, event_ts, isNull(parent_span_id) OR parent_span_id = '') AS name",
   timestamp: "min(start_time) as timestamp",
-  environment: "argMax(environment, event_ts) AS environment",
-  version: "argMax(version, event_ts) AS version",
-  session_id: "argMax(session_id, event_ts) AS session_id",
-  user_id: "argMax(user_id, event_ts) AS user_id",
+  environment:
+    "argMaxIf(environment, event_ts, environment <> '') AS environment",
+  version: "argMaxIf(version, event_ts, version <> '') AS version",
+  session_id: "argMaxIf(session_id, event_ts, session_id <> '') AS session_id",
+  user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
   input: "argMax(input, event_ts) AS input",
   output: "argMax(output, event_ts) AS output",
   metadata: "argMax(metadata, event_ts) AS metadata",
