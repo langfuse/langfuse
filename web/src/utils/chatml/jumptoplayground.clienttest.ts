@@ -319,10 +319,12 @@ describe("Playground Jump Full Pipeline", () => {
 
     // Verify the structure that parseTools should handle
     expect(toolMessages.length).toBe(2);
-    expect(toolMessages[0].content.function.name).toBe(
+    expect((toolMessages[0].content as any).function.name).toBe(
       "transition_to_next_stage",
     );
-    expect(toolMessages[1].content.function.name).toBe("get_user_info");
+    expect((toolMessages[1].content as any).function.name).toBe(
+      "get_user_info",
+    );
   });
 
   it("should extract tools from Gemini format using extractTools utility", () => {
