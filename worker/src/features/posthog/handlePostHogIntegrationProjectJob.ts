@@ -7,6 +7,7 @@ import {
   getTracesForPostHog,
   getGenerationsForPostHog,
   getScoresForPostHog,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { v5 } from "uuid";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -191,6 +192,13 @@ export const handlePostHogIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.PostHogIntegrationProcessingQueue]>,
 ) => {
   const projectId = job.data.payload.projectId;
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
+    span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+  }
+
   logger.info(`Processing PostHog integration for project ${projectId}`);
 
   // Fetch PostHog integration information for project
