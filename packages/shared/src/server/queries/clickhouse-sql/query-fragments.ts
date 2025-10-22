@@ -28,7 +28,7 @@ export const eventsTracesAggregation = (
 	  SELECT
 	      trace_id AS id,
 	      project_id,
-	      argMax(name, event_ts) AS name,
+	      argMaxIf(name, event_ts, isNull(parent_span_id)) AS name,
 	      min(start_time) as timestamp,
 	      argMax(environment, event_ts) AS environment,
 	      argMax(version, event_ts) AS version,
@@ -39,6 +39,10 @@ export const eventsTracesAggregation = (
 	      argMax(metadata, event_ts) AS metadata,
 	      min(created_at) AS created_at,
 	      max(updated_at) AS updated_at,
+          -- Usage and cost aggregations; ClickHouse doesn't compute these unless referenced
+          sum(total_cost) AS total_cost,
+          date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) AS latency_milliseconds,
+          groupUniqArrayIf(span_id, isNotNull(span_id) AND span_id != '') AS observation_ids,
 	      -- TODO remove legacy fields
 	      array() AS tags,
 	      false AS bookmarked,
