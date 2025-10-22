@@ -6,7 +6,13 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "@langfuse/shared";
-import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
+import {
+  Prisma,
+  CreateCommentData,
+  DeleteCommentData,
+  extractMentionsFromMarkdown,
+  sanitizeMentions,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
@@ -27,17 +33,6 @@ export const commentsRouter = createTRPCRouter({
           scope: "comments:CUD",
         });
 
-        // Check projectMembers:read permission if mentioning users
-        if (input.mentionedUserIds && input.mentionedUserIds.length > 0) {
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId: input.projectId,
-            scope: "projectMembers:read",
-            forbiddenErrorMessage:
-              "You need projectMembers:read permission to mention users in comments",
-          });
-        }
-
         const result = await validateCommentReferenceObject({
           ctx,
           input,
@@ -50,8 +45,24 @@ export const commentsRouter = createTRPCRouter({
           });
         }
 
-        // Validate mentioned users exist and have project access
-        if (input.mentionedUserIds && input.mentionedUserIds.length > 0) {
+        // Extract mentions from content (server-side, authoritative)
+        const mentionsInContent = extractMentionsFromMarkdown(input.content);
+
+        // Sanitize mentions and get valid user IDs
+        let sanitizedContent = input.content;
+        let validMentionedUserIds: string[] = [];
+
+        if (mentionsInContent.length > 0) {
+          // Check projectMembers:read permission if mentioning users
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId: input.projectId,
+            scope: "projectMembers:read",
+            forbiddenErrorMessage:
+              "You need projectMembers:read permission to mention users in comments",
+          });
+
+          // Fetch project members for validation and normalization
           const projectMembers = await getUserProjectRoles({
             projectId: input.projectId,
             orgId: ctx.session.orgId,
@@ -60,17 +71,13 @@ export const commentsRouter = createTRPCRouter({
             orderBy: Prisma.empty,
           });
 
-          const validUserIds = new Set(projectMembers.map((m) => m.id));
-          const invalidUserIds = input.mentionedUserIds.filter(
-            (id) => !validUserIds.has(id),
+          // Sanitize content: validate users and normalize display names
+          const sanitizationResult = sanitizeMentions(
+            input.content,
+            projectMembers,
           );
-
-          if (invalidUserIds.length > 0) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `Cannot mention users who don't have access to this project`,
-            });
-          }
+          sanitizedContent = sanitizationResult.sanitizedContent;
+          validMentionedUserIds = sanitizationResult.validMentionedUserIds;
         }
 
         // Use transaction to create comment + mentions atomically
@@ -78,17 +85,17 @@ export const commentsRouter = createTRPCRouter({
           const newComment = await tx.comment.create({
             data: {
               projectId: input.projectId,
-              content: input.content,
+              content: sanitizedContent, // Use sanitized content
               objectId: input.objectId,
               objectType: input.objectType,
               authorUserId: ctx.session.user.id,
             },
           });
 
-          // Create mention records if any
-          if (input.mentionedUserIds && input.mentionedUserIds.length > 0) {
+          // Create mention records for validated users only
+          if (validMentionedUserIds.length > 0) {
             await tx.commentMention.createMany({
-              data: input.mentionedUserIds.map((userId) => ({
+              data: validMentionedUserIds.map((userId) => ({
                 commentId: newComment.id,
                 mentionedUserId: userId,
               })),
@@ -106,7 +113,7 @@ export const commentsRouter = createTRPCRouter({
           action: "create",
           after: {
             ...comment,
-            mentionedUserIds: input.mentionedUserIds || [],
+            mentionedUserIds: validMentionedUserIds,
           },
         });
 
