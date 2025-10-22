@@ -526,7 +526,7 @@ describe("Annotation Queues API Endpoints", () => {
       const response = await makeZodVerifiedAPICall(
         GetAnnotationQueueItemsResponse,
         "GET",
-        `/api/public/annotation-queues/${queueId}/items?traceIds=${traceId}`,
+        `/api/public/annotation-queues/${queueId}/items?traceIds=${[traceId]}`,
         undefined,
         auth,
       );

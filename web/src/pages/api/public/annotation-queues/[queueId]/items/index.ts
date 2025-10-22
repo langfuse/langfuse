@@ -11,9 +11,9 @@ import {
   AnnotationQueueObjectType,
   InvalidRequestError,
   LangfuseNotFoundError,
+  AnnotationQueueStatus,
 } from "@langfuse/shared";
-import { AnnotationQueueStatus } from "@langfuse/shared";
-import type z from "zod/v4";
+import { z } from "zod/v4";
 
 const isArrayNotNull = <T>(array: T[] | null | undefined): array is T[] => {
   return array !== null && array !== undefined && array.length > 0;
