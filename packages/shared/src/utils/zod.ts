@@ -70,6 +70,10 @@ export const optionalPaginationZod = {
     .optional(),
 };
 
+export const queryStringZod = z
+  .string()
+  .transform((val) => decodeURIComponent(val));
+
 export const paginationMetaResponseZod = z.object({
   page: z.number().int().positive(),
   limit: z.number().int().positive(),

@@ -3,6 +3,7 @@ import {
   publicApiPaginationZod,
   paginationZod,
   paginationMetaResponseZod,
+  queryStringZod,
   type DatasetRuns as DbDatasetRuns,
   type DatasetItem as DbDatasetItems,
   type Dataset as DbDataset,
@@ -130,13 +131,13 @@ export const GetDatasetsV2Response = z
 
 // GET /v2/datasets/{datasetName}
 export const GetDatasetV2Query = z.object({
-  datasetName: z.string(),
+  datasetName: queryStringZod,
 });
 export const GetDatasetV2Response = APIDataset.strict();
 
 // GET /datasets/{name}/runs
 export const GetDatasetRunsV1Query = z.object({
-  name: z.string(), // dataset name from URL, name as it is v1
+  name: queryStringZod, // dataset name from URL, name as it is v1
   ...publicApiPaginationZod,
 });
 export const GetDatasetRunsV1Response = z
@@ -148,8 +149,8 @@ export const GetDatasetRunsV1Response = z
 
 // GET /datasets/{name}/runs/{runName}
 export const GetDatasetRunV1Query = z.object({
-  name: z.string(), // dataset name from URL, name as it is v1
-  runName: z.string(),
+  name: queryStringZod, // dataset name from URL, name as it is v1
+  runName: queryStringZod,
 });
 export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
@@ -261,7 +262,7 @@ export const GetDatasetsV1Response = z
 
 // GET /datasets/{name}
 export const GetDatasetV1Query = z.object({
-  name: z.string(),
+  name: queryStringZod,
 });
 export const GetDatasetV1Response = APIDataset.extend({
   items: z.array(APIDatasetItem),
@@ -270,8 +271,8 @@ export const GetDatasetV1Response = APIDataset.extend({
 
 // DELETE /datasets/{name}/runs/{runName}
 export const DeleteDatasetRunV1Query = z.object({
-  name: z.string(), // dataset name from URL
-  runName: z.string(),
+  name: queryStringZod, // dataset name from URL
+  runName: queryStringZod,
 });
 export const DeleteDatasetRunV1Response = z
   .object({
