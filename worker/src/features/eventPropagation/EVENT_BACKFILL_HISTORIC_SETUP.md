@@ -16,7 +16,7 @@ can handle the query.
     select distinct project_id, trace_id
     from observations
     WHERE _partition_id = '202509'
-      AND (xxHash32(trace_id) % 128) = 1
+      AND (xxHash32(trace_id) % 256) = 1
 ), relevant_traces AS (
     select
         t.id as trace_id,
@@ -27,7 +27,7 @@ can handle the query.
     from traces t
     left semi join relevant_keys rk
     on t.project_id = rk.project_id and t.id = rk.trace_id
-    where (xxHash32(t.id) % 128) = 1
+    where (xxHash32(t.id) % 256) = 1
     order by t.project_id, toDate(t.timestamp), t.id, t.event_ts desc
     limit 1 by t.project_id, t.id
   )
@@ -116,11 +116,13 @@ can handle the query.
      o.is_deleted
   FROM observations AS o
   LEFT JOIN relevant_traces AS t ON (o.project_id = t.project_id) AND (o.trace_id = t.trace_id)
-  WHERE (o._partition_id = '202509') AND ((xxHash32(t.trace_id) % 128) = 1)
+  WHERE (o._partition_id = '202509') AND ((xxHash32(t.trace_id) % 256) = 1)
      
   SETTINGS
     -- join_algorithm = 'partial_merge',
     min_insert_block_size_bytes = '512Mi',
+    parallel_distributed_insert_select = 2,
+    enable_parallel_replicas = 1,
     -- allow_experimental_parallel_reading_from_replicas = 1,
     -- max_parallel_replicas = 3,
     type_json_skip_duplicated_paths = 1;
@@ -157,15 +159,56 @@ SELECT
     mapFilter((k,v) -> NOT in(k, ['attributes','debug_info']), t.metadata) AS metadata,
     t.event_ts,
     0 AS is_deleted
-FROM traces AS t
+FROM traces AS t FINAL -- deduplicate before writing!
 WHERE t.is_deleted = 0
 AND _partition_id = '202509'
 SETTINGS 
     max_insert_threads = 16,
     min_insert_block_size_rows = 10048576;
 
+
+INSERT INTO events (
+    project_id,
+    trace_id,
+    span_id,
+    parent_span_id,
+    start_time,
+    end_time,
+    name,
+    type,
+    environment,
+    version,
+    user_id,
+    session_id,
+    level,
+    status_message,
+    completion_start_time,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    model_id,
+    provided_model_name,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    total_cost,
+    input,
+    output,
+    metadata,
+    metadata_names,
+    metadata_values,
+    source,
+    blob_storage_file_path,
+    event_raw,
+    event_bytes,
+    created_at,
+    updated_at,
+    event_ts,
+    is_deleted
+)
 SELECT -- count(*)
-       NULL AS org_id,
        o.project_id,
        o.trace_id,
        o.id AS span_id,
@@ -198,13 +241,6 @@ SELECT -- count(*)
        mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_names,
        mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_values,
        multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
-       '' AS service_name,
-       '' AS service_version,
-       '' AS scope_name,
-       '' AS scope_version,
-       '' AS telemetry_sdk_language,
-       '' AS telemetry_sdk_name,
-       '' AS telemetry_sdk_version,
        '' AS blob_storage_file_path,
        '' AS event_raw,
        0 AS event_bytes,
@@ -213,16 +249,18 @@ SELECT -- count(*)
        o.event_ts,
        o.is_deleted
 FROM observations o
-         LEFT JOIN traces_attrs t
-                   ON o.project_id = t.project_id AND o.trace_id = t.trace_id
+LEFT JOIN trace_attrs t
+ON o.project_id = t.project_id AND o.trace_id = t.trace_id
 WHERE o._partition_id = '202509'
-  AND (xxHash32(o.project_id) % 64) = 1
-    SETTINGS 
-  join_algorithm = 'grace_hash', 
-  allow_experimental_parallel_reading_from_replicas = 1, 
-  max_parallel_replicas = 3,
-  type_json_skip_duplicated_paths = 1
-FORMAT Null;
+  AND (xxHash32(o.trace_id) % 128) = 1
+SETTINGS
+    join_algorithm = 'partial_merge',
+    min_insert_block_size_bytes = '512Mi',
+    parallel_distributed_insert_select = 2,
+    enable_parallel_replicas = 1,
+    -- allow_experimental_parallel_reading_from_replicas = 1,
+    -- max_parallel_replicas = 3,
+    type_json_skip_duplicated_paths = 1;
 ```
 
 ### Remove full text indexes for faster ingest
