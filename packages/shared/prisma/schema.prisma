@@ -90,6 +90,7 @@ model User {
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
+  commentReactions          CommentReaction[]
 
   @@map("users")
 }
@@ -679,16 +680,17 @@ model DatasetRunItems {
 }
 
 model Comment {
-  id           String            @id @default(cuid())
-  projectId    String            @map("project_id")
-  project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  objectType   CommentObjectType @map("object_type")
-  objectId     String            @map("object_id")
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at")
+  id           String             @id @default(cuid())
+  projectId    String             @map("project_id")
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  objectType   CommentObjectType  @map("object_type")
+  objectId     String             @map("object_id")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @default(now()) @updatedAt @map("updated_at")
   content      String
-  authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
+  authorUserId String?            @map("author_user_id") // no fk constraint, user can be deleted
   mentions     CommentMention[]
+  reactions    CommentReaction[]
 
   @@index([projectId, objectType, objectId])
   @@map("comments")
@@ -705,6 +707,21 @@ model CommentMention {
   @@index([commentId])
   @@index([mentionedUserId])
   @@map("comment_mentions")
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  commentId String   @map("comment_id")
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String   // Unicode emoji (e.g., "👍", "❤️")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([commentId, userId, emoji])
+  @@index([commentId])
+  @@index([userId])
+  @@map("comment_reactions")
 }
 
 enum CommentObjectType {

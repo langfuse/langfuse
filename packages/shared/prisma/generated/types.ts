@@ -368,6 +368,13 @@ export type CommentMention = {
   mentioned_user_id: string;
   created_at: Generated<Timestamp>;
 };
+export type CommentReaction = {
+  id: string;
+  comment_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: Generated<Timestamp>;
+};
 export type CronJobs = {
   name: string;
   last_run: Timestamp | null;
@@ -890,6 +897,7 @@ export type DB = {
   blob_storage_integrations: BlobStorageIntegration;
   cloud_spend_alerts: CloudSpendAlert;
   comment_mentions: CommentMention;
+  comment_reactions: CommentReaction;
   comments: Comment;
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
