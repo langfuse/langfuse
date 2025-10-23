@@ -42,17 +42,19 @@ interface VideoPlayerProps {
 
 function VideoPlayer({ videoSrc }: VideoPlayerProps) {
   const [hasError, setHasError] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  if (hasError) {
+    return null;
+  }
 
   return (
-    <div
-      className={cn(
-        "my-6 w-full max-w-3xl overflow-hidden rounded-lg border border-border",
-        {
-          hidden: !isLoaded || hasError,
-        },
+    <div className="my-6 w-full max-w-3xl overflow-hidden rounded-lg border border-border">
+      {isLoading && (
+        <div className="flex h-[400px] w-full items-center justify-center bg-muted">
+          <div className="text-muted-foreground">Loading video...</div>
+        </div>
       )}
-    >
       <video
         src={videoSrc}
         controls
@@ -61,9 +63,9 @@ function VideoPlayer({ videoSrc }: VideoPlayerProps) {
         loop
         playsInline
         controlsList="nodownload"
-        className="w-full"
+        className={cn("w-full", { hidden: isLoading })}
         onError={() => setHasError(true)}
-        onLoadedData={() => setIsLoaded(true)}
+        onLoadedData={() => setIsLoading(false)}
       />
     </div>
   );
