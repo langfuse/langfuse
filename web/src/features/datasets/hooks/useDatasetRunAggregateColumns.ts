@@ -73,15 +73,13 @@ export function useDatasetRunAggregateColumns({
       runAggregateColumnProps,
       projectId,
       datasetColumns,
-      scoreColumns:
-        runIds.length > 0 ? scoreKeysAndProps.data?.scoreColumns : [],
+      serverScoreColumns: scoreKeysAndProps.data?.scoreColumns,
       updateRunFilters,
       getFiltersForRun,
     });
   }, [
     runAggregateColumnProps,
     projectId,
-    runIds,
     datasetColumns,
     scoreKeysAndProps.data?.scoreColumns,
     updateRunFilters,

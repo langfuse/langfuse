@@ -19,6 +19,7 @@ jest.mock("@langfuse/shared", () => ({
 
 import { normalizeInput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
+import { extractTools } from "./extractTools";
 
 describe("Playground Jump Full Pipeline", () => {
   it("should convert full trace with tool calls through mapper and playground conversion", () => {
@@ -200,5 +201,199 @@ describe("Playground Jump Full Pipeline", () => {
       expect(typeof toolResult2.content).toBe("string");
       expect(toolResult2.content).toContain("Settings > API Configuration");
     }
+  });
+
+  it("should handle Gemini-style tool definitions embedded in messages", () => {
+    // Gemini format embeds tool definitions as messages with role="tool"
+    // This test verifies that:
+    // 1. Tool definition messages are filtered out of the message list
+    // 2. Tool definitions are extracted and available for the playground
+    const observationName = "VertexGemini";
+    const metadata = {
+      ls_provider: "google_vertexai",
+      ls_model_name: "gemini-2.5-flash",
+      ls_model_type: "chat",
+      ls_temperature: 0,
+      ls_max_tokens: 8192,
+    };
+
+    const input = [
+      {
+        role: "system",
+        content: "You are a helpful assistant with access to tools.",
+      },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: "Hello! How can I help you today?",
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "transition_to_next_stage",
+            description:
+              "Use this function to transition to the next stage when conditions are met",
+            parameters: {
+              properties: {
+                reason: {
+                  description: "Explanation of why transitioning",
+                  type: "string",
+                },
+              },
+              required: ["reason"],
+              type: "object",
+            },
+          },
+        },
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "get_user_info",
+            description: "Retrieve user contact information",
+            parameters: {
+              type: "object",
+              properties: {},
+              required: [],
+            },
+          },
+        },
+      },
+      {
+        role: "user",
+        content: "What can you do?",
+      },
+    ];
+
+    const ctx = { metadata, observationName };
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    // Convert all messages to playground format
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Should have 3 real messages (system, assistant, user)
+    // Tool definition messages should be filtered out by the converter
+    expect(playgroundMessages.length).toBe(3);
+
+    // Filter out placeholder messages for role testing
+    const regularMessages = playgroundMessages.filter(
+      (msg) => msg.type !== "placeholder",
+    );
+
+    // Verify message roles
+    expect(regularMessages[0]?.role).toBe("system");
+    expect(regularMessages[1]?.role).toBe("assistant");
+    expect(regularMessages[2]?.role).toBe("user");
+
+    // All should have type public-api-created (regular messages)
+    expect(playgroundMessages[0]?.type).toBe("public-api-created");
+    expect(playgroundMessages[1]?.type).toBe("public-api-created");
+    expect(playgroundMessages[2]?.type).toBe("public-api-created");
+
+    // IMPORTANT: Test that tools are extracted from the Gemini input format
+    // The parseTools function in JumpToPlaygroundButton.tsx needs to handle Gemini format
+    // where tool definitions are embedded as messages with role="tool"
+
+    // We need to test parseTools behavior directly
+    // For now, manually verify the structure exists
+    const toolMessages = input.filter(
+      (msg: any) =>
+        msg.role === "tool" &&
+        typeof msg.content === "object" &&
+        msg.content?.type === "function" &&
+        msg.content?.function,
+    );
+
+    // Verify the structure that parseTools should handle
+    expect(toolMessages.length).toBe(2);
+    expect((toolMessages[0].content as any).function.name).toBe(
+      "transition_to_next_stage",
+    );
+    expect((toolMessages[1].content as any).function.name).toBe(
+      "get_user_info",
+    );
+  });
+
+  it("should extract tools from Gemini format using extractTools utility", () => {
+    const geminiInput = [
+      {
+        role: "system",
+        content: "You are a helpful assistant.",
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "get_weather",
+            description: "Get the current weather in a location",
+            parameters: {
+              type: "object",
+              properties: {
+                location: {
+                  type: "string",
+                  description: "The city name",
+                },
+              },
+              required: ["location"],
+            },
+          },
+        },
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "search_web",
+            description: "Search the web for information",
+            parameters: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "Search query",
+                },
+              },
+              required: ["query"],
+            },
+          },
+        },
+      },
+    ];
+
+    // Test the exported extractTools utility directly
+    const tools = extractTools(geminiInput);
+
+    expect(tools.length).toBe(2);
+    expect(tools[0]).toEqual({
+      id: expect.any(String),
+      name: "get_weather",
+      description: "Get the current weather in a location",
+      parameters: {
+        type: "object",
+        properties: {
+          location: {
+            type: "string",
+            description: "The city name",
+          },
+        },
+        required: ["location"],
+      },
+    });
+    expect(tools[1].name).toBe("search_web");
   });
 });

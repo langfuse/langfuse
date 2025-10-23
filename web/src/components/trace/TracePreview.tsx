@@ -49,7 +49,7 @@ import {
 export const TracePreview = ({
   trace,
   observations,
-  scores,
+  serverScores: scores,
   commentCounts,
   viewType = "detailed",
 }: {
@@ -60,7 +60,7 @@ export const TracePreview = ({
     metadata: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  scores: APIScoreV2[];
+  serverScores: APIScoreV2[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
 }) => {
@@ -73,9 +73,6 @@ export const TracePreview = ({
     "pretty",
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -157,10 +154,10 @@ export const TracePreview = ({
                       traceId: trace.id,
                     }}
                     scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
-                    environment={trace.environment}
+                    scoreMetadata={{
+                      projectId: trace.projectId,
+                      environment: trace.environment,
+                    }}
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}

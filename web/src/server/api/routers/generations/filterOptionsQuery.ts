@@ -171,6 +171,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       ].map((i) => ({
         value: i,
       })),
+      environment: [], // Environment is fetched separately via api.projects.environmentFilterOptions
     };
 
     return res;
