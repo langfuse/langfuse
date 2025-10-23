@@ -134,7 +134,7 @@ const FIELD_SETS = {
  */
 const EVENTS_AGGREGATION_FIELDS = {
   // Grouping keys (must be in GROUP BY)
-  traceId: "trace_id AS id",
+  id: "trace_id AS id",
   projectId: "project_id",
 
   // Aggregated fields
@@ -142,17 +142,17 @@ const EVENTS_AGGREGATION_FIELDS = {
   timestamp: "min(start_time) as timestamp",
   environment: "argMax(environment, event_ts) AS environment",
   version: "argMax(version, event_ts) AS version",
-  sessionId: "argMax(session_id, event_ts) AS session_id",
-  userId: "argMax(user_id, event_ts) AS user_id",
+  session_id: "argMax(session_id, event_ts) AS session_id",
+  user_id: "argMax(user_id, event_ts) AS user_id",
   input: "argMax(input, event_ts) AS input",
   output: "argMax(output, event_ts) AS output",
   metadata: "argMax(metadata, event_ts) AS metadata",
-  createdAt: "min(created_at) AS created_at",
-  updatedAt: "max(updated_at) AS updated_at",
-  totalCost: "sum(total_cost) AS total_cost",
-  latencyMilliseconds:
+  created_at: "min(created_at) AS created_at",
+  updated_at: "max(updated_at) AS updated_at",
+  total_cost: "sum(total_cost) AS total_cost",
+  latency_milliseconds:
     "date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
-  observationIds:
+  observation_ids:
     "groupUniqArrayIf(span_id, isNotNull(span_id) AND span_id != '') AS observation_ids",
 
   // Legacy fields for backward compatibility
@@ -166,28 +166,9 @@ const EVENTS_AGGREGATION_FIELDS = {
  * Field sets for aggregation queries
  */
 const AGGREGATION_FIELD_SETS = {
-  all: [
-    "traceId",
-    "projectId",
-    "name",
-    "timestamp",
-    "environment",
-    "version",
-    "sessionId",
-    "userId",
-    "input",
-    "output",
-    "metadata",
-    "createdAt",
-    "updatedAt",
-    "totalCost",
-    "latencyMilliseconds",
-    "observationIds",
-    "tags",
-    "bookmarked",
-    "public",
-    "release",
-  ] as Array<keyof typeof EVENTS_AGGREGATION_FIELDS>,
+  all: Object.keys(EVENTS_AGGREGATION_FIELDS) as Array<
+    keyof typeof EVENTS_AGGREGATION_FIELDS
+  >,
 } as const;
 
 /**
@@ -201,29 +182,72 @@ export const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**
- * Base class for events query builders.
- * Contains shared logic for building SQL queries against the events table.
+ * Most abstract base class - contains common query building logic
+ * that applies to all query types (WHERE, ORDER BY, LIMIT, params management).
  */
-abstract class BaseEventsQueryBuilder<TFields extends Record<string, string>> {
-  protected selectFields: Set<string> = new Set();
-  protected ctes: string[] = [];
-  protected joins: string[] = [];
+abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected orderByClause: string = "";
+  protected limitClause: string = "";
   protected params: Record<string, any> = {};
-  protected projectId: string | NoProjectIdType;
 
-  constructor(
-    protected fields: TFields,
-    options: { projectId: string | NoProjectIdType },
-  ) {
-    this.projectId = options.projectId;
+  /**
+   * Add raw WHERE condition with optional parameters
+   * Use ClickHouse parameter syntax: {paramName: Type}
+   *
+   * Example:
+   *   .whereRaw("span_id = {id: String}", { id: "abc123" })
+   */
+  whereRaw(condition: string, params?: Record<string, any>): this {
+    if (condition.trim()) {
+      this.whereClauses.push(condition);
+    }
+    if (params) {
+      this.params = { ...this.params, ...params };
+    }
+    return this;
+  }
+
+  /**
+   * Add WHERE conditions from FilterList
+   * Strips leading AND/OR and wraps in parentheses
+   */
+  where(condition: { query: string; params?: Record<string, any> }): this {
+    if (condition.query.trim()) {
+      const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
+      this.whereRaw(`(${trimmedQuery})`, condition.params);
+    }
+    return this;
+  }
+
+  /**
+   * Add ORDER BY clause
+   */
+  orderBy(clause: string): this {
+    if (clause.trim()) {
+      this.orderByClause = clause;
+    }
+    return this;
+  }
+
+  /**
+   * Add LIMIT and OFFSET
+   */
+  limit(limit?: number, offset?: number): this {
+    if (limit !== undefined && offset !== undefined) {
+      this.limitClause = "LIMIT {limit: Int32} OFFSET {offset: Int32}";
+      this.params.limit = limit;
+      this.params.offset = offset;
+    } else {
+      this.limitClause = "";
+    }
+    return this;
   }
 
   /**
    * Conditionally apply builder operations
    */
-  when<T extends BaseEventsQueryBuilder<TFields>>(
+  when<T extends AbstractQueryBuilder>(
     this: T,
     condition: boolean,
     // eslint-disable-next-line no-unused-vars
@@ -233,8 +257,37 @@ abstract class BaseEventsQueryBuilder<TFields extends Record<string, string>> {
   }
 
   /**
-   * Add a CTE (Common Table Expression) to the query.
-   * Accepts a query and params object.
+   * Build the final query string along with accumulated parameters
+   */
+  buildWithParams(): { query: string; params: Record<string, any> } {
+    return {
+      query: this.buildQuery(),
+      params: this.params,
+    };
+  }
+
+  /**
+   * Helper to build LIMIT section
+   */
+  protected buildLimitSection(): string {
+    return this.limitClause;
+  }
+
+  /**
+   * Build the final query string - implemented by subclasses
+   */
+  protected abstract buildQuery(): string;
+}
+
+/**
+ * Adds CTE and JOIN support to the abstract query builder
+ */
+abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
+  protected ctes: string[] = [];
+  protected joins: string[] = [];
+
+  /**
+   * Add a CTE (Common Table Expression) to the query
    */
   withCTE(
     name: string,
@@ -254,45 +307,44 @@ abstract class BaseEventsQueryBuilder<TFields extends Record<string, string>> {
   }
 
   /**
-   * Add raw WHERE condition with optional parameters
-   * Use ClickHouse parameter syntax: {paramName: Type}
-   *
-   * Example:
-   *   .whereRaw("span_id = {id: String}", { id: "abc123" })
+   * Helper to build WITH clause section
    */
-  whereRaw(condition: string, params?: Record<string, any>): this {
-    if (condition.trim()) {
-      this.whereClauses.push(condition);
-    }
-    // Merge provided parameters
-    if (params) {
-      this.params = { ...this.params, ...params };
-    }
-    return this;
+  protected buildCTESection(): string {
+    return this.ctes.length > 0 ? `WITH ${this.ctes.join(",\n")}` : "";
   }
 
   /**
-   * Add WHERE conditions from FilterList
-   * Accepts the output from FilterList.apply() or clickhouseSearchCondition()
-   * Strips leading AND/OR and wraps in parentheses
+   * Helper to build JOIN section
    */
-  where(condition: { query: string; params?: Record<string, any> }): this {
-    if (condition.query.trim()) {
-      // Strip leading AND/OR if present (e.g., from clickhouseSearchCondition)
-      const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
-      this.whereRaw(`(${trimmedQuery})`, condition.params);
-    }
-    return this;
+  protected buildJoinSection(): string {
+    return this.joins.length > 0 ? this.joins.join("\n") : "";
   }
 
   /**
-   * Add ORDER BY clause
+   * Helper to build WHERE section
    */
-  orderBy(clause: string): this {
-    if (clause.trim()) {
-      this.orderByClause = clause;
-    }
-    return this;
+  protected buildWhereSection(): string {
+    if (this.whereClauses.length === 0) return "";
+    return `WHERE ${this.whereClauses.join("\n  AND ")}`;
+  }
+}
+
+/**
+ * Base class for events table query builders.
+ * Contains shared logic for building SQL queries against the events table.
+ */
+abstract class BaseEventsQueryBuilder<
+  TFields extends Record<string, string>,
+> extends AbstractCTEQueryBuilder {
+  protected selectFields: Set<string> = new Set();
+  protected projectId: string | NoProjectIdType;
+
+  constructor(
+    protected fields: TFields, // eslint-disable-line no-unused-vars
+    options: { projectId: string | NoProjectIdType },
+  ) {
+    super();
+    this.projectId = options.projectId;
   }
 
   /**
@@ -313,8 +365,9 @@ abstract class BaseEventsQueryBuilder<TFields extends Record<string, string>> {
     const parts: string[] = [];
 
     // CTEs (WITH clause)
-    if (this.ctes.length > 0) {
-      parts.push(`WITH ${this.ctes.join(",\n")}`);
+    const cteSection = this.buildCTESection();
+    if (cteSection) {
+      parts.push(cteSection);
     }
 
     // SELECT
@@ -324,22 +377,20 @@ abstract class BaseEventsQueryBuilder<TFields extends Record<string, string>> {
     parts.push("FROM events e");
 
     // JOINs
-    if (this.joins.length > 0) {
-      parts.push(this.joins.join("\n"));
+    const joinSection = this.buildJoinSection();
+    if (joinSection) {
+      parts.push(joinSection);
     }
 
-    // WHERE
+    // WHERE - add project_id filter automatically
     const allWhereClauses = [...this.whereClauses];
-
-    // Automatically add project_id filter if projectId is provided
     if (this.projectId !== NoProjectId) {
       allWhereClauses.unshift("e.project_id = {projectId: String}");
       this.params.projectId = this.projectId;
     }
 
     if (allWhereClauses.length > 0) {
-      const whereExpression = allWhereClauses.join("\n        AND ");
-      parts.push(`WHERE ${whereExpression}`);
+      parts.push(`WHERE ${allWhereClauses.join("\n  AND ")}`);
     }
 
     // GROUP BY (only for aggregation queries)
@@ -353,24 +404,13 @@ abstract class BaseEventsQueryBuilder<TFields extends Record<string, string>> {
       parts.push(this.orderByClause);
     }
 
-    return parts.join("\n");
-  }
+    // LIMIT
+    const limitSection = this.buildLimitSection();
+    if (limitSection) {
+      parts.push(limitSection);
+    }
 
-  /**
-   * Build the final query string along with accumulated parameters
-   *
-   * Returns both the query and all parameters that have been accumulated
-   * from FilterConditions, raw conditions, CTEs, and limit/offset.
-   *
-   * Example:
-   *   const { query, params } = queryBuilder.buildWithParams();
-   *   await queryClickhouse({ query, params });
-   */
-  buildWithParams(): { query: string; params: Record<string, any> } {
-    return {
-      query: this.buildQuery(),
-      params: this.params,
-    };
+    return parts.join("\n");
   }
 }
 
@@ -395,7 +435,6 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_FIELDS
 > {
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
-  private limitClause: string = "";
 
   /**
    * Constructor
@@ -435,26 +474,6 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
-   * Add LIMIT and OFFSET
-   *
-   * @param limit - Maximum number of rows to return
-   * @param offset - Number of rows to skip
-   *
-   * Examples:
-   *   .limit(100, 0) - Parameterized: "LIMIT {limit: Int32} OFFSET {offset: Int32}"
-   */
-  limit(limit?: number, offset?: number): this {
-    if (limit !== undefined && offset !== undefined) {
-      this.limitClause = "LIMIT {limit: Int32} OFFSET {offset: Int32}";
-      if (limit !== undefined) this.params.limit = limit;
-      if (offset !== undefined) this.params.offset = offset;
-    } else {
-      this.limitClause = "LIMIT 1000";
-    }
-    return this;
-  }
-
-  /**
    * Build the SELECT clause for row-level queries
    */
   protected buildSelectClause(): string {
@@ -489,21 +508,38 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   protected buildGroupByClause(): string {
     return "";
   }
-
-  /**
-   * Build the final query string, adding LIMIT clause if specified
-   */
-  protected buildQuery(): string {
-    const query = super.buildQuery();
-
-    // Add LIMIT/OFFSET if specified
-    if (this.limitClause) {
-      return `${query}\n${this.limitClause}`;
-    }
-
-    return query;
-  }
 }
+
+/**
+ * Schema describing what columns a CTE exposes
+ */
+export type CTESchema = string[];
+
+/**
+ * A CTE with its query, params, and exposed column names
+ */
+export interface CTEWithSchema {
+  query: string;
+  params: Record<string, any>;
+  schema: CTESchema;
+}
+
+/**
+ * Utility type to generate all valid column references from alias mappings.
+ * For each alias, generates all possible column references like "alias.columnName".
+ *
+ * @example
+ * type CTEs = { traces: ['id', 'name'], scores: ['trace_id', 'score'] }
+ * type Aliases = { t: 'traces', s: 'scores' }
+ * type Cols = AliasedColumns<CTEs, Aliases>
+ * // Result: "t.id" | "t.name" | "s.trace_id" | "s.score"
+ */
+type AliasedColumns<
+  RegisteredCTEs extends Record<string, string[]>,
+  Aliases extends Record<string, keyof RegisteredCTEs>,
+> = {
+  [Alias in keyof Aliases]: `${Alias & string}.${RegisteredCTEs[Aliases[Alias]][number]}`;
+}[keyof Aliases];
 
 /**
  * EventsAggregationQueryBuilder - A fluent query builder for aggregated events table queries
@@ -564,7 +600,9 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
    */
   protected buildSelectClause(): string {
     const fieldExpressions = [...this.selectFields]
-      .map((key) => this.fields[key])
+      .map((key) => {
+        return this.fields[key as keyof typeof EVENTS_AGGREGATION_FIELDS];
+      })
       .filter(Boolean);
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
   }
@@ -574,5 +612,203 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
    */
   protected buildGroupByClause(): string {
     return "GROUP BY trace_id, project_id";
+  }
+
+  /**
+   * Build with schema for use in CTEQueryBuilder.
+   * Returns query, params, and list of column names this CTE exposes.
+   */
+  buildWithSchema(): CTEWithSchema {
+    // Extract column names from selected fields
+    const schema = [...this.selectFields].map((fieldKey) => {
+      return fieldKey;
+    });
+
+    return {
+      ...this.buildWithParams(),
+      schema,
+    };
+  }
+}
+
+/**
+ * Query builder that composes CTEs with type-safe CTE name tracking.
+ *
+ * Generic type parameters:
+ * - RegisteredCTEs: Maps CTE names to their column name arrays
+ * - Aliases: Maps table aliases to CTE names
+ *
+ * @example
+ * const builder = new CTEQueryBuilder()
+ *   .withCTE('traces', { query: '...', params: {}, schema: ['id', 'name'] })
+ *   .withCTE('scores', { query: '...', params: {}, schema: ['trace_id', 'score'] })
+ *   .from('traces', 't')                              // Type-safe, adds 't' -> 'traces' mapping
+ *   .leftJoin('scores', 's', 'ON s.trace_id = t.id')  // Type-safe, adds 's' -> 'scores' mapping
+ *   .selectColumns('t.id', 't.name', 's.score')       // Type-safe column references
+ *   .select('COUNT(*) as total')                      // Raw SQL expression
+ *   .from('nonexistent', 'x');                        // Compile error - CTE not registered
+ */
+export class CTEQueryBuilder<
+  RegisteredCTEs extends Record<string, CTESchema> = {},
+  Aliases extends Record<string, keyof RegisteredCTEs> = {},
+> extends AbstractQueryBuilder {
+  private ctes: string[] = [];
+  private cteSchemas: Map<string, CTESchema> = new Map();
+  private joins: string[] = [];
+  private selectExpressions: string[] = [];
+  private fromClause: string = "";
+  private fromAlias: string = "";
+
+  /**
+   * Register a CTE with its schema
+   * Returns a new builder type with the CTE name added to RegisteredCTEs.
+   */
+  withCTE<Name extends string, Schema extends CTESchema>(
+    name: Name,
+    cteWithSchema: CTEWithSchema & { schema: Schema },
+  ): CTEQueryBuilder<RegisteredCTEs & Record<Name, Schema>, Aliases> {
+    this.ctes.push(`${name} AS (${cteWithSchema.query})`);
+    this.params = { ...this.params, ...cteWithSchema.params };
+    this.cteSchemas.set(name, cteWithSchema.schema);
+    // Type assertion needed because we're changing the type parameter
+    return this as any;
+  }
+
+  /**
+   * Convenience method to add a CTE from a builder with buildWithSchema()
+   */
+  withCTEFromBuilder<Name extends string>(
+    name: Name,
+    builder: { buildWithSchema(): CTEWithSchema },
+  ): CTEQueryBuilder<
+    RegisteredCTEs &
+      Record<Name, ReturnType<typeof builder.buildWithSchema>["schema"]>,
+    Aliases
+  > {
+    return this.withCTE(name, builder.buildWithSchema());
+  }
+
+  /**
+   * Set the main FROM clause.
+   * Only accepts CTE names that have been registered via withCTE().
+   * Type-checked at compile time!
+   */
+  from<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+    cteName: Name,
+    alias: Alias,
+  ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
+    if (!this.cteSchemas.has(cteName)) {
+      throw new Error(
+        `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
+      );
+    }
+    this.fromClause = cteName;
+    this.fromAlias = alias;
+    // Type assertion needed because we're changing the type parameter
+    return this as any;
+  }
+
+  /**
+   * Join another CTE.
+   * Only accepts CTE names that have been registered via withCTE().
+   * Type-checked at compile time!
+   */
+  leftJoin<Name extends keyof RegisteredCTEs & string, Alias extends string>(
+    cteName: Name,
+    alias: Alias,
+    onClause: string,
+  ): CTEQueryBuilder<RegisteredCTEs, Aliases & Record<Alias, Name>> {
+    if (!this.cteSchemas.has(cteName)) {
+      throw new Error(
+        `CTE '${cteName}' not registered. Call withCTE('${cteName}', ...) first.`,
+      );
+    }
+    this.joins.push(`LEFT JOIN ${cteName} ${alias} ${onClause}`);
+    // Type assertion needed because we're changing the type parameter
+    return this as any;
+  }
+
+  /**
+   * Add type-safe column references from registered CTEs.
+   * Only accepts column references in the format "alias.columnName" where:
+   * - alias is a registered table alias (from from() or leftJoin())
+   * - columnName exists in that CTE's schema
+   *
+   * @example
+   * builder
+   *   .from('traces', 't')
+   *   .leftJoin('scores', 's', 'ON s.trace_id = t.id')
+   *   .selectColumns('t.id', 't.name', 's.score') // Type-safe
+   *   .selectColumns('t.nonexistent')             // Compile error
+   *   .selectColumns('x.id')                      // Compile error - 'x' not registered
+   */
+  selectColumns(
+    ...columns: Array<AliasedColumns<RegisteredCTEs, Aliases>>
+  ): this {
+    this.selectExpressions.push(...columns);
+    return this;
+  }
+
+  /**
+   * Add raw SELECT expressions (for complex SQL, aggregations, aliases, etc.)
+   * Not type-checked - use for expressions like "COUNT(*) as total" or "t.id || '-' || s.score as combined"
+   * For type-safe column selection, use selectColumns() instead.
+   *
+   * @example
+   * builder.select("COUNT(*) as total", "t.id || '-' || s.score as combined")
+   */
+  select(...expressions: string[]): this {
+    this.selectExpressions.push(...expressions);
+    return this;
+  }
+
+  /**
+   * Build the query
+   */
+  protected buildQuery(): string {
+    if (!this.fromClause) {
+      throw new Error(
+        "No FROM clause set. Call from() to specify the main CTE.",
+      );
+    }
+    if (this.selectExpressions.length === 0) {
+      throw new Error("No SELECT expressions. Call select() to add columns.");
+    }
+
+    const parts: string[] = [];
+
+    // CTEs
+    if (this.ctes.length > 0) {
+      parts.push(`WITH ${this.ctes.join(",\n")}`);
+    }
+
+    // SELECT
+    parts.push(`SELECT\n  ${this.selectExpressions.join(",\n  ")}`);
+
+    // FROM
+    parts.push(`FROM ${this.fromClause} ${this.fromAlias}`);
+
+    // JOINs
+    if (this.joins.length > 0) {
+      parts.push(this.joins.join("\n"));
+    }
+
+    // WHERE
+    if (this.whereClauses.length > 0) {
+      parts.push(`WHERE ${this.whereClauses.join("\n  AND ")}`);
+    }
+
+    // ORDER BY
+    if (this.orderByClause) {
+      parts.push(this.orderByClause);
+    }
+
+    // LIMIT
+    const limitSection = this.buildLimitSection();
+    if (limitSection) {
+      parts.push(limitSection);
+    }
+
+    return parts.join("\n");
   }
 }
