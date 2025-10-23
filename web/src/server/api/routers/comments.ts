@@ -71,7 +71,9 @@ export const commentsRouter = createTRPCRouter({
               {
                 column: "userId",
                 operator: "any of",
-                value: Array.from(new Set(mentionsInContent.map((m) => m.userId))),
+                value: Array.from(
+                  new Set(mentionsInContent.map((m) => m.userId)),
+                ),
                 type: "stringOptions",
               },
             ],
