@@ -25,16 +25,18 @@ export function useMentionAutocomplete({
   }, [searchQuery]);
 
   // Fetch users
-  const { data: users, isLoading } = api.comments.searchTaggableUsers.useQuery(
+  const { data, isLoading } = api.members.byProjectId.useQuery(
     {
       projectId,
-      query: debouncedQuery || undefined,
+      searchQuery: debouncedQuery || undefined,
       limit: 10,
+      page: 0, // Always first page for autocomplete
     },
     {
       enabled: enabled && showDropdown,
     },
   );
+  const users = data?.users || [];
 
   // Detect @ character and update state
   useEffect(() => {
@@ -82,7 +84,7 @@ export function useMentionAutocomplete({
 
   return {
     showDropdown,
-    users: users || [],
+    users,
     isLoading,
     selectedIndex,
     setSelectedIndex,
