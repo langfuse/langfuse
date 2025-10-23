@@ -239,6 +239,7 @@ export async function* queryClickhouseStream<T>(opts: {
             log_comment: JSON.stringify(opts.tags ?? {}),
           },
         });
+
         // same logic as for prisma. we want to see queries in development
         if (env.NODE_ENV === "development") {
           logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);

@@ -21,7 +21,7 @@ export const TraceTree = ({
   tree,
   collapsedNodes,
   toggleCollapsedNode,
-  scores,
+  displayScores: scores,
   currentNodeId,
   setCurrentNodeId,
   showMetrics,
@@ -37,7 +37,8 @@ export const TraceTree = ({
   tree: TreeNode;
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
-  scores: APIScoreV2[];
+  // Note: displayScores are merged with client-side score cache; handling optimistic updates
+  displayScores: APIScoreV2[];
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
   showMetrics: boolean;

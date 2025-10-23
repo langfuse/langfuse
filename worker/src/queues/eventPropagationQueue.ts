@@ -5,6 +5,7 @@ import {
   instrumentAsync,
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
+import { SpanKind } from "@opentelemetry/api";
 
 export const eventPropagationProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.EventPropagationJob) {
@@ -12,6 +13,7 @@ export const eventPropagationProcessor: Processor = async (job) => {
       {
         name: "process event-propagation",
         startNewTrace: true,
+        spanKind: SpanKind.CONSUMER,
       },
       async () => {
         logger.info("Executing Event Propagation Job");

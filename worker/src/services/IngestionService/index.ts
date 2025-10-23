@@ -671,7 +671,7 @@ export class IngestionService {
     if (createEventTraceRecord) {
       const traceAsStagingObservation = convertTraceToStagingObservation(
         finalTraceRecord,
-        createdAtTimestamp.getTime(),
+        this.getPartitionAwareTimestamp(createdAtTimestamp),
       );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -826,10 +826,17 @@ export class IngestionService {
     );
 
     // Dual-write to staging table for batch propagation to events table
+    // Here, we add some additional logic around the first seen timestamp.
+    // We "lock" partitions 4min after their creation, i.e. the 15:00:00 partition
+    // should stop receiving updates at 15:04:00.
+    // This means that we keep the createdAtTimestamp as-is if it is within the last
+    // 3.5 minutes (incl. a 30s buffer around writes) and otherwise,
+    // we set the current timestamp for the event.
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
-        s3_first_seen_timestamp: createdAtTimestamp.getTime(),
+        s3_first_seen_timestamp:
+          this.getPartitionAwareTimestamp(createdAtTimestamp),
       };
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -1591,6 +1598,25 @@ export class IngestionService {
 
   private getMillisecondTimestamp(timestamp?: string | null): number {
     return timestamp ? new Date(timestamp).getTime() : Date.now();
+  }
+
+  /**
+   * Returns a partition-aware timestamp for staging table writes.
+   * If the createdAtTimestamp is within the last 3.5 minutes, returns it as-is.
+   * Otherwise, returns the current timestamp to prevent updates to old partitions.
+   *
+   * This implements the partition locking strategy where partitions are "locked"
+   * 4 minutes after creation (3.5 min + 30s buffer for writes).
+   */
+  private getPartitionAwareTimestamp(createdAtTimestamp: Date): number {
+    const now = Date.now();
+    const createdAt = createdAtTimestamp.getTime();
+    const ageInMs = now - createdAt;
+    const threeAndHalfMinutesInMs = 3.5 * 60 * 1000;
+
+    // If the createdAtTimestamp is within the last 3.5 minutes, use it
+    // Otherwise, use the current timestamp to avoid updating old partitions
+    return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
   }
 
   /**
