@@ -5,7 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -43,10 +43,6 @@ import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import {
-  useEnvironmentFilter,
-  convertSelectedEnvironmentsToFilter,
-} from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState, type Row } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -143,7 +139,7 @@ export default function ObservationsTable({
     "s",
   );
 
-  const [inputFilterState, setInputFilterState] = useQueryFilterState(
+  const [inputFilterState] = useQueryFilterState(
     // If the user loads saved table view presets, we should not apply the default type filter
     !viewId
       ? [
@@ -249,25 +245,11 @@ export default function ObservationsTable({
       },
     );
 
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
-
-  const { selectedEnvironments } = useEnvironmentFilter(
-    environmentOptions,
-    projectId,
-  );
-
-  const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment"],
-    selectedEnvironments,
-  );
-
   const oldFilterState = inputFilterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,
     modelIdFilter,
-    environmentFilter,
   );
 
   const startTimeFilter = oldFilterState.find((f) => f.column === "Start Time");
@@ -290,8 +272,19 @@ export default function ObservationsTable({
     },
   );
 
-  const newFilterOptions = useMemo(
-    () => ({
+  const newFilterOptions = useMemo(() => {
+    const scoreCategories =
+      filterOptions.data?.score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) || {};
+
+    const scoresNumeric = filterOptions.data?.scores_avg || [];
+
+    return {
       environment:
         environmentFilterOptions.data?.map((value) => value.environment) || [],
       name:
@@ -339,13 +332,23 @@ export default function ObservationsTable({
       inputCost: [],
       outputCost: [],
       totalCost: [],
-    }),
-    [environmentFilterOptions.data, filterOptions.data],
-  );
+      score_categories: scoreCategories,
+      scores_avg: scoresNumeric,
+    };
+  }, [environmentFilterOptions.data, filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
     observationFilterConfig,
     newFilterOptions,
+  );
+
+  // Create ref-based wrapper to avoid stale closure when queryFilter updates
+  const queryFilterRef = useRef(queryFilter);
+  queryFilterRef.current = queryFilter;
+
+  const setFiltersWrapper = useCallback(
+    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    [],
   );
 
   const filterState = queryFilter.filterState.concat(
@@ -353,12 +356,12 @@ export default function ObservationsTable({
     promptNameFilter,
     promptVersionFilter,
     modelIdFilter,
-    environmentFilter,
   );
 
   const backendFilterState = transformFiltersForBackend(
     filterState,
     OBSERVATION_COLUMN_TO_BACKEND_KEY,
+    observationFilterConfig.columnDefinitions,
   );
 
   const getCountPayload = {
@@ -1064,7 +1067,7 @@ export default function ObservationsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setInputFilterState,
+      setFilters: setFiltersWrapper,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
@@ -1073,7 +1076,7 @@ export default function ObservationsTable({
       columns,
       filterColumnDefinition: observationFilterConfig.columnDefinitions,
     },
-    currentFilterState: inputFilterState,
+    currentFilterState: queryFilter.filterState,
   });
 
   const peekConfig: DataTablePeekViewProps = useMemo(

@@ -4,6 +4,7 @@ import {
   type ColumnDefinition,
   type OrderByState,
 } from "@langfuse/shared";
+import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
 
 /**
  * Validates if an orderBy state references valid columns
@@ -44,27 +45,16 @@ export function validateFilters(
   if (!filterColumnDefinition || filterColumnDefinition.length === 0)
     return filters;
 
-  // Validate and normalize filters
-  return filters
-    .map((filter) => {
-      // Find matching column definition (by ID or name for backward compat)
-      const matchingDef = filterColumnDefinition.find(
-        (def) => def.id === filter.column || def.name === filter.column,
-      );
+  // Normalize display names to column IDs for backward compatibility
+  const normalized = normalizeFilterColumnNames(
+    filters,
+    filterColumnDefinition,
+  );
 
-      // Filter is invalid if no matching definition found
-      if (!matchingDef) return null;
-
-      // If filter uses old display name, normalize to ID
-      if (filter.column !== matchingDef.id) {
-        return {
-          ...filter,
-          column: matchingDef.id,
-        };
-      }
-
-      // Filter already uses correct ID
-      return filter;
-    })
-    .filter((f): f is NonNullable<typeof f> => f !== null);
+  // Validate that columns exist (remove invalid ones)
+  return normalized.filter((filter) => {
+    return filterColumnDefinition.some(
+      (def) => def.id === filter.column || def.name === filter.column,
+    );
+  });
 }
