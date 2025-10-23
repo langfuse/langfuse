@@ -404,7 +404,7 @@ export function TableViewPresetsDrawer({
                             }}
                             disabled={!hasWriteAccess}
                           >
-                            Update
+                            Update View
                           </Button>
                         )}
                       </div>
