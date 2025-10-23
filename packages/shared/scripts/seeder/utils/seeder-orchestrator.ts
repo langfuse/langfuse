@@ -1,6 +1,7 @@
 import { FileContent, SeederOptions } from "./types";
 import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
+import { FrameworkTraceLoader } from "./framework-traces/framework-trace-loader";
 import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
 import {
   clickhouseClient,
@@ -259,6 +260,7 @@ export class SeederOrchestrator {
           this.fileContent || undefined,
           { numberOfDays: opts.numberOfDays },
         );
+
         const observationQuery = this.queryBuilder.buildBulkObservationsInsert(
           projectId,
           tracesPerProject,
@@ -323,6 +325,9 @@ export class SeederOrchestrator {
 
       // Create traces for a realistic chat session
       await this.createSupportChatSessionTraces(projectIds);
+
+      // create traces from real examples for each framework source
+      await this.createFrameworkTraces(projectIds);
 
       // Log completion statistics (commented out to reduce terminal noise)
       await this.logStatistics();
@@ -400,6 +405,36 @@ export class SeederOrchestrator {
         await this.queryBuilder.executeScoresInsert(scores);
       } catch (error) {
         logger.error(`✗ Support chat session insert failed:`, error);
+        throw error;
+      }
+    }
+  }
+
+  // create traces from real examples for each framework source
+  // useful for testing rendering
+  async createFrameworkTraces(projectIds: string[]): Promise<void> {
+    logger.info(`Creating framework traces for ${projectIds.length} projects.`);
+
+    const loader = new FrameworkTraceLoader();
+
+    for (const projectId of projectIds) {
+      logger.info(`Processing framework traces for project ${projectId}`);
+
+      const { traces, observations, scores } =
+        loader.loadTracesForProject(projectId);
+
+      try {
+        if (traces.length > 0) {
+          await this.queryBuilder.executeTracesInsert(traces);
+        }
+        if (observations.length > 0) {
+          await this.queryBuilder.executeObservationsInsert(observations);
+        }
+        if (scores.length > 0) {
+          await this.queryBuilder.executeScoresInsert(scores);
+        }
+      } catch (error) {
+        logger.error(`✗ Framework traces insert failed:`, error);
         throw error;
       }
     }

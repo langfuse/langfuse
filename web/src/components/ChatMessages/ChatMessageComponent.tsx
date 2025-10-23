@@ -254,7 +254,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         <CardContent
           className={cn("flex flex-1 flex-row items-center gap-2 p-0 pl-1")}
         >
-          <div className="flex w-[4rem] flex-shrink-0 flex-col gap-1">
+          <div className="sticky bottom-0 top-0 z-10 flex w-[4rem] flex-shrink-0 flex-col gap-1 bg-background">
             {isPlaceholder ? (
               <span className="inline-flex h-6 w-full items-center justify-center rounded-md bg-accent px-4 font-mono text-[9px] text-muted-foreground">
                 placeholder

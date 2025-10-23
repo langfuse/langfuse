@@ -20,7 +20,7 @@ export interface TraceSearchListItem {
 
 export interface TraceSearchListProps {
   items: TraceSearchListItem[];
-  scores: APIScoreV2[];
+  displayScores: APIScoreV2[];
   onSelect: (observationId: string | undefined) => void;
   comments?: Map<string, number>;
   showMetrics: boolean;
@@ -32,7 +32,8 @@ export interface TraceSearchListProps {
 
 export const TraceSearchList: React.FC<TraceSearchListProps> = ({
   items,
-  scores,
+  // Note: displayScores are merged with client-side score cache; handling optimistic updates
+  displayScores: scores,
   onSelect,
   comments,
   showMetrics,

@@ -5,6 +5,7 @@ import {
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
+  fetchLLMCompletion,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
@@ -17,16 +18,14 @@ import {
 import { v4 } from "uuid";
 import z from "zod/v4";
 import {
-  generateUnifiedTraceId,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
   validateDatasetItem,
   type PromptExperimentConfig,
 } from "./utils";
-import { backOff } from "exponential-backoff";
-import { callLLM } from "../utils";
 import { randomUUID } from "crypto";
+import { createW3CTraceId } from "../utils";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -65,7 +64,7 @@ async function processItem(
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
-  const newTraceId = generateUnifiedTraceId(config.runId, datasetItem.id);
+  const newTraceId = createW3CTraceId(`${config.runId}-${datasetItem.id}`);
   const runItemId = v4();
   const timestamp = new Date().toISOString();
 
@@ -78,8 +77,6 @@ async function processItem(
       traceId: newTraceId,
       observationId: null,
       error: null,
-      input: datasetItem.input,
-      expectedOutput: datasetItem.expectedOutput,
       createdAt: timestamp,
       datasetId: datasetItem.datasetId,
       runId: config.runId,
@@ -177,23 +174,26 @@ async function processLLMCall(
       dataset_id: datasetItem.datasetId,
       dataset_item_id: datasetItem.id,
       structured_output_schema: config.structuredOutputSchema,
+      experiment_name: config.experimentName,
+      experiment_run_name: config.experimentRunName,
     },
+    prompt: config.prompt,
   };
 
-  await backOff(
-    async () =>
-      await callLLM({
-        llmApiKey: config.validatedApiKey,
-        modelParams: config.model_params,
-        messages,
-        traceSinkParams,
-        throwOnError: false,
-        ...config,
-      }),
-    {
-      numOfAttempts: 1, // Turn off retries as Langchain handles this
+  await fetchLLMCompletion({
+    streaming: false,
+    llmConnection: config.validatedApiKey,
+    maxRetries: 1,
+    messages,
+    modelParams: {
+      provider: config.provider,
+      model: config.model,
+      adapter: config.validatedApiKey.adapter,
+      ...config.model_params,
     },
-  );
+    structuredOutputSchema: config.structuredOutputSchema,
+    traceSinkParams,
+  }).catch(); // catch errors and do not retry
 
   return { success: true };
 }

@@ -8,6 +8,7 @@ import {
   removeWindowState,
   clearAllPlaygroundData,
 } from "../storage/windowStorage";
+import { toast } from "sonner";
 
 /**
  * Hook to persist window IDs across page refreshes.
@@ -42,7 +43,7 @@ export function usePersistedWindowIds() {
         return windowId;
       }
       if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
-        console.warn(
+        toast.error(
           `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
         );
         return null;
@@ -61,7 +62,7 @@ export function usePersistedWindowIds() {
   const addWindowWithCopy = useCallback(
     (sourceWindowId?: string) => {
       if (windowIds.length >= MULTI_WINDOW_CONFIG.MAX_WINDOWS) {
-        console.warn(
+        toast.error(
           `Maximum window limit of ${MULTI_WINDOW_CONFIG.MAX_WINDOWS} reached`,
         );
         return null;
@@ -87,7 +88,7 @@ export function usePersistedWindowIds() {
   const removeWindowId = useCallback(
     (windowId: string) => {
       if (windowIds.length <= 1) {
-        console.warn("Cannot remove the last remaining window");
+        toast.error("Cannot remove the last remaining window");
         return;
       }
 

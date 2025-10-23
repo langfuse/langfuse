@@ -105,6 +105,14 @@ export const ActionButton = React.forwardRef<
   return btnContent;
 });
 
+const isExternalUrl = (url: string) => {
+  return (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("//")
+  );
+};
+
 const ButtonContent = React.forwardRef<
   HTMLButtonElement,
   {
@@ -150,6 +158,7 @@ const ButtonContent = React.forwardRef<
   );
 
   const renderLink = href && !isDisabled;
+  const isExternal = href && isExternalUrl(href);
 
   return (
     <Button
@@ -160,7 +169,17 @@ const ButtonContent = React.forwardRef<
       {...buttonProps}
       asChild={renderLink ? true : undefined}
     >
-      {renderLink ? <Link href={href}>{content}</Link> : content}
+      {renderLink ? (
+        <Link
+          href={href}
+          target={isExternal ? "_blank" : undefined}
+          rel={isExternal ? "noopener noreferrer" : undefined}
+        >
+          {content}
+        </Link>
+      ) : (
+        content
+      )}
     </Button>
   );
 });

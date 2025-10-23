@@ -21,6 +21,18 @@ module.exports = {
     transparent: "transparent",
     current: "currentColor",
     extend: {
+      spacing: {
+        "banner-offset": "var(--banner-offset)",
+      },
+      minHeight: {
+        "screen-with-banner": "calc(100svh - var(--banner-offset))",
+      },
+      maxHeight: {
+        "screen-with-banner": "calc(100svh - var(--banner-offset))",
+      },
+      height: {
+        "screen-with-banner": "calc(100svh - var(--banner-offset))",
+      },
       colors: {
         "primary-accent": "hsl(var(--primary-accent))",
         "hover-primary-accent": "hsl(var(--hover-primary-accent))",

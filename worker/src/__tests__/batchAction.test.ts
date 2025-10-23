@@ -4,7 +4,7 @@ import { expect, describe, it, vi } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
 import {
-  getDatabaseReadStream,
+  getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
 } from "../features/database-read-stream/getDatabaseReadStream";
 import {
@@ -56,7 +56,7 @@ describe("select all test suite", () => {
     await handleBatchActionJob(selectAllJob);
 
     // Verify traces were deleted
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),
@@ -137,7 +137,7 @@ describe("select all test suite", () => {
     await handleBatchActionJob(selectAllJob);
 
     // Verify only filtered traces were processed
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),
@@ -222,7 +222,7 @@ describe("select all test suite", () => {
     await handleBatchActionJob(selectAllJob);
 
     // Verify only the trace matching the search query was deleted
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),

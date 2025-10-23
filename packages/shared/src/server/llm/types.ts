@@ -292,6 +292,8 @@ export const ExperimentMetadataSchema = z
     model: z.string(),
     model_params: ZodModelConfig,
     structured_output_schema: LLMJSONSchema.optional(),
+    experiment_name: z.string().optional(),
+    experiment_run_name: z.string().optional(),
     error: z.string().optional(),
   })
   .strict();
@@ -400,6 +402,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
+  "claude-haiku-4-5-20251001",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
@@ -493,6 +496,7 @@ export type LLMApiKey =
 
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
+  LLMJudge = "langfuse-llm-as-a-judge",
 }
 
 export type TraceSinkParams = {

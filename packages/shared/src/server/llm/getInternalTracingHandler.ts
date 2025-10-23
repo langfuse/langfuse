@@ -7,13 +7,11 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
   handler: CallbackHandler;
   processTracedEvents: () => Promise<void>;
 } {
-  const { prompt, targetProjectId, environment, metadata, userId } =
-    traceSinkParams;
+  const { prompt, targetProjectId, environment, userId } = traceSinkParams;
   const handler = new CallbackHandler({
     _projectId: targetProjectId,
     _isLocalEventExportEnabled: true,
     environment: environment,
-    metadata: metadata,
     userId: userId,
   });
 
@@ -22,19 +20,47 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
       const events = await handler.langfuse._exportLocalEvents(
         traceSinkParams.targetProjectId,
       );
-      // to add the prompt name and version to only generation-type observations
-      const processedEvents = events.map((event: any) => {
-        if (event.type === "generation-create" && prompt) {
-          return {
-            ...event,
-            body: {
-              ...event.body,
-              ...{ promptName: prompt.name, promptVersion: prompt.version },
-            },
-          };
+
+      // Filter out unnecessary Langchain spans
+      const blockedSpanIds = new Set();
+      const blockedSpanNames = [
+        "RunnableLambda",
+        "StructuredOutputParser",
+        "StrOutputParser",
+        "JsonOutputParser",
+      ];
+
+      for (const event of events) {
+        const eventName = "name" in event.body ? event.body.name : "";
+
+        if (!eventName) continue;
+
+        if (blockedSpanNames.includes(eventName) && "id" in event.body) {
+          blockedSpanIds.add(event.body.id);
         }
-        return event;
-      });
+      }
+
+      const processedEvents = events
+        .filter((event) => {
+          if ("id" in event.body) {
+            return !blockedSpanIds.has(event.body.id);
+          }
+
+          return true;
+        })
+        .map((event: any) => {
+          // to add the prompt name and version to only generation-type observations
+          if (event.type === "generation-create" && prompt) {
+            return {
+              ...event,
+              body: {
+                ...event.body,
+                ...{ promptName: prompt.name, promptVersion: prompt.version },
+              },
+            };
+          }
+          return event;
+        });
 
       await processEventBatch(
         JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call

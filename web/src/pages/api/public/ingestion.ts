@@ -86,6 +86,7 @@ export default async function handler(
         "Missing projectId in scope. Are you using an organization key?",
       );
     }
+
     if (authCheck.scope.isIngestionSuspended) {
       throw new ForbiddenError(
         "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",

@@ -5,7 +5,6 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import {
   type AnnotationQueueItem,
@@ -15,8 +14,8 @@ import {
 } from "@langfuse/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useMemo, useState } from "react";
 import { CommentsSection } from "./CommentsSection";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 
 interface AnnotationDrawerSectionProps {
   item: AnnotationQueueItem & {
@@ -41,21 +40,12 @@ export const AnnotationDrawerSection: React.FC<
   onHasCommentDraftChange,
 }) => {
   const session = useSession();
-  const [showSaving, setShowSaving] = useState(false);
   const [verticalSize, setVerticalSize] = useSessionStorage(
     `annotationQueueDrawerVertical-${item.projectId}`,
     60,
   );
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
-
-  const emptySelectedConfigIds = useMemo(() => {
-    return configs.map((c) => c.id);
-  }, [configs]);
-
-  const handleSavingChange = (saving: boolean) => {
-    setShowSaving(saving);
-  };
 
   return (
     <Card className="col-span-2 flex h-full flex-col overflow-hidden">
@@ -64,27 +54,24 @@ export const AnnotationDrawerSection: React.FC<
         onLayout={(sizes) => setVerticalSize(sizes[0])}
       >
         <ResizablePanel
-          className="w-full overflow-y-auto"
+          className="w-full overflow-y-auto p-3"
           minSize={30}
           defaultSize={verticalSize}
         >
-          <AnnotateDrawerContent
+          <AnnotationForm
             key={"annotation-drawer-content" + item.objectId}
             scoreTarget={scoreTarget}
-            scores={scores}
-            configs={configs}
-            emptySelectedConfigIds={emptySelectedConfigIds}
-            setEmptySelectedConfigIds={() => {}}
-            projectId={item.projectId}
+            serverScores={scores}
+            configSelection={{ mode: "fixed", configs }}
+            scoreMetadata={{
+              projectId: item.projectId,
+              queueId: item.queueId,
+              environment,
+            }}
             analyticsData={{
               type: scoreTarget.type,
               source: "AnnotationQueue",
             }}
-            isSelectHidden
-            queueId={item.queueId}
-            showSaving={showSaving}
-            setShowSaving={handleSavingChange}
-            environment={environment}
             actionButtons={
               isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
                 <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">
@@ -95,7 +82,6 @@ export const AnnotationDrawerSection: React.FC<
                 </div>
               ) : undefined
             }
-            isDrawerOpen={true}
           />
         </ResizablePanel>
         <ResizableHandle withHandle />

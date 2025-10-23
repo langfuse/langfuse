@@ -9,6 +9,12 @@ import { cva } from "class-variance-authority";
 
 type DrawerProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
   forceDirection?: "right" | "bottom" | "responsive";
+  /**
+   * Whether to block text selection in the drawer.
+   * Set to false to allow text selection (e.g., in comment sections).
+   * @default false
+   */
+  blockTextSelection?: boolean;
 };
 
 type DrawerContentProps = React.ComponentPropsWithoutRef<
@@ -18,13 +24,14 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
   size?: "default" | "md" | "lg" | "full";
   position?: "top";
   height?: "default" | "md";
+  blockTextSelection?: boolean;
 };
 
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
 const drawerVariants = cva(
-  "fixed inset-x-0 z-50 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:right-0 md:mt-0 md:rounded-l-lg md:rounded-r-none",
+  "fixed inset-x-0 z-50 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:right-0 md:mt-0 md:rounded-l-lg md:rounded-r-none ",
   {
     variants: {
       size: {
@@ -34,7 +41,7 @@ const drawerVariants = cva(
         full: "w-full",
       },
       position: {
-        top: "md:inset-y-0",
+        top: "md:bottom-0 md:top-banner-offset md:max-h-screen-with-banner",
       },
       height: {
         default: "h-1/3 md:h-full",
@@ -49,9 +56,18 @@ const drawerVariants = cva(
   },
 );
 
+const DrawerContext = React.createContext<{
+  blockTextSelection: boolean;
+}>({
+  blockTextSelection: false,
+});
+
+const useDrawerContext = () => React.useContext(DrawerContext);
+
 const Drawer = ({
   shouldScaleBackground = true,
   forceDirection = "responsive",
+  blockTextSelection = false,
   ...props
 }: DrawerProps) => {
   const isMediumScreen = useMediaQuery({
@@ -65,11 +81,13 @@ const Drawer = ({
       : forceDirection;
 
   return (
-    <DrawerPrimitive.Root
-      shouldScaleBackground={shouldScaleBackground}
-      direction={direction}
-      {...props}
-    />
+    <DrawerContext.Provider value={{ blockTextSelection }}>
+      <DrawerPrimitive.Root
+        shouldScaleBackground={shouldScaleBackground}
+        direction={direction}
+        {...props}
+      />
+    </DrawerContext.Provider>
   );
 };
 Drawer.displayName = "Drawer";
@@ -99,21 +117,26 @@ const DrawerContent = React.forwardRef<
   (
     { className, children, overlayClassName, size, height, position, ...props },
     ref,
-  ) => (
-    <DrawerPortal>
-      <DrawerOverlay className={overlayClassName} />
-      <DrawerPrimitive.Content
-        ref={ref}
-        className={cn(drawerVariants({ size, className, height, position }))}
-        {...props}
-      >
-        <DrawerDescription className="sr-only">
-          {props.title ?? ""}
-        </DrawerDescription>
-        {children}
-      </DrawerPrimitive.Content>
-    </DrawerPortal>
-  ),
+  ) => {
+    const { blockTextSelection } = useDrawerContext();
+
+    return (
+      <DrawerPortal>
+        <DrawerOverlay className={overlayClassName} />
+        <DrawerPrimitive.Content
+          ref={ref}
+          className={cn(drawerVariants({ size, className, height, position }))}
+          data-allow-text-selection={!blockTextSelection}
+          {...props}
+        >
+          <DrawerDescription className="sr-only">
+            {props.title ?? ""}
+          </DrawerDescription>
+          {children}
+        </DrawerPrimitive.Content>
+      </DrawerPortal>
+    );
+  },
 );
 DrawerContent.displayName = "DrawerContent";
 

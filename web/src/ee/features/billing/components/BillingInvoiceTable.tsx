@@ -6,10 +6,10 @@ import { Badge } from "@/src/components/ui/badge";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Download, ExternalLink } from "lucide-react";
-import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useEffect, useMemo, useState } from "react";
 
 import { useBillingInformation } from "./useBillingInformation";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 
 type InvoiceRow = {
   id: string;
@@ -30,9 +30,10 @@ type InvoiceRow = {
 
 export function BillingInvoiceTable() {
   const { organization } = useBillingInformation();
-  const shouldShowTable = Boolean(
-    organization?.cloudConfig?.stripe?.customerId,
-  );
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const shouldShowTable =
+    isCloudBillingAvailable &&
+    Boolean(organization?.cloudConfig?.stripe?.customerId);
 
   const [virtualTotal, setVirtualTotal] = useState(9999);
   const [paginationState, setPaginationState] = useState<{
@@ -115,9 +116,12 @@ export function BillingInvoiceTable() {
       header: "Date",
       cell: ({ row }) => {
         const value = row.getValue("created") as InvoiceRow["created"];
-        return value
-          ? formatLocalIsoDate(new Date(value), false, "day")
-          : undefined;
+        if (!value) return undefined;
+        const date = new Date(value);
+        const year = date.getFullYear();
+        const month = date.toLocaleDateString("en-US", { month: "short" });
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
       },
       size: 90,
     },

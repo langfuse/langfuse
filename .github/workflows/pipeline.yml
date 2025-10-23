@@ -266,6 +266,20 @@ jobs:
         run: |
           pnpm run db:migrate
           pnpm --filter=shared ch:up
+      - name: Download and extract ClickHouse client for dev-tables setup
+        if: matrix.deploy-mode == ''
+        run: |
+          CH_VERSION="24.9.3.128"
+          ARCH="amd64"
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+
+          # The binary is usually located in ./usr/bin/clickhouse in the archive
+          dpkg-deb -x clickhouse-client.deb ch_client_dir
+          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
+      - name: Setup Dev Tables
+        if: matrix.deploy-mode == ''
+        run: |
+          pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm run build
         env:

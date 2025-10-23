@@ -1,6 +1,7 @@
 import { createTransport } from "nodemailer";
 import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
+// import { UsageThresholdUpcomingEnforcementEmailTemplate } from "./UsageThresholdUpcomingEnforcementEmailTemplate";
 import { UsageThresholdSuspensionEmailTemplate } from "./UsageThresholdSuspensionEmailTemplate";
 import { logger } from "../../../logger";
 import { z } from "zod/v4";
@@ -42,6 +43,7 @@ export const sendUsageThresholdSuspensionEmail = async ({
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
 
+    // const emailSubject = `🚨 URGENT: Action required for ${organizationName} - enforcement begins next week`;
     const emailSubject = `🚨 URGENT: Langfuse ingestion suspended for ${organizationName}`;
     const emailHtml = await render(
       UsageThresholdSuspensionEmailTemplate({

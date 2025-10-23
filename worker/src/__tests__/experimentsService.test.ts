@@ -6,11 +6,10 @@ import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 import { logger } from "@langfuse/shared/src/server";
-import { callLLM } from "../features/utils/utilities";
+import { fetchLLMCompletion } from "@langfuse/shared/src/server";
 
 // Mock LLM completion call
 vi.mock("../features/utils/utilities", () => ({
-  callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
   compileHandlebarString: vi.fn().mockImplementation((str, context) => {
     // Simple mock that replaces handlebars variables with their values
     return str.replace(/\{\{(\w+)\}\}/g, (_, key) => context[key] || "");
@@ -22,6 +21,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
+    fetchLLMCompletion: vi.fn().mockResolvedValue({ id: "test-id" }),
     logger: {
       info: vi.fn(),
       error: vi.fn(),

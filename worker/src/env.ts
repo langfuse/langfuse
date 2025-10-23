@@ -154,6 +154,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -217,6 +220,14 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+
+  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -272,7 +283,14 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
+  // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB: z
     .enum(["true", "false"])
     .default("false"),
 

@@ -100,9 +100,12 @@ export default function Dataset() {
             datasetRunId={runId}
           />
         </div>
-        <SidePanel mobileTitle="Run details" id="run-details">
+        <SidePanel
+          mobileTitle="Experiment run details"
+          id="experiment-run-details"
+        >
           <SidePanelHeader>
-            <SidePanelTitle>Run details</SidePanelTitle>
+            <SidePanelTitle>Experiment run details</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent>
             {run.isPending ? (
