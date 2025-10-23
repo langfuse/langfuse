@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Kbd } from "@/src/components/ui/kbd";
 import {
@@ -75,17 +75,20 @@ export const AnnotationQueueItemPage: React.FC<{
   const canGoNext = currentIndex >= 0 && currentIndex < totalItems - 1;
 
   // 4. Navigation helper
-  const navigateToItem = (itemId: string) => {
-    const query: Record<string, string> = {};
-    if (showCompleted) {
-      query.showCompleted = "true";
-    }
+  const navigateToItem = useCallback(
+    (itemId: string) => {
+      const query: Record<string, string> = {};
+      if (showCompleted) {
+        query.showCompleted = "true";
+      }
 
-    router.push({
-      pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${itemId}`,
-      query,
-    });
-  };
+      router.push({
+        pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${itemId}`,
+        query,
+      });
+    },
+    [showCompleted, annotationQueueId, projectId, router],
+  );
 
   // 5. Lock item when page loads (if it's pending and we have access)
   const lockItemMutation = api.annotationQueueItems.lockItem.useMutation();
@@ -101,7 +104,7 @@ export const AnnotationQueueItemPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryItemId, currentItem.data?.status]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (hasCommentDraft) {
       const proceed = confirm(
         "You have an unsaved comment. Do you want to go to the previous item and discard this draft?",
@@ -112,9 +115,9 @@ export const AnnotationQueueItemPage: React.FC<{
     if (canGoPrev && itemIds.data) {
       navigateToItem(itemIds.data[currentIndex - 1]);
     }
-  };
+  }, [hasCommentDraft, canGoPrev, itemIds.data, currentIndex, navigateToItem]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (hasCommentDraft) {
       const proceed = confirm(
         "You have an unsaved comment. Do you want to go to the next item and discard this draft?",
@@ -125,7 +128,7 @@ export const AnnotationQueueItemPage: React.FC<{
     if (canGoNext && itemIds.data) {
       navigateToItem(itemIds.data[currentIndex + 1]);
     }
-  };
+  }, [hasCommentDraft, canGoNext, itemIds.data, currentIndex, navigateToItem]);
 
   const utils = api.useUtils();
   const completeMutation = api.annotationQueueItems.complete.useMutation({
