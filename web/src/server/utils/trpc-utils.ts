@@ -1,6 +1,6 @@
 import type { TRPC_ERROR_CODE_KEY } from "@trpc/server";
 
-// Note: copied from official documentation: https://trpc.io/docs/v9/error-handling
+// Note: copied from official documentation: https://trpc.io/docs/server/error-handling#error-codes
 const HTTP_STATUS_CODE_TO_TRPC_ERROR_CODE: Record<number, TRPC_ERROR_CODE_KEY> =
   {
     400: "BAD_REQUEST",
