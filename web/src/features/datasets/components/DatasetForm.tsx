@@ -15,7 +15,7 @@ import { api } from "@/src/utils/api";
 import { useMemo, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { type Prisma } from "@langfuse/shared";
+import { DatasetNameSchema, type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
 import { useRouter } from "next/router";
@@ -54,12 +54,7 @@ type DatasetFormProps =
   | DeleteDatasetFormProps;
 
 const formSchema = z.object({
-  name: z
-    .string()
-    .min(1, { message: "Input is required" })
-    .refine((name) => name.trim().length > 0, {
-      message: "Input should not be only whitespace",
-    }),
+  name: DatasetNameSchema,
   description: z.string(),
   metadata: z.string().refine(
     (value) => {

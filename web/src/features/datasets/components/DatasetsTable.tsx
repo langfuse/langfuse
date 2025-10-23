@@ -33,10 +33,10 @@ import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBr
 type DatasetTableRow = {
   key: {
     id: string;
-    name: string;
+    name: string; // Display name (segment only)
   };
   isFolder: boolean;
-  folderPath: string; // Full name-based path for folder navigation
+  folderPath: string; // Full name-based path for folder navigation and dataset updates
   description?: string | null;
   createdAt?: Date | null;
   lastRunAt: Date | null;
@@ -235,7 +235,7 @@ export function DatasetsTable(props: { projectId: string }) {
                   mode="update"
                   projectId={props.projectId}
                   datasetId={key.id}
-                  datasetName={key.name}
+                  datasetName={row.original.folderPath}
                   datasetDescription={row.getValue("description") ?? undefined}
                   datasetMetadata={row.getValue("metadata") ?? undefined}
                 />
@@ -245,7 +245,7 @@ export function DatasetsTable(props: { projectId: string }) {
                   mode="delete"
                   projectId={props.projectId}
                   datasetId={key.id}
-                  datasetName={key.name}
+                  datasetName={row.original.folderPath}
                 />
               </DropdownMenuItem>
             </DropdownMenuContent>
