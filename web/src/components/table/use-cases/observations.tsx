@@ -371,6 +371,7 @@ export default function ObservationsTable({
   const backendFilterState = transformFiltersForBackend(
     filterState,
     OBSERVATION_COLUMN_TO_BACKEND_KEY,
+    observationFilterConfig.columnDefinitions,
   );
 
   const getCountPayload = {
