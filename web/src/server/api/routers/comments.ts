@@ -62,12 +62,19 @@ export const commentsRouter = createTRPCRouter({
               "You need projectMembers:read permission to mention users in comments",
           });
 
-          // Fetch project members for validation and normalization
+          // Fetch only the mentioned users - more efficient than fetching all project members
           const projectMembers = await getUserProjectRoles({
             projectId: input.projectId,
             orgId: ctx.session.orgId,
             searchFilter: Prisma.empty,
-            filterCondition: [],
+            filterCondition: [
+              {
+                column: "userId",
+                operator: "any of",
+                value: mentionsInContent.map((m) => m.userId),
+                type: "stringOptions",
+              },
+            ],
             orderBy: Prisma.empty,
           });
 
