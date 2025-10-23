@@ -339,12 +339,12 @@ export class IngestionService {
       metadata,
       metadata_names: metadataNames,
       metadata_values: metadataValues,
-      metadata_string_names: metadataStringNames,
-      metadata_string_values: metadataStringValues,
-      metadata_number_names: metadataNumberNames,
-      metadata_number_values: metadataNumberValues,
-      metadata_bool_names: metadataBoolNames,
-      metadata_bool_values: metadataBoolValues,
+      // metadata_string_names: metadataStringNames,
+      // metadata_string_values: metadataStringValues,
+      // metadata_number_names: metadataNumberNames,
+      // metadata_number_values: metadataNumberValues,
+      // metadata_bool_names: metadataBoolNames,
+      // metadata_bool_values: metadataBoolValues,
 
       // Source/instrumentation metadata
       source: eventData.source,
