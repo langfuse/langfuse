@@ -234,7 +234,6 @@ export const handleEventPropagationJob = async (
         )
 
         INSERT INTO events (
-          org_id,
           project_id,
           trace_id,
           span_id,
@@ -289,7 +288,6 @@ export const handleEventPropagationJob = async (
           is_deleted
         )
         SELECT
-          NULL AS org_id,
           obs.project_id,
           obs.trace_id,
           obs.id AS span_id,

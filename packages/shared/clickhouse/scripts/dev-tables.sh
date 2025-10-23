@@ -170,9 +170,9 @@ CREATE TABLE IF NOT EXISTS events
       cost_details JSON(
         max_dynamic_paths=64,
         max_dynamic_types=8,
-        input UInt64,
-        output UInt64,
-        total UInt64,
+        input Decimal(18,12),
+        output Decimal(18,12),
+        total Decimal(18,12),
       ),
       total_cost Decimal(18,12), -- 0 if not provided
 
@@ -199,20 +199,23 @@ CREATE TABLE IF NOT EXISTS events
       -- -- metadata_bool_names Array(String),
       -- -- metadata_bool_values Array(UInt8),
       -- -- Approach 4: Apply German strings here, where we store a prefix and for longer values a pointer.
-      metadata_keys Array(String),
-      metadata_prefixes Array(String),
-      metadata_hashes Array(String),
-      metadata_long_values Map(String, String),
+      metadata_keys Array(String) MATERIALIZED metadata_names,
+      metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_values),
+      metadata_hashes Array(Nullable(String)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, MD5(CAST(v, 'String')), NULL), metadata_values),
+      metadata_long_values Map(String, String) MATERIALIZED mapFromArrays(
+        arrayMap(v -> MD5(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values)),
+        arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values))
+      ),
 
       -- Source metadata (Instrumentation)
       source LowCardinality(String),
-      service_name Nullable(String),
-      service_version Nullable(String),
-      scope_name Nullable(String),
-      scope_version Nullable(String),
-      telemetry_sdk_language Nullable(String),
-      telemetry_sdk_name Nullable(String),
-      telemetry_sdk_version Nullable(String),
+      service_name String,
+      service_version String,
+      scope_name String,
+      scope_version String,
+      telemetry_sdk_language LowCardinality(String),
+      telemetry_sdk_name String,
+      telemetry_sdk_version String,
 
       -- Generic props
       blob_storage_file_path String,
