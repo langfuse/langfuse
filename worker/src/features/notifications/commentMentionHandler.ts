@@ -94,6 +94,48 @@ export async function handleCommentMentionNotification(
           continue;
         }
 
+        // Verify user still has access to the project
+        // User must have either a direct project membership OR an organization membership
+        const projectMembership = await prisma.projectMembership.findUnique({
+          where: {
+            projectId_userId: {
+              projectId,
+              userId,
+            },
+          },
+        });
+
+        // If no direct project membership, check organization membership
+        if (!projectMembership) {
+          const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: { orgId: true },
+          });
+
+          if (!project) {
+            logger.warn(
+              `Project ${projectId} not found. Skipping notification for user ${userId}.`,
+            );
+            continue;
+          }
+
+          const orgMembership = await prisma.organizationMembership.findUnique({
+            where: {
+              orgId_userId: {
+                orgId: project.orgId,
+                userId,
+              },
+            },
+          });
+
+          if (!orgMembership) {
+            logger.info(
+              `User ${userId} is not a member of project ${projectId} or its organization. Skipping notification to prevent information leakage.`,
+            );
+            continue;
+          }
+        }
+
         // Truncate comment content for preview (500 chars)
         let commentPreview =
           comment.content.length > 500
