@@ -128,6 +128,16 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  */
 export const createTRPCRouter = t.router;
 
+const resolveError = (error: TRPCError) => {
+  if (error.cause instanceof BaseError) {
+    return {
+      code: getTRPCErrorCodeFromHTTPStatusCode(error.cause.httpCode),
+      httpStatus: error.cause.httpCode,
+    };
+  }
+  return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
+};
+
 // global error handling
 const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
@@ -156,20 +166,14 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       // Throw a new TRPC error with:
       // - The same error code as the original error
       // - Either the original error message OR "Internal error" if it's a 5xx error
-      const httpStatus =
-        res.error.cause instanceof BaseError
-          ? res.error.cause.httpCode
-          : getHTTPStatusCodeFromError(res.error);
+      const { code, httpStatus } = resolveError(res.error);
       const isSafeToExpose = httpStatus >= 400 && httpStatus < 500;
       const errorMessage = isLangfuseCloud
         ? "We have been notified and are working on it."
         : "Please check error logs in your self-hosted deployment.";
 
       res.error = new TRPCError({
-        code:
-          res.error.cause instanceof BaseError
-            ? getTRPCErrorCodeFromHTTPStatusCode(res.error.cause.httpCode)
-            : res.error.code,
+        code,
         cause: null, // do not expose stack traces
         message: isSafeToExpose
           ? res.error.message
