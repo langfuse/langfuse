@@ -12,6 +12,7 @@ import {
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getCurrentSpan,
+  BlobStorageIntegrationProcessingQueue,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -41,6 +42,23 @@ const getMinTimestampForExport = (
       // eslint-disable-next-line no-case-declarations, no-unused-vars
       const _exhaustiveCheck: never = exportMode;
       throw new Error(`Invalid export mode: ${exportMode}`);
+  }
+};
+
+/**
+ * Get the frequency interval in milliseconds for a given export frequency.
+ * This is used to chunk historic exports into manageable time windows.
+ */
+const getFrequencyIntervalMs = (frequency: string): number => {
+  switch (frequency) {
+    case "hourly":
+      return 60 * 60 * 1000; // 1 hour
+    case "daily":
+      return 24 * 60 * 60 * 1000; // 1 day
+    case "weekly":
+      return 7 * 24 * 60 * 60 * 1000; // 1 week
+    default:
+      throw new Error(`Unsupported export frequency: ${frequency}`);
   }
 };
 
@@ -210,12 +228,34 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   // Sync between lastSyncAt and now - 30 minutes
+  // Cap the export to one frequency period to enable chunked historic exports
   const minTimestamp = getMinTimestampForExport(
     blobStorageIntegration.lastSyncAt,
     blobStorageIntegration.exportMode,
     blobStorageIntegration.exportStartDate,
   );
-  const maxTimestamp = new Date(new Date().getTime() - 30 * 60 * 1000);
+  const now = new Date();
+  const uncappedMaxTimestamp = new Date(now.getTime() - 30 * 60 * 1000); // 30-minute lag buffer
+  const frequencyIntervalMs = getFrequencyIntervalMs(
+    blobStorageIntegration.exportFrequency,
+  );
+
+  // Cap maxTimestamp to one frequency period ahead of minTimestamp
+  // This ensures large historic exports are broken into manageable chunks
+  const maxTimestamp = new Date(
+    Math.min(
+      minTimestamp.getTime() + frequencyIntervalMs,
+      uncappedMaxTimestamp.getTime(),
+    ),
+  );
+
+  // Skip export if the time window is empty or invalid
+  if (minTimestamp >= maxTimestamp) {
+    logger.info(
+      `Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+    );
+    return;
+  }
 
   try {
     // Process the export based on the integration configuration
@@ -242,21 +282,22 @@ export const handleBlobStorageIntegrationProjectJob = async (
       processBlobStorageExport({ ...executionConfig, table: "scores" }),
     ]);
 
+    // Determine if we've caught up with present-day data
+    const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
+
     let nextSyncAt: Date;
-    switch (blobStorageIntegration.exportFrequency) {
-      case "hourly":
-        nextSyncAt = new Date(maxTimestamp.getTime() + 60 * 60 * 1000);
-        break;
-      case "daily":
-        nextSyncAt = new Date(maxTimestamp.getTime() + 24 * 60 * 60 * 1000);
-        break;
-      case "weekly":
-        nextSyncAt = new Date(maxTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        throw new Error(
-          `Unsupported export frequency ${blobStorageIntegration.exportFrequency}`,
-        );
+    if (caughtUp) {
+      // Normal mode: schedule for the next frequency period
+      nextSyncAt = new Date(maxTimestamp.getTime() + frequencyIntervalMs);
+      logger.info(
+        `Caught up with exports for project ${projectId}. Next sync at ${nextSyncAt.toISOString()}`,
+      );
+    } else {
+      // Catch-up mode: schedule next chunk immediately
+      nextSyncAt = new Date();
+      logger.info(
+        `Still catching up for project ${projectId}. Scheduling next chunk immediately (processed up to ${maxTimestamp.toISOString()})`,
+      );
     }
 
     // Update integration after successful processing
@@ -269,6 +310,27 @@ export const handleBlobStorageIntegrationProjectJob = async (
         nextSyncAt,
       },
     });
+
+    // If still catching up, immediately queue the next chunk job
+    if (!caughtUp) {
+      const queue = BlobStorageIntegrationProcessingQueue.getInstance();
+      if (queue) {
+        const jobId = `${projectId}-${maxTimestamp.toISOString()}`;
+        await queue.add(
+          QueueName.BlobStorageIntegrationProcessingQueue,
+          {
+            name: QueueName.BlobStorageIntegrationProcessingQueue,
+            id: jobId,
+            timestamp: new Date(),
+            payload: { projectId },
+          },
+          { jobId },
+        );
+        logger.info(
+          `Queued next catch-up chunk for project ${projectId} with jobId ${jobId}`,
+        );
+      }
+    }
 
     logger.info(
       `Successfully processed blob storage integration for project ${projectId}`,
