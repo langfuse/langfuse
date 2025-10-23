@@ -183,8 +183,11 @@ const generateDatasetQuery = ({
         d.created_at,
         1 as sort_priority, -- Folders first
         'folder'::text as row_type, -- Mark as folder representative
-        ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(SUBSTRING(d.name, CHAR_LENGTH(${pathPrefix}) + 2), '/', 1) ORDER BY d.created_at DESC) AS rn
-      FROM filtered_datasets d 
+        ROW_NUMBER() OVER (
+          PARTITION BY SPLIT_PART(SUBSTRING(d.name, CHAR_LENGTH(${pathPrefix}) + 2), '/', 1)
+          ORDER BY LENGTH(d.name) - LENGTH(REPLACE(d.name, '/', '')) ASC, d.created_at DESC
+        ) AS rn
+      FROM filtered_datasets d
       WHERE SUBSTRING(d.name, CHAR_LENGTH(${pathPrefix}) + 2) LIKE '%/%'
     ),
     combined AS (
@@ -225,7 +228,7 @@ const generateDatasetQuery = ({
         d.updated_at,
         d.created_at,
         'folder'::text as row_type, -- Mark as folder representative
-        ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(d.name, '/', 1) ORDER BY d.updated_at DESC) AS rn
+        ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(d.name, '/', 1) ORDER BY LENGTH(d.name) ASC, d.updated_at DESC) AS rn
       FROM filtered_datasets d
       WHERE d.name LIKE '%/%'
     ),
