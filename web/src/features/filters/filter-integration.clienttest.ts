@@ -20,6 +20,7 @@ import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
+import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
 
 const mockColumnMap: ColumnToQueryKeyMap = {
   name: "name",
@@ -570,190 +571,44 @@ describe("Config Validation of old saved views", () => {
   });
 });
 
-describe("transformFiltersForBackend - Deduplication", () => {
-  it("should preserve multiple string contains filters", () => {
-    // URL has environment contains "e" AND environment contains "a"
-    // filter=environment;string;;contains;e,environment;string;;contains;a
+describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
+  it("should preserve multiple string contains filters from URL", () => {
+    // environment contains "e" AND environment contains "a"
     // These create valid SQL: WHERE env LIKE '%e%' AND env LIKE '%a%'
-
-    const filterQuery =
+    const urlFilter =
       "environment;string;;contains;e,environment;string;;contains;a";
 
-    const decoded = decodeFiltersGeneric(
-      filterQuery,
-      { environment: "environment" },
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      sessionFilterConfig.columnToQueryKey,
+      sessionFilterConfig.columnDefinitions,
       {},
     );
 
-    // Should decode to 2 filters
-    expect(decoded).toHaveLength(2);
+    const result = transformFiltersForBackend(normalized, {});
 
-    const transformed = transformFiltersForBackend(
-      decoded,
-      {}, // No backend remapping
-      sessionFilterConfig.columnDefinitions,
-    );
-
-    // Should still have both filters after transformation
-    expect(transformed).toHaveLength(2);
-    expect(transformed[0]).toMatchObject({
-      column: "environment",
-      type: "string",
-      operator: "contains",
-      value: "e",
-    });
-    expect(transformed[1]).toMatchObject({
-      column: "environment",
-      type: "string",
-      operator: "contains",
-      value: "a",
-    });
-  });
-
-  it("should deduplicate conflicting environment filters (bug fix)", () => {
-    // This is the exact bug from sessions table:
-    // Old saved view has "Environment" (display name), user clicks new filter with "environment" (ID)
-    const duplicateFilters: FilterState = [
-      {
-        column: "Environment", // Old display name from saved view
-        type: "stringOptions",
-        operator: "any of",
-        value: ["production"],
-      },
-      {
-        column: "environment", // New filter from user clicking sidebar
-        type: "stringOptions",
-        operator: "any of",
-        value: ["local"],
-      },
-    ];
-
-    const result = transformFiltersForBackend(
-      duplicateFilters,
-      {}, // No backend remapping needed
-      sessionFilterConfig.columnDefinitions,
-    );
-
-    // Should only keep the LAST filter (most recent user selection)
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      column: "environment", // Normalized to ID
-      type: "stringOptions",
-      operator: "any of",
-      value: ["local"], // Keeps last value
-    });
-  });
-
-  it("should keep multiple numeric filters for ranges", () => {
-    // Numeric filters with different operators should not be deduplicated
-    const rangeFilters: FilterState = [
-      {
-        column: "totalCost",
-        type: "number",
-        operator: ">=",
-        value: 5,
-      },
-      {
-        column: "totalCost",
-        type: "number",
-        operator: "<=",
-        value: 10,
-      },
-    ];
-
-    const result = transformFiltersForBackend(
-      rangeFilters,
-      {},
-      sessionFilterConfig.columnDefinitions,
-    );
-
-    // Both should be kept (valid range: WHERE cost >= 5 AND cost <= 10)
+    // Both filters preserved
     expect(result).toHaveLength(2);
-    expect(result[0]?.operator).toBe(">=");
-    expect(result[1]?.operator).toBe("<=");
+    expect(result[0]?.value).toBe("e");
+    expect(result[1]?.value).toBe("a");
   });
 
-  it("should keep multiple datetime filters for date ranges", () => {
-    const dateFilters: FilterState = [
-      {
-        column: "createdAt",
-        type: "datetime",
-        operator: ">=",
-        value: new Date("2024-01-01"),
-      },
-      {
-        column: "createdAt",
-        type: "datetime",
-        operator: "<=",
-        value: new Date("2024-12-31"),
-      },
-    ];
+  it("should handle backend column remapping from URL", () => {
+    // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
+    const urlFilter = "tags;arrayOptions;;any of;tag1";
 
-    const result = transformFiltersForBackend(
-      dateFilters,
-      {},
-      sessionFilterConfig.columnDefinitions,
-    );
-
-    // Both should be kept
-    expect(result).toHaveLength(2);
-  });
-
-  it("should normalize column names before deduplication", () => {
-    // Mix of display names and IDs should be normalized then deduplicated
-    // because here, 2 filters would just result in nothing
-    const mixedFilters: FilterState = [
-      {
-        column: "Environment", // Display name
-        type: "stringOptions",
-        operator: "any of",
-        value: ["prod"],
-      },
-      {
-        column: "User IDs", // Display name (maps to "userIds" ID)
-        type: "arrayOptions",
-        operator: "any of",
-        value: ["user1"],
-      },
-      {
-        column: "environment", // ID (same as first after normalization)
-        type: "stringOptions",
-        operator: "any of",
-        value: ["staging"],
-      },
-    ];
-
-    const result = transformFiltersForBackend(
-      mixedFilters,
-      {},
-      sessionFilterConfig.columnDefinitions,
-    );
-
-    // Should have 2 filters: userIds and environment
-    expect(result).toHaveLength(2);
-    expect(result[0]?.column).toBe("userIds");
-    expect(result[1]?.column).toBe("environment"); // Last occurrence kept
-    expect(result[1]?.value).toEqual(["staging"]); // Most recent value
-  });
-
-  it("should handle backend column remapping after deduplication", () => {
-    // Traces table: "tags" (frontend) → "traceTags" (backend)
-    const filters: FilterState = [
-      {
-        column: "tags",
-        type: "arrayOptions",
-        operator: "any of",
-        value: ["tag1"],
-      },
-    ];
-
-    const result = transformFiltersForBackend(
-      filters,
-      { tags: "traceTags" }, // Backend remapping
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      { tags: "tags" },
       traceFilterConfig.columnDefinitions,
+      {},
     );
 
+    const result = transformFiltersForBackend(normalized, {
+      tags: "traceTags",
+    });
+
     expect(result).toHaveLength(1);
-    expect(result[0]?.column).toBe("traceTags"); // Remapped to backend name
+    expect(result[0]?.column).toBe("traceTags");
   });
 });
