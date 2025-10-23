@@ -26,7 +26,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type CommentObjectType,
   CreateCommentData,
-  extractMentionedUserIds,
   MENTION_USER_PREFIX,
 } from "@langfuse/shared";
 import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
@@ -240,11 +239,8 @@ export function CommentList({
     return null;
 
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
-    const mentionedUserIds = extractMentionedUserIds(values.content);
-
     createCommentMutation.mutateAsync({
       ...values,
-      mentionedUserIds,
     });
   }
 
