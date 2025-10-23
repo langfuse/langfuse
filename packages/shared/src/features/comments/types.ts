@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-const MAX_COMMENT_LENGTH = 3000;
+const MAX_COMMENT_LENGTH = 5000;
 
 const COMMENT_OBJECT_TYPES = [
   "TRACE",
@@ -14,7 +14,6 @@ export const CreateCommentData = z.object({
   content: z.string().trim().min(1).max(MAX_COMMENT_LENGTH),
   objectId: z.string(),
   objectType: z.enum(COMMENT_OBJECT_TYPES),
-  mentionedUserIds: z.array(z.string()).optional(),
 });
 
 export const DeleteCommentData = z.object({

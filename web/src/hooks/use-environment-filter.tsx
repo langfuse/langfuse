@@ -13,13 +13,8 @@ export function convertSelectedEnvironmentsToFilter(
   selectedEnvironments: string[],
 ) {
   if (selectedEnvironments.length === 0) {
-    // No environments selected = show nothing
-    return environmentColumns.map((column) => ({
-      type: "stringOptions" as const,
-      column,
-      operator: "any of" as const,
-      value: ["__NEVER_MATCH_ANYTHING__"], // Impossible value to match
-    }));
+    // No environments selected = no filter (show all)
+    return [];
   }
 
   return environmentColumns.map((column) => ({

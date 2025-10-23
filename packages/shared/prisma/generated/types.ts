@@ -362,12 +362,6 @@ export type Comment = {
   content: string;
   author_user_id: string | null;
 };
-export type CommentMention = {
-  id: string;
-  comment_id: string;
-  mentioned_user_id: string;
-  created_at: Generated<Timestamp>;
-};
 export type CronJobs = {
   name: string;
   last_run: Timestamp | null;
@@ -889,7 +883,6 @@ export type DB = {
   billing_meter_backups: BillingMeterBackup;
   blob_storage_integrations: BlobStorageIntegration;
   cloud_spend_alerts: CloudSpendAlert;
-  comment_mentions: CommentMention;
   comments: Comment;
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
