@@ -205,8 +205,13 @@ export default function TracesTable({
       },
     );
 
+  const timestampFilter = dateRangeFilter.find((f) => f.column === "timestamp");
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
+    {
+      projectId,
+      timestampFilter:
+        timestampFilter?.type === "datetime" ? timestampFilter : undefined,
+    },
     {
       trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
