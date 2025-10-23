@@ -198,6 +198,8 @@ export const handleBatchExportJob = async (
       exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
     data: fileStream,
     expiresInSeconds,
+    partSize: 100 * 1024 * 1024, // 100 MB for CSV
+    queueSize: 4,
   });
 
   logger.info(`Batch export file ${fileName} uploaded to S3`);
