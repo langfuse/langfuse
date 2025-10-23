@@ -9,6 +9,7 @@ import {
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
+import { convertClickhouseTracesListToDomain } from "./traces_converters";
 import {
   DateTimeFilter,
   FilterList,
@@ -24,6 +25,7 @@ import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
   eventsTracesAggregation,
+  eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
@@ -38,7 +40,10 @@ import {
   ObservationTableQuery,
 } from "./observations";
 import { convertObservation } from "./observations_converters";
-import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
+import {
+  EventsQueryBuilder,
+  CTEQueryBuilder,
+} from "../queries/clickhouse-sql/event-query-builder";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
@@ -125,10 +130,175 @@ const extractTimeFilter = (filter: FilterList): string | null => {
 };
 
 /**
- * Column mapping for public API filters on events table
+ * Column mapping for public API filters on events table (observations)
  */
 const PUBLIC_API_EVENTS_COLUMN_MAPPING: ApiColumnMapping[] =
   createPublicApiObservationsColumnMapping("events", "e", "parent_span_id");
+
+/**
+ * UI Column definitions for advanced filters on traces aggregated from events table
+ * Maps trace-level column names (from advanced filter syntax) to events table columns
+ */
+const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS = [
+  {
+    uiTableName: "Timestamp",
+    uiTableId: "timestamp",
+    clickhouseTableName: "events",
+    clickhouseSelect: "start_time",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "events",
+    clickhouseSelect: "user_id",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Name",
+    uiTableId: "name",
+    clickhouseTableName: "events",
+    clickhouseSelect: "name",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Environment",
+    uiTableId: "environment",
+    clickhouseTableName: "events",
+    clickhouseSelect: "environment",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "events",
+    clickhouseSelect: "metadata",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Session ID",
+    uiTableId: "sessionId",
+    clickhouseTableName: "events",
+    clickhouseSelect: "session_id",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Version",
+    uiTableId: "version",
+    clickhouseTableName: "events",
+    clickhouseSelect: "version",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Release",
+    uiTableId: "release",
+    clickhouseTableName: "events",
+    clickhouseSelect: "release",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Tags",
+    uiTableId: "tags",
+    clickhouseTableName: "events",
+    clickhouseSelect: "tags",
+    queryPrefix: "e",
+  },
+] as const;
+
+/**
+ * Add ordering and pagination for rows
+ * Derive orderByColumns from UI column definitions (with queryPrefix changed to 't' for traces CTE)
+ * Note: Some columns have different names after aggregation (e.g., start_time -> timestamp)
+ */
+const allowedOrderByIds = [
+  "timestamp",
+  "name",
+  "userId",
+  "sessionId",
+  "environment",
+  "version",
+  "release",
+];
+const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
+  (col) => allowedOrderByIds.includes(col.uiTableId),
+).map((col) => ({
+  ...col,
+  // Adjust column names that change after aggregation
+  clickhouseSelect:
+    col.uiTableId === "timestamp" ? "timestamp" : col.clickhouseSelect,
+  queryPrefix: "t", // Use 't' prefix because we're selecting from traces CTE
+}));
+
+/**
+ * Column mapping for public API simple filters on traces aggregated from events table
+ */
+const PUBLIC_API_TRACES_COLUMN_MAPPING: ApiColumnMapping[] = [
+  {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    filterType: "StringFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "name",
+    clickhouseSelect: "name",
+    filterType: "StringFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "tags",
+    clickhouseSelect: "tags",
+    filterType: "ArrayOptionsFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
+    filterType: "StringFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "version",
+    clickhouseSelect: "version",
+    filterType: "StringFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "release",
+    clickhouseSelect: "release",
+    filterType: "StringFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "environment",
+    clickhouseSelect: "environment",
+    filterType: "StringOptionsFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "fromTimestamp",
+    clickhouseSelect: "start_time",
+    operator: ">=" as const,
+    filterType: "DateTimeFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+  {
+    id: "toTimestamp",
+    clickhouseSelect: "start_time",
+    operator: "<" as const,
+    filterType: "DateTimeFilter",
+    clickhouseTable: "events",
+    clickhousePrefix: "e",
+  },
+];
 
 export const getObservationsCountFromEventsTable = async (
   opts: ObservationTableQuery,
@@ -368,7 +538,6 @@ const getObservationByIdFromEventsTableInternal = async ({
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
-  // Build query using EventsQueryBuilder with automatic param tracking
   const queryBuilder = new EventsQueryBuilder({ projectId })
     .selectFieldSet("byIdBase", "byIdModel", "byIdPrompt", "byIdTimestamps")
     .when(fetchWithInputOutput, (b) =>
@@ -527,6 +696,218 @@ export const getObservationsCountFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
 ): Promise<number> => {
   const countResult = await getObservationsFromEventsTableForPublicApiInternal<{
+    count: string;
+  }>({
+    ...opts,
+    select: "count",
+  });
+  return Number(countResult[0].count);
+};
+
+type PublicApiTracesQuery = {
+  projectId: string;
+  page: number;
+  limit: number;
+  userId?: string;
+  name?: string;
+  tags?: string | string[];
+  sessionId?: string;
+  version?: string;
+  release?: string;
+  environment?: string | string[];
+  fromTimestamp?: string;
+  toTimestamp?: string;
+  fields?: string[];
+  advancedFilters?: FilterState;
+  orderBy?: { column: string; order: "ASC" | "DESC" } | null;
+};
+
+/**
+ * Internal implementation for public API traces queries.
+ * Uses eventsTracesAggregation to create a traces CTE that
+ * behaves similarily to the old traces table.
+ */
+const getTracesFromEventsTableForPublicApiInternal = async <T>(
+  opts: PublicApiTracesQuery & { select: "rows" | "count" },
+): Promise<Array<T>> => {
+  const {
+    projectId,
+    page,
+    limit,
+    advancedFilters,
+    fields,
+    orderBy,
+    ...filterParams
+  } = opts;
+
+  // Determine which field groups are requested
+  const includeIO = Boolean(fields?.includes("io"));
+  const includeScores = Boolean(fields?.includes("scores"));
+  const includeObservations = Boolean(fields?.includes("observations"));
+  const includeMetrics = Boolean(fields?.includes("metrics"));
+
+  // Convert and merge simple and advanced filters
+  const tracesFilter = deriveFilters(
+    { ...filterParams, projectId, page, limit },
+    PUBLIC_API_TRACES_COLUMN_MAPPING,
+    advancedFilters,
+    TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS,
+  );
+
+  // Extract time filter for cut-off point in eventsTracesAggregation
+  const startTimeFrom = extractTimeFilter(tracesFilter);
+  const appliedFilter = tracesFilter.apply();
+
+  // Build traces CTE using eventsTracesAggregation with filters applied
+  const tracesBuilder = eventsTracesAggregation({
+    projectId,
+    startTimeFrom,
+  }).where(appliedFilter);
+
+  // Build the final query using CTEQueryBuilder
+  let queryBuilder = new CTEQueryBuilder()
+    .withCTEFromBuilder("traces", tracesBuilder)
+    .from("traces", "t");
+
+  if (includeScores) {
+    const scoresCTE = eventsTracesScoresAggregation({
+      projectId,
+      startTimeFrom,
+    });
+    queryBuilder = queryBuilder
+      .withCTE("score_stats", {
+        ...scoresCTE,
+        schema: ["trace_id", "project_id", "score_ids"],
+      })
+      .leftJoin(
+        "score_stats",
+        "s",
+        "ON s.trace_id = t.id AND s.project_id = t.project_id",
+      );
+  }
+
+  // Select fields based on query type and field groups
+  if (opts.select === "count") {
+    queryBuilder.select("count() as count");
+  } else {
+    // Build select list
+    queryBuilder = queryBuilder.selectColumns(
+      "t.id",
+      "t.project_id",
+      "t.timestamp",
+      "t.name",
+      "t.environment",
+      "t.session_id",
+      "t.user_id",
+      "t.version",
+      "t.created_at",
+      "t.updated_at",
+      "t.tags",
+      "t.bookmarked",
+      "t.public",
+      "t.release",
+    );
+
+    queryBuilder.select(
+      "CONCAT('/project/', t.project_id, '/traces/', t.id) as htmlPath",
+    );
+
+    // Conditionally include other field groups
+    if (includeIO) {
+      queryBuilder = queryBuilder.selectColumns(
+        "t.input",
+        "t.output",
+        "t.metadata",
+      );
+    }
+    if (includeScores) {
+      queryBuilder.select("s.score_ids as scores");
+    }
+    if (includeObservations) {
+      queryBuilder.select("t.observation_ids as observations");
+    }
+    if (includeMetrics) {
+      queryBuilder.select(
+        "t.total_cost as totalCost",
+        "COALESCE(t.latency_milliseconds / 1000, 0) as latency",
+      );
+    }
+
+    const chOrderBy =
+      orderByToClickhouseSql(
+        orderBy ? [orderBy] : [],
+        TRACES_ORDER_BY_COLUMNS,
+      ) || "ORDER BY t.timestamp DESC";
+
+    queryBuilder.orderBy(chOrderBy).limit(limit, (page - 1) * limit);
+  }
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const result = await measureAndReturn({
+    operationName: `getTracesFromEventsTableForPublicApi_${opts.select}`,
+    projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "traces",
+        kind: opts.select === "count" ? "publicApiCount" : "publicApiRows",
+        projectId,
+      },
+    },
+    fn: async (input) => {
+      return await queryClickhouse<T>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      });
+    },
+  });
+
+  return result;
+};
+
+/**
+ * Get traces list from events table for public API.
+ * Aggregates events by trace_id to rebuild traces with observation metrics.
+ */
+export const getTracesFromEventsTableForPublicApi = async (
+  opts: PublicApiTracesQuery,
+): Promise<Array<any>> => {
+  const requestedFields = opts.fields ?? [
+    "core",
+    "io",
+    "scores",
+    "observations",
+    "metrics",
+  ];
+  const includeScores = requestedFields.includes("scores");
+  const includeObservations = requestedFields.includes("observations");
+  const includeMetrics = requestedFields.includes("metrics");
+
+  const result = await getTracesFromEventsTableForPublicApiInternal<any>({
+    ...opts,
+    select: "rows",
+  });
+
+  // Convert ClickHouse format to domain format and handle field groups
+  return convertClickhouseTracesListToDomain(result, {
+    scores: includeScores,
+    observations: includeObservations,
+    metrics: includeMetrics,
+  });
+};
+
+/**
+ * Get count of traces from events table for public API.
+ * Uses same aggregation as list query to ensure consistent filtering.
+ */
+export const getTracesCountFromEventsTableForPublicApi = async (
+  opts: PublicApiTracesQuery,
+): Promise<number> => {
+  const countResult = await getTracesFromEventsTableForPublicApiInternal<{
     count: string;
   }>({
     ...opts,

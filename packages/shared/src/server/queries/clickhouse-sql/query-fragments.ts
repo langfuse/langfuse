@@ -98,3 +98,42 @@ export const eventsScoresAggregation = (
 
   return { query, params: queryParams };
 };
+
+interface EventsTracesScoresAggregationParams {
+  projectId: string;
+  startTimeFrom?: string | null;
+}
+
+/**
+ * Scores CTE for trace-level queries.
+ * Aggregates scores that belong to traces (not observations).
+ *
+ * Returns a query and params object that can be passed directly to withCTE.
+ */
+export const eventsTracesScoresAggregation = (
+  params: EventsTracesScoresAggregationParams,
+): { query: string; params: Record<string, any> } => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const query = `
+    SELECT
+      trace_id,
+      project_id,
+      groupUniqArray(id) as score_ids
+    FROM scores
+    WHERE project_id = {projectId: String}
+      AND observation_id IS NULL
+      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+    GROUP BY
+      trace_id,
+      project_id
+  `.trim();
+
+  return { query, params: queryParams };
+};

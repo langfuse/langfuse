@@ -114,6 +114,16 @@ export const traceRecordBaseSchema = z.object({
   is_deleted: z.number(),
 });
 
+export const traceRecordExtraFields = z.object({
+  observations: z.array(z.string()).optional(),
+  scores: z.array(z.string()).optional(),
+  totalCost: z.number().optional(),
+  latency: z.number().optional(),
+  htmlPath: z.string().nullable(),
+});
+
+export type TraceRecordExtraFieldsType = z.infer<typeof traceRecordExtraFields>;
+
 export const traceRecordReadSchema = traceRecordBaseSchema.extend({
   timestamp: clickhouseStringDateSchema,
   created_at: clickhouseStringDateSchema,
