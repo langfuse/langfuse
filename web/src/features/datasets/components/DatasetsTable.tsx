@@ -301,7 +301,12 @@ export function DatasetsTable(props: { projectId: string }) {
       const isFolder = dataset.row_type === "folder";
       const itemId = dataset.id;
       const itemName = dataset.name;
-      const navigationPath = buildFullPath(currentFolderPath, itemId);
+
+      // For folders: navigationPath uses the folder name (for filtering)
+      // For datasets: navigationPath uses the dataset ID (for detail page routing)
+      const navigationPath = isFolder
+        ? buildFullPath(currentFolderPath, itemName)
+        : itemId;
       const displayPath = buildFullPath(currentDisplayPath, itemName);
 
       combinedRows.push(
