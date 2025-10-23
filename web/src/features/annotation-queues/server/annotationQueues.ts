@@ -464,6 +464,7 @@ export const queueRouter = createTRPCRouter({
         queueId: z.string(),
         projectId: z.string(),
         seenItemIds: z.array(z.string()),
+        includeCompleted: z.boolean().default(false),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -481,7 +482,9 @@ export const queueRouter = createTRPCRouter({
           where: {
             queueId: input.queueId,
             projectId: input.projectId,
-            status: AnnotationQueueStatus.PENDING,
+            ...(input.includeCompleted
+              ? {}
+              : { status: AnnotationQueueStatus.PENDING }),
             OR: [
               { lockedAt: null },
               { lockedAt: { lt: fiveMinutesAgo } },
@@ -496,7 +499,7 @@ export const queueRouter = createTRPCRouter({
           },
         });
 
-        // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
+        // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen items
         if (!item) return null;
 
         const updatedItem = await ctx.prisma.annotationQueueItem.update({

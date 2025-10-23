@@ -3,19 +3,25 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { type RouterOutput } from "@/src/utils/types";
 import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import { Kbd } from "@/src/components/ui/kbd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
+import { usePrefetchAdjacentItems } from "../hooks/usePrefetchAdjacentItems";
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
@@ -24,12 +30,7 @@ export const AnnotationQueueItemPage: React.FC<{
   queryItemId?: string;
 }> = ({ annotationQueueId, projectId, view, queryItemId }) => {
   const router = useRouter();
-  const isSingleItem = router.query.singleItem === "true";
-  const [nextItemData, setNextItemData] = useState<
-    RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
-  >(null);
-  const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
-  const [progressIndex, setProgressIndex] = useState(0);
+  const showCompleted = router.query.showCompleted === "true";
   const [hasCommentDraft, setHasCommentDraft] = useState(false);
 
   const hasAccess = useHasProjectAccess({
@@ -37,166 +38,163 @@ export const AnnotationQueueItemPage: React.FC<{
     scope: "annotationQueues:CUD",
   });
 
-  const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
-
-  const seenItemData = api.annotationQueueItems.byId.useQuery(
-    { projectId, itemId: itemId as string },
-    { enabled: !!itemId, refetchOnMount: false },
+  // 1. Fetch ordered list of item IDs (auto-refetches when showCompleted changes)
+  const itemIds = api.annotationQueueItems.itemIdsByQueueId.useQuery(
+    {
+      queueId: annotationQueueId,
+      projectId,
+      includeCompleted: showCompleted,
+    },
+    { refetchOnWindowFocus: false },
   );
 
-  const fetchAndLockNextMutation =
-    api.annotationQueues.fetchAndLockNext.useMutation();
-
-  // Effects
-  useEffect(() => {
-    async function fetchNextItem() {
-      if (!itemId && !isSingleItem) {
-        const nextItem = await fetchAndLockNextMutation.mutateAsync({
-          queueId: annotationQueueId,
-          projectId,
-          seenItemIds,
-        });
-        setNextItemData(nextItem);
-      }
-    }
-    fetchNextItem();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
-
-  const unseenPendingItemCount =
-    api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
-      {
-        queueId: annotationQueueId,
-        projectId,
-        seenItemIds,
-      },
-      { refetchOnWindowFocus: false },
-    );
-
-  const utils = api.useUtils();
-  const completeMutation = api.annotationQueueItems.complete.useMutation({
-    onSuccess: async () => {
-      utils.annotationQueueItems.invalidate();
-      showSuccessToast({
-        title: "Item marked as complete",
-        description: "The item is successfully marked as complete.",
-      });
-      if (isSingleItem) {
-        return;
-      }
-
-      if (progressIndex >= seenItemIds.length - 1) {
-        const nextItem = await fetchAndLockNextMutation.mutateAsync({
-          queueId: annotationQueueId,
-          projectId,
-          seenItemIds,
-        });
-        setNextItemData(nextItem);
-      }
-
-      if (progressIndex + 1 < totalItems) {
-        setProgressIndex(Math.max(progressIndex + 1, 0));
-      }
-    },
+  // Prefetch adjacent items for faster navigation
+  usePrefetchAdjacentItems({
+    projectId,
+    itemIds: itemIds.data,
+    currentItemId: queryItemId,
+    enabled: !!queryItemId && !itemIds.isPending,
   });
 
-  const totalItems = useMemo(() => {
-    return seenItemIds.length + (unseenPendingItemCount.data ?? 0);
-  }, [unseenPendingItemCount.data, seenItemIds.length]);
+  // 2. Fetch current item data
+  const currentItem = api.annotationQueueItems.byId.useQuery(
+    { projectId, itemId: queryItemId as string },
+    { enabled: !!queryItemId, refetchOnMount: false },
+  );
 
-  const relevantItem = useMemo(() => {
-    if (isSingleItem) return seenItemData.data;
-    else
-      return progressIndex < seenItemIds.length
-        ? seenItemData.data
-        : nextItemData;
-  }, [
-    progressIndex,
-    seenItemIds.length,
-    seenItemData.data,
-    nextItemData,
-    isSingleItem,
-  ]);
+  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
+  const objectData = useAnnotationObjectData(
+    currentItem.data ?? null,
+    projectId,
+  );
 
-  const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
+  // 3. Navigation state
+  const currentIndex = itemIds.data?.indexOf(queryItemId ?? "") ?? -1;
+  const totalItems = itemIds.data?.length ?? 0;
+  const canGoPrev = currentIndex > 0;
+  const canGoNext = currentIndex >= 0 && currentIndex < totalItems - 1;
 
-  useEffect(() => {
-    if (relevantItem && router.query.itemId !== relevantItem.id) {
-      router.push(
-        {
-          pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
-        },
-        undefined,
-      );
+  // 4. Navigation helper
+  const navigateToItem = (itemId: string) => {
+    const query: Record<string, string> = {};
+    if (showCompleted) {
+      query.showCompleted = "true";
     }
-  }, [relevantItem, router, projectId, annotationQueueId]);
+
+    router.push({
+      pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${itemId}`,
+      query,
+    });
+  };
+
+  // 5. Lock item when page loads (if it's pending and we have access)
+  const lockItemMutation = api.annotationQueueItems.lockItem.useMutation();
 
   useEffect(() => {
     if (
-      relevantItem &&
-      !seenItemIds.includes(relevantItem.id) &&
-      !isSingleItem
+      queryItemId &&
+      hasAccess &&
+      currentItem.data?.status === AnnotationQueueStatus.PENDING
     ) {
-      setSeenItemIds((prev) => [...prev, relevantItem.id]);
+      lockItemMutation.mutate({ itemId: queryItemId, projectId });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relevantItem]);
+  }, [queryItemId, currentItem.data?.status]);
 
-  if (
-    (seenItemData.isPending && itemId) ||
-    (fetchAndLockNextMutation.isPending && !itemId) ||
-    unseenPendingItemCount.isPending ||
-    objectData.isLoading
-  ) {
-    return <Skeleton className="h-full w-full" />;
-  }
+  const handlePrev = () => {
+    if (hasCommentDraft) {
+      const proceed = confirm(
+        "You have an unsaved comment. Do you want to go to the previous item and discard this draft?",
+      );
+      if (!proceed) return;
+    }
 
-  if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
-    return <div>No more items left to annotate!</div>;
-  }
-
-  const isNextItemAvailable = totalItems > progressIndex + 1;
-
-  const handleNavigateBack = () => {
-    setProgressIndex(progressIndex - 1);
+    if (canGoPrev && itemIds.data) {
+      navigateToItem(itemIds.data[currentIndex - 1]);
+    }
   };
 
-  const handleNavigateNext = async () => {
+  const handleNext = () => {
     if (hasCommentDraft) {
       const proceed = confirm(
         "You have an unsaved comment. Do you want to go to the next item and discard this draft?",
       );
       if (!proceed) return;
     }
-    if (progressIndex >= seenItemIds.length - 1) {
-      const nextItem = await fetchAndLockNextMutation.mutateAsync({
-        queueId: annotationQueueId,
-        projectId,
-        seenItemIds,
-      });
-      setNextItemData(nextItem);
+
+    if (canGoNext && itemIds.data) {
+      navigateToItem(itemIds.data[currentIndex + 1]);
     }
-    setProgressIndex(Math.max(progressIndex + 1, 0));
   };
 
+  const utils = api.useUtils();
+  const completeMutation = api.annotationQueueItems.complete.useMutation({
+    onSuccess: () => {
+      utils.annotationQueueItems.invalidate();
+      showSuccessToast({
+        title: "Item marked as complete",
+        description: "The item is successfully marked as complete.",
+      });
+
+      // Auto-navigate to next if available
+      if (canGoNext && itemIds.data) {
+        navigateToItem(itemIds.data[currentIndex + 1]);
+      }
+    },
+  });
+
   const handleComplete = async () => {
-    if (!relevantItem) return;
-    const willNavigate = !isSingleItem && progressIndex + 1 < totalItems;
+    if (!currentItem.data) return;
+
+    const willNavigate = canGoNext;
     if (hasCommentDraft && willNavigate) {
       const proceed = confirm(
         "You have an unsaved comment. Do you want to complete and move to the next item, discarding the draft?",
       );
       if (!proceed) return;
     }
+
     await completeMutation.mutateAsync({
-      itemId: relevantItem.id,
+      itemId: currentItem.data.id,
       projectId,
     });
   };
 
+  // 6. Keyboard shortcuts for navigation (k = previous, j = next)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Don't trigger keyboard shortcuts if the user is typing in an input
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        (event.target instanceof HTMLElement &&
+          event.target.getAttribute("role") === "textbox")
+      ) {
+        return;
+      }
+      // Don't trigger shortcuts if modifier keys are pressed (e.g., Cmd+K for universal search)
+      if (event.metaKey || event.ctrlKey) {
+        return;
+      }
+
+      if (event.key === "j" && canGoPrev) {
+        handlePrev();
+      } else if (event.key === "k" && canGoNext) {
+        handleNext();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [canGoPrev, canGoNext, handlePrev, handleNext]);
+
+  // 7. Loading states
+  if (itemIds.isPending || currentItem.isPending || objectData.isLoading) {
+    return <Skeleton className="h-full w-full" />;
+  }
+
+  // 7. Render content
   const renderContent = () => {
-    if (!relevantItem) {
+    if (!currentItem.data) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
           <SearchXIcon className="mb-2 h-8 w-8 text-muted-foreground" />
@@ -209,12 +207,12 @@ export const AnnotationQueueItemPage: React.FC<{
       );
     }
 
-    switch (relevantItem.objectType) {
+    switch (currentItem.data.objectType) {
       case AnnotationQueueObjectType.TRACE:
       case AnnotationQueueObjectType.OBSERVATION:
         return (
           <TraceAnnotationProcessor
-            item={relevantItem}
+            item={currentItem.data}
             data={objectData.data}
             view={view}
             configs={configs}
@@ -225,7 +223,7 @@ export const AnnotationQueueItemPage: React.FC<{
       case AnnotationQueueObjectType.SESSION:
         return (
           <SessionAnnotationProcessor
-            item={relevantItem}
+            item={currentItem.data}
             data={objectData.data}
             configs={configs}
             projectId={projectId}
@@ -233,55 +231,72 @@ export const AnnotationQueueItemPage: React.FC<{
           />
         );
       default:
-        throw new Error(`Unsupported object type: ${relevantItem.objectType}`);
+        throw new Error(
+          `Unsupported object type: ${currentItem.data.objectType}`,
+        );
     }
   };
+
+  // 8. Determine if we're in navigation mode (item is in the filtered list)
+  const isInNavigationMode = currentIndex >= 0;
 
   return (
     <div className="grid h-full grid-rows-[1fr,auto] gap-4 overflow-hidden">
       {renderContent()}
       <div className="grid h-full w-full grid-cols-1 justify-end gap-2 sm:grid-cols-[auto,min-content]">
-        {!isSingleItem && (
+        {isInNavigationMode && (
           <div className="flex max-h-10 flex-row gap-2">
             <span className="grid h-9 min-w-16 items-center rounded-md bg-muted p-1 text-center text-sm">
-              {progressIndex + 1} / {totalItems}
+              {currentIndex + 1} / {totalItems}
             </span>
-            <Button
-              onClick={handleNavigateBack}
-              variant="outline"
-              disabled={progressIndex === 0 || !hasAccess}
-              size="lg"
-              className="px-4"
-            >
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Back
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handlePrev}
+                  variant="outline"
+                  disabled={!canGoPrev || !hasAccess}
+                  size="lg"
+                  className="px-4"
+                >
+                  <ArrowLeft className="mr-1 h-4 w-4" />
+                  Back
+                  <Kbd className="ml-2">j</Kbd>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Navigate to previous item</TooltipContent>
+            </Tooltip>
           </div>
         )}
         <div className="flex w-full min-w-[265px] justify-end gap-2">
-          {!isSingleItem && (
-            <Button
-              onClick={handleNavigateNext}
-              disabled={!isNextItemAvailable || !hasAccess}
-              size="lg"
-              className={`px-4 ${!relevantItem ? "w-full" : ""}`}
-              variant="outline"
-            >
-              {relevantItem?.status === AnnotationQueueStatus.PENDING
-                ? "Skip"
-                : "Next"}
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
+          {isInNavigationMode && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleNext}
+                  disabled={!canGoNext || !hasAccess}
+                  size="lg"
+                  className={`px-4 ${!currentItem.data ? "w-full" : ""}`}
+                  variant="outline"
+                >
+                  {currentItem.data?.status === AnnotationQueueStatus.PENDING
+                    ? "Skip"
+                    : "Next"}
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                  <Kbd className="ml-2">k</Kbd>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Navigate to next item</TooltipContent>
+            </Tooltip>
           )}
-          {!!relevantItem &&
-            (relevantItem.status === AnnotationQueueStatus.PENDING ? (
+          {!!currentItem.data &&
+            (currentItem.data.status === AnnotationQueueStatus.PENDING ? (
               <Button
                 onClick={handleComplete}
                 size="lg"
                 className="w-full"
                 disabled={completeMutation.isPending || !hasAccess}
               >
-                {isSingleItem || progressIndex + 1 === totalItems
+                {!isInNavigationMode || !canGoNext
                   ? "Complete"
                   : "Complete + Next"}
               </Button>
