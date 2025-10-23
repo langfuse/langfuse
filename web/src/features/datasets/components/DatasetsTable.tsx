@@ -36,7 +36,8 @@ type DatasetTableRow = {
     name: string;
   };
   isFolder: boolean;
-  fullPath: string; // used for navigation/API calls
+  navigationPath: string; // used for navigation/API calls (IDs for datasets)
+  displayPath: string; // used for breadcrumb display (names)
   description?: string | null;
   createdAt?: Date | null;
   lastRunAt: Date | null;
@@ -51,7 +52,8 @@ function createRow(
       id: string;
       name: string;
     };
-    fullPath: string;
+    navigationPath: string;
+    displayPath: string;
     isFolder: boolean;
   },
 ): DatasetTableRow {
@@ -73,6 +75,7 @@ export function DatasetsTable(props: { projectId: string }) {
   const {
     paginationState,
     currentFolderPath,
+    currentDisplayPath,
     navigateToFolder,
     resetPaginationAndFolder,
     setPaginationAndFolderState,
@@ -132,7 +135,9 @@ export function DatasetsTable(props: { projectId: string }) {
           return (
             <FolderBreadcrumbLink
               name={key.name}
-              onClick={() => navigateToFolder(rowData.fullPath)}
+              onClick={() =>
+                navigateToFolder(rowData.navigationPath, rowData.displayPath)
+              }
             />
           );
         }
@@ -294,16 +299,19 @@ export function DatasetsTable(props: { projectId: string }) {
 
     for (const dataset of datasetsDatasetTableRow.rows) {
       const isFolder = dataset.row_type === "folder";
-      const itemName = dataset.id; // id actually contains the name due to type mapping
-      const fullPath = buildFullPath(currentFolderPath, itemName);
+      const itemId = dataset.id;
+      const itemName = dataset.name;
+      const navigationPath = buildFullPath(currentFolderPath, itemId);
+      const displayPath = buildFullPath(currentDisplayPath, itemName);
 
       combinedRows.push(
         createRow({
           key: {
-            id: `${dataset.row_type}-${fullPath}`, // Unique ID for React keys
+            id: dataset.id,
             name: dataset.name,
           },
-          fullPath,
+          navigationPath,
+          displayPath,
           isFolder,
           ...(isFolder
             ? {}
@@ -323,14 +331,27 @@ export function DatasetsTable(props: { projectId: string }) {
       ...datasetsDatasetTableRow,
       rows: combinedRows,
     };
-  }, [datasetsDatasetTableRow, currentFolderPath]);
+  }, [datasetsDatasetTableRow, currentFolderPath, currentDisplayPath]);
 
   return (
     <>
       {currentFolderPath && (
         <FolderBreadcrumb
           currentFolderPath={currentFolderPath}
-          navigateToFolder={navigateToFolder}
+          displayPath={currentDisplayPath}
+          navigateToFolder={(path) => {
+            if (!path) {
+              navigateToFolder(undefined, undefined);
+              return;
+            }
+            // Build display path from breadcrumb segments
+            const displaySegments = currentDisplayPath.split("/");
+            const targetDepth = path.split("/").length;
+            const newDisplayPath = displaySegments
+              .slice(0, targetDepth)
+              .join("/");
+            navigateToFolder(path, newDisplayPath);
+          }}
         />
       )}
       <DataTableToolbar
