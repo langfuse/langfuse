@@ -363,13 +363,14 @@ export function TableViewPresetsDrawer({
                       "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
                       selectedViewId === null && "bg-muted font-medium",
                     )}
+                    title="Reflects your current table settings without applying any saved custom table views"
                   >
                     <div className="flex flex-col">
                       <span className="text-sm font-medium text-muted-foreground">
                         {SYSTEM_PRESETS.DEFAULT.name}
                       </span>
-                      <span className="w-fit pl-0 text-xs">
-                        Your default view
+                      <span className="w-fit pl-0 text-xs text-muted-foreground">
+                        Your working view
                       </span>
                     </div>
                   </CommandItem>
@@ -580,7 +581,7 @@ export function TableViewPresetsDrawer({
                 className="w-full justify-start px-1"
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create New View
+                Create Custom View
               </Button>
             </div>
           </div>
