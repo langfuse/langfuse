@@ -7,7 +7,6 @@ import {
   MoreVertical,
   Pen,
   Lock,
-  RotateCcw,
 } from "lucide-react";
 import {
   DrawerTrigger,
