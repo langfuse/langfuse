@@ -112,7 +112,7 @@ export async function handleCommentMentionNotification(
 
         // Construct URL based on object type
         let commentLink: string;
-        const commonParams = `comments=open&commentObjectType=${comment.objectType}&commentObjectId=${comment.objectId}`;
+        const commonParams = `comments=open&commentObjectType=${encodeURIComponent(comment.objectType)}&commentObjectId=${encodeURIComponent(comment.objectId)}`;
 
         switch (comment.objectType) {
           case "OBSERVATION": {
@@ -127,7 +127,7 @@ export async function handleCommentMentionNotification(
               );
               continue;
             }
-            commentLink = `${baseUrl}/project/${projectId}/traces/${observation.traceId}?observation=${comment.objectId}&${commonParams}#comment-${commentId}`;
+            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/traces/${encodeURIComponent(observation.traceId)}?observation=${encodeURIComponent(comment.objectId)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
             break;
           }
           case "PROMPT": {
@@ -143,19 +143,19 @@ export async function handleCommentMentionNotification(
               continue;
             }
             const encodedPromptName = encodeURIComponent(prompt.name);
-            commentLink = `${baseUrl}/project/${projectId}/prompts/${encodedPromptName}?version=${prompt.version}&${commonParams}#comment-${commentId}`;
+            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/prompts/${encodedPromptName}?version=${encodeURIComponent(prompt.version)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
             break;
           }
           case "TRACE":
           case "SESSION":
           default: {
             // For traces and sessions, use standard URL pattern
-            commentLink = `${baseUrl}/project/${projectId}/${comment.objectType.toLowerCase()}s/${comment.objectId}?${commonParams}#comment-${commentId}`;
+            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/${encodeURIComponent(comment.objectType.toLowerCase())}s/${encodeURIComponent(comment.objectId)}?${commonParams}#comment-${encodeURIComponent(commentId)}`;
             break;
           }
         }
 
-        const settingsLink = `${baseUrl}/project/${projectId}/settings/notifications`;
+        const settingsLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/settings/notifications`;
 
         // Send email
         await sendCommentMentionEmail({
