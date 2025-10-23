@@ -66,6 +66,12 @@ export function useTableViewManager({
   // Keep track of the viewId in session storage and in the query params
   const handleSetViewId = useCallback(
     (viewId: string | null) => {
+      if (viewId === null) {
+        // When clearing, remove from URL first to prevent sync loop
+        const url = new URL(window.location.href);
+        url.searchParams.delete("viewId");
+        window.history.replaceState({}, "", url.toString());
+      }
       setStoredViewId(viewId);
       setSelectedViewId(viewId);
     },
