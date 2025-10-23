@@ -4933,6 +4933,7 @@ components:
       enum:
         - TRACE
         - OBSERVATION
+        - SESSION
     AnnotationQueue:
       title: AnnotationQueue
       type: object
