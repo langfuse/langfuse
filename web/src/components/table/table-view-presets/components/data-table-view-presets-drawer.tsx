@@ -88,7 +88,7 @@ interface SystemPreset {
 const SYSTEM_PRESETS: { DEFAULT: SystemPreset } = {
   DEFAULT: {
     id: "__langfuse_default__",
-    name: "My view",
+    name: "My view (default)",
     isSystem: true,
   },
 };
@@ -322,27 +322,25 @@ export function TableViewPresetsDrawer({
           </Button>
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">
-          <div className="mx-auto h-[80svh] w-full overflow-y-auto">
-            <div className="sticky top-0 z-10">
-              <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
-                <DrawerTitle className="flex flex-row items-center gap-1">
-                  Saved Table Views{" "}
-                  <a
-                    href="https://github.com/orgs/langfuse/discussions/4657"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center"
-                    title="Saving table view presets is currently in beta. Click here to provide feedback!"
-                  ></a>
-                </DrawerTitle>
-                <DrawerClose asChild>
-                  <Button variant="outline" size="icon">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </DrawerClose>
-              </DrawerHeader>
-              <Separator />
-            </div>
+          <div className="mx-auto w-full">
+            <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
+              <DrawerTitle className="flex flex-row items-center gap-1">
+                Saved Table Views{" "}
+                <a
+                  href="https://github.com/orgs/langfuse/discussions/4657"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center"
+                  title="Saving table view presets is currently in beta. Click here to provide feedback!"
+                ></a>
+              </DrawerTitle>
+              <DrawerClose asChild>
+                <Button variant="outline" size="icon">
+                  <X className="h-4 w-4" />
+                </Button>
+              </DrawerClose>
+            </DrawerHeader>
+            <Separator />
 
             <Command className="h-fit rounded-none border-none pb-1 shadow-none">
               <CommandInput
@@ -351,7 +349,7 @@ export function TableViewPresetsDrawer({
                 onValueChange={setSearchQueryLocal}
                 className="h-12 border-none focus:ring-0"
               />
-              <CommandList>
+              <CommandList className="max-h-[calc(100vh-150px)]">
                 <CommandEmpty>No saved table views found</CommandEmpty>
                 <CommandGroup className="pb-0">
                   {/* System Preset: Langfuse Default */}
