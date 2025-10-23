@@ -88,6 +88,21 @@ export const commentReactionsRouter = createTRPCRouter({
           scope: "comments:CUD",
         });
 
+        // Verify comment exists in project
+        const comment = await ctx.prisma.comment.findFirst({
+          where: {
+            id: input.commentId,
+            projectId: input.projectId,
+          },
+        });
+
+        if (!comment) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Comment not found",
+          });
+        }
+
         await ctx.prisma.commentReaction.delete({
           where: {
             commentId_userId_emoji: {
