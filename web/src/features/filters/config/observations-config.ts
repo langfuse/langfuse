@@ -13,6 +13,8 @@ const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   modelId: "modelId",
   promptName: "promptName",
   tags: "tags",
+  metadata: "metadata",
+  version: "version",
   timeToFirstToken: "timeToFirstToken",
   latency: "latency",
   tokensPerSecond: "tokensPerSecond",
@@ -22,6 +24,8 @@ const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
+  score_categories: "score_categories",
+  scores_avg: "scores_avg",
 };
 
 /**
@@ -88,6 +92,16 @@ export const observationFilterConfig: FilterConfig = {
       label: "Trace Tags",
     },
     {
+      type: "stringKeyValue" as const,
+      column: "metadata",
+      label: "Metadata",
+    },
+    {
+      type: "string" as const,
+      column: "version",
+      label: "Version",
+    },
+    {
       type: "numeric" as const,
       column: "latency",
       label: "Latency",
@@ -147,6 +161,16 @@ export const observationFilterConfig: FilterConfig = {
       min: 0,
       max: 100,
       unit: "$",
+    },
+    {
+      type: "keyValue" as const,
+      column: "score_categories",
+      label: "Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "scores_avg",
+      label: "Numeric Scores",
     },
   ],
 };
