@@ -6,6 +6,7 @@ import {
   Cog,
   ExternalLink,
   AlertCircle,
+  ExternalLinkIcon,
 } from "lucide-react";
 import {
   Popover,
@@ -24,6 +25,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
+import Link from "next/link";
 import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useTemplatesValidation } from "@/src/features/evals/hooks/useTemplatesValidation";
 import {
@@ -44,6 +46,7 @@ type TemplateSelectorProps = {
   inactiveTemplateIds?: string[];
   onConfigureTemplate?: (templateId: string) => void;
   onSelectEvaluator?: (templateId: string) => void;
+  onEvaluatorToggled?: () => void;
   className?: string;
 };
 
@@ -55,6 +58,7 @@ export const TemplateSelector = ({
   inactiveTemplateIds,
   onConfigureTemplate,
   onSelectEvaluator,
+  onEvaluatorToggled,
   className,
   disabled = false,
 }: TemplateSelectorProps) => {
@@ -71,6 +75,7 @@ export const TemplateSelector = ({
     initialActiveTemplateIds: activeTemplateIds,
     initialInactiveTemplateIds: inactiveTemplateIds,
     onSelectEvaluator,
+    onEvaluatorToggled,
   });
 
   // Validation for templates requiring default model
@@ -215,8 +220,17 @@ export const TemplateSelector = ({
                                 <TooltipTrigger asChild>
                                   <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  Requires project-level evaluation model
+                                <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
+                                  <p>Requires project-level evaluation model</p>
+                                  <Link
+                                    href={`/project/${projectId}/evals/default-model`}
+                                    className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLinkIcon className="h-3 w-3" />
+                                    Configure default model
+                                  </Link>
                                 </TooltipContent>
                               </Tooltip>
                             )}
@@ -290,8 +304,17 @@ export const TemplateSelector = ({
                               <TooltipTrigger asChild>
                                 <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                               </TooltipTrigger>
-                              <TooltipContent>
-                                Requires project-level evaluation model
+                              <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-xs">
+                                <p>Requires project-level evaluation model</p>
+                                <Link
+                                  href={`/project/${projectId}/evals/default-model`}
+                                  className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <ExternalLinkIcon className="h-3 w-3" />
+                                  Configure default model
+                                </Link>
                               </TooltipContent>
                             </Tooltip>
                           )}

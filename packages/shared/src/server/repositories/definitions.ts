@@ -88,6 +88,14 @@ export type ObservationRecordInsertType = z.infer<
   typeof observationRecordInsertSchema
 >;
 
+export const observationBatchStagingRecordInsertSchema =
+  observationRecordInsertSchema.extend({
+    s3_first_seen_timestamp: z.number(),
+  });
+export type ObservationBatchStagingRecordInsertType = z.infer<
+  typeof observationBatchStagingRecordInsertSchema
+>;
+
 export const traceRecordBaseSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),
@@ -179,6 +187,7 @@ export const scoreRecordBaseSchema = z.object({
   data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
   string_value: z.string().nullish(),
   queue_id: z.string().nullish(),
+  execution_trace_id: z.string().nullish(),
   is_deleted: z.number(),
 });
 
@@ -322,6 +331,68 @@ export const convertScoreReadToInsert = (
     updated_at: new Date(record.updated_at).getTime(),
     timestamp: new Date(record.timestamp).getTime(),
     event_ts: new Date(record.event_ts).getTime(),
+  };
+};
+
+/**
+ * Converts a trace record to a staging observation record.
+ * The trace is treated as a synthetic "SPAN" where span_id = trace_id.
+ * This allows traces to flow through the same batch propagation pipeline as observations.
+ */
+export const convertTraceToStagingObservation = (
+  traceRecord: TraceRecordInsertType,
+  s3FirstSeenTimestamp: number,
+): ObservationBatchStagingRecordInsertType => {
+  return {
+    // Identity - trace acts as its own span. Modify traceId to avoid cases where users set spanId = traceId.
+    id: `t-${traceRecord.id}`,
+    trace_id: traceRecord.id,
+    project_id: traceRecord.project_id,
+
+    // Type: pretend trace is a SPAN
+    type: "SPAN",
+
+    // No parent since traces are root-level
+    parent_observation_id: undefined,
+
+    // Core fields from trace
+    name: traceRecord.name,
+    environment: traceRecord.environment,
+    version: traceRecord.version,
+    metadata: traceRecord.metadata,
+
+    // Timing: trace.timestamp -> start_time
+    start_time: traceRecord.timestamp,
+    end_time: undefined,
+    completion_start_time: undefined,
+
+    // IO fields
+    input: traceRecord.input,
+    output: traceRecord.output,
+
+    // Default values for observation-specific fields
+    level: "DEFAULT",
+    status_message: undefined,
+    provided_model_name: undefined,
+    internal_model_id: undefined,
+    model_parameters: undefined,
+    provided_usage_details: {},
+    usage_details: {},
+    provided_cost_details: {},
+    cost_details: {},
+    total_cost: undefined,
+    prompt_id: undefined,
+    prompt_name: undefined,
+    prompt_version: undefined,
+
+    // System fields
+    created_at: traceRecord.created_at,
+    updated_at: traceRecord.updated_at,
+    event_ts: traceRecord.event_ts,
+    is_deleted: traceRecord.is_deleted,
+
+    // Staging-specific field
+    s3_first_seen_timestamp: s3FirstSeenTimestamp,
   };
 };
 
@@ -501,9 +572,101 @@ export const convertPostgresScoreToInsert = (
     data_type: score.data_type,
     string_value: score.string_value,
     queue_id: score.queue_id,
+    execution_trace_id: null, // Postgres scores do not have eval execution traces
     created_at: score.created_at?.getTime(),
     updated_at: score.updated_at?.getTime(),
     event_ts: score.timestamp?.getTime(),
     is_deleted: 0,
   };
 };
+
+export const eventRecordBaseSchema = z.object({
+  // Identifiers
+  org_id: z.string().nullish(),
+  project_id: z.string(),
+  trace_id: z.string(),
+  span_id: z.string(),
+  // We mainly use the id for compatibility with old events that always had a `id` column.
+  id: z.string(), // same as span_id. Needs to be set manually.
+  parent_span_id: z.string().nullish(),
+
+  // Core properties
+  name: z.string(),
+  type: z.string(),
+  environment: z.string().default("default"),
+  version: z.string().nullish(),
+
+  user_id: z.string().nullish(),
+  session_id: z.string().nullish(),
+
+  level: z.string(),
+  status_message: z.string().nullish(),
+
+  // Prompt
+  prompt_id: z.string().nullish(),
+  prompt_name: z.string().nullish(),
+  prompt_version: z.string().nullish(),
+
+  // Model
+  model_id: z.string().nullish(),
+  provided_model_name: z.string().nullish(),
+  model_parameters: z.string().nullish(),
+
+  // Usage & Cost
+  provided_usage_details: UsageCostSchema,
+  usage_details: UsageCostSchema,
+  provided_cost_details: UsageCostSchema,
+  cost_details: UsageCostSchema,
+  total_cost: z.number().nullish(),
+
+  // I/O
+  input: z.string().nullish(),
+  output: z.string().nullish(),
+
+  // Metadata - multiple approaches supported
+  metadata: z.record(z.string(), z.string()),
+  metadata_names: z.array(z.string()).default([]),
+  metadata_values: z.array(z.any()).default([]),
+  metadata_string_names: z.array(z.string()).default([]),
+  metadata_string_values: z.array(z.string()).default([]),
+  metadata_number_names: z.array(z.string()).default([]),
+  metadata_number_values: z.array(z.number()).default([]),
+  metadata_bool_names: z.array(z.string()).default([]),
+  metadata_bool_values: z.array(z.number()).default([]),
+
+  // Source metadata (Instrumentation)
+  source: z.string(),
+  service_name: z.string().nullish(),
+  service_version: z.string().nullish(),
+  scope_name: z.string().nullish(),
+  scope_version: z.string().nullish(),
+  telemetry_sdk_language: z.string().nullish(),
+  telemetry_sdk_name: z.string().nullish(),
+  telemetry_sdk_version: z.string().nullish(),
+
+  // Generic props
+  blob_storage_file_path: z.string(),
+  event_raw: z.string(),
+  event_bytes: z.number(),
+  is_deleted: z.number(),
+});
+
+export const eventRecordReadSchema = eventRecordBaseSchema.extend({
+  start_time: clickhouseStringDateSchema,
+  end_time: clickhouseStringDateSchema.nullish(),
+  completion_start_time: clickhouseStringDateSchema.nullish(),
+  created_at: clickhouseStringDateSchema,
+  updated_at: clickhouseStringDateSchema,
+  event_ts: clickhouseStringDateSchema,
+});
+export type EventRecordReadType = z.infer<typeof eventRecordReadSchema>;
+
+export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
+  start_time: z.number(),
+  end_time: z.number().nullish(),
+  completion_start_time: z.number().nullish(),
+  created_at: z.number(),
+  updated_at: z.number(),
+  event_ts: z.number(),
+});
+export type EventRecordInsertType = z.infer<typeof eventRecordInsertSchema>;

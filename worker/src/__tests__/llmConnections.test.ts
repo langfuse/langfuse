@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+import { encrypt } from "@langfuse/shared/encryption";
 import { ChatMessageType, LLMAdapter } from "@langfuse/shared";
 import { z } from "zod/v3";
 
@@ -64,7 +65,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -80,7 +81,9 @@ describe("LLM Connection Tests", () => {
           temperature: 0,
           max_tokens: 10,
         },
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
+        },
       });
 
       expect(typeof completion).toBe("string");
@@ -90,7 +93,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -108,7 +111,9 @@ describe("LLM Connection Tests", () => {
           max_tokens: 200,
         },
         structuredOutputSchema: evalOutputSchema,
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
+        },
       });
 
       const parsed = evalOutputSchema.safeParse(completion);
@@ -123,7 +128,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -140,7 +145,9 @@ describe("LLM Connection Tests", () => {
           max_tokens: 100,
         },
         tools: [weatherTool],
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
+        },
       });
 
       expect(completion).toHaveProperty("tool_calls");
@@ -167,7 +174,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -183,7 +190,11 @@ describe("LLM Connection Tests", () => {
           temperature: 0,
           max_tokens: 10,
         },
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          ),
+        },
       });
 
       expect(typeof completion).toBe("string");
@@ -193,7 +204,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -211,7 +222,11 @@ describe("LLM Connection Tests", () => {
           max_tokens: 200,
         },
         structuredOutputSchema: evalOutputSchema,
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          ),
+        },
       });
 
       const parsed = evalOutputSchema.safeParse(completion);
@@ -226,7 +241,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -243,7 +258,11 @@ describe("LLM Connection Tests", () => {
           max_tokens: 100,
         },
         tools: [weatherTool],
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          ),
+        },
       });
 
       expect(completion).toHaveProperty("tool_calls");
@@ -282,7 +301,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -298,8 +317,10 @@ describe("LLM Connection Tests", () => {
           temperature: 0,
           max_tokens: 10,
         },
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!,
-        baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
+          baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+        },
       });
 
       expect(typeof completion).toBe("string");
@@ -309,7 +330,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -327,8 +348,10 @@ describe("LLM Connection Tests", () => {
           max_tokens: 200,
         },
         structuredOutputSchema: evalOutputSchema,
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!,
-        baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
+          baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+        },
       });
 
       const parsed = evalOutputSchema.safeParse(completion);
@@ -343,7 +366,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -360,8 +383,10 @@ describe("LLM Connection Tests", () => {
           max_tokens: 100,
         },
         tools: [weatherTool],
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!,
-        baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
+          baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+        },
       });
 
       expect(completion).toHaveProperty("tool_calls");
@@ -417,7 +442,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -433,8 +458,10 @@ describe("LLM Connection Tests", () => {
           temperature: 0,
           max_tokens: 10,
         },
-        apiKey: getApiKey(),
-        config: getConfig(),
+        llmConnection: {
+          secretKey: encrypt(getApiKey()),
+          config: getConfig(),
+        },
       });
 
       expect(typeof completion).toBe("string");
@@ -445,7 +472,7 @@ describe("LLM Connection Tests", () => {
     test.skip("structured output - eval schema", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -463,8 +490,7 @@ describe("LLM Connection Tests", () => {
           max_tokens: 200,
         },
         structuredOutputSchema: evalOutputSchema,
-        apiKey: getApiKey(),
-        config: getConfig(),
+        llmConnection: { secretKey: encrypt(getApiKey()), config: getConfig() },
       });
 
       const parsed = evalOutputSchema.safeParse(completion);
@@ -479,7 +505,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVars();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -496,8 +522,10 @@ describe("LLM Connection Tests", () => {
           max_tokens: 100,
         },
         tools: [weatherTool],
-        apiKey: getApiKey(),
-        config: getConfig(),
+        llmConnection: {
+          secretKey: encrypt(getApiKey()),
+          config: getConfig(),
+        },
       });
 
       expect(completion).toHaveProperty("tool_calls");
@@ -524,7 +552,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -540,8 +568,10 @@ describe("LLM Connection Tests", () => {
           temperature: 0,
           max_tokens: 10,
         },
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!,
-        config: null,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+          config: null,
+        },
       });
 
       expect(typeof completion).toBe("string");
@@ -551,7 +581,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -569,8 +599,10 @@ describe("LLM Connection Tests", () => {
           max_tokens: 200,
         },
         structuredOutputSchema: evalOutputSchema,
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!,
-        config: null,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+          config: null,
+        },
       });
 
       const parsed = evalOutputSchema.safeParse(completion);
@@ -585,7 +617,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -602,8 +634,10 @@ describe("LLM Connection Tests", () => {
           max_tokens: 100,
         },
         tools: [weatherTool],
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!,
-        config: null,
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+          config: null,
+        },
       });
 
       expect(completion).toHaveProperty("tool_calls");
@@ -630,7 +664,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -646,7 +680,11 @@ describe("LLM Connection Tests", () => {
           temperature: 0,
           max_tokens: 10,
         },
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
       });
 
       expect(typeof completion).toBe("string");
@@ -656,7 +694,7 @@ describe("LLM Connection Tests", () => {
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -674,7 +712,11 @@ describe("LLM Connection Tests", () => {
           max_tokens: 200,
         },
         structuredOutputSchema: evalOutputSchema,
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
       });
 
       const parsed = evalOutputSchema.safeParse(completion);
@@ -689,7 +731,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -706,7 +748,11 @@ describe("LLM Connection Tests", () => {
           max_tokens: 100,
         },
         tools: [weatherTool],
-        apiKey: process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
       });
 
       expect(completion).toHaveProperty("tool_calls");

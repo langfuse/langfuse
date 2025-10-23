@@ -78,6 +78,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
  * errors on the backend.
  */
 import { initTRPC, TRPCError } from "@trpc/server";
+import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import superjson from "superjson";
 import { ZodError } from "zod/v4";
 import { setUpSuperjson } from "@/src/utils/superjson";
@@ -91,8 +92,11 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { env } from "@/src/env.mjs";
 
 setUpSuperjson();
+
+const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
@@ -149,14 +153,19 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
-      // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
+      // - Either the original error message OR "Internal error" if it's a 5xx error
+      const httpStatus = getHTTPStatusCodeFromError(res.error);
+      const isSafeToExpose = httpStatus >= 400 && httpStatus < 500;
+      const errorMessage = isLangfuseCloud
+        ? "We have been notified and are working on it."
+        : "Please check error logs in your self-hosted deployment.";
+
       res.error = new TRPCError({
         code: res.error.code,
         cause: null, // do not expose stack traces
-        message:
-          res.error.code !== "INTERNAL_SERVER_ERROR"
-            ? res.error.message
-            : "Internal error",
+        message: isSafeToExpose
+          ? res.error.message
+          : "Internal error. " + errorMessage,
       });
     }
   }

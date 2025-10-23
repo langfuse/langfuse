@@ -19,16 +19,18 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import {
-  mapToChatMl,
-  mapOutputToChatMl,
+  normalizeInput,
+  normalizeOutput,
+  combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
-  combineInputOutputMessages,
-} from "@/src/utils/chatMlMappers";
+} from "@/src/utils/chatml";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  metadata?: Prisma.JsonValue;
+  observationName?: string;
   isLoading?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
@@ -55,6 +57,7 @@ export const IOPreview: React.FC<{
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  setIsPrettyViewAvailable,
   ...props
 }) => {
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<
@@ -64,30 +67,41 @@ export const IOPreview: React.FC<{
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
+  const metadata = deepParseJson(props.metadata);
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  const inChatMlArray = mapToChatMl(input);
-  const outChatMlArray = mapOutputToChatMl(output);
-  const outputClean = cleanLegacyOutput(output, props.output ?? null);
+  const { canDisplayAsChat, allMessages, additionalInput } = useMemo(() => {
+    const ctx = { metadata, observationName: props.observationName };
+    const inResult = normalizeInput(input, ctx);
+    const outResult = normalizeOutput(output, ctx);
+    const outputClean = cleanLegacyOutput(output, output);
+    const messages = combineInputOutputMessages(
+      inResult,
+      outResult,
+      outputClean,
+    );
+
+    return {
+      // display as chat if normalization succeeded AND we have messages to show
+      canDisplayAsChat:
+        (inResult.success || outResult.success) && messages.length > 0,
+      allMessages: messages,
+      additionalInput: extractAdditionalInput(input),
+    };
+  }, [input, output, metadata, props.observationName]);
 
   // Pretty view is available for ChatML content OR any JSON content
   const isPrettyViewAvailable = true; // Always show the toggle, let individual components decide how to render
 
   useEffect(() => {
-    props.setIsPrettyViewAvailable?.(isPrettyViewAvailable);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPrettyViewAvailable]);
-
-  // If there are additional input fields beyond the messages, render them
-  const additionalInput = extractAdditionalInput(input);
+    setIsPrettyViewAvailable?.(isPrettyViewAvailable);
+  }, [isPrettyViewAvailable, setIsPrettyViewAvailable]);
 
   // Don't render markdown if total content size exceeds limit
   const inputSize = JSON.stringify(input || {}).length;
-  const outputSize = JSON.stringify(outputClean || {}).length;
-  const messagesSize = inChatMlArray.success
-    ? JSON.stringify(inChatMlArray.data).length
-    : 0;
+  const outputSize = JSON.stringify(output || {}).length;
+  const messagesSize = JSON.stringify(allMessages).length;
   const totalContentSize = inputSize + outputSize + messagesSize;
 
   const shouldRenderMarkdownSafely =
@@ -126,13 +140,9 @@ export const IOPreview: React.FC<{
           <div
             style={{ display: selectedView === "pretty" ? "block" : "none" }}
           >
-            {inChatMlArray.success ? (
+            {canDisplayAsChat ? (
               <OpenAiMessageView
-                messages={combineInputOutputMessages(
-                  inChatMlArray,
-                  outChatMlArray,
-                  outputClean,
-                )}
+                messages={allMessages}
                 shouldRenderMarkdown={shouldRenderMarkdownSafely}
                 additionalInput={
                   Object.keys(additionalInput ?? {}).length > 0
@@ -147,7 +157,6 @@ export const IOPreview: React.FC<{
                 {!(hideIfNull && !input) && !hideInput ? (
                   <PrettyJsonView
                     title="Input"
-                    className="ph-no-capture"
                     json={input ?? null}
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "input") ?? []}
@@ -159,8 +168,7 @@ export const IOPreview: React.FC<{
                 {!(hideIfNull && !output) && !hideOutput ? (
                   <PrettyJsonView
                     title="Output"
-                    className="ph-no-capture"
-                    json={outputClean}
+                    json={output}
                     isLoading={isLoading}
                     media={media?.filter((m) => m.field === "output") ?? []}
                     currentView={selectedView}
@@ -177,7 +185,6 @@ export const IOPreview: React.FC<{
             {!(hideIfNull && !input) && !hideInput ? (
               <PrettyJsonView
                 title="Input"
-                className="ph-no-capture"
                 json={input ?? null}
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "input") ?? []}
@@ -189,8 +196,7 @@ export const IOPreview: React.FC<{
             {!(hideIfNull && !output) && !hideOutput ? (
               <PrettyJsonView
                 title="Output"
-                className="ph-no-capture"
-                json={outputClean}
+                json={output}
                 isLoading={isLoading}
                 media={media?.filter((m) => m.field === "output") ?? []}
                 currentView={selectedView}
@@ -205,7 +211,6 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !input) && !hideInput ? (
             <PrettyJsonView
               title="Input"
-              className="ph-no-capture"
               json={input ?? null}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
@@ -217,8 +222,7 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !output) && !hideOutput ? (
             <PrettyJsonView
               title="Output"
-              className="ph-no-capture"
-              json={outputClean}
+              json={output}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
               currentView={selectedView}
@@ -280,7 +284,7 @@ export const OpenAiMessageView: React.FC<{
   );
 
   return (
-    <div className="ph-no-capture flex max-h-full min-h-0 flex-col gap-2">
+    <div className="flex max-h-full min-h-0 flex-col gap-2">
       {title && <SubHeaderLabel title={title} className="mt-1" />}
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">

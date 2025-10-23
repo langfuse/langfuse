@@ -12,6 +12,28 @@ import {
   applyInputOutputRendering,
 } from "../utils/rendering";
 import { logger } from "../logger";
+import type { Model, Price } from "@prisma/client";
+
+type ModelWithPrice = Model & { Price: Price[] };
+
+/**
+ * Enriches observation data with model pricing information
+ * @param model - The model with price data (can be null)
+ * @returns Object with modelId and pricing fields
+ */
+export const enrichObservationWithModelData = (
+  model: ModelWithPrice | null | undefined,
+) => {
+  return {
+    modelId: model?.id ?? null,
+    inputPrice:
+      model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+    outputPrice:
+      model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+    totalPrice:
+      model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+  };
+};
 
 export const convertObservation = (
   record: ObservationRecordReadType,
@@ -80,7 +102,7 @@ export const convertObservation = (
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     promptName: record.prompt_name ?? null,
-    promptVersion: record.prompt_version ?? null,
+    promptVersion: record.prompt_version ? Number(record.prompt_version) : null,
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()

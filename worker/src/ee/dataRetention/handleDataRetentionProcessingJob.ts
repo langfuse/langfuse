@@ -5,6 +5,7 @@ import {
   logger,
   getS3MediaStorageClient,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
@@ -12,6 +13,13 @@ import { env } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
   const { projectId, retention } = job.data.payload;
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
+    span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+    span.setAttribute("messaging.bullmq.job.input.retentionId", retention);
+  }
 
   const cutoffDate = new Date(Date.now() - retention * 24 * 60 * 60 * 1000);
 

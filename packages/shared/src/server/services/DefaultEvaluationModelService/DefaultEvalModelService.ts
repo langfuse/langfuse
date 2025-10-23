@@ -1,10 +1,6 @@
 import z from "zod/v4";
 import { prisma } from "../../../db";
-import {
-  ForbiddenError,
-  LangfuseNotFoundError,
-  QUEUE_ERROR_MESSAGES,
-} from "../../../errors";
+import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
 
@@ -178,7 +174,7 @@ export class DefaultEvalModelService {
     if (!selectedModel) {
       return {
         valid: false,
-        error: `${QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR} ${projectId}.`,
+        error: `No default model or custom model configured for project ${projectId}`,
       };
     }
 
@@ -195,7 +191,7 @@ export class DefaultEvalModelService {
     if (!parsedKey.success) {
       return {
         valid: false,
-        error: `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} "${selectedModel.provider}" not found in project ${projectId}.`,
+        error: `API key for provider "${selectedModel.provider}" not found in project ${projectId}`,
       };
     }
 

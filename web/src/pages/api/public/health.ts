@@ -44,7 +44,7 @@ export default async function handler(
           input: {
             now: convertDateToClickhouseDateTime(now),
           },
-          existingExecution: async (input: { now: string }) => {
+          fn: async (input: { now: string }) => {
             return queryClickhouse<{ id: string }>({
               query: `
                 SELECT id
@@ -57,24 +57,6 @@ export default async function handler(
               tags: {
                 feature: "health-check",
                 type: "trace",
-                experiment_amt: "original",
-              },
-            });
-          },
-          newExecution: async (input: { now: string }) => {
-            return queryClickhouse<{ id: string }>({
-              query: `
-                SELECT id
-                FROM traces_7d_amt
-                WHERE start_time <= {now: DateTime64(3)}
-                AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-                LIMIT 1
-              `,
-              params: input,
-              tags: {
-                feature: "health-check",
-                type: "trace",
-                experiment_amt: "new",
               },
             });
           },
