@@ -139,7 +139,7 @@ export function DatasetsTable(props: { projectId: string }) {
 
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${key.id}`}
+            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}`}
             value={key.name}
           />
         );
