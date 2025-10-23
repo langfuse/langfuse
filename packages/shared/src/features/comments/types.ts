@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-const MAX_COMMENT_LENGTH = 3000;
+const MAX_COMMENT_LENGTH = 5000;
 
 const COMMENT_OBJECT_TYPES = [
   "TRACE",
