@@ -201,9 +201,9 @@ CREATE TABLE IF NOT EXISTS events
       -- -- Approach 4: Apply German strings here, where we store a prefix and for longer values a pointer.
       metadata_keys Array(String) MATERIALIZED metadata_names,
       metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_values),
-      metadata_hashes Array(Nullable(String)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, MD5(CAST(v, 'String')), NULL), metadata_values),
+      metadata_hashes Array(Nullable(String)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_values),
       metadata_long_values Map(String, String) MATERIALIZED mapFromArrays(
-        arrayMap(v -> MD5(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values)),
+        arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values)),
         arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values))
       ),
 

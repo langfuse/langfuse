@@ -12,39 +12,27 @@ can handle the query.
 ## Query
 
 ```sql
-WITH batch_stats AS (
-    select
-        groupUniqArray(project_id) as project_ids,
-        groupUniqArray(trace_id) as trace_ids,
-        min(start_time) as min_start_time,
-        max(start_time) as max_start_time
-    from observations o
-    WHERE o._partition_id = '{partition}'
-      AND (xxHash32(o.project_id) % 64) = {bucket}
-), relevant_keys AS (
-   select distinct project_id, trace_id  
-   from observations
-   WHERE o._partition_id = '{partition}'
-     AND (xxHash32(o.project_id) % 64) = {bucket}
+ WITH relevant_keys AS (
+    select distinct project_id, trace_id
+    from observations
+    WHERE _partition_id = '202509'
+      AND (xxHash32(trace_id) % 128) = 1
 ), relevant_traces AS (
     select
         t.id as trace_id,
         t.project_id,
         t.user_id,
         t.session_id,
-        t.metadata
+        mapFilter((k,v) -> NOT in(k, ['attributes']), t.metadata) AS metadata
     from traces t
-    where t.project_id in (select arrayJoin(project_ids) from batch_stats)
-      AND (xxHash32(t.project_id) % 64) = {bucket}
-      and t.id in (select arrayJoin(trace_ids) from batch_stats)
-      and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
-      and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
-    order by t.event_ts desc
+    left semi join relevant_keys rk
+    on t.project_id = rk.project_id and t.id = rk.trace_id
+    where (xxHash32(t.id) % 128) = 1
+    order by t.project_id, toDate(t.timestamp), t.id, t.event_ts desc
     limit 1 by t.project_id, t.id
-)
+  )
 
-INSERT INTO events (
-    org_id,
+  INSERT INTO events (
     project_id,
     trace_id,
     span_id,
@@ -76,20 +64,7 @@ INSERT INTO events (
     metadata,
     metadata_names,
     metadata_values,
-    metadata_string_names,
-    metadata_string_values,
-    metadata_number_names,
-    metadata_number_values,
-    metadata_bool_names,
-    metadata_bool_values,
     source,
-    service_name,
-    service_version,
-    scope_name,
-    scope_version,
-    telemetry_sdk_language,
-    telemetry_sdk_name,
-    telemetry_sdk_version,
     blob_storage_file_path,
     event_raw,
     event_bytes,
@@ -97,201 +72,63 @@ INSERT INTO events (
     updated_at,
     event_ts,
     is_deleted
-)
-SELECT
-    NULL AS org_id,
-    o.project_id,
-    o.trace_id,
-    o.id AS span_id,
-    if(o.id = o.trace_id, NULL, coalesce(o.parent_observation_id, concat('t-', o.trace_id))) AS parent_span_id,
-    greatest(o.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
-    o.end_time,
-    o.name,
-    o.type,
-    o.environment,
-    o.version,
-    coalesce(t.user_id, '') AS user_id,
-    coalesce(t.session_id, '') AS session_id,
-    o.level,
-    coalesce(o.status_message, '') AS status_message,
-    o.completion_start_time,
-    o.prompt_id,
-    o.prompt_name,
-    CAST(o.prompt_version, 'Nullable(String)') AS prompt_version,
-    o.internal_model_id AS model_id,
-    o.provided_model_name,
-    o.model_parameters,
-    o.provided_usage_details,
-    o.usage_details,
-    o.provided_cost_details,
-    o.cost_details,
-    coalesce(o.total_cost, 0) AS total_cost,
-    coalesce(o.input, '')  AS input,
-    coalesce(o.output, '') AS output,
-    CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
-    mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-    mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_values,
-    mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_string_names,
-    mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_string_values,
-    [] AS metadata_number_names,
-    [] AS metadata_number_values,
-    [] AS metadata_bool_names,
-    [] AS metadata_bool_values,
-    multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
-    NULL AS service_name,
-    NULL AS service_version,
-    NULL AS scope_name,
-    NULL AS scope_version,
-    NULL AS telemetry_sdk_language,
-    NULL AS telemetry_sdk_name,
-    NULL AS telemetry_sdk_version,
-    '' AS blob_storage_file_path,
-    '' AS event_raw,
-    0 AS event_bytes,
-    o.created_at,
-    o.updated_at,
-    o.event_ts,
-    o.is_deleted
-FROM observations o
-LEFT JOIN relevant_traces t
-  ON o.project_id = t.project_id AND o.trace_id = t.trace_id
-WHERE o._partition_id = '{partition}'
-  AND (xxHash32(o.project_id) % 64) = {bucket}
-    SETTINGS 
-  join_algorithm = 'grace_hash', 
-  allow_experimental_parallel_reading_from_replicas = 1, 
-  max_parallel_replicas = 3,
-  type_json_skip_duplicated_paths = 1;
+ ) 
+
+  SELECT
+     o.project_id,
+     o.trace_id,
+     o.id AS span_id,
+     if(o.id = o.trace_id, NULL, coalesce(o.parent_observation_id, concat('t-', o.trace_id))) AS parent_span_id,
+     greatest(o.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
+     o.end_time,
+     o.name,
+     o.type,
+     o.environment,
+     o.version,
+     coalesce(t.user_id, '') AS user_id,
+     coalesce(t.session_id, '') AS session_id,
+     o.level,
+     coalesce(o.status_message, '') AS status_message,
+     o.completion_start_time,
+     o.prompt_id,
+     o.prompt_name,
+     CAST(o.prompt_version, 'Nullable(String)') AS prompt_version,
+     o.internal_model_id AS model_id,
+     o.provided_model_name,
+     o.model_parameters,
+     o.provided_usage_details,
+     o.usage_details,
+     o.provided_cost_details,
+     o.cost_details,
+     coalesce(o.total_cost, 0) AS total_cost,
+     coalesce(o.input, '') AS input,
+     coalesce(o.output, '') AS output,
+     CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
+     mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_names,
+     mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_values,
+     multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+     '' AS blob_storage_file_path,
+     '' AS event_raw,
+     byteSize(*) AS event_bytes,
+     o.created_at,
+     o.updated_at,
+     o.event_ts,
+     o.is_deleted
+  FROM observations AS o
+  LEFT JOIN relevant_traces AS t ON (o.project_id = t.project_id) AND (o.trace_id = t.trace_id)
+  WHERE (o._partition_id = '202509') AND ((xxHash32(t.trace_id) % 128) = 1)
+     
+  SETTINGS
+    -- join_algorithm = 'partial_merge',
+    min_insert_block_size_bytes = '512Mi',
+    -- allow_experimental_parallel_reading_from_replicas = 1,
+    -- max_parallel_replicas = 3,
+    type_json_skip_duplicated_paths = 1;
 ```
 
-## Additional versions / backup
+## Misc / Utils
 
-```sql
-WITH relevant_keys AS (
-   select distinct project_id, trace_id 
-   from observations
-   WHERE _partition_id = '202509'
-     AND (xxHash32(project_id) % 64) = 1
-), relevant_traces AS (
-    select
-        t.id as trace_id,
-        t.project_id,
-        t.user_id,
-        t.session_id,
-        mapFilter((k,v) -> NOT in(k, ['attributes','debug_info']), t.metadata) AS metadata
-    from traces t
-    inner join relevant_keys rk 
-      on t.project_id = rk.project_id and t.id = rk.trace_id
-    order by t.event_ts desc
-    limit 1 by t.project_id, t.id
-)
-
--- INSERT INTO events (
---     project_id,
---     trace_id,
---     span_id,
---     parent_span_id,
---     start_time,
---     end_time,
---     name,
---     type,
---     environment,
---     version,
---     user_id,
---     session_id,
---     level,
---     status_message,
---     completion_start_time,
---     prompt_id,
---     prompt_name,
---     prompt_version,
---     model_id,
---     provided_model_name,
---     model_parameters,
---     provided_usage_details,
---     usage_details,
---     provided_cost_details,
---     cost_details,
---     total_cost,
---     input,
---     output,
---     metadata,
---     metadata_names,
---     metadata_values,
---     source,
---     service_name,
---     service_version,
---     scope_name,
---     scope_version,
---     telemetry_sdk_language,
---     telemetry_sdk_name,
---     telemetry_sdk_version,
---     blob_storage_file_path,
---     event_raw,
---     event_bytes,
---     created_at,
---     updated_at,
---     event_ts,
---     is_deleted
--- )
-SELECT -- count(*)
-    o.project_id,
-    o.trace_id,
-    o.id AS span_id,
-    if(o.id = o.trace_id, '', coalesce(o.parent_observation_id, concat('t-', o.trace_id))) AS parent_span_id,
-    greatest(o.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
-    o.end_time,
-    o.name,
-    o.type,
-    o.environment,
-    o.version,
-    coalesce(t.user_id, '') AS user_id,
-    coalesce(t.session_id, '') AS session_id,
-    o.level,
-    coalesce(o.status_message, '') AS status_message,
-    o.completion_start_time,
-    o.prompt_id,
-    o.prompt_name,
-    CAST(o.prompt_version, 'Nullable(String)') AS prompt_version,
-    o.internal_model_id AS model_id,
-    o.provided_model_name,
-    o.model_parameters,
-    o.provided_usage_details,
-    o.usage_details,
-    o.provided_cost_details,
-    o.cost_details,
-    coalesce(o.total_cost, 0) AS total_cost,
-    coalesce(o.input, '')  AS input,
-    coalesce(o.output, '') AS output,
-    CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
-    mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-    mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_values,
-    multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
-    '' AS service_name,
-    '' AS service_version,
-    '' AS scope_name,
-    '' AS scope_version,
-    '' AS telemetry_sdk_language,
-    '' AS telemetry_sdk_name,
-    '' AS telemetry_sdk_version,
-    '' AS blob_storage_file_path,
-    '' AS event_raw,
-    0 AS event_bytes,
-    o.created_at,
-    o.updated_at,
-    o.event_ts,
-    o.is_deleted
-FROM observations o
-LEFT JOIN relevant_traces t
-  ON o.project_id = t.project_id AND o.trace_id = t.trace_id
-WHERE o._partition_id = '202509'
-  AND (xxHash32(o.project_id) % 64) = 1
-SETTINGS 
-  join_algorithm = 'partial_merge', 
-  allow_experimental_parallel_reading_from_replicas = 1, 
-  max_parallel_replicas = 3,
-  type_json_skip_duplicated_paths = 1;
-```
+### Create a mapping table and use if for joins directly instead of filtering/deduplicating on write
 
 ```sql
 CREATE TABLE IF NOT EXISTS trace_attrs
@@ -388,6 +225,8 @@ WHERE o._partition_id = '202509'
 FORMAT Null;
 ```
 
+### Remove full text indexes for faster ingest
+
 ```sql
 -- Drop Full Text indexes for faster ingest
 ALTER TABLE events
@@ -399,4 +238,15 @@ ALTER TABLE events
     DROP INDEX idx_fts_output_2,
     DROP INDEX idx_fts_output_4,
     DROP INDEX idx_fts_output_8;
+```
+
+### Check progress on a running query
+
+```sql
+-- Check the progress
+select elapsed, read_rows, read_bytes, total_rows_approx, written_rows, written_bytes,
+       memory_usage, peak_memory_usage, ProfileEvents, Settings
+from clusterAllReplicas('default', 'system.processes')
+where query_id = '<uuid>'
+format vertical;
 ```
