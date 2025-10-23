@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -30,6 +31,7 @@ interface BaseDatasetFormProps {
 
 interface CreateDatasetFormProps extends BaseDatasetFormProps {
   mode: "create";
+  folderPrefix?: string;
 }
 
 interface DeleteDatasetFormProps extends BaseDatasetFormProps {
@@ -92,7 +94,10 @@ export const DatasetForm = (props: DatasetFormProps) => {
               : "",
           }
         : {
-            name: "",
+            name:
+              props.mode === "create" && props.folderPrefix
+                ? `${props.folderPrefix}/`
+                : "",
             description: "",
             metadata: "",
           },
@@ -224,6 +229,10 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Name</FormLabel>
+                      <FormDescription>
+                        Use slashes '/' in dataset names to organize them into{" "}
+                        <em>folders</em>.
+                      </FormDescription>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
