@@ -17,6 +17,7 @@ import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
+import { MENTION_USER_PREFIX } from "@langfuse/shared";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
@@ -141,8 +142,8 @@ function MarkdownRenderer({
             },
             a({ children, href }) {
               // Handle mention links
-              if (href?.startsWith("user:")) {
-                const userId = href.replace("user:", "");
+              if (href?.startsWith(MENTION_USER_PREFIX)) {
+                const userId = href.replace(MENTION_USER_PREFIX, "");
                 const displayName = String(children);
                 return (
                   <MentionBadge userId={userId} displayName={displayName} />

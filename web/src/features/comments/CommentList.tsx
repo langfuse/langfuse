@@ -27,6 +27,7 @@ import {
   type CommentObjectType,
   CreateCommentData,
   extractMentionedUserIds,
+  MENTION_USER_PREFIX,
 } from "@langfuse/shared";
 import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -196,7 +197,7 @@ export function CommentList({
         mentionAutocomplete.mentionStartPos,
       );
       const after = currentValue.substring(cursorPos);
-      const mention = `@[${displayName}](user:${userId}) `;
+      const mention = `@[${displayName}](${MENTION_USER_PREFIX}${userId}) `;
 
       const newText = before + mention + after;
       const newCursorPos = mentionAutocomplete.mentionStartPos + mention.length;
