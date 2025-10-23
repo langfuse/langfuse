@@ -4,12 +4,21 @@
 const MAX_MENTIONS_PER_COMMENT = 50;
 
 /**
+ * Prefix used in mention links to identify user references
+ * Format: @[Display Name](user:userId)
+ */
+export const MENTION_USER_PREFIX = "user:";
+
+/**
  * Mention format: @[Display Name](user:userId)
  * Regex pattern with bounded quantifiers to prevent ReDoS attacks
  * - Display name: 1-100 characters, excluding brackets
  * - User ID: 1-30 characters (CUID is 25 chars, custom IDs may include hyphens/underscores)
  */
-const MENTION_REGEX = /@\[([^[\]]{1,100})\]\(user:([a-z0-9_-]{1,30})\)/gi;
+const MENTION_REGEX = new RegExp(
+  `@\\[([^[\\]]{1,100})\\]\\(${MENTION_USER_PREFIX}([a-z0-9_-]{1,30})\\)`,
+  "gi",
+);
 
 export interface ParsedMention {
   userId: string;
@@ -131,7 +140,7 @@ export function sanitizeMentions(
     if (member) {
       // Valid user: Replace with canonical display name from DB
       const canonicalName = member.name || member.email || "User";
-      const replacement = `@[${canonicalName}](user:${mention.userId})`;
+      const replacement = `@[${canonicalName}](${MENTION_USER_PREFIX}${mention.userId})`;
 
       sanitizedContent =
         sanitizedContent.substring(0, startIndex) +

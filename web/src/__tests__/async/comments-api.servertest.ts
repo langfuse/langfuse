@@ -106,7 +106,7 @@ describe("Create and get comments", () => {
     }
   });
 
-  it("should fail to create comment if content is larger than 3000 characters", async () => {
+  it("should fail to create comment if content is larger than 5000 characters", async () => {
     try {
       await makeZodVerifiedAPICall(
         z.object({
@@ -116,7 +116,7 @@ describe("Create and get comments", () => {
         "POST",
         "/api/public/comments",
         {
-          content: "a".repeat(3001),
+          content: "a".repeat(5001),
           objectId: "1234",
           objectType: "TRACE",
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -124,7 +124,7 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_big\",\"maximum\":3000,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too big: expected string to have <=3000 characters\"}]}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_big\",\"maximum\":5000,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too big: expected string to have <=5000 characters\"}]}`,
       );
     }
   });
@@ -338,56 +338,28 @@ describe("GET /api/public/comments API Endpoint", () => {
   });
 });
 
-describe("Comment mention sanitization", () => {
+describe("Public API does NOT process mentions", () => {
   beforeAll(async () => {
     const traces = [
       createTrace({
-        name: "trace-for-mentions",
+        name: "trace-for-no-mention-processing",
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        id: "mention-test-trace",
+        id: "no-mention-processing-trace",
       }),
     ];
 
     await createTracesCh(traces);
   });
 
-  it("should normalize display names to match database for valid users", async () => {
+  it("should preserve mention markdown as-is without processing", async () => {
     const commentResponse = await makeZodVerifiedAPICall(
       PostCommentsV1Response,
       "POST",
       "/api/public/comments",
       {
-        content: "Hey @[FakeAdmin](user:user-1), can you check this?",
-        objectId: "mention-test-trace",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-2",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    const response = await makeZodVerifiedAPICall(
-      GetCommentV1Response,
-      "GET",
-      `/api/public/comments/${commentId}`,
-    );
-
-    expect(response.status).toBe(200);
-    // Display name should be replaced with canonical name from DB
-    expect(response.body.content).toBe(
-      "Hey @[Demo User](user:user-1), can you check this?",
-    );
-  });
-
-  it("should strip invalid mentions to plain text", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content: "Hey @[NonExistentUser](user:invalid-user-id), check this!",
-        objectId: "mention-test-trace",
+        content:
+          "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
+        objectId: "no-mention-processing-trace",
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         authorUserId: "user-1",
@@ -403,175 +375,38 @@ describe("Comment mention sanitization", () => {
     );
 
     expect(response.status).toBe(200);
-    // Invalid mention should be stripped to display name only
-    expect(response.body.content).toBe("Hey NonExistentUser, check this!");
-  });
-
-  it("should handle mixed valid and invalid mentions", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content:
-          "Hey @[Alice](user:user-1) and @[Bob](user:invalid-id), check this!",
-        objectId: "mention-test-trace",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-2",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    const response = await makeZodVerifiedAPICall(
-      GetCommentV1Response,
-      "GET",
-      `/api/public/comments/${commentId}`,
-    );
-
-    expect(response.status).toBe(200);
-    // Valid mention normalized, invalid mention stripped
+    // Content should be stored exactly as provided - NO sanitization or normalization
     expect(response.body.content).toBe(
-      "Hey @[Demo User](user:user-1) and Bob, check this!",
+      "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
     );
   });
 
-  it("should create CommentMention records for valid mentions only", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content:
-          "Mentioning @[User1](user:user-1) and @[User2](user:user-2) but not @[Invalid](user:fake-id)",
-        objectId: "mention-test-trace",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    // Check that mention records were created
-    const mentions = await prisma.commentMention.findMany({
-      where: {
-        commentId,
-      },
-      orderBy: {
-        mentionedUserId: "asc",
-      },
-    });
-
-    expect(mentions).toHaveLength(2);
-    expect(mentions[0].mentionedUserId).toBe("user-1");
-    expect(mentions[1].mentionedUserId).toBe("user-2");
-  });
-
-  it("should prevent social engineering with fake display names", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content:
-          "Alert: @[System Administrator](user:user-2) says upgrade now!",
-        objectId: "mention-test-trace",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    const response = await makeZodVerifiedAPICall(
-      GetCommentV1Response,
-      "GET",
-      `/api/public/comments/${commentId}`,
-    );
-
-    expect(response.status).toBe(200);
-    // Fake display name should be replaced with actual DB name
-    expect(response.body.content).toBe(
-      "Alert: @[Demo User 2](user:user-2) says upgrade now!",
-    );
-  });
-
-  it("should handle comments with no mentions", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content: "This is a regular comment with no mentions",
-        objectId: "mention-test-trace",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    const response = await makeZodVerifiedAPICall(
-      GetCommentV1Response,
-      "GET",
-      `/api/public/comments/${commentId}`,
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body.content).toBe(
-      "This is a regular comment with no mentions",
-    );
-
-    // No mention records should be created
-    const mentions = await prisma.commentMention.findMany({
-      where: {
-        commentId,
-      },
-    });
-
-    expect(mentions).toHaveLength(0);
-  });
-
-  it("should deduplicate mentions of the same user", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content:
-          "@[User](user:user-1) please review @[DemoUser](user:user-1) this issue",
-        objectId: "mention-test-trace",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-2",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    // Check that only one mention record was created
-    const mentions = await prisma.commentMention.findMany({
-      where: {
-        commentId,
-      },
-    });
-
-    expect(mentions).toHaveLength(1);
-    expect(mentions[0].mentionedUserId).toBe("user-1");
-
-    // Both mentions should be normalized
-    const response = await makeZodVerifiedAPICall(
-      GetCommentV1Response,
-      "GET",
-      `/api/public/comments/${commentId}`,
-    );
-
-    expect(response.body.content).toBe(
-      "@[Demo User](user:user-1) please review @[Demo User](user:user-1) this issue",
-    );
+  it("should reject mentionedUserIds field in request body", async () => {
+    try {
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: "Testing @[User](user:user-1)",
+          objectId: "no-mention-processing-trace",
+          objectType: "TRACE",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          authorUserId: "user-1",
+          mentionedUserIds: ["user-1"], // This field should be rejected
+        },
+      );
+      // If we get here, test failed
+      expect(true).toBe(false);
+    } catch (error) {
+      expect((error as Error).message).toContain(
+        "API call did not return 200, returned status 400",
+      );
+      expect((error as Error).message).toContain("Unrecognized key(s)");
+      expect((error as Error).message).toContain("mentionedUserIds");
+    }
   });
 });
