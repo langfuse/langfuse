@@ -338,7 +338,6 @@ describe("GET /api/public/comments API Endpoint", () => {
   });
 });
 
-
 describe("Public API does NOT process mentions", () => {
   beforeAll(async () => {
     const traces = [
@@ -380,32 +379,6 @@ describe("Public API does NOT process mentions", () => {
     expect(response.body.content).toBe(
       "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
     );
-  });
-
-  it("should NOT create CommentMention records", async () => {
-    const commentResponse = await makeZodVerifiedAPICall(
-      PostCommentsV1Response,
-      "POST",
-      "/api/public/comments",
-      {
-        content: "Mentioning @[User1](user:user-1) and @[User2](user:user-2)",
-        objectId: "no-mention-processing-trace",
-        objectType: "TRACE",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
-      },
-    );
-
-    const { id: commentId } = commentResponse.body;
-
-    // Verify NO mention records were created
-    const mentions = await prisma.commentMention.findMany({
-      where: {
-        commentId,
-      },
-    });
-
-    expect(mentions).toHaveLength(0);
   });
 
   it("should reject mentionedUserIds field in request body", async () => {

@@ -80,30 +80,15 @@ export const commentsRouter = createTRPCRouter({
           validMentionedUserIds = sanitizationResult.validMentionedUserIds;
         }
 
-        // Use transaction to create comment + mentions atomically
-        const comment = await ctx.prisma.$transaction(async (tx) => {
-          const newComment = await tx.comment.create({
-            data: {
-              projectId: input.projectId,
-              content: sanitizedContent, // Use sanitized content
-              objectId: input.objectId,
-              objectType: input.objectType,
-              authorUserId: ctx.session.user.id,
-            },
-          });
-
-          // Create mention records for validated users only
-          if (validMentionedUserIds.length > 0) {
-            await tx.commentMention.createMany({
-              data: validMentionedUserIds.map((userId) => ({
-                commentId: newComment.id,
-                mentionedUserId: userId,
-              })),
-              skipDuplicates: true,
-            });
-          }
-
-          return newComment;
+        // Create comment with sanitized content
+        const comment = await ctx.prisma.comment.create({
+          data: {
+            projectId: input.projectId,
+            content: sanitizedContent, // Use sanitized content
+            objectId: input.objectId,
+            objectType: input.objectType,
+            authorUserId: ctx.session.user.id,
+          },
         });
 
         await auditLog({
@@ -212,7 +197,6 @@ export const commentsRouter = createTRPCRouter({
             authorUserId: string | null;
             authorUserImage: string | null;
             authorUserName: string | null;
-            mentionedUserIds: string | null;
           }>
         >(
           Prisma.sql`
@@ -222,35 +206,19 @@ export const commentsRouter = createTRPCRouter({
           c.created_at AS "createdAt",
           u.id AS "authorUserId",
           u.image AS "authorUserImage",
-          u.name AS "authorUserName",
-          COALESCE(
-            json_agg(cm.mentioned_user_id) FILTER (WHERE cm.mentioned_user_id IS NOT NULL),
-            '[]'
-          )::text as "mentionedUserIds"
+          u.name AS "authorUserName"
         FROM comments c
         LEFT JOIN users u ON u.id = c.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
-        LEFT JOIN comment_mentions cm ON cm.comment_id = c.id
         WHERE
           c."project_id" = ${input.projectId}
           AND c."object_id" = ${input.objectId}
           AND c."object_type"::text = ${input.objectType}
-        GROUP BY c.id, c.content, c.created_at, u.id, u.image, u.name
         ORDER BY
           c.created_at DESC
         `,
         );
 
-        return comments.map((comment) => ({
-          id: comment.id,
-          content: comment.content,
-          createdAt: comment.createdAt,
-          authorUserId: comment.authorUserId,
-          authorUserName: comment.authorUserName,
-          authorUserImage: comment.authorUserImage,
-          mentionedUserIds: comment.mentionedUserIds
-            ? JSON.parse(comment.mentionedUserIds)
-            : [],
-        }));
+        return comments;
       } catch (error) {
         logger.error("Failed to call comments.getByObjectId", error);
         if (error instanceof TRPCError) {
