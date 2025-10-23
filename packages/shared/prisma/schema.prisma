@@ -689,24 +689,9 @@ model Comment {
   updatedAt    DateTime           @default(now()) @updatedAt @map("updated_at")
   content      String
   authorUserId String?            @map("author_user_id") // no fk constraint, user can be deleted
-  mentions     CommentMention[]
   reactions    CommentReaction[]
-
   @@index([projectId, objectType, objectId])
   @@map("comments")
-}
-
-model CommentMention {
-  id              String   @id @default(cuid())
-  commentId       String   @map("comment_id")
-  comment         Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  mentionedUserId String   @map("mentioned_user_id") // no fk constraint, user can be deleted
-  createdAt       DateTime @default(now()) @map("created_at")
-
-  @@unique([commentId, mentionedUserId])
-  @@index([commentId])
-  @@index([mentionedUserId])
-  @@map("comment_mentions")
 }
 
 model CommentReaction {

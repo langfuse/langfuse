@@ -9,14 +9,8 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import {
-  LangfuseNotFoundError,
-  extractMentionsFromMarkdown,
-  sanitizeMentions,
-  Prisma,
-} from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -33,57 +27,16 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError(result.errorMessage);
       }
 
-      // Extract mentions from content (server-side, authoritative)
-      const mentionsInContent = extractMentionsFromMarkdown(body.content);
-
-      // Sanitize mentions and get valid user IDs
-      let sanitizedContent = body.content;
-      let validMentionedUserIds: string[] = [];
-
-      if (mentionsInContent.length > 0) {
-        // Fetch project members for validation and normalization
-        const projectMembers = await getUserProjectRoles({
+      // Create comment with content as-is (no mention processing)
+      const comment = await prisma.comment.create({
+        data: {
+          content: body.content,
+          objectId: body.objectId,
+          objectType: body.objectType,
+          authorUserId: body.authorUserId,
+          id: v4(),
           projectId: auth.scope.projectId,
-          orgId: auth.scope.orgId,
-          searchFilter: Prisma.empty,
-          filterCondition: [],
-          orderBy: Prisma.empty,
-        });
-
-        // Sanitize content: validate users and normalize display names
-        const sanitizationResult = sanitizeMentions(
-          body.content,
-          projectMembers,
-        );
-        sanitizedContent = sanitizationResult.sanitizedContent;
-        validMentionedUserIds = sanitizationResult.validMentionedUserIds;
-      }
-
-      // Use transaction to create comment + mentions atomically
-      const comment = await prisma.$transaction(async (tx) => {
-        const newComment = await tx.comment.create({
-          data: {
-            content: sanitizedContent, // Use sanitized content
-            objectId: body.objectId,
-            objectType: body.objectType,
-            authorUserId: body.authorUserId,
-            id: v4(),
-            projectId: auth.scope.projectId,
-          },
-        });
-
-        // Create mention records for validated users only
-        if (validMentionedUserIds.length > 0) {
-          await tx.commentMention.createMany({
-            data: validMentionedUserIds.map((userId) => ({
-              commentId: newComment.id,
-              mentionedUserId: userId,
-            })),
-            skipDuplicates: true,
-          });
-        }
-
-        return newComment;
+        },
       });
 
       await auditLog({
@@ -93,10 +46,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
-        after: {
-          ...comment,
-          mentionedUserIds: validMentionedUserIds,
-        },
+        after: comment,
       });
 
       return { id: comment.id };

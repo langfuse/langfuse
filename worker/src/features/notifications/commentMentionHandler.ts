@@ -94,6 +94,48 @@ export async function handleCommentMentionNotification(
           continue;
         }
 
+        // Verify user still has access to the project
+        // User must have either a direct project membership OR an organization membership
+        const projectMembership = await prisma.projectMembership.findUnique({
+          where: {
+            projectId_userId: {
+              projectId,
+              userId,
+            },
+          },
+        });
+
+        // If no direct project membership, check organization membership
+        if (!projectMembership) {
+          const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: { orgId: true },
+          });
+
+          if (!project) {
+            logger.warn(
+              `Project ${projectId} not found. Skipping notification for user ${userId}.`,
+            );
+            continue;
+          }
+
+          const orgMembership = await prisma.organizationMembership.findUnique({
+            where: {
+              orgId_userId: {
+                orgId: project.orgId,
+                userId,
+              },
+            },
+          });
+
+          if (!orgMembership) {
+            logger.info(
+              `User ${userId} is not a member of project ${projectId} or its organization. Skipping notification to prevent information leakage.`,
+            );
+            continue;
+          }
+        }
+
         // Truncate comment content for preview (500 chars)
         let commentPreview =
           comment.content.length > 500
@@ -112,7 +154,7 @@ export async function handleCommentMentionNotification(
 
         // Construct URL based on object type
         let commentLink: string;
-        const commonParams = `comments=open&commentObjectType=${comment.objectType}&commentObjectId=${comment.objectId}`;
+        const commonParams = `comments=open&commentObjectType=${encodeURIComponent(comment.objectType)}&commentObjectId=${encodeURIComponent(comment.objectId)}`;
 
         switch (comment.objectType) {
           case "OBSERVATION": {
@@ -127,7 +169,7 @@ export async function handleCommentMentionNotification(
               );
               continue;
             }
-            commentLink = `${baseUrl}/project/${projectId}/traces/${observation.traceId}?observation=${comment.objectId}&${commonParams}#comment-${commentId}`;
+            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/traces/${encodeURIComponent(observation.traceId)}?observation=${encodeURIComponent(comment.objectId)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
             break;
           }
           case "PROMPT": {
@@ -143,19 +185,19 @@ export async function handleCommentMentionNotification(
               continue;
             }
             const encodedPromptName = encodeURIComponent(prompt.name);
-            commentLink = `${baseUrl}/project/${projectId}/prompts/${encodedPromptName}?version=${prompt.version}&${commonParams}#comment-${commentId}`;
+            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/prompts/${encodedPromptName}?version=${encodeURIComponent(prompt.version)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
             break;
           }
           case "TRACE":
           case "SESSION":
           default: {
             // For traces and sessions, use standard URL pattern
-            commentLink = `${baseUrl}/project/${projectId}/${comment.objectType.toLowerCase()}s/${comment.objectId}?${commonParams}#comment-${commentId}`;
+            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/${encodeURIComponent(comment.objectType.toLowerCase())}s/${encodeURIComponent(comment.objectId)}?${commonParams}#comment-${encodeURIComponent(commentId)}`;
             break;
           }
         }
 
-        const settingsLink = `${baseUrl}/project/${projectId}/settings/notifications`;
+        const settingsLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/settings/notifications`;
 
         // Send email
         await sendCommentMentionEmail({

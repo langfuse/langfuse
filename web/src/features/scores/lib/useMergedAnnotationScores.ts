@@ -5,6 +5,7 @@ import {
 } from "@/src/features/scores/types";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { mergeAnnotationScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
+import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTarget";
 
 /**
  * Hook for merging server annotation scores with cached scores
@@ -34,22 +35,28 @@ export function useMergedAnnotationScores(
     sessionId: target.type === "session" ? target.sessionId : undefined,
   });
 
+  // Filter server scores based on mode and target
+  const filteredServerScores = useMemo(
+    () => filterScoresByTarget(serverAnnotationScores, target, mode),
+    [serverAnnotationScores, target, mode],
+  );
+
   // Build deletedIds Set
   const deletedIds = useMemo(() => {
     const ids = new Set<string>();
-    serverAnnotationScores.forEach((s) => {
+    filteredServerScores.forEach((s) => {
       if (s.id && isDeleted(s.id)) ids.add(s.id);
     });
     return ids;
-  }, [serverAnnotationScores, isDeleted]);
+  }, [filteredServerScores, isDeleted]);
 
   return useMemo(
     () =>
       mergeAnnotationScoresWithCache(
-        serverAnnotationScores,
+        filteredServerScores,
         cachedScores,
         deletedIds,
       ),
-    [serverAnnotationScores, cachedScores, deletedIds],
+    [filteredServerScores, cachedScores, deletedIds],
   );
 }
