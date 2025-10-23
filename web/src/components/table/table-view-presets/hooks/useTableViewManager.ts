@@ -249,6 +249,5 @@ export function useTableViewManager({
     applyViewState,
     handleSetViewId,
     selectedViewId,
-    resetToDefaults: () => handleSetViewId(null),
   };
 }

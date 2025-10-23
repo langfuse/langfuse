@@ -102,7 +102,6 @@ interface TableViewPresetsDrawerProps {
       selectedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
       applyViewState: (viewData: TableViewPresetDomain) => void;
-      resetToDefaults: () => void;
     };
   };
   currentState: {
@@ -124,8 +123,7 @@ export function TableViewPresetsDrawer({
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const { handleSetViewId, applyViewState, selectedViewId, resetToDefaults } =
-    controllers;
+  const { handleSetViewId, applyViewState, selectedViewId } = controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -336,11 +334,7 @@ export function TableViewPresetsDrawer({
                     rel="noopener noreferrer"
                     className="inline-flex items-center"
                     title="Saving table view presets is currently in beta. Click here to provide feedback!"
-                  >
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      Beta
-                    </span>
-                  </a>
+                  ></a>
                 </DrawerTitle>
                 <DrawerClose asChild>
                   <Button variant="outline" size="icon">
@@ -374,22 +368,9 @@ export function TableViewPresetsDrawer({
                       <span className="text-sm font-medium text-muted-foreground">
                         {SYSTEM_PRESETS.DEFAULT.name}
                       </span>
-                    </div>
-                    <div className="flex h-8 items-center">
-                      {selectedViewId === null && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            resetToDefaults();
-                          }}
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                          title="Reset to Langfuse defaults"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <span className="w-fit pl-0 text-xs">
+                        Your default view
+                      </span>
                     </div>
                   </CommandItem>
 
