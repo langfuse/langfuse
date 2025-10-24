@@ -700,7 +700,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             console.log(
               "Custom SSO provider enforced for domain, user signed in with other provider",
             );
-            throw new Error(`You must sign in via SSO for this domain.`);
+            throw new Error(`You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.`);
           }
 
           // EE: Check that provider is only used for the associated domain
