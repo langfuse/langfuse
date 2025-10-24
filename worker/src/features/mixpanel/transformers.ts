@@ -14,6 +14,7 @@ export type MixpanelEvent = {
     time: number; // milliseconds since epoch
     distinct_id: string;
     $insert_id: string;
+    $user_id?: string;
     session_id?: string;
     [key: string]: unknown;
   };
@@ -40,6 +41,9 @@ export const transformTraceForMixpanel = (
         ? (trace.langfuse_user_id as string)
         : insertId,
       $insert_id: insertId,
+      ...(trace.langfuse_user_id
+        ? { $user_id: trace.langfuse_user_id as string }
+        : {}),
       session_id:
         mixpanel_session_id || trace.langfuse_session_id
           ? (mixpanel_session_id as string) ||
@@ -71,6 +75,9 @@ export const transformGenerationForMixpanel = (
         ? (generation.langfuse_user_id as string)
         : insertId,
       $insert_id: insertId,
+      ...(generation.langfuse_user_id
+        ? { $user_id: generation.langfuse_user_id as string }
+        : {}),
       session_id:
         mixpanel_session_id || generation.langfuse_session_id
           ? (mixpanel_session_id as string) ||
@@ -102,6 +109,9 @@ export const transformScoreForMixpanel = (
         ? (score.langfuse_user_id as string)
         : insertId,
       $insert_id: insertId,
+      ...(score.langfuse_user_id
+        ? { $user_id: score.langfuse_user_id as string }
+        : {}),
       session_id:
         mixpanel_session_id || score.langfuse_session_id
           ? (mixpanel_session_id as string) ||
