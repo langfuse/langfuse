@@ -93,65 +93,34 @@ export function sanitizeMentions(
   );
 
   const validUserIds: string[] = [];
-  let sanitizedContent = content;
-
-  // Process mentions in reverse order to maintain correct string indices during replacement
-  const mentionsWithIndices: Array<{
-    userId: string;
-    displayName: string;
-    startIndex: number;
-    endIndex: number;
-  }> = [];
+  const seenUserIds = new Set<string>();
 
   // Reset regex lastIndex to ensure clean state
   MENTION_REGEX.lastIndex = 0;
 
-  let match;
-  while ((match = MENTION_REGEX.exec(content)) !== null) {
-    const displayName = match[1];
-    const userId = match[2];
-    const startIndex = match.index;
-    const endIndex = startIndex + match[0].length;
+  // Single pass using String.replace() - O(n) complexity
+  const sanitizedContent = content.replace(
+    MENTION_REGEX,
+    (match, displayName, userId) => {
+      const member = memberMap.get(userId);
 
-    mentionsWithIndices.push({
-      userId,
-      displayName,
-      startIndex,
-      endIndex,
-    });
-  }
+      if (member) {
+        // Valid user: Replace with canonical display name from DB
+        const canonicalName = member.name || member.email || "User";
 
-  // Process in reverse order to maintain indices
-  for (let i = mentionsWithIndices.length - 1; i >= 0; i--) {
-    const { userId, displayName, startIndex, endIndex } =
-      mentionsWithIndices[i];
-    const member = memberMap.get(userId);
+        // Track valid user (deduplicate with Set)
+        if (!seenUserIds.has(userId)) {
+          validUserIds.push(userId);
+          seenUserIds.add(userId);
+        }
 
-    if (member) {
-      // Valid user: Replace with canonical display name from DB
-      const canonicalName = member.name || member.email || "User";
-      const replacement = `@[${canonicalName}](${MENTION_USER_PREFIX}${userId})`;
-
-      sanitizedContent =
-        sanitizedContent.substring(0, startIndex) +
-        replacement +
-        sanitizedContent.substring(endIndex);
-
-      // Track valid user (only add once, in original order)
-      if (!validUserIds.includes(userId)) {
-        validUserIds.push(userId);
+        return `@[${canonicalName}](${MENTION_USER_PREFIX}${userId})`;
+      } else {
+        // Invalid user: Strip mention markdown, keep display name as plain text
+        return displayName;
       }
-    } else {
-      // Invalid user: Strip mention markdown, keep display name as plain text
-      sanitizedContent =
-        sanitizedContent.substring(0, startIndex) +
-        displayName +
-        sanitizedContent.substring(endIndex);
-    }
-  }
-
-  // Reverse validUserIds back to original order
-  validUserIds.reverse();
+    },
+  );
 
   return {
     sanitizedContent,
