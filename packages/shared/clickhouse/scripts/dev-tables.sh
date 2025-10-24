@@ -149,13 +149,13 @@ CREATE TABLE IF NOT EXISTS events
 
       -- Prompt
       prompt_id Nullable(String),
-      prompt_name Nullable(String),
-      prompt_version Nullable(String),
+      prompt_name String,
+      prompt_version String,
 
       -- Model
-      model_id Nullable(String),
-      provided_model_name Nullable(String),
-      model_parameters Nullable(String),
+      model_id String,
+      provided_model_name String,
+      model_parameters JSON,
 
       -- Usage
       provided_usage_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
@@ -206,6 +206,19 @@ CREATE TABLE IF NOT EXISTS events
         arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values)),
         arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values))
       ),
+
+      -- Experiment properties
+      experiment_id String,
+      experiment_name String,
+      experiment_metadata_names Array(String),
+      experiment_metadata_values Array(Dynamic(max_types=32)), -- We will restrict this to 200 characters for strings on the server.
+      experiment_description String,
+      experiment_dataset_id String,
+      experiment_item_id String,
+      experiment_item_expected_output String,
+      experiment_item_metadata_names Array(String),
+      experiment_item_metadata_values Array(Dynamic(max_types=32)), -- We will restrict this to 200 characters for strings on the server.
+      experiment_is_root UInt8,
 
       -- Source metadata (Instrumentation)
       source LowCardinality(String),
