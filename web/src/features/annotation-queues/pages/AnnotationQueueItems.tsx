@@ -96,7 +96,7 @@ export default function QueueItems() {
                     {queue.data?.description}
                   </CardDescription>
                 )}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 px-2">
                   <SubHeaderLabel title="Score Configs" />
                   <div className="flex flex-wrap gap-2">
                     {queue.data?.scoreConfigs.map((scoreConfig) => (

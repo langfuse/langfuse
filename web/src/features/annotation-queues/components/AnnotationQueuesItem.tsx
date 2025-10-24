@@ -13,6 +13,9 @@ import { api } from "@/src/utils/api";
 import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { Goal, Network } from "lucide-react";
 import Page from "@/src/components/layouts/page";
+import { Switch } from "@/src/components/ui/switch";
+import { Label } from "@/src/components/ui/label";
+import { useRouter } from "next/router";
 
 export const AnnotationQueuesItem = ({
   annotationQueueId,
@@ -23,6 +26,9 @@ export const AnnotationQueuesItem = ({
   projectId: string;
   itemId?: string;
 }) => {
+  const router = useRouter();
+  const showCompleted = router.query.showCompleted === "true";
+
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:read",
@@ -62,6 +68,26 @@ export const AnnotationQueuesItem = ({
     currentItemType.data === AnnotationQueueObjectType.SESSION;
   const isDetailedViewDisabled = isSessionItem;
 
+  const handleShowCompletedToggle = (checked: boolean) => {
+    const currentPath = router.pathname;
+    const currentQuery = { ...router.query };
+
+    if (checked) {
+      currentQuery.showCompleted = "true";
+    } else {
+      delete currentQuery.showCompleted;
+    }
+
+    router.push(
+      {
+        pathname: currentPath,
+        query: currentQuery,
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
+
   if (!hasAccess) return <SupportOrUpgradePage />;
 
   return (
@@ -83,49 +109,63 @@ export const AnnotationQueuesItem = ({
           },
         ],
         actionButtonsRight: (
-          <TooltipProvider>
-            <Tabs
-              value={isDetailedViewDisabled ? "hideTree" : view}
-              onValueChange={(view: string) => {
-                if (!isDetailedViewDisabled) {
-                  setView(view as "hideTree" | "showTree");
-                }
-              }}
-            >
-              <TabsList>
-                <TabsTrigger value="hideTree">
-                  <Goal className="mr-1 h-4 w-4"></Goal>
-                  Focused
-                </TabsTrigger>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <TabsTrigger
-                        value="showTree"
-                        disabled={isDetailedViewDisabled}
-                        className={
-                          isDetailedViewDisabled
-                            ? "cursor-not-allowed opacity-50"
-                            : ""
-                        }
-                      >
-                        <Network className="mr-1 h-4 w-4"></Network>
-                        Detailed
-                      </TabsTrigger>
-                    </span>
-                  </TooltipTrigger>
-                  {isDetailedViewDisabled && (
-                    <TooltipContent>
-                      <p>
-                        Detailed view is only available for traces and
-                        observations
-                      </p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TabsList>
-            </Tabs>
-          </TooltipProvider>
+          <div className="flex items-center gap-4">
+            <TooltipProvider>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-completed"
+                  checked={showCompleted}
+                  onCheckedChange={handleShowCompletedToggle}
+                />
+                <Label htmlFor="show-completed" className="cursor-pointer">
+                  Show completed
+                </Label>
+              </div>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tabs
+                value={isDetailedViewDisabled ? "hideTree" : view}
+                onValueChange={(view: string) => {
+                  if (!isDetailedViewDisabled) {
+                    setView(view as "hideTree" | "showTree");
+                  }
+                }}
+              >
+                <TabsList>
+                  <TabsTrigger value="hideTree">
+                    <Goal className="mr-1 h-4 w-4"></Goal>
+                    Focused
+                  </TabsTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <TabsTrigger
+                          value="showTree"
+                          disabled={isDetailedViewDisabled}
+                          className={
+                            isDetailedViewDisabled
+                              ? "cursor-not-allowed opacity-50"
+                              : ""
+                          }
+                        >
+                          <Network className="mr-1 h-4 w-4"></Network>
+                          Detailed
+                        </TabsTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    {isDetailedViewDisabled && (
+                      <TooltipContent>
+                        <p>
+                          Detailed view is only available for traces and
+                          observations
+                        </p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TabsList>
+              </Tabs>
+            </TooltipProvider>
+          </div>
         ),
       }}
     >

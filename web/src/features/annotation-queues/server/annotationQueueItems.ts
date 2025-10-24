@@ -227,12 +227,53 @@ export const queueItemRouter = createTRPCRouter({
         });
       }
     }),
-  unseenPendingItemCountByQueueId: protectedProjectProcedure
+  itemIdsByQueueId: protectedProjectProcedure
+    .input(
+      z.object({
+        queueId: z.string(),
+        projectId: z.string(),
+        includeCompleted: z.boolean().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "annotationQueues:read",
+        });
+
+        const items = await ctx.prisma.annotationQueueItem.findMany({
+          where: {
+            queueId: input.queueId,
+            projectId: input.projectId,
+            ...(input.includeCompleted
+              ? {}
+              : { status: AnnotationQueueStatus.PENDING }),
+          },
+          select: { id: true },
+          orderBy: { createdAt: "asc" },
+        });
+
+        return items.map((item) => item.id);
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching annotation queue item IDs failed.",
+        });
+      }
+    }),
+  unseenItemCountByQueueId: protectedProjectProcedure
     .input(
       z.object({
         queueId: z.string(),
         projectId: z.string(),
         seenItemIds: z.array(z.string()),
+        includeCompleted: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -247,7 +288,9 @@ export const queueItemRouter = createTRPCRouter({
           where: {
             queueId: input.queueId,
             projectId: input.projectId,
-            status: AnnotationQueueStatus.PENDING,
+            ...(input.includeCompleted
+              ? {}
+              : { status: AnnotationQueueStatus.PENDING }),
             id: {
               notIn: input.seenItemIds,
             },
@@ -261,7 +304,7 @@ export const queueItemRouter = createTRPCRouter({
         }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching unseen pending item count by queueId failed.",
+          message: "Fetching unseen item count by queueId failed.",
         });
       }
     }),
@@ -484,6 +527,74 @@ export const queueItemRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Completing annotation queue item failed.",
+        });
+      }
+    }),
+  lockItem: protectedProjectProcedure
+    .input(
+      z.object({
+        itemId: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "annotationQueues:CUD",
+        });
+
+        const now = new Date();
+        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+        // Check if item exists
+        const item = await ctx.prisma.annotationQueueItem.findUnique({
+          where: {
+            id: input.itemId,
+            projectId: input.projectId,
+          },
+        });
+
+        if (!item) {
+          return { success: false, reason: "not_found" as const };
+        }
+
+        // Don't lock completed items
+        if (item.status === AnnotationQueueStatus.COMPLETED) {
+          return { success: true, alreadyCompleted: true };
+        }
+
+        // Don't lock if locked by another user recently
+        if (
+          item.lockedAt &&
+          item.lockedAt > fiveMinutesAgo &&
+          item.lockedByUserId !== ctx.session.user.id
+        ) {
+          return { success: false, reason: "locked_by_other" as const };
+        }
+
+        // Lock it
+        await ctx.prisma.annotationQueueItem.update({
+          where: {
+            id: input.itemId,
+            projectId: input.projectId,
+          },
+          data: {
+            lockedAt: now,
+            lockedByUserId: ctx.session.user.id,
+          },
+        });
+
+        return { success: true };
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Locking annotation queue item failed.",
         });
       }
     }),
