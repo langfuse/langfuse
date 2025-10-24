@@ -140,7 +140,16 @@ export function CommentDrawerButton({
         </Button>
       </DrawerTrigger>
       <DrawerContent overlayClassName="bg-primary/10">
-        <div className="mx-auto flex h-full w-full flex-col overflow-hidden md:max-h-full">
+        <div
+          className="mx-auto flex h-full w-full flex-col overflow-hidden md:max-h-full"
+          tabIndex={-1}
+          ref={(el) => {
+            // Auto-focus drawer content when it opens
+            if (el && isDrawerOpen) {
+              setTimeout(() => el.focus(), 100);
+            }
+          }}
+        >
           <DrawerHeader className="flex-shrink-0 rounded-sm bg-background">
             <DrawerTitle>
               <Header title="Comments"></Header>
@@ -152,6 +161,7 @@ export function CommentDrawerButton({
               objectId={objectId}
               objectType={objectType}
               onMentionDropdownChange={setIsMentionDropdownOpen}
+              isDrawerOpen={isDrawerOpen}
             />
           </div>
         </div>
