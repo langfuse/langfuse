@@ -30,6 +30,7 @@ import { batchExportRouter } from "@/src/features/batch-exports/server/batchExpo
 import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
 import { commentsRouter } from "@/src/server/api/routers/comments";
+import { commentReactionsRouter } from "@/src/server/api/routers/commentReactions";
 import { queueRouter } from "@/src/features/annotation-queues/server/annotationQueues";
 import { queueItemRouter } from "@/src/features/annotation-queues/server/annotationQueueItems";
 import { experimentsRouter } from "@/src/features/experiments/server/router";
@@ -91,6 +92,7 @@ export const appRouter = createTRPCRouter({
   utilities: utilsRouter,
   uiCustomization: uiCustomizationRouter,
   comments: commentsRouter,
+  commentReactions: commentReactionsRouter,
   media: mediaRouter,
   backgroundMigrations: backgroundMigrationsRouter,
   auditLogs: auditLogsRouter,
