@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { api } from "@/src/utils/api";
+import { useUserSearch } from "@/src/hooks/useUserSearch";
 
 export function useMentionAutocomplete({
   projectId,
@@ -13,30 +13,17 @@ export function useMentionAutocomplete({
   enabled: boolean;
 }) {
   const [showDropdown, setShowDropdown] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  // Use shared user search hook
+  const userSearch = useUserSearch({
+    projectId,
+    limit: 10,
+    enabled: enabled && showDropdown,
+  });
 
-  // Fetch users
-  const { data, isLoading } = api.members.byProjectId.useQuery(
-    {
-      projectId,
-      searchQuery: debouncedQuery || undefined,
-      limit: 10,
-      page: 0, // Always first page for autocomplete
-    },
-    {
-      enabled: enabled && showDropdown,
-    },
-  );
-  const users = data?.users || [];
+  const { setSearchQuery } = userSearch;
 
   // Detect @ character and update state
   useEffect(() => {
@@ -75,18 +62,18 @@ export function useMentionAutocomplete({
     setSearchQuery(textAfterAt);
     setShowDropdown(true);
     setSelectedIndex(0);
-  }, [getTextareaValue, cursorPosition, enabled]);
+  }, [getTextareaValue, cursorPosition, enabled, setSearchQuery]);
 
   const closeDropdown = useCallback(() => {
     setShowDropdown(false);
     setMentionStartPos(null);
     setSearchQuery("");
-  }, []);
+  }, [setSearchQuery]);
 
   return {
     showDropdown,
-    users,
-    isLoading,
+    users: userSearch.searchResults,
+    isLoading: userSearch.isLoading,
     selectedIndex,
     setSelectedIndex,
     mentionStartPos,
