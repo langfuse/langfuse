@@ -4,6 +4,7 @@ import {
   ObservationRecordInsertType,
   ScoreRecordInsertType,
   DatasetRunItemRecordInsertType,
+  EventRecordInsertType,
 } from "../repositories/definitions";
 
 export const createTrace = (
@@ -176,5 +177,109 @@ export const createDatasetRunScore = (
     observation_id: null,
     trace_id: null,
     session_id: null,
+  };
+};
+
+export const createEvent = (
+  event: Partial<EventRecordInsertType>,
+): EventRecordInsertType => {
+  const spanId = v4();
+  const now = Date.now() * 1000; // Convert to micro
+
+  // Default metadata to populate arrays from
+  const defaultMetadata: Record<string, string> = {
+    source: "API",
+    server: "Node",
+  };
+
+  // Merge default metadata with any provided metadata
+  const finalMetadata: Record<string, string> = {
+    ...defaultMetadata,
+    ...event.metadata,
+  };
+
+  // Extract metadata keys and values in sorted order for deterministic array population
+  const sortedKeys = Object.keys(finalMetadata).sort();
+  const metadataNames = sortedKeys;
+  const metadataValues = sortedKeys.map((key) => finalMetadata[key]);
+
+  return {
+    // Identifiers
+    org_id: null,
+    project_id: v4(),
+    trace_id: v4(),
+    span_id: spanId,
+    id: spanId,
+    parent_span_id: null,
+
+    // Core properties
+    name: "test-event" + v4(),
+    type: "GENERATION",
+    environment: "default",
+    version: null,
+
+    user_id: null,
+    session_id: null,
+
+    level: "DEFAULT",
+    status_message: null,
+
+    // Prompt
+    prompt_id: null,
+    prompt_name: null,
+    prompt_version: null,
+
+    // Model
+    model_id: null,
+    provided_model_name: "gpt-3.5-turbo",
+    model_parameters: null,
+
+    // Usage & Cost
+    provided_usage_details: { input: 1234, output: 5678, total: 6912 },
+    usage_details: { input: 1234, output: 5678, total: 6912 },
+    provided_cost_details: { input: 100, output: 200, total: 300 },
+    cost_details: { input: 100, output: 200, total: 300 },
+    total_cost: 300,
+
+    // I/O
+    input: "Hello World",
+    output: "Hello John",
+
+    // Metadata - populate both JSON and array columns
+    metadata: finalMetadata,
+    metadata_names: metadataNames,
+    metadata_values: metadataValues,
+    // metadata_string_names: [],
+    // metadata_string_values: [],
+    // metadata_number_names: [],
+    // metadata_number_values: [],
+    // metadata_bool_names: [],
+    // metadata_bool_values: [],
+
+    // Source metadata (Instrumentation)
+    source: "API",
+    service_name: null,
+    service_version: null,
+    scope_name: null,
+    scope_version: null,
+    telemetry_sdk_language: null,
+    telemetry_sdk_name: null,
+    telemetry_sdk_version: null,
+
+    // Generic props
+    blob_storage_file_path: "",
+    event_raw: "{}",
+    event_bytes: 2,
+    is_deleted: 0,
+
+    // Timestamps
+    start_time: now,
+    end_time: now,
+    completion_start_time: null,
+    created_at: now,
+    updated_at: now,
+    event_ts: now,
+
+    ...event,
   };
 };

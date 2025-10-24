@@ -1,15 +1,11 @@
 import { UiColumnMappings } from "../../tableDefinitions";
-import { env } from "../../env";
 
 export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "⭐️",
     uiTableId: "bookmarked",
     clickhouseTableName: "traces",
-    clickhouseSelect:
-      env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
-        ? "finalizeAggregation(t.bookmarked)"
-        : "t.bookmarked",
+    clickhouseSelect: "t.bookmarked",
   },
   {
     uiTableName: "Level",
@@ -157,13 +153,13 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   },
   {
     uiTableName: "Scores (numeric)",
-    uiTableId: "scores",
+    uiTableId: "scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
-    uiTableId: "scores",
+    uiTableId: "score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",
   },

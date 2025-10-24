@@ -21,7 +21,6 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   reduceUsageOrCostDetails,
-  getTimeframesTracesAMT,
 } from "../repositories";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { TracingSearchType } from "../../interfaces/search";
@@ -350,9 +349,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
   return measureAndReturn({
     operationName: "getTracesTableGeneric",
     projectId: props.projectId,
-    minStartTime: select !== "metrics" ? timeStampFilter?.value : undefined,
     input: props,
-    existingExecution: async (props) => {
+    fn: async (props) => {
       let sqlSelect: string;
       switch (select) {
         case "count":
@@ -445,7 +443,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       //   In this case, CH is able to read the data only from the latest date from disk and filtering them in memory. No need to read all data e.g. for 1 month from disk.
 
       const query = `
-        ${observationsAndScoresCTE}        
+        ${observationsAndScoresCTE}
 
         SELECT ${sqlSelect}
         -- FINAL is used for non default ordering.
@@ -481,117 +479,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           feature: "tracing",
           type: "traces-table",
           projectId,
-          experiment_amt: "original",
           operation_name: "getTracesTableGeneric",
-        },
-        clickhouseConfigs,
-      });
-
-      return res;
-    },
-    newExecution: async () => {
-      let sqlSelect: string;
-      switch (select) {
-        case "count":
-          sqlSelect = "uniq(t.id) as count";
-          break;
-        case "metrics":
-          sqlSelect = `
-            t.id as id,
-            t.project_id as project_id,
-            min(t.timestamp) as timestamp,
-            max(o.latency_milliseconds) / 1000 as latency,
-            anyLast(o.cost_details) as cost_details,
-            anyLast(o.usage_details) as usage_details,
-            anyLast(o.aggregated_level) as level,
-            anyLast(o.error_count) as error_count,
-            anyLast(o.warning_count) as warning_count,
-            anyLast(o.default_count) as default_count,
-            anyLast(o.debug_count) as debug_count,
-            anyLast(o.observation_count) as observation_count,
-            anyLast(s.scores_avg) as scores_avg,
-            anyLast(s.score_categories) as score_categories,
-            argMaxMerge(t.public) as public`;
-          break;
-        case "rows":
-          sqlSelect = `
-            t.id as id,
-            t.project_id as project_id,
-            min(t.timestamp) as timestamp,
-            groupUniqArrayArray(t.tags) as tags,
-            argMaxMerge(t.bookmarked) as bookmarked,
-            anyLast(t.name) as name,
-            anyLast(t.release) as release,
-            anyLast(t.version) as version,
-            anyLast(t.user_id) as user_id,
-            anyLast(t.environment) as environment,
-            anyLast(t.session_id) as session_id,
-            argMaxMerge(t.public) as public`;
-          break;
-        case "identifiers":
-          sqlSelect = `
-            t.id as id,
-            t.project_id as projectId,
-            min(t.timestamp) as timestamp`;
-          break;
-        default:
-          throw new Error(`Unknown select type: ${select}`);
-      }
-
-      const search = clickhouseSearchCondition(
-        searchQuery,
-        searchType,
-        "t",
-        true,
-      );
-
-      const chOrderBy = orderByToClickhouseSql(
-        [orderBy ?? null].flat(),
-        tracesTableUiColumnDefinitions,
-        true,
-      );
-
-      const tracesAmt =
-        select === "metrics"
-          ? "traces_all_amt"
-          : getTimeframesTracesAMT(timeStampFilter?.value);
-
-      const query = `
-        ${observationsAndScoresCTE}
-
-        SELECT ${sqlSelect}
-        FROM ${tracesAmt} t
-        ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
-        ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
-        WHERE t.project_id = {projectId: String}
-        ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
-        ${search.query}
-        ${select !== "count" ? "GROUP BY project_id, id" : ""}
-        ${chOrderBy}
-        ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-      `;
-
-      const res = await queryClickhouse<
-        SelectReturnTypeMap[keyof SelectReturnTypeMap]
-      >({
-        query: query,
-        params: {
-          limit: limit,
-          offset: limit && page ? limit * page : 0,
-          traceTimestamp: timeStampFilter?.value.getTime(),
-          projectId: projectId,
-          ...tracesFilterRes.params,
-          ...observationFilterRes.params,
-          ...scoresFilterRes.params,
-          ...search.params,
-        },
-        tags: {
-          ...(props.tags ?? {}),
-          feature: "tracing",
-          type: "traces-table",
-          projectId,
-          experiment_amt: "new",
-          operation_name: `getTracesTableGeneric-${select}`,
         },
         clickhouseConfigs,
       });

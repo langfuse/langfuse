@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const regions =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -58,12 +59,11 @@ export function CloudRegionSwitch({
   isSignUpPage?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+  const { isLangfuseCloud, region: cloudRegion } = useLangfuseCloudRegion();
 
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) return null;
+  if (!isLangfuseCloud) return null;
 
-  const currentRegion = regions.find(
-    (region) => region.name === env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  );
+  const currentRegion = regions.find((region) => region.name === cloudRegion);
 
   return (
     <div className="-mb-10 mt-8 rounded-lg bg-card px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
@@ -73,7 +73,7 @@ export function CloudRegionSwitch({
             Data Region
             <DataRegionInfo />
           </span>
-          {isSignUpPage && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" ? (
+          {isSignUpPage && cloudRegion === "HIPAA" ? (
             <p className="text-xs text-muted-foreground">
               Demo project is not available in the HIPAA data region.
             </p>
@@ -111,7 +111,7 @@ export function CloudRegionSwitch({
           </SelectContent>
         </Select>
 
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" && (
+        {cloudRegion === "HIPAA" && (
           <div className="mt-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
             <p>
               The Business Associate Agreement (BAA) is only effective on the

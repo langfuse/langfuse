@@ -25,7 +25,7 @@ import { useSession } from "next-auth/react";
 import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { SurveyName } from "@prisma/client";
-import { env } from "@/src/env.mjs";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 export const NewOrganizationForm = ({
   onSuccess,
@@ -48,7 +48,7 @@ export const NewOrganizationForm = ({
   });
   const createSurveyMutation = api.surveys.create.useMutation();
   const watchedType = form.watch("type");
-  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   function onSubmit(values: z.infer<typeof organizationFormSchema>) {
     capture("organizations:new_form_submit");
@@ -58,7 +58,7 @@ export const NewOrganizationForm = ({
       })
       .then(async (org) => {
         // Submit survey with organization data only on Cloud and if type is provided
-        if (isCloud && values.type) {
+        if (isLangfuseCloud && values.type) {
           const surveyResponse: Record<string, string> = {
             type: values.type,
           };
@@ -101,6 +101,12 @@ export const NewOrganizationForm = ({
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-3"
         data-testid="new-org-form"
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            void form.handleSubmit(onSubmit)();
+          }
+        }}
       >
         <FormField
           control={form.control}
@@ -119,7 +125,7 @@ export const NewOrganizationForm = ({
             </FormItem>
           )}
         />
-        {isCloud && (
+        {isLangfuseCloud && (
           <>
             <FormField
               control={form.control}

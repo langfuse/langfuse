@@ -20,20 +20,22 @@ import {
 import { ArrowUp } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+
   const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
     undefined,
     {
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
+      enabled: !isLangfuseCloud, // do not check for updates on Langfuse Cloud
       throwOnError: false, // do not render default error message
     },
   );
@@ -42,12 +44,11 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
+    enabled: !isLangfuseCloud, // do not check for updates on Langfuse Cloud
     throwOnError: false, // do not render default error message
   });
 
   const plan = usePlan();
-  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   const selfHostedPlanLabel = !isLangfuseCloud
     ? plan && isSelfHostedPlan(plan)
@@ -107,7 +108,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
-        ) : !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ? (
+        ) : !isLangfuseCloud ? (
           <>
             <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
             <DropdownMenuSeparator />

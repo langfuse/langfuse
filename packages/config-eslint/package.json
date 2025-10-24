@@ -13,7 +13,7 @@
     "@vercel/style-guide": "^6.0.0",
     "eslint-config-next": "^14.2.15",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-config-turbo": "^2.5.6",
+    "eslint-config-turbo": "^2.5.8",
     "eslint-plugin-only-warn": "^1.1.0",
     "typescript": "^5.7.2"
   }

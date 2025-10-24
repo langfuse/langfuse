@@ -6,13 +6,16 @@ import { useRouter } from "next/router";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
-import { UsageAlerts } from "./UsageAlerts";
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
 import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
+import { BillingTransitionInfoCard } from "./BillingTransitionInfoCard";
+import { useBillingInformation } from "./useBillingInformation";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -22,12 +25,22 @@ export const BillingSettings = () => {
     scope: "langfuseCloudBilling:CRUD",
   });
 
-  const entitled = useHasEntitlement("cloud-billing");
-  const isUsageAlertEntitled = useHasEntitlement("cloud-usage-alerts");
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
+  const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
+  const { hasActiveSubscription } = useBillingInformation();
 
-  if (!entitled) return null;
+  // Don't render billing settings if cloud billing is not available
+  if (!isCloudBillingAvailable) {
+    return null;
+  }
 
-  if (!hasAccess)
+  // Handle conditional rendering without early returns
+  if (!isCloudBillingEntitled) {
+    return null;
+  }
+
+  if (!hasAccess) {
     return (
       <Alert>
         <AlertTitle>Access Denied</AlertTitle>
@@ -37,6 +50,7 @@ export const BillingSettings = () => {
         </AlertDescription>
       </Alert>
     );
+  }
 
   return (
     <div>
@@ -48,8 +62,11 @@ export const BillingSettings = () => {
         <BillingPlanPeriodView />
         <BillingDiscountView />
         <BillingActionButtons />
-        {isUsageAlertEntitled && orgId && <UsageAlerts orgId={orgId} />}
+        <BillingTransitionInfoCard />
         <BillingInvoiceTable />
+        {isSpendAlertEntitled && orgId && hasActiveSubscription && (
+          <SpendAlertsSection orgId={orgId} />
+        )}
       </div>
     </div>
   );

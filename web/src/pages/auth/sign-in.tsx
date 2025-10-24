@@ -20,6 +20,7 @@ import {
   SiGoogle,
   SiGitlab,
   SiGithub,
+  SiWordpress,
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
@@ -41,6 +42,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import DOMPurify from "dompurify";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -70,6 +73,7 @@ export type PageProps = {
           connectionId: string;
         }
       | boolean;
+    wordpress: boolean;
     custom:
       | {
           name: string;
@@ -131,6 +135,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
                 ? { connectionId: env.AUTH_WORKOS_CONNECTION_ID }
                 : true
             : false,
+        wordpress:
+          env.AUTH_WORDPRESS_CLIENT_ID !== undefined &&
+          env.AUTH_WORDPRESS_CLIENT_SECRET !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -391,6 +398,17 @@ export function SSOButtons({
               />
             </>
           )}
+          {authProviders.wordpress && (
+            <AuthProviderButton
+              icon={<SiWordpress className="mr-3" size={18} />}
+              label="WordPress"
+              onClick={() => handleSignIn("wordpress")}
+              loading={providerSigningIn === "wordpress"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "wordpress"
+              }
+            />
+          )}
           {authProviders.custom && (
             <AuthProviderButton
               icon={<TbBrandOauth className="mr-3" size={18} />}
@@ -482,6 +500,7 @@ export default function SignIn({
     );
 
   const capture = usePostHogClientCapture();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
@@ -494,11 +513,27 @@ export default function SignIn({
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
+  // Read query params for targetPath and email pre-population
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const emailParam = router.query.email as string | undefined;
+
+  // Validate targetPath to prevent open redirect attacks
+  const sanitizedTargetPath = queryTargetPath
+    ? DOMPurify.sanitize(queryTargetPath)
+    : undefined;
+
+  // Only allow relative links (must start with '/' but not '//')
+  const targetPath =
+    sanitizedTargetPath?.startsWith("/") &&
+    !sanitizedTargetPath.startsWith("//")
+      ? sanitizedTargetPath
+      : undefined;
+
   // Credentials
   const credentialsForm = useForm({
     resolver: zodResolver(credentialAuthForm),
     defaultValues: {
-      email: "",
+      email: emailParam ?? "",
       password: "",
     },
   });
@@ -515,7 +550,7 @@ export default function SignIn({
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/",
+        callbackUrl: targetPath ?? "/",
         redirect: false,
         turnstileToken,
       });
@@ -633,7 +668,7 @@ export default function SignIn({
           </h2>
         </div>
 
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+        {isLangfuseCloud && (
           <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
             page (CMD + SHIFT + R) or clear your browser cache. We are working
@@ -750,7 +785,7 @@ export default function SignIn({
                 {credentialsFormError}
                 <br />
                 Contact support if this error is unexpected.{" "}
-                {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+                {isLangfuseCloud &&
                   "Make sure you are using the correct cloud data region."}
               </div>
             ) : null}
@@ -785,7 +820,7 @@ export default function SignIn({
             <p className="mt-10 text-center text-sm text-muted-foreground">
               No account yet?{" "}
               <Link
-                href="/auth/sign-up"
+                href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
                 className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
                 Sign up

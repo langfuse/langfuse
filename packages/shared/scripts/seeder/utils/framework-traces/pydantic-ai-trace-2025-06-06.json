@@ -1,0 +1,312 @@
+{
+  "trace": {
+    "id": "25f4bdeebaab60e6e1bee7e8469554bc",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "pydantic-ai-qa-trace",
+    "timestamp": "2025-06-06T14:40:28.562Z",
+    "environment": "default",
+    "tags": ["dev", "pydantic-ai"],
+    "bookmarked": false,
+    "release": null,
+    "version": "1.0.0",
+    "userId": "user_123",
+    "sessionId": "session_abc",
+    "public": true,
+    "input": "\"What is Langfuse?\"",
+    "output": "\"Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.\"",
+    "metadata": "{\"email\":\"user@langfuse.com\",\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba\"}}}",
+    "createdAt": "2025-06-06T14:40:34.000Z",
+    "updatedAt": "2025-06-06T14:40:33.635Z",
+    "latency": 4.795
+  },
+  "observations": [
+    {
+      "id": "538fed87d11686d3",
+      "traceId": "25f4bdeebaab60e6e1bee7e8469554bc",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-06-06T14:40:28.562Z",
+      "endTime": "2025-06-06T14:40:33.357Z",
+      "name": "pydantic-ai-qa-trace",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": "1.0.0",
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-06T14:40:33.595Z",
+      "updatedAt": "2025-06-06T14:40:33.630Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 4795,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": null,
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.0.0",
+          "attributes": {
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+          }
+        }
+      }
+    },
+    {
+      "id": "0a4fac2553f22f2e",
+      "traceId": "25f4bdeebaab60e6e1bee7e8469554bc",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "538fed87d11686d3",
+      "startTime": "2025-06-06T14:40:28.562Z",
+      "endTime": "2025-06-06T14:40:33.357Z",
+      "name": "qa_agent run",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-06T14:40:33.596Z",
+      "updatedAt": "2025-06-06T14:40:33.641Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 4795,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": [
+        {
+          "content": "You are a helpful assistant that answers questions clearly and concisely.",
+          "role": "system",
+          "gen_ai.message.index": 0,
+          "event.name": "gen_ai.system.message"
+        },
+        {
+          "content": "What is Langfuse?",
+          "role": "user",
+          "gen_ai.message.index": 0,
+          "event.name": "gen_ai.user.message"
+        },
+        {
+          "role": "assistant",
+          "content": "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.",
+          "gen_ai.message.index": 1,
+          "event.name": "gen_ai.assistant.message"
+        }
+      ],
+      "metadata": {
+        "attributes": {
+          "model_name": "gpt-4o",
+          "agent_name": "qa_agent",
+          "logfire.msg": "qa_agent run",
+          "final_result": "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.",
+          "gen_ai.usage.input_tokens": "31",
+          "gen_ai.usage.output_tokens": "96",
+          "all_messages_events": [
+            {
+              "content": "You are a helpful assistant that answers questions clearly and concisely.",
+              "role": "system",
+              "gen_ai.message.index": 0,
+              "event.name": "gen_ai.system.message"
+            },
+            {
+              "content": "What is Langfuse?",
+              "role": "user",
+              "gen_ai.message.index": 0,
+              "event.name": "gen_ai.user.message"
+            },
+            {
+              "role": "assistant",
+              "content": "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.",
+              "gen_ai.message.index": 1,
+              "event.name": "gen_ai.assistant.message"
+            }
+          ],
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "all_messages_events": {
+                "type": "array"
+              },
+              "final_result": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "0.2.15",
+          "attributes": {}
+        }
+      }
+    },
+    {
+      "id": "5cb389a3bdd21a6e",
+      "traceId": "25f4bdeebaab60e6e1bee7e8469554bc",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "0a4fac2553f22f2e",
+      "startTime": "2025-06-06T14:40:28.562Z",
+      "endTime": "2025-06-06T14:40:33.356Z",
+      "name": "chat gpt-4o",
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-06-06T14:40:33.440Z",
+      "updatedAt": "2025-06-06T14:40:33.478Z",
+      "usageDetails": {
+        "input": 31,
+        "output": 96,
+        "total": 127
+      },
+      "costDetails": {
+        "input": 0.0000775,
+        "output": 0.00096,
+        "total": 0.0010375
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 4794,
+      "timeToFirstToken": null,
+      "inputCost": 0.0000775,
+      "outputCost": 0.00096,
+      "totalCost": 0.0010375,
+      "inputUsage": 31,
+      "outputUsage": 96,
+      "totalUsage": 127,
+      "input": [
+        {
+          "content": "You are a helpful assistant that answers questions clearly and concisely.",
+          "role": "system",
+          "gen_ai.system": "openai",
+          "gen_ai.message.index": 0,
+          "event.name": "gen_ai.system.message"
+        },
+        {
+          "content": "What is Langfuse?",
+          "role": "user",
+          "gen_ai.system": "openai",
+          "gen_ai.message.index": 0,
+          "event.name": "gen_ai.user.message"
+        }
+      ],
+      "output": {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions."
+        },
+        "gen_ai.system": "openai",
+        "event.name": "gen_ai.choice"
+      },
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o",
+          "server.address": "api.openai.com",
+          "model_request_parameters": {
+            "function_tools": [],
+            "allow_text_output": true,
+            "output_tools": []
+          },
+          "gen_ai.usage.input_tokens": "31",
+          "gen_ai.usage.output_tokens": "96",
+          "gen_ai.response.model": "gpt-4o-2024-08-06",
+          "events": [
+            {
+              "content": "You are a helpful assistant that answers questions clearly and concisely.",
+              "role": "system",
+              "gen_ai.system": "openai",
+              "gen_ai.message.index": 0,
+              "event.name": "gen_ai.system.message"
+            },
+            {
+              "content": "What is Langfuse?",
+              "role": "user",
+              "gen_ai.system": "openai",
+              "gen_ai.message.index": 0,
+              "event.name": "gen_ai.user.message"
+            },
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions."
+              },
+              "gen_ai.system": "openai",
+              "event.name": "gen_ai.choice"
+            }
+          ],
+          "logfire.json_schema": {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "array"
+              },
+              "model_request_parameters": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.33.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "pydantic-ai",
+          "version": "0.2.15",
+          "attributes": {}
+        }
+      }
+    }
+  ]
+}

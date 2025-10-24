@@ -7,8 +7,10 @@ import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
 import { userRouter } from "@/src/server/api/routers/users";
+import { userAccountRouter } from "@/src/server/api/routers/userAccount";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
 import { cloudBillingRouter } from "@/src/ee/features/billing/server/cloudBillingRouter";
+import { spendAlertRouter } from "@/src/ee/features/billing/server/spendAlertRouter";
 import { observationsRouter } from "@/src/server/api/routers/observations";
 import { sessionRouter } from "@/src/server/api/routers/sessions";
 import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter";
@@ -44,6 +46,7 @@ import { slackRouter } from "@/src/features/slack/server/router";
 import { plainRouter } from "@/src/features/support-chat/trpc/plainRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignments";
 import { surveysRouter } from "@/src/server/api/routers/surveys";
+import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 
 /**
  * This is the primary router for your server.
@@ -65,10 +68,12 @@ export const appRouter = createTRPCRouter({
   organizationApiKeys: organizationApiKeysRouter,
   projects: projectsRouter,
   users: userRouter,
+  userAccount: userAccountRouter,
   projectApiKeys: projectApiKeysRouter,
   members: membersRouter,
   datasets: datasetRouter,
   cloudBilling: cloudBillingRouter,
+  spendAlerts: spendAlertRouter,
   observations: observationsRouter,
   prompts: promptRouter,
   models: modelRouter,
@@ -96,6 +101,7 @@ export const appRouter = createTRPCRouter({
   slack: slackRouter,
   plainRouter: plainRouter,
   surveys: surveysRouter,
+  naturalLanguageFilters: naturalLanguageFilterRouter,
 });
 
 // export type definition of API
