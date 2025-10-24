@@ -22,7 +22,6 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
-  onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -30,7 +29,7 @@ const PAGE_SIZE = 10;
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId, onHasCommentDraftChange }) => {
+> = ({ item, data, configs, projectId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const [currentTraceIndex, setCurrentTraceIndex] = useState(1);
 
@@ -155,7 +154,6 @@ export const SessionAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
-      onHasCommentDraftChange={onHasCommentDraftChange}
     />
   );
 
