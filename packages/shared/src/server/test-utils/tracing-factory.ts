@@ -249,12 +249,12 @@ export const createEvent = (
     metadata: finalMetadata,
     metadata_names: metadataNames,
     metadata_values: metadataValues,
-    metadata_string_names: [],
-    metadata_string_values: [],
-    metadata_number_names: [],
-    metadata_number_values: [],
-    metadata_bool_names: [],
-    metadata_bool_values: [],
+    // metadata_string_names: [],
+    // metadata_string_values: [],
+    // metadata_number_names: [],
+    // metadata_number_values: [],
+    // metadata_bool_names: [],
+    // metadata_bool_values: [],
 
     // Source metadata (Instrumentation)
     source: "API",

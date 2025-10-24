@@ -273,7 +273,7 @@ function findOptimalExpansionLevel(
     }
 
     // Get all children for next level
-    const childRows: JsonTableRow[] = [];
+    let childRows: JsonTableRow[] = [];
 
     for (const row of rows) {
       if (row.hasChildren && row.rawChildData) {
@@ -290,7 +290,8 @@ function findOptimalExpansionLevel(
         visitedData.add(row.rawChildData);
 
         const children = getRowChildren(row);
-        childRows.push(...children);
+        // Use concat instead of spread to avoid stack overflow with large arrays
+        childRows = childRows.concat(children);
       }
     }
 

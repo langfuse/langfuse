@@ -6,7 +6,9 @@ export class UnrecoverableError extends Error {
 
     this.name = UnrecoverableErrorName;
 
-    Error.captureStackTrace(this);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this);
+    }
   }
 }
 

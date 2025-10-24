@@ -10,7 +10,7 @@ import {
   Prisma,
   CreateCommentData,
   DeleteCommentData,
-  extractMentionsFromMarkdown,
+  extractUniqueMentionedUserIds,
   sanitizeMentions,
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -22,7 +22,7 @@ import {
   NotificationQueue,
   QueueJobs,
 } from "@langfuse/shared/src/server";
-import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
+import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -48,13 +48,12 @@ export const commentsRouter = createTRPCRouter({
         }
 
         // Extract mentions from content (server-side, authoritative)
-        const mentionsInContent = extractMentionsFromMarkdown(input.content);
+        const mentionedUserIds = extractUniqueMentionedUserIds(input.content);
 
-        // Sanitize mentions and get valid user IDs
+        // Sanitize mentions
         let sanitizedContent = input.content;
-        let validMentionedUserIds: string[] = [];
 
-        if (mentionsInContent.length > 0) {
+        if (mentionedUserIds.length > 0) {
           // Check projectMembers:read permission if mentioning users
           throwIfNoProjectAccess({
             session: ctx.session,
@@ -73,9 +72,7 @@ export const commentsRouter = createTRPCRouter({
               {
                 column: "userId",
                 operator: "any of",
-                value: Array.from(
-                  new Set(mentionsInContent.map((m) => m.userId)),
-                ),
+                value: mentionedUserIds,
                 type: "stringOptions",
               },
             ],
@@ -88,7 +85,6 @@ export const commentsRouter = createTRPCRouter({
             projectMembers,
           );
           sanitizedContent = sanitizationResult.sanitizedContent;
-          validMentionedUserIds = sanitizationResult.validMentionedUserIds;
         }
 
         // Create comment with sanitized content
@@ -107,14 +103,11 @@ export const commentsRouter = createTRPCRouter({
           resourceType: "comment",
           resourceId: comment.id,
           action: "create",
-          after: {
-            ...comment,
-            mentionedUserIds: validMentionedUserIds,
-          },
+          after: comment,
         });
 
         // Enqueue notification job for mentioned users
-        if (validMentionedUserIds.length > 0) {
+        if (mentionedUserIds.length > 0) {
           const notificationQueue = NotificationQueue.getInstance();
           if (notificationQueue) {
             try {
@@ -125,12 +118,12 @@ export const commentsRouter = createTRPCRouter({
                   type: "COMMENT_MENTION" as const,
                   commentId: comment.id,
                   projectId: input.projectId,
-                  mentionedUserIds: validMentionedUserIds,
+                  mentionedUserIds: mentionedUserIds,
                 },
                 name: QueueJobs.NotificationJob,
               });
               logger.info(
-                `Notification job enqueued for comment ${comment.id} with ${validMentionedUserIds.length} mentions`,
+                `Notification job enqueued for comment ${comment.id} with ${mentionedUserIds.length} mentions`,
               );
             } catch (error) {
               // Log but don't fail the request if notification queueing fails

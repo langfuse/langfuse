@@ -90,6 +90,7 @@ model User {
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
+  notificationPreferences   NotificationPreference[]
 
   @@map("users")
 }
@@ -713,6 +714,7 @@ enum NotificationType {
 model NotificationPreference {
   id        String              @id @default(cuid())
   userId    String              @map("user_id")
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   projectId String              @map("project_id")
   project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -724,7 +726,6 @@ model NotificationPreference {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@unique([userId, projectId, channel, type])
-  @@index([userId, projectId])
   @@map("notification_preferences")
 }
 
