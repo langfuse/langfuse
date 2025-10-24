@@ -126,11 +126,10 @@ ORDER BY (
 -- Remove IF NOT EXISTS when moving this to prod migrations.
 CREATE TABLE IF NOT EXISTS events
   (
-      org_id String, -- TODO: Unsure about this one
       project_id String,
       trace_id String,
       span_id String,
-      parent_span_id Nullable(String),
+      parent_span_id String,
 
       start_time DateTime64(6),
       end_time Nullable(DateTime64(6)),
@@ -139,7 +138,7 @@ CREATE TABLE IF NOT EXISTS events
       name String,
       type LowCardinality(String),
       environment LowCardinality(String) DEFAULT 'default',
-      version Nullable(String),
+      version String,
 
       user_id String,
       session_id String,
@@ -159,15 +158,29 @@ CREATE TABLE IF NOT EXISTS events
       model_parameters Nullable(String),
 
       -- Usage
-      provided_usage_details Map(LowCardinality(String), UInt64),
-      usage_details Map(LowCardinality(String), UInt64),
-      provided_cost_details Map(LowCardinality(String), Decimal(18, 12)),
-      cost_details Map(LowCardinality(String), Decimal(18, 12)),
+      provided_usage_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
+      usage_details JSON(
+        max_dynamic_paths=64,
+        max_dynamic_types=8,
+        input UInt64,
+        output UInt64,
+        total UInt64,
+      ),
+      provided_cost_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
+      cost_details JSON(
+        max_dynamic_paths=64,
+        max_dynamic_types=8,
+        input Decimal(18,12),
+        output Decimal(18,12),
+        total Decimal(18,12),
+      ),
       total_cost Decimal(18,12), -- 0 if not provided
 
       -- I/O
       input String CODEC(ZSTD(3)),
+      input_truncated String MATERIALIZED leftUTF8(input, 5000),
       output String CODEC(ZSTD(3)),
+      output_truncated String MATERIALIZED leftUTF8(output, 5000),
 
       -- TODO Metadata: Decide for approach
       -- -- Approach 1: Use plain JSON type with default config
@@ -179,22 +192,30 @@ CREATE TABLE IF NOT EXISTS events
       -- -- Approach 3: 1:1 copy of https://www.uber.com/en-DE/blog/logging/
       -- --             May require further high-level types and lots of thought during
       -- --             write and query-time.
-      metadata_string_names Array(String),
-      metadata_string_values Array(String),
-      metadata_number_names Array(String),
-      metadata_number_values Array(Float64),
-      metadata_bool_names Array(String),
-      metadata_bool_values Array(UInt8),
+      -- -- metadata_string_names Array(String),
+      -- -- metadata_string_values Array(String),
+      -- -- metadata_number_names Array(String),
+      -- -- metadata_number_values Array(Float64),
+      -- -- metadata_bool_names Array(String),
+      -- -- metadata_bool_values Array(UInt8),
+      -- -- Approach 4: Apply German strings here, where we store a prefix and for longer values a pointer.
+      metadata_keys Array(String) MATERIALIZED metadata_names,
+      metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_values),
+      metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_values),
+      metadata_long_values Map(UInt32, String) MATERIALIZED mapFromArrays(
+        arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values)),
+        arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values))
+      ),
 
       -- Source metadata (Instrumentation)
       source LowCardinality(String),
-      service_name Nullable(String),
-      service_version Nullable(String),
-      scope_name Nullable(String),
-      scope_version Nullable(String),
-      telemetry_sdk_language Nullable(String),
-      telemetry_sdk_name Nullable(String),
-      telemetry_sdk_version Nullable(String),
+      service_name String,
+      service_version String,
+      scope_name String,
+      scope_version String,
+      telemetry_sdk_language LowCardinality(String),
+      telemetry_sdk_name String,
+      telemetry_sdk_version String,
 
       -- Generic props
       blob_storage_file_path String,
@@ -213,21 +234,27 @@ CREATE TABLE IF NOT EXISTS events
       INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
 
       -- Full Text Search Indexes (We should try different index sizes, e.g. 2048, 4096, or 8192)
-      INDEX idx_fts_input_1 input TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
-      INDEX idx_fts_input_2 input TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
-      INDEX idx_fts_input_4 input TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
-      INDEX idx_fts_input_8 input TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
+      -- Add after backfill as they limit backfill throughput performance
+      -- INDEX idx_fts_input_1 input TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
+      -- INDEX idx_fts_input_2 input TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
+      -- INDEX idx_fts_input_4 input TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
+      -- INDEX idx_fts_input_8 input TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
 
-      INDEX idx_fts_output_1 output TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
-      INDEX idx_fts_output_2 output TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
-      INDEX idx_fts_output_4 output TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
-      INDEX idx_fts_output_8 output TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
+      -- INDEX idx_fts_output_1 output TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
+      -- INDEX idx_fts_output_2 output TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
+      -- INDEX idx_fts_output_4 output TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
+      -- INDEX idx_fts_output_8 output TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
   )
   ENGINE = ReplacingMergeTree(event_ts, is_deleted)
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
   ORDER BY (project_id, toUnixTimestamp(start_time), xxHash32(trace_id), span_id)
-  SAMPLE BY xxHash32(trace_id);
+  SAMPLE BY xxHash32(trace_id)
+  SETTINGS
+    index_granularity = 8192,
+    index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
+    min_rows_for_wide_part = 0,
+    min_bytes_for_wide_part = 0;
 
 EOF
 
@@ -241,17 +268,16 @@ clickhouse client \
   --database="${CLICKHOUSE_DB}" \
   --multiquery <<EOF
   TRUNCATE events;
-  INSERT INTO events (org_id, project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
+  INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
                       environment, version, user_id, session_id, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details, total_cost, input,
-                      output, metadata, metadata_names, metadata_values, metadata_string_names, metadata_string_values,
-                      metadata_number_names, metadata_number_values, metadata_bool_names, metadata_bool_values, source,
-                      service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
+                      output, metadata, metadata_names, metadata_values,
+                      -- metadata_string_names, metadata_string_values, metadata_number_names, metadata_number_values, metadata_bool_names, metadata_bool_values,
+                      source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
                       telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_raw, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
-  SELECT concat('o', project_id)                                                       AS org_id,
-         project_id,
+  SELECT project_id,
          trace_id,
          id                                                                            AS span_id,
          parent_observation_id                                                         AS parent_span_id,
@@ -282,12 +308,12 @@ clickhouse client \
          CAST(metadata, 'JSON'),
          mapKeys(metadata)                                                             AS \`metadata.names\`,
          mapValues(metadata)                                                           AS \`metadata.values\`,
-         mapKeys(metadata)                                                             AS metadata_string_names,
-         mapValues(metadata)                                                           AS metadata_string_values,
-         []                                                                            AS metadata_number_names,
-         []                                                                            AS metadata_number_values,
-         []                                                                            AS metadata_bool_names,
-         []                                                                            AS metadata_bool_values,
+         -- mapKeys(metadata)                                                             AS metadata_string_names,
+         -- mapValues(metadata)                                                           AS metadata_string_values,
+         -- []                                                                            AS metadata_number_names,
+         -- []                                                                            AS metadata_number_values,
+         -- []                                                                            AS metadata_bool_names,
+         -- []                                                                            AS metadata_bool_values,
          multiIf(mapContains(metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
          NULL                                                                          AS service_name,
          NULL                                                                          AS service_version,

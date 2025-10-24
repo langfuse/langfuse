@@ -1677,7 +1677,7 @@ export const getObservationCountsByProjectAndDay = async ({
 };
 
 /**
- * Get total cost grouped by evaluator ID (job_configuration_id) for the last day.
+ * Get total cost grouped by evaluator ID (job_configuration_id) for the last week.
  *
  * @param projectId - Project ID
  * @param evaluatorIds - Array of evaluator IDs (job_configuration_id from metadata)
@@ -1696,7 +1696,7 @@ export const getCostByEvaluatorIds = async (
     FROM observations FINAL
     WHERE project_id = {projectId: String}
       AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
-      AND start_time > now() - INTERVAL 24 HOURS
+      AND start_time > today() - 7
     GROUP BY metadata['job_configuration_id']
   `;
 
