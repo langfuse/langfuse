@@ -67,6 +67,18 @@ const formatDatasetItemData = (data: string | null | undefined) => {
 };
 
 /**
+ * Adds a case-insensitive search condition to a Kysely query
+ * @param searchQuery The search term (optional)
+ * @returns The search condition
+ */
+const resolveSearchCondition = (searchQuery?: string | null) => {
+  if (!searchQuery || searchQuery.trim() === "") return Prisma.empty;
+
+  // Add case-insensitive search condition
+  return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
+};
+
+/**
  * Determines whether the given filters require Dataset Run Items (DRI) metrics from ClickHouse.
  *
  * @param filters - Array of filter conditions to evaluate
@@ -101,6 +113,7 @@ type GenerateDatasetQueryInput = {
   select: Prisma.Sql;
   projectId: string;
   pathFilter: Prisma.Sql;
+  searchFilter: Prisma.Sql;
   orderCondition?: Prisma.Sql;
   limit?: number;
   page?: number;
@@ -112,6 +125,7 @@ const generateDatasetQuery = ({
   projectId,
   pathFilter,
   orderCondition = Prisma.empty,
+  searchFilter = Prisma.empty,
   pathPrefix = "",
   limit = 1,
   page = 0,
@@ -123,6 +137,7 @@ const generateDatasetQuery = ({
    FROM datasets d
    WHERE d.project_id = ${projectId}
      ${pathFilter}
+     ${searchFilter}
   )`;
 
   // Common ORDER BY and LIMIT clauses
@@ -278,8 +293,9 @@ export const datasetRouter = createTRPCRouter({
           })()
         : Prisma.empty;
 
+      const searchFilter = resolveSearchCondition(input.searchQuery);
+
       // Query for dataset and count
-      // TODO: add orderByCondition and searchFilter
       const [datasets, datasetCount] = await Promise.all([
         // datasets
         ctx.prisma.$queryRaw<
@@ -304,12 +320,14 @@ export const datasetRouter = createTRPCRouter({
             page: input.page,
             pathFilter, // SQL WHERE clause: filters DB to only datasets in current folder, derived from prefix.
             pathPrefix: input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
+            searchFilter,
           }),
         ),
         // datasetCount
         ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
           generateDatasetQuery({
             select: Prisma.sql`count(*) AS "totalCount"`,
+            searchFilter,
             projectId: input.projectId,
             pathFilter,
             pathPrefix: input.pathPrefix,
