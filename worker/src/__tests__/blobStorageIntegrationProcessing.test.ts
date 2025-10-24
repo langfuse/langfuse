@@ -75,7 +75,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
     const now = new Date();
-    const threeHourAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
     // Create integration
     await prisma.blobStorageIntegration.create({
@@ -92,23 +93,25 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
         exportFrequency: "hourly",
-        nextSyncAt: threeHourAgo,
-        lastSyncAt: threeHourAgo,
+        nextSyncAt: twoHoursAgo,
+        lastSyncAt: twoHoursAgo,
       },
     });
 
-    // Create test data
+    // Create test data within the export window (2 hours ago to 1 hour ago)
+    // With 30-min lag buffer, actual window is 2h ago to (1h ago or now-30min, whichever is earlier)
     const traceId = randomUUID();
     const observationId = randomUUID();
     const scoreId = randomUUID();
 
     // Create trace, observation, and score in Clickhouse
+    // Data is at 90 minutes ago, which falls within the chunked export window
     await Promise.all([
       createTracesCh([
         createTrace({
           id: traceId,
           project_id: projectId,
-          timestamp: now.getTime() - 40 * 60 * 1000, // 40 min before now
+          timestamp: now.getTime() - 90 * 60 * 1000, // 90 min before now
           name: "Test Trace",
         }),
       ]),
@@ -117,7 +120,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           id: observationId,
           trace_id: traceId,
           project_id: projectId,
-          start_time: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          start_time: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
           name: "Test Observation",
         }),
       ]),
@@ -126,7 +129,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           id: scoreId,
           trace_id: traceId,
           project_id: projectId,
-          timestamp: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
           name: "Test Score",
           value: 0.95,
         }),
@@ -183,7 +186,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     if (updatedIntegration?.lastSyncAt && updatedIntegration?.nextSyncAt) {
       expect(updatedIntegration.lastSyncAt.getTime()).toBeGreaterThan(
-        threeHourAgo.getTime(),
+        twoHoursAgo.getTime(),
       );
       expect(updatedIntegration.nextSyncAt.getTime()).toBeGreaterThan(
         now.getTime(),
@@ -557,9 +560,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const now = new Date();
       const customDate = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12 hours ago
       const beforeCustomDate = new Date(customDate.getTime() - 60 * 60 * 1000); // 13 hours ago
-      const afterCustomDate = new Date(
-        customDate.getTime() + 2 * 60 * 60 * 1000,
-      ); // 10 hours ago (safe margin)
+      // With chunking, first export covers customDate to customDate + 1 hour
+      // So we need data within that first hour window
+      const afterCustomDate = new Date(customDate.getTime() + 30 * 60 * 1000); // 30 minutes after custom date
 
       // Create traces before and after custom date
       const oldTrace = createTrace({
@@ -610,6 +613,319 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         const content = await storageService.download(traceFile.file);
         expect(content).not.toContain(oldTrace.id);
         expect(content).toContain(recentTrace.id);
+      }
+    });
+  });
+
+  describe("Chunked historic exports", () => {
+    it("should cap maxTimestamp to one frequency period ahead for FULL_HISTORY mode", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const veryOldTimestamp = new Date(
+        now.getTime() - 7 * 24 * 60 * 60 * 1000,
+      ); // 7 days ago
+
+      // Create trace from 7 days ago
+      const oldTrace = createTrace({
+        project_id: projectId,
+        timestamp: veryOldTimestamp.getTime(),
+        name: "Old Trace",
+      });
+      await createTracesCh([oldTrace]);
+
+      // Create integration with FULL_HISTORY and hourly frequency (first export)
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-chunking/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportMode: "FULL_HISTORY",
+          exportStartDate: null,
+          lastSyncAt: null,
+        },
+      });
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration).toBeDefined();
+      if (!updatedIntegration?.lastSyncAt) {
+        expect.fail("lastSyncAt should be set");
+      }
+
+      // lastSyncAt should be capped to 1 hour after epoch (not 7 days)
+      const expectedMaxTimestamp = new Date(0 + 60 * 60 * 1000); // epoch + 1 hour
+      const tolerance = 1000; // 1 second tolerance
+
+      expect(
+        Math.abs(
+          updatedIntegration.lastSyncAt.getTime() -
+            expectedMaxTimestamp.getTime(),
+        ),
+      ).toBeLessThan(tolerance);
+    });
+
+    it("should immediately schedule next chunk when in catch-up mode", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+
+      // Create traces over 2 days
+      const trace1 = createTrace({
+        project_id: projectId,
+        timestamp: twoDaysAgo.getTime(),
+        name: "Old Trace 1",
+      });
+      const trace2 = createTrace({
+        project_id: projectId,
+        timestamp: twoDaysAgo.getTime() + 60 * 60 * 1000, // 1 hour later
+        name: "Old Trace 2",
+      });
+      await createTracesCh([trace1, trace2]);
+
+      // Create integration with hourly frequency starting 2 days ago
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-catchup/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          lastSyncAt: twoDaysAgo, // Start from 2 days ago
+        },
+      });
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration).toBeDefined();
+      if (!updatedIntegration?.nextSyncAt) {
+        expect.fail("nextSyncAt should be set");
+      }
+
+      // nextSyncAt should be immediate (within a few seconds of now)
+      const timeDiff = Math.abs(
+        updatedIntegration.nextSyncAt.getTime() - now.getTime(),
+      );
+      expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
+    });
+
+    it("should schedule normally when caught up", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      // Create recent trace
+      const trace = createTrace({
+        project_id: projectId,
+        timestamp: now.getTime() - 40 * 60 * 1000, // 40 minutes ago
+        name: "Recent Trace",
+      });
+      await createTracesCh([trace]);
+
+      // Create integration with lastSyncAt 1 hour ago (within normal range)
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-caught-up/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          lastSyncAt: oneHourAgo,
+        },
+      });
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration).toBeDefined();
+      if (!updatedIntegration?.nextSyncAt || !updatedIntegration?.lastSyncAt) {
+        expect.fail("nextSyncAt and lastSyncAt should be set");
+      }
+
+      // nextSyncAt should be 1 hour after lastSyncAt (normal scheduling)
+      const expectedNextSync = new Date(
+        updatedIntegration.lastSyncAt.getTime() + 60 * 60 * 1000,
+      );
+      const tolerance = 1000; // 1 second tolerance
+
+      expect(
+        Math.abs(
+          updatedIntegration.nextSyncAt.getTime() - expectedNextSync.getTime(),
+        ),
+      ).toBeLessThan(tolerance);
+
+      // nextSyncAt should be in the future
+      expect(updatedIntegration.nextSyncAt.getTime()).toBeGreaterThan(
+        now.getTime(),
+      );
+    });
+
+    it("should skip export when time window is empty", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const futureTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour in future
+
+      // Create integration with lastSyncAt in the future (edge case)
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-empty-window/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          lastSyncAt: futureTime,
+        },
+      });
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then - no files should be created
+      const files = await storageService.listFiles(
+        `${projectId}/test-empty-window/`,
+      );
+      expect(files).toHaveLength(0);
+
+      // Integration should not be updated
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration?.lastSyncAt?.getTime()).toBe(
+        futureTime.getTime(),
+      );
+    });
+
+    it("should correctly chunk daily frequency exports", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const now = new Date();
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+      // Create trace from 3 days ago
+      const trace = createTrace({
+        project_id: projectId,
+        timestamp: threeDaysAgo.getTime() + 12 * 60 * 60 * 1000, // 3 days ago + 12 hours
+        name: "Old Trace",
+      });
+      await createTracesCh([trace]);
+
+      // Create integration with daily frequency starting 3 days ago
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: `${projectId}/test-daily-chunking/`,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          lastSyncAt: threeDaysAgo,
+        },
+      });
+
+      // When
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      // Then
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration).toBeDefined();
+      if (!updatedIntegration?.lastSyncAt) {
+        expect.fail("lastSyncAt should be set");
+      }
+
+      // lastSyncAt should be capped to 1 day after the start (not 3 days)
+      const expectedMaxTimestamp = new Date(
+        threeDaysAgo.getTime() + 24 * 60 * 60 * 1000,
+      );
+      const tolerance = 1000; // 1 second tolerance
+
+      expect(
+        Math.abs(
+          updatedIntegration.lastSyncAt.getTime() -
+            expectedMaxTimestamp.getTime(),
+        ),
+      ).toBeLessThan(tolerance);
+
+      // Should still be in catch-up mode (nextSyncAt is immediate)
+      if (updatedIntegration?.nextSyncAt) {
+        const timeDiff = Math.abs(
+          updatedIntegration.nextSyncAt.getTime() - now.getTime(),
+        );
+        expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
       }
     });
   });
