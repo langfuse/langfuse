@@ -121,7 +121,7 @@
     "langchain": "^0.3.30",
     "langfuse": "3.38.4",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.462.0",
+    "lucide-react": "^0.542.0",
     "nanoid": "^3.3.8",
     "next": "15.5.4",
     "next-auth": "^4.24.11",
