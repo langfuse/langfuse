@@ -19,17 +19,19 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import { Edit, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { scoreConfigsFilterCols } from "@/src/server/api/definitions/scoreConfigsTable";
+import { ArchiveScoreConfigButton } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
+import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ArchiveScoreConfigButton } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
-import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -89,11 +91,18 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     "s",
   );
 
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "score_configs",
+    projectId,
+  );
+
   const configs = api.scoreConfigs.all.useQuery(
     {
       projectId,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
+      filter: filterState,
     },
     { enabled: hasAccess },
   );
@@ -232,6 +241,9 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        filterColumnDefinition={scoreConfigsFilterCols}
         actionButtons={
           <UpsertScoreConfigDialog
             key="new-config-dialog"
