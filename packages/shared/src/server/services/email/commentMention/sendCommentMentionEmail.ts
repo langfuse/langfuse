@@ -4,6 +4,7 @@ import { render } from "@react-email/render";
 
 import { CommentMentionEmailTemplate } from "./CommentMentionEmailTemplate";
 import { logger } from "../../../logger";
+import { sanitizeEmailSubject } from "../../../../utils/zod";
 
 type SendCommentMentionEmailParams = {
   env: Partial<
@@ -47,13 +48,17 @@ export const sendCommentMentionEmail = async ({
       }),
     );
 
+    // Sanitize authorName and projectName to prevent email header injection attacks
+    const safeAuthorName = sanitizeEmailSubject(authorName);
+    const safeProjectName = sanitizeEmailSubject(projectName);
+
     await mailer.sendMail({
       to: mentionedUserEmail,
       from: {
         address: env.EMAIL_FROM_ADDRESS,
         name: "Langfuse",
       },
-      subject: `${authorName} mentioned you in project ${projectName}`,
+      subject: `${safeAuthorName} mentioned you in project ${safeProjectName}`,
       html: htmlTemplate,
     });
 
