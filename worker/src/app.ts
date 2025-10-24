@@ -26,6 +26,7 @@ import {
   DataRetentionQueue,
   MeteringDataPostgresExportQueue,
   PostHogIntegrationQueue,
+  MixpanelIntegrationQueue,
   QueueName,
   logger,
   BlobStorageIntegrationQueue,
@@ -48,6 +49,10 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import {
+  mixpanelIntegrationProcessingProcessor,
+  mixpanelIntegrationProcessor,
+} from "./queues/mixpanelIntegrationQueue";
 import {
   blobStorageIntegrationProcessingProcessor,
   blobStorageIntegrationProcessor,
@@ -377,6 +382,32 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       concurrency: 1,
       limiter: {
         // Process at most one PostHog job globally per 10s.
+        max: 1,
+        duration: 10_000,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  MixpanelIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationQueue,
+    mixpanelIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationProcessingQueue,
+    mixpanelIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most one Mixpanel job globally per 10s.
         max: 1,
         duration: 10_000,
       },

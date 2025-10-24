@@ -99,7 +99,11 @@ const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
-  integrations: ["posthog_form_submitted", "blob_storage_form_submitted"],
+  integrations: [
+    "posthog_form_submitted",
+    "blob_storage_form_submitted",
+    "mixpanel_form_submitted",
+  ],
   sign_in: ["cloud_region_switch", "button_click"],
   auth: ["reset_password_email_requested", "update_password_form_submit"],
   playground: [
