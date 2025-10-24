@@ -5,11 +5,17 @@ import Header from "@/src/components/layouts/header";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Label } from "@/src/components/ui/label";
 import { Switch } from "@/src/components/ui/switch";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function NotificationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [isSaving, setIsSaving] = useState(false);
+
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "project:read",
+  });
 
   const {
     data: preferences,
@@ -87,7 +93,7 @@ export function NotificationSettings() {
                 id="comment-mention"
                 checked={emailCommentMention?.enabled ?? true}
                 onCheckedChange={handleToggle}
-                disabled={isSaving}
+                disabled={isSaving || !hasAccess}
               />
             </div>
           </div>
