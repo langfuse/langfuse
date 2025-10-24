@@ -706,6 +706,15 @@ export default function SessionsTable({
                 tableName={BatchExportTableName.Sessions}
               />
             ) : null,
+            <BatchExportTableButton
+              {...{
+                projectId,
+                filterState: backendFilterState,
+                orderByState,
+              }}
+              tableName={BatchExportTableName.Sessions}
+              key="batchExport"
+            />,
           ]}
           columns={columns}
           columnVisibility={columnVisibility}

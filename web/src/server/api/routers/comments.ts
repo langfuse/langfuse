@@ -207,7 +207,7 @@ export const commentsRouter = createTRPCRouter({
             objectType: input.objectType,
           },
         });
-        return new Map([[input.objectId, commentCount]]);
+        return { [input.objectId]: commentCount };
       } catch (error) {
         logger.error("Failed to call comments.getCountByObjectId", error);
         if (error instanceof TRPCError) {
@@ -246,7 +246,7 @@ export const commentsRouter = createTRPCRouter({
           },
         });
 
-        return new Map(
+        return Object.fromEntries(
           commentCounts.map(({ objectId, _count }) => [
             objectId,
             _count.objectId,
@@ -294,7 +294,7 @@ export const commentsRouter = createTRPCRouter({
         `;
 
         const traceIds = new Set(clickhouseTraces.map((t) => t.id));
-        return new Map(
+        return Object.fromEntries(
           allTraceCommentCounts
             .filter((c) => traceIds.has(c.objectId))
             .map(({ objectId, count }) => [objectId, Number(count)]),
@@ -333,7 +333,7 @@ export const commentsRouter = createTRPCRouter({
         const traceIds = clickhouseTraces.map((t) => t.id);
 
         if (traceIds.length === 0) {
-          return new Map();
+          return {};
         }
 
         // Fetch all comments for the traces
@@ -400,12 +400,12 @@ export const commentsRouter = createTRPCRouter({
         });
 
         // Group comments by trace ID
-        const commentsByTrace = new Map<string, typeof enrichedComments>();
+        const commentsByTrace: Record<string, typeof enrichedComments> = {};
         for (const comment of enrichedComments) {
-          if (!commentsByTrace.has(comment.objectId)) {
-            commentsByTrace.set(comment.objectId, []);
+          if (!commentsByTrace[comment.objectId]) {
+            commentsByTrace[comment.objectId] = [];
           }
-          commentsByTrace.get(comment.objectId)!.push(comment);
+          commentsByTrace[comment.objectId].push(comment);
         }
 
         return commentsByTrace;

@@ -9,6 +9,7 @@ import {
   ScoreDataType,
   isPresent,
 } from "@langfuse/shared";
+import { TraceDomain, ScoreDomain } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   FullObservationsWithScores,
@@ -30,7 +31,10 @@ import {
 import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";
-import { fetchCommentsForExport } from "./fetchCommentsForExport";
+import {
+  fetchCommentsForExport,
+  type ExportComment,
+} from "./fetchCommentsForExport";
 
 const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -251,9 +255,9 @@ export const getDatabaseReadStreamPaginated = async ({
           const allTraceIds = sessions.flatMap((s) => s.trace_ids);
 
           // Fetch trace data, scores, and comments if there are any traces
-          let tracesData: any[] = [];
-          let scoresData: any[] = [];
-          let traceComments = new Map<string, any[]>();
+          let tracesData: TraceDomain[] = [];
+          let scoresData: ScoreDomain[] = [];
+          let traceComments = new Map<string, ExportComment[]>();
 
           if (allTraceIds.length > 0) {
             const minTimestamp = sessions.reduce(
@@ -613,7 +617,7 @@ export const getDatabaseReadStreamPaginated = async ({
               updated_at: Date;
             }>
           >`
-            SELECT 
+            SELECT
               di.id,
               di.project_id,
               di.dataset_id,
@@ -626,7 +630,7 @@ export const getDatabaseReadStreamPaginated = async ({
               di.source_observation_id,
               di.created_at,
               di.updated_at
-            FROM dataset_items di 
+            FROM dataset_items di
               JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id
             WHERE di.project_id = ${projectId}
             AND di.created_at < ${cutoffCreatedAt}

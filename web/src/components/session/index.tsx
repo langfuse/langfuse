@@ -186,7 +186,7 @@ export const SessionPage: React.FC<{
           ...session.data,
           traces: session.data.traces.map((trace) => ({
             ...trace,
-            comments: traceCommentsData.get(trace.id) ?? [],
+            comments: traceCommentsData[trace.id] ?? [],
           })),
         }
       : session.data;
