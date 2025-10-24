@@ -14,6 +14,81 @@ import {
   getTracesIdentifierForSession,
   logger,
 } from "@langfuse/shared/src/server";
+import { type PrismaClient } from "@prisma/client";
+
+/**
+ * Enriched comment with user information
+ */
+type EnrichedComment = {
+  id: string;
+  objectId: string;
+  content: string;
+  createdAt: Date;
+  authorUserId: string | null;
+  authorUserImage: string | null;
+  authorUserName: string | null;
+  authorUserEmail: string | null;
+};
+
+/**
+ * Fetches comments with enriched user information for a given project and object type.
+ * User information is scoped to users who have access to the project via:
+ * - Organization membership (org-level access), OR
+ * - Project membership (project-specific access)
+ *
+ * @param prisma - Prisma client instance
+ * @param projectId - Project ID to filter comments
+ * @param objectType - Type of object (TRACE, OBSERVATION, SESSION, PROMPT)
+ * @param objectIds - Array of object IDs to fetch comments for
+ * @returns Array of enriched comments with user information
+ */
+async function fetchCommentsWithUserInfo(
+  prisma: PrismaClient,
+  projectId: string,
+  objectType: CommentObjectType,
+  objectIds: string[],
+): Promise<EnrichedComment[]> {
+  if (objectIds.length === 0) {
+    return [];
+  }
+
+  return prisma.$queryRaw<EnrichedComment[]>(
+    Prisma.sql`
+      SELECT
+        c.id,
+        c.object_id AS "objectId",
+        c.content,
+        c.created_at AS "createdAt",
+        u.id AS "authorUserId",
+        u.image AS "authorUserImage",
+        u.name AS "authorUserName",
+        u.email AS "authorUserEmail"
+      FROM comments c
+      LEFT JOIN users u ON u.id = c.author_user_id
+        AND (
+          -- User has organization-level access to this project
+          u.id IN (
+            SELECT om.user_id
+            FROM organization_memberships om
+            INNER JOIN projects p ON p.org_id = om.org_id
+            WHERE p.id = ${projectId}
+          )
+          -- OR user has project-specific access
+          OR u.id IN (
+            SELECT user_id
+            FROM project_memberships
+            WHERE project_id = ${projectId}
+          )
+        )
+      WHERE
+        c."project_id" = ${projectId}
+        AND c."object_type"::text = ${objectType}
+        AND c."object_id" = ANY(${objectIds}::text[])
+      ORDER BY
+        c.created_at ASC
+    `,
+  );
+}
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -143,36 +218,17 @@ export const commentsRouter = createTRPCRouter({
           scope: "comments:read",
         });
 
-        const comments = await ctx.prisma.$queryRaw<
-          Array<{
-            id: string;
-            content: string;
-            createdAt: Date;
-            authorUserId: string | null;
-            authorUserImage: string | null;
-            authorUserName: string | null;
-          }>
-        >(
-          Prisma.sql`
-        SELECT
-          c.id, 
-          c.content, 
-          c.created_at AS "createdAt",
-          u.id AS "authorUserId",
-          u.image AS "authorUserImage", 
-          u.name AS "authorUserName"
-        FROM comments c
-        LEFT JOIN users u ON u.id = c.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
-        WHERE 
-          c."project_id" = ${input.projectId}
-          AND c."object_id" = ${input.objectId}
-          AND c."object_type"::text = ${input.objectType}
-        ORDER BY 
-          c.created_at DESC
-        `,
+        const comments = await fetchCommentsWithUserInfo(
+          ctx.prisma,
+          input.projectId,
+          input.objectType,
+          [input.objectId],
         );
 
-        return comments;
+        // Sort by createdAt DESC for single object view
+        return comments.sort(
+          (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+        );
       } catch (error) {
         logger.error("Failed to call comments.getByObjectId", error);
         if (error instanceof TRPCError) {
@@ -336,68 +392,13 @@ export const commentsRouter = createTRPCRouter({
           return {};
         }
 
-        // Fetch all comments for the traces
-        const allTraceComments = await ctx.prisma.comment.findMany({
-          where: {
-            projectId: input.projectId,
-            objectType: "TRACE",
-            objectId: { in: traceIds },
-          },
-          select: {
-            id: true,
-            objectId: true,
-            content: true,
-            authorUserId: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "asc" },
-        });
-
-        // Get unique author user IDs
-        const authorUserIds = [
-          ...new Set(
-            allTraceComments
-              .map((c) => c.authorUserId)
-              .filter((id): id is string => id !== null),
-          ),
-        ];
-
-        // Fetch user information for authors (only users in the same organization)
-        const users = await ctx.prisma.user.findMany({
-          where: {
-            id: { in: authorUserIds },
-            organizationMemberships: {
-              some: {
-                orgId: ctx.session.orgId,
-              },
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            image: true,
-          },
-        });
-
-        // Create a map of userId -> user info
-        const userMap = new Map(users.map((u) => [u.id, u]));
-
-        // Enrich comments with user information
-        const enrichedComments = allTraceComments.map((comment) => {
-          const user = comment.authorUserId
-            ? userMap.get(comment.authorUserId)
-            : null;
-
-          return {
-            id: comment.id,
-            objectId: comment.objectId,
-            content: comment.content,
-            createdAt: comment.createdAt,
-            authorUserId: comment.authorUserId,
-            authorUserImage: user?.image ?? null,
-            authorUserName: user?.name ?? null,
-          };
-        });
+        // Fetch all comments for the traces with user information
+        const enrichedComments = await fetchCommentsWithUserInfo(
+          ctx.prisma,
+          input.projectId,
+          "TRACE",
+          traceIds,
+        );
 
         // Group comments by trace ID
         const commentsByTrace: Record<string, typeof enrichedComments> = {};
