@@ -22,14 +22,18 @@ export async function handleCommentMentionNotification(
   );
 
   try {
-    // Fetch comment details with author and project information
-    const comment = await prisma.comment.findUnique({
-      where: { id: commentId },
+    // CRITICAL: Always include projectId in query to prevent cross-project data leakage
+    const comment = await prisma.comment.findFirst({
+      where: {
+        id: commentId,
+        projectId: projectId, // Must match projectId from payload
+      },
       include: {
         project: {
           select: {
             id: true,
             name: true,
+            orgId: true,
           },
         },
       },
@@ -37,23 +41,62 @@ export async function handleCommentMentionNotification(
 
     if (!comment) {
       logger.warn(
-        `Comment ${commentId} not found. Skipping notification processing.`,
+        `Comment ${commentId} not found in project ${projectId}. Skipping notification processing.`,
       );
       return;
     }
 
-    // Fetch author information
-    const author = comment.authorUserId
-      ? await prisma.user.findUnique({
+    // Fetch author information - validate they're in the same project to prevent cross-project data leakage
+    // authorName will be undefined if author was deleted or is not a project/org member
+    let authorName: string | undefined = undefined;
+    if (comment.authorUserId) {
+      // Verify author is a member of this project via project membership or org membership
+      const authorProjectMembership = await prisma.projectMembership.findUnique(
+        {
+          where: {
+            projectId_userId: {
+              projectId: projectId,
+              userId: comment.authorUserId,
+            },
+          },
+        },
+      );
+
+      if (authorProjectMembership) {
+        // Author is a project member, safe to fetch their info
+        const author = await prisma.user.findUnique({
           where: { id: comment.authorUserId },
           select: {
             name: true,
             email: true,
           },
-        })
-      : null;
+        });
+        authorName = author?.name ?? author?.email ?? undefined;
+      } else {
+        // Check if author is org member (indirect project access)
+        const authorOrgMembership =
+          await prisma.organizationMembership.findUnique({
+            where: {
+              orgId_userId: {
+                orgId: comment.project.orgId, // orgId from comment.project join
+                userId: comment.authorUserId,
+              },
+            },
+          });
 
-    const authorName = author?.name ?? author?.email ?? "A team member";
+        if (authorOrgMembership) {
+          const author = await prisma.user.findUnique({
+            where: { id: comment.authorUserId },
+            select: {
+              name: true,
+              email: true,
+            },
+          });
+          authorName = author?.name ?? author?.email ?? undefined;
+        }
+        // If neither project nor org member, authorName remains undefined
+      }
+    }
 
     // Process each mentioned user
     for (const userId of mentionedUserIds) {

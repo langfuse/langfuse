@@ -12,7 +12,7 @@ type SendCommentMentionEmailParams = {
   >;
   mentionedUserName: string;
   mentionedUserEmail: string;
-  authorName: string;
+  authorName?: string; // Optional - undefined if author deleted or not project member
   projectName: string;
   commentPreview: string;
   commentLink: string;
@@ -49,8 +49,14 @@ export const sendCommentMentionEmail = async ({
     );
 
     // Sanitize authorName and projectName to prevent email header injection attacks
-    const safeAuthorName = sanitizeEmailSubject(authorName);
     const safeProjectName = sanitizeEmailSubject(projectName);
+    const safeAuthorName = authorName
+      ? sanitizeEmailSubject(authorName)
+      : undefined;
+
+    const subject = safeAuthorName
+      ? `${safeAuthorName} mentioned you in project ${safeProjectName}`
+      : `You were mentioned in a comment in project ${safeProjectName}`;
 
     await mailer.sendMail({
       to: mentionedUserEmail,
@@ -58,7 +64,7 @@ export const sendCommentMentionEmail = async ({
         address: env.EMAIL_FROM_ADDRESS,
         name: "Langfuse",
       },
-      subject: `${safeAuthorName} mentioned you in project ${safeProjectName}`,
+      subject,
       html: htmlTemplate,
     });
 
