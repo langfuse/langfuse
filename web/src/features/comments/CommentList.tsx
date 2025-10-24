@@ -66,7 +66,6 @@ export function CommentList({
   const session = useSession();
   const router = useRouter();
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [textareaValue, setTextareaValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -120,7 +119,6 @@ export function CommentList({
 
   useEffect(() => {
     form.reset({ content: "", projectId, objectId, objectType });
-    setTextareaValue("");
     setSearchQuery(""); // Reset search when switching objects
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectId, objectType]);
@@ -302,13 +300,29 @@ export function CommentList({
     }));
   }, [comments.data]);
 
+  // Helper function to strip markdown formatting for search
+  const stripMarkdown = (text: string): string => {
+    return text
+      .replace(/!\[.*?\]\(.*?\)/g, "") // Remove images
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Convert links to text
+      .replace(/[*_~`#]/g, "") // Remove formatting characters
+      .replace(/^>\s+/gm, "") // Remove blockquotes
+      .replace(/^[-*+]\s+/gm, "") // Remove list markers
+      .replace(/^\d+\.\s+/gm, "") // Remove numbered list markers
+      .replace(/\n+/g, " ") // Replace newlines with spaces
+      .trim();
+  };
+
   // Client-side filtering based on search query
   const filteredComments = useMemo(() => {
-    if (!searchQuery.trim()) return commentsWithFormattedTimestamp;
+    if (!searchQuery.trim()) {
+      return commentsWithFormattedTimestamp;
+    }
 
     const query = searchQuery.toLowerCase();
     return commentsWithFormattedTimestamp?.filter((comment) => {
-      const contentMatch = comment.content.toLowerCase().includes(query);
+      const strippedContent = stripMarkdown(comment.content).toLowerCase();
+      const contentMatch = strippedContent.includes(query);
       const authorMatch = (comment.authorUserName || comment.authorUserId || "")
         .toLowerCase()
         .includes(query);
