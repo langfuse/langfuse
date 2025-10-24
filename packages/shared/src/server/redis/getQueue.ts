@@ -12,6 +12,8 @@ import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
+import { MixpanelIntegrationQueue } from "./mixpanelIntegrationQueue";
+import { MixpanelIntegrationProcessingQueue } from "./mixpanelIntegrationProcessingQueue";
 import { BlobStorageIntegrationQueue } from "./blobStorageIntegrationQueue";
 import { BlobStorageIntegrationProcessingQueue } from "./blobStorageIntegrationProcessingQueue";
 import { CoreDataS3ExportQueue } from "./coreDataS3ExportQueue";
@@ -62,6 +64,10 @@ export function getQueue(
       return PostHogIntegrationQueue.getInstance();
     case QueueName.PostHogIntegrationProcessingQueue:
       return PostHogIntegrationProcessingQueue.getInstance();
+    case QueueName.MixpanelIntegrationQueue:
+      return MixpanelIntegrationQueue.getInstance();
+    case QueueName.MixpanelIntegrationProcessingQueue:
+      return MixpanelIntegrationProcessingQueue.getInstance();
     case QueueName.BlobStorageIntegrationQueue:
       return BlobStorageIntegrationQueue.getInstance();
     case QueueName.BlobStorageIntegrationProcessingQueue:
