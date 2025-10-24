@@ -4,8 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { TRPCError } from "@trpc/server";
-import { logger } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 // Currently only EMAIL and COMMENT_MENTION are supported
 // Future channels: IN_APP, SLACK
@@ -28,109 +27,92 @@ export const notificationPreferencesRouter = createTRPCRouter({
   getForProject: protectedProjectProcedure
     .input(GetPreferencesInput)
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "project:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:read",
+      });
 
-        const userId = ctx.session.user.id;
+      const userId = ctx.session.user.id;
 
-        // Fetch all preferences for this user and project
-        const preferences = await ctx.prisma.notificationPreference.findMany({
-          where: {
+      // Fetch the EMAIL + COMMENT_MENTION preference
+      const preference = await ctx.prisma.notificationPreference.findUnique({
+        where: {
+          userId_projectId_channel_type: {
             userId,
             projectId: input.projectId,
+            channel: "EMAIL",
+            type: "COMMENT_MENTION",
           },
-        });
+        },
+      });
 
-        // Create a map for quick lookup
-        const preferencesMap = new Map(
-          preferences.map((p) => [`${p.channel}:${p.type}`, p.enabled]),
-        );
+      // Return as array to maintain consistent API shape for future expansion
+      const allPreferences = [
+        {
+          channel: "EMAIL" as const,
+          type: "COMMENT_MENTION" as const,
+          enabled: preference?.enabled ?? true, // Default: enabled
+        },
+      ];
 
-        // Return all possible combinations with defaults
-        // For MVP, we only show EMAIL + COMMENT_MENTION, but structure supports future expansion
-        const allPreferences = [
-          {
-            channel: "EMAIL" as const,
-            type: "COMMENT_MENTION" as const,
-            enabled:
-              preferencesMap.get("EMAIL:COMMENT_MENTION") !== undefined
-                ? preferencesMap.get("EMAIL:COMMENT_MENTION")!
-                : true, // Default: enabled
-          },
-          // Future preferences can be added here
-          // {
-          //   channel: "EMAIL" as const,
-          //   type: "COMMENT_REPLY" as const,
-          //   enabled: preferencesMap.get("EMAIL:COMMENT_REPLY") ?? true,
-          // },
-        ];
-
-        return allPreferences;
-      } catch (error) {
-        logger.error("Failed to fetch notification preferences", error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to fetch notification preferences.",
-        });
-      }
+      return allPreferences;
     }),
 
   update: protectedProjectProcedure
     .input(NotificationPreferenceInput)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "project:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:read",
+      });
 
-        const userId = ctx.session.user.id;
+      const userId = ctx.session.user.id;
 
-        // Upsert the preference
-        const preference = await ctx.prisma.notificationPreference.upsert({
-          where: {
-            userId_projectId_channel_type: {
-              userId,
-              projectId: input.projectId,
-              channel: input.channel,
-              type: input.type,
-            },
-          },
-          update: {
-            enabled: input.enabled,
-            updatedAt: new Date(),
-          },
-          create: {
+      // Fetch existing preference for audit log
+      const before = await ctx.prisma.notificationPreference.findUnique({
+        where: {
+          userId_projectId_channel_type: {
             userId,
             projectId: input.projectId,
             channel: input.channel,
             type: input.type,
-            enabled: input.enabled,
           },
-        });
+        },
+      });
 
-        logger.info(
-          `Updated notification preference for user ${userId} in project ${input.projectId}: ${input.channel}:${input.type} = ${input.enabled}`,
-        );
+      // Upsert the preference
+      const preference = await ctx.prisma.notificationPreference.upsert({
+        where: {
+          userId_projectId_channel_type: {
+            userId,
+            projectId: input.projectId,
+            channel: input.channel,
+            type: input.type,
+          },
+        },
+        update: {
+          enabled: input.enabled,
+        },
+        create: {
+          userId,
+          projectId: input.projectId,
+          channel: input.channel,
+          type: input.type,
+          enabled: input.enabled,
+        },
+      });
 
-        return preference;
-      } catch (error) {
-        logger.error("Failed to update notification preference", error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to update notification preference.",
-        });
-      }
+      await auditLog({
+        session: ctx.session,
+        resourceType: "notificationPreference",
+        resourceId: preference.id,
+        action: before ? "update" : "create",
+        before: before ?? undefined,
+        after: preference,
+      });
+
+      return preference;
     }),
 });

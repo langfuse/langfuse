@@ -20,47 +20,34 @@ const MENTION_REGEX = new RegExp(
   "gi",
 );
 
-export interface ParsedMention {
-  userId: string;
-  displayName: string;
-}
-
 /**
- * Extract mentions from markdown content
- * @param content - Markdown string with embedded mentions
- * @returns Array of unique mentioned users
+ * Extract unique mentioned user IDs from markdown content
+ * @param content - Markdown string with embedded mentions in format @[Display Name](user:userId)
+ * @returns Array of unique user IDs (deduplicated, order preserved, max 50 mentions)
  */
-export function extractMentionsFromMarkdown(content: string): ParsedMention[] {
-  const mentions: ParsedMention[] = [];
+export function extractUniqueMentionedUserIds(content: string): string[] {
+  const userIds: string[] = [];
   const seen = new Set<string>();
 
-  // Reset regex lastIndex
+  // Reset regex lastIndex to ensure clean state
   MENTION_REGEX.lastIndex = 0;
 
   let match;
   while ((match = MENTION_REGEX.exec(content)) !== null) {
     // Prevent excessive mentions (spam/abuse protection)
-    if (mentions.length >= MAX_MENTIONS_PER_COMMENT) {
+    if (userIds.length >= MAX_MENTIONS_PER_COMMENT) {
       break;
     }
 
-    const displayName = match[1];
-    const userId = match[2];
+    const userId = match[2]; // Extract userId from capture group
 
-    if (displayName && userId && !seen.has(userId)) {
-      mentions.push({ userId, displayName });
+    if (userId && !seen.has(userId)) {
+      userIds.push(userId);
       seen.add(userId);
     }
   }
 
-  return mentions;
-}
-
-/**
- * Extract just user IDs for simpler validation
- */
-export function extractMentionedUserIds(content: string): string[] {
-  return extractMentionsFromMarkdown(content).map((m) => m.userId);
+  return userIds;
 }
 
 export interface ProjectMember {
@@ -106,62 +93,34 @@ export function sanitizeMentions(
   );
 
   const validUserIds: string[] = [];
-  let sanitizedContent = content;
+  const seenUserIds = new Set<string>();
 
-  // Process mentions in reverse order to maintain correct string indices during replacement
-  const mentionsWithIndices: Array<{
-    mention: ParsedMention;
-    startIndex: number;
-    endIndex: number;
-  }> = [];
-
-  // Reset regex lastIndex
+  // Reset regex lastIndex to ensure clean state
   MENTION_REGEX.lastIndex = 0;
 
-  let match;
-  while ((match = MENTION_REGEX.exec(content)) !== null) {
-    const displayName = match[1];
-    const userId = match[2];
-    const startIndex = match.index;
-    const endIndex = startIndex + match[0].length;
+  // Single pass using String.replace() - O(n) complexity
+  const sanitizedContent = content.replace(
+    MENTION_REGEX,
+    (match, displayName, userId) => {
+      const member = memberMap.get(userId);
 
-    mentionsWithIndices.push({
-      mention: { userId, displayName },
-      startIndex,
-      endIndex,
-    });
-  }
+      if (member) {
+        // Valid user: Replace with canonical display name from DB
+        const canonicalName = member.name || member.email || "User";
 
-  // Process in reverse order to maintain indices
-  for (let i = mentionsWithIndices.length - 1; i >= 0; i--) {
-    const { mention, startIndex, endIndex } = mentionsWithIndices[i];
-    const member = memberMap.get(mention.userId);
+        // Track valid user (deduplicate with Set)
+        if (!seenUserIds.has(userId)) {
+          validUserIds.push(userId);
+          seenUserIds.add(userId);
+        }
 
-    if (member) {
-      // Valid user: Replace with canonical display name from DB
-      const canonicalName = member.name || member.email || "User";
-      const replacement = `@[${canonicalName}](${MENTION_USER_PREFIX}${mention.userId})`;
-
-      sanitizedContent =
-        sanitizedContent.substring(0, startIndex) +
-        replacement +
-        sanitizedContent.substring(endIndex);
-
-      // Track valid user (only add once, in original order)
-      if (!validUserIds.includes(mention.userId)) {
-        validUserIds.push(mention.userId);
+        return `@[${canonicalName}](${MENTION_USER_PREFIX}${userId})`;
+      } else {
+        // Invalid user: Strip mention markdown, keep display name as plain text
+        return displayName;
       }
-    } else {
-      // Invalid user: Strip mention markdown, keep display name as plain text
-      sanitizedContent =
-        sanitizedContent.substring(0, startIndex) +
-        mention.displayName +
-        sanitizedContent.substring(endIndex);
-    }
-  }
-
-  // Reverse validUserIds back to original order
-  validUserIds.reverse();
+    },
+  );
 
   return {
     sanitizedContent,

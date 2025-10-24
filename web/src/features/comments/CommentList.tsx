@@ -67,9 +67,7 @@ export function CommentList({
 }) {
   const session = useSession();
   const router = useRouter();
-  const [textareaKey, setTextareaKey] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [textareaValue, setTextareaValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -123,15 +121,18 @@ export function CommentList({
 
   useEffect(() => {
     form.reset({ content: "", projectId, objectId, objectType });
-    setTextareaValue("");
     setSearchQuery(""); // Reset search when switching objects
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectId, objectType]);
 
-  // Mention autocomplete
+  // Mention autocomplete - useCallback to ensure stable reference
+  const getTextareaValue = useCallback(() => {
+    return form.getValues("content");
+  }, [form]);
+
   const mentionAutocomplete = useMentionAutocomplete({
     projectId,
-    textareaValue,
+    getTextareaValue,
     cursorPosition,
     enabled: canTagUsers,
   });
@@ -235,8 +236,11 @@ export function CommentList({
     onSuccess: async () => {
       await Promise.all([utils.comments.invalidate()]);
       form.reset();
-      setTextareaValue("");
-      setTextareaKey((prev) => prev + 1); // Force textarea remount to reset height
+
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
 
       // Scroll to bottom of comments list (newest comment in chronological order)
       if (commentsContainerRef.current) {
@@ -269,9 +273,8 @@ export function CommentList({
       const newText = before + mention + after;
       const newCursorPos = mentionAutocomplete.mentionStartPos + mention.length;
 
-      // Update form value and local state
-      form.setValue("content", newText);
-      setTextareaValue(newText);
+      // Update form value
+      form.setValue("content", newText, { shouldDirty: true });
 
       // Update cursor position
       setTimeout(() => {
@@ -283,7 +286,7 @@ export function CommentList({
       // Close dropdown
       mentionAutocomplete.closeDropdown();
     },
-    [form, mentionAutocomplete, setTextareaValue],
+    [form, mentionAutocomplete],
   );
 
   const deleteCommentMutation = api.comments.delete.useMutation({
@@ -311,13 +314,29 @@ export function CommentList({
     }));
   }, [comments.data]);
 
+  // Helper function to strip markdown formatting for search
+  const stripMarkdown = (text: string): string => {
+    return text
+      .replace(/!\[.*?\]\(.*?\)/g, "") // Remove images
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Convert links to text
+      .replace(/[*_~`#]/g, "") // Remove formatting characters
+      .replace(/^>\s+/gm, "") // Remove blockquotes
+      .replace(/^[-*+]\s+/gm, "") // Remove list markers
+      .replace(/^\d+\.\s+/gm, "") // Remove numbered list markers
+      .replace(/\n+/g, " ") // Replace newlines with spaces
+      .trim();
+  };
+
   // Client-side filtering based on search query
   const filteredComments = useMemo(() => {
-    if (!searchQuery.trim()) return commentsWithFormattedTimestamp;
+    if (!searchQuery.trim()) {
+      return commentsWithFormattedTimestamp;
+    }
 
     const query = searchQuery.toLowerCase();
     return commentsWithFormattedTimestamp?.filter((comment) => {
-      const contentMatch = comment.content.toLowerCase().includes(query);
+      const strippedContent = stripMarkdown(comment.content).toLowerCase();
+      const contentMatch = strippedContent.includes(query);
       const authorMatch = (comment.authorUserName || comment.authorUserId || "")
         .toLowerCase()
         .includes(query);
@@ -596,7 +615,6 @@ export function CommentList({
                         <div>
                           <FormControl>
                             <Textarea
-                              key={textareaKey} // remount textarea to reset height after submission
                               placeholder="Add a comment... (Markdown supported)"
                               {...field}
                               ref={(el) => {
@@ -620,17 +638,14 @@ export function CommentList({
                               onInput={(e) => {
                                 const target = e.target as HTMLTextAreaElement;
                                 resizeHandler.resize(target);
-                                setTextareaValue(target.value);
                                 setCursorPosition(target.selectionStart);
                               }}
                               onClick={(e) => {
                                 const target = e.target as HTMLTextAreaElement;
-                                setTextareaValue(target.value);
                                 setCursorPosition(target.selectionStart);
                               }}
                               onSelect={(e) => {
                                 const target = e.target as HTMLTextAreaElement;
-                                setTextareaValue(target.value);
                                 setCursorPosition(target.selectionStart);
                               }}
                               autoFocus
