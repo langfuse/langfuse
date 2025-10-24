@@ -627,12 +627,12 @@ export const eventRecordBaseSchema = z.object({
   metadata: z.record(z.string(), z.string()),
   metadata_names: z.array(z.string()).default([]),
   metadata_values: z.array(z.any()).default([]),
-  metadata_string_names: z.array(z.string()).default([]),
-  metadata_string_values: z.array(z.string()).default([]),
-  metadata_number_names: z.array(z.string()).default([]),
-  metadata_number_values: z.array(z.number()).default([]),
-  metadata_bool_names: z.array(z.string()).default([]),
-  metadata_bool_values: z.array(z.number()).default([]),
+  // metadata_string_names: z.array(z.string()).default([]),
+  // metadata_string_values: z.array(z.string()).default([]),
+  // metadata_number_names: z.array(z.string()).default([]),
+  // metadata_number_values: z.array(z.number()).default([]),
+  // metadata_bool_names: z.array(z.string()).default([]),
+  // metadata_bool_values: z.array(z.number()).default([]),
 
   // Source metadata (Instrumentation)
   source: z.string(),

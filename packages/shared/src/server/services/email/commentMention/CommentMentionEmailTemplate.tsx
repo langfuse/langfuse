@@ -17,7 +17,7 @@ import {
 interface CommentMentionEmailTemplateProps {
   mentionedUserName: string;
   mentionedUserEmail: string;
-  authorName: string;
+  authorName?: string; // Optional - undefined if author deleted or not project member
   projectName: string;
   commentPreview: string;
   commentLink: string;
@@ -33,7 +33,9 @@ export const CommentMentionEmailTemplate = ({
   commentLink,
   settingsLink,
 }: CommentMentionEmailTemplateProps) => {
-  const previewText = `${authorName} mentioned you in ${projectName}`;
+  const previewText = authorName
+    ? `${authorName} mentioned you in ${projectName}`
+    : `You were mentioned in a comment in ${projectName}`;
 
   // Split by newlines and render with line breaks
   const commentLines = commentPreview.split("\n");
@@ -55,14 +57,25 @@ export const CommentMentionEmailTemplate = ({
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-              {authorName} mentioned you
+              {authorName
+                ? `${authorName} mentioned you`
+                : "You were mentioned in a comment"}
             </Heading>
             <Text className="text-sm leading-6 text-black">
               Hello <strong>{mentionedUserName}</strong>
             </Text>
             <Text className="text-sm leading-6 text-black">
-              <strong>{authorName}</strong> mentioned you in a comment in{" "}
-              <strong>{projectName}</strong>:
+              {authorName ? (
+                <>
+                  <strong>{authorName}</strong> mentioned you in a comment in{" "}
+                  <strong>{projectName}</strong>:
+                </>
+              ) : (
+                <>
+                  You were mentioned in a comment in{" "}
+                  <strong>{projectName}</strong>:
+                </>
+              )}
             </Text>
             <Section className="my-6 rounded border border-solid border-[#eaeaea] bg-[#f8f9fa] p-4">
               <Text

@@ -1,6 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
+import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
