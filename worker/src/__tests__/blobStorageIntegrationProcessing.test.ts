@@ -75,7 +75,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
     const now = new Date();
-    const threeHourAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
     // Create integration
     await prisma.blobStorageIntegration.create({
@@ -92,23 +93,25 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
         exportFrequency: "hourly",
-        nextSyncAt: threeHourAgo,
-        lastSyncAt: threeHourAgo,
+        nextSyncAt: twoHoursAgo,
+        lastSyncAt: twoHoursAgo,
       },
     });
 
-    // Create test data
+    // Create test data within the export window (2 hours ago to 1 hour ago)
+    // With 30-min lag buffer, actual window is 2h ago to (1h ago or now-30min, whichever is earlier)
     const traceId = randomUUID();
     const observationId = randomUUID();
     const scoreId = randomUUID();
 
     // Create trace, observation, and score in Clickhouse
+    // Data is at 90 minutes ago, which falls within the chunked export window
     await Promise.all([
       createTracesCh([
         createTrace({
           id: traceId,
           project_id: projectId,
-          timestamp: now.getTime() - 40 * 60 * 1000, // 40 min before now
+          timestamp: now.getTime() - 90 * 60 * 1000, // 90 min before now
           name: "Test Trace",
         }),
       ]),
@@ -117,7 +120,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           id: observationId,
           trace_id: traceId,
           project_id: projectId,
-          start_time: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          start_time: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
           name: "Test Observation",
         }),
       ]),
@@ -126,7 +129,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           id: scoreId,
           trace_id: traceId,
           project_id: projectId,
-          timestamp: now.getTime() - 35 * 60 * 1000, // 35 minutes before now
+          timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
           name: "Test Score",
           value: 0.95,
         }),
@@ -183,7 +186,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     if (updatedIntegration?.lastSyncAt && updatedIntegration?.nextSyncAt) {
       expect(updatedIntegration.lastSyncAt.getTime()).toBeGreaterThan(
-        threeHourAgo.getTime(),
+        twoHoursAgo.getTime(),
       );
       expect(updatedIntegration.nextSyncAt.getTime()).toBeGreaterThan(
         now.getTime(),
@@ -557,9 +560,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       const now = new Date();
       const customDate = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12 hours ago
       const beforeCustomDate = new Date(customDate.getTime() - 60 * 60 * 1000); // 13 hours ago
-      const afterCustomDate = new Date(
-        customDate.getTime() + 2 * 60 * 60 * 1000,
-      ); // 10 hours ago (safe margin)
+      // With chunking, first export covers customDate to customDate + 1 hour
+      // So we need data within that first hour window
+      const afterCustomDate = new Date(customDate.getTime() + 30 * 60 * 1000); // 30 minutes after custom date
 
       // Create traces before and after custom date
       const oldTrace = createTrace({
