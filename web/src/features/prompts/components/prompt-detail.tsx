@@ -226,14 +226,13 @@ export const PromptDetail = ({
     ).data?.tags ?? []
   ).map((t) => t.value);
 
-  const commentCounts = api.comments.getCountByObjectId.useQuery(
+  const commentCounts = api.comments.getCountByObjectType.useQuery(
     {
       projectId: projectId as string,
-      objectId: prompt?.id as string,
       objectType: "PROMPT",
     },
     {
-      enabled: Boolean(projectId) && Boolean(prompt?.id),
+      enabled: Boolean(projectId),
       trpc: {
         context: {
           skipBatch: true,
@@ -353,6 +352,7 @@ export const PromptDetail = ({
                 setCurrentPromptLabel(null);
               }}
               totalCount={promptHistory.data.totalCount}
+              commentCounts={commentCounts.data}
             />
           </div>
         </Command>

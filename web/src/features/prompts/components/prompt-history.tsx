@@ -6,6 +6,7 @@ import { Timeline, TimelineItem } from "@/src/components/ui/timeline";
 import { Badge } from "@/src/components/ui/badge";
 import { CommandItem } from "@/src/components/ui/command";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
@@ -16,6 +17,7 @@ const PromptHistoryTraceNode = (props: {
   router: NextRouter;
   projectId: string;
   totalCount: number;
+  commentCounts?: Map<string, number>;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isPromptDiffOpen, setIsPromptDiffOpen] = useState(false);
@@ -103,6 +105,31 @@ const PromptHistoryTraceNode = (props: {
               setIsOpen={setIsLabelPopoverOpen}
               showOnlyOnHover
             />
+            {props.commentCounts?.get(prompt.id) ? (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void props.router.push(
+                    {
+                      pathname: props.router.pathname,
+                      query: {
+                        ...props.router.query,
+                        version: prompt.version,
+                        comments: "open",
+                        commentObjectType: "PROMPT",
+                        commentObjectId: prompt.id,
+                      },
+                    },
+                    undefined,
+                    { shallow: true },
+                  );
+                }}
+                className="cursor-pointer"
+                role="button"
+              >
+                <CommentCountIcon count={props.commentCounts.get(prompt.id)} />
+              </span>
+            ) : null}
           </div>
 
           <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
@@ -150,6 +177,7 @@ export const PromptHistoryNode = (props: {
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (id: number | undefined) => void;
   totalCount: number;
+  commentCounts?: Map<string, number>;
 }) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -170,6 +198,7 @@ export const PromptHistoryNode = (props: {
           router={router}
           projectId={projectId}
           totalCount={props.totalCount}
+          commentCounts={props.commentCounts}
         />
       ))}
     </Timeline>
