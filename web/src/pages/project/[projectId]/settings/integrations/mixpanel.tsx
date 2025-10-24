@@ -94,7 +94,7 @@ export default function MixpanelIntegrationSettings() {
         <>
           <Header title="Configuration" />
           <Card className="p-3">
-            <MixpanelLogo className="mb-4 w-36 text-foreground" />
+            <MixpanelLogo className="mb-4 w-20 text-foreground" />
             <MixpanelIntegrationSettingsForm
               state={state.data}
               projectId={projectId}
