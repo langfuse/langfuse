@@ -37,36 +37,25 @@ export const notificationPreferencesRouter = createTRPCRouter({
 
         const userId = ctx.session.user.id;
 
-        // Fetch all preferences for this user and project
-        const preferences = await ctx.prisma.notificationPreference.findMany({
+        // Fetch the EMAIL + COMMENT_MENTION preference
+        const preference = await ctx.prisma.notificationPreference.findUnique({
           where: {
-            userId,
-            projectId: input.projectId,
+            userId_projectId_channel_type: {
+              userId,
+              projectId: input.projectId,
+              channel: "EMAIL",
+              type: "COMMENT_MENTION",
+            },
           },
         });
 
-        // Create a map for quick lookup
-        const preferencesMap = new Map(
-          preferences.map((p) => [`${p.channel}:${p.type}`, p.enabled]),
-        );
-
-        // Return all possible combinations with defaults
-        // For MVP, we only show EMAIL + COMMENT_MENTION, but structure supports future expansion
+        // Return as array to maintain consistent API shape for future expansion
         const allPreferences = [
           {
             channel: "EMAIL" as const,
             type: "COMMENT_MENTION" as const,
-            enabled:
-              preferencesMap.get("EMAIL:COMMENT_MENTION") !== undefined
-                ? preferencesMap.get("EMAIL:COMMENT_MENTION")!
-                : true, // Default: enabled
+            enabled: preference?.enabled ?? true, // Default: enabled
           },
-          // Future preferences can be added here
-          // {
-          //   channel: "EMAIL" as const,
-          //   type: "COMMENT_REPLY" as const,
-          //   enabled: preferencesMap.get("EMAIL:COMMENT_REPLY") ?? true,
-          // },
         ];
 
         return allPreferences;

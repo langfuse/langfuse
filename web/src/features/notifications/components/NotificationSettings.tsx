@@ -26,17 +26,13 @@ export function NotificationSettings() {
     },
   });
 
-  const handleToggle = async (
-    channel: "EMAIL",
-    type: "COMMENT_MENTION",
-    enabled: boolean,
-  ) => {
+  const handleToggle = async (enabled: boolean) => {
     setIsSaving(true);
     try {
       await updatePreference.mutateAsync({
         projectId,
-        channel,
-        type,
+        channel: "EMAIL",
+        type: "COMMENT_MENTION",
         enabled,
       });
     } catch (error) {
@@ -90,28 +86,10 @@ export function NotificationSettings() {
               <Switch
                 id="comment-mention"
                 checked={emailCommentMention?.enabled ?? true}
-                onCheckedChange={(enabled) =>
-                  handleToggle("EMAIL", "COMMENT_MENTION", enabled)
-                }
+                onCheckedChange={handleToggle}
                 disabled={isSaving}
               />
             </div>
-
-            {/* Future notification types will be added here */}
-            {/* <div className="flex items-center justify-between rounded-lg border p-4 opacity-50">
-              <div className="space-y-0.5">
-                <Label className="text-base">
-                  Comment Replies
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    Coming soon
-                  </span>
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive an email when someone replies to your comment
-                </p>
-              </div>
-              <Switch disabled />
-            </div> */}
           </div>
         </CardContent>
       </Card>
