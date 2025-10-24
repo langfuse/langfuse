@@ -1603,7 +1603,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       langfuse_level: record.level,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
-      langfuse_event_version: "2.0.0",
+      langfuse_event_version: "1.0.0",
       posthog_session_id: record.posthog_session_id ?? null,
       mixpanel_session_id: record.mixpanel_session_id ?? null,
     } satisfies AnalyticsGenerationEvent;

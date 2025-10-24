@@ -1510,7 +1510,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       langfuse_release: record.trace_release,
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
-      langfuse_event_version: "2.0.0",
+      langfuse_event_version: "1.0.0",
       langfuse_score_entity_type: record.score_trace_id
         ? "trace"
         : record.score_session_id
