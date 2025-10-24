@@ -337,3 +337,76 @@ describe("GET /api/public/comments API Endpoint", () => {
     }
   });
 });
+
+describe("Public API does NOT process mentions", () => {
+  beforeAll(async () => {
+    const traces = [
+      createTrace({
+        name: "trace-for-no-mention-processing",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: "no-mention-processing-trace",
+      }),
+    ];
+
+    await createTracesCh(traces);
+  });
+
+  it("should preserve mention markdown as-is without processing", async () => {
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content:
+          "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
+        objectId: "no-mention-processing-trace",
+        objectType: "TRACE",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        authorUserId: "user-1",
+      },
+    );
+
+    const { id: commentId } = commentResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(response.status).toBe(200);
+    // Content should be stored exactly as provided - NO sanitization or normalization
+    expect(response.body.content).toBe(
+      "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
+    );
+  });
+
+  it("should reject mentionedUserIds field in request body", async () => {
+    try {
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: "Testing @[User](user:user-1)",
+          objectId: "no-mention-processing-trace",
+          objectType: "TRACE",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          authorUserId: "user-1",
+          mentionedUserIds: ["user-1"], // This field should be rejected
+        },
+      );
+      // If we get here, test failed
+      expect(true).toBe(false);
+    } catch (error) {
+      expect((error as Error).message).toContain(
+        "API call did not return 200, returned status 400",
+      );
+      expect((error as Error).message).toContain("Unrecognized key(s)");
+      expect((error as Error).message).toContain("mentionedUserIds");
+    }
+  });
+});

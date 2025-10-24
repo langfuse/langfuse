@@ -11,6 +11,11 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -18,7 +23,11 @@ import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
+import {
+  type CommentObjectType,
+  CreateCommentData,
+  MENTION_USER_PREFIX,
+} from "@langfuse/shared";
 import { ArrowUpToLine, LoaderCircle, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
@@ -30,6 +39,8 @@ import React, {
 } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod/v4";
+import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
+import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
 
 export function CommentList({
   projectId,
@@ -38,6 +49,7 @@ export function CommentList({
   cardView = false,
   className,
   onDraftChange,
+  onMentionDropdownChange,
 }: {
   projectId: string;
   objectId: string;
@@ -45,9 +57,10 @@ export function CommentList({
   cardView?: boolean;
   className?: string;
   onDraftChange?: (hasDraft: boolean) => void;
+  onMentionDropdownChange?: (isOpen: boolean) => void;
 }) {
   const session = useSession();
-  const [textareaKey, setTextareaKey] = useState(0);
+  const [cursorPosition, setCursorPosition] = useState(0);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasReadAccess = useHasProjectAccess({
@@ -59,6 +72,13 @@ export function CommentList({
     projectId,
     scope: "comments:CUD",
   });
+
+  const hasMembersReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "projectMembers:read",
+  });
+
+  const canTagUsers = hasWriteAccess && hasMembersReadAccess;
 
   const comments = api.comments.getByObjectId.useQuery(
     {
@@ -83,6 +103,23 @@ export function CommentList({
     form.reset({ content: "", projectId, objectId, objectType });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectId, objectType]);
+
+  // Mention autocomplete - useCallback to ensure stable reference
+  const getTextareaValue = useCallback(() => {
+    return form.getValues("content");
+  }, [form]);
+
+  const mentionAutocomplete = useMentionAutocomplete({
+    projectId,
+    getTextareaValue,
+    cursorPosition,
+    enabled: canTagUsers,
+  });
+
+  // Notify parent when mention dropdown state changes
+  useEffect(() => {
+    onMentionDropdownChange?.(mentionAutocomplete.showDropdown);
+  }, [mentionAutocomplete.showDropdown, onMentionDropdownChange]);
 
   const handleTextareaResize = useCallback((target: HTMLTextAreaElement) => {
     // Use requestAnimationFrame for optimal performance
@@ -131,7 +168,11 @@ export function CommentList({
     onSuccess: async () => {
       await Promise.all([utils.comments.invalidate()]);
       form.reset();
-      setTextareaKey((prev) => prev + 1); // Force textarea remount to reset height
+
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
 
       // Scroll to top of comments list
       if (commentsContainerRef.current) {
@@ -142,6 +183,43 @@ export function CommentList({
       }
     },
   });
+
+  // Insert mention at cursor position
+  const insertMention = useCallback(
+    (userId: string, displayName: string) => {
+      if (!textareaRef.current || mentionAutocomplete.mentionStartPos === null)
+        return;
+
+      const textarea = textareaRef.current;
+      const currentValue = form.getValues("content");
+      const cursorPos = textarea.selectionStart;
+
+      // Replace from @ to cursor with mention
+      const before = currentValue.substring(
+        0,
+        mentionAutocomplete.mentionStartPos,
+      );
+      const after = currentValue.substring(cursorPos);
+      const mention = `@[${displayName}](${MENTION_USER_PREFIX}${userId}) `;
+
+      const newText = before + mention + after;
+      const newCursorPos = mentionAutocomplete.mentionStartPos + mention.length;
+
+      // Update form value
+      form.setValue("content", newText, { shouldDirty: true });
+
+      // Update cursor position
+      setTimeout(() => {
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+        textarea.focus();
+        setCursorPosition(newCursorPos);
+      }, 0);
+
+      // Close dropdown
+      mentionAutocomplete.closeDropdown();
+    },
+    [form, mentionAutocomplete],
+  );
 
   const deleteCommentMutation = api.comments.delete.useMutation({
     onSuccess: async () => {
@@ -170,9 +248,50 @@ export function CommentList({
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Submit on Cmd+Enter (handle first, before dropdown checks)
     if (event.key === "Enter" && event.metaKey) {
-      event.preventDefault(); // Prevent the default newline behavior
-      form.handleSubmit(onSubmit)(); // Submit the form on cmd+enter
+      event.preventDefault();
+      form.handleSubmit(onSubmit)();
+      return;
+    }
+
+    // Handle autocomplete navigation for mentions
+    if (!mentionAutocomplete.showDropdown) {
+      return;
+    }
+    if (mentionAutocomplete.users.length === 0) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const newIndex =
+        (mentionAutocomplete.selectedIndex + 1) %
+        mentionAutocomplete.users.length;
+      mentionAutocomplete.setSelectedIndex(newIndex);
+      return;
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      const newIndex =
+        mentionAutocomplete.selectedIndex === 0
+          ? mentionAutocomplete.users.length - 1
+          : mentionAutocomplete.selectedIndex - 1;
+      mentionAutocomplete.setSelectedIndex(newIndex);
+      return;
+    } else if (event.key === "Enter" || event.key === "Tab") {
+      event.preventDefault();
+      const user = mentionAutocomplete.users[mentionAutocomplete.selectedIndex];
+      if (user) {
+        const displayName = user.name || user.email || "User";
+        insertMention(user.id, displayName);
+      }
+      return;
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation(); // we don't want the sheet to close
+      event.nativeEvent.stopImmediatePropagation(); // stops other event listeners
+      mentionAutocomplete.closeDropdown();
+      return;
     }
   };
 
@@ -287,54 +406,92 @@ export function CommentList({
                   name="content"
                   render={({ field }) => (
                     <FormItem>
-                      <FormControl>
-                        <Textarea
-                          key={textareaKey} // remount textarea to reset height after submission
-                          placeholder="Add comment..."
-                          {...field}
-                          ref={(el) => {
-                            if (textareaRef.current !== el) {
-                              textareaRef.current = el;
+                      <div className="relative">
+                        <FormControl>
+                          <Textarea
+                            placeholder="Add comment..."
+                            {...field}
+                            ref={(el) => {
+                              if (textareaRef.current !== el) {
+                                textareaRef.current = el;
+                              }
+                              // Call the field ref if it exists (for react-hook-form)
+                              if (typeof field.ref === "function") {
+                                field.ref(el);
+                              }
+                            }}
+                            onKeyDown={handleKeyDown}
+                            className="max-h-[100px] min-h-[2.25rem] w-full resize-none overflow-hidden border-none py-2 pr-7 text-sm leading-tight focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              wordWrap: "break-word",
+                              overflowWrap: "break-word",
+                              height: "auto",
+                              minHeight: "2.25rem",
+                            }}
+                            onInput={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              resizeHandler.resize(target);
+                              setCursorPosition(target.selectionStart);
+                            }}
+                            onClick={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              setCursorPosition(target.selectionStart);
+                            }}
+                            onSelect={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              setCursorPosition(target.selectionStart);
+                            }}
+                            autoFocus
+                          />
+                        </FormControl>
+                        {canTagUsers && mentionAutocomplete.showDropdown && (
+                          <MentionAutocomplete
+                            users={mentionAutocomplete.users}
+                            isLoading={mentionAutocomplete.isLoading}
+                            selectedIndex={mentionAutocomplete.selectedIndex}
+                            onSelect={insertMention}
+                            onClose={mentionAutocomplete.closeDropdown}
+                            onSelectedIndexChange={
+                              mentionAutocomplete.setSelectedIndex
                             }
-                            // Call the field ref if it exists (for react-hook-form)
-                            if (typeof field.ref === "function") {
-                              field.ref(el);
-                            }
-                          }}
-                          onKeyDown={handleKeyDown}
-                          className="max-h-[100px] min-h-[2.25rem] w-full resize-none overflow-hidden border-none py-2 pr-7 text-sm leading-tight focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                          style={{
-                            whiteSpace: "pre-wrap",
-                            wordWrap: "break-word",
-                            overflowWrap: "break-word",
-                            height: "auto",
-                            minHeight: "2.25rem",
-                          }}
-                          onInput={(e) => {
-                            const target = e.target as HTMLTextAreaElement;
-                            resizeHandler.resize(target);
-                          }}
-                          autoFocus
-                        />
-                      </FormControl>
+                          />
+                        )}
+                      </div>
                       <FormMessage className="ml-2 text-sm" />
                     </FormItem>
                   )}
                 />
                 <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    size="icon-xs"
-                    variant="outline"
-                    title="Submit comment"
-                    loading={createCommentMutation.isPending}
-                    onClick={() => {
-                      form.handleSubmit(onSubmit)();
-                    }}
-                    className="absolute bottom-1 right-1"
-                  >
-                    <ArrowUpToLine className="h-3 w-3" />
-                  </Button>
+                  <HoverCard openDelay={200}>
+                    <HoverCardTrigger asChild>
+                      <Button
+                        type="submit"
+                        size="icon-xs"
+                        variant="outline"
+                        title="Submit comment"
+                        loading={createCommentMutation.isPending}
+                        onClick={() => {
+                          form.handleSubmit(onSubmit)();
+                        }}
+                        className="absolute bottom-1 right-1"
+                      >
+                        <ArrowUpToLine className="h-3 w-3" />
+                      </Button>
+                    </HoverCardTrigger>
+                    <HoverCardContent
+                      side="top"
+                      align="end"
+                      className="w-auto p-2"
+                    >
+                      <div className="flex items-center gap-2 text-sm">
+                        <span>Send comment</span>
+                        <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                          <span className="text-xs">⌘</span>Enter
+                        </kbd>
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
                 </div>
               </form>
             </Form>
