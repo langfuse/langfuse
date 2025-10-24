@@ -10,6 +10,9 @@ import {
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 import { z } from "zod/v4";
+import type { FilterState } from "../../types";
+import type { UiColumnMappings } from "../../tableDefinitions";
+import { createFilterFromFilterState } from "./clickhouse-sql/factory";
 
 export type ApiColumnMapping = {
   id: string;
@@ -232,5 +235,44 @@ export function convertApiProvidedFilterToClickhouseFilter(
     }
   });
 
+  return filterList;
+}
+
+/**
+ * Derives a merged FilterList from simple API parameters and advanced filter JSON.
+ * Advanced filters take precedence over simple filters when targeting the same field.
+ *
+ * @param simpleFilterProps - Object containing simple query parameters (e.g., { userId: "123", name: "test" })
+ * @param filterParamsMapping - Column mapping configuration for simple filters
+ * @param advancedFilters - Optional array of FilterState objects from JSON filter parameter
+ * @param uiColumnDefinitions - UI column definitions for advanced filter conversion
+ * @returns Merged FilterList with advanced filters taking precedence
+ */
+export function deriveFilters<T extends BaseQueryType>(
+  simpleFilterProps: T,
+  filterParamsMapping: ApiColumnMapping[],
+  advancedFilters: FilterState | undefined,
+  uiColumnDefinitions: UiColumnMappings,
+): FilterList {
+  // Start with advanced filters converted to FilterList
+  const filterList = new FilterList(
+    createFilterFromFilterState(advancedFilters ?? [], uiColumnDefinitions),
+  );
+
+  // Convert simple parameters to filters
+  const simpleFilters = convertApiProvidedFilterToClickhouseFilter(
+    simpleFilterProps,
+    filterParamsMapping,
+  );
+
+  // Advanced filter takes precedence. Remove all simple filters that are also in advanced filter
+  const advancedFilterColumns = new Set<string>();
+  filterList.forEach((f) => advancedFilterColumns.add(f.field));
+
+  simpleFilters
+    .filter((sf) => !advancedFilterColumns.has(sf.field))
+    .forEach((f) => filterList.push(f));
+
+  // Return merged filters
   return filterList;
 }

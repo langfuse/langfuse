@@ -7,8 +7,8 @@ WITH
     -- Time range configuration
     time_range AS (
         SELECT
-            toDateTime('2025-10-14 13:00:00') AS min_time,
-            toDateTime('2025-10-14 14:45:00') AS max_time
+            toDateTime('2025-10-17 09:00:00') AS min_time,
+            toDateTime('2025-10-17 13:45:00') AS max_time
     ),
 
     -- Get filtered observations
@@ -22,7 +22,7 @@ WITH
     -- Get filtered events
     filtered_events AS (
         SELECT *
-        FROM events
+        FROM events e
         WHERE start_time >= (SELECT min_time FROM time_range)
           AND start_time <= (SELECT max_time FROM time_range)
           and e.source = 'ingestion-api'
@@ -95,8 +95,8 @@ WITH
     -- Time range configuration
     time_range AS (
         SELECT
-            toDateTime('2025-10-14 13:00:00') AS min_time,
-            toDateTime('2025-10-14 14:45:00') AS max_time
+            toDateTime('2025-10-17 09:00:00') AS min_time,
+            toDateTime('2025-10-17 13:45:00') AS max_time
     ),
 
     sampled_projects AS (
@@ -105,7 +105,7 @@ WITH
         WHERE o.start_time >= (SELECT min_time FROM time_range)
           AND o.start_time <= (SELECT max_time FROM time_range)
         ORDER BY rand()
-        LIMIT 100
+        LIMIT 10
     ),
 
     -- Join observations with events
@@ -336,8 +336,8 @@ WITH
     -- Time range configuration
     time_range AS (
         SELECT
-            toDateTime('2025-10-14 13:00:00') AS min_time,
-            toDateTime('2025-10-14 14:45:00') AS max_time
+            toDateTime('2025-10-17 09:00:00') AS min_time,
+            toDateTime('2025-10-17 13:45:00') AS max_time
     ),
 
     sampled_projects AS (
@@ -406,4 +406,88 @@ FROM full_join
 WHERE NOT arrayAll(k -> has(e_metadata_names, k), mapKeys(t_metadata))
 
     SETTINGS join_algorithm = 'partial_merge'
+```
+
+## Query 4: Root Span Validation
+
+```sql
+WITH
+    -- Time range configuration
+    time_range AS (
+        SELECT
+            toDateTime('2025-10-17 09:00:00') AS min_time,
+            toDateTime('2025-10-17 13:45:00') AS max_time
+    ),
+
+    sampled_projects AS (
+        SELECT project_id
+        FROM observations o
+        WHERE o.start_time >= (SELECT min_time FROM time_range)
+          AND o.start_time <= (SELECT max_time FROM time_range)
+        ORDER BY rand()
+        LIMIT 10
+    ),
+
+    -- Join with events to find root spans
+    root_span_check AS (
+        SELECT
+            t.project_id,
+            t.id AS trace_id,
+            t.name AS trace_name,
+            e.span_id AS root_span_id,
+            e.parent_span_id AS root_parent_span_id,
+            e.name AS root_span_name
+        FROM traces t
+        LEFT JOIN events e
+        ON t.project_id = e.project_id
+           AND e.trace_id = t.id
+           AND e.parent_span_id = ''
+           AND e.start_time >= (SELECT min_time FROM time_range)
+           AND e.start_time <= (SELECT max_time FROM time_range)
+        WHERE t.project_id IN (SELECT project_id FROM sampled_projects)
+          AND t.timestamp >= (SELECT min_time FROM time_range)
+          AND t.timestamp <= (SELECT max_time FROM time_range)
+          AND (e.source is NULL or e.source = 'ingestion-api')
+    )
+
+-- Missing root spans
+SELECT
+    'missing_root_span' AS issue_type,
+    project_id,
+    trace_id,
+    trace_name AS expected_name,
+    concat('t-', trace_id) AS expected_span_id,
+    '' AS actual_value
+FROM root_span_check
+WHERE root_span_id IS NULL
+
+UNION ALL
+
+-- Root spans with non-null parent_span_id
+SELECT
+    'root_span_has_parent' AS issue_type,
+    project_id,
+    trace_id,
+    trace_name AS expected_name,
+    root_span_id AS expected_span_id,
+    root_parent_span_id AS actual_value
+FROM root_span_check
+WHERE root_span_id IS NOT NULL
+  AND root_parent_span_id != ''
+
+UNION ALL
+
+-- Root spans with name mismatch
+SELECT
+    'root_span_name_mismatch' AS issue_type,
+    project_id,
+    trace_id,
+    trace_name AS expected_name,
+    root_span_id AS expected_span_id,
+    root_span_name AS actual_value
+FROM root_span_check
+WHERE root_span_id IS NOT NULL
+  AND root_span_name != trace_name
+
+SETTINGS join_algorithm = 'partial_merge'
 ```

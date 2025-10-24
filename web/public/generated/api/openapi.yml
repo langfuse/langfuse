@@ -1959,7 +1959,12 @@ paths:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
   /api/public/metrics:
     get:
-      description: Get metrics from the Langfuse project using a query object
+      description: >-
+        Get metrics from the Langfuse project using a query object.
+
+
+        For more details, see the [Metrics API
+        documentation](https://langfuse.com/docs/metrics/features/metrics-api).
       operationId: metrics_metrics
       tags:
         - Metrics
@@ -2385,6 +2390,43 @@ paths:
         - name: version
           in: query
           description: Optional filter to only include observations with a certain version.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON string containing an array of filter conditions. When provided,
+            this takes precedence over legacy filter parameters (userId, name,
+            sessionId, tags, version, release, environment, fromTimestamp,
+            toTimestamp).
+
+            Each filter condition has the following structure:
+
+            ```json
+
+            [
+              {
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "column": string,         // Required. Column to filter on
+                "operator": string,       // Required. Operator based on type:
+                                          // - datetime: ">", "<", ">=", "<="
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringOptions: "any of", "none of"
+                                          // - categoryOptions: "any of", "none of"
+                                          // - arrayOptions: "any of", "none of", "all of"
+                                          // - number: "=", ">", "<", ">=", "<="
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - numberObject: "=", ">", "<", ">=", "<="
+                                          // - boolean: "=", "<>"
+                                          // - null: "is null", "is not null"
+                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
+                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+              }
+            ]
+
+            ```
           required: false
           schema:
             type: string
@@ -3204,6 +3246,18 @@ paths:
                   type: string
                   nullable: true
                   description: Optional note for the API key
+                publicKey:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional predefined public key. Must start with 'pk-lf-'. If
+                    provided, secretKey must also be provided.
+                secretKey:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional predefined secret key. Must start with 'sk-lf-'. If
+                    provided, publicKey must also be provided.
   /api/public/projects/{projectId}/apiKeys/{apiKeyId}:
     delete:
       description: Delete an API key for a project (requires organization-scoped API key)
@@ -4879,6 +4933,7 @@ components:
       enum:
         - TRACE
         - OBSERVATION
+        - SESSION
     AnnotationQueue:
       title: AnnotationQueue
       type: object
@@ -5236,7 +5291,7 @@ components:
           type: string
           description: >-
             The content of the comment. May include markdown. Currently limited
-            to 3000 characters.
+            to 5000 characters.
         authorUserId:
           type: string
           nullable: true

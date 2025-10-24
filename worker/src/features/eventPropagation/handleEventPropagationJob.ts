@@ -27,7 +27,9 @@ export const acquirePartitionLock = async (
   ttlSeconds: number = 300,
 ): Promise<boolean> => {
   if (!redis) {
-    logger.warn("Redis not available, skipping partition lock acquisition");
+    logger.warn(
+      "[DUAL WRITE] Redis not available, skipping partition lock acquisition",
+    );
     return true; // Allow processing if Redis is unavailable
   }
 
@@ -40,16 +42,16 @@ export const acquirePartitionLock = async (
     const acquired = result === "OK";
     if (acquired) {
       logger.debug(
-        `Acquired lock for partition ${partition} with TTL ${ttlSeconds}s`,
+        `[DUAL WRITE] Acquired lock for partition ${partition} with TTL ${ttlSeconds}s`,
       );
     } else {
       logger.debug(
-        `Partition ${partition} is already locked by another worker`,
+        `[DUAL WRITE] Partition ${partition} is already locked by another worker`,
       );
     }
     return acquired;
   } catch (error) {
-    logger.error("Failed to acquire partition lock", error);
+    logger.error("[DUAL WRITE] Failed to acquire partition lock", error);
     // On error, allow processing to avoid blocking the system
     return true;
   }
@@ -63,7 +65,9 @@ export const acquirePartitionLock = async (
  */
 export const checkLock = async (partition: string): Promise<boolean> => {
   if (!redis) {
-    logger.warn("Redis not available, assuming partition is unlocked");
+    logger.warn(
+      "[DUAL WRITE] Redis not available, assuming partition is unlocked",
+    );
     return true; // Allow processing if Redis is unavailable
   }
 
@@ -76,14 +80,16 @@ export const checkLock = async (partition: string): Promise<boolean> => {
     const isAvailable = exists === 0;
 
     if (isAvailable) {
-      logger.debug(`Partition ${partition} is available (not locked)`);
+      logger.debug(
+        `[DUAL WRITE] Partition ${partition} is available (not locked)`,
+      );
     } else {
-      logger.debug(`Partition ${partition} is locked`);
+      logger.debug(`[DUAL WRITE] Partition ${partition} is locked`);
     }
 
     return isAvailable;
   } catch (error) {
-    logger.error("Failed to check partition lock", error);
+    logger.error("[DUAL WRITE] Failed to check partition lock", error);
     // On error, assume partition is available to avoid blocking the system
     return true;
   }
@@ -107,23 +113,27 @@ export const handleEventPropagationJob = async (
   }
 
   if (env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB === "true") {
-    logger.info("Early exit for event propagation job due to experiment flag");
+    logger.info(
+      "[DUAL WRITE] Early exit for event propagation job due to experiment flag",
+    );
     return;
   }
 
   try {
-    logger.debug("Starting event propagation batch processing", {
+    logger.debug("[DUAL WRITE] Starting event propagation batch processing", {
       jobId: job.data.id,
       partition: partition,
     });
 
-    // Step 1: Get list of partitions ordered by time
+    // Step 1: Get list of partitions ordered by time, filtering for those older than 4 minutes
+    // Filter in ClickHouse for better performance - only return partitions older than 4 minutes
     const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
           AND active = 1
+          AND toDateTime(partition) < now() - INTERVAL 4 MINUTE
         ORDER BY partition DESC
       `,
       tags: {
@@ -132,12 +142,16 @@ export const handleEventPropagationJob = async (
       },
     });
 
-    if (partitions.length < 3) {
+    if (partitions.length === 0) {
       logger.info(
-        `Not enough partitions for processing. Found ${partitions.length} partition(s), need at least 3`,
+        `[DUAL WRITE] No partitions older than 4 minutes available for processing`,
       );
       return;
     }
+
+    logger.info(
+      `[DUAL WRITE] Found ${partitions.length} partition(s) older than 4 minutes to process`,
+    );
 
     // Determine which partition to process
     let partitionToProcess: string | null = null;
@@ -147,42 +161,42 @@ export const handleEventPropagationJob = async (
       if (lockAcquired) {
         partitionToProcess = partition;
         logger.info(
-          `Processing partition ${partitionToProcess} (targeted) for events table fill`,
+          `[DUAL WRITE] Processing partition ${partitionToProcess} (targeted) for events table fill`,
         );
       } else {
         logger.info(
-          `Partition ${partition} is already locked by another worker, falling back to discovery mode`,
+          `[DUAL WRITE] Partition ${partition} is already locked by another worker, falling back to discovery mode`,
         );
       }
     }
 
     // If no partition was processed yet (either no partition specified or it was locked),
-    // fall back to discovery mode - process oldest safe partition
+    // fall back to discovery mode - process oldest partition that is unlocked
     if (!partitionToProcess) {
       // We sort partitions from newest to oldest and then remove elements from the back.
-      // This means that the oldest, unlocked element will be processed.
-      // Later, we can continue to process from the back until two elements remain.
-      while (partitionToProcess === null && partitions.length > 2) {
+      // This means that the oldest, unlocked partition will be processed.
+      // All partitions in the list are already verified to be older than 4 minutes.
+      while (partitionToProcess === null && partitions.length > 0) {
         const internalPartition = partitions.pop()!;
         const lockAcquired = await acquirePartitionLock(
           internalPartition.partition,
         );
         if (!lockAcquired) {
           logger.debug(
-            `Skipping partition ${internalPartition.partition} as it is locked by another worker`,
+            `[DUAL WRITE] Skipping partition ${internalPartition.partition} as it is locked by another worker`,
           );
           continue;
         }
         partitionToProcess = internalPartition.partition;
         logger.info(
-          `Processing partition ${partitionToProcess} (discovery) for events table fill`,
+          `[DUAL WRITE] Processing partition ${partitionToProcess} (discovery) for events table fill`,
         );
       }
     }
 
     if (!partitionToProcess) {
       logger.info(
-        "No available partitions to process after checking locks, exiting",
+        "[DUAL WRITE] No available partitions to process after checking locks, exiting",
       );
       return;
     }
@@ -198,6 +212,7 @@ export const handleEventPropagationJob = async (
         with batch_stats as (
           select
             groupUniqArray(project_id) as project_ids,
+            groupUniqArray(trace_id) as trace_ids,
             min(start_time) as min_start_time,
             max(start_time) as max_start_time
           from observations_batch_staging
@@ -211,6 +226,7 @@ export const handleEventPropagationJob = async (
             t.metadata
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
+            and t.id in (select arrayJoin(trace_ids) from batch_stats)
             and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
           order by t.event_ts desc
@@ -278,10 +294,10 @@ export const handleEventPropagationJob = async (
           obs.trace_id,
           obs.id AS span_id,
           -- When the observation IS the trace itself (id = trace_id), parent should be NULL
-          -- Otherwise, use standard wrapper logic: parent_observation_id or trace_id as fallback
+          -- Otherwise, use standard wrapper logic: parent_observation_id or prefixed trace_id as fallback
           CASE
-            WHEN obs.id = obs.trace_id THEN NULL
-            ELSE coalesce(obs.parent_observation_id, obs.trace_id)
+            WHEN obs.id = concat('t-', obs.trace_id) THEN NULL
+            ELSE coalesce(obs.parent_observation_id, concat('t-', obs.trace_id))
           END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
           -- Clamp start_time to 1970-01-01 or later (Unix epoch minimum) to avoid toUnixTimestamp() errors
@@ -356,41 +372,24 @@ export const handleEventPropagationJob = async (
     });
 
     logger.info(
-      `Successfully propagated observations from partition ${partitionToProcess} to events table`,
+      `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
 
-    // Step 3: Drop the processed partition
-    await commandClickhouse({
-      query: `
-        ALTER TABLE observations_batch_staging
-        DROP PARTITION '${partitionToProcess}'
-      `,
-      tags: {
-        feature: "ingestion",
-        partition: partitionToProcess,
-        operation_name: "dropPartition",
-      },
-      clickhouseConfigs: {
-        request_timeout: 180000, // 3 minutes timeout
-      },
-    });
-
-    logger.info(
-      `Dropped partition ${partitionToProcess} after successful processing`,
-    );
-
-    if (partitions.length > 3) {
+    // Step 3: Schedule additional jobs for remaining partitions (all are already verified to be >4 minutes old).
+    // We do this before the drop as this is a fast operation that shouldn't wait for the slow dropping call.
+    // We're only running this if there are more than one left to be processed as this means we have some catch-up to do.
+    if (partitions.length > 1) {
       let additionalSchedules =
         env.LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY;
       const queue = EventPropagationQueue.getInstance();
-      while (queue && partitions.length > 3 && additionalSchedules > 0) {
+      while (queue && partitions.length > 1 && additionalSchedules > 0) {
         const internalPartition = partitions.pop()!;
 
         // Check if partition is locked before scheduling
         const isUnlocked = await checkLock(internalPartition.partition);
         if (!isUnlocked) {
           logger.debug(
-            `Skipping scheduling for partition ${internalPartition.partition} as it is locked by another worker`,
+            `[DUAL WRITE] Skipping scheduling for partition ${internalPartition.partition} as it is locked by another worker`,
           );
           continue;
         }
@@ -404,13 +403,36 @@ export const handleEventPropagationJob = async (
           },
         });
         logger.info(
-          `Scheduled additional event propagation job for partition ${internalPartition.partition}. ` +
+          `[DUAL WRITE] Scheduled additional event propagation job for partition ${internalPartition.partition}. ` +
             `Remaining partitions: ${partitions.length}`,
         );
       }
     }
+
+    // Step 4: Drop the processed partition (single synchronous operation)
+    await commandClickhouse({
+      query: `
+        ALTER TABLE observations_batch_staging
+        DROP PARTITION '${partitionToProcess}'
+      `,
+      tags: {
+        feature: "ingestion",
+        partition: partitionToProcess,
+        operation_name: "dropPartition",
+      },
+      clickhouseConfigs: {
+        request_timeout: 60000 * 20, // 20 minutes timeout
+      },
+    });
+
+    logger.info(
+      `[DUAL WRITE] Successfully dropped partition ${partitionToProcess}`,
+    );
   } catch (error) {
-    logger.error("Failed to process event propagation batch", error);
+    logger.error(
+      "[DUAL WRITE] Failed to process event propagation batch",
+      error,
+    );
     traceException(error);
     throw error;
   }

@@ -1,5 +1,9 @@
 import { useEffect, useMemo } from "react";
 import { DataTable } from "@/src/components/table/data-table";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+} from "@/src/components/table/data-table-controls";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -10,6 +14,8 @@ import { type RouterOutput } from "@/src/utils/types";
 import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { promptFilterConfig } from "@/src/features/filters/config/prompts-config";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createColumnHelper } from "@tanstack/react-table";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -17,6 +23,15 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { promptsTableColsWithOptions } from "@langfuse/shared";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/src/components/ui/breadcrumb";
+import { Slash, Folder, Home } from "lucide-react";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
@@ -57,11 +72,7 @@ export function PromptTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
 
-  const [filterState, setFilterState] = useQueryFilterState(
-    [],
-    "prompts",
-    projectId,
-  );
+  const [filterState] = useQueryFilterState([], "prompts", projectId);
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
@@ -197,6 +208,37 @@ export function PromptTable() {
   const allTags = filterOptionTags.map((t) => t.value);
   const totalCount = prompts.data?.totalCount ?? null;
 
+  const newFilterOptions = useMemo(
+    () => ({
+      type: ["text", "chat"],
+      labels:
+        promptFilterOptions.data?.labels?.map((l) => {
+          // API type says { value: string }[], but for some items, there is an optional count
+          const item = l as { value: string; count?: number };
+          return {
+            value: item.value,
+            count: item.count !== undefined ? Number(item.count) : undefined,
+          };
+        }) || [],
+      tags:
+        promptFilterOptions.data?.tags?.map((t) => {
+          // API type says { value: string }[], but for some items, there is an optional count
+          const item = t as { value: string; count?: number };
+          return {
+            value: item.value,
+            count: item.count !== undefined ? Number(item.count) : undefined,
+          };
+        }) || [],
+      version: [],
+    }),
+    [promptFilterOptions.data],
+  );
+
+  const queryFilter = useSidebarFilterState(
+    promptFilterConfig,
+    newFilterOptions,
+  );
+
   useEffect(() => {
     if (prompts.isSuccess) {
       setDetailPageList(
@@ -331,71 +373,81 @@ export function PromptTable() {
   ] as LangfuseColumnDef<PromptTableRow>[];
 
   return (
-    <>
-      {currentFolderPath && (
-        <FolderBreadcrumb
-          currentFolderPath={currentFolderPath}
-          navigateToFolder={navigateToFolder}
-        />
-      )}
-      <DataTableToolbar
-        columns={promptColumns}
-        filterColumnDefinition={promptsTableColsWithOptions(
-          promptFilterOptions.data,
+    <DataTableControlsProvider
+      tableName={promptFilterConfig.tableName}
+      defaultSidebarCollapsed={promptFilterConfig.defaultSidebarCollapsed}
+    >
+      <div className="flex h-full w-full flex-col">
+        {/* Toolbar spanning full width */}
+        {currentFolderPath && (
+          <FolderBreadcrumb
+            currentFolderPath={currentFolderPath}
+            navigateToFolder={navigateToFolder}
+          />
         )}
-        filterState={filterState}
-        setFilterState={useDebounce(setFilterState)}
-        columnsWithCustomSelect={["labels", "tags"]}
-        searchConfig={{
-          metadataSearchFields: ["Name", "Tags", "Content"],
-          updateQuery: useDebounce(setSearchQuery, 300),
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: true,
-          setSearchType,
-          searchType,
-          customDropdownLabels: {
-            metadata: "Names, Tags",
-            fullText: "Full Text",
-          },
-          hidePerformanceWarning: true,
-        }}
-      />
-      <DataTable
-        tableName={"prompts"}
-        columns={promptColumns}
-        data={
-          prompts.isLoading
-            ? { isLoading: true, isError: false }
-            : prompts.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: prompts.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: processedRowData.rows?.map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    fullPath: item.fullPath,
-                    version: item.version,
-                    createdAt: item.createdAt,
-                    type: item.type,
-                    labels: item.labels,
-                    numberOfObservations: item.numberOfObservations,
-                    tags: item.tags,
-                  })),
-                }
-        }
-        orderBy={orderByState}
-        setOrderBy={setOrderByState}
-        pagination={{
-          totalCount,
-          onChange: setPaginationAndFolderState,
-          state: paginationState,
-        }}
-      />
-    </>
+        <DataTableToolbar
+          columns={promptColumns}
+          filterState={queryFilter.filterState}
+          columnsWithCustomSelect={["labels", "tags"]}
+          searchConfig={{
+            metadataSearchFields: ["Name", "Tags", "Content"],
+            updateQuery: useDebounce(setSearchQuery, 300),
+            currentQuery: searchQuery ?? undefined,
+            tableAllowsFullTextSearch: true,
+            setSearchType,
+            searchType,
+            customDropdownLabels: {
+              metadata: "Names, Tags",
+              fullText: "Full Text",
+            },
+            hidePerformanceWarning: true,
+          }}
+        />
+
+        {/* Content area with sidebar and table */}
+        <div className="flex flex-1 overflow-hidden">
+          <DataTableControls queryFilter={queryFilter} />
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"prompts"}
+              columns={promptColumns}
+              data={
+                prompts.isLoading
+                  ? { isLoading: true, isError: false }
+                  : prompts.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: prompts.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: processedRowData.rows?.map((item) => ({
+                          id: item.id,
+                          name: item.name,
+                          fullPath: item.fullPath,
+                          version: item.version,
+                          createdAt: item.createdAt,
+                          type: item.type,
+                          labels: item.labels,
+                          numberOfObservations: item.numberOfObservations,
+                          tags: item.tags,
+                        })),
+                      }
+              }
+              orderBy={orderByState}
+              setOrderBy={setOrderByState}
+              pagination={{
+                totalCount,
+                onChange: setPaginationAndFolderState,
+                state: paginationState,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </DataTableControlsProvider>
   );
 }

@@ -581,10 +581,14 @@ export const createEvalJobs = async ({
           `Cancelling eval job for config ${config.id} and trace ${event.traceId}`,
         );
 
-        await prisma.jobExecution.update({
+        // Note: we use updateMany to gracefully handle case where execution is already completed; we silently skip the update.
+        await prisma.jobExecution.updateMany({
           where: {
             id: existingJob[0].id,
             projectId: event.projectId,
+            status: {
+              not: JobExecutionStatus.COMPLETED,
+            },
           },
           data: {
             status: JobExecutionStatus.CANCELLED,

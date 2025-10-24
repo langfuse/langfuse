@@ -14,7 +14,7 @@ async function main() {
     }
     await prepareClickhouse(projectIds, {
       numberOfDays: 3,
-      totalObservations: 10000,
+      totalObservations: 100000,
       numberOfRuns: 3,
     });
 

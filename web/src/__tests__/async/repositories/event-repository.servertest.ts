@@ -865,6 +865,78 @@ describe("Clickhouse Events Repository Test", () => {
         expect(filteredObservations[0].name).toBe("new-user-1");
       });
     });
+    describe("Metadata filters", () => {
+      it("should filter observations by stringObject", async () => {
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "md1",
+            metadata: { source: "api-server", region: "us-east" },
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "md2",
+            metadata: { source: "UI", region: "us-east" },
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "md3",
+            metadata: { source: "UI", region: "us-west" },
+            start_time: now * 1000,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "contains",
+              key: "source",
+              value: "api",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("md1");
+      });
+    });
   });
 
   maybe("getObservationByIdFromEventsTable", () => {
