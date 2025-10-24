@@ -3,12 +3,12 @@ import { api } from "@/src/utils/api";
 
 export function useMentionAutocomplete({
   projectId,
-  textareaValue,
+  getTextareaValue,
   cursorPosition,
   enabled,
 }: {
   projectId: string;
-  textareaValue: string;
+  getTextareaValue: () => string;
   cursorPosition: number;
   enabled: boolean;
 }) {
@@ -42,6 +42,7 @@ export function useMentionAutocomplete({
   useEffect(() => {
     if (!enabled) return;
 
+    const textareaValue = getTextareaValue();
     const textBeforeCursor = textareaValue.substring(0, cursorPosition);
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
 
@@ -74,7 +75,7 @@ export function useMentionAutocomplete({
     setSearchQuery(textAfterAt);
     setShowDropdown(true);
     setSelectedIndex(0);
-  }, [textareaValue, cursorPosition, enabled]);
+  }, [getTextareaValue, cursorPosition, enabled]);
 
   const closeDropdown = useCallback(() => {
     setShowDropdown(false);
