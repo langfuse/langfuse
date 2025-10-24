@@ -81,13 +81,11 @@ export type CommentObjectType =
   (typeof CommentObjectType)[keyof typeof CommentObjectType];
 export const NotificationChannel = {
   EMAIL: "EMAIL",
-  // Extend by adding: IN_APP, SLACK
 } as const;
 export type NotificationChannel =
   (typeof NotificationChannel)[keyof typeof NotificationChannel];
 export const NotificationType = {
   COMMENT_MENTION: "COMMENT_MENTION",
-  // Extend by adding: COMMENT_REPLY, COMMENT_NEW, EVAL_COMPLETE, EXPORT_READY
 } as const;
 export type NotificationType =
   (typeof NotificationType)[keyof typeof NotificationType];

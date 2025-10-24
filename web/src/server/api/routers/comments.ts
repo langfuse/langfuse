@@ -107,7 +107,7 @@ export const commentsRouter = createTRPCRouter({
         });
 
         // Enqueue notification job for mentioned users
-        if (validMentionedUserIds.length > 0) {
+        if (mentionedUserIds.length > 0) {
           const notificationQueue = NotificationQueue.getInstance();
           if (notificationQueue) {
             try {
@@ -118,12 +118,12 @@ export const commentsRouter = createTRPCRouter({
                   type: "COMMENT_MENTION" as const,
                   commentId: comment.id,
                   projectId: input.projectId,
-                  mentionedUserIds: validMentionedUserIds,
+                  mentionedUserIds: mentionedUserIds,
                 },
                 name: QueueJobs.NotificationJob,
               });
               logger.info(
-                `Notification job enqueued for comment ${comment.id} with ${validMentionedUserIds.length} mentions`,
+                `Notification job enqueued for comment ${comment.id} with ${mentionedUserIds.length} mentions`,
               );
             } catch (error) {
               // Log but don't fail the request if notification queueing fails
