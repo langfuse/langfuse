@@ -5,6 +5,8 @@ import {
   getObservationById,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared";
+import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
 
 type CommentMentionPayload = {
   commentId: string;
@@ -46,61 +48,55 @@ export async function handleCommentMentionNotification(
       return;
     }
 
-    // Fetch author information - validate they're in the same project to prevent cross-project data leakage
-    // authorName will be undefined if author was deleted or is not a project/org member
-    let authorName: string | undefined = undefined;
-    if (comment.authorUserId) {
-      // Verify author is a member of this project via project membership or org membership
-      const authorProjectMembership = await prisma.projectMembership.findUnique(
+    // Fetch all users (author + mentioned users) with single efficient query
+    // This replaces ~18-24 individual database queries with 1 SQL query
+    const allUserIds = comment.authorUserId
+      ? [comment.authorUserId, ...mentionedUserIds]
+      : mentionedUserIds;
+
+    const projectUsers = await getUserProjectRoles({
+      projectId: projectId,
+      orgId: comment.project.orgId,
+      filterCondition: [
         {
-          where: {
-            projectId_userId: {
-              projectId: projectId,
-              userId: comment.authorUserId,
-            },
-          },
+          column: "userId",
+          operator: "any of",
+          value: allUserIds,
+          type: "stringOptions",
         },
-      );
+      ],
+      searchFilter: Prisma.empty,
+      orderBy: Prisma.empty,
+    });
 
-      if (authorProjectMembership) {
-        // Author is a project member, safe to fetch their info
-        const author = await prisma.user.findUnique({
-          where: { id: comment.authorUserId },
-          select: {
-            name: true,
-            email: true,
-          },
-        });
-        authorName = author?.name ?? author?.email ?? undefined;
-      } else {
-        // Check if author is org member (indirect project access)
-        const authorOrgMembership =
-          await prisma.organizationMembership.findUnique({
-            where: {
-              orgId_userId: {
-                orgId: comment.project.orgId, // orgId from comment.project join
-                userId: comment.authorUserId,
-              },
-            },
-          });
+    // Create lookup map for O(1) access
+    const userMap = new Map(projectUsers.map((u) => [u.id, u]));
 
-        if (authorOrgMembership) {
-          const author = await prisma.user.findUnique({
-            where: { id: comment.authorUserId },
-            select: {
-              name: true,
-              email: true,
-            },
-          });
-          authorName = author?.name ?? author?.email ?? undefined;
-        }
-        // If neither project nor org member, authorName remains undefined
-      }
+    // Get author name if author is a project/org member
+    let authorName: string | undefined = undefined;
+    if (comment.authorUserId && userMap.has(comment.authorUserId)) {
+      const author = userMap.get(comment.authorUserId)!;
+      authorName = author.name ?? author.email ?? undefined;
     }
 
     // Process each mentioned user
     for (const userId of mentionedUserIds) {
       try {
+        // Verify user has access to the project (from our single query above)
+        if (!userMap.has(userId)) {
+          logger.info(
+            `User ${userId} is not a member of project ${projectId} or its organization. Skipping notification to prevent information leakage.`,
+          );
+          continue;
+        }
+
+        const mentionedUser = userMap.get(userId)!;
+
+        if (!mentionedUser.email) {
+          logger.warn(`User ${userId} has no email. Skipping notification.`);
+          continue;
+        }
+
         // Check notification preference (default: enabled)
         // If preference exists and is disabled, skip
         // If user/project was deleted, the preference won't exist (cascade delete)
@@ -120,64 +116,6 @@ export async function handleCommentMentionNotification(
             `User ${userId} has disabled email notifications for comment mentions in project ${projectId}. Skipping.`,
           );
           continue;
-        }
-
-        // Fetch mentioned user details
-        const mentionedUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            name: true,
-            email: true,
-          },
-        });
-
-        if (!mentionedUser?.email) {
-          logger.warn(
-            `User ${userId} not found or has no email. Skipping notification.`,
-          );
-          continue;
-        }
-
-        // Verify user still has access to the project
-        // User must have either a direct project membership OR an organization membership
-        const projectMembership = await prisma.projectMembership.findUnique({
-          where: {
-            projectId_userId: {
-              projectId,
-              userId,
-            },
-          },
-        });
-
-        // If no direct project membership, check organization membership
-        if (!projectMembership) {
-          const project = await prisma.project.findUnique({
-            where: { id: projectId },
-            select: { orgId: true },
-          });
-
-          if (!project) {
-            logger.warn(
-              `Project ${projectId} not found. Skipping notification for user ${userId}.`,
-            );
-            continue;
-          }
-
-          const orgMembership = await prisma.organizationMembership.findUnique({
-            where: {
-              orgId_userId: {
-                orgId: project.orgId,
-                userId,
-              },
-            },
-          });
-
-          if (!orgMembership) {
-            logger.info(
-              `User ${userId} is not a member of project ${projectId} or its organization. Skipping notification to prevent information leakage.`,
-            );
-            continue;
-          }
         }
 
         // Truncate comment content for preview (500 chars)

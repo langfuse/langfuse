@@ -22,7 +22,7 @@ import {
   NotificationQueue,
   QueueJobs,
 } from "@langfuse/shared/src/server";
-import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
+import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
