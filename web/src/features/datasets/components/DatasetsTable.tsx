@@ -217,6 +217,11 @@ export function DatasetsTable(props: { projectId: string }) {
       size: 70,
       cell: ({ row }) => {
         const key: DatasetTableRow["key"] = row.getValue("key");
+
+        if (row.original.isFolder) {
+          return null;
+        }
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
