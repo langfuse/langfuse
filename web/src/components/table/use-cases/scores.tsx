@@ -10,9 +10,9 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { scoreFilterConfig } from "@/src/features/filters/config/scores-config";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -33,15 +33,11 @@ import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import {
-  useEnvironmentFilter,
-  convertSelectedEnvironmentsToFilter,
-} from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -123,12 +119,6 @@ export default function ScoresTable({
     return toAbsoluteTimeRange(timeRange) ?? undefined;
   }, [timeRange]);
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [],
-    "scores",
-    projectId,
-  );
-
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
@@ -165,57 +155,10 @@ export default function ScoresTable({
       },
     );
 
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
-
-  const { selectedEnvironments } = useEnvironmentFilter(
-    environmentOptions,
-    projectId,
-  );
-
-  const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment"],
-    selectedEnvironments,
-  );
-
-  const filterState = createFilterState(
-    userFilterState.concat(dateRangeFilter, environmentFilter),
-    [
-      ...(userId ? [{ key: "User ID", value: userId }] : []),
-      ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
-      ...(observationId
-        ? [{ key: "Observation ID", value: observationId }]
-        : []),
-    ],
-  );
-
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
   });
-
-  const getCountPayload = {
-    projectId,
-    filter: filterState,
-    page: 0,
-    limit: 1,
-    orderBy: null,
-  };
-
-  const getAllPayload = {
-    ...getCountPayload,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    orderBy: orderByState,
-  };
-
-  const scores = api.scores.all.useQuery(getAllPayload, {
-    enabled: !environmentFilterOptions.isLoading,
-  });
-  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload, {
-    enabled: !environmentFilterOptions.isLoading,
-  });
-  const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const scoreDeleteMutation = api.scores.deleteMany.useMutation({
     onSuccess: () => {
@@ -241,7 +184,7 @@ export default function ScoresTable({
       projectId,
       scoreIds: selectedScoreIds,
       query: {
-        filter: filterState,
+        filter: backendFilterState,
         orderBy: orderByState,
       },
       isBatchAction: selectAll,
@@ -288,6 +231,56 @@ export default function ScoresTable({
     scoreFilterConfig,
     newFilterOptions,
   );
+
+  // Create ref-based wrapper to avoid stale closure when queryFilter updates
+  const queryFilterRef = useRef(queryFilter);
+  queryFilterRef.current = queryFilter;
+
+  const setFiltersWrapper = useCallback(
+    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    [],
+  );
+
+  const filterState = createFilterState(
+    queryFilter.filterState.concat(dateRangeFilter),
+    [
+      ...(userId ? [{ key: "User ID", value: userId }] : []),
+      ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
+      ...(observationId
+        ? [{ key: "Observation ID", value: observationId }]
+        : []),
+    ],
+  );
+
+  const backendFilterState = transformFiltersForBackend(
+    filterState,
+    {}, // No backend column remapping needed for scores
+    scoreFilterConfig.columnDefinitions,
+  );
+
+  const getCountPayload = {
+    projectId,
+    filter: backendFilterState,
+    page: 0,
+    limit: 1,
+    orderBy: null,
+  };
+
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    orderBy: orderByState,
+  };
+
+  const scores = api.scores.all.useQuery(getAllPayload, {
+    enabled: !environmentFilterOptions.isLoading,
+  });
+  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload, {
+    enabled: !environmentFilterOptions.isLoading,
+  });
+
+  const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const { selectActionColumn } = TableSelectionManager<ScoresTableRow>({
     projectId,
@@ -669,7 +662,7 @@ export default function ScoresTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setUserFilterState,
+      setFilters: setFiltersWrapper,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
     },
@@ -677,7 +670,7 @@ export default function ScoresTable({
       columns,
       filterColumnDefinition: scoreFilterConfig.columnDefinitions,
     },
-    currentFilterState: userFilterState,
+    currentFilterState: queryFilter.filterState,
   });
 
   return (

@@ -53,6 +53,20 @@ export async function createNewSsoConfigHandler(
 
     const { domain, authProvider, authConfig } = body.data;
 
+    // Preemptive check: Verify that SSO config doesn't already exist for this domain
+    const existingConfig = await prisma.ssoConfig.findUnique({
+      where: { domain },
+    });
+    if (existingConfig) {
+      logger.info(
+        `Attempt to create duplicate SSO configuration for domain: ${domain}`,
+      );
+      res.status(409).json({
+        error: `An SSO configuration already exists for domain '${domain}'`,
+      });
+      return;
+    }
+
     const encryptedClientSecret = authConfig
       ? {
           ...authConfig,

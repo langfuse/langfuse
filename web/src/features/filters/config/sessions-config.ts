@@ -4,18 +4,19 @@ import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-quer
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
 const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  bookmarked: "bookmarked",
   environment: "environment",
+  id: "id",
   userIds: "userIds",
   tags: "tags",
+  bookmarked: "bookmarked",
   sessionDuration: "sessionDuration",
   countTraces: "countTraces",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
+  inputCost: "inputCost",
+  outputCost: "outputCost",
+  totalCost: "totalCost",
   score_categories: "score_categories",
   scores_avg: "scores_avg",
 };
@@ -39,16 +40,14 @@ export const sessionFilterConfig: FilterConfig = {
 
   facets: [
     {
-      type: "boolean" as const,
-      column: "bookmarked",
-      label: "Bookmarked",
-      trueLabel: "Bookmarked",
-      falseLabel: "Not bookmarked",
-    },
-    {
       type: "categorical" as const,
       column: "environment",
       label: "Environment",
+    },
+    {
+      type: "string" as const,
+      column: "id",
+      label: "Session ID",
     },
     {
       type: "categorical" as const,
@@ -59,6 +58,13 @@ export const sessionFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "tags",
       label: "Trace Tags",
+    },
+    {
+      type: "boolean" as const,
+      column: "bookmarked",
+      label: "Bookmarked",
+      trueLabel: "Bookmarked",
+      falseLabel: "Not bookmarked",
     },
     {
       type: "numeric" as const,

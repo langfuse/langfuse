@@ -1,5 +1,5 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
-import { parseMetadata } from "../helpers";
+import { parseMetadata, stringifyToolResultContent } from "../helpers";
 
 export function isGeminiToolDefinition(msg: unknown): boolean {
   if (!msg || typeof msg !== "object") return false;
@@ -37,11 +37,37 @@ export function extractGeminiToolDefinitions(messages: unknown[]): Array<{
   });
 }
 
+function normalizeToolCall(toolCall: unknown): Record<string, unknown> {
+  if (!toolCall || typeof toolCall !== "object") return {};
+
+  const tc = toolCall as Record<string, unknown>;
+
+  // is Gemini format?: {name, args, id, type: "tool_call"}
+  if (tc.type === "tool_call" && tc.name && "args" in tc) {
+    // Convert to our ChatML / OpenAI format: {id, type: "function", function: {name, arguments}}
+    return {
+      id: tc.id,
+      type: "function",
+      function: {
+        name: tc.name,
+        arguments:
+          typeof tc.args === "string" ? tc.args : JSON.stringify(tc.args ?? {}),
+      },
+    };
+  }
+
+  return tc;
+}
+
 function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
 
   const message = msg as Record<string, unknown>;
   const normalized = { ...message };
+
+  if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
+    normalized.tool_calls = normalized.tool_calls.map(normalizeToolCall);
+  }
 
   // Gemini structured content: content: [{type: "text", text: "..."}]
   // Convert to plain string for ChatML compatibility
@@ -71,6 +97,17 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
     if (textParts) {
       normalized.content = textParts;
     }
+  }
+
+  // Stringify object content for tool result messages, results should be strings in playground
+  // NOTE: this will probably change down the line as we introduce structured tool results
+  if (
+    normalized.role === "tool" &&
+    typeof normalized.content === "object" &&
+    !Array.isArray(normalized.content) &&
+    !isGeminiToolDefinition(msg)
+  ) {
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;

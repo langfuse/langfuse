@@ -106,7 +106,7 @@ describe("Create and get comments", () => {
     }
   });
 
-  it("should fail to create comment if content is larger than 3000 characters", async () => {
+  it("should fail to create comment if content is larger than 5000 characters", async () => {
     try {
       await makeZodVerifiedAPICall(
         z.object({
@@ -116,7 +116,7 @@ describe("Create and get comments", () => {
         "POST",
         "/api/public/comments",
         {
-          content: "a".repeat(3001),
+          content: "a".repeat(5001),
           objectId: "1234",
           objectType: "TRACE",
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -124,7 +124,7 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_big\",\"maximum\":3000,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too big: expected string to have <=3000 characters\"}]}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_big\",\"maximum\":5000,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too big: expected string to have <=5000 characters\"}]}`,
       );
     }
   });

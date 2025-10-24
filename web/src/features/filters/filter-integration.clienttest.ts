@@ -18,6 +18,9 @@ import {
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
+import { transformFiltersForBackend } from "./lib/filter-transform";
+import { sessionFilterConfig } from "./config/sessions-config";
+import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
 
 const mockColumnMap: ColumnToQueryKeyMap = {
   name: "name",
@@ -565,5 +568,47 @@ describe("Config Validation of old saved views", () => {
     );
 
     expect(invalidFacets).toEqual([]);
+  });
+});
+
+describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
+  it("should preserve multiple string contains filters from URL", () => {
+    // environment contains "e" AND environment contains "a"
+    // These create valid SQL: WHERE env LIKE '%e%' AND env LIKE '%a%'
+    const urlFilter =
+      "environment;string;;contains;e,environment;string;;contains;a";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      sessionFilterConfig.columnToQueryKey,
+      sessionFilterConfig.columnDefinitions,
+      {},
+    );
+
+    const result = transformFiltersForBackend(normalized, {});
+
+    // Both filters preserved
+    expect(result).toHaveLength(2);
+    expect(result[0]?.value).toBe("e");
+    expect(result[1]?.value).toBe("a");
+  });
+
+  it("should handle backend column remapping from URL", () => {
+    // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
+    const urlFilter = "tags;arrayOptions;;any of;tag1";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      { tags: "tags" },
+      traceFilterConfig.columnDefinitions,
+      {},
+    );
+
+    const result = transformFiltersForBackend(normalized, {
+      tags: "traceTags",
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.column).toBe("traceTags");
   });
 });
