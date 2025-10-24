@@ -166,10 +166,15 @@ export function useTableViewManager({
 
       if (setOrderByRef.current) setOrderByRef.current(validOrderBy);
 
+      const filtersAlreadyApplied = isEqual(currentFilterState, validFilters);
+
       if (setFiltersRef.current) {
         setFiltersRef.current(validFilters);
         // Track expected filters to observe when state actually updates (for useEffect below)
-        pendingFiltersRef.current = validFilters;
+        // If filters are already applied, don't set pending ref (will unlock immediately)
+        if (!filtersAlreadyApplied) {
+          pendingFiltersRef.current = validFilters;
+        }
       }
 
       // Handle search query (only set if non-empty to avoid use-query-params batching conflicts)
@@ -182,11 +187,21 @@ export function useTableViewManager({
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
 
+      // If filters were already applied, unlock table immediately
+      if (filtersAlreadyApplied) {
+        setIsLoading(false);
+      }
+
       // NOTE: Table remains locked until useEffect observer detects filter state propagation
       // This is relevant for the saved views. Because the URL lazy updates and we don't want to wait
       // for a page reload
     },
-    [setColumnOrder, setColumnVisibility, validationContext],
+    [
+      setColumnOrder,
+      setColumnVisibility,
+      validationContext,
+      currentFilterState,
+    ],
   );
 
   // Handle successful view data fetch
