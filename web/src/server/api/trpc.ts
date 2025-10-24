@@ -22,6 +22,7 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
+import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -92,8 +93,12 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { env } from "@/src/env.mjs";
+import { BaseError } from "@langfuse/shared";
 
 setUpSuperjson();
+
+const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
@@ -123,6 +128,16 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  */
 export const createTRPCRouter = t.router;
 
+const resolveError = (error: TRPCError) => {
+  if (error.cause instanceof BaseError) {
+    return {
+      code: getTRPCErrorCodeFromHTTPStatusCode(error.cause.httpCode),
+      httpStatus: error.cause.httpCode,
+    };
+  }
+  return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
+};
+
 // global error handling
 const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
@@ -151,15 +166,18 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
       // Throw a new TRPC error with:
       // - The same error code as the original error
       // - Either the original error message OR "Internal error" if it's a 5xx error
-      const httpStatus = getHTTPStatusCodeFromError(res.error);
+      const { code, httpStatus } = resolveError(res.error);
       const isSafeToExpose = httpStatus >= 400 && httpStatus < 500;
+      const errorMessage = isLangfuseCloud
+        ? "We have been notified and are working on it."
+        : "Please check error logs in your self-hosted deployment.";
 
       res.error = new TRPCError({
-        code: res.error.code,
+        code,
         cause: null, // do not expose stack traces
         message: isSafeToExpose
           ? res.error.message
-          : "Internal error. We have been notified and are working on it.",
+          : "Internal error. " + errorMessage,
       });
     }
   }

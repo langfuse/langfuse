@@ -4933,6 +4933,7 @@ components:
       enum:
         - TRACE
         - OBSERVATION
+        - SESSION
     AnnotationQueue:
       title: AnnotationQueue
       type: object
@@ -5290,7 +5291,7 @@ components:
           type: string
           description: >-
             The content of the comment. May include markdown. Currently limited
-            to 3000 characters.
+            to 5000 characters.
         authorUserId:
           type: string
           nullable: true

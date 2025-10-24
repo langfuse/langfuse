@@ -234,7 +234,6 @@ export const handleEventPropagationJob = async (
         )
 
         INSERT INTO events (
-          org_id,
           project_id,
           trace_id,
           span_id,
@@ -266,12 +265,12 @@ export const handleEventPropagationJob = async (
           metadata,
           metadata_names,
           metadata_values,
-          metadata_string_names,
-          metadata_string_values,
-          metadata_number_names,
-          metadata_number_values,
-          metadata_bool_names,
-          metadata_bool_values,
+          -- metadata_string_names,
+          -- metadata_string_values,
+          -- metadata_number_names,
+          -- metadata_number_values,
+          -- metadata_bool_names,
+          -- metadata_bool_values,
           source,
           service_name,
           service_version,
@@ -289,14 +288,13 @@ export const handleEventPropagationJob = async (
           is_deleted
         )
         SELECT
-          NULL AS org_id,
           obs.project_id,
           obs.trace_id,
           obs.id AS span_id,
           -- When the observation IS the trace itself (id = trace_id), parent should be NULL
           -- Otherwise, use standard wrapper logic: parent_observation_id or prefixed trace_id as fallback
           CASE
-            WHEN obs.id = concat('t-', obs.trace_id) THEN NULL
+            WHEN obs.id = concat('t-', obs.trace_id) THEN ''
             ELSE coalesce(obs.parent_observation_id, concat('t-', obs.trace_id))
           END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
@@ -329,12 +327,12 @@ export const handleEventPropagationJob = async (
           CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
           mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
           mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
-          mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_string_names,
-          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_string_values,
-          [] AS metadata_number_names,
-          [] AS metadata_number_values,
-          [] AS metadata_bool_names,
-          [] AS metadata_bool_values,
+          -- mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_string_names,
+          -- mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_string_values,
+          -- [] AS metadata_number_names,
+          -- [] AS metadata_number_values,
+          -- [] AS metadata_bool_names,
+          -- [] AS metadata_bool_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
           NULL AS service_name,
           NULL AS service_version,

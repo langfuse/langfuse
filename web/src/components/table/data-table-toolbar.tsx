@@ -21,7 +21,13 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Search, ChevronDown } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
@@ -29,7 +35,6 @@ import {
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -40,6 +45,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { useDataTableControls } from "@/src/components/table/data-table-controls";
+import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -135,12 +142,36 @@ export function DataTableToolbar<TData, TValue>({
   );
 
   const capture = usePostHogClientCapture();
+  const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
+    useDataTableControls();
 
+  // Only show the toggle button when we're using the new sidebar
+  const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
+        {hasNewSidebar && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
+            className="flex h-8 items-center gap-2 text-sm"
+          >
+            {controlsPanelOpen ? (
+              <PanelLeftClose className="h-4 w-4" />
+            ) : (
+              <PanelLeftOpen className="h-4 w-4" />
+            )}
+            <span>{controlsPanelOpen ? "Hide" : "Show"} filters</span>
+            {filterState && filterState.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {filterState.length}
+              </Badge>
+            )}
+          </Button>
+        )}
         {searchConfig && (
-          <div className="flex min-w-0 max-w-64 flex-shrink-0 items-stretch">
+          <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
             <div
               className={cn(
                 "flex h-8 flex-1 items-center border border-input bg-background pl-2",
@@ -168,7 +199,14 @@ export function DataTableToolbar<TData, TValue>({
                     : `Search (${searchConfig.metadataSearchFields.join(", ")})`
                 }
                 value={searchString}
-                onChange={(event) => setSearchString(event.currentTarget.value)}
+                onChange={(event) => {
+                  const newValue = event.currentTarget.value;
+                  setSearchString(newValue);
+                  // If user cleared the search, update URL immediately
+                  if (newValue === "") {
+                    searchConfig.updateQuery("");
+                  }
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     capture("table:search_submit");
@@ -265,7 +303,7 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
         {environmentFilter && (
-          <MultiSelect
+          <MultiSelectFilter
             title="Environment"
             label="Env"
             values={environmentFilter.values}
