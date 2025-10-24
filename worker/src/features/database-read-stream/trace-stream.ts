@@ -23,6 +23,8 @@ import {
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
 
+const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+
 export const getTraceStream = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;
@@ -269,7 +271,6 @@ export const getTraceStream = async (props: {
 
   // Convert async generator to Node.js Readable stream
   let recordsProcessed = 0;
-  const BATCH_SIZE = 100; // Fetch comments in batches for efficiency
 
   return Readable.from(
     (async function* () {

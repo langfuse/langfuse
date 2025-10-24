@@ -27,6 +27,8 @@ import {
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import type { Model, Price } from "@prisma/client";
 
+const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+
 type ModelWithPrice = Model & { Price: Price[] };
 
 /**
@@ -347,7 +349,6 @@ export const getObservationStream = async (props: {
 
   // Convert async generator to Node.js Readable stream
   let recordsProcessed = 0;
-  const BATCH_SIZE = 100; // Fetch comments in batches for efficiency
 
   return Readable.from(
     (async function* () {
