@@ -6,6 +6,11 @@ import { logger, traceException } from "@langfuse/shared/src/server";
 
 export const config = {
   maxDuration: 240,
+  api: {
+    bodyParser: {
+      sizeLimit: "4.5mb",
+    },
+  },
 };
 
 // export API handler
