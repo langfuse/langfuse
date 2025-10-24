@@ -16,6 +16,8 @@ import {
   FullObservations,
   orderByToClickhouseSql,
   createPublicApiObservationsColumnMapping,
+  createPublicApiTracesColumnMapping,
+  createTracesUiColumnDefinitions,
   deriveFilters,
   type ApiColumnMapping,
   ObservationPriceFields,
@@ -136,79 +138,19 @@ const PUBLIC_API_EVENTS_COLUMN_MAPPING: ApiColumnMapping[] =
   createPublicApiObservationsColumnMapping("events", "e", "parent_span_id");
 
 /**
- * UI Column definitions for advanced filters on traces aggregated from events table
- * Maps trace-level column names (from advanced filter syntax) to events table columns
+ * Column mappings for traces aggregated from events table
  */
-const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS = [
-  {
-    uiTableName: "Timestamp",
-    uiTableId: "timestamp",
-    clickhouseTableName: "events",
-    clickhouseSelect: "start_time",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "User ID",
-    uiTableId: "userId",
-    clickhouseTableName: "events",
-    clickhouseSelect: "user_id",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "Name",
-    uiTableId: "name",
-    clickhouseTableName: "events",
-    clickhouseSelect: "name",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "Environment",
-    uiTableId: "environment",
-    clickhouseTableName: "events",
-    clickhouseSelect: "environment",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "Metadata",
-    uiTableId: "metadata",
-    clickhouseTableName: "events",
-    clickhouseSelect: "metadata",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "Session ID",
-    uiTableId: "sessionId",
-    clickhouseTableName: "events",
-    clickhouseSelect: "session_id",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "Version",
-    uiTableId: "version",
-    clickhouseTableName: "events",
-    clickhouseSelect: "version",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "Release",
-    uiTableId: "release",
-    clickhouseTableName: "events",
-    clickhouseSelect: "release",
-    queryPrefix: "e",
-  },
-  {
-    uiTableName: "Tags",
-    uiTableId: "tags",
-    clickhouseTableName: "events",
-    clickhouseSelect: "tags",
-    queryPrefix: "e",
-  },
-] as const;
+const PUBLIC_API_TRACES_COLUMN_MAPPING = createPublicApiTracesColumnMapping(
+  "events",
+  "e",
+  "start_time",
+);
+
+const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS =
+  createTracesUiColumnDefinitions("events", "e", "start_time");
 
 /**
- * Add ordering and pagination for rows
- * Derive orderByColumns from UI column definitions (with queryPrefix changed to 't' for traces CTE)
- * Note: Some columns have different names after aggregation (e.g., start_time -> timestamp)
+ * Order by columns for traces CTE (post-aggregation)
  */
 const allowedOrderByIds = [
   "timestamp",
@@ -223,82 +165,11 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
   (col) => allowedOrderByIds.includes(col.uiTableId),
 ).map((col) => ({
   ...col,
-  // Adjust column names that change after aggregation
+  // Adjust column names that change after aggregation (start_time -> timestamp)
   clickhouseSelect:
     col.uiTableId === "timestamp" ? "timestamp" : col.clickhouseSelect,
   queryPrefix: "t", // Use 't' prefix because we're selecting from traces CTE
 }));
-
-/**
- * Column mapping for public API simple filters on traces aggregated from events table
- */
-const PUBLIC_API_TRACES_COLUMN_MAPPING: ApiColumnMapping[] = [
-  {
-    id: "userId",
-    clickhouseSelect: "user_id",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "name",
-    clickhouseSelect: "name",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "tags",
-    clickhouseSelect: "tags",
-    filterType: "ArrayOptionsFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "sessionId",
-    clickhouseSelect: "session_id",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "version",
-    clickhouseSelect: "version",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "release",
-    clickhouseSelect: "release",
-    filterType: "StringFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "environment",
-    clickhouseSelect: "environment",
-    filterType: "StringOptionsFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "fromTimestamp",
-    clickhouseSelect: "start_time",
-    operator: ">=" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-  {
-    id: "toTimestamp",
-    clickhouseSelect: "start_time",
-    operator: "<" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "events",
-    clickhousePrefix: "e",
-  },
-];
 
 export const getObservationsCountFromEventsTable = async (
   opts: ObservationTableQuery,

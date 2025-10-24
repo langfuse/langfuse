@@ -23,6 +23,8 @@ export { clickhouseSearchCondition } from "./clickhouse-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
+  createPublicApiTracesColumnMapping,
+  createTracesUiColumnDefinitions,
   deriveFilters,
   type ApiColumnMapping,
 } from "./public-api-filter-builder";

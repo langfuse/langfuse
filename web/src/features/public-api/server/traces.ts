@@ -7,11 +7,11 @@ import {
   convertClickhouseTracesListToDomain,
   type TraceRecordReadType,
   measureAndReturn,
-  tracesTableUiColumnDefinitions,
   deriveFilters,
+  createPublicApiTracesColumnMapping,
+  createTracesUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
-import { snakeCase } from "lodash";
 import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
@@ -19,6 +19,7 @@ import {
 
 import type { FilterState } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { snakeCase } from "lodash";
 
 export type TraceQueryType = {
   page: number;
@@ -58,7 +59,7 @@ export const generateTracesForPublicApi = async ({
     props,
     filterParams,
     advancedFilters,
-    tracesTableUiColumnDefinitions,
+    tracesUiColumnDefinitions,
   );
   const appliedFilter = filter.apply();
 
@@ -238,7 +239,7 @@ export const getTracesCountForPublicApi = async ({
     props,
     filterParams,
     advancedFilters,
-    tracesTableUiColumnDefinitions,
+    tracesUiColumnDefinitions,
   );
   const appliedFilter = filter.apply();
 
@@ -297,70 +298,9 @@ const orderByColumns = [
   queryPrefix: "t",
 }));
 
-const filterParams = [
-  {
-    id: "userId",
-    clickhouseSelect: "user_id",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "name",
-    clickhouseSelect: "name",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "tags",
-    clickhouseSelect: "tags",
-    filterType: "ArrayOptionsFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "sessionId",
-    clickhouseSelect: "session_id",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "version",
-    clickhouseSelect: "version",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "release",
-    clickhouseSelect: "release",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "environment",
-    clickhouseSelect: "environment",
-    filterType: "StringOptionsFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "fromTimestamp",
-    clickhouseSelect: "timestamp",
-    operator: ">=" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "toTimestamp",
-    clickhouseSelect: "timestamp",
-    operator: "<" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-];
+// Use factory functions to create column mappings (eliminates duplication with events table)
+const filterParams = createPublicApiTracesColumnMapping("traces", "t");
+const tracesUiColumnDefinitions = createTracesUiColumnDefinitions(
+  "traces",
+  "t",
+);
