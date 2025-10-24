@@ -5,11 +5,15 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 interface UseUserSearchProps {
   projectId: string;
   excludeUserIds?: string[];
+  limit?: number;
+  enabled?: boolean;
 }
 
 export function useUserSearch({
   projectId,
   excludeUserIds,
+  limit = 50,
+  enabled = true,
 }: UseUserSearchProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -34,14 +38,14 @@ export function useUserSearch({
       projectId,
       searchQuery: debouncedSearchQuery || undefined,
       page: 0,
-      limit: 50,
+      limit,
       excludeUserIds:
         excludeUserIds && excludeUserIds.length > 0
           ? excludeUserIds
           : undefined,
     },
     {
-      enabled: hasProjectMembersReadAccess,
+      enabled: hasProjectMembersReadAccess && enabled,
     },
   );
 

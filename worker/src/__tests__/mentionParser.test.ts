@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  extractMentionsFromMarkdown,
-  extractMentionedUserIds,
+  extractUniqueMentionedUserIds,
   sanitizeMentions,
   MENTION_USER_PREFIX,
   type ProjectMember,
-} from "@langfuse/shared/src/features/comments/mentionParser";
+} from "@langfuse/shared";
 
 describe("mentionParser", () => {
   describe("MENTION_USER_PREFIX", () => {
@@ -14,154 +13,143 @@ describe("mentionParser", () => {
     });
   });
 
-  describe("extractMentionsFromMarkdown", () => {
+  describe("extractUniqueMentionedUserIds", () => {
     describe("valid patterns", () => {
       it("should extract a single mention", () => {
         const content = "Hey @[Alice](user:alice123), how are you?";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: "alice123", displayName: "Alice" }]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should extract multiple mentions", () => {
         const content =
           "@[Alice](user:alice123) and @[Bob](user:bob456) please review";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([
-          { userId: "alice123", displayName: "Alice" },
-          { userId: "bob456", displayName: "Bob" },
-        ]);
+        expect(result).toEqual(["alice123", "bob456"]);
       });
 
       it("should handle mentions with special characters in display name", () => {
         const content = "Ask @[O'Connor](user:user123) about it";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([
-          { userId: "user123", displayName: "O'Connor" },
-        ]);
+        expect(result).toEqual(["user123"]);
       });
 
       it("should handle mentions with numbers in display name", () => {
         const content = "Tell @[User 2](user:user-2) to check";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: "user-2", displayName: "User 2" }]);
+        expect(result).toEqual(["user-2"]);
       });
 
       it("should handle user IDs with hyphens and underscores", () => {
         const content = "@[Test User](user:test_user-123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([
-          { userId: "test_user-123", displayName: "Test User" },
-        ]);
+        expect(result).toEqual(["test_user-123"]);
       });
 
       it("should handle mentions at start of text", () => {
         const content = "@[Alice](user:alice123) please help";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toHaveLength(1);
-        expect(result[0]?.userId).toBe("alice123");
+        expect(result[0]).toBe("alice123");
       });
 
       it("should handle mentions at end of text", () => {
         const content = "Please review @[Alice](user:alice123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toHaveLength(1);
-        expect(result[0]?.userId).toBe("alice123");
+        expect(result[0]).toBe("alice123");
       });
 
       it("should handle mentions with surrounding punctuation", () => {
         const content = "Hey, @[Alice](user:alice123)! Can you help?";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: "alice123", displayName: "Alice" }]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should handle mentions in middle of long text", () => {
         const content =
           "This is a long text with @[Alice](user:alice123) mentioned somewhere in the middle of it all.";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: "alice123", displayName: "Alice" }]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should handle display names with spaces", () => {
         const content = "@[Alice Smith Johnson](user:alice123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([
-          { userId: "alice123", displayName: "Alice Smith Johnson" },
-        ]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should handle display names with dots", () => {
         const content = "@[Dr. Smith](user:user123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([
-          { userId: "user123", displayName: "Dr. Smith" },
-        ]);
+        expect(result).toEqual(["user123"]);
       });
 
       it("should preserve user ID case exactly as written", () => {
         const content = "@[Alice](user:AlIcE123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: "AlIcE123", displayName: "Alice" }]);
+        expect(result).toEqual(["AlIcE123"]);
       });
     });
 
     describe("invalid patterns", () => {
       it("should not match mentions without brackets", () => {
         const content = "@Alice(user:alice123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should not match mentions without parentheses", () => {
         const content = "@[Alice]user:alice123";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should not match mentions with wrong prefix", () => {
         const content = "@[Alice](member:alice123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should not match mentions without user ID", () => {
         const content = "@[Alice](user:)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should not match mentions with nested brackets", () => {
         const content = "@[Alice [Admin]](user:alice123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should not match mentions with user ID containing invalid characters", () => {
         const content = "@[Alice](user:alice@123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should not match mentions with user ID containing spaces", () => {
         const content = "@[Alice](user:alice 123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
@@ -169,7 +157,7 @@ describe("mentionParser", () => {
       it("should not match mentions with user ID too long (>30 chars)", () => {
         const longUserId = "a".repeat(31);
         const content = `@[Alice](user:${longUserId})`;
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
@@ -177,14 +165,14 @@ describe("mentionParser", () => {
       it("should not match mentions with display name too long (>100 chars)", () => {
         const longName = "A".repeat(101);
         const content = `@[${longName}](user:alice123)`;
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should not match partial mention formats", () => {
         const content = "@[Alice] or (user:alice123) or @Alice";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
@@ -192,24 +180,24 @@ describe("mentionParser", () => {
 
     describe("edge cases", () => {
       it("should return empty array for empty string", () => {
-        const result = extractMentionsFromMarkdown("");
+        const result = extractUniqueMentionedUserIds("");
 
         expect(result).toEqual([]);
       });
 
       it("should return empty array when no mentions present", () => {
         const content = "This is just regular text without any mentions";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);
       });
 
       it("should deduplicate mentions of same user ID", () => {
         const content = "@[Alice](user:alice123) and @[Alicia](user:alice123)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
         // Should only return first occurrence
-        expect(result).toEqual([{ userId: "alice123", displayName: "Alice" }]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should enforce maximum of 50 mentions", () => {
@@ -219,7 +207,7 @@ describe("mentionParser", () => {
           (_, i) => `@[User${i}](user:user${i})`,
         ).join(" ");
 
-        const result = extractMentionsFromMarkdown(mentions);
+        const result = extractUniqueMentionedUserIds(mentions);
 
         // Should only return first 50
         expect(result).toHaveLength(50);
@@ -228,35 +216,32 @@ describe("mentionParser", () => {
       it("should handle mentions with maximum valid display name length (100 chars)", () => {
         const maxName = "A".repeat(100);
         const content = `@[${maxName}](user:alice123)`;
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: "alice123", displayName: maxName }]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should handle mentions with maximum valid user ID length (30 chars)", () => {
         const maxUserId = "a".repeat(30);
         const content = `@[Alice](user:${maxUserId})`;
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: maxUserId, displayName: "Alice" }]);
+        expect(result).toEqual([maxUserId]);
       });
 
       it("should handle mentions with minimum valid lengths (1 char each)", () => {
         const content = "@[A](user:a)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([{ userId: "a", displayName: "A" }]);
+        expect(result).toEqual(["a"]);
       });
 
       it("should handle newlines in content", () => {
         const content =
           "First line @[Alice](user:alice123)\nSecond line @[Bob](user:bob456)";
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([
-          { userId: "alice123", displayName: "Alice" },
-          { userId: "bob456", displayName: "Bob" },
-        ]);
+        expect(result).toEqual(["alice123", "bob456"]);
       });
     });
 
@@ -266,7 +251,7 @@ describe("mentionParser", () => {
         const content = `@[${longName}](user:alice123)`;
 
         const startTime = Date.now();
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
         const duration = Date.now() - startTime;
 
         // Should complete quickly (invalid pattern, >100 chars)
@@ -278,7 +263,7 @@ describe("mentionParser", () => {
         const content = "@[[[[[[[Alice](user:alice123)";
 
         const startTime = Date.now();
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
         const duration = Date.now() - startTime;
 
         expect(duration).toBeLessThan(100);
@@ -291,7 +276,7 @@ describe("mentionParser", () => {
           "@[" + "A".repeat(50) + "[" + "B".repeat(50) + "](user:test)";
 
         const startTime = Date.now();
-        const result = extractMentionsFromMarkdown(content);
+        const result = extractUniqueMentionedUserIds(content);
         const duration = Date.now() - startTime;
 
         expect(duration).toBeLessThan(100);
@@ -305,36 +290,12 @@ describe("mentionParser", () => {
           "dolor sit amet ".repeat(800);
 
         const startTime = Date.now();
-        const result = extractMentionsFromMarkdown(largeContent);
+        const result = extractUniqueMentionedUserIds(largeContent);
         const duration = Date.now() - startTime;
 
         expect(duration).toBeLessThan(500);
-        expect(result).toEqual([{ userId: "alice123", displayName: "Alice" }]);
+        expect(result).toEqual(["alice123"]);
       });
-    });
-  });
-
-  describe("extractMentionedUserIds", () => {
-    it("should return array of user IDs only", () => {
-      const content = "@[Alice](user:alice123) and @[Bob](user:bob456)";
-      const result = extractMentionedUserIds(content);
-
-      expect(result).toEqual(["alice123", "bob456"]);
-    });
-
-    it("should return empty array for no mentions", () => {
-      const content = "No mentions here";
-      const result = extractMentionedUserIds(content);
-
-      expect(result).toEqual([]);
-    });
-
-    it("should maintain deduplication", () => {
-      const content =
-        "@[Alice](user:alice123) and @[Alice Smith](user:alice123)";
-      const result = extractMentionedUserIds(content);
-
-      expect(result).toEqual(["alice123"]);
     });
   });
 

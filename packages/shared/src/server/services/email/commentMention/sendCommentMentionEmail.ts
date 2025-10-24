@@ -4,6 +4,7 @@ import { render } from "@react-email/render";
 
 import { CommentMentionEmailTemplate } from "./CommentMentionEmailTemplate";
 import { logger } from "../../../logger";
+import { sanitizeEmailSubject } from "../../../../utils/zod";
 
 type SendCommentMentionEmailParams = {
   env: Partial<
@@ -11,7 +12,7 @@ type SendCommentMentionEmailParams = {
   >;
   mentionedUserName: string;
   mentionedUserEmail: string;
-  authorName: string;
+  authorName?: string; // Optional - undefined if author deleted or not project member
   projectName: string;
   commentPreview: string;
   commentLink: string;
@@ -47,19 +48,27 @@ export const sendCommentMentionEmail = async ({
       }),
     );
 
+    // Sanitize authorName and projectName to prevent email header injection attacks
+    const safeProjectName = sanitizeEmailSubject(projectName);
+    const safeAuthorName = authorName
+      ? sanitizeEmailSubject(authorName)
+      : undefined;
+
+    const subject = safeAuthorName
+      ? `${safeAuthorName} mentioned you in project ${safeProjectName}`
+      : `You were mentioned in a comment in project ${safeProjectName}`;
+
     await mailer.sendMail({
       to: mentionedUserEmail,
       from: {
         address: env.EMAIL_FROM_ADDRESS,
         name: "Langfuse",
       },
-      subject: `${authorName} mentioned you in project ${projectName}`,
+      subject,
       html: htmlTemplate,
     });
 
-    logger.info(
-      `Comment mention email sent to ${mentionedUserEmail} for comment in project ${projectName}`,
-    );
+    logger.info("Comment mention email sent successfully");
   } catch (error) {
     logger.error("Failed to send comment mention email", error);
   }

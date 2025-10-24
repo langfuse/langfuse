@@ -5,11 +5,17 @@ import Header from "@/src/components/layouts/header";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Label } from "@/src/components/ui/label";
 import { Switch } from "@/src/components/ui/switch";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function NotificationSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [isSaving, setIsSaving] = useState(false);
+
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "project:read",
+  });
 
   const {
     data: preferences,
@@ -26,17 +32,13 @@ export function NotificationSettings() {
     },
   });
 
-  const handleToggle = async (
-    channel: "EMAIL",
-    type: "COMMENT_MENTION",
-    enabled: boolean,
-  ) => {
+  const handleToggle = async (enabled: boolean) => {
     setIsSaving(true);
     try {
       await updatePreference.mutateAsync({
         projectId,
-        channel,
-        type,
+        channel: "EMAIL",
+        type: "COMMENT_MENTION",
         enabled,
       });
     } catch (error) {
@@ -90,28 +92,10 @@ export function NotificationSettings() {
               <Switch
                 id="comment-mention"
                 checked={emailCommentMention?.enabled ?? true}
-                onCheckedChange={(enabled) =>
-                  handleToggle("EMAIL", "COMMENT_MENTION", enabled)
-                }
-                disabled={isSaving}
+                onCheckedChange={handleToggle}
+                disabled={isSaving || !hasAccess}
               />
             </div>
-
-            {/* Future notification types will be added here */}
-            {/* <div className="flex items-center justify-between rounded-lg border p-4 opacity-50">
-              <div className="space-y-0.5">
-                <Label className="text-base">
-                  Comment Replies
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    Coming soon
-                  </span>
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive an email when someone replies to your comment
-                </p>
-              </div>
-              <Switch disabled />
-            </div> */}
           </div>
         </CardContent>
       </Card>

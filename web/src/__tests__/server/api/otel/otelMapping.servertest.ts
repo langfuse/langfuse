@@ -2154,6 +2154,32 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map pydantic-ai tool_arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "tool_arguments",
+          otelAttributeValue: {
+            stringValue:
+              '{"query": "What is the weather like?", "location": "New York"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue:
+            '{"query": "What is the weather like?", "location": "New York"}',
+        },
+      ],
+      [
+        "should map pydantic-ai tool_response to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "tool_response",
+          otelAttributeValue: {
+            stringValue: '{"result": "Sunny, 22°C"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"result": "Sunny, 22°C"}',
+        },
+      ],
+      [
         "should map lk.input_text to input",
         {
           entity: "observation",

@@ -20,11 +20,8 @@ CREATE TABLE "notification_preferences" (
     CONSTRAINT "notification_preferences_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "notification_preferences_user_id_project_id_idx" ON "notification_preferences"("user_id", "project_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "notification_preferences_user_id_project_id_channel_type_key" ON "notification_preferences"("user_id", "project_id", "channel", "type");
+-- AddForeignKey
+ALTER TABLE "notification_preferences" ADD CONSTRAINT "notification_preferences_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "notification_preferences" ADD CONSTRAINT "notification_preferences_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
