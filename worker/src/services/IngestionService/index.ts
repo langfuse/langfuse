@@ -275,13 +275,13 @@ export class IngestionService {
     const metadataValues = flattened.values;
 
     // Flatten to typed arrays
-    const typed = this.flattenJsonToTypedPathArrays(metadata);
-    const metadataStringNames = typed.stringNames;
-    const metadataStringValues = typed.stringValues;
-    const metadataNumberNames = typed.numberNames;
-    const metadataNumberValues = typed.numberValues;
-    const metadataBoolNames = typed.boolNames;
-    const metadataBoolValues = typed.boolValues;
+    // const typed = this.flattenJsonToTypedPathArrays(metadata);
+    // const metadataStringNames = typed.stringNames;
+    // const metadataStringValues = typed.stringValues;
+    // const metadataNumberNames = typed.numberNames;
+    // const metadataNumberValues = typed.numberValues;
+    // const metadataBoolNames = typed.boolNames;
+    // const metadataBoolValues = typed.boolValues;
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
@@ -1663,52 +1663,52 @@ export class IngestionService {
    * Values are separated into string, number, bool, and other arrays based on their type.
    * Non-primitive values are JSON.stringify'd and placed in the strings group.
    */
-  private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
-    stringNames: string[];
-    stringValues: string[];
-    numberNames: string[];
-    numberValues: number[];
-    boolNames: string[];
-    boolValues: number[]; // ClickHouse uses 0/1 for booleans
-  } {
-    const stringNames: string[] = [];
-    const stringValues: string[] = [];
-    const numberNames: string[] = [];
-    const numberValues: number[] = [];
-    const boolNames: string[] = [];
-    const boolValues: number[] = [];
-
-    const { names, values } = this.flattenJsonToPathArrays(obj);
-
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
-      const value = values[i];
-
-      if (typeof value === "boolean") {
-        boolNames.push(name);
-        boolValues.push(value ? 1 : 0);
-      } else if (typeof value === "number") {
-        numberNames.push(name);
-        numberValues.push(value);
-      } else if (typeof value === "string") {
-        stringNames.push(name);
-        stringValues.push(value);
-      } else {
-        // For arrays, objects, null, undefined, etc., stringify and put in strings
-        stringNames.push(name);
-        stringValues.push(JSON.stringify(value));
-      }
-    }
-
-    return {
-      stringNames,
-      stringValues,
-      numberNames,
-      numberValues,
-      boolNames,
-      boolValues,
-    };
-  }
+  // private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
+  //   stringNames: string[];
+  //   stringValues: string[];
+  //   numberNames: string[];
+  //   numberValues: number[];
+  //   boolNames: string[];
+  //   boolValues: number[]; // ClickHouse uses 0/1 for booleans
+  // } {
+  //   const stringNames: string[] = [];
+  //   const stringValues: string[] = [];
+  //   const numberNames: string[] = [];
+  //   const numberValues: number[] = [];
+  //   const boolNames: string[] = [];
+  //   const boolValues: number[] = [];
+  //
+  //   const { names, values } = this.flattenJsonToPathArrays(obj);
+  //
+  //   for (let i = 0; i < names.length; i++) {
+  //     const name = names[i];
+  //     const value = values[i];
+  //
+  //     if (typeof value === "boolean") {
+  //       boolNames.push(name);
+  //       boolValues.push(value ? 1 : 0);
+  //     } else if (typeof value === "number") {
+  //       numberNames.push(name);
+  //       numberValues.push(value);
+  //     } else if (typeof value === "string") {
+  //       stringNames.push(name);
+  //       stringValues.push(value);
+  //     } else {
+  //       // For arrays, objects, null, undefined, etc., stringify and put in strings
+  //       stringNames.push(name);
+  //       stringValues.push(JSON.stringify(value));
+  //     }
+  //   }
+  //
+  //   return {
+  //     stringNames,
+  //     stringValues,
+  //     numberNames,
+  //     numberValues,
+  //     boolNames,
+  //     boolValues,
+  //   };
+  // }
 }
 
 type ObservationPrompt = Pick<Prompt, "id" | "name" | "version">;
