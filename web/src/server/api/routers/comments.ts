@@ -10,7 +10,7 @@ import {
   Prisma,
   CreateCommentData,
   DeleteCommentData,
-  extractMentionsFromMarkdown,
+  extractUniqueMentionedUserIds,
   sanitizeMentions,
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -46,13 +46,12 @@ export const commentsRouter = createTRPCRouter({
         }
 
         // Extract mentions from content (server-side, authoritative)
-        const mentionsInContent = extractMentionsFromMarkdown(input.content);
+        const mentionedUserIds = extractUniqueMentionedUserIds(input.content);
 
-        // Sanitize mentions and get valid user IDs
+        // Sanitize mentions
         let sanitizedContent = input.content;
-        let validMentionedUserIds: string[] = [];
 
-        if (mentionsInContent.length > 0) {
+        if (mentionedUserIds.length > 0) {
           // Check projectMembers:read permission if mentioning users
           throwIfNoProjectAccess({
             session: ctx.session,
@@ -71,9 +70,7 @@ export const commentsRouter = createTRPCRouter({
               {
                 column: "userId",
                 operator: "any of",
-                value: Array.from(
-                  new Set(mentionsInContent.map((m) => m.userId)),
-                ),
+                value: mentionedUserIds,
                 type: "stringOptions",
               },
             ],
@@ -86,7 +83,6 @@ export const commentsRouter = createTRPCRouter({
             projectMembers,
           );
           sanitizedContent = sanitizationResult.sanitizedContent;
-          validMentionedUserIds = sanitizationResult.validMentionedUserIds;
         }
 
         // Create comment with sanitized content
@@ -105,10 +101,7 @@ export const commentsRouter = createTRPCRouter({
           resourceType: "comment",
           resourceId: comment.id,
           action: "create",
-          after: {
-            ...comment,
-            mentionedUserIds: validMentionedUserIds,
-          },
+          after: comment,
         });
 
         return comment;
