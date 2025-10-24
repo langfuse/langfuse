@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -14,7 +15,7 @@ import { api } from "@/src/utils/api";
 import { useMemo, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { type Prisma } from "@langfuse/shared";
+import { DatasetNameSchema, type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
 import { useRouter } from "next/router";
@@ -30,6 +31,7 @@ interface BaseDatasetFormProps {
 
 interface CreateDatasetFormProps extends BaseDatasetFormProps {
   mode: "create";
+  folderPrefix?: string;
 }
 
 interface DeleteDatasetFormProps extends BaseDatasetFormProps {
@@ -52,12 +54,7 @@ type DatasetFormProps =
   | DeleteDatasetFormProps;
 
 const formSchema = z.object({
-  name: z
-    .string()
-    .min(1, { message: "Input is required" })
-    .refine((name) => name.trim().length > 0, {
-      message: "Input should not be only whitespace",
-    }),
+  name: DatasetNameSchema,
   description: z.string(),
   metadata: z.string().refine(
     (value) => {
@@ -92,7 +89,10 @@ export const DatasetForm = (props: DatasetFormProps) => {
               : "",
           }
         : {
-            name: "",
+            name:
+              props.mode === "create" && props.folderPrefix
+                ? `${props.folderPrefix}/`
+                : "",
             description: "",
             metadata: "",
           },
@@ -224,6 +224,10 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Name</FormLabel>
+                      <FormDescription>
+                        Use slashes &apos;/&apos; in dataset names to organize
+                        them into <em>folders</em>.
+                      </FormDescription>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>

@@ -157,6 +157,31 @@ const SEED_DATASET_ITEMS_IPA = [
   { input: { word: "us" }, output: "/ʌs/" },
 ];
 
+const SEED_DATASET_ITEMS_MATH = [
+  { input: { equation: "2 + 2" }, output: "4" },
+  { input: { equation: "10 - 5" }, output: "5" },
+  { input: { equation: "3 * 4" }, output: "12" },
+];
+
+const SEED_DATASET_ITEMS_COLORS = [
+  { input: { color: "red" }, output: "#FF0000" },
+  { input: { color: "blue" }, output: "#0000FF" },
+  { input: { color: "green" }, output: "#00FF00" },
+];
+
+const SEED_DATASET_ITEMS_SIMPLE = [
+  { input: { name: "John" }, output: "John" },
+  { input: { name: "Jane" }, output: "Jane" },
+  { input: { name: "Jim" }, output: "Jim" },
+];
+
+const SEED_DATASET_ITEMS_GREETINGS = [
+  { input: { language: "English" }, output: "Hello" },
+  { input: { language: "Spanish" }, output: "Hola" },
+  { input: { language: "French" }, output: "Bonjour" },
+  { input: { language: "German" }, output: "Guten Tag" },
+];
+
 export const SEED_DATASETS = [
   {
     name: "demo-countries-dataset",
@@ -165,6 +190,7 @@ export const SEED_DATASETS = [
       key: "value",
     },
     items: SEED_DATASET_ITEMS_COUNTRIES,
+    shouldRunExperiment: true,
   },
   {
     name: "demo-english-transcription-dataset",
@@ -174,6 +200,43 @@ export const SEED_DATASETS = [
       key: "value",
     },
     items: SEED_DATASET_ITEMS_IPA,
+    shouldRunExperiment: true,
+  },
+  {
+    name: "folder/math/basic-operations",
+    description: "Basic math operations dataset",
+    metadata: {
+      category: "education",
+    },
+    items: SEED_DATASET_ITEMS_MATH,
+    shouldRunExperiment: false,
+  },
+  {
+    name: "folder/simple-dataset",
+    description: "Simple first-level folder dataset",
+    metadata: {
+      category: "test",
+    },
+    items: SEED_DATASET_ITEMS_SIMPLE,
+    shouldRunExperiment: false,
+  },
+  {
+    name: "folder/design/colors",
+    description: "Color name to hex code dataset",
+    metadata: {
+      category: "design",
+    },
+    items: SEED_DATASET_ITEMS_COLORS,
+    shouldRunExperiment: false,
+  },
+  {
+    name: "folder/customer/greetings",
+    description: "Greetings in different languages",
+    metadata: {
+      category: "i18n",
+    },
+    items: SEED_DATASET_ITEMS_GREETINGS,
+    shouldRunExperiment: false,
   },
 ];
 

@@ -47,6 +47,9 @@ export * from "./features/comments/types";
 // experiments
 export * from "./features/experiments/utils";
 
+// datasets
+export * from "./features/datasets/validation";
+
 // prompts
 export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";
