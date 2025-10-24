@@ -41,6 +41,7 @@ import { useForm } from "react-hook-form";
 import { type z } from "zod/v4";
 import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
 import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
+import { useRouter } from "next/router";
 
 export function CommentList({
   projectId,
@@ -60,9 +61,21 @@ export function CommentList({
   onMentionDropdownChange?: (isOpen: boolean) => void;
 }) {
   const session = useSession();
+  const router = useRouter();
   const [cursorPosition, setCursorPosition] = useState(0);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Extract comment ID from hash for highlighting
+  const highlightedCommentId = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const hash = window.location.hash;
+    if (hash.startsWith("#comment-")) {
+      return hash.replace("#comment-", "");
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.asPath]);
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -332,7 +345,12 @@ export function CommentList({
             {commentsWithFormattedTimestamp?.map((comment) => (
               <div
                 key={comment.id}
-                className="group grid grid-cols-[auto,1fr] gap-1 p-1"
+                id={`comment-${comment.id}`}
+                className={cn(
+                  "group grid grid-cols-[auto,1fr] gap-1 rounded-md p-1 transition-colors",
+                  highlightedCommentId === comment.id &&
+                    "border-2 border-blue-500",
+                )}
               >
                 <Avatar className="mt-0.5 h-6 w-6">
                   <AvatarImage src={comment.authorUserImage ?? undefined} />
