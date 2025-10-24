@@ -9,6 +9,7 @@ import {
   ScoreDataType,
   isPresent,
 } from "@langfuse/shared";
+import { TraceDomain, ScoreDomain } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   FullObservationsWithScores,
@@ -30,6 +31,10 @@ import {
 import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";
+import {
+  fetchCommentsForExport,
+  type ExportComment,
+} from "./fetchCommentsForExport";
 
 const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -216,7 +221,7 @@ export const getDatabaseReadStreamPaginated = async ({
               public: true,
             },
           });
-          return sessions.map((s) => {
+          const rows = sessions.map((s) => {
             const row: BatchExportSessionsRow = {
               id: s.session_id,
               userIds: s.user_ids,
@@ -237,6 +242,100 @@ export const getDatabaseReadStreamPaginated = async ({
               totalCount: s.trace_count,
             };
             return row;
+          });
+
+          // Fetch comments for all sessions in this page
+          const sessionComments = await fetchCommentsForExport(
+            projectId,
+            "SESSION",
+            sessions.map((s) => s.session_id),
+          );
+
+          // Fetch all trace IDs for all sessions
+          const allTraceIds = sessions.flatMap((s) => s.trace_ids);
+
+          // Fetch trace data, scores, and comments if there are any traces
+          let tracesData: TraceDomain[] = [];
+          let scoresData: ScoreDomain[] = [];
+          let traceComments = new Map<string, ExportComment[]>();
+
+          if (allTraceIds.length > 0) {
+            const minTimestamp = sessions.reduce(
+              (min, s) => {
+                const sessionTime = new Date(s.min_timestamp);
+                return !min || sessionTime < min ? sessionTime : min;
+              },
+              undefined as Date | undefined,
+            );
+
+            [tracesData, scoresData, traceComments] = await Promise.all([
+              getTracesByIds(
+                allTraceIds,
+                projectId,
+                minTimestamp,
+                clickhouseConfigs,
+              ),
+              getScoresForTraces({
+                projectId,
+                traceIds: allTraceIds,
+                clickhouseConfigs,
+              }),
+              fetchCommentsForExport(projectId, "TRACE", allTraceIds),
+            ]);
+          }
+
+          // Add comments and traces to each session
+          return rows.map((row) => {
+            // Get traces for this session
+            const sessionTraces = sessions.find((s) => s.session_id === row.id);
+            const traceIdsForSession = sessionTraces?.trace_ids ?? [];
+
+            // Build traces array with scores and comments
+            const traces = traceIdsForSession
+              .map((traceId) => {
+                const trace = tracesData.find((t) => t.id === traceId);
+                if (!trace) return null;
+
+                const traceScores = scoresData.filter(
+                  (s) => s.traceId === traceId,
+                );
+
+                return {
+                  id: trace.id,
+                  timestamp: trace.timestamp,
+                  name: trace.name,
+                  userId: trace.userId,
+                  metadata: trace.metadata,
+                  release: trace.release,
+                  version: trace.version,
+                  environment: trace.environment,
+                  public: trace.public,
+                  bookmarked: trace.bookmarked,
+                  tags: trace.tags,
+                  input: trace.input,
+                  output: trace.output,
+                  sessionId: trace.sessionId,
+                  scores: traceScores.map((score) => ({
+                    id: score.id,
+                    name: score.name,
+                    value: score.value,
+                    stringValue: score.stringValue,
+                    dataType: score.dataType,
+                    source: score.source,
+                    comment: score.comment,
+                    authorUserId: score.authorUserId,
+                    timestamp: score.timestamp,
+                  })),
+                  comments: traceComments.get(traceId) ?? [],
+                };
+              })
+              .filter(isPresent);
+
+            return {
+              ...row,
+              traces,
+              comments: sessionComments.get(row.id) ?? [],
+            };
           });
         },
         env.BATCH_EXPORT_PAGE_SIZE,
@@ -295,7 +394,23 @@ export const getDatabaseReadStreamPaginated = async ({
             };
           });
 
-          return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
+          // Fetch comments for all observations in this page
+          const observationComments = await fetchCommentsForExport(
+            projectId,
+            "OBSERVATION",
+            generations.map((g) => g.id),
+          );
+
+          // Add comments to flattened chunk
+          const flattenedChunk = getChunkWithFlattenedScores(
+            chunk,
+            emptyScoreColumns,
+          );
+
+          return flattenedChunk.map((obs: any) => ({
+            ...obs,
+            comments: observationComments.get(obs.id) ?? [],
+          }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
@@ -404,7 +519,23 @@ export const getDatabaseReadStreamPaginated = async ({
             };
           });
 
-          return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
+          // Fetch comments for all traces in this page
+          const traceComments = await fetchCommentsForExport(
+            projectId,
+            "TRACE",
+            traces.map((t) => t.id),
+          );
+
+          // Add comments to each trace
+          const chunkWithComments = chunk.map((trace) => ({
+            ...trace,
+            comments: traceComments.get(trace.id) ?? [],
+          }));
+
+          return getChunkWithFlattenedScores(
+            chunkWithComments,
+            emptyScoreColumns,
+          );
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
@@ -486,7 +617,7 @@ export const getDatabaseReadStreamPaginated = async ({
               updated_at: Date;
             }>
           >`
-            SELECT 
+            SELECT
               di.id,
               di.project_id,
               di.dataset_id,
@@ -499,7 +630,7 @@ export const getDatabaseReadStreamPaginated = async ({
               di.source_observation_id,
               di.created_at,
               di.updated_at
-            FROM dataset_items di 
+            FROM dataset_items di
               JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id
             WHERE di.project_id = ${projectId}
             AND di.created_at < ${cutoffCreatedAt}

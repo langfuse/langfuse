@@ -21,6 +21,9 @@ import {
   isTraceTimestampFilter,
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
+import { fetchCommentsForExport } from "./fetchCommentsForExport";
+
+const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
 
 export const getTraceStream = async (props: {
   projectId: string;
@@ -206,67 +209,123 @@ export const getTraceStream = async (props: {
     },
   });
 
+  // Helper function to process a single trace row
+  const processTraceRow = (
+    bufferedRow: Awaited<ReturnType<typeof asyncGenerator.next>>["value"],
+    commentsByTrace: Map<string, any[]>,
+  ) => {
+    // Process numeric/boolean scores (tuples from ClickHouse)
+    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
+      name: score[0],
+      value: score[1],
+      dataType: score[2],
+      stringValue: score[3],
+    }));
+
+    // Process categorical scores (format: "name:value")
+    const categoricalScores = (bufferedRow.score_categories ?? []).map(
+      (cat: string) => {
+        const [name, ...valueParts] = cat.split(":");
+        return {
+          name,
+          value: null,
+          dataType: "CATEGORICAL" as ScoreDataType,
+          stringValue: valueParts.join(":"),
+        };
+      },
+    );
+
+    const outputScores: Record<string, string[] | number[]> =
+      prepareScoresForOutput([...numericScores, ...categoricalScores]);
+
+    // Get comments for this trace
+    const traceComments = commentsByTrace.get(bufferedRow.id) ?? [];
+
+    return getChunkWithFlattenedScores(
+      [
+        {
+          id: bufferedRow.id,
+          timestamp:
+            bufferedRow.timestamp instanceof Date
+              ? bufferedRow.timestamp
+              : parseClickhouseUTCDateTimeFormat(bufferedRow.timestamp),
+          name: bufferedRow.name ?? "",
+          userId: bufferedRow.user_id,
+          sessionId: bufferedRow.session_id,
+          release: bufferedRow.release,
+          version: bufferedRow.version,
+          environment: bufferedRow.environment ?? undefined,
+          tags: bufferedRow.tags,
+          bookmarked: bufferedRow.bookmarked,
+          public: bufferedRow.public,
+          input: bufferedRow.input,
+          output: bufferedRow.output,
+          metadata: bufferedRow.metadata,
+          scores: outputScores,
+          comments: traceComments,
+        },
+      ],
+      emptyScoreColumns,
+    )[0];
+  };
+
   // Convert async generator to Node.js Readable stream
   let recordsProcessed = 0;
 
   return Readable.from(
     (async function* () {
+      let rowBuffer: Awaited<
+        ReturnType<typeof asyncGenerator.next>
+      >["value"][] = [];
+      let traceIds: string[] = [];
+
       for await (const row of asyncGenerator) {
-        recordsProcessed++;
-        if (recordsProcessed % 10000 === 0)
-          logger.info(
-            `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
+        rowBuffer.push(row);
+        traceIds.push(row.id);
+
+        // Process in batches
+        if (rowBuffer.length >= BATCH_SIZE) {
+          // Fetch comments for this batch
+          const commentsByTrace = await fetchCommentsForExport(
+            projectId,
+            "TRACE",
+            traceIds,
           );
 
-        // Process numeric/boolean scores (tuples from ClickHouse)
-        const numericScores = (row.scores_avg ?? []).map((score: any) => ({
-          name: score[0],
-          value: score[1],
-          dataType: score[2],
-          stringValue: score[3],
-        }));
+          // Process each row in the buffer
+          for (const bufferedRow of rowBuffer) {
+            recordsProcessed++;
+            if (recordsProcessed % 10000 === 0)
+              logger.info(
+                `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
+              );
 
-        // Process categorical scores (format: "name:value")
-        const categoricalScores = (row.score_categories ?? []).map(
-          (cat: string) => {
-            const [name, ...valueParts] = cat.split(":");
-            return {
-              name,
-              value: null,
-              dataType: "CATEGORICAL" as ScoreDataType,
-              stringValue: valueParts.join(":"),
-            };
-          },
+            yield processTraceRow(bufferedRow, commentsByTrace);
+          }
+
+          // Reset buffers
+          rowBuffer = [];
+          traceIds = [];
+        }
+      }
+
+      // Process remaining rows in buffer
+      if (rowBuffer.length > 0) {
+        const commentsByTrace = await fetchCommentsForExport(
+          projectId,
+          "TRACE",
+          traceIds,
         );
 
-        const outputScores: Record<string, string[] | number[]> =
-          prepareScoresForOutput([...numericScores, ...categoricalScores]);
+        for (const bufferedRow of rowBuffer) {
+          recordsProcessed++;
+          if (recordsProcessed % 10000 === 0)
+            logger.info(
+              `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
+            );
 
-        yield getChunkWithFlattenedScores(
-          [
-            {
-              id: row.id,
-              timestamp:
-                row.timestamp instanceof Date
-                  ? row.timestamp
-                  : parseClickhouseUTCDateTimeFormat(row.timestamp),
-              name: row.name ?? "",
-              userId: row.user_id,
-              sessionId: row.session_id,
-              release: row.release,
-              version: row.version,
-              environment: row.environment ?? undefined,
-              tags: row.tags,
-              bookmarked: row.bookmarked,
-              public: row.public,
-              input: row.input,
-              output: row.output,
-              metadata: row.metadata,
-              scores: outputScores,
-            },
-          ],
-          emptyScoreColumns,
-        )[0];
+          yield processTraceRow(bufferedRow, commentsByTrace);
+        }
       }
     })(),
   );

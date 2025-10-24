@@ -51,6 +51,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export type SessionTableRow = {
   id: string;
@@ -705,6 +706,15 @@ export default function SessionsTable({
                 tableName={BatchExportTableName.Sessions}
               />
             ) : null,
+            <BatchExportTableButton
+              {...{
+                projectId,
+                filterState: backendFilterState,
+                orderByState,
+              }}
+              tableName={BatchExportTableName.Sessions}
+              key="batchExport"
+            />,
           ]}
           columns={columns}
           columnVisibility={columnVisibility}
