@@ -57,9 +57,7 @@ export const sendCommentMentionEmail = async ({
       html: htmlTemplate,
     });
 
-    logger.info(
-      `Comment mention email sent to ${mentionedUserEmail} for comment in project ${projectName}`,
-    );
+    logger.info("Comment mention email sent successfully");
   } catch (error) {
     logger.error("Failed to send comment mention email", error);
   }
