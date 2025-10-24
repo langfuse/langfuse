@@ -244,7 +244,7 @@ export const commentsRouter = createTRPCRouter({
           AND c."object_id" = ${input.objectId}
           AND c."object_type"::text = ${input.objectType}
         ORDER BY
-          c.created_at DESC
+          c.created_at ASC
         `,
         );
 
