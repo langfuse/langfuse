@@ -225,8 +225,8 @@ export const DatasetForm = (props: DatasetFormProps) => {
                     <FormItem>
                       <FormLabel>Name</FormLabel>
                       <FormDescription>
-                        Use slashes '/' in dataset names to organize them into{" "}
-                        <em>folders</em>.
+                        Use slashes &apos;/&apos; in dataset names to organize
+                        them into <em>folders</em>.
                       </FormDescription>
                       <FormControl>
                         <Input {...field} />

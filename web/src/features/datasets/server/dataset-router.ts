@@ -82,24 +82,6 @@ export const requiresClickhouseLookups = (filters: FilterState): boolean => {
   });
 };
 
-/**
- * Adds a case-insensitive search condition to a Kysely query
- * @param query The Kysely query to modify
- * @param searchQuery The search term (optional)
- * @param columnName The column to search in (defaults to "datasets.name")
- * @returns The modified query
- */
-const addSearchCondition = <T extends Record<string, any>>(
-  query: T,
-  searchQuery?: string | null,
-  columnName: string = "datasets.name",
-): T => {
-  if (!searchQuery || searchQuery.trim() === "") return query;
-
-  // Add case-insensitive search condition
-  return query.where(columnName, "ilike", `%${searchQuery}%`) as T;
-};
-
 const resolveMetadata = (metadata: string | null | undefined) => {
   if (metadata === "") return Prisma.DbNull;
   try {
