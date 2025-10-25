@@ -104,6 +104,20 @@ export const OpenAIContentSchema = z
   .nullable();
 export type OpenAIContentSchema = z.infer<typeof OpenAIContentSchema>;
 
+const ToolDefinitionSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  parameters: z.record(z.string(), z.any()).optional(),
+});
+
+const ToolCallSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  arguments: z.string(), // JSON string
+  type: z.string().optional(),
+  index: z.number().optional(),
+});
+
 export const ChatMlMessageSchema = z
   .object({
     role: z.string().optional(),
@@ -118,6 +132,9 @@ export const ChatMlMessageSchema = z
       .nullish(),
     audio: OpenAIOutputAudioSchema.optional(),
     additional_kwargs: z.record(z.string(), z.any()).optional(),
+    tools: z.array(ToolDefinitionSchema).optional(),
+    tool_calls: z.array(ToolCallSchema).optional(),
+    tool_call_id: z.string().optional(),
   })
   .passthrough()
   .refine((value) => value.content !== null || value.role !== undefined)
@@ -125,14 +142,29 @@ export const ChatMlMessageSchema = z
     ...other,
     ...additional_kwargs,
   }))
-  .transform(({ role, name, content, audio, type, ...other }) => ({
-    role,
-    name,
-    content,
-    audio,
-    type,
-    ...(Object.keys(other).length === 0 ? {} : { json: other }),
-  }));
+  .transform(
+    ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      ...other
+    }) => ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      ...(Object.keys(other).length === 0 ? {} : { json: other }),
+    }),
+  );
 export type ChatMlMessageSchema = z.infer<typeof ChatMlMessageSchema>;
 
 export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
