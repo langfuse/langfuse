@@ -396,4 +396,127 @@ describe("promptVersionChangeWorker", () => {
 
     expect(executions).toHaveLength(0);
   });
+
+  it("should not execute webhook when event action is not in trigger eventActions", async () => {
+    // Create a prompt
+    const promptId = v4();
+
+    // Create a webhook action
+    const actionId = v4();
+    await prisma.action.create({
+      data: {
+        id: actionId,
+        projectId,
+        type: ActionType.WEBHOOK,
+        config: {
+          type: "WEBHOOK",
+          url: "https://webhook.example.com/test",
+          headers: {},
+          apiVersion: { prompt: "v1" },
+          secretKey: "test-secret",
+          displaySecretKey: "test-***",
+        },
+      },
+    });
+
+    // Create a trigger that only allows "created" and "deleted" actions (NOT "updated")
+    const triggerId = v4();
+    await prisma.trigger.create({
+      data: {
+        id: triggerId,
+        projectId,
+        eventSource: TriggerEventSource.Prompt,
+        eventActions: ["created", "deleted"] as TriggerEventAction[],
+        status: JobConfigState.ACTIVE,
+        filter: [], // Empty filter means no additional filtering
+      },
+    });
+
+    // Create automation linking trigger and action
+    const automationId = v4();
+    await prisma.automation.create({
+      data: {
+        id: automationId,
+        name: "prompt-created-deleted-only",
+        projectId,
+        triggerId,
+        actionId,
+      },
+    });
+
+    // Create an "updated" event (which should NOT trigger the webhook)
+    const updatedEvent: EntityChangeEventType = {
+      entityType: "prompt-version",
+      projectId,
+      promptId,
+      action: "updated",
+      prompt: {
+        id: promptId,
+        projectId,
+        name: "test-prompt",
+        version: 2,
+        prompt: { messages: [{ role: "user", content: "Hello updated" }] },
+        config: null,
+        tags: [],
+        labels: [],
+        type: PromptType.Chat,
+        isActive: true,
+        createdBy: "test-user",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        commitMessage: null,
+      },
+    };
+
+    // Execute the worker with "updated" event
+    await promptVersionProcessor(updatedEvent);
+
+    // Verify NO automation execution was created for "updated" event
+    let executions = await prisma.automationExecution.findMany({
+      where: {
+        projectId,
+        automationId,
+      },
+    });
+
+    expect(executions).toHaveLength(0);
+
+    // Now create a "created" event (which SHOULD trigger the webhook)
+    const createdEvent: EntityChangeEventType = {
+      entityType: "prompt-version",
+      projectId,
+      promptId: v4(),
+      action: "created",
+      prompt: {
+        id: v4(),
+        projectId,
+        name: "test-prompt",
+        version: 3,
+        prompt: { messages: [{ role: "user", content: "Hello created" }] },
+        config: null,
+        tags: [],
+        labels: [],
+        type: PromptType.Chat,
+        isActive: true,
+        createdBy: "test-user",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        commitMessage: null,
+      },
+    };
+
+    // Execute the worker with "created" event
+    await promptVersionProcessor(createdEvent);
+
+    // Verify automation execution WAS created for "created" event
+    executions = await prisma.automationExecution.findMany({
+      where: {
+        projectId,
+        automationId,
+      },
+    });
+
+    expect(executions).toHaveLength(1);
+    expect(executions[0].status).toBe(ActionExecutionStatus.PENDING);
+  });
 });
