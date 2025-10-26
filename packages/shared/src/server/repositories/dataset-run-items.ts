@@ -998,6 +998,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
   SELECT
     dri.dataset_item_id as dataset_item_id,
     dri.dataset_id as dataset_id
+    dri.observation_id as observation_id
   FROM dataset_run_items_rmt dri 
   WHERE ${appliedFilter.query}
   LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id;`;
