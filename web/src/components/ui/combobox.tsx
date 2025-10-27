@@ -19,16 +19,19 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 
-export interface ComboboxOption {
-  value: string;
-  label: string;
+export interface ComboboxOption<
+  T extends string | number | boolean | { id: string },
+> {
+  value: T;
+  label?: string;
   disabled?: boolean;
 }
-
-export interface ComboboxProps {
-  options: ComboboxOption[];
-  value?: string;
-  onValueChange?: (value: string) => void;
+export interface ComboboxProps<
+  T extends string | number | boolean | { id: string },
+> {
+  options: ComboboxOption<T>[];
+  value?: T;
+  onValueChange?: (value: T) => void;
   placeholder?: string;
   emptyText?: string;
   searchPlaceholder?: string;
@@ -37,7 +40,7 @@ export interface ComboboxProps {
   name?: string;
 }
 
-export function Combobox({
+export function Combobox<T extends string | number | boolean | { id: string }>({
   options,
   value,
   onValueChange,
@@ -47,10 +50,24 @@ export function Combobox({
   disabled = false,
   className,
   name,
-}: ComboboxProps) {
+}: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
 
-  const selectedOption = options.find((option) => option.value === value);
+  const isEqual = (a: T | undefined, b: T | undefined) => {
+    if (
+      a &&
+      b &&
+      typeof a === "object" &&
+      typeof b === "object" &&
+      "id" in a &&
+      "id" in b
+    ) {
+      return (a as { id: string }).id === (b as { id: string }).id;
+    }
+    return a === b;
+  };
+
+  const selectedOption = options.find((option) => isEqual(option.value, value));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,7 +85,9 @@ export function Combobox({
           name={name}
         >
           <span className="truncate">
-            {selectedOption ? selectedOption.label : placeholder}
+            {selectedOption
+              ? (selectedOption.label ?? String(selectedOption.value))
+              : placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -81,12 +100,16 @@ export function Combobox({
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem
-                  key={option.value}
-                  value={option.label}
+                  key={
+                    typeof option.value === "object"
+                      ? (option.value as { id: string }).id
+                      : String(option.value)
+                  }
+                  value={option.label ?? String(option.value)}
                   disabled={option.disabled}
                   onSelect={() => {
                     if (!option.disabled && onValueChange) {
-                      onValueChange(option.label === value ? "" : option.label);
+                      onValueChange(option.value as T);
                       setOpen(false);
                     }
                   }}
@@ -98,7 +121,9 @@ export function Combobox({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === option.label ? "opacity-100" : "opacity-0",
+                      isEqual(value as T | undefined, option.value)
+                        ? "opacity-100"
+                        : "opacity-0",
                     )}
                   />
                   {option.label}
