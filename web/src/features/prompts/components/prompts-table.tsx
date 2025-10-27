@@ -38,12 +38,6 @@ import {
 } from "@/src/components/ui/breadcrumb";
 import { Slash, Folder, Home } from "lucide-react";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 
 type PromptTableRow = {
   id: string;
@@ -316,23 +310,11 @@ export function PromptTable() {
         }
 
         return name ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <TableLink
-                    path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`}
-                    value={name}
-                    title={rowData.fullPath} // Show full prompt path on hover
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                Prompt names cannot be changed. To create a prompt with a new
-                name, duplicate this prompt.
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <TableLink
+            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`}
+            value={name}
+            title={rowData.fullPath} // Show full prompt path on hover
+          />
         ) : undefined;
       },
     }),

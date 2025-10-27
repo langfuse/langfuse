@@ -275,7 +275,7 @@ export const PromptDetail = ({
       headerProps={{
         title: prompt.name,
         titleTooltip:
-          "Prompt names cannot be changed. To create a prompt with a new name, duplicate this prompt using the button on the right.",
+          "Prompt names cannot be changed. Instead, duplicate this prompt to a different name using the button on the right.",
         itemType: "PROMPT",
         help: {
           description:
