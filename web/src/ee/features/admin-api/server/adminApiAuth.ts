@@ -20,7 +20,11 @@ export class AdminApiAuthService {
     const { isAllowedOnLangfuseCloud = false } = options;
 
     // Block access on Langfuse Cloud unless explicitly allowed
-    if (!isAllowedOnLangfuseCloud && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    if (
+      !isAllowedOnLangfuseCloud &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV" // exclude dev and CI environments
+    ) {
       return {
         isAuthorized: false,
         error: "Not accessible on Langfuse Cloud",
