@@ -339,6 +339,52 @@ export const commentsRouter = createTRPCRouter({
         });
       }
     }),
+  getCountByObjectIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        objectType: z.enum(CommentObjectType),
+        objectIds: z.array(z.string()).min(1),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+
+        const commentCounts = await ctx.prisma.comment.groupBy({
+          by: ["objectId"],
+          where: {
+            projectId: input.projectId,
+            objectType: input.objectType,
+            objectId: { in: input.objectIds },
+          },
+          _count: {
+            objectId: true,
+          },
+        });
+
+        // Return as a Map<string, number>
+        return new Map(
+          commentCounts.map(({ objectId, _count }) => [
+            objectId,
+            _count.objectId,
+          ]),
+        );
+      } catch (error) {
+        logger.error("Failed to call comments.getCountByObjectIds", error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching comment counts by object ids failed.",
+        });
+      }
+    }),
   getTraceCommentCountsBySessionId: protectedProjectProcedure
     .input(
       z.object({

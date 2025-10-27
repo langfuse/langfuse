@@ -226,13 +226,19 @@ export const PromptDetail = ({
     ).data?.tags ?? []
   ).map((t) => t.value);
 
-  const commentCounts = api.comments.getCountByObjectType.useQuery(
+  const promptIds = useMemo(
+    () => promptHistory.data?.promptVersions.map((p) => p.id) ?? [],
+    [promptHistory.data?.promptVersions],
+  );
+
+  const commentCounts = api.comments.getCountByObjectIds.useQuery(
     {
       projectId: projectId as string,
       objectType: "PROMPT",
+      objectIds: promptIds,
     },
     {
-      enabled: Boolean(projectId),
+      enabled: Boolean(projectId) && promptIds.length > 0,
       trpc: {
         context: {
           skipBatch: true,
