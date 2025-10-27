@@ -148,11 +148,11 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   try {
     // timingSafeEqual throws on different input lengths, handle accordingly
     const isEqual =
-      !crypto.timingSafeEqual(
+      crypto.timingSafeEqual(
         Buffer.from(bearerToken),
         Buffer.from(adminApiKey),
-      ) ||
-      !crypto.timingSafeEqual(
+      ) &&
+      crypto.timingSafeEqual(
         Buffer.from(String(adminApiKeyHeader)),
         Buffer.from(adminApiKey),
       );
