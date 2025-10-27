@@ -9,7 +9,62 @@ For this purpose, we compute a hash over the projectId to ensure that all observ
 When we go back in time to lower volume month, we can continue to decrease the number of chunks if the ClickHouse resources
 can handle the query.
 
-## Query
+## Background Migration Implementation
+
+The historic backfill has been implemented as a background migration job that automates the entire process.
+
+### Key Features
+
+- **Automatic partition discovery**: Discovers all partitions from observations table
+- **Dynamic chunking**: Calculates optimal modulo value (power of 2) based on partition size, targeting ~10M records per chunk
+- **Two-phase processing**:
+  1. **Phase 1 (trace_attrs)**: Populates `trace_attrs` table from `traces` table
+  2. **Phase 2 (events)**: Populates `events` table from `observations` joined with `trace_attrs`
+- **Newest-first processing**: Processes partitions from most recent to oldest
+- **Resumable**: Maintains state in PostgreSQL, can be stopped and resumed at any time
+- **Observable**: State shows current partition, phase, and chunk progress
+
+### Configuration
+
+Default configuration (can be overridden in migration args):
+- `targetChunkSize`: 10,000,000 rows per chunk
+- `maxModulo`: 256 (maximum parallelization level)
+- `batchTimeoutMs`: 600,000ms (10 minutes per chunk)
+
+### Implementation Details
+
+**Location:** `worker/src/backgroundMigrations/backfillEventsHistoric.ts`
+
+**State tracking example:**
+```json
+{
+  "partitions": {
+    "202510": {
+      "modulo": 256,
+      "rowCount": 2500000000,
+      "phase": "events",
+      "chunksProcessed": [0, 1, 2, ..., 128],
+      "lastUpdated": "2025-10-27T15:05:31.000Z"
+    },
+    "202509": {
+      "modulo": 128,
+      "rowCount": 1200000000,
+      "phase": "completed",
+      "chunksProcessed": [0, 1, 2, ..., 127],
+      "lastUpdated": "2025-10-27T14:30:15.000Z"
+    }
+  },
+  "currentPartition": "202510",
+  "completedPartitions": ["202509"]
+}
+```
+
+## Manual Execution Reference
+
+The sections below describe the original manual approach for reference and debugging.
+The background migration implementation above is the **recommended approach** for production use.
+
+## Query (Manual Approach)
 
 ```sql
  WITH relevant_keys AS (
@@ -23,7 +78,10 @@ can handle the query.
         t.project_id,
         t.user_id,
         t.session_id,
-        mapFilter((k,v) -> NOT in(k, ['attributes']), t.metadata) AS metadata
+        mapConcat(
+            mapFilter((k,v) -> NOT in(k, ['attributes']), t.metadata),
+            if(length(t.tags) > 0, map('trace_tags', toJSONString(t.tags)), map())
+        ) AS metadata
     from traces t
     left semi join relevant_keys rk
     on t.project_id = rk.project_id and t.id = rk.trace_id
@@ -150,22 +208,38 @@ CREATE TABLE IF NOT EXISTS trace_attrs
 ENGINE = ReplacingMergeTree(event_ts, is_deleted)
 ORDER BY (project_id, trace_id);
 
+-- Using the query below, I found that < 200k traces for August and September have duplicates.
+-- This may mean that it's acceptable to fill the trace_attrs table without deduplication as it's < 0.1.
+-- This may mean missing user/session information on a small percentile of observations, but a simpler migration path.
+-- select count(*) from (
+--     select project_id, id, count(*)
+--     from traces
+--     WHERE _partition_id = '202509'
+--     group by 1, 2
+--     having count(*) > 1
+-- );
 INSERT INTO trace_attrs
 SELECT
     t.project_id,
     t.id AS trace_id,
     t.user_id,
     t.session_id,
-    mapFilter((k,v) -> NOT in(k, ['attributes','debug_info']), t.metadata) AS metadata,
+    mapConcat(
+        mapFilter((k,v) -> NOT in(k, ['attributes']), t.metadata),
+        if(length(t.tags) > 0, map('trace_tags', toJSONString(t.tags)), map())
+    ) AS metadata,
     t.event_ts,
     0 AS is_deleted
-FROM traces AS t FINAL -- deduplicate before writing!
+FROM traces AS t -- FINAL -- deduplicate before writing!
 WHERE t.is_deleted = 0
 AND _partition_id = '202509'
-SETTINGS 
-    max_insert_threads = 16,
+AND (t.user_id is not null OR t.session_id is not null OR length(mapKeys(t.metadata)) > 0 OR length(t.tags) > 0)
+SETTINGS
+    max_threads = 4,
+    parallel_distributed_insert_select = 2,
+    enable_parallel_replicas = 1,
+    max_insert_threads = 4,
     min_insert_block_size_rows = 10048576;
-
 
 INSERT INTO events (
     project_id,
@@ -250,32 +324,19 @@ SELECT -- count(*)
        o.is_deleted
 FROM observations o
 LEFT JOIN trace_attrs t
-ON o.project_id = t.project_id AND o.trace_id = t.trace_id
+ON o.project_id = t.project_id AND o.trace_id = t.trace_id AND (xxHash32(t.trace_id) % 128) = 1 AND t._partition_id = '202509'
 WHERE o._partition_id = '202509'
   AND (xxHash32(o.trace_id) % 128) = 1
 SETTINGS
+    -- max_threads = 4, -- Review for speed and throughput
+    min_insert_block_size_rows = 10048576,
     join_algorithm = 'partial_merge',
     min_insert_block_size_bytes = '512Mi',
     parallel_distributed_insert_select = 2,
     enable_parallel_replicas = 1,
-    -- allow_experimental_parallel_reading_from_replicas = 1,
-    -- max_parallel_replicas = 3,
+    allow_experimental_parallel_reading_from_replicas = 1,
+    max_parallel_replicas = 2,
     type_json_skip_duplicated_paths = 1;
-```
-
-### Remove full text indexes for faster ingest
-
-```sql
--- Drop Full Text indexes for faster ingest
-ALTER TABLE events
-    DROP INDEX idx_fts_input_1,
-    DROP INDEX idx_fts_input_2,
-    DROP INDEX idx_fts_input_4,
-    DROP INDEX idx_fts_input_8,
-    DROP INDEX idx_fts_output_1,
-    DROP INDEX idx_fts_output_2,
-    DROP INDEX idx_fts_output_4,
-    DROP INDEX idx_fts_output_8;
 ```
 
 ### Check progress on a running query
@@ -286,5 +347,6 @@ select elapsed, read_rows, read_bytes, total_rows_approx, written_rows, written_
        memory_usage, peak_memory_usage, ProfileEvents, Settings
 from clusterAllReplicas('default', 'system.processes')
 where query_id = '<uuid>'
-format vertical;
+format vertical
+SETTINGS skip_unavailable_shards = 1;
 ```
