@@ -93,10 +93,20 @@ export const getObservationStream = async (props: {
     join_algorithm: "partial_merge",
   };
 
+  // Filter out trace-level filters since we don't join the traces table for filtering
+  // This prevents batch export failures when trace-level filters are present
+  const observationOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = observationsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+    // Keep the filter if it's not a trace-level filter
+    return columnDef?.clickhouseTableName !== "traces";
+  });
+
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: filter ?? [],
+    filter: observationOnlyFilters,
     isTimestampFilter: (filter: FilterCondition): filter is TimeFilter => {
       return filter.column === "Start Time" && filter.type === "datetime";
     },
@@ -127,7 +137,7 @@ export const getObservationStream = async (props: {
   observationsFilter.push(
     ...createFilterFromFilterState(
       [
-        ...(filter ?? []),
+        ...observationOnlyFilters,
         {
           column: "startTime",
           operator: "<" as const,
