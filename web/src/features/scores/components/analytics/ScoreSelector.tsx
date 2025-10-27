@@ -44,7 +44,7 @@ export function ScoreSelector({
     <div className="flex items-center gap-2">
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className={className}>
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={placeholder} className="p-0" />
         </SelectTrigger>
         <SelectContent>
           {filteredOptions.length === 0 ? (

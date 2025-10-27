@@ -57,30 +57,30 @@ export default function ScoresAnalyticsPage() {
         },
       }}
     >
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
         {/* Controls Section - Compact Toolbar */}
-        <div className="flex h-8 flex-col gap-2 md:flex-row md:items-center md:gap-4">
+        <div className="flex flex-col gap-1 border-b border-border p-2 lg:flex-row lg:items-center lg:gap-4">
           {/* Left: Score Selectors */}
           <div className="flex items-center gap-2">
             <ScoreSelector
               value={urlState.score1}
               onChange={setScore1}
               options={scoreOptions}
-              placeholder="Select first score"
-              className="h-8 w-[200px]"
+              placeholder="First score"
+              className="h-8 w-[160px]"
             />
             <ScoreSelector
               value={urlState.score2}
               onChange={setScore2}
               options={scoreOptions}
-              placeholder="Select second score (optional)"
+              placeholder="Second score"
               filterByDataType={score1DataType}
-              className="h-8 w-[200px]"
+              className="h-8 w-[160px]"
             />
           </div>
 
           {/* Middle: Spacer (hidden on mobile) */}
-          <div className="hidden flex-1 md:block" />
+          <div className="hidden flex-1 lg:block" />
 
           {/* Right: Filters */}
           <div className="flex items-center gap-2">
