@@ -40,7 +40,9 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "release-it": "^19.0.4",
-    "turbo": "^2.5.8"
+    "turbo": "^2.5.8",
+    "eslint": "^9",
+    "eslint-config-next": "latest"
   },
   "release-it": {
     "git": {
