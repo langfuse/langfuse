@@ -525,14 +525,6 @@ types:
       - BOOLEAN
       - CATEGORICAL
 
-  OrganizationProject:
-    properties:
-      id: string
-      name: string
-      metadata: optional<map<string, unknown>>
-      createdAt: datetime
-      updatedAt: datetime
-
 errors:
   Error:
     status-code: 400

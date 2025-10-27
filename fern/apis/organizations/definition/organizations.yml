@@ -137,7 +137,18 @@ types:
       metadata:
         type: map<string, unknown>
         docs: Metadata for the organization
-      projects: list<commons.OrganizationProject>
+      projects: list<OrganizationProject>
+
+  OrganizationProject:
+    docs: Project belonging to an organization
+    properties:
+      id: string
+      name: string
+      metadata:
+        type: optional<map<string, unknown>>
+        docs: Metadata for the project
+      createdAt: datetime
+      updatedAt: datetime
 
   DeleteOrganizationResponse:
     docs: Response for successful organization deletion

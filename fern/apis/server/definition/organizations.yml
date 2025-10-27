@@ -92,7 +92,14 @@ types:
     properties:
       memberships: list<MembershipResponse>
 
+  OrganizationProject:
+    properties:
+      id: string
+      name: string
+      metadata: optional<map<string, unknown>>
+      createdAt: datetime
+      updatedAt: datetime
+
   OrganizationProjectsResponse:
     properties:
-      projects: list<commons.OrganizationProject>
-
+      projects: list<OrganizationProject>
