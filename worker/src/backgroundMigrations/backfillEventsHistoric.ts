@@ -26,9 +26,9 @@ interface MigrationState {
 }
 
 interface MigrationArgs {
-  targetChunkSize?: number; // Default: 10_000_000
-  maxModulo?: number; // Default: 512
-  batchTimeoutMs?: number; // Default: 7_200_000 (2h)
+  targetChunkSize?: string; // Default: 10_000_000
+  maxModulo?: string; // Default: 512
+  batchTimeoutMs?: string; // Default: 7_200_000 (2h)
 }
 
 export default class BackfillEventsHistoric implements IBackgroundMigration {
@@ -134,7 +134,15 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       return defaultState;
     }
 
-    return migration.state as unknown as MigrationState;
+    const state = migration.state as any;
+
+    // Validate and merge with defaults to ensure all required fields exist
+    return {
+      partitions: state.partitions ?? defaultState.partitions,
+      currentPartition: state.currentPartition ?? defaultState.currentPartition,
+      completedPartitions:
+        state.completedPartitions ?? defaultState.completedPartitions,
+    };
   }
 
   /**
@@ -335,7 +343,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         LEFT JOIN trace_attrs t
           ON o.project_id = t.project_id
           AND o.trace_id = t.trace_id
-          AND xxHash(t.trace_id) % ${modulo}) = ${chunkId}
         WHERE o._partition_id = '${partition}'
           AND (xxHash32(o.trace_id) % ${modulo}) = ${chunkId}
           AND o.is_deleted = 0
@@ -460,9 +467,11 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
   async run(args: Record<string, unknown>): Promise<void> {
     const start = Date.now();
     const migrationArgs = args as MigrationArgs;
-    const targetChunkSize = migrationArgs.targetChunkSize ?? 10_000_000;
-    const maxModulo = migrationArgs.maxModulo ?? 512;
-    const batchTimeoutMs = migrationArgs.batchTimeoutMs ?? 7_200_000;
+    const targetChunkSize = parseInt(
+      migrationArgs.targetChunkSize ?? "10_000_000",
+    );
+    const maxModulo = parseInt(migrationArgs.maxModulo ?? "512");
+    const batchTimeoutMs = parseInt(migrationArgs.batchTimeoutMs ?? "7200000");
 
     logger.info(
       `[Backfill Events] Starting historic event backfill with args: ${JSON.stringify({ targetChunkSize, maxModulo, batchTimeoutMs })}`,
