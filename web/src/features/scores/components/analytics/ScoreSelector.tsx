@@ -1,7 +1,9 @@
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -40,6 +42,29 @@ export function ScoreSelector({
     onChange(undefined);
   };
 
+  // Group options by dataType
+  const groupedOptions = filteredOptions.reduce(
+    (acc, option) => {
+      const type = option.dataType;
+      if (!acc[type]) {
+        acc[type] = [];
+      }
+      acc[type].push(option);
+      return acc;
+    },
+    {} as Record<string, ScoreOption[]>,
+  );
+
+  // Define display labels for data types
+  const typeLabels: Record<string, string> = {
+    BOOLEAN: "Boolean",
+    CATEGORICAL: "Categorical",
+    NUMERIC: "Numeric",
+  };
+
+  // Define order for data types (matches sorting in analytics.tsx)
+  const typeOrder = ["BOOLEAN", "CATEGORICAL", "NUMERIC"];
+
   return (
     <div className="flex items-center gap-2">
       <Select value={value} onValueChange={onChange}>
@@ -52,16 +77,26 @@ export function ScoreSelector({
               No scores available
             </div>
           ) : (
-            filteredOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                <div className="flex flex-col">
-                  <span>{option.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {option.dataType} • {option.source}
-                  </span>
-                </div>
-              </SelectItem>
-            ))
+            typeOrder.map((type) => {
+              const group = groupedOptions[type];
+              if (!group || group.length === 0) return null;
+
+              return (
+                <SelectGroup key={type}>
+                  <SelectLabel>{typeLabels[type] ?? type}</SelectLabel>
+                  {group.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col">
+                        <span>{option.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {option.source}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              );
+            })
           )}
         </SelectContent>
       </Select>

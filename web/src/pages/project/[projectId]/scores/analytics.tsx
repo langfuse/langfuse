@@ -29,28 +29,49 @@ export default function ScoresAnalyticsPage() {
   const { timeRange, setTimeRange } = useDashboardDateRange();
 
   // Fetch available scores from API
-  const { data: scoresData, isLoading: scoresLoading } =
-    api.scores.getScoreIdentifiers.useQuery(
-      { projectId },
-      { enabled: !!projectId },
-    );
+  const {
+    data: scoresData,
+    isLoading: scoresLoading,
+    error: scoresError,
+  } = api.scores.getScoreIdentifiers.useQuery(
+    { projectId },
+    { enabled: !!projectId },
+  );
 
-  // Log the query result to console for debugging
+  // TODO: REMOVE BEFORE MERGING TO MAIN - Log the query result to console for debugging
   useEffect(() => {
     if (scoresData) {
       console.log("[Score Analytics] Fetched score identifiers:", scoresData);
     }
   }, [scoresData]);
 
-  // Transform API data to ScoreOption format
+  // Transform API data to ScoreOption format and sort by dataType
   const scoreOptions: ScoreOption[] = useMemo(() => {
     if (!scoresData?.scores) return [];
-    return scoresData.scores.map((score) => ({
-      value: score.value,
-      name: score.name,
-      dataType: score.dataType,
-      source: score.source,
-    }));
+
+    // Define sort order for data types
+    const typeOrder: Record<string, number> = {
+      BOOLEAN: 0,
+      CATEGORICAL: 1,
+      NUMERIC: 2,
+    };
+
+    return scoresData.scores
+      .map((score) => ({
+        value: score.value,
+        name: score.name,
+        dataType: score.dataType,
+        source: score.source,
+      }))
+      .sort((a, b) => {
+        // Sort by dataType first
+        const typeA = typeOrder[a.dataType] ?? 999;
+        const typeB = typeOrder[b.dataType] ?? 999;
+        if (typeA !== typeB) return typeA - typeB;
+
+        // Then by name alphabetically
+        return a.name.localeCompare(b.name);
+      });
   }, [scoresData]);
 
   // Parse selected scores to get their data types
@@ -60,7 +81,8 @@ export default function ScoresAnalyticsPage() {
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
 
-  const hasNoScores = !scoresLoading && scoreOptions.length === 0;
+  const hasError = !!scoresError;
+  const hasNoScores = !scoresLoading && !hasError && scoreOptions.length === 0;
   const hasNoSelection = !urlState.score1;
 
   return (
@@ -121,7 +143,17 @@ export default function ScoresAnalyticsPage() {
         </div>
 
         {/* Content Section */}
-        {hasNoScores ? (
+        {hasError ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-destructive/10 p-12">
+            <BarChart3 className="h-12 w-12 text-destructive" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">Error Loading Scores</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Failed to load score data. Please try refreshing the page.
+              </p>
+            </div>
+          </div>
+        ) : hasNoScores ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
             <BarChart3 className="h-12 w-12 text-muted-foreground" />
             <div className="text-center">
