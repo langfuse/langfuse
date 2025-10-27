@@ -16,7 +16,7 @@ export default function ScoresAnalyticsPage() {
         breadcrumb: [{ name: "Scores", href: `/project/${projectId}/scores` }],
         help: {
           description:
-            "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
+            "A score is an evaluation of a trace or observation. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
           href: "https://langfuse.com/docs/evaluation/overview",
         },
         tabsProps: {
