@@ -400,6 +400,20 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     args: Record<string, unknown>,
     attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+    // Ensure the background migration record exists
+    // TODO: Remove for golive
+    await prisma.backgroundMigration.upsert({
+      where: { id: backgroundMigrationId },
+      create: {
+        id: backgroundMigrationId,
+        name: "20251027_backfill_events_historic",
+        script: "backfillEventsHistoric",
+        args: {},
+        state: {},
+      },
+      update: {},
+    });
+
     // Check if ClickHouse credentials are configured
     if (
       !env.CLICKHOUSE_URL ||
