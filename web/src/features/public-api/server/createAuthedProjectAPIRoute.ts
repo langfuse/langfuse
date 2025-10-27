@@ -147,11 +147,15 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   // Verify both the Bearer token and header match the ADMIN_API_KEY
   try {
     // timingSafeEqual throws on different input lengths, handle accordingly
-    const isEqual =
-      crypto.timingSafeEqual(
-        Buffer.from(bearerToken),
-        Buffer.from(adminApiKey),
-      ) &&
+    const bearerTokenEqual = crypto.timingSafeEqual(
+      Buffer.from(bearerToken),
+      Buffer.from(adminApiKey),
+    );
+    const headerEqual = crypto.timingSafeEqual(
+      Buffer.from(String(adminApiKeyHeader)),
+      Buffer.from(adminApiKey),
+    );
+    const isEqual = bearerTokenEqual && headerEqual;
       crypto.timingSafeEqual(
         Buffer.from(String(adminApiKeyHeader)),
         Buffer.from(adminApiKey),
