@@ -17,12 +17,14 @@ The historic backfill has been implemented as a background migration job that au
 
 - **Automatic partition discovery**: Discovers all partitions from observations table
 - **Dynamic chunking**: Calculates optimal modulo value (power of 2) based on partition size, targeting ~10M records per chunk
-- **Two-phase processing**:
-  1. **Phase 1 (trace_attrs)**: Populates `trace_attrs` table from `traces` table
-  2. **Phase 2 (events)**: Populates `events` table from `observations` joined with `trace_attrs`
+- **Per-chunk processing**: For each chunk, performs both operations sequentially:
+  1. Populates `trace_attrs` table from `traces` for this chunk
+  2. Populates `events` table from `observations` joined with `trace_attrs` for this chunk
+  3. Truncates `trace_attrs` to keep it small (only one chunk at a time)
+- **Memory efficient**: `trace_attrs` only ever contains data for a single chunk (~10M rows max)
 - **Newest-first processing**: Processes partitions from most recent to oldest
 - **Resumable**: Maintains state in PostgreSQL, can be stopped and resumed at any time
-- **Observable**: State shows current partition, phase, and chunk progress
+- **Observable**: State shows current partition and completed chunks
 
 ### Configuration
 
@@ -42,14 +44,12 @@ Default configuration (can be overridden in migration args):
     "202510": {
       "modulo": 256,
       "rowCount": 2500000000,
-      "phase": "events",
       "chunksProcessed": [0, 1, 2, ..., 128],
       "lastUpdated": "2025-10-27T15:05:31.000Z"
     },
     "202509": {
       "modulo": 128,
       "rowCount": 1200000000,
-      "phase": "completed",
       "chunksProcessed": [0, 1, 2, ..., 127],
       "lastUpdated": "2025-10-27T14:30:15.000Z"
     }
@@ -57,6 +57,21 @@ Default configuration (can be overridden in migration args):
   "currentPartition": "202510",
   "completedPartitions": ["202509"]
 }
+```
+
+**Processing flow per chunk:**
+```
+For partition 202510, chunk 0:
+  1. INSERT INTO trace_attrs ... WHERE xxHash32(trace_id) % 256 = 0
+  2. INSERT INTO events ... LEFT JOIN trace_attrs ... WHERE xxHash32(trace_id) % 256 = 0
+  3. TRUNCATE TABLE trace_attrs
+
+For partition 202510, chunk 1:
+  1. INSERT INTO trace_attrs ... WHERE xxHash32(trace_id) % 256 = 1
+  2. INSERT INTO events ... LEFT JOIN trace_attrs ... WHERE xxHash32(trace_id) % 256 = 1
+  3. TRUNCATE TABLE trace_attrs
+
+... continues for all 256 chunks
 ```
 
 ## Manual Execution Reference

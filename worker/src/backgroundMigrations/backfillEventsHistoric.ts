@@ -5,18 +5,16 @@ import {
   logger,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
-import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import { parseArgs } from "node:util";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "d8cf9f5e-747e-4ffe-8156-dec0eaebce9d";
 
-type Phase = "trace_attrs" | "events" | "completed";
-
 interface PartitionState {
   modulo: number; // Power of 2 (1, 2, 4, 8, ..., maxModulo)
   rowCount: number; // Total rows in partition
-  phase: Phase;
   chunksProcessed: number[]; // Array of completed chunk IDs
   lastUpdated: string;
 }
@@ -150,7 +148,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
   }
 
   /**
-   * Get the next chunk to process for a partition and phase
+   * Get the next chunk to process for a partition
    */
   private getNextChunkToProcess(partition: PartitionState): number | null {
     const { modulo, chunksProcessed } = partition;
@@ -174,7 +172,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     timeoutMs: number,
   ): Promise<void> {
     logger.info(
-      `[Backfill Events] Processing trace_attrs chunk ${chunkId}/${modulo} for partition ${partition}`,
+      `[Backfill Events] Processing trace_attrs for chunk ${chunkId + 1}/${modulo} in partition ${partition}`,
     );
 
     await commandClickhouse({
@@ -216,7 +214,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     });
 
     logger.info(
-      `[Backfill Events] Completed trace_attrs chunk ${chunkId}/${modulo} for partition ${partition}`,
+      `[Backfill Events] Completed trace_attrs for chunk ${chunkId + 1}/${modulo} in partition ${partition}`,
     );
   }
 
@@ -230,7 +228,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     timeoutMs: number,
   ): Promise<void> {
     logger.info(
-      `[Backfill Events] Processing events chunk ${chunkId}/${modulo} for partition ${partition}`,
+      `[Backfill Events] Processing events for chunk ${chunkId + 1}/${modulo} in partition ${partition}`,
     );
 
     await commandClickhouse({
@@ -365,8 +363,30 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     });
 
     logger.info(
-      `[Backfill Events] Completed events chunk ${chunkId}/${modulo} for partition ${partition}`,
+      `[Backfill Events] Completed events for chunk ${chunkId + 1}/${modulo} in partition ${partition}`,
     );
+  }
+
+  /**
+   * Truncate trace_attrs table after processing a chunk
+   */
+  private async truncateTraceAttrs(): Promise<void> {
+    try {
+      await commandClickhouse({
+        query: `TRUNCATE TABLE trace_attrs`,
+        tags: {
+          feature: "background-migration",
+          operation: "truncateTraceAttrs",
+        },
+      });
+      logger.debug(`[Backfill Events] Truncated trace_attrs table`);
+    } catch (error) {
+      logger.error(
+        `[Backfill Events] Failed to truncate trace_attrs, continuing anyway`,
+        error,
+      );
+      // Don't fail the migration if truncate fails
+    }
   }
 
   async validate(
@@ -412,7 +432,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     // Create trace_attrs table if it doesn't exist
     logger.info("[Backfill Events] Creating trace_attrs table if not exists");
 
-    // TODO: Need to modify the type for self-hosters or use actual migration logic.
+    // TODO: Need to modify the engine for self-hosters or use actual migration logic.
     await commandClickhouse({
       query: `
         CREATE TABLE IF NOT EXISTS trace_attrs (
@@ -465,7 +485,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         state.partitions[partition] = {
           modulo: 0, // Will be calculated when processing starts
           rowCount: 0,
-          phase: "trace_attrs",
           chunksProcessed: [],
           lastUpdated: new Date().toISOString(),
         };
@@ -502,29 +521,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         break;
       }
 
-      // Check if partition is completed
-      if (partitionState.phase === "completed") {
-        logger.info(
-          `[Backfill Events] Partition ${currentPartition} already completed, moving to next`,
-        );
-
-        // Mark as completed and move to next partition
-        if (!state.completedPartitions.includes(currentPartition)) {
-          state.completedPartitions.push(currentPartition);
-        }
-
-        // Find next partition to process
-        const allPartitions = Object.keys(state.partitions).sort().reverse();
-        const currentIndex = allPartitions.indexOf(currentPartition);
-
-        state.currentPartition =
-          currentIndex < allPartitions.length - 1
-            ? allPartitions[currentIndex + 1]
-            : null;
-        await this.updateState(state);
-        continue;
-      }
-
       // Initialize partition if modulo not calculated yet
       if (partitionState.modulo === 0) {
         const rowCount = await this.countPartitionRows(currentPartition);
@@ -549,56 +545,60 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       const nextChunk = this.getNextChunkToProcess(partitionState);
 
       if (nextChunk === null) {
-        // All chunks processed for current phase, transition to next phase
-        if (partitionState.phase === "trace_attrs") {
-          logger.info(
-            `[Backfill Events] Partition ${currentPartition}: trace_attrs phase complete, starting events phase`,
-          );
-          partitionState.phase = "events";
-          partitionState.chunksProcessed = [];
-          partitionState.lastUpdated = new Date().toISOString();
-          await this.updateState(state);
-          continue;
-        } else if (partitionState.phase === "events") {
-          logger.info(
-            `[Backfill Events] Partition ${currentPartition}: events phase complete`,
-          );
-          partitionState.phase = "completed";
-          partitionState.lastUpdated = new Date().toISOString();
-          await this.updateState(state);
-          continue;
+        // All chunks processed for this partition
+        logger.info(
+          `[Backfill Events] Partition ${currentPartition}: all chunks complete`,
+        );
+
+        // Mark as completed and move to next partition
+        if (!state.completedPartitions.includes(currentPartition)) {
+          state.completedPartitions.push(currentPartition);
         }
+
+        // Find next partition to process
+        const allPartitions = Object.keys(state.partitions).sort().reverse();
+        const currentIndex = allPartitions.indexOf(currentPartition);
+
+        state.currentPartition =
+          currentIndex < allPartitions.length - 1
+            ? allPartitions[currentIndex + 1]
+            : null;
+        await this.updateState(state);
+        continue;
       }
 
-      // Process the chunk
+      // Process the chunk: trace_attrs -> events -> truncate
       try {
-        if (partitionState.phase === "trace_attrs") {
-          await this.processTraceAttrsChunk(
-            currentPartition,
-            nextChunk!,
-            partitionState.modulo,
-            batchTimeoutMs,
-          );
-        } else if (partitionState.phase === "events") {
-          await this.processEventsChunk(
-            currentPartition,
-            nextChunk!,
-            partitionState.modulo,
-            batchTimeoutMs,
-          );
-        }
+        // Step 1: Fill trace_attrs for this chunk
+        await this.processTraceAttrsChunk(
+          currentPartition,
+          nextChunk,
+          partitionState.modulo,
+          batchTimeoutMs,
+        );
+
+        // Step 2: Fill events for this chunk (joining with trace_attrs)
+        await this.processEventsChunk(
+          currentPartition,
+          nextChunk,
+          partitionState.modulo,
+          batchTimeoutMs,
+        );
+
+        // Step 3: Truncate trace_attrs to free memory
+        await this.truncateTraceAttrs();
 
         // Mark chunk as completed
-        partitionState.chunksProcessed.push(nextChunk!);
+        partitionState.chunksProcessed.push(nextChunk);
         partitionState.lastUpdated = new Date().toISOString();
         await this.updateState(state);
 
         logger.info(
-          `[Backfill Events] Partition ${currentPartition} ${partitionState.phase}: ${partitionState.chunksProcessed.length}/${partitionState.modulo} chunks complete`,
+          `[Backfill Events] Partition ${currentPartition}: ${partitionState.chunksProcessed.length}/${partitionState.modulo} chunks complete`,
         );
       } catch (error) {
         logger.error(
-          `[Backfill Events] Error processing chunk ${nextChunk} for partition ${currentPartition} phase ${partitionState.phase}`,
+          `[Backfill Events] Error processing chunk ${nextChunk} for partition ${currentPartition}`,
           error,
         );
         throw error; // Let the background migration manager handle the error
@@ -621,4 +621,34 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     logger.info("[Backfill Events] Aborting historic event backfill");
     this.isAborted = true;
   }
+}
+
+async function main() {
+  const args = parseArgs({
+    options: {
+      targetChunkSize: { type: "string", short: "s", default: "10000000" },
+      maxModulo: { type: "string", short: "m", default: "512" },
+      batchTimeoutMs: {
+        type: "string",
+        short: "t",
+        default: "7200000",
+      },
+    },
+  });
+
+  const migration = new BackfillEventsHistoric();
+  await migration.validate(args.values);
+  await migration.run(args.values);
+}
+
+// If the script is being executed directly (not imported), run the main function
+if (require.main === module) {
+  main()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((error) => {
+      logger.error(`Migration execution failed: ${error}`, error);
+      process.exit(1); // Exit with an error code
+    });
 }
