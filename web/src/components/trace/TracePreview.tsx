@@ -52,6 +52,7 @@ export const TracePreview = ({
   serverScores: scores,
   commentCounts,
   viewType = "detailed",
+  showCommentButton = false,
 }: {
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
@@ -63,6 +64,7 @@ export const TracePreview = ({
   serverScores: APIScoreV2[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
+  showCommentButton?: boolean;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -172,6 +174,14 @@ export const TracePreview = ({
                   count={commentCounts?.get(trace.id)}
                 />
               </>
+            )}
+            {viewType === "focused" && showCommentButton && (
+              <CommentDrawerButton
+                projectId={trace.projectId}
+                objectId={trace.id}
+                objectType="TRACE"
+                count={commentCounts?.get(trace.id)}
+              />
             )}
           </div>
         </div>

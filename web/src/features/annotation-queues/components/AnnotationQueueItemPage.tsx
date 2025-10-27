@@ -30,7 +30,6 @@ export const AnnotationQueueItemPage: React.FC<{
   >(null);
   const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
   const [progressIndex, setProgressIndex] = useState(0);
-  const [hasCommentDraft, setHasCommentDraft] = useState(false);
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -163,12 +162,6 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   const handleNavigateNext = async () => {
-    if (hasCommentDraft) {
-      const proceed = confirm(
-        "You have an unsaved comment. Do you want to go to the next item and discard this draft?",
-      );
-      if (!proceed) return;
-    }
     if (progressIndex >= seenItemIds.length - 1) {
       const nextItem = await fetchAndLockNextMutation.mutateAsync({
         queueId: annotationQueueId,
@@ -182,13 +175,6 @@ export const AnnotationQueueItemPage: React.FC<{
 
   const handleComplete = async () => {
     if (!relevantItem) return;
-    const willNavigate = !isSingleItem && progressIndex + 1 < totalItems;
-    if (hasCommentDraft && willNavigate) {
-      const proceed = confirm(
-        "You have an unsaved comment. Do you want to complete and move to the next item, discarding the draft?",
-      );
-      if (!proceed) return;
-    }
     await completeMutation.mutateAsync({
       itemId: relevantItem.id,
       projectId,
@@ -219,7 +205,6 @@ export const AnnotationQueueItemPage: React.FC<{
             view={view}
             configs={configs}
             projectId={projectId}
-            onHasCommentDraftChange={setHasCommentDraft}
           />
         );
       case AnnotationQueueObjectType.SESSION:
@@ -229,7 +214,6 @@ export const AnnotationQueueItemPage: React.FC<{
             data={objectData.data}
             configs={configs}
             projectId={projectId}
-            onHasCommentDraftChange={setHasCommentDraft}
           />
         );
       default:
