@@ -468,8 +468,7 @@ describe("LLM Connection Tests", () => {
       expect(completion).toContain("4");
     }, 30_000);
 
-    // Flaky
-    test.skip("structured output - eval schema", async () => {
+    test("structured output - eval schema", async () => {
       checkEnvVars();
 
       const completion = await fetchLLMCompletion({
