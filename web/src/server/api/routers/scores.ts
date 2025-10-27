@@ -604,4 +604,33 @@ export const scoresRouter = createTRPCRouter({
     .query(async ({ input }) => {
       return (await getScoreMetadataById(input.projectId, input.id)) ?? null;
     }),
+
+  /**
+   * Get available score identifiers for analytics dropdown
+   */
+  getScoreIdentifiers: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { projectId } = input;
+
+      // Query ClickHouse for distinct score names, data types, and sources
+      const groupedScores = await getScoresGroupedByNameSourceType({
+        projectId,
+        filter: [],
+      });
+
+      // Format for ScoreSelector component: "name-dataType-source"
+      const scores = groupedScores.map(({ name, source, dataType }) => ({
+        value: `${name}-${dataType}-${source}`,
+        name,
+        dataType,
+        source,
+      }));
+
+      return { scores };
+    }),
 });
