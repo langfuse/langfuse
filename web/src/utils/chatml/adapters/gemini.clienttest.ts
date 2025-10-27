@@ -114,6 +114,39 @@ describe("geminiAdapter", () => {
       expect(result[1].tool_call_id).toBe("call_123");
     });
 
+    it("should stringify object content in tool result messages", () => {
+      const input = [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Let me check." }],
+        },
+        {
+          role: "tool",
+          content: {
+            ok: true,
+            data: { userId: 12345 },
+            request: { unitId: 1, name: "Test User" },
+          },
+          tool_call_id: "call_xyz789",
+        },
+      ];
+
+      const result = geminiAdapter.preprocess(input, "input", {}) as any[];
+
+      expect(result.length).toBe(2);
+      expect(result[1].role).toBe("tool");
+      // Tool result content should be stringified
+      expect(typeof result[1].content).toBe("string");
+      expect(result[1].content).toBe(
+        JSON.stringify({
+          ok: true,
+          data: { userId: 12345 },
+          request: { unitId: 1, name: "Test User" },
+        }),
+      );
+      expect(result[1].tool_call_id).toBe("call_xyz789");
+    });
+
     it("should handle input wrapped in messages field", () => {
       const input = {
         messages: [
@@ -139,6 +172,48 @@ describe("geminiAdapter", () => {
       expect(result.messages[0].content).toBe("System");
       expect(result.messages[1].content).toBe("User message");
       expect(result.extra).toBe("metadata");
+    });
+
+    it("should normalize tool_calls from Gemini format to OpenAI format", () => {
+      const input = [
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              name: "get_weather",
+              args: {
+                location: "San Francisco",
+                unit: "celsius",
+              },
+              id: "call_abc123",
+              type: "tool_call",
+            },
+          ],
+        },
+      ];
+
+      const result = geminiAdapter.preprocess(input, "input", {}) as any[];
+
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe("assistant");
+      expect(result[0].tool_calls).toBeDefined();
+      expect(result[0].tool_calls.length).toBe(1);
+
+      // Should be normalized to our ChatML format
+      const toolCall = result[0].tool_calls[0];
+      expect(toolCall.id).toBe("call_abc123");
+      expect(toolCall.type).toBe("function");
+      expect(toolCall.function).toBeDefined();
+      expect(toolCall.function.name).toBe("get_weather");
+      expect(typeof toolCall.function.arguments).toBe("string");
+      expect(toolCall.function.arguments).toBe(
+        JSON.stringify({ location: "San Francisco", unit: "celsius" }),
+      );
+
+      // Old fields should be removed
+      expect(toolCall.name).toBeUndefined();
+      expect(toolCall.args).toBeUndefined();
     });
   });
 });

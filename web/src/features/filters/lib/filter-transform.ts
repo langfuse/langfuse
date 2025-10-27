@@ -8,53 +8,54 @@ import { type FilterState, type ColumnDefinition } from "@langfuse/shared";
 export type ColumnToBackendKeyMap = Record<string, string>;
 
 /**
- * Normalizes filter column names to IDs and transforms to backend-expected IDs
+ * Normalizes filter column names from display names to column IDs
+ * Handles backward compatibility where old URLs/saved views used display names ("Environment")
+ * and new system uses column IDs ("environment")
  *
- * Performs two transformations:
- * 1. Name → ID normalization: "Environment" → "environment"
- * 2. Frontend ID → Backend ID remapping: "tags" → "traceTags" (for CH column mapping)
+ * @param filters - FilterState that may contain display names or column IDs
+ * @param columnDefinitions - Column definitions for lookup
+ * @returns FilterState with all column names normalized to IDs
+ */
+export function normalizeFilterColumnNames(
+  filters: FilterState,
+  columnDefinitions: ColumnDefinition[],
+): FilterState {
+  return filters.map((filter) => {
+    const colDef = columnDefinitions.find(
+      (c) => c.id === filter.column || c.name === filter.column,
+    );
+    if (colDef && colDef.id !== filter.column) {
+      return { ...filter, column: colDef.id };
+    }
+    return filter;
+  });
+}
+
+/**
+ * Transforms frontend filter column IDs to backend-expected column IDs
  *
- * @param filters - FilterState from frontend (may have names or IDs)
- * @param columnMap - Mapping of frontend column ID -> backend column ID
- * @param columnDefinitions - Column definitions for name→id normalization
- * @returns Transformed FilterState with normalized and backend-mapped column IDs
+ * Note: Display name normalization ("Environment" → "environment") now happens earlier
+ * in useSidebarFilterState after URL decoding. This function only handles backend remapping.
+ *
+ * @param filters - FilterState from frontend (already has column IDs, not display names)
+ * @param columnMap - Mapping of frontend column ID -> backend column ID (e.g., "tags" → "traceTags")
+ * @param columnDefinitions - Not used anymore (kept for backward compatibility)
+ * @returns FilterState with backend-mapped column IDs
  */
 export function transformFiltersForBackend(
   filters: FilterState,
   columnMap: ColumnToBackendKeyMap,
-  columnDefinitions?: ColumnDefinition[],
+  _columnDefinitions?: ColumnDefinition[],
 ): FilterState {
   return filters.map((filter) => {
-    let normalizedColumn = filter.column;
-
-    // Step 1: Normalize column name to ID (if columnDefinitions provided)
-    // This handles filters created by PopoverFilterBuilder that use column.name instead of column.id
-    if (columnDefinitions) {
-      const colDef = columnDefinitions.find(
-        (c) => c.id === filter.column || c.name === filter.column,
-      );
-      if (colDef && colDef.id !== filter.column) {
-        normalizedColumn = colDef.id;
-      }
-    }
-
-    // Step 2: Apply backend column remapping (e.g., "tags" → "traceTags")
-    const backendColumnId = columnMap[normalizedColumn];
-    if (backendColumnId && backendColumnId !== normalizedColumn) {
+    // Apply backend column remapping (e.g., "tags" → "traceTags" for ClickHouse)
+    const backendColumnId = columnMap[filter.column];
+    if (backendColumnId && backendColumnId !== filter.column) {
       return {
         ...filter,
         column: backendColumnId,
       };
     }
-
-    // Return with normalized column if it changed
-    if (normalizedColumn !== filter.column) {
-      return {
-        ...filter,
-        column: normalizedColumn,
-      };
-    }
-
     return filter;
   });
 }

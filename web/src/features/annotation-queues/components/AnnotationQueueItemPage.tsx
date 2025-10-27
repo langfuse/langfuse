@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Kbd } from "@/src/components/ui/kbd";
 import {
@@ -31,7 +31,6 @@ export const AnnotationQueueItemPage: React.FC<{
 }> = ({ annotationQueueId, projectId, view, queryItemId }) => {
   const router = useRouter();
   const showCompleted = router.query.showCompleted === "true";
-  const [hasCommentDraft, setHasCommentDraft] = useState(false);
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -105,30 +104,16 @@ export const AnnotationQueueItemPage: React.FC<{
   }, [queryItemId, currentItem.data?.status]);
 
   const handlePrev = useCallback(() => {
-    if (hasCommentDraft) {
-      const proceed = confirm(
-        "You have an unsaved comment. Do you want to go to the previous item and discard this draft?",
-      );
-      if (!proceed) return;
-    }
-
     if (canGoPrev && itemIds.data) {
       navigateToItem(itemIds.data[currentIndex - 1]);
     }
-  }, [hasCommentDraft, canGoPrev, itemIds.data, currentIndex, navigateToItem]);
+  }, [canGoPrev, itemIds.data, currentIndex, navigateToItem]);
 
   const handleNext = useCallback(() => {
-    if (hasCommentDraft) {
-      const proceed = confirm(
-        "You have an unsaved comment. Do you want to go to the next item and discard this draft?",
-      );
-      if (!proceed) return;
-    }
-
     if (canGoNext && itemIds.data) {
       navigateToItem(itemIds.data[currentIndex + 1]);
     }
-  }, [hasCommentDraft, canGoNext, itemIds.data, currentIndex, navigateToItem]);
+  }, [canGoNext, itemIds.data, currentIndex, navigateToItem]);
 
   const utils = api.useUtils();
   const completeMutation = api.annotationQueueItems.complete.useMutation({
@@ -148,14 +133,6 @@ export const AnnotationQueueItemPage: React.FC<{
 
   const handleComplete = async () => {
     if (!currentItem.data) return;
-
-    const willNavigate = canGoNext;
-    if (hasCommentDraft && willNavigate) {
-      const proceed = confirm(
-        "You have an unsaved comment. Do you want to complete and move to the next item, discarding the draft?",
-      );
-      if (!proceed) return;
-    }
 
     await completeMutation.mutateAsync({
       itemId: currentItem.data.id,
@@ -220,7 +197,6 @@ export const AnnotationQueueItemPage: React.FC<{
             view={view}
             configs={configs}
             projectId={projectId}
-            onHasCommentDraftChange={setHasCommentDraft}
           />
         );
       case AnnotationQueueObjectType.SESSION:
@@ -230,7 +206,6 @@ export const AnnotationQueueItemPage: React.FC<{
             data={objectData.data}
             configs={configs}
             projectId={projectId}
-            onHasCommentDraftChange={setHasCommentDraft}
           />
         );
       default:
