@@ -8,6 +8,8 @@ import {
   PostDatasetsV1Response,
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
+import { upsertDataset } from "@/src/features/datasets/server/actions/createDataset";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -18,23 +20,23 @@ export default withMiddlewares({
     fn: async ({ body, auth }) => {
       const { name, description, metadata } = body;
 
-      const dataset = await prisma.dataset.upsert({
-        where: {
-          projectId_name: {
-            projectId: auth.scope.projectId,
-            name,
-          },
-        },
-        create: {
+      const dataset = await upsertDataset({
+        input: {
           name,
           description: description ?? undefined,
-          projectId: auth.scope.projectId,
           metadata: metadata ?? undefined,
         },
-        update: {
-          description: description ?? null,
-          metadata: metadata ?? undefined,
-        },
+        projectId: auth.scope.projectId,
+      });
+
+      await auditLog({
+        action: "create",
+        resourceType: "dataset",
+        resourceId: dataset.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        after: dataset,
       });
 
       return {

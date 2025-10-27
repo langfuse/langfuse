@@ -9,6 +9,7 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { upsertDataset } from "@/src/features/datasets/server/actions/createDataset";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -19,23 +20,13 @@ export default withMiddlewares({
     fn: async ({ body, auth }) => {
       const { name, description, metadata } = body;
 
-      const dataset = await prisma.dataset.upsert({
-        where: {
-          projectId_name: {
-            projectId: auth.scope.projectId,
-            name,
-          },
-        },
-        create: {
+      const dataset = await upsertDataset({
+        input: {
           name,
           description: description ?? undefined,
-          projectId: auth.scope.projectId,
           metadata: metadata ?? undefined,
         },
-        update: {
-          description: description ?? null,
-          metadata: metadata ?? undefined,
-        },
+        projectId: auth.scope.projectId,
       });
 
       await auditLog({
