@@ -1539,6 +1539,18 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getRes.body.name).toBe(datasetName);
     expect(getRes.body.description).toBe("Dataset in folder structure");
 
+    // Create dataset item
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: datasetName,
+        input: { value: "test-value" },
+      },
+      auth,
+    );
+
     // Create a dataset run with slashes in name
     const runName = `run/nested/test-${v4()}`;
     await makeAPICall(
@@ -1546,7 +1558,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       "/api/public/dataset-run-items",
       {
         runName,
-        datasetItemId: v4(), // doesn't need to exist for this test
+        datasetItemId: datasetItem.body.id,
         traceId: traceId,
       },
       auth,
@@ -1585,5 +1597,5 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
 
     expect(deleteRes.status).toBe(200);
-  });
+  }, 90000);
 });
