@@ -1,20 +1,18 @@
 {
-  "traces": [
-    {
-      "id": "vertex-gemini-trace-001",
-      "name": "Google Vertex AI Gemini Test Trace",
-      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      "timestamp": "2025-09-19T21:59:59.005Z",
-      "environment": "default",
-      "tags": [],
-      "bookmarked": false,
-      "release": null,
-      "version": null,
-      "userId": null,
-      "sessionId": null,
-      "public": false
-    }
-  ],
+  "trace": {
+    "id": "vertex-gemini-trace-001",
+    "name": "Google Vertex AI Gemini Test Trace",
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "timestamp": "2025-09-19T21:59:59.005Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": false
+  },
   "observations": [
     {
       "id": "vertex-gemini-obs-001",
