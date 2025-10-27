@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
@@ -13,6 +13,7 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 import { BarChart3 } from "lucide-react";
+import { api } from "@/src/utils/api";
 
 export default function ScoresAnalyticsPage() {
   const router = useRouter();
@@ -27,9 +28,30 @@ export default function ScoresAnalyticsPage() {
 
   const { timeRange, setTimeRange } = useDashboardDateRange();
 
-  // TODO: Replace with actual API call to fetch score options
-  // This will be implemented in LF-1918 (tRPC API Endpoints)
-  const scoreOptions: ScoreOption[] = useMemo(() => [], []);
+  // Fetch available scores from API
+  const { data: scoresData, isLoading: scoresLoading } =
+    api.scores.getScoreIdentifiers.useQuery(
+      { projectId },
+      { enabled: !!projectId },
+    );
+
+  // Log the query result to console for debugging
+  useEffect(() => {
+    if (scoresData) {
+      console.log("[Score Analytics] Fetched score identifiers:", scoresData);
+    }
+  }, [scoresData]);
+
+  // Transform API data to ScoreOption format
+  const scoreOptions: ScoreOption[] = useMemo(() => {
+    if (!scoresData?.scores) return [];
+    return scoresData.scores.map((score) => ({
+      value: score.value,
+      name: score.name,
+      dataType: score.dataType,
+      source: score.source,
+    }));
+  }, [scoresData]);
 
   // Parse selected scores to get their data types
   const score1DataType = useMemo(() => {
@@ -38,7 +60,7 @@ export default function ScoresAnalyticsPage() {
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
 
-  const hasNoScores = scoreOptions.length === 0;
+  const hasNoScores = !scoresLoading && scoreOptions.length === 0;
   const hasNoSelection = !urlState.score1;
 
   return (
