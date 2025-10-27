@@ -156,10 +156,6 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       Buffer.from(adminApiKey),
     );
     const isEqual = bearerTokenEqual && headerEqual;
-    crypto.timingSafeEqual(
-      Buffer.from(String(adminApiKeyHeader)),
-      Buffer.from(adminApiKey),
-    );
 
     if (!isEqual) throw Error();
   } catch {
