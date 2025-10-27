@@ -16,6 +16,8 @@ export class BaseError extends Error {
     this.httpCode = httpCode;
     this.isOperational = isOperational; // if error is part of known errors that our application can anticipate
 
-    Error.captureStackTrace(this);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this);
+    }
   }
 }
