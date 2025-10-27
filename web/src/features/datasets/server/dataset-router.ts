@@ -746,7 +746,6 @@ export const datasetRouter = createTRPCRouter({
           metadata: resolveMetadata(input.metadata),
         },
         projectId: input.projectId,
-        prisma: ctx.prisma,
       });
 
       await auditLog({
@@ -784,7 +783,6 @@ export const datasetRouter = createTRPCRouter({
           metadata: resolveMetadata(input.metadata),
         },
         projectId: input.projectId,
-        prisma: ctx.prisma,
       });
 
       await auditLog({
@@ -956,7 +954,6 @@ export const datasetRouter = createTRPCRouter({
           metadata: dataset.metadata ?? undefined,
         },
         projectId: input.projectId,
-        prisma: ctx.prisma,
       });
 
       await ctx.prisma.datasetItem.createMany({
@@ -1513,7 +1510,6 @@ export const datasetRouter = createTRPCRouter({
           remoteExperimentPayload: input.defaultPayload ?? {},
         },
         projectId: input.projectId,
-        prisma: ctx.prisma,
       });
 
       await auditLog({
@@ -1666,7 +1662,6 @@ export const datasetRouter = createTRPCRouter({
           remoteExperimentPayload: Prisma.DbNull,
         },
         projectId: input.projectId,
-        prisma: ctx.prisma,
       });
 
       await auditLog({

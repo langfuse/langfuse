@@ -2,8 +2,8 @@ import {
   DatasetNameSchema,
   InvalidRequestError,
   type Prisma,
-  type PrismaClient,
 } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 
 type DatasetJson =
   | Prisma.InputJsonObject
@@ -28,11 +28,9 @@ type UpdateDatasetInput = {
 export const upsertDataset = async ({
   input,
   projectId,
-  prisma,
 }: {
   input: UpsertDatasetInput;
   projectId: string;
-  prisma: PrismaClient;
 }) => {
   const validation = DatasetNameSchema.safeParse(input.name);
   if (!validation.success) {
@@ -64,11 +62,9 @@ export const upsertDataset = async ({
 export const updateDataset = async ({
   input,
   projectId,
-  prisma,
 }: {
   input: UpdateDatasetInput;
   projectId: string;
-  prisma: PrismaClient;
 }) => {
   if (input.name) {
     const validation = DatasetNameSchema.safeParse(input.name);

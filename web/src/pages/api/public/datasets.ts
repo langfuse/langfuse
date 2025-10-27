@@ -27,7 +27,6 @@ export default withMiddlewares({
           metadata: metadata ?? undefined,
         },
         projectId: auth.scope.projectId,
-        prisma: prisma,
       });
 
       await auditLog({
