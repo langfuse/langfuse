@@ -40,6 +40,9 @@ export async function handleGetOrganizationById(
           createdAt: true,
           updatedAt: true,
         },
+        where: {
+          deletedAt: null,
+        },
       },
     },
   });
@@ -111,6 +114,9 @@ export async function handleUpdateOrganization(
           metadata: true,
           createdAt: true,
           updatedAt: true,
+        },
+        where: {
+          deletedAt: null,
         },
       },
     },

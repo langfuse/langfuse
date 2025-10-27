@@ -169,7 +169,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
 
   // Verify project exists
   const project = await prisma.project.findUnique({
-    where: { id: projectIdHeader },
+    where: { id: projectIdHeader, deletedAt: null },
     select: { id: true, orgId: true },
   });
 
