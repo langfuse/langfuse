@@ -32,6 +32,15 @@ export async function handleGetOrganizationById(
       name: true,
       createdAt: true,
       metadata: true,
+      projects: {
+        select: {
+          id: true,
+          name: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   });
 
@@ -42,6 +51,7 @@ export async function handleGetOrganizationById(
   return res.status(200).json({
     ...organization,
     metadata: organization.metadata ?? {},
+    projects: organization.projects,
   });
 }
 
@@ -89,6 +99,21 @@ export async function handleUpdateOrganization(
   const updatedOrganization = await prisma.organization.update({
     where: { id: organizationId },
     data: { name, metadata },
+    select: {
+      id: true,
+      name: true,
+      createdAt: true,
+      metadata: true,
+      projects: {
+        select: {
+          id: true,
+          name: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+    },
   });
 
   // Log the update
@@ -110,6 +135,7 @@ export async function handleUpdateOrganization(
     name: updatedOrganization.name,
     createdAt: updatedOrganization.createdAt,
     metadata: updatedOrganization.metadata ?? {},
+    projects: updatedOrganization.projects,
   });
 }
 

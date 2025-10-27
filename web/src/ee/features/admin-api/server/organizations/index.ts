@@ -14,12 +14,22 @@ export async function handleGetOrganizations(
       name: true,
       createdAt: true,
       metadata: true,
+      projects: {
+        select: {
+          id: true,
+          name: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   });
   return res.status(200).json({
     organizations: organizations.map((org) => ({
       ...org,
       metadata: org.metadata ?? {},
+      projects: org.projects,
     })),
   });
 }
@@ -58,6 +68,21 @@ export async function handleCreateOrganization(
       name,
       metadata,
     },
+    select: {
+      id: true,
+      name: true,
+      createdAt: true,
+      metadata: true,
+      projects: {
+        select: {
+          id: true,
+          name: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+    },
   });
 
   // Log the organization creation
@@ -78,5 +103,6 @@ export async function handleCreateOrganization(
     name: organization.name,
     createdAt: organization.createdAt,
     metadata: organization.metadata ?? {},
+    projects: organization.projects,
   });
 }
