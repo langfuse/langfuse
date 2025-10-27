@@ -41,6 +41,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
     );
   }
 
+  const envCode = `LANGFUSE_SECRET_KEY = "sk-lf-..."
+LANGFUSE_PUBLIC_KEY = "pk-lf-..."
+LANGFUSE_BASE_URL = "https://cloud.langfuse.com" # 🇪🇺 EU region
+# LANGFUSE_BASE_URL = "https://us.cloud.langfuse.com" # 🇺🇸 US region`;
+
   const hasProjectAccess = useHasProjectAccess({
     projectId: props.entityId,
     scope: "apiKeys:CUD",
@@ -80,7 +85,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   }
 
   return (
-    <div>
+    <div className="space-y-4">
       <Header
         title={startCase(`${scope} API keys`)}
         help={{
@@ -92,6 +97,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
         }}
         actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
       />
+      <CodeView content={envCode} title=".env" />
       <Card className="mb-4 overflow-hidden">
         <Table>
           <TableHeader>

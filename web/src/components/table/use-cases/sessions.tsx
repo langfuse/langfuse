@@ -9,9 +9,12 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { sessionFilterConfig } from "@/src/features/filters/config/sessions-config";
+import {
+  sessionFilterConfig,
+  SESSION_COLUMN_TO_BACKEND_KEY,
+} from "@/src/features/filters/config/sessions-config";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import {
   type FilterState,
   BatchExportTableName,
@@ -26,7 +29,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -37,10 +40,6 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import {
-  useEnvironmentFilter,
-  convertSelectedEnvironmentsToFilter,
-} from "@/src/hooks/use-environment-filter";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { Badge } from "@/src/components/ui/badge";
 import { type ScoreAggregate } from "@langfuse/shared";
@@ -91,12 +90,6 @@ export default function SessionsTable({
   }, [timeRange]);
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
-  const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [],
-    "sessions",
-    projectId,
-  );
-
   const userIdFilter: FilterState = userId
     ? [
         {
@@ -144,23 +137,10 @@ export default function SessionsTable({
       },
     );
 
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
-
-  const { selectedEnvironments } = useEnvironmentFilter(
-    environmentOptions,
-    projectId,
-  );
-
-  const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment"],
-    selectedEnvironments,
-  );
-
-  const filterState = userFilterState.concat(
-    userIdFilter,
-    dateRangeFilter,
-    environmentFilter,
+  const environmentOptions = useMemo(
+    () =>
+      environmentFilterOptions.data?.map((value) => value.environment) || [],
+    [environmentFilterOptions.data],
   );
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "sessions");
@@ -177,9 +157,86 @@ export default function SessionsTable({
     order: "DESC",
   });
 
+  // Extract and type-check the datetime filter from dateRangeFilter
+  // API expects specifically a datetime filter, but dateRangeFilter is FilterState which can contain any filter type
+  const createdAtFilter = dateRangeFilter.find((f) => f.column === "createdAt");
+  const filterOptions = api.sessions.filterOptions.useQuery(
+    {
+      projectId,
+      timestampFilter:
+        createdAtFilter?.type === "datetime" ? createdAtFilter : undefined,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const newFilterOptions = useMemo(() => {
+    const scoreCategories =
+      filterOptions.data?.score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) || {};
+
+    const scoresNumeric = filterOptions.data?.scores_avg || [];
+
+    return {
+      bookmarked: ["Bookmarked", "Not bookmarked"],
+      environment: environmentOptions,
+      userIds:
+        filterOptions.data?.userIds.map((u) => ({
+          value: u.value,
+          count: Number(u.count),
+        })) || [],
+      tags: filterOptions.data?.tags.map((t) => t.value) || [], // tags don't have counts
+      sessionDuration: [],
+      countTraces: [],
+      inputTokens: [],
+      outputTokens: [],
+      totalTokens: [],
+      inputCost: [],
+      outputCost: [],
+      totalCost: [],
+      score_categories: scoreCategories,
+      scores_avg: scoresNumeric,
+    };
+  }, [environmentOptions, filterOptions.data]);
+
+  const queryFilter = useSidebarFilterState(
+    sessionFilterConfig,
+    newFilterOptions,
+  );
+
+  // Create ref-based wrapper to avoid stale closure when queryFilter updates
+  const queryFilterRef = useRef(queryFilter);
+  queryFilterRef.current = queryFilter;
+
+  const setFiltersWrapper = useCallback(
+    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    [],
+  );
+
+  const combinedFilterState = queryFilter.filterState.concat(
+    userIdFilter,
+    dateRangeFilter,
+  );
+
+  const backendFilterState = transformFiltersForBackend(
+    combinedFilterState,
+    SESSION_COLUMN_TO_BACKEND_KEY,
+    sessionFilterConfig.columnDefinitions,
+  );
+
   const payloadCount = {
     projectId,
-    filter: filterState,
+    filter: backendFilterState,
     orderBy: null,
     page: 0,
     limit: 1,
@@ -239,26 +296,6 @@ export default function SessionsTable({
     SessionMetricOutput
   >(sessions.data?.sessions, sessionMetrics.data);
 
-  const newFilterOptions = useMemo(
-    () => ({
-      bookmarked: ["Bookmarked", "Not bookmarked"],
-      sessionDuration: [],
-      countTraces: [],
-      inputTokens: [],
-      outputTokens: [],
-      totalTokens: [],
-      inputCost: [],
-      outputCost: [],
-      totalCost: [],
-    }),
-    [],
-  );
-
-  const queryFilter = useSidebarFilterState(
-    sessionFilterConfig,
-    newFilterOptions,
-  );
-
   const totalCount = sessionCountQuery.data?.totalCount ?? null;
   useEffect(() => {
     if (sessions.isSuccess) {
@@ -294,7 +331,7 @@ export default function SessionsTable({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: filterState,
+        filter: backendFilterState,
         orderBy: orderByState,
       },
     });
@@ -640,7 +677,7 @@ export default function SessionsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setUserFilterState,
+      setFilters: setFiltersWrapper,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
     },
@@ -648,7 +685,7 @@ export default function SessionsTable({
       columns,
       filterColumnDefinition: sessionFilterConfig.columnDefinitions,
     },
-    currentFilterState: userFilterState,
+    currentFilterState: queryFilter.filterState,
   });
 
   return (

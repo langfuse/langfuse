@@ -257,8 +257,8 @@ export default function TracesTable({
       inputCost: [],
       outputCost: [],
       totalCost: [],
-      "Scores (categorical)": scoreCategories,
-      "Scores (numeric)": scoresNumeric,
+      score_categories: scoreCategories,
+      scores_avg: scoresNumeric,
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 

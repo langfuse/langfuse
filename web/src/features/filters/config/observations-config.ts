@@ -1,6 +1,7 @@
 import { observationsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
+import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
 const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   environment: "environment",
@@ -12,6 +13,8 @@ const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   modelId: "modelId",
   promptName: "promptName",
   tags: "tags",
+  metadata: "metadata",
+  version: "version",
   timeToFirstToken: "timeToFirstToken",
   latency: "latency",
   tokensPerSecond: "tokensPerSecond",
@@ -21,6 +24,16 @@ const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   inputTokens: "inputTokens",
   outputTokens: "outputTokens",
   totalTokens: "totalTokens",
+  score_categories: "score_categories",
+  scores_avg: "scores_avg",
+};
+
+/**
+ * Maps frontend column IDs to backend-expected column IDs
+ * Frontend uses "tags" but backend CH mapping expects "traceTags" for trace tags on observations table
+ */
+export const OBSERVATION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
+  tags: "traceTags",
 };
 
 export const observationFilterConfig: FilterConfig = {
@@ -77,6 +90,16 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "tags",
       label: "Trace Tags",
+    },
+    {
+      type: "stringKeyValue" as const,
+      column: "metadata",
+      label: "Metadata",
+    },
+    {
+      type: "string" as const,
+      column: "version",
+      label: "Version",
     },
     {
       type: "numeric" as const,
@@ -138,6 +161,16 @@ export const observationFilterConfig: FilterConfig = {
       min: 0,
       max: 100,
       unit: "$",
+    },
+    {
+      type: "keyValue" as const,
+      column: "score_categories",
+      label: "Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "scores_avg",
+      label: "Numeric Scores",
     },
   ],
 };
