@@ -178,7 +178,7 @@ export const sessionRouter = createTRPCRouter({
               public:
                 prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
                 false,
-              environment: s.trace_environment,
+              environment: s.environment,
             };
           }),
         };
@@ -278,7 +278,7 @@ export const sessionRouter = createTRPCRouter({
           public:
             prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
             false,
-          environment: s.trace_environment,
+          environment: s.environment,
           trace_count: Number(s.trace_count),
           total_observations: Number(s.total_observations),
           sessionDuration: Number(s.duration),

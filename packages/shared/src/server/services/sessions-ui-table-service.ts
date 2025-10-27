@@ -22,7 +22,7 @@ export type SessionDataReturnType = {
   user_ids: string[];
   trace_count: number;
   trace_tags: string[];
-  trace_environment?: string;
+  environment?: string;
   scores_avg?: Array<Array<[string, number]>>;
   score_categories?: Array<Array<string>>;
 };
@@ -139,7 +139,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
           user_ids,
           trace_count,
           trace_tags,
-          trace_environment`;
+          environment`;
       break;
     case "metrics":
       sqlSelect = `
@@ -150,7 +150,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         user_ids,
         trace_count,
         trace_tags,
-        trace_environment,
+        environment,
         total_observations,
         duration,
         session_usage_details,
@@ -176,9 +176,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   tracesFilter.push(...createFilterFromFilterState(filter, sessionCols));
 
-  const tracesFilterRes = tracesFilter
-    .filter((f) => f.field !== "environment")
-    .apply();
+  const tracesFilterRes = tracesFilter.apply();
   const scoresFilterRes = scoresFilter.apply();
 
   const traceTimestampFilter: DateTimeFilter | undefined = tracesFilter.find(
@@ -329,7 +327,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                 groupUniqArray(t.user_id) AS user_ids,
                 count(*) as trace_count,
                 groupUniqArrayArray(t.tags) as trace_tags,
-                anyLast(t.environment) as trace_environment
+                anyLast(t.environment) as environment
                 -- Aggregate observations data at session level
                 ${
                   selectMetrics
