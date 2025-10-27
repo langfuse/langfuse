@@ -144,7 +144,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   const bearerToken = authHeader.replace("Bearer ", "");
 
   // Verify both the Bearer token and header match the ADMIN_API_KEY
-  if (bearerToken !== adminApiKey || adminApiKeyHeader !== adminApiKey) {
+  if (!crypto.timingSafeEqual(Buffer.from(bearerToken), Buffer.from(adminApiKey)) || !crypto.timingSafeEqual(Buffer.from(adminApiKeyHeader), Buffer.from(adminApiKey))) {
     throw { status: 401, message: "Invalid admin API key" };
   }
 
