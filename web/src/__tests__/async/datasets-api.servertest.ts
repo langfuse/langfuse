@@ -1513,7 +1513,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const createRes = await makeZodVerifiedAPICall(
       PostDatasetsV2Response,
       "POST",
-      "/api/public/datasets",
+      "/api/public/v2/datasets",
       {
         name: datasetName,
         description: "Dataset in folder structure",
@@ -1530,7 +1530,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const getRes = await makeZodVerifiedAPICall(
       GetDatasetV2Response,
       "GET",
-      `/api/public/datasets/${encodeURIComponent(datasetName)}`,
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
       undefined,
       auth,
     );
