@@ -43,6 +43,10 @@ import { type z } from "zod/v4";
 import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
 import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
 import { useRouter } from "next/router";
+import { stripMarkdown } from "@/src/utils/markdown";
+
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
 
 export function CommentList({
   projectId,
@@ -70,6 +74,7 @@ export function CommentList({
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const didInitialAutoscrollRef = useRef(false);
 
   // Extract comment ID from hash for highlighting
   const highlightedCommentId = useMemo(() => {
@@ -181,21 +186,35 @@ export function CommentList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedContent]);
 
-  // Scroll to bottom when comments initially load to show latest comments + input
-  // Skip auto-scroll if there's a highlighted comment (deeplink takes precedence)
-  useEffect(() => {
+  // Scroll to bottom on initial load to show latest comments + input.
+  // Skip auto-scroll if there's a highlighted comment (deeplink takes precedence).
+  useIsomorphicLayoutEffect(() => {
     if (
-      comments.data &&
-      commentsContainerRef.current &&
-      !highlightedCommentId
+      didInitialAutoscrollRef.current ||
+      !comments.data ||
+      !commentsContainerRef.current ||
+      highlightedCommentId
     ) {
-      // Use setTimeout to ensure DOM is fully rendered
-      setTimeout(() => {
-        if (commentsContainerRef.current) {
-          commentsContainerRef.current.scrollTop =
-            commentsContainerRef.current.scrollHeight;
-        }
-      }, 100);
+      return;
+    }
+
+    const el = commentsContainerRef.current;
+    // Do it synchronously post-DOM mutation to avoid flicker
+    el.scrollTop = el.scrollHeight;
+    // Fallback after paint in case content height changes (markdown, fonts, images)
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+
+    didInitialAutoscrollRef.current = true;
+  }, [comments.data, highlightedCommentId]);
+
+  // If a highlighted comment is specified (via hash), scroll it into view within the container
+  useIsomorphicLayoutEffect(() => {
+    if (!highlightedCommentId || !comments.data) return;
+    const node = document.getElementById(`comment-${highlightedCommentId}`);
+    if (node) {
+      node.scrollIntoView({ block: "center", behavior: "smooth" });
     }
   }, [comments.data, highlightedCommentId]);
 
@@ -300,18 +319,7 @@ export function CommentList({
     }));
   }, [comments.data]);
 
-  // Helper function to strip markdown formatting for search
-  const stripMarkdown = (text: string): string => {
-    return text
-      .replace(/!\[.*?\]\(.*?\)/g, "") // Remove images
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Convert links to text
-      .replace(/[*_~`#]/g, "") // Remove formatting characters
-      .replace(/^>\s+/gm, "") // Remove blockquotes
-      .replace(/^[-*+]\s+/gm, "") // Remove list markers
-      .replace(/^\d+\.\s+/gm, "") // Remove numbered list markers
-      .replace(/\n+/g, " ") // Replace newlines with spaces
-      .trim();
-  };
+  // stripMarkdown imported from utils
 
   // Client-side filtering based on search query
   const filteredComments = useMemo(() => {
