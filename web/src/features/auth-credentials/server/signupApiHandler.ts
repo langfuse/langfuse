@@ -63,7 +63,8 @@ export async function signupApiHandler(
   const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
   if (multiTenantSsoProvider) {
     res.status(422).json({
-      message: "You must sign in via SSO for this domain.",
+      message:
+        "You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.",
     });
     return;
   }
