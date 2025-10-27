@@ -1680,4 +1680,243 @@ describe("batch export test suite", () => {
       expect(row.name).toBe("question_generator");
     });
   });
+
+  it("should ignore trace-level filters when exporting observations", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with tags
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-with-tag",
+        tags: ["organizationSlug:karacare"],
+        timestamp: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-without-tag",
+        tags: [],
+        timestamp: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-with-other-tag",
+        tags: ["organizationSlug:other"],
+        timestamp: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Create observations for all traces with specific names
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+        name: "makeRecommendations",
+        start_time: new Date("2025-10-21T00:00:00Z").getTime(),
+        end_time: new Date("2025-10-21T00:00:05Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+        name: "makeRecommendations",
+        start_time: new Date("2025-10-21T01:00:00Z").getTime(),
+        end_time: new Date("2025-10-21T01:00:03Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[2].id,
+        type: "EVENT",
+        name: "otherOperation",
+        start_time: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Apply filters that include trace-level filters (tags)
+    // These should be ignored and all observations matching observation-level filters should be returned
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        // Trace-level filter (should be ignored)
+        {
+          type: "arrayOptions",
+          operator: "any of",
+          column: "Trace Tags",
+          value: ["organizationSlug:karacare"],
+        },
+        // Observation-level filters (should be applied)
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "type",
+          value: ["GENERATION"],
+        },
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "startTime",
+          value: new Date("2025-10-20T22:00:00.000Z"),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "startTime",
+          value: new Date("2025-10-23T21:59:59.999Z"),
+        },
+      ],
+      searchQuery: "makeRecommendations",
+      searchType: ["id"],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should return both observations matching the observation-level filters
+    // Tags filter should be ignored since it's trace-level
+    expect(rows).toHaveLength(2);
+    const exportedNames = rows.map((row) => row.name).sort();
+    expect(exportedNames).toEqual([
+      "makeRecommendations",
+      "makeRecommendations",
+    ]);
+
+    // Verify both observations are included regardless of trace tags
+    const traceIds = rows.map((row) => row.traceId).sort();
+    expect(traceIds).toEqual([traces[0].id, traces[1].id].sort());
+  });
+
+  it("should successfully export observations with mixed observation-level and trace-level filters", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with various tags and user IDs
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "api-trace-1",
+        tags: ["organizationSlug:acme", "env:production"],
+        user_id: "user-123",
+        timestamp: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "api-trace-2",
+        tags: ["organizationSlug:acme"],
+        user_id: "user-456",
+        timestamp: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "api-trace-3",
+        tags: ["organizationSlug:other"],
+        user_id: "user-789",
+        timestamp: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Create observations with specific properties
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+        name: "llm-call",
+        environment: "production",
+        start_time: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+        name: "llm-call",
+        environment: "production",
+        start_time: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[2].id,
+        type: "GENERATION",
+        name: "llm-call",
+        environment: "staging",
+        start_time: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Apply a mix of trace-level and observation-level filters
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        // Trace-level filters (should be ignored)
+        {
+          type: "arrayOptions",
+          operator: "any of",
+          column: "Trace Tags",
+          value: ["organizationSlug:acme"],
+        },
+        {
+          type: "string",
+          operator: "=",
+          column: "User ID",
+          value: "user-123",
+        },
+        // Observation-level filters (should be applied)
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "type",
+          value: ["GENERATION"],
+        },
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "environment",
+          value: ["production"],
+        },
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "name",
+          value: ["llm-call"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only return observations matching observation-level filters
+    // Trace-level filters (tags, userId) should be ignored
+    expect(rows).toHaveLength(2);
+
+    // Both observations should have production environment
+    rows.forEach((row) => {
+      expect(row.environment).toBe("production");
+      expect(row.name).toBe("llm-call");
+      expect(row.type).toBe("GENERATION");
+    });
+
+    // Should include observations from both traces with acme tag
+    const traceIds = rows.map((row) => row.traceId).sort();
+    expect(traceIds).toEqual([traces[0].id, traces[1].id].sort());
+  });
 });
