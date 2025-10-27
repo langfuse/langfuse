@@ -38,7 +38,7 @@ type RouteConfig<
    *
    * @default false
    */
-  allowAdminApiKeyAuth?: boolean;
+  isAdminApiKeyAuthAllowed?: boolean;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -190,19 +190,19 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
  * based on the configuration and request headers.
  *
  * @param req - The Next.js API request
- * @param allowAdminApiKeyAuth - Whether to allow admin API key authentication
+ * @param isAdminApiKeyAuthAllowed - Whether to allow admin API key authentication
  * @returns An auth scope object with project-level access
  * @throws Error with appropriate status code if authentication fails
  */
 export async function verifyAuth(
   req: NextApiRequest,
-  allowAdminApiKeyAuth: boolean,
+  isAdminApiKeyAuthAllowed: boolean,
 ): Promise<
   AuthHeaderValidVerificationResult & {
     scope: { projectId: string; accessLevel: "project" };
   }
 > {
-  if (allowAdminApiKeyAuth) {
+  if (isAdminApiKeyAuthAllowed) {
     // Try admin API key authentication first
     const adminAuth = await verifyAdminApiKeyAuth(req);
     if (adminAuth) {
@@ -231,7 +231,10 @@ export const createAuthedProjectAPIRoute = <
 
     // Verify authentication (basic or admin API key)
     try {
-      auth = await verifyAuth(req, routeConfig.allowAdminApiKeyAuth || false);
+      auth = await verifyAuth(
+        req,
+        routeConfig.isAdminApiKeyAuthAllowed || false,
+      );
     } catch (error: any) {
       const statusCode = error.status || 401;
       const message = error.message || "Authentication failed";

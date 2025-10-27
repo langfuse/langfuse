@@ -587,7 +587,7 @@ const enforceAdminAuth = t.middleware(async (opts) => {
 
   const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
     result.data.adminApiKey,
-    false,
+    { isAllowedOnLangfuseCloud: true },
   );
 
   if (!adminAuthResult.isAuthorized) {

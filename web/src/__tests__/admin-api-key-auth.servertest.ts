@@ -39,7 +39,7 @@ describe("Admin API Key Authentication", () => {
     auth = result.auth;
   });
 
-  describe("Basic Auth (allowAdminApiKeyAuth = false)", () => {
+  describe("Basic Auth (isAdminApiKeyAuthAllowed = false)", () => {
     it("should successfully authenticate with valid basic auth", async () => {
       // auth from beforeEach contains a valid API key
       const mockReq = {
@@ -103,7 +103,7 @@ describe("Admin API Key Authentication", () => {
     });
   });
 
-  describe("Admin API Key Auth (allowAdminApiKeyAuth = true)", () => {
+  describe("Admin API Key Auth (isAdminApiKeyAuthAllowed = true)", () => {
     it("should successfully authenticate with valid admin API key", async () => {
       const mockReq = {
         headers: {

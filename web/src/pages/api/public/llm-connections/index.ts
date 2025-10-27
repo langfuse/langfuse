@@ -17,7 +17,7 @@ export default withMiddlewares({
     name: "Get LLM Connections",
     querySchema: GetLlmConnectionsV1Query,
     responseSchema: GetLlmConnectionsV1Response,
-    allowAdminApiKeyAuth: true,
+    isAdminApiKeyAuthAllowed: true,
     fn: async ({ query, auth }) => {
       const { limit, page } = query;
 
@@ -73,7 +73,7 @@ export default withMiddlewares({
     name: "Upsert LLM Connection",
     bodySchema: PutLlmConnectionV1Body,
     responseSchema: PutLlmConnectionV1Response,
-    allowAdminApiKeyAuth: true,
+    isAdminApiKeyAuthAllowed: true,
     fn: async ({ body, auth, res }) => {
       const projectId = auth.scope.projectId;
 
