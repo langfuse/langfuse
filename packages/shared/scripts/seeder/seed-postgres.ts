@@ -552,6 +552,8 @@ export async function createDatasets(
       }
 
       for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
+        if (!data.shouldRunExperiment) continue;
+
         await prisma.datasetRuns.upsert({
           where: {
             id_projectId: {
