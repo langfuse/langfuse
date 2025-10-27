@@ -1750,7 +1750,7 @@ describe("batch export test suite", () => {
         {
           type: "arrayOptions",
           operator: "any of",
-          column: "tags",
+          column: "Trace Tags",
           value: ["organizationSlug:karacare"],
         },
         // Observation-level filters (should be applied)
@@ -1868,13 +1868,13 @@ describe("batch export test suite", () => {
         {
           type: "arrayOptions",
           operator: "any of",
-          column: "tags",
+          column: "Trace Tags",
           value: ["organizationSlug:acme"],
         },
         {
           type: "string",
           operator: "=",
-          column: "userId",
+          column: "User ID",
           value: "user-123",
         },
         // Observation-level filters (should be applied)
