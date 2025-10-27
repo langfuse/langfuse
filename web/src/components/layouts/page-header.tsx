@@ -107,7 +107,6 @@ const PageHeader = ({
                           <TooltipTrigger asChild>
                             <span
                               className="cursor-help break-words"
-                              title={title}
                               data-testid="page-header-title"
                             >
                               {title}
