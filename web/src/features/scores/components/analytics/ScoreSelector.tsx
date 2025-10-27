@@ -83,15 +83,21 @@ export function ScoreSelector({
 
               return (
                 <SelectGroup key={type}>
-                  <SelectLabel>{typeLabels[type] ?? type}</SelectLabel>
+                  <SelectLabel className="pl-2">
+                    {typeLabels[type] ?? type}
+                  </SelectLabel>
                   {group.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <div className="flex flex-col">
-                        <span>{option.name}</span>
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className="pl-6"
+                    >
+                      <span>
+                        {option.name}{" "}
                         <span className="text-xs text-muted-foreground">
-                          {option.source}
+                          • {option.source}
                         </span>
-                      </div>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectGroup>
