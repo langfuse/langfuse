@@ -67,8 +67,8 @@ export const LangfuseMediaView = ({
       refetchOnMount: false,
       refetchOnReconnect: false,
       staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
-      onError: () => {
-        // Suppress toast notification - we'll show an inline error instead
+      meta: {
+        suppressErrorToast: true, // Show inline error instead of toast
       },
     },
   );
