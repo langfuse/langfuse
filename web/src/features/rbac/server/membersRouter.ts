@@ -17,7 +17,10 @@ import {
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  sendMembershipInvitationEmail,
+  ilikeOr,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
@@ -33,18 +36,9 @@ import {
 } from "@/src/features/rbac/utils/userProjectRole";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
-  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
-    return Prisma.empty;
-  }
-
-  const q = searchQuery;
-  const searchConditions: Prisma.Sql[] = [];
-
-  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
-  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
-
-  return searchConditions.length > 0
-    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+  const orCondition = ilikeOr(["u.name", "u.email"], searchQuery);
+  return orCondition !== Prisma.empty
+    ? Prisma.sql` AND ${orCondition}`
     : Prisma.empty;
 }
 

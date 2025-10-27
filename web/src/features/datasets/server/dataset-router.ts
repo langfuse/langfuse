@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { Prisma, type Dataset } from "@langfuse/shared/src/db";
+import { type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
@@ -45,6 +45,7 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
+  ilikeAnd,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -61,6 +62,14 @@ const formatDatasetItemData = (data: string | null | undefined) => {
     return undefined;
   }
 };
+
+/**
+ * Adds a case-insensitive search condition to a Kysely query
+ * @param searchQuery The search term (optional)
+ * @returns The search condition
+ */
+const resolveSearchCondition = (searchQuery?: string | null) =>
+  ilikeAnd("d.name", searchQuery);
 
 /**
  * Determines whether the given filters require Dataset Run Items (DRI) metrics from ClickHouse.

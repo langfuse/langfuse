@@ -90,6 +90,9 @@ export * from "./s3";
 // dataset run items
 export * from "./dataset-run-items/addToDeleteQueue";
 
+// sql utilities
+export * from "./sql-utils";
+
 // test utils
 export * from "./test-utils";
 export * from "./utils/headerUtils";

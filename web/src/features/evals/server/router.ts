@@ -31,6 +31,7 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearNoJobConfigsCache,
+  ilikeAnd,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -273,10 +274,7 @@ export const evalRouter = createTRPCRouter({
         evalConfigsTableCols,
       );
 
-      const searchCondition =
-        input.searchQuery && input.searchQuery.trim() !== ""
-          ? Prisma.sql`AND jc.score_name ILIKE ${`%${input.searchQuery}%`}`
-          : Prisma.empty;
+      const searchCondition = ilikeAnd("jc.score_name", input.searchQuery);
 
       const [configs, configsCount] = await Promise.all([
         // job configs with their templates
@@ -452,10 +450,7 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:read",
       });
 
-      const searchCondition =
-        input.searchQuery && input.searchQuery.trim() !== ""
-          ? Prisma.sql`AND name ILIKE ${`%${input.searchQuery}%`}`
-          : Prisma.empty;
+      const searchCondition = ilikeAnd("name", input.searchQuery);
 
       const [templates, count] = await Promise.all([
         ctx.prisma.$queryRaw<

@@ -18,6 +18,7 @@ import {
   getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
   traceException,
+  ilike,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { groupBy } from "lodash";
@@ -134,15 +135,13 @@ const buildDatasetItemSearchFilter = (
   const searchConditions: Prisma.Sql[] = [];
 
   if (types.includes("id")) {
-    searchConditions.push(Prisma.sql`di.id ILIKE ${`%${q}%`}`);
+    searchConditions.push(ilike("di.id", q));
   }
 
   if (types.includes("content")) {
-    searchConditions.push(Prisma.sql`di.input::text ILIKE ${`%${q}%`}`);
-    searchConditions.push(
-      Prisma.sql`di.expected_output::text ILIKE ${`%${q}%`}`,
-    );
-    searchConditions.push(Prisma.sql`di.metadata::text ILIKE ${`%${q}%`}`);
+    searchConditions.push(ilike("di.input::text", q));
+    searchConditions.push(ilike("di.expected_output::text", q));
+    searchConditions.push(ilike("di.metadata::text", q));
   }
 
   return searchConditions.length > 0
