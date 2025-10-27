@@ -38,7 +38,7 @@ export type PageHeaderProps = {
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
   help?: { description: string; href?: string; className?: string };
-  titleTooltip?: string; // Tooltip to show on hover of the title
+  titleTooltip?: string;
   itemType?: LangfuseItemType;
   container?: boolean;
   tabsProps?: PageTabsProps;
