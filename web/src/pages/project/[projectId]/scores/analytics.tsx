@@ -58,37 +58,42 @@ export default function ScoresAnalyticsPage() {
       }}
     >
       <div className="flex flex-col gap-6">
-        {/* Controls Section */}
-        <div className="flex flex-col gap-4 rounded-lg border bg-card p-4">
-          {/* Top row: Time range and Object type */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <TimeRangePicker
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-              timeRangePresets={DASHBOARD_AGGREGATION_OPTIONS}
-            />
-            <ObjectTypeFilter
-              value={urlState.objectType}
-              onChange={setObjectType}
-            />
-          </div>
-
-          {/* Score selectors */}
-          <div className="grid gap-4 md:grid-cols-2">
+        {/* Controls Section - Compact Toolbar */}
+        <div className="flex h-8 flex-col gap-2 md:flex-row md:items-center md:gap-4">
+          {/* Left: Score Selectors */}
+          <div className="flex items-center gap-2">
             <ScoreSelector
-              label="Score 1"
               value={urlState.score1}
               onChange={setScore1}
               options={scoreOptions}
               placeholder="Select first score"
+              className="h-8 w-[200px]"
             />
             <ScoreSelector
-              label="Score 2 (optional)"
               value={urlState.score2}
               onChange={setScore2}
               options={scoreOptions}
-              placeholder="Select second score"
+              placeholder="Select second score (optional)"
               filterByDataType={score1DataType}
+              className="h-8 w-[200px]"
+            />
+          </div>
+
+          {/* Middle: Spacer (hidden on mobile) */}
+          <div className="hidden flex-1 md:block" />
+
+          {/* Right: Filters */}
+          <div className="flex items-center gap-2">
+            <ObjectTypeFilter
+              value={urlState.objectType}
+              onChange={setObjectType}
+              className="h-8 w-[140px]"
+            />
+            <TimeRangePicker
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              timeRangePresets={DASHBOARD_AGGREGATION_OPTIONS}
+              className="my-0"
             />
           </div>
         </div>
