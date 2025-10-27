@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType, type z } from "zod/v4";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
@@ -144,7 +145,16 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
   const bearerToken = authHeader.replace("Bearer ", "");
 
   // Verify both the Bearer token and header match the ADMIN_API_KEY
-  if (!crypto.timingSafeEqual(Buffer.from(bearerToken), Buffer.from(adminApiKey)) || !crypto.timingSafeEqual(Buffer.from(adminApiKeyHeader), Buffer.from(adminApiKey))) {
+  if (
+    !crypto.timingSafeEqual(
+      Buffer.from(bearerToken),
+      Buffer.from(adminApiKey),
+    ) ||
+    !crypto.timingSafeEqual(
+      Buffer.from(String(adminApiKeyHeader)),
+      Buffer.from(adminApiKey),
+    )
+  ) {
     throw { status: 401, message: "Invalid admin API key" };
   }
 
