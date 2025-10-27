@@ -43,6 +43,9 @@ import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMention
 import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
 import { useRouter } from "next/router";
 
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+
 export function CommentList({
   projectId,
   objectId,
@@ -65,6 +68,7 @@ export function CommentList({
   const [cursorPosition, setCursorPosition] = useState(0);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const didInitialAutoscrollRef = useRef(false);
 
   // Extract comment ID from hash for highlighting
   const highlightedCommentId = useMemo(() => {
@@ -175,21 +179,35 @@ export function CommentList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedContent]);
 
-  // Scroll to bottom when comments initially load to show latest comments + input
-  // Skip auto-scroll if there's a highlighted comment (deeplink takes precedence)
-  useEffect(() => {
+  // Scroll to bottom on initial load to show latest comments + input.
+  // Skip auto-scroll if there's a highlighted comment (deeplink takes precedence).
+  useIsomorphicLayoutEffect(() => {
     if (
-      comments.data &&
-      commentsContainerRef.current &&
-      !highlightedCommentId
+      didInitialAutoscrollRef.current ||
+      !comments.data ||
+      !commentsContainerRef.current ||
+      highlightedCommentId
     ) {
-      // Use setTimeout to ensure DOM is fully rendered
-      setTimeout(() => {
-        if (commentsContainerRef.current) {
-          commentsContainerRef.current.scrollTop =
-            commentsContainerRef.current.scrollHeight;
-        }
-      }, 100);
+      return;
+    }
+
+    const el = commentsContainerRef.current;
+    // Do it synchronously post-DOM mutation to avoid flicker
+    el.scrollTop = el.scrollHeight;
+    // Fallback after paint in case content height changes (markdown, fonts, images)
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+
+    didInitialAutoscrollRef.current = true;
+  }, [comments.data, highlightedCommentId]);
+
+  // If a highlighted comment is specified (via hash), scroll it into view within the container
+  useIsomorphicLayoutEffect(() => {
+    if (!highlightedCommentId || !comments.data) return;
+    const node = document.getElementById(`comment-${highlightedCommentId}`);
+    if (node) {
+      node.scrollIntoView({ block: "center", behavior: "smooth" });
     }
   }, [comments.data, highlightedCommentId]);
 
