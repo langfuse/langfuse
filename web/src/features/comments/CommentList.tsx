@@ -43,6 +43,7 @@ import { type z } from "zod/v4";
 import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
 import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
 import { useRouter } from "next/router";
+import { stripMarkdown } from "@/src/utils/markdown";
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
@@ -318,18 +319,7 @@ export function CommentList({
     }));
   }, [comments.data]);
 
-  // Helper function to strip markdown formatting for search
-  const stripMarkdown = (text: string): string => {
-    return text
-      .replace(/!\[.*?\]\(.*?\)/g, "") // Remove images
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Convert links to text
-      .replace(/[*_~`#]/g, "") // Remove formatting characters
-      .replace(/^>\s+/gm, "") // Remove blockquotes
-      .replace(/^[-*+]\s+/gm, "") // Remove list markers
-      .replace(/^\d+\.\s+/gm, "") // Remove numbered list markers
-      .replace(/\n+/g, " ") // Replace newlines with spaces
-      .trim();
-  };
+  // stripMarkdown imported from utils
 
   // Client-side filtering based on search query
   const filteredComments = useMemo(() => {
