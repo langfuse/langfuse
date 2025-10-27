@@ -147,13 +147,13 @@ export function CommentDrawerButton({
       </DrawerTrigger>
       <DrawerContent overlayClassName="bg-primary/10">
         <div
-          className="mx-auto flex h-full w-full flex-col overflow-hidden md:max-h-full"
+          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 md:max-h-full"
           tabIndex={-1}
           ref={(el) => {
             // Auto-focus drawer content when it opens (only once)
             if (el && isDrawerOpen && !hasFocusedRef.current) {
               hasFocusedRef.current = true;
-              setTimeout(() => el.focus(), 100);
+              setTimeout(() => el.focus({ preventScroll: true }), 100);
             }
           }}
         >
