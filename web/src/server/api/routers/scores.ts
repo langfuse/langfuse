@@ -38,6 +38,7 @@ import {
   logger,
   getTraceById,
   getScoreById,
+  queryClickhouse,
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
   hasAnyScore,
@@ -632,5 +633,399 @@ export const scoresRouter = createTRPCRouter({
       }));
 
       return { scores };
+    }),
+
+  /**
+   * Get comprehensive score comparison analytics using single UNION ALL query
+   * Returns counts, heatmap, confusion matrix, statistics, time series, and distributions
+   */
+  getScoreComparisonAnalytics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        score1: z.object({
+          name: z.string(),
+          dataType: z.string(),
+          source: z.string(),
+        }),
+        score2: z.object({
+          name: z.string(),
+          dataType: z.string(),
+          source: z.string(),
+        }),
+        fromTimestamp: z.date(),
+        toTimestamp: z.date(),
+        interval: z.enum(["hour", "day", "week", "month"]).default("day"),
+        nBins: z.number().int().min(5).max(50).default(10),
+        maxMatchedScoresLimit: z.number().int().default(100000),
+      }),
+    )
+    .query(async ({ input }) => {
+      const {
+        projectId,
+        score1,
+        score2,
+        fromTimestamp,
+        toTimestamp,
+        interval,
+        nBins,
+        maxMatchedScoresLimit,
+      } = input;
+
+      // Convert interval to ClickHouse INTERVAL syntax
+      const intervalMap: Record<string, string> = {
+        hour: "INTERVAL 1 HOUR",
+        day: "INTERVAL 1 DAY",
+        week: "INTERVAL 1 WEEK",
+        month: "INTERVAL 1 MONTH",
+      };
+      const clickhouseInterval = intervalMap[interval];
+
+      // Construct comprehensive UNION ALL query
+      const query = `
+        WITH
+          -- CTE 1: Filter score 1
+          score1_filtered AS (
+            SELECT
+              id, value, string_value,
+              trace_id, observation_id, session_id, dataset_run_id as run_id,
+              timestamp
+            FROM scores FINAL
+            WHERE project_id = {projectId: String}
+              AND name = {score1Name: String}
+              AND source = {score1Source: String}
+              AND data_type = {dataType: String}
+              AND timestamp >= {fromTimestamp: DateTime64(3)}
+              AND timestamp <= {toTimestamp: DateTime64(3)}
+              AND is_deleted = 0
+          ),
+
+          -- CTE 2: Filter score 2
+          score2_filtered AS (
+            SELECT
+              id, value, string_value,
+              trace_id, observation_id, session_id, dataset_run_id as run_id,
+              timestamp
+            FROM scores FINAL
+            WHERE project_id = {projectId: String}
+              AND name = {score2Name: String}
+              AND source = {score2Source: String}
+              AND data_type = {dataType: String}
+              AND timestamp >= {fromTimestamp: DateTime64(3)}
+              AND timestamp <= {toTimestamp: DateTime64(3)}
+              AND is_deleted = 0
+          ),
+
+          -- CTE 3: Match scores with NULL-safe joins
+          matched_scores AS (
+            SELECT
+              s1.value as value1,
+              s1.string_value as string_value1,
+              s2.value as value2,
+              s2.string_value as string_value2,
+              s1.timestamp as timestamp1,
+              s2.timestamp as timestamp2,
+              coalesce(s1.trace_id, s2.trace_id) as trace_id,
+              coalesce(s1.observation_id, s2.observation_id) as observation_id,
+              coalesce(s1.session_id, s2.session_id) as session_id,
+              coalesce(s1.run_id, s2.run_id) as run_id
+            FROM score1_filtered s1
+            INNER JOIN score2_filtered s2
+              ON (s1.trace_id = s2.trace_id OR (s1.trace_id IS NULL AND s2.trace_id IS NULL))
+              AND (s1.observation_id = s2.observation_id OR (s1.observation_id IS NULL AND s2.observation_id IS NULL))
+              AND (s1.session_id = s2.session_id OR (s1.session_id IS NULL AND s2.session_id IS NULL))
+              AND (s1.run_id = s2.run_id OR (s1.run_id IS NULL AND s2.run_id IS NULL))
+            LIMIT {maxMatchedScoresLimit: UInt32}
+          ),
+
+          -- CTE 4: Bounds (for numeric heatmap binning)
+          bounds AS (
+            SELECT
+              min(value1) as min1,
+              max(value1) as max1,
+              min(value2) as min2,
+              max(value2) as max2
+            FROM matched_scores
+          ),
+
+          -- CTE 5: Heatmap (numeric only, 10x10 grid)
+          heatmap AS (
+            SELECT
+              floor((m.value1 - b.min1) / ((b.max1 - b.min1 + 0.0001) / {nBins: UInt8})) as bin_x,
+              floor((m.value2 - b.min2) / ((b.max2 - b.min2 + 0.0001) / {nBins: UInt8})) as bin_y,
+              count() as count,
+              b.min1, b.max1, b.min2, b.max2
+            FROM matched_scores m
+            CROSS JOIN bounds b
+            GROUP BY bin_x, bin_y, b.min1, b.max1, b.min2, b.max2
+          ),
+
+          -- CTE 6: Confusion matrix (categorical/boolean only)
+          confusion AS (
+            SELECT
+              string_value1 as row_category,
+              string_value2 as col_category,
+              count() as count
+            FROM matched_scores
+            GROUP BY string_value1, string_value2
+          ),
+
+          -- CTE 7: Statistics
+          stats AS (
+            SELECT
+              count() as matched_count,
+              avg(value1) as mean1,
+              avg(value2) as mean2,
+              stddevPop(value1) as std1,
+              stddevPop(value2) as std2,
+              corr(value1, value2) as pearson_correlation,
+              avg(abs(value1 - value2)) as mae,
+              sqrt(avg(pow(value1 - value2, 2))) as rmse
+            FROM matched_scores
+          ),
+
+          -- CTE 8: Time series
+          timeseries AS (
+            SELECT
+              toStartOfInterval(timestamp1, ${clickhouseInterval}) as ts,
+              avg(value1) as avg1,
+              avg(value2) as avg2,
+              count() as count
+            FROM matched_scores
+            GROUP BY ts
+            ORDER BY ts
+          ),
+
+          -- CTE 9: Distribution for score1
+          distribution1 AS (
+            SELECT
+              floor((value - (SELECT min(value) FROM score1_filtered)) /
+                    (((SELECT max(value) FROM score1_filtered) - (SELECT min(value) FROM score1_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score1_filtered
+            GROUP BY bin_index
+          ),
+
+          -- CTE 10: Distribution for score2
+          distribution2 AS (
+            SELECT
+              floor((value - (SELECT min(value) FROM score2_filtered)) /
+                    (((SELECT max(value) FROM score2_filtered) - (SELECT min(value) FROM score2_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score2_filtered
+            GROUP BY bin_index
+          )
+
+        -- Return multiple result sets via UNION ALL
+        SELECT
+          'counts' as result_type,
+          CAST((SELECT count() FROM score1_filtered) AS Float64) as col1,
+          CAST((SELECT count() FROM score2_filtered) AS Float64) as col2,
+          CAST((SELECT count() FROM matched_scores) AS Float64) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10
+
+        UNION ALL
+
+        SELECT
+          'heatmap' as result_type,
+          CAST(bin_x AS Float64) as col1,
+          CAST(bin_y AS Float64) as col2,
+          CAST(count AS Float64) as col3,
+          min1 as col4,
+          max1 as col5,
+          min2 as col6,
+          max2 as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10
+        FROM heatmap
+
+        UNION ALL
+
+        SELECT
+          'confusion' as result_type,
+          CAST(count AS Float64) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          row_category as col9,
+          col_category as col10
+        FROM confusion
+
+        UNION ALL
+
+        SELECT
+          'stats' as result_type,
+          CAST(matched_count AS Float64) as col1,
+          mean1 as col2,
+          mean2 as col3,
+          std1 as col4,
+          std2 as col5,
+          pearson_correlation as col6,
+          mae as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10
+        FROM stats
+
+        UNION ALL
+
+        SELECT
+          'timeseries' as result_type,
+          CAST(toUnixTimestamp(ts) AS Float64) as col1,
+          avg1 as col2,
+          avg2 as col3,
+          CAST(count AS Float64) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10
+        FROM timeseries
+
+        UNION ALL
+
+        SELECT
+          'distribution1' as result_type,
+          CAST(bin_index AS Float64) as col1,
+          CAST(count AS Float64) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10
+        FROM distribution1
+
+        UNION ALL
+
+        SELECT
+          'distribution2' as result_type,
+          CAST(bin_index AS Float64) as col1,
+          CAST(count AS Float64) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10
+        FROM distribution2
+      `;
+
+      // Execute query
+      const results = await queryClickhouse<{
+        result_type: string;
+        col1: number | null;
+        col2: number | null;
+        col3: number | null;
+        col4: number | null;
+        col5: number | null;
+        col6: number | null;
+        col7: number | null;
+        col8: number | null;
+        col9: string | null;
+        col10: string | null;
+      }>({
+        query,
+        params: {
+          projectId,
+          score1Name: score1.name,
+          score1Source: score1.source,
+          score2Name: score2.name,
+          score2Source: score2.source,
+          dataType: score1.dataType,
+          fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
+          toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
+          nBins,
+          maxMatchedScoresLimit,
+        },
+        tags: {
+          feature: "scores",
+          type: "analytics",
+          kind: "comparison",
+          projectId,
+        },
+      });
+
+      // Parse results by result_type
+      const countsRow = results.find((r) => r.result_type === "counts");
+      const heatmapRows = results.filter((r) => r.result_type === "heatmap");
+      const confusionRows = results.filter(
+        (r) => r.result_type === "confusion",
+      );
+      const statsRow = results.find((r) => r.result_type === "stats");
+      const timeseriesRows = results.filter(
+        (r) => r.result_type === "timeseries",
+      );
+      const dist1Rows = results.filter(
+        (r) => r.result_type === "distribution1",
+      );
+      const dist2Rows = results.filter(
+        (r) => r.result_type === "distribution2",
+      );
+
+      // Build structured response
+      return {
+        counts: {
+          score1Total: countsRow?.col1 ?? 0,
+          score2Total: countsRow?.col2 ?? 0,
+          matchedCount: countsRow?.col3 ?? 0,
+        },
+        heatmap: heatmapRows.map((row) => ({
+          binX: row.col1 ?? 0,
+          binY: row.col2 ?? 0,
+          count: row.col3 ?? 0,
+          min1: row.col4 ?? 0,
+          max1: row.col5 ?? 0,
+          min2: row.col6 ?? 0,
+          max2: row.col7 ?? 0,
+        })),
+        confusionMatrix: confusionRows.map((row) => ({
+          rowCategory: row.col9 ?? "",
+          colCategory: row.col10 ?? "",
+          count: row.col1 ?? 0,
+        })),
+        statistics: statsRow
+          ? {
+              matchedCount: statsRow.col1 ?? 0,
+              mean1: statsRow.col2 ?? null,
+              mean2: statsRow.col3 ?? null,
+              std1: statsRow.col4 ?? null,
+              std2: statsRow.col5 ?? null,
+              pearsonCorrelation: statsRow.col6 ?? null,
+              mae: statsRow.col7 ?? null,
+              rmse: statsRow.col8 ?? null,
+            }
+          : null,
+        timeSeries: timeseriesRows.map((row) => ({
+          timestamp: new Date((row.col1 ?? 0) * 1000),
+          avg1: row.col2 ?? null,
+          avg2: row.col3 ?? null,
+          count: row.col4 ?? 0,
+        })),
+        distribution1: dist1Rows.map((row) => ({
+          binIndex: row.col1 ?? 0,
+          count: row.col2 ?? 0,
+        })),
+        distribution2: dist2Rows.map((row) => ({
+          binIndex: row.col1 ?? 0,
+          count: row.col2 ?? 0,
+        })),
+      };
     }),
 });
