@@ -32,6 +32,7 @@ import {
   getObservationsWithPromptName,
   getObservationMetricsForPrompts,
   getAggregatedScoresForPrompts,
+  ilike,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
@@ -50,14 +51,14 @@ const buildPromptSearchFilter = (
   const searchConditions: Prisma.Sql[] = [];
 
   if (types.includes("id")) {
-    searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
+    searchConditions.push(ilike("p.name", q));
     searchConditions.push(
-      Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
+      Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE ${ilike("tag", q)})`,
     );
   }
 
   if (types.includes("content")) {
-    searchConditions.push(Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`);
+    searchConditions.push(ilike("p.prompt::text", q));
   }
 
   return searchConditions.length > 0
