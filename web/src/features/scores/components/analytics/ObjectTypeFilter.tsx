@@ -28,7 +28,7 @@ export function ObjectTypeFilter({
 }: ObjectTypeFilterProps) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={className}>
+      <SelectTrigger className={className} aria-label="Object type">
         <SelectValue placeholder="Object type" />
       </SelectTrigger>
       <SelectContent>
