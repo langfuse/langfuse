@@ -1,13 +1,45 @@
 import { useRouter } from "next/router";
+import { useMemo } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
+import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
+import { ScoreSelector } from "@/src/features/scores/components/analytics/ScoreSelector";
+import { ObjectTypeFilter } from "@/src/features/scores/components/analytics/ObjectTypeFilter";
+import { type ScoreOption } from "@/src/features/scores/components/analytics/ScoreSelector";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
+import { BarChart3 } from "lucide-react";
 
 export default function ScoresAnalyticsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+
+  const {
+    state: urlState,
+    setScore1,
+    setScore2,
+    setObjectType,
+  } = useAnalyticsUrlState();
+
+  const { timeRange, setTimeRange } = useDashboardDateRange();
+
+  // TODO: Replace with actual API call to fetch score options
+  // This will be implemented in LF-1918 (tRPC API Endpoints)
+  const scoreOptions: ScoreOption[] = useMemo(() => [], []);
+
+  // Parse selected scores to get their data types
+  const score1DataType = useMemo(() => {
+    if (!urlState.score1) return undefined;
+    const selected = scoreOptions.find((opt) => opt.value === urlState.score1);
+    return selected?.dataType;
+  }, [urlState.score1, scoreOptions]);
+
+  const hasNoScores = scoreOptions.length === 0;
+  const hasNoSelection = !urlState.score1;
 
   return (
     <Page
@@ -25,8 +57,82 @@ export default function ScoresAnalyticsPage() {
         },
       }}
     >
-      <div className="flex items-center justify-center p-8">
-        <p className="text-muted-foreground">Score Analytics - Coming Soon</p>
+      <div className="flex flex-col gap-6">
+        {/* Controls Section */}
+        <div className="flex flex-col gap-4 rounded-lg border bg-card p-4">
+          {/* Top row: Time range and Object type */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <TimeRangePicker
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              timeRangePresets={DASHBOARD_AGGREGATION_OPTIONS}
+            />
+            <ObjectTypeFilter
+              value={urlState.objectType}
+              onChange={setObjectType}
+            />
+          </div>
+
+          {/* Score selectors */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <ScoreSelector
+              label="Score 1"
+              value={urlState.score1}
+              onChange={setScore1}
+              options={scoreOptions}
+              placeholder="Select first score"
+            />
+            <ScoreSelector
+              label="Score 2 (optional)"
+              value={urlState.score2}
+              onChange={setScore2}
+              options={scoreOptions}
+              placeholder="Select second score"
+              filterByDataType={score1DataType}
+            />
+          </div>
+        </div>
+
+        {/* Content Section */}
+        {hasNoScores ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
+            <BarChart3 className="h-12 w-12 text-muted-foreground" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">No Scores Available</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Create scores by adding evaluations to your traces and
+                observations.
+              </p>
+            </div>
+          </div>
+        ) : hasNoSelection ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
+            <BarChart3 className="h-12 w-12 text-muted-foreground" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">Select a Score</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Choose at least one score from the dropdowns above to view
+                analytics.
+              </p>
+              <p className="mt-4 text-sm text-muted-foreground">
+                <strong>Single score:</strong> View distribution and trends over
+                time
+                <br />
+                <strong>Two scores:</strong> Compare scores with heatmaps and
+                statistical analysis
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
+            <p className="text-muted-foreground">
+              Analytics visualizations will be displayed here
+            </p>
+            <p className="text-sm text-muted-foreground">
+              (Implementation in progress: LF-1919, LF-1920, LF-1921)
+            </p>
+          </div>
+        )}
       </div>
     </Page>
   );
