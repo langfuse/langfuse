@@ -7,8 +7,8 @@ WITH
     -- Time range configuration
     time_range AS (
         SELECT
-            toDateTime('2025-10-17 09:00:00') AS min_time,
-            toDateTime('2025-10-17 13:45:00') AS max_time
+            toDateTime('2025-10-21 08:57:00') AS min_time,
+            toDateTime('2025-10-21 11:51:00') AS max_time
     ),
 
     -- Get filtered observations
@@ -95,8 +95,8 @@ WITH
     -- Time range configuration
     time_range AS (
         SELECT
-            toDateTime('2025-10-17 09:00:00') AS min_time,
-            toDateTime('2025-10-17 13:45:00') AS max_time
+            toDateTime('2025-10-21 08:57:00') AS min_time,
+            toDateTime('2025-10-21 11:51:00') AS max_time
     ),
 
     sampled_projects AS (
@@ -159,10 +159,10 @@ SELECT
     'parent_span_id_mismatch' AS issue_type,
     id AS observation_id,
     project_id,
-    coalesce(parent_observation_id, trace_id) AS obs_value,
+    coalesce(parent_observation_id, concat('t-', trace_id)) AS obs_value,
     e_parent_span_id AS event_value
 FROM obs_event_joined
-WHERE e_parent_span_id != coalesce(parent_observation_id, trace_id)
+WHERE e_parent_span_id != coalesce(parent_observation_id, concat('t-', trace_id))
 
 UNION ALL
 
@@ -336,8 +336,8 @@ WITH
     -- Time range configuration
     time_range AS (
         SELECT
-            toDateTime('2025-10-17 09:00:00') AS min_time,
-            toDateTime('2025-10-17 13:45:00') AS max_time
+            toDateTime('2025-10-21 08:57:00') AS min_time,
+            toDateTime('2025-10-21 11:51:00') AS max_time
     ),
 
     sampled_projects AS (

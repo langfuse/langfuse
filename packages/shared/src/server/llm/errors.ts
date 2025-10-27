@@ -15,7 +15,9 @@ export class LLMCompletionError extends Error {
     this.responseStatusCode = params.responseStatusCode ?? 500;
     this.isRetryable = params.isRetryable ?? false; // Default to false - be explicit about retryability
 
-    Error.captureStackTrace(this);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this);
+    }
   }
 }
 

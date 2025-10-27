@@ -4,14 +4,67 @@ import {
   type FilterState,
   singleFilter,
   type SingleValueOption,
+  type ColumnDefinition,
 } from "@langfuse/shared";
 import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
+  type GenericFilterOptions,
+  type ColumnToQueryKeyMap,
 } from "../lib/filter-query-encoding";
+import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
+
+/**
+ * Decodes filters from URL query string and normalizes display names to column IDs.
+ * This prevents duplicates when old URLs use display names and new filters use column IDs.
+ *
+ * @param filtersQuery - Encoded filter string from URL
+ * @param columnToQueryKey - Mapping of column IDs to query keys
+ * @param columnDefinitions - Column definitions for validation and normalization
+ * @param options - Available filter options
+ * @returns Normalized and validated FilterState
+ */
+export function decodeAndNormalizeFilters(
+  filtersQuery: string,
+  columnToQueryKey: ColumnToQueryKeyMap,
+  columnDefinitions: ColumnDefinition[],
+  options: GenericFilterOptions,
+): FilterState {
+  try {
+    const filters = decodeFiltersGeneric(
+      filtersQuery,
+      columnToQueryKey,
+      options,
+      (column) => {
+        const columnDef = columnDefinitions.find((col) => col.id === column);
+        return columnDef?.type || "stringOptions";
+      },
+    );
+
+    // Normalize display names to column IDs immediately after decoding
+    // This prevents duplicates when old URLs use display names (e.g., "Environment")
+    // and user adds new filters with column IDs (e.g., "environment")
+    const normalized = normalizeFilterColumnNames(filters, columnDefinitions);
+
+    // Validate normalized filters
+    const result: FilterState = [];
+    for (const filter of normalized) {
+      const validationResult = singleFilter.safeParse(filter);
+      if (validationResult.success) {
+        result.push(validationResult.data);
+      } else {
+        console.warn(`Invalid filter skipped:`, filter, validationResult.error);
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("Error decoding filters:", error);
+    return [];
+  }
+}
 
 function computeNumericRange(
   column: string,
@@ -227,38 +280,12 @@ export function useSidebarFilterState(
   );
 
   const filterState: FilterState = useMemo(() => {
-    try {
-      const filters = decodeFiltersGeneric(
-        filtersQuery,
-        config.columnToQueryKey,
-        options,
-        (column) => {
-          const columnDef = config.columnDefinitions.find(
-            (col) => col.id === column,
-          );
-          return columnDef?.type || "stringOptions";
-        },
-      );
-
-      // Validate filters
-      const result: FilterState = [];
-      for (const filter of filters) {
-        const validationResult = singleFilter.safeParse(filter);
-        if (validationResult.success) {
-          result.push(validationResult.data);
-        } else {
-          console.warn(
-            `Invalid filter skipped:`,
-            filter,
-            validationResult.error,
-          );
-        }
-      }
-      return result;
-    } catch (error) {
-      console.error("Error decoding filters:", error);
-      return [];
-    }
+    return decodeAndNormalizeFilters(
+      filtersQuery,
+      config.columnToQueryKey,
+      config.columnDefinitions,
+      options,
+    );
   }, [
     filtersQuery,
     config.columnToQueryKey,
