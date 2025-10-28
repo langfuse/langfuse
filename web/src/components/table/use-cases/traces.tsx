@@ -262,7 +262,11 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions);
+  const queryFilter = useSidebarFilterState(
+    traceFilterConfig,
+    filterOptions,
+    projectId,
+  );
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,

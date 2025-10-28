@@ -340,6 +340,7 @@ export default function ObservationsTable({
   const queryFilter = useSidebarFilterState(
     observationFilterConfig,
     newFilterOptions,
+    projectId,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -1167,7 +1168,7 @@ export default function ObservationsTable({
             <BatchExportTableButton
               {...{
                 projectId,
-                filterState,
+                filterState: backendFilterState,
                 orderByState,
                 searchQuery,
                 searchType,

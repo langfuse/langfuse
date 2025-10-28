@@ -212,6 +212,7 @@ export default function SessionsTable({
   const queryFilter = useSidebarFilterState(
     sessionFilterConfig,
     newFilterOptions,
+    projectId,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

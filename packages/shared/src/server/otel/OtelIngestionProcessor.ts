@@ -1468,6 +1468,10 @@ export class OtelIngestionProcessor {
     }
 
     // Vercel AI SDK
+    if ("ai.toolCall.name" in attributes) {
+      return attributes["ai.toolCall.name"] as string;
+    }
+
     const functionIdAttribute = "ai.telemetry.functionId";
     const operationIdAttribute = "ai.operationId";
 
