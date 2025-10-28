@@ -33,6 +33,7 @@ export function CommentDrawerButton({
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Note: We manually control to keep the drawer open on ESC press when the mention dropdown is open
   const hasAutoOpenedRef = useRef(false); // Track if we've already auto-opened for current deep link
+  const hasFocusedRef = useRef(false); // Track if we've already focused the drawer
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -104,6 +105,11 @@ export function CommentDrawerButton({
         }
         setIsDrawerOpen(open);
 
+        // Reset focus tracking when drawer closes
+        if (!open) {
+          hasFocusedRef.current = false;
+        }
+
         // Clear URL parameters and hash when drawer is closed
         if (!open && router.query.comments === "open") {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -144,18 +150,19 @@ export function CommentDrawerButton({
           className="mx-auto flex h-full w-full flex-col overflow-hidden focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 md:max-h-full"
           tabIndex={-1}
           ref={(el) => {
-            // Auto-focus drawer content when it opens
-            if (el && isDrawerOpen) {
+            // Auto-focus drawer content when it opens (only once)
+            if (el && isDrawerOpen && !hasFocusedRef.current) {
+              hasFocusedRef.current = true;
               setTimeout(() => el.focus({ preventScroll: true }), 100);
             }
           }}
         >
-          <DrawerHeader className="flex-shrink-0 rounded-sm bg-background">
+          <DrawerHeader className="sr-only flex-shrink-0 rounded-sm bg-background">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
-          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pb-2">
+          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pt-2">
             <CommentList
               projectId={projectId}
               objectId={objectId}

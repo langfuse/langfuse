@@ -43,6 +43,8 @@ import { type z } from "zod/v4";
 import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
 import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
 import { useRouter } from "next/router";
+import { ReactionPicker } from "@/src/features/comments/ReactionPicker";
+import { ReactionBar } from "@/src/features/comments/ReactionBar";
 import { stripMarkdown } from "@/src/utils/markdown";
 
 const useIsomorphicLayoutEffect =
@@ -312,6 +314,18 @@ export function CommentList({
     },
   });
 
+  const addReactionMutation = api.commentReactions.add.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.commentReactions.invalidate()]);
+    },
+  });
+
+  const removeReactionMutation = api.commentReactions.remove.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.commentReactions.invalidate()]);
+    },
+  });
+
   const commentsWithFormattedTimestamp = useMemo(() => {
     return comments.data?.map((comment) => ({
       ...comment,
@@ -480,20 +494,21 @@ export function CommentList({
           ref={commentsContainerRef}
           className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto"
         >
-          <div className="max-h-full p-1">
+          <div className="max-h-full space-y-2 p-2">
             {filteredComments?.map((comment) => (
               <div
                 key={comment.id}
                 id={`comment-${comment.id}`}
                 className={cn(
-                  "group grid grid-cols-[auto,1fr] gap-1 rounded-md p-1 transition-colors",
-                  highlightedCommentId === comment.id &&
-                    "border-2 border-blue-500",
+                  "group relative grid grid-cols-[auto,1fr] gap-2.5 rounded-lg border p-3 transition-colors",
+                  highlightedCommentId === comment.id
+                    ? "border-primary-accent"
+                    : "border-border/40 hover:bg-muted/20",
                 )}
               >
-                <Avatar className="mt-0.5 h-6 w-6">
+                <Avatar className="h-6 w-6">
                   <AvatarImage src={comment.authorUserImage ?? undefined} />
-                  <AvatarFallback>
+                  <AvatarFallback className="text-xs">
                     {comment.authorUserName
                       ? comment.authorUserName
                           .split(" ")
@@ -503,156 +518,199 @@ export function CommentList({
                       : (comment.authorUserId ?? "U")}
                   </AvatarFallback>
                 </Avatar>
-                <div className="relative rounded-md">
-                  <div className="flex h-6 flex-row items-center justify-between px-1 py-0 text-sm">
-                    <div className="text-sm font-medium">
+                <div className="min-w-0">
+                  {/* Name + timestamp inline */}
+                  <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
+                    <span className="font-medium text-foreground">
                       {comment.authorUserName ?? comment.authorUserId ?? "User"}
-                    </div>
-                    <div className="flex flex-row items-center gap-2">
-                      <div className="text-xs text-muted-foreground">
-                        {comment.timestamp}
-                      </div>
-                      <div className="hidden min-h-5 justify-end group-hover:flex">
-                        {session.data?.user?.id === comment.authorUserId && (
-                          <Button
-                            type="button"
-                            size="icon-xs"
-                            variant="ghost"
-                            title="Delete comment"
-                            loading={deleteCommentMutation.isPending}
-                            className="-mr-1"
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  "Are you sure you want to delete this comment?",
-                                )
-                              )
-                                deleteCommentMutation.mutateAsync({
-                                  commentId: comment.id,
-                                  projectId,
-                                  objectId,
-                                  objectType,
-                                });
-                            }}
-                          >
-                            <Trash className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                    </span>
+                    <span className="text-muted-foreground/50">·</span>
+                    <span className="text-muted-foreground/70">
+                      {comment.timestamp}
+                    </span>
                   </div>
-                  <MarkdownView markdown={comment.content} />
+
+                  {/* Comment content with CSS overrides for markdown */}
+                  <MarkdownView
+                    markdown={comment.content}
+                    className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_p]:text-xs"
+                  />
+
+                  {/* Reactions */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <ReactionBar
+                      projectId={projectId}
+                      commentId={comment.id}
+                      onReactionToggle={(emoji, hasReacted) => {
+                        if (hasReacted) {
+                          removeReactionMutation.mutate({
+                            projectId,
+                            commentId: comment.id,
+                            emoji,
+                          });
+                        } else {
+                          addReactionMutation.mutate({
+                            projectId,
+                            commentId: comment.id,
+                            emoji,
+                          });
+                        }
+                      }}
+                    />
+                    {hasWriteAccess && (
+                      <ReactionPicker
+                        onEmojiSelect={(emoji) => {
+                          addReactionMutation.mutate({
+                            projectId,
+                            commentId: comment.id,
+                            emoji,
+                          });
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
+
+                {/* Actions - absolute positioned */}
+                {session.data?.user?.id === comment.authorUserId && (
+                  <div className="absolute right-2 top-2 opacity-50 transition-opacity hover:opacity-100">
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      title="Delete comment"
+                      loading={deleteCommentMutation.isPending}
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "Are you sure you want to delete this comment?",
+                          )
+                        )
+                          deleteCommentMutation.mutateAsync({
+                            commentId: comment.id,
+                            projectId,
+                            objectId,
+                            objectType,
+                          });
+                      }}
+                    >
+                      <Trash className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
         {hasWriteAccess && (
-          <div className="mx-2 my-1 flex-shrink-0 rounded-md border">
-            <div className="flex flex-row border-b px-2 py-1 text-xs">
-              <div className="flex-1 font-medium">New comment</div>
-              <div className="text-xs text-muted-foreground">
-                supports markdown
-              </div>
+          <>
+            <div className="relative ml-2.5 mr-4 mt-2 flex flex-row items-center justify-between text-xs text-muted-foreground">
+              <span className="sr-only">New comment</span>
+              <span></span>
+              <span>Markdown supported</span>
             </div>
-            <Form {...form}>
-              <form className="relative">
-                <FormField
-                  control={form.control}
-                  name="content"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="relative">
-                        <FormControl>
-                          <Textarea
-                            placeholder="Add comment..."
-                            {...field}
-                            ref={(el) => {
-                              if (textareaRef.current !== el) {
-                                textareaRef.current = el;
+            <div className="relative mb-2 ml-2 mr-3 mt-0.5 min-h-[70px] flex-shrink-0 rounded-lg border border-border/60 pt-1">
+              {/* Visually hidden header for accessibility */}
+
+              <Form {...form}>
+                <form>
+                  <FormField
+                    control={form.control}
+                    name="content"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Add a comment... (Markdown supported)"
+                              {...field}
+                              ref={(el) => {
+                                if (textareaRef.current !== el) {
+                                  textareaRef.current = el;
+                                }
+                                // Call the field ref if it exists (for react-hook-form)
+                                if (typeof field.ref === "function") {
+                                  field.ref(el);
+                                }
+                              }}
+                              onKeyDown={handleKeyDown}
+                              className="max-h-[100px] min-h-[2.25rem] w-full resize-none overflow-hidden border-none py-2 pr-7 text-xs leading-tight focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                              style={{
+                                whiteSpace: "pre-wrap",
+                                wordWrap: "break-word",
+                                overflowWrap: "break-word",
+                                height: "auto",
+                                minHeight: "2.25rem",
+                              }}
+                              onInput={(e) => {
+                                const target = e.target as HTMLTextAreaElement;
+                                resizeHandler.resize(target);
+                                setCursorPosition(target.selectionStart);
+                              }}
+                              onClick={(e) => {
+                                const target = e.target as HTMLTextAreaElement;
+                                setCursorPosition(target.selectionStart);
+                              }}
+                              onSelect={(e) => {
+                                const target = e.target as HTMLTextAreaElement;
+                                setCursorPosition(target.selectionStart);
+                              }}
+                              autoFocus
+                            />
+                          </FormControl>
+                          {canTagUsers && mentionAutocomplete.showDropdown && (
+                            <MentionAutocomplete
+                              users={mentionAutocomplete.users}
+                              isLoading={mentionAutocomplete.isLoading}
+                              selectedIndex={mentionAutocomplete.selectedIndex}
+                              onSelect={insertMention}
+                              onClose={mentionAutocomplete.closeDropdown}
+                              onSelectedIndexChange={
+                                mentionAutocomplete.setSelectedIndex
                               }
-                              // Call the field ref if it exists (for react-hook-form)
-                              if (typeof field.ref === "function") {
-                                field.ref(el);
-                              }
-                            }}
-                            onKeyDown={handleKeyDown}
-                            className="max-h-[100px] min-h-[2.25rem] w-full resize-none overflow-hidden border-none py-2 pr-7 text-sm leading-tight focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
-                            style={{
-                              whiteSpace: "pre-wrap",
-                              wordWrap: "break-word",
-                              overflowWrap: "break-word",
-                              height: "auto",
-                              minHeight: "2.25rem",
-                            }}
-                            onInput={(e) => {
-                              const target = e.target as HTMLTextAreaElement;
-                              resizeHandler.resize(target);
-                              setCursorPosition(target.selectionStart);
-                            }}
-                            onClick={(e) => {
-                              const target = e.target as HTMLTextAreaElement;
-                              setCursorPosition(target.selectionStart);
-                            }}
-                            onSelect={(e) => {
-                              const target = e.target as HTMLTextAreaElement;
-                              setCursorPosition(target.selectionStart);
-                            }}
-                            autoFocus
-                          />
-                        </FormControl>
-                        {canTagUsers && mentionAutocomplete.showDropdown && (
-                          <MentionAutocomplete
-                            users={mentionAutocomplete.users}
-                            isLoading={mentionAutocomplete.isLoading}
-                            selectedIndex={mentionAutocomplete.selectedIndex}
-                            onSelect={insertMention}
-                            onClose={mentionAutocomplete.closeDropdown}
-                            onSelectedIndexChange={
-                              mentionAutocomplete.setSelectedIndex
-                            }
-                          />
-                        )}
-                      </div>
-                      <FormMessage className="ml-2 text-sm" />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end">
-                  <HoverCard openDelay={200}>
-                    <HoverCardTrigger asChild>
-                      <Button
-                        type="submit"
-                        size="icon-xs"
-                        variant="outline"
-                        title="Submit comment"
-                        loading={createCommentMutation.isPending}
-                        onClick={() => {
-                          form.handleSubmit(onSubmit)();
-                        }}
-                        className="absolute bottom-1 right-1"
+                            />
+                          )}
+                        </div>
+                        <FormMessage className="ml-2 text-sm" />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end">
+                    <HoverCard openDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <Button
+                          type="submit"
+                          size="icon-xs"
+                          variant="outline"
+                          title="Submit comment"
+                          loading={createCommentMutation.isPending}
+                          onClick={() => {
+                            form.handleSubmit(onSubmit)();
+                          }}
+                          className="absolute bottom-1 right-1"
+                        >
+                          <ArrowUpToLine className="h-3 w-3" />
+                        </Button>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="top"
+                        align="end"
+                        className="w-auto p-2"
                       >
-                        <ArrowUpToLine className="h-3 w-3" />
-                      </Button>
-                    </HoverCardTrigger>
-                    <HoverCardContent
-                      side="top"
-                      align="end"
-                      className="w-auto p-2"
-                    >
-                      <div className="flex items-center gap-2 text-sm">
-                        <span>Send comment</span>
-                        <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
-                          <span className="text-xs">⌘</span>Enter
-                        </kbd>
-                      </div>
-                    </HoverCardContent>
-                  </HoverCard>
-                </div>
-              </form>
-            </Form>
-          </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>Send comment</span>
+                          <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                            <span className="text-xs">⌘</span>Enter
+                          </kbd>
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  </div>
+                </form>
+              </Form>
+            </div>
+          </>
         )}
       </div>
     </div>
