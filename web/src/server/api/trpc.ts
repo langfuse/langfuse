@@ -587,7 +587,6 @@ const enforceAdminAuth = t.middleware(async (opts) => {
 
   const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
     result.data.adminApiKey,
-    false,
   );
 
   if (!adminAuthResult.isAuthorized) {
