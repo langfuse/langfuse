@@ -24,11 +24,8 @@ import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  type CommentObjectType,
-  CreateCommentData,
-  MENTION_USER_PREFIX,
-} from "@langfuse/shared";
+import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
+import { MENTION_USER_PREFIX } from "@langfuse/shared/src/features/comments/mentionParser";
 import { ArrowUpToLine, LoaderCircle, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
@@ -330,6 +327,12 @@ export function CommentList({
     return comments.data?.map((comment) => ({
       ...comment,
       timestamp: getRelativeTimestampFromNow(comment.createdAt),
+      strippedLower: stripMarkdown(comment.content).toLowerCase(),
+      authorLower: (
+        comment.authorUserName ||
+        comment.authorUserId ||
+        ""
+      ).toLowerCase(),
     }));
   }, [comments.data]);
 
@@ -343,11 +346,8 @@ export function CommentList({
 
     const query = searchQuery.toLowerCase();
     return commentsWithFormattedTimestamp?.filter((comment) => {
-      const strippedContent = stripMarkdown(comment.content).toLowerCase();
-      const contentMatch = strippedContent.includes(query);
-      const authorMatch = (comment.authorUserName || comment.authorUserId || "")
-        .toLowerCase()
-        .includes(query);
+      const contentMatch = comment.strippedLower.includes(query);
+      const authorMatch = comment.authorLower.includes(query);
       return contentMatch || authorMatch;
     });
   }, [commentsWithFormattedTimestamp, searchQuery]);
