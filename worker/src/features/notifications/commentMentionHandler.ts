@@ -7,12 +7,12 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared";
 import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
+import { type NotificationEventType } from "@langfuse/shared/src/server";
 
-type CommentMentionPayload = {
-  commentId: string;
-  projectId: string;
-  mentionedUserIds: string[];
-};
+type CommentMentionPayload = Omit<
+  Extract<NotificationEventType, { type: "COMMENT_MENTION" }>,
+  "type"
+>;
 
 async function buildCommentLink(opts: {
   baseUrl: string;
