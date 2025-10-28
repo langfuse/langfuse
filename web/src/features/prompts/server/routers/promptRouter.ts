@@ -276,61 +276,50 @@ export const promptRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreatePromptTRPCSchema)
     .mutation(async ({ input, ctx }) => {
-      try {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:CUD",
+      });
+
+      const { hasProtectedLabels, protectedLabels } =
+        await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: input.labels,
+        });
+
+      if (hasProtectedLabels) {
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "prompts:CUD",
+          scope: "promptProtectedLabels:CUD",
+          forbiddenErrorMessage: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
         });
-
-        const { hasProtectedLabels, protectedLabels } =
-          await checkHasProtectedLabels({
-            prisma: ctx.prisma,
-            projectId: input.projectId,
-            labelsToCheck: input.labels,
-          });
-
-        if (hasProtectedLabels) {
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId: input.projectId,
-            scope: "promptProtectedLabels:CUD",
-            forbiddenErrorMessage: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
-          });
-        }
-
-        const prompt = await createPrompt({
-          ...input,
-          prisma: ctx.prisma,
-          createdBy: ctx.session.user.id,
-        });
-
-        if (!prompt) {
-          throw new Error("Failed to create prompt");
-        }
-
-        await auditLog(
-          {
-            session: ctx.session,
-            resourceType: "prompt",
-            resourceId: prompt.id,
-            action: "create",
-            after: prompt,
-          },
-          ctx.prisma,
-        );
-
-        return prompt;
-      } catch (e) {
-        logger.error(e);
-        if (e instanceof InvalidRequestError) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: e.message,
-          });
-        }
-        throw e;
       }
+
+      const prompt = await createPrompt({
+        ...input,
+        prisma: ctx.prisma,
+        createdBy: ctx.session.user.id,
+      });
+
+      if (!prompt) {
+        throw new Error("Failed to create prompt");
+      }
+
+      await auditLog(
+        {
+          session: ctx.session,
+          resourceType: "prompt",
+          resourceId: prompt.id,
+          action: "create",
+          after: prompt,
+        },
+        ctx.prisma,
+      );
+
+      return prompt;
     }),
   duplicatePrompt: protectedProjectProcedure
     .input(

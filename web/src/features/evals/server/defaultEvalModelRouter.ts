@@ -42,18 +42,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      try {
-        return await DefaultEvalModelService.upsertDefaultModel(input);
-      } catch (error) {
-        if (error instanceof InvalidRequestError) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
-        } else if (error instanceof LangfuseNotFoundError) {
-          throw new TRPCError({ code: "NOT_FOUND", message: error.message });
-        } else if (error instanceof ForbiddenError) {
-          throw new TRPCError({ code: "FORBIDDEN", message: error.message });
-        }
-        throw error;
-      }
+      return DefaultEvalModelService.upsertDefaultModel(input);
     }),
   deleteDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
