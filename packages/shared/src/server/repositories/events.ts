@@ -118,11 +118,15 @@ const enrichObservationsWithTraceFields = async (
  * Internal helper: extract and convert time filter from FilterList
  * Common pattern: find time filter and convert to ClickHouse DateTime format
  */
-const extractTimeFilter = (filter: FilterList): string | null => {
+const extractTimeFilter = (
+  filter: FilterList,
+  tableName: "events" | "traces" = "events",
+  fieldName: "start_time" | "timestamp" = "start_time",
+): string | null => {
   const timeFilter = filter.find(
     (f) =>
-      f.clickhouseTable === "events" &&
-      f.field === "start_time" &&
+      f.clickhouseTable === tableName &&
+      f.field === fieldName &&
       (f.operator === ">=" || f.operator === ">"),
   );
 
@@ -141,13 +145,12 @@ const PUBLIC_API_EVENTS_COLUMN_MAPPING: ApiColumnMapping[] =
  * Column mappings for traces aggregated from events table
  */
 const PUBLIC_API_TRACES_COLUMN_MAPPING = createPublicApiTracesColumnMapping(
-  "events",
-  "e",
-  "start_time",
+  "traces",
+  "t",
 );
 
 const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS =
-  createTracesUiColumnDefinitions("events", "e", "start_time");
+  createTracesUiColumnDefinitions("traces", "t");
 
 /**
  * Order by columns for traces CTE (post-aggregation)
@@ -626,19 +629,24 @@ const getTracesFromEventsTableForPublicApiInternal = async <T>(
   );
 
   // Extract time filter for cut-off point in eventsTracesAggregation
-  const startTimeFrom = extractTimeFilter(tracesFilter);
+  // After aggregation, the time column is "timestamp" (not "start_time")
+  const startTimeFrom = extractTimeFilter(tracesFilter, "traces", "timestamp");
+
   const appliedFilter = tracesFilter.apply();
 
-  // Build traces CTE using eventsTracesAggregation with filters applied
+  // Build traces CTE using eventsTracesAggregation WITHOUT filters
+  // Filters must be applied AFTER aggregation to ensure filters on aggregated
+  // fields (like timestamp or version) are applied correctly
   const tracesBuilder = eventsTracesAggregation({
     projectId,
     startTimeFrom,
-  }).where(appliedFilter);
+  });
 
   // Build the final query using CTEQueryBuilder
   let queryBuilder = new CTEQueryBuilder()
     .withCTEFromBuilder("traces", tracesBuilder)
-    .from("traces", "t");
+    .from("traces", "t")
+    .where(appliedFilter);
 
   if (includeScores) {
     const scoresCTE = eventsTracesScoresAggregation({

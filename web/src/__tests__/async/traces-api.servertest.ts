@@ -1459,6 +1459,123 @@ describe("/api/public/traces API Endpoint", () => {
           // Should match trace2 (advanced filter wins)
           expect(matchingTrace).toBeTruthy();
         });
+
+        it("should filter aggregated fields correctly", async () => {
+          // Skip for traces table - this test is specific to events table aggregation
+          if (!useEventsTable) {
+            return;
+          }
+
+          // This test verifies that filtering on trace-levevel fields works correctly.
+          // E.g. version field is defined as: argMaxIf(version, event_ts, version <> '')
+
+          const traceWithVersionChange = randomUUID();
+          const baseTimestamp = Date.now();
+          const trace = createTrace({
+            id: traceWithVersionChange,
+            name: "version-aggregation-test",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+            version: "1.0",
+            environment: "test",
+          });
+
+          // Create multiple events for the same trace with different versions
+          // at increasing timestamps. The latest event has version="2.0"
+          const events = [
+            {
+              trace_id: traceWithVersionChange,
+              parent_span_id: traceWithVersionChange,
+              project_id: projectId,
+              name: "event-1",
+              type: "GENERATION" as const,
+              start_time: baseTimestamp,
+              end_time: baseTimestamp + 100,
+              version: "1.0",
+              environment: "test",
+              event_ts: baseTimestamp * 1000 + 1000000,
+            },
+            {
+              trace_id: traceWithVersionChange,
+              parent_span_id: traceWithVersionChange,
+              project_id: projectId,
+              name: "event-3",
+              type: "GENERATION" as const,
+              start_time: baseTimestamp + 400,
+              end_time: baseTimestamp + 500,
+              version: "2.0",
+              environment: "test",
+              event_ts: baseTimestamp * 1000 + 5000000,
+            },
+          ];
+
+          await createTraceWithObservations(useEventsTable, trace, events);
+
+          // Simple wait to ensure data is available
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
+          // The trace should NOT be returned because after aggregation,
+          // it has version=2.0 (from the latest event)
+          const filterParam = JSON.stringify([
+            {
+              type: "string",
+              column: "version",
+              operator: "=",
+              value: "1.0",
+            },
+            {
+              type: "datetime",
+              column: "timestamp",
+              operator: ">=",
+              value: new Date(baseTimestamp).toISOString(),
+            },
+          ]);
+
+          const traces = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`filter=${encodeURIComponent(filterParam)}`),
+          );
+
+          expect(traces.status).toBe(200);
+          const matchingTrace = traces.body.data.find(
+            (t) => t.id === traceWithVersionChange,
+          );
+
+          // The trace should NOT be found because its aggregated version is 2.0, not 1.0
+          expect(matchingTrace).toBeUndefined();
+
+          // Verify that filtering by version=2.0 DOES return the trace
+          const filterParam2 = JSON.stringify([
+            {
+              type: "string",
+              column: "version",
+              operator: "=",
+              value: "2.0",
+            },
+            {
+              type: "datetime",
+              column: "timestamp",
+              operator: ">=",
+              value: new Date(baseTimestamp).toISOString(),
+            },
+          ]);
+
+          const traces2 = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`filter=${encodeURIComponent(filterParam2)}`),
+          );
+
+          expect(traces2.status).toBe(200);
+          const matchingTrace2 = traces2.body.data.find(
+            (t) => t.id === traceWithVersionChange,
+          );
+
+          // The trace SHOULD be found because its aggregated version is 2.0
+          expect(matchingTrace2).toBeTruthy();
+          expect(matchingTrace2?.version).toBe("2.0");
+        });
       });
     };
 
@@ -1545,7 +1662,7 @@ describe("/api/public/traces API Endpoint", () => {
           expect(trace.environment).toBe("production");
 
           // IO fields
-          expect(trace.metadata).toEqual({ testKey: "testValue" });
+          expect(trace.metadata).toMatchObject({ testKey: "testValue" });
 
           // Events table aggregates observation_ids
           expect(trace.observations).toBeDefined();

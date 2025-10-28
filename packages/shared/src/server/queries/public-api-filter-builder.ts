@@ -85,8 +85,8 @@ const TRACES_COLUMN_DEFINITIONS = [
 export function createPublicApiTracesColumnMapping(
   tableName: "traces" | "events",
   tablePrefix: "t" | "e",
-  timestampColumn: "timestamp" | "start_time" = "timestamp",
 ): ApiColumnMapping[] {
+  const timestampColumn = "timestamp";
   const simpleFilters: ApiColumnMapping[] = [];
   for (const def of TRACES_COLUMN_DEFINITIONS) {
     // For timestamp filters, create fromTimestamp and toTimestamp
@@ -129,14 +129,13 @@ export function createPublicApiTracesColumnMapping(
 export function createTracesUiColumnDefinitions(
   tableName: "traces" | "events",
   tablePrefix: "t" | "e",
-  timestampColumn: "timestamp" | "start_time" = "timestamp",
 ) {
   return TRACES_COLUMN_DEFINITIONS.map((def) => {
     return {
       uiTableName: def.name,
       uiTableId: def.id,
       clickhouseTableName: tableName,
-      clickhouseSelect: def.id === "timestamp" ? timestampColumn : def.column,
+      clickhouseSelect: def.column,
       queryPrefix: tablePrefix,
     };
   });
