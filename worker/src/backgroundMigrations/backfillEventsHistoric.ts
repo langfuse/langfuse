@@ -26,7 +26,7 @@ interface MigrationState {
 }
 
 interface MigrationArgs {
-  targetChunkSize?: string; // Default: 10_000_000
+  targetChunkSize?: string; // Default: 20_000_000
   maxModulo?: string; // Default: 512
   batchTimeoutMs?: string; // Default: 7_200_000 (2h)
 }
@@ -213,10 +213,10 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         request_timeout: timeoutMs,
       },
       clickhouseSettings: {
-        max_insert_threads: "4",
+        // max_insert_threads: "4",
         parallel_distributed_insert_select: "2",
         enable_parallel_replicas: 1,
-        max_threads: 4,
+        // max_threads: 4,
         min_insert_block_size_rows: "10048576",
       },
     });
@@ -340,7 +340,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           o.event_ts,
           o.is_deleted
         FROM observations o
-        LEFT JOIN trace_attrs t
+        LEFT ANY JOIN trace_attrs t
           ON o.project_id = t.project_id
           AND o.trace_id = t.trace_id
         WHERE o._partition_id = '${partition}'
@@ -358,7 +358,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       },
       clickhouseSettings: {
         min_insert_block_size_rows: "10048576",
-        join_algorithm: "partial_merge",
+        // join_algorithm: "partial_merge",
         min_insert_block_size_bytes: "512Mi",
         parallel_distributed_insert_select: "2",
         enable_parallel_replicas: "1",
@@ -482,7 +482,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const start = Date.now();
     const migrationArgs = args as MigrationArgs;
     const targetChunkSize = parseInt(
-      migrationArgs.targetChunkSize ?? "10_000_000",
+      migrationArgs.targetChunkSize ?? "20_000_000",
     );
     const maxModulo = parseInt(migrationArgs.maxModulo ?? "512");
     const batchTimeoutMs = parseInt(migrationArgs.batchTimeoutMs ?? "7200000");
@@ -649,7 +649,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
 async function main() {
   const args = parseArgs({
     options: {
-      targetChunkSize: { type: "string", short: "s", default: "10000000" },
+      targetChunkSize: { type: "string", short: "s", default: "20000000" },
       maxModulo: { type: "string", short: "m", default: "512" },
       batchTimeoutMs: {
         type: "string",
