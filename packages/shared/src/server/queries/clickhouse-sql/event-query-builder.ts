@@ -140,23 +140,23 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(name, event_ts, isNull(parent_span_id) OR parent_span_id = '') AS name",
+  name: "argMaxIf(name, event_ts, parent_span_id = '') AS name",
   timestamp: "min(start_time) as timestamp",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
   version: "argMaxIf(version, event_ts, version <> '') AS version",
   session_id: "argMaxIf(session_id, event_ts, session_id <> '') AS session_id",
   user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
-  input: "argMax(input, event_ts) AS input",
-  output: "argMax(output, event_ts) AS output",
-  metadata: "argMax(metadata, event_ts) AS metadata",
+  input: "argMaxIf(input, event_ts, parent_span_id = '') AS input",
+  output: "argMaxIf(output, event_ts, parent_span_id = '') AS output",
+  metadata: "argMaxIf(metadata, event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
   latency_milliseconds:
-    "date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
+    "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
   observation_ids:
-    "groupUniqArrayIf(span_id, isNotNull(span_id) AND span_id != '') AS observation_ids",
+    "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
 
   // Legacy fields for backward compatibility
   tags: "array() AS tags",
@@ -495,7 +495,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     if (this.ioFields) {
       if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
         fieldExpressions.push(
-          `leftUTF8(input, ${this.ioFields.charLimit}) as input, leftUTF8(output, ${this.ioFields.charLimit}) as output`,
+          `leftUTF8(input_truncated, ${this.ioFields.charLimit}) as input, leftUTF8(output_truncated, ${this.ioFields.charLimit}) as output`,
         );
       } else {
         fieldExpressions.push("input, output");
