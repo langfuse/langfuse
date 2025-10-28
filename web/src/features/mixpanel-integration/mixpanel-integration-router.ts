@@ -31,11 +31,11 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           return null;
         }
 
-        const { encryptedProjectToken, ...config } = dbConfig;
+        const { encryptedMixpanelProjectToken, ...config } = dbConfig;
 
         return {
           ...config,
-          mixpanelProjectToken: decrypt(encryptedProjectToken),
+          mixpanelProjectToken: decrypt(encryptedMixpanelProjectToken),
         };
       } catch (e) {
         console.error("mixpanel integration get", e);
@@ -75,7 +75,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
       });
       const { mixpanelProjectToken, ...config } = input;
 
-      const encryptedProjectToken = encrypt(mixpanelProjectToken);
+      const encryptedMixpanelProjectToken = encrypt(mixpanelProjectToken);
 
       await ctx.prisma.mixpanelIntegration.upsert({
         where: {
@@ -84,11 +84,11 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         create: {
           projectId: input.projectId,
           mixpanelRegion: config.mixpanelRegion,
-          encryptedProjectToken,
+          encryptedMixpanelProjectToken,
           enabled: config.enabled,
         },
         update: {
-          encryptedProjectToken,
+          encryptedMixpanelProjectToken,
           mixpanelRegion: config.mixpanelRegion,
           enabled: config.enabled,
         },

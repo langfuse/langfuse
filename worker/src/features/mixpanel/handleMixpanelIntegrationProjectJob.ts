@@ -21,7 +21,7 @@ type MixpanelExecutionConfig = {
   projectId: string;
   minTimestamp: Date;
   maxTimestamp: Date;
-  decryptedProjectToken: string;
+  decryptedMixpanelProjectToken: string;
   mixpanelRegion: string;
 };
 
@@ -35,7 +35,7 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
   logger.info(`Sending traces for project ${config.projectId} to Mixpanel`);
 
   const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedProjectToken,
+    projectToken: config.decryptedMixpanelProjectToken,
     region: config.mixpanelRegion,
   });
 
@@ -70,7 +70,7 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
   );
 
   const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedProjectToken,
+    projectToken: config.decryptedMixpanelProjectToken,
     region: config.mixpanelRegion,
   });
 
@@ -103,7 +103,7 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
   logger.info(`Sending scores for project ${config.projectId} to Mixpanel`);
 
   const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedProjectToken,
+    projectToken: config.decryptedMixpanelProjectToken,
     region: config.mixpanelRegion,
   });
 
@@ -160,7 +160,9 @@ export const handleMixpanelIntegrationProjectJob = async (
     // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
     minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
     maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
-    decryptedProjectToken: decrypt(mixpanelIntegration.encryptedProjectToken),
+    decryptedMixpanelProjectToken: decrypt(
+      mixpanelIntegration.encryptedMixpanelProjectToken,
+    ),
     mixpanelRegion: mixpanelIntegration.mixpanelRegion,
   };
 

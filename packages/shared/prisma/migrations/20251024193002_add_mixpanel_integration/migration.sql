@@ -1,7 +1,7 @@
 -- CreateTable
 CREATE TABLE "mixpanel_integrations" (
     "project_id" TEXT NOT NULL,
-    "encrypted_project_token" TEXT NOT NULL,
+    "encrypted_mixpanel_project_token" TEXT NOT NULL,
     "mixpanel_region" TEXT NOT NULL,
     "last_sync_at" TIMESTAMP(3),
     "enabled" BOOLEAN NOT NULL,

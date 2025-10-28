@@ -622,7 +622,7 @@ export type MembershipInvitation = {
 };
 export type MixpanelIntegration = {
   project_id: string;
-  encrypted_project_token: string;
+  encrypted_mixpanel_project_token: string;
   mixpanel_region: string;
   last_sync_at: Timestamp | null;
   enabled: boolean;
