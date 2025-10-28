@@ -1,6 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,6 +9,7 @@ import {
   optionalPaginationZod,
   Prisma,
 } from "@langfuse/shared";
+import { getUserProjectRoles } from "@langfuse/shared/src/server";
 import { partition } from "lodash";
 import z from "zod/v4";
 

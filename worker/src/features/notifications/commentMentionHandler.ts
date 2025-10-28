@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared";
-import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
+import { getUserProjectRoles } from "@langfuse/shared/src/server";
 import { type NotificationEventType } from "@langfuse/shared/src/server";
 
 type CommentMentionPayload = Omit<

@@ -3,7 +3,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma, type Role } from "@langfuse/shared";
 import { v4 } from "uuid";
-import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
+import { getUserProjectRoles } from "@langfuse/shared/src/server";
 
 export const createOrgAndProject = async () => {
   const org = await prisma.organization.create({

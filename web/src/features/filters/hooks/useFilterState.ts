@@ -17,10 +17,10 @@ import {
   decodeDelimitedArray,
   withDefault,
 } from "use-query-params";
-import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import { usersTableCols } from "@langfuse/shared/src/server";
 
 const DEBUG_QUERY_STATE = false;
 

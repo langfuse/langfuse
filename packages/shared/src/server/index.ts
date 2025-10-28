@@ -15,6 +15,8 @@ export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";
+export * from "./auth/userProjectRole";
+export * from "./auth/usersTable";
 export * from "./llm/fetchLLMCompletion";
 export * from "./llm/errors";
 export * from "./llm/utils";
