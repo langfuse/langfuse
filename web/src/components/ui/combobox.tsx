@@ -126,7 +126,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                         : "opacity-0",
                     )}
                   />
-                  {option.label}
+                  {option.label ?? String(option.value)}
                 </CommandItem>
               ))}
             </CommandGroup>

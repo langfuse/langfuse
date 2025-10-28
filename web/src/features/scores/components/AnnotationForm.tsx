@@ -590,7 +590,6 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                       }}
                                       options={categories.map((category) => ({
                                         value: category.label,
-                                        label: category.label,
                                         disabled: category.isOutdated,
                                       }))}
                                       placeholder="Select category"
