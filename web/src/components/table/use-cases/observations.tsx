@@ -26,6 +26,7 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -252,12 +253,16 @@ export default function ObservationsTable({
     modelIdFilter,
   );
 
-  const startTimeFilter = oldFilterState.find((f) => f.column === "Start Time");
+  const startTimeFilters = oldFilterState.filter(
+    (f) =>
+      (f.column === "Start Time" || f.column === "startTime") &&
+      f.type === "datetime",
+  ) as TimeFilter[];
   const filterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
       startTimeFilter:
-        startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
+        startTimeFilters.length > 0 ? startTimeFilters : undefined,
     },
     {
       trpc: {
@@ -340,6 +345,7 @@ export default function ObservationsTable({
   const queryFilter = useSidebarFilterState(
     observationFilterConfig,
     newFilterOptions,
+    projectId,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -1167,7 +1173,7 @@ export default function ObservationsTable({
             <BatchExportTableButton
               {...{
                 projectId,
-                filterState,
+                filterState: backendFilterState,
                 orderByState,
                 searchQuery,
                 searchType,

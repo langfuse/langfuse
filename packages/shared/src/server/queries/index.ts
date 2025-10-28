@@ -26,3 +26,9 @@ export {
   deriveFilters,
   type ApiColumnMapping,
 } from "./public-api-filter-builder";
+export {
+  CTEQueryBuilder,
+  EventsAggregationQueryBuilder,
+  type CTESchema,
+  type CTEWithSchema,
+} from "./clickhouse-sql/event-query-builder";
