@@ -26,6 +26,7 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -256,7 +257,7 @@ export default function ObservationsTable({
     (f) =>
       (f.column === "Start Time" || f.column === "startTime") &&
       f.type === "datetime",
-  );
+  ) as TimeFilter[];
   const filterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
