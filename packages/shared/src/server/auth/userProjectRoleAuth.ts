@@ -1,7 +1,7 @@
 import { prisma, Prisma, Role, ProjectMembership } from "../../db";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
-import { usersTableCols } from "./usersTable";
+import { usersTableCols } from "../../tableDefinitions/usersTable";
 
 export function resolveProjectRole({
   projectId,

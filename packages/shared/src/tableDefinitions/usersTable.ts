@@ -1,4 +1,4 @@
-import type { ColumnDefinition } from "../../tableDefinitions";
+import { ColumnDefinition } from "./types";
 
 export const usersTableCols: ColumnDefinition[] = [
   {
