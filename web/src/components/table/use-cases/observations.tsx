@@ -1167,7 +1167,7 @@ export default function ObservationsTable({
             <BatchExportTableButton
               {...{
                 projectId,
-                filterState,
+                filterState: backendFilterState,
                 orderByState,
                 searchQuery,
                 searchType,
