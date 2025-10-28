@@ -213,6 +213,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         request_timeout: timeoutMs,
       },
       clickhouseSettings: {
+        http_headers_progress_interval_ms: "100000", // 100 seconds - prevent header overflow on long queries
         // max_insert_threads: "4",
         parallel_distributed_insert_select: "2",
         enable_parallel_replicas: 1,
@@ -357,6 +358,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         request_timeout: timeoutMs,
       },
       clickhouseSettings: {
+        http_headers_progress_interval_ms: "100000", // 100 seconds - prevent header overflow on long queries
         min_insert_block_size_rows: "10048576",
         // join_algorithm: "partial_merge",
         min_insert_block_size_bytes: "512Mi",
