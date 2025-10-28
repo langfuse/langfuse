@@ -13,6 +13,8 @@ import {
   getScoresForBlobStorageExport,
   getCurrentSpan,
   BlobStorageIntegrationProcessingQueue,
+  queryClickhouse,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
@@ -20,12 +22,14 @@ import {
   BlobStorageExportMode,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+import { randomUUID } from "crypto";
 
-const getMinTimestampForExport = (
+const getMinTimestampForExport = async (
+  projectId: string,
   lastSyncAt: Date | null,
   exportMode: BlobStorageExportMode,
   exportStartDate: Date | null,
-): Date => {
+): Promise<Date> => {
   // If we have a lastSyncAt, use it (this is for subsequent exports)
   if (lastSyncAt) {
     return lastSyncAt;
@@ -34,7 +38,49 @@ const getMinTimestampForExport = (
   // For first export, use the export mode to determine start date
   switch (exportMode) {
     case BlobStorageExportMode.FULL_HISTORY:
-      return new Date(0); // Export all historical data
+      // Query ClickHouse for the actual minimum timestamp from traces, observations, and scores tables
+      try {
+        const result = await queryClickhouse<{ min_timestamp: number | null }>({
+          query: `
+              SELECT min(toUnixTimestamp(ts)) * 1000 as min_timestamp
+              FROM (
+                SELECT min(timestamp) as ts
+                FROM traces
+                WHERE project_id = {projectId: String}
+
+                UNION ALL
+
+                SELECT min(start_time) as ts
+                FROM observations
+                WHERE project_id = {projectId: String}
+
+                UNION ALL
+
+                SELECT min(timestamp) as ts
+                FROM scores
+                WHERE project_id = {projectId: String}
+              )
+            `,
+          params: { projectId },
+        });
+
+        // Extract the minimum timestamp
+        if (result[0]?.min_timestamp && result[0].min_timestamp > 0) {
+          return new Date(result[0].min_timestamp);
+        }
+
+        // If no data exists, use current time as a fallback
+        logger.info(
+          `No historical data found for project ${projectId}, using current time`,
+        );
+        return new Date();
+      } catch (error) {
+        logger.error(
+          `Error querying ClickHouse for minimum timestamp for project ${projectId}`,
+          error,
+        );
+        throw new Error(`Failed to fetch minimum timestamp: ${error}`);
+      }
     case BlobStorageExportMode.FROM_TODAY:
     case BlobStorageExportMode.FROM_CUSTOM_DATE:
       return exportStartDate || new Date(); // Use export start date or current time as fallback
@@ -229,7 +275,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
   // Sync between lastSyncAt and now - 30 minutes
   // Cap the export to one frequency period to enable chunked historic exports
-  const minTimestamp = getMinTimestampForExport(
+  const minTimestamp = await getMinTimestampForExport(
+    projectId,
     blobStorageIntegration.lastSyncAt,
     blobStorageIntegration.exportMode,
     blobStorageIntegration.exportStartDate,
@@ -317,10 +364,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
       if (queue) {
         const jobId = `${projectId}-${maxTimestamp.toISOString()}`;
         await queue.add(
-          QueueName.BlobStorageIntegrationProcessingQueue,
+          QueueJobs.BlobStorageIntegrationProcessingJob,
           {
-            name: QueueName.BlobStorageIntegrationProcessingQueue,
-            id: jobId,
+            id: randomUUID(),
+            name: QueueJobs.BlobStorageIntegrationProcessingJob,
             timestamp: new Date(),
             payload: { projectId },
           },
