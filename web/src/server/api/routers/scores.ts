@@ -34,6 +34,9 @@ import {
   getScoresUiTable,
   getScoreNames,
   getTracesGroupedByTags,
+  getTracesGroupedByName,
+  getTracesGroupedByUsers,
+  tracesTableUiColumnDefinitions,
   upsertScore,
   logger,
   getTraceById,
@@ -184,7 +187,7 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { timestampFilter } = input;
-      const [names, tags] = await Promise.all([
+      const [names, tags, traceNames, userIds] = await Promise.all([
         getScoreNames(
           input.projectId,
           timestampFilter ? [timestampFilter] : [],
@@ -193,11 +196,28 @@ export const scoresRouter = createTRPCRouter({
           projectId: input.projectId,
           filter: timestampFilter ? [timestampFilter] : [],
         }),
+        getTracesGroupedByName(
+          input.projectId,
+          tracesTableUiColumnDefinitions,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+        getTracesGroupedByUsers(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+          undefined,
+          100, // limit to top 100 users
+          0,
+        ),
       ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
         tags: tags,
+        traceName: traceNames.map((tn) => ({
+          value: tn.name,
+          count: tn.count,
+        })),
+        userId: userIds.map((u) => ({ value: u.user, count: u.count })),
       };
     }),
   deleteMany: protectedProjectProcedure

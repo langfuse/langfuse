@@ -61,7 +61,7 @@ export const scoreFilterConfig: FilterConfig = {
       label: "Trace ID",
     },
     {
-      type: "string" as const,
+      type: "categorical" as const,
       column: "traceName",
       label: "Trace Name",
     },
@@ -71,7 +71,7 @@ export const scoreFilterConfig: FilterConfig = {
       label: "Observation ID",
     },
     {
-      type: "string" as const,
+      type: "categorical" as const,
       column: "userId",
       label: "User ID",
     },
