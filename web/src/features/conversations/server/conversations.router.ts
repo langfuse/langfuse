@@ -51,6 +51,7 @@ export const conversationsRouter = createTRPCRouter({
           const supabase = createSupabaseAdminClient();
 
           const allowedUsersIds = await supabase
+            .schema("public")
             .from("test_users")
             .select("username");
 

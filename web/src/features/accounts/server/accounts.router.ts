@@ -25,6 +25,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Fetch all users with djb_metadata, then filter in JavaScript
       const { data: allUsers, error: supabaseError } = await supabase
+        .schema("public")
         .from("User")
         .select("identifier, id, djb_metadata")
         .order("createdAt", { ascending: false });
@@ -69,6 +70,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Fetch all users with djb_metadata, then filter in JavaScript
       const { data: allUsers, error: supabaseError } = await supabase
+        .schema("public")
         .from("User")
         .select("identifier, id, djb_metadata")
         .order("createdAt", { ascending: false });
@@ -105,6 +107,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Fetch all users with djb_metadata, then filter in JavaScript
       const { data: allUsers, error: supabaseError } = await supabase
+        .schema("public")
         .from("User")
         .select("identifier, id, djb_metadata, createdAt")
         .order("createdAt", { ascending: false });
@@ -180,10 +183,13 @@ export const accountsRouter = createTRPCRouter({
 
       const hashedPassword = hashChainlitPassword(input.password);
 
-      const { error } = await supabase.from("test_users").insert({
-        username: input.email,
-        password: hashedPassword,
-      });
+      const { error } = await supabase
+        .schema("public")
+        .from("test_users")
+        .insert({
+          username: input.email,
+          password: hashedPassword,
+        });
 
       if (error) {
         throw new TRPCError({
@@ -195,11 +201,14 @@ export const accountsRouter = createTRPCRouter({
       // Prepare djb_metadata based on GBA user flag
       const djbMetadata = input.isGbaUser ? { ta_only: true } : {};
 
-      const userRes = await supabase.from("User").insert({
-        identifier: input.email,
-        metadata: { role: "admin", provider: "credentials" },
-        djb_metadata: djbMetadata,
-      });
+      const userRes = await supabase
+        .schema("public")
+        .from("User")
+        .insert({
+          identifier: input.email,
+          metadata: { role: "admin", provider: "credentials" },
+          djb_metadata: djbMetadata,
+        });
 
       if (userRes.error) {
         throw new TRPCError({
@@ -235,6 +244,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Create test user in test_users table
       const testUserRes = await supabase
+        .schema("public")
         .from("test_users")
         .insert({
           username: syntheticUsername,
@@ -255,6 +265,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Create user in User table with synthetic metadata
       const userRes = await supabase
+        .schema("public")
         .from("User")
         .insert({
           identifier: syntheticUsername,
@@ -275,6 +286,7 @@ export const accountsRouter = createTRPCRouter({
       if (userRes.error) {
         // Clean up test user if User creation fails
         await supabase
+          .schema("public")
           .from("test_users")
           .delete()
           .eq("id", testUserRes.data.id);
@@ -314,8 +326,13 @@ export const accountsRouter = createTRPCRouter({
         console.log("error creating prompt", error);
 
         // If prompt creation fails, we should clean up both users
-        await supabase.from("User").delete().eq("id", userRes.data?.id);
         await supabase
+          .schema("public")
+          .from("User")
+          .delete()
+          .eq("id", userRes.data?.id);
+        await supabase
+          .schema("public")
           .from("test_users")
           .delete()
           .eq("id", testUserRes.data.id);
@@ -345,6 +362,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Update user in User table
       const { error: userError } = await supabase
+        .schema("public")
         .from("User")
         .update({
           identifier: syntheticUsername,
@@ -366,6 +384,7 @@ export const accountsRouter = createTRPCRouter({
 
       // Also update the test_users table with the new username
       const { error: testUserError } = await supabase
+        .schema("public")
         .from("test_users")
         .update({
           username: syntheticUsername,
@@ -441,6 +460,7 @@ export const accountsRouter = createTRPCRouter({
       const supabase = createSupabaseAdminClient();
 
       const currentUserRes = await supabase
+        .schema("public")
         .from("User")
         .select("*")
         .eq("id", input.id)
@@ -454,6 +474,7 @@ export const accountsRouter = createTRPCRouter({
       }
 
       const currentTestUserRes = await supabase
+        .schema("public")
         .from("test_users")
         .select("*")
         .eq("username", currentUserRes.data.identifier)
@@ -490,6 +511,7 @@ export const accountsRouter = createTRPCRouter({
       }
 
       const userUpdateRes = await supabase
+        .schema("public")
         .from("User")
         .update({
           identifier: input.username,
@@ -513,6 +535,7 @@ export const accountsRouter = createTRPCRouter({
       const supabase = createSupabaseAdminClient();
 
       const userRes = await supabase
+        .schema("public")
         .from("User")
         .delete()
         .eq("id", input.id)
@@ -526,6 +549,7 @@ export const accountsRouter = createTRPCRouter({
         });
       }
       const testUserRes = await supabase
+        .schema("public")
         .from("test_users")
         .delete()
         .eq("username", userRes.data?.identifier);

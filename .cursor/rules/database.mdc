@@ -1,0 +1,90 @@
+---
+description: Database access patterns and best practices for Postgres and Supabase
+globs: web/**, worker/**
+alwaysApply: true
+---
+
+# Database Access Patterns
+
+## Supabase Client Usage
+
+### Schema Qualification
+
+**CRITICAL**: Always explicitly specify the schema when using Supabase client queries.
+
+All Supabase queries MUST include `.schema("public")` before the `.from()` call:
+
+```typescript
+// ✅ CORRECT
+const { data, error } = await supabase
+  .schema("public")
+  .from("User")
+  .select("*");
+
+// ❌ INCORRECT - Missing schema specification
+const { data, error } = await supabase.from("User").select("*");
+```
+
+This applies to ALL Supabase operations:
+
+- `.select()`
+- `.insert()`
+- `.update()`
+- `.delete()`
+
+### Common Tables
+
+When working with these tables, always use `.schema("public")`:
+
+- `User` - User accounts and metadata
+- `test_users` - Test user credentials
+- `messages` - Conversation messages and thinking data
+
+### Example Patterns
+
+**Select Query:**
+
+```typescript
+const { data: users, error } = await supabase
+  .schema("public")
+  .from("User")
+  .select("identifier, id, djb_metadata")
+  .order("createdAt", { ascending: false });
+```
+
+**Insert Query:**
+
+```typescript
+const { error } = await supabase.schema("public").from("test_users").insert({
+  username: email,
+  password: hashedPassword,
+});
+```
+
+**Update Query:**
+
+```typescript
+const { error } = await supabase
+  .schema("public")
+  .from("User")
+  .update({ identifier: newUsername })
+  .eq("id", userId);
+```
+
+**Delete Query:**
+
+```typescript
+const { error } = await supabase
+  .schema("public")
+  .from("User")
+  .delete()
+  .eq("id", userId);
+```
+
+## Prisma Usage
+
+For Prisma queries (used for Langfuse's main data models), schema is handled automatically through the Prisma schema definition. No explicit schema specification is needed.
+
+## ClickHouse Usage
+
+ClickHouse queries are handled through the shared package utilities. Refer to the shared package documentation for ClickHouse best practices.

@@ -318,6 +318,7 @@ export const conversationRouter = createTRPCRouter({
         if (input.threadId && input.messageId) {
           // Query by JSON path to find thinking records with matching thread_id and message_id
           const { data: newData, error: newError } = await supabase
+            .schema("public")
             .from("messages")
             .select("thinking")
             .not("thinking", "is", null)
@@ -329,6 +330,7 @@ export const conversationRouter = createTRPCRouter({
         } else if (input.messageText) {
           // Fallback to old method - lookup by message text content
           const { data: oldData, error: oldError } = await supabase
+            .schema("public")
             .from("messages")
             .select("thinking")
             .eq("message", input.messageText)
