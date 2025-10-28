@@ -206,7 +206,10 @@ export default function TracesTable({
     );
 
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
+    {
+      projectId,
+      timestampFilter: dateRangeFilter.length > 0 ? dateRangeFilter : undefined,
+    },
     {
       trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
