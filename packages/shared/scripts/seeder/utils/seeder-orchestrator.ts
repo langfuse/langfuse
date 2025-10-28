@@ -110,6 +110,8 @@ export class SeederOrchestrator {
         const scores: ScoreRecordInsertType[] = [];
 
         for (const seedDataset of SEED_DATASETS) {
+          if (!seedDataset.shouldRunExperiment) continue;
+
           for (const [itemIndex, datasetItem] of seedDataset.items.entries()) {
             // Generate dataset run item data
             const datasetRunItem = this.dataGenerator.generateDatasetRunItem(

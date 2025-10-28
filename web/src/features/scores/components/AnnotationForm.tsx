@@ -33,13 +33,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { Combobox } from "@/src/components/ui/combobox";
 import { Textarea } from "@/src/components/ui/textarea";
 import { HoverCardContent } from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardTrigger } from "@/src/components/ui/hover-card";
@@ -586,7 +580,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                               render={({ field }) => (
                                 <FormItem>
                                   <FormControl>
-                                    <Select
+                                    <Combobox
                                       name={field.name}
                                       value={field.value ?? ""}
                                       disabled={isInputDisabled(config)}
@@ -594,35 +588,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                         field.onChange(value);
                                         handleCategoricalUpsert(index, value);
                                       }}
-                                    >
-                                      <SelectTrigger>
-                                        <div className="text-xs">
-                                          <SelectValue placeholder="Select category" />
-                                        </div>
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {categories.map((category) =>
-                                          category.isOutdated ? (
-                                            <SelectItem
-                                              key={category.value}
-                                              value={category.label}
-                                              disabled
-                                              className="text-muted-foreground line-through"
-                                            >
-                                              {category.label}
-                                            </SelectItem>
-                                          ) : (
-                                            <SelectItem
-                                              key={category.value}
-                                              value={category.label}
-                                              className="text-xs"
-                                            >
-                                              {category.label}
-                                            </SelectItem>
-                                          ),
-                                        )}
-                                      </SelectContent>
-                                    </Select>
+                                      options={categories.map((category) => ({
+                                        value: category.label,
+                                        disabled: category.isOutdated,
+                                      }))}
+                                      placeholder="Select category"
+                                      searchPlaceholder="Search categories..."
+                                      emptyText="No category found."
+                                    />
                                   </FormControl>
                                   <FormMessage className="text-xs" />
                                 </FormItem>
