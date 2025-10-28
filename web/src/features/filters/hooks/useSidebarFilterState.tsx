@@ -257,6 +257,7 @@ export function useSidebarFilterState(
     string,
     (string | SingleValueOption)[] | Record<string, string[]>
   >,
+  projectId?: string,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -307,8 +308,12 @@ export function useSidebarFilterState(
   );
 
   // track if defaults have been applied before, versioned to support future changes
+  // per project tracking because people want a default experience in a new project
+  const storageKey = projectId
+    ? `${config.tableName}-${projectId}-env-defaults-v1`
+    : `${config.tableName}-env-defaults-v1`;
   const [defaultsApplied, setDefaultsApplied] = useLocalStorage<boolean>(
-    `${config.tableName}-env-defaults-v1`,
+    storageKey,
     false,
   );
 
