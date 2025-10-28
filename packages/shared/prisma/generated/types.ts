@@ -620,6 +620,14 @@ export type MembershipInvitation = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type MixpanelIntegration = {
+  project_id: string;
+  encrypted_mixpanel_project_token: string;
+  mixpanel_region: string;
+  last_sync_at: Timestamp | null;
+  enabled: boolean;
+  created_at: Generated<Timestamp>;
+};
 export type Model = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -880,6 +888,7 @@ export type DB = {
   llm_tools: LlmTool;
   media: Media;
   membership_invitations: MembershipInvitation;
+  mixpanel_integrations: MixpanelIntegration;
   models: Model;
   observation_media: ObservationMedia;
   observations: LegacyPrismaObservation;

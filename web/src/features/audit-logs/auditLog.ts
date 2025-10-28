@@ -30,6 +30,7 @@ export type AuditableResource =
   | "job"
   | "blobStorageIntegration"
   | "posthogIntegration"
+  | "mixpanelIntegration"
   | "llmApiKey"
   | "llmTool"
   | "llmSchema"
