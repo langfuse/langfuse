@@ -362,6 +362,13 @@ export type Comment = {
   content: string;
   author_user_id: string | null;
 };
+export type CommentReaction = {
+  id: string;
+  comment_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: Generated<Timestamp>;
+};
 export type CronJobs = {
   name: string;
   last_run: Timestamp | null;
@@ -883,6 +890,7 @@ export type DB = {
   billing_meter_backups: BillingMeterBackup;
   blob_storage_integrations: BlobStorageIntegration;
   cloud_spend_alerts: CloudSpendAlert;
+  comment_reactions: CommentReaction;
   comments: Comment;
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
