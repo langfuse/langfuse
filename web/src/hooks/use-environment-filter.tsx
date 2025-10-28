@@ -58,9 +58,10 @@ export function useEnvironmentFilter(
     let hasChanges = false;
 
     availableEnvironments.forEach((env) => {
-      // If environment doesn't exist in map, set default visibility to true (all selected)
+      // If environment doesn't exist in map, set default visibility
+      // Environments prefixed with "langfuse-" are deselected by default
       if (updatedMap[env] === undefined) {
-        updatedMap[env] = true;
+        updatedMap[env] = !env.startsWith("langfuse-");
         hasChanges = true;
       }
     });

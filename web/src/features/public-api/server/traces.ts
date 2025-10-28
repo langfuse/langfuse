@@ -17,6 +17,7 @@ import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
 } from "@/src/features/public-api/types/traces";
+import { env } from "@/src/env.mjs";
 
 import type { FilterState } from "@langfuse/shared";
 
@@ -47,6 +48,12 @@ export const generateTracesForPublicApi = async ({
   advancedFilters?: FilterState;
   orderBy: OrderByState;
 }) => {
+  // ClickHouse query optimizations for List Traces API
+  const disableObservationsFinal =
+    env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL === "true";
+  const propagateObservationsTimeBounds =
+    env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS === "true";
+
   const requestedFields = props.fields ?? TRACE_FIELD_GROUPS;
   const includeIO = requestedFields.includes("io");
   const includeScores = requestedFields.includes("scores");
@@ -61,11 +68,17 @@ export const generateTracesForPublicApi = async ({
   );
   const appliedFilter = filter.apply();
 
-  const timeFilter = filter.find(
+  const fromTimeFilter = filter.find(
     (f) =>
       f.clickhouseTable === "traces" &&
       f.field.includes("timestamp") &&
       (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+  const toTimeFilter = filter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field.includes("timestamp") &&
+      (f.operator === "<=" || f.operator === "<"),
   ) as DateTimeFilter | undefined;
 
   // We need to drop the clickhousePrefix here to make the filter work for the observations and scores tables.
@@ -91,6 +104,9 @@ export const generateTracesForPublicApi = async ({
   const ctes = [];
 
   if (includeObservations || includeMetrics) {
+    // Conditionally add FINAL based on env var and whether metrics are requested
+    const shouldUseFinal = includeMetrics && !disableObservationsFinal;
+
     ctes.push(`
     observation_stats AS (
       SELECT
@@ -98,9 +114,11 @@ export const generateTracesForPublicApi = async ({
         project_id,
          ${includeMetrics ? "sum(total_cost) as total_cost, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds, " : ""}
         groupUniqArray(id) as observation_ids
-      FROM observations ${includeMetrics ? "FINAL" : ""}
+      FROM observations ${shouldUseFinal ? "FINAL" : ""}
       WHERE project_id = {projectId: String}
-      ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${fromTimeFilter ? `AND start_time >= {cteFromTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${toTimeFilter && propagateObservationsTimeBounds ? `AND start_time <= {cteToTimeFilter: DateTime64(3)} + ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${toTimeFilter && propagateObservationsTimeBounds ? `AND end_time <= {cteToTimeFilter: DateTime64(3)} + ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
     )`);
@@ -117,7 +135,7 @@ export const generateTracesForPublicApi = async ({
       WHERE project_id = {projectId: String}
       AND session_id IS NULL
       AND dataset_run_id IS NULL
-      ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
+      ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
     )`);
@@ -137,9 +155,18 @@ export const generateTracesForPublicApi = async ({
         ...(props.page !== undefined
           ? { offset: (props.page - 1) * props.limit }
           : {}),
-        ...(timeFilter
+        ...(fromTimeFilter
           ? {
-              cteTimeFilter: convertDateToClickhouseDateTime(timeFilter.value),
+              cteFromTimeFilter: convertDateToClickhouseDateTime(
+                fromTimeFilter.value,
+              ),
+            }
+          : {}),
+        ...(toTimeFilter && propagateObservationsTimeBounds
+          ? {
+              cteToTimeFilter: convertDateToClickhouseDateTime(
+                toTimeFilter.value,
+              ),
             }
           : {}),
       },
@@ -150,7 +177,7 @@ export const generateTracesForPublicApi = async ({
         projectId: props.projectId,
         operation_name: "getTracesForPublicApi",
       },
-      fromTimestamp: timeFilter?.value ?? undefined,
+      fromTimestamp: fromTimeFilter?.value ?? undefined,
       preferredClickhouseService: "ReadOnly",
     },
     fn: (input) => {

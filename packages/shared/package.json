@@ -74,7 +74,7 @@
     "@clickhouse/client": "^1.12.1",
     "@google-cloud/storage": "^7.17.0",
     "@langchain/anthropic": "^0.3.32",
-    "@langchain/aws": "^0.1.11",
+    "@langchain/aws": "^0.1.15",
     "@langchain/core": "^0.3.58",
     "@langchain/google-genai": "^0.2.12",
     "@langchain/google-vertexai": "^0.2.12",

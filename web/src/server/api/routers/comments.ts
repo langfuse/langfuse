@@ -132,7 +132,6 @@ export const commentsRouter = createTRPCRouter({
           }
         }
       }
-
       return comment;
     }),
   delete: protectedProjectProcedure
