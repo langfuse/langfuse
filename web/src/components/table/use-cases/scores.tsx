@@ -236,11 +236,7 @@ export default function ScoresTable({
           value: u.value,
           count: u.count !== undefined ? Number(u.count) : undefined,
         })) || [],
-      tags:
-        filterOptions.data?.tags?.map((t) => ({
-          value: t.value,
-          count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+      tags: filterOptions.data?.tags?.map((t) => t.value) || [], // tags don't have counts
     }),
     [filterOptions.data],
   );
