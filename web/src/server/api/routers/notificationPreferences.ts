@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { NotificationChannel, NotificationType } from "@prisma/client";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -6,11 +7,9 @@ import {
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
-// Currently only EMAIL and COMMENT_MENTION are supported
-// Future channels: IN_APP, SLACK
-// Future types: COMMENT_REPLY, COMMENT_NEW, EVAL_COMPLETE, EXPORT_READY
-const NotificationChannelEnum = z.enum(["EMAIL"]);
-const NotificationTypeEnum = z.enum(["COMMENT_MENTION"]);
+// Use enums from Prisma types to stay in sync with DB schema
+const NotificationChannelEnum = z.enum(NotificationChannel);
+const NotificationTypeEnum = z.enum(NotificationType);
 
 const NotificationPreferenceInput = z.object({
   projectId: z.string(),

@@ -7,12 +7,61 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared";
 import { getUserProjectRoles } from "@langfuse/shared/src/features/rbac";
+import { type NotificationEventType } from "@langfuse/shared/src/server";
 
-type CommentMentionPayload = {
-  commentId: string;
+type CommentMentionPayload = Omit<
+  Extract<NotificationEventType, { type: "COMMENT_MENTION" }>,
+  "type"
+>;
+
+async function buildCommentLink(opts: {
+  baseUrl: string;
   projectId: string;
-  mentionedUserIds: string[];
-};
+  comment: {
+    objectType: "OBSERVATION" | "PROMPT" | "TRACE" | "SESSION";
+    objectId: string;
+  };
+  commentId: string;
+  userIdForLogging: string;
+}): Promise<string | null> {
+  const { baseUrl, projectId, comment, commentId, userIdForLogging } = opts;
+  const commonParams = `comments=open&commentObjectType=${encodeURIComponent(comment.objectType)}&commentObjectId=${encodeURIComponent(comment.objectId)}`;
+
+  switch (comment.objectType) {
+    case "OBSERVATION": {
+      const observation = await getObservationById({
+        id: comment.objectId,
+        projectId,
+      });
+      if (!observation || !observation.traceId) {
+        logger.warn(
+          `Observation ${comment.objectId} not found or has no traceId. Skipping notification for user ${userIdForLogging}.`,
+        );
+        return null;
+      }
+      return `${baseUrl}/project/${encodeURIComponent(projectId)}/traces/${encodeURIComponent(observation.traceId)}?observation=${encodeURIComponent(comment.objectId)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
+    }
+    case "PROMPT": {
+      const prompt = await prisma.prompt.findUnique({
+        where: { id: comment.objectId, projectId },
+        select: { name: true, version: true },
+      });
+      if (!prompt) {
+        logger.warn(
+          `Prompt ${comment.objectId} not found. Skipping notification for user ${userIdForLogging}.`,
+        );
+        return null;
+      }
+      const encodedPromptName = encodeURIComponent(prompt.name);
+      return `${baseUrl}/project/${encodeURIComponent(projectId)}/prompts/${encodedPromptName}?version=${encodeURIComponent(prompt.version)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
+    }
+    case "TRACE":
+    case "SESSION":
+    default: {
+      return `${baseUrl}/project/${encodeURIComponent(projectId)}/${encodeURIComponent(comment.objectType.toLowerCase())}s/${encodeURIComponent(comment.objectId)}?${commonParams}#comment-${encodeURIComponent(commentId)}`;
+    }
+  }
+}
 
 export async function handleCommentMentionNotification(
   payload: CommentMentionPayload,
@@ -48,8 +97,6 @@ export async function handleCommentMentionNotification(
       return;
     }
 
-    // Fetch all users (author + mentioned users) with single efficient query
-    // This replaces ~18-24 individual database queries with 1 SQL query
     const allUserIds = comment.authorUserId
       ? [comment.authorUserId, ...mentionedUserIds]
       : mentionedUserIds;
@@ -78,6 +125,16 @@ export async function handleCommentMentionNotification(
       const author = userMap.get(comment.authorUserId)!;
       authorName = author.name ?? author.email ?? undefined;
     }
+
+    // Build comment preview once (truncate + strip mention markdown)
+    const commentPreview = (() => {
+      const truncated =
+        comment.content.length > 500
+          ? comment.content.substring(0, 497) + "..."
+          : comment.content;
+      // Convert @[DisplayName](user:userId) to @DisplayName
+      return truncated.replace(/@\[([^\]]+)\]\(user:[^)]+\)/g, "@$1");
+    })();
 
     // Process each mentioned user
     for (const userId of mentionedUserIds) {
@@ -118,65 +175,22 @@ export async function handleCommentMentionNotification(
           continue;
         }
 
-        // Truncate comment content for preview (500 chars)
-        let commentPreview =
-          comment.content.length > 500
-            ? comment.content.substring(0, 497) + "..."
-            : comment.content;
-
-        // Strip markdown link syntax from mentions for plain text display
-        // Convert @[DisplayName](user:userId) to @DisplayName
-        commentPreview = commentPreview.replace(
-          /@\[([^\]]+)\]\(user:[^)]+\)/g,
-          "@$1",
-        );
-
         // Construct comment link using NEXTAUTH_URL (which includes basePath if configured)
         const baseUrl = env.NEXTAUTH_URL || "http://localhost:3000";
 
         // Construct URL based on object type
-        let commentLink: string;
-        const commonParams = `comments=open&commentObjectType=${encodeURIComponent(comment.objectType)}&commentObjectId=${encodeURIComponent(comment.objectId)}`;
-
-        switch (comment.objectType) {
-          case "OBSERVATION": {
-            // For observations, link to trace page with observation query param
-            const observation = await getObservationById({
-              id: comment.objectId,
-              projectId,
-            });
-            if (!observation || !observation.traceId) {
-              logger.warn(
-                `Observation ${comment.objectId} not found or has no traceId. Skipping notification for user ${userId}.`,
-              );
-              continue;
-            }
-            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/traces/${encodeURIComponent(observation.traceId)}?observation=${encodeURIComponent(comment.objectId)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
-            break;
-          }
-          case "PROMPT": {
-            // For prompts, use prompt name and version instead of ID
-            const prompt = await prisma.prompt.findUnique({
-              where: { id: comment.objectId, projectId },
-              select: { name: true, version: true },
-            });
-            if (!prompt) {
-              logger.warn(
-                `Prompt ${comment.objectId} not found. Skipping notification for user ${userId}.`,
-              );
-              continue;
-            }
-            const encodedPromptName = encodeURIComponent(prompt.name);
-            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/prompts/${encodedPromptName}?version=${encodeURIComponent(prompt.version)}&${commonParams}#comment-${encodeURIComponent(commentId)}`;
-            break;
-          }
-          case "TRACE":
-          case "SESSION":
-          default: {
-            // For traces and sessions, use standard URL pattern
-            commentLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/${encodeURIComponent(comment.objectType.toLowerCase())}s/${encodeURIComponent(comment.objectId)}?${commonParams}#comment-${encodeURIComponent(commentId)}`;
-            break;
-          }
+        const commentLink = await buildCommentLink({
+          baseUrl,
+          projectId,
+          comment: {
+            objectType: comment.objectType,
+            objectId: comment.objectId,
+          },
+          commentId,
+          userIdForLogging: userId,
+        });
+        if (!commentLink) {
+          continue;
         }
 
         const settingsLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/settings/notifications`;

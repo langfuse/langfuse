@@ -34,18 +34,13 @@ export function NotificationSettings() {
 
   const handleToggle = async (enabled: boolean) => {
     setIsSaving(true);
-    try {
-      await updatePreference.mutateAsync({
-        projectId,
-        channel: "EMAIL",
-        type: "COMMENT_MENTION",
-        enabled,
-      });
-    } catch (error) {
-      console.error("Failed to update notification preference:", error);
-    } finally {
-      setIsSaving(false);
-    }
+    await updatePreference.mutateAsync({
+      projectId,
+      channel: "EMAIL",
+      type: "COMMENT_MENTION",
+      enabled,
+    });
+    setIsSaving(false);
   };
 
   if (isLoading || !preferences) {

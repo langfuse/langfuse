@@ -8,8 +8,13 @@ export const notificationQueueProcessor = async (
 ) => {
   try {
     const { type, ...payload } = job.data.payload;
+    const projectId = payload.projectId;
 
-    logger.info("Processing notification job", { type, jobId: job.id });
+    logger.info("Processing notification job", {
+      type,
+      projectId,
+      jobId: job.id,
+    });
 
     switch (type) {
       case "COMMENT_MENTION":
@@ -22,12 +27,18 @@ export const notificationQueueProcessor = async (
 
     logger.info("Finished processing notification job", {
       type,
+      projectId,
       jobId: job.id,
     });
 
     return true;
   } catch (error) {
-    logger.error("Failed to process notification job", error);
+    logger.error("Failed to process notification job", {
+      error,
+      jobId: job.id,
+      payload: job.data.payload,
+      projectId: job.data.payload.projectId,
+    });
     throw error;
   }
 };

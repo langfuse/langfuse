@@ -51,6 +51,7 @@ export const commentsRouter = createTRPCRouter({
 
       // Sanitize mentions
       let sanitizedContent = input.content;
+      let validMentionedUserIds: string[] = [];
 
       if (mentionedUserIds.length > 0) {
         // Check projectMembers:read permission if mentioning users
@@ -84,6 +85,7 @@ export const commentsRouter = createTRPCRouter({
           projectMembers,
         );
         sanitizedContent = sanitizationResult.sanitizedContent;
+        validMentionedUserIds = sanitizationResult.validMentionedUserIds;
       }
 
       // Create comment with sanitized content
@@ -106,7 +108,7 @@ export const commentsRouter = createTRPCRouter({
       });
 
       // Enqueue notification job for mentioned users
-      if (mentionedUserIds.length > 0) {
+      if (validMentionedUserIds.length > 0) {
         const notificationQueue = NotificationQueue.getInstance();
         if (notificationQueue) {
           try {
@@ -117,12 +119,12 @@ export const commentsRouter = createTRPCRouter({
                 type: "COMMENT_MENTION" as const,
                 commentId: comment.id,
                 projectId: input.projectId,
-                mentionedUserIds: mentionedUserIds,
+                mentionedUserIds: validMentionedUserIds,
               },
               name: QueueJobs.NotificationJob,
             });
             logger.info(
-              `Notification job enqueued for comment ${comment.id} with ${mentionedUserIds.length} mentions`,
+              `Notification job enqueued for comment ${comment.id} with ${validMentionedUserIds.length} mentions`,
             );
           } catch (error) {
             // Log but don't fail the request if notification queueing fails
