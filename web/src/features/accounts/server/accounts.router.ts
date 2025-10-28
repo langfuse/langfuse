@@ -182,8 +182,8 @@ export const accountsRouter = createTRPCRouter({
       }
 
       const hashedPassword = hashChainlitPassword(input.password);
-
-      const { error } = await supabase
+      const supabase2 = createSupabaseAdminClient();
+      const { error } = await supabase2
         .schema("public")
         .from("test_users")
         .insert({
@@ -201,7 +201,7 @@ export const accountsRouter = createTRPCRouter({
       // Prepare djb_metadata based on GBA user flag
       const djbMetadata = input.isGbaUser ? { ta_only: true } : {};
 
-      const userRes = await supabase
+      const userRes = await supabase2
         .schema("public")
         .from("User")
         .insert({
