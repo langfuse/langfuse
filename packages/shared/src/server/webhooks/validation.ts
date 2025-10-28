@@ -27,6 +27,20 @@ export async function resolveHost(hostname: string): Promise<string[]> {
   return ips;
 }
 
+export interface WebhookValidationWhitelist {
+  hosts: string[];
+  ips: string[];
+  ip_ranges: string[];
+}
+
+function whitelistFromEnv(): WebhookValidationWhitelist {
+  return {
+    hosts: env.LANGFUSE_WEBHOOK_WHITELISTED_HOST || [],
+    ips: env.LANGFUSE_WEBHOOK_WHITELISTED_IPS || [],
+    ip_ranges: env.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS || [],
+  };
+}
+
 /**
  * Validates a webhook URL to prevent SSRF attacks by blocking internal/private IP addresses
  * Should be called when saving webhook URLs and before sending webhooks
@@ -35,7 +49,10 @@ export async function resolveHost(hostname: string): Promise<string[]> {
  * where DNS can change between validation and actual HTTP request. For maximum security,
  * the HTTP client should also implement IP blocking at connection time.
  */
-export async function validateWebhookURL(urlString: string): Promise<void> {
+export async function validateWebhookURL(
+  urlString: string,
+  whitelist: WebhookValidationWhitelist = whitelistFromEnv(),
+): Promise<void> {
   // Step 1: Basic URL parsing and normalization
   let url: URL;
   try {
@@ -58,6 +75,11 @@ export async function validateWebhookURL(urlString: string): Promise<void> {
   // Step 3: Hostname normalization and validation
   const hostname = normalizeHostname(url.hostname);
 
+  if (whitelist.hosts.includes(hostname)) {
+    // skip further checks if hostname is whitelisted
+    return;
+  }
+
   // Block obviously dangerous hostnames
   if (isHostnameBlocked(hostname)) {
     throw new Error("Blocked hostname detected");
@@ -65,7 +87,7 @@ export async function validateWebhookURL(urlString: string): Promise<void> {
 
   // Step 4: Check for IP address literals in hostname
   if (isIPAddress(hostname)) {
-    if (isIPBlocked(hostname, env.LANGFUSE_WEBHOOK_WHITELISTED_IPS)) {
+    if (isIPBlocked(hostname, whitelist.ips, whitelist.ip_ranges)) {
       throw new Error(`Blocked IP address detected: ${hostname}`);
     }
   }
@@ -73,7 +95,7 @@ export async function validateWebhookURL(urlString: string): Promise<void> {
   // Step 5: DNS resolution and validation
   const ips = await resolveHost(hostname);
   for (const ip of ips) {
-    if (isIPBlocked(ip, env.LANGFUSE_WEBHOOK_WHITELISTED_IPS)) {
+    if (isIPBlocked(ip, whitelist.ips, whitelist.ip_ranges)) {
       throw new Error(`Blocked IP address detected: ${ip}`);
     }
   }

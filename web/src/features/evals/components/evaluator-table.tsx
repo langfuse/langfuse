@@ -2,11 +2,16 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+} from "@/src/components/table/data-table-controls";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
@@ -44,10 +49,11 @@ import {
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
-import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { usdFormatter } from "@/src/utils/numbers";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -70,6 +76,7 @@ export type EvaluatorDataRow = {
   }[];
   logs?: string;
   actions?: string;
+  totalCost?: number | null;
 };
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
@@ -86,22 +93,27 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const utils = api.useUtils();
 
-  const [filterState, setFilterState] = useQueryFilterState(
-    [],
-    "eval_configs",
-    projectId,
-  );
-
   const [orderByState, setOrderByState] = useOrderByState({
     column: "createdAt",
     order: "DESC",
   });
 
+  const newFilterOptions = {
+    status: ["ACTIVE", "INACTIVE"],
+    target: ["trace", "dataset"],
+  };
+
+  const queryFilter = useSidebarFilterState(
+    evaluatorFilterConfig,
+    newFilterOptions,
+    projectId,
+  );
+
   const evaluators = api.evals.allConfigs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
-    filter: filterState,
+    filter: queryFilter.filterState,
     orderBy: orderByState,
     searchQuery: searchQuery,
   });
@@ -120,6 +132,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
+
+  // Fetch costs for all evaluators
+  const evaluatorIds =
+    evaluators.data?.configs.map((config) => config.id) ?? [];
+  const costs = api.evals.costByEvaluatorIds.useQuery(
+    {
+      projectId,
+      evaluatorIds,
+    },
+    {
+      enabled: evaluators.isSuccess && evaluatorIds.length > 0,
+    },
+  );
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -155,6 +180,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             className={row.getValue() === "FINISHED" ? "pl-3" : ""}
           />
         );
+      },
+    }),
+    columnHelper.accessor("totalCost", {
+      header: "Total Cost (7d)",
+      id: "totalCost",
+      size: 120,
+      cell: (row) => {
+        const totalCost = row.getValue();
+
+        if (!costs.data) return <Skeleton className="h-4 w-16" />;
+
+        if (totalCost != null) return usdFormatter(totalCost, 2, 4);
+
+        return "–";
       },
     }),
     columnHelper.accessor("result", {
@@ -325,6 +364,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
     const result = generateJobExecutionCounts(jobConfig.jobExecutionsByState);
+    const costData = costs.data?.[jobConfig.id];
 
     return {
       id: jobConfig.id,
@@ -349,69 +389,87 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             ? "Langfuse and Ragas maintained"
             : "Langfuse maintained"
         : "Not available",
+      totalCost: costData,
     };
   };
 
   return (
-    <>
-      <DataTableToolbar
-        columns={columns}
-        filterColumnDefinition={evalConfigFilterColumns}
-        filterState={filterState}
-        setFilterState={setFilterState}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        searchConfig={{
-          metadataSearchFields: ["Name"],
-          updateQuery: setSearchQuery,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: false,
-          setSearchType: undefined,
-          searchType: undefined,
-        }}
-      />
-      <DataTable
-        tableName={"evalConfigs"}
-        columns={columns}
-        peekView={{
-          itemType: "RUNNING_EVALUATOR",
-          detailNavigationKey: "evals",
-          peekEventOptions: {
-            ignoredSelectors: [
-              "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-            ],
-          },
-          tableDataUpdatedAt: evaluators.dataUpdatedAt,
-          children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
-          ...peekNavigationProps,
-        }}
-        data={
-          evaluators.isLoading
-            ? { isLoading: true, isError: false }
-            : evaluators.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: evaluators.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(evaluators.data, "configs", []).map(
-                    (evaluator) => convertToTableRow(evaluator),
-                  ),
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        orderBy={orderByState}
-        setOrderBy={setOrderByState}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-      />
+    <DataTableControlsProvider
+      tableName={evaluatorFilterConfig.tableName}
+      defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
+    >
+      <div className="flex h-full w-full flex-col">
+        {/* Toolbar spanning full width */}
+        <DataTableToolbar
+          columns={columns}
+          filterState={queryFilter.filterState}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          searchConfig={{
+            metadataSearchFields: ["Name"],
+            updateQuery: setSearchQuery,
+            currentQuery: searchQuery ?? undefined,
+            tableAllowsFullTextSearch: false,
+            setSearchType: undefined,
+            searchType: undefined,
+          }}
+        />
+
+        {/* Content area with sidebar and table */}
+        <div className="flex flex-1 overflow-hidden">
+          <DataTableControls queryFilter={queryFilter} />
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"evalConfigs"}
+              columns={columns}
+              peekView={{
+                itemType: "RUNNING_EVALUATOR",
+                detailNavigationKey: "evals",
+                peekEventOptions: {
+                  ignoredSelectors: [
+                    "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+                  ],
+                },
+                tableDataUpdatedAt: Math.max(
+                  evaluators.dataUpdatedAt,
+                  costs.dataUpdatedAt,
+                ),
+                children: (
+                  <PeekViewEvaluatorConfigDetail projectId={projectId} />
+                ),
+                ...peekNavigationProps,
+              }}
+              data={
+                evaluators.isLoading
+                  ? { isLoading: true, isError: false }
+                  : evaluators.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: evaluators.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: safeExtract(evaluators.data, "configs", []).map(
+                          (evaluator) => convertToTableRow(evaluator),
+                        ),
+                      }
+              }
+              pagination={{
+                totalCount,
+                onChange: setPaginationState,
+                state: paginationState,
+              }}
+              orderBy={orderByState}
+              setOrderBy={setOrderByState}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+            />
+          </div>
+        </div>
+      </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}
         onOpenChange={(open) => {
@@ -456,6 +514,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </DataTableControlsProvider>
   );
 }

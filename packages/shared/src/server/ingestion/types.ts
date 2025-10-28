@@ -202,6 +202,7 @@ const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
 
 const PublicEnvironmentName = z
   .string()
+  .toLowerCase()
   .max(40, "Maximum length is 40 characters")
   .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
   .default("default");
@@ -480,6 +481,7 @@ const createAllIngestionSchemas = ({
     source: z
       .enum(["API", "EVAL", "ANNOTATION"])
       .default("API" as ScoreSourceType),
+    executionTraceId: z.string().nullish(),
     queueId: z.string().nullish(),
   });
 

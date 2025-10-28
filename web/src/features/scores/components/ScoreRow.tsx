@@ -69,7 +69,7 @@ const ScoreRowContent = ({
       </span>
       <div className="flex flex-shrink-0 items-center gap-1">
         {aggregate ? (
-          <span className="line-clamp-1 text-sm font-medium">
+          <span className="line-clamp-1 font-medium">
             {resolveScoreValue(aggregate)}
           </span>
         ) : (
@@ -120,7 +120,7 @@ export const ScoreRow = ({
   }
 
   return (
-    <HoverCard openDelay={300} closeDelay={100} onOpenChange={setIsHovered}>
+    <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
       <HoverCardTrigger asChild>
         <div className="group/io-cell relative h-full w-full">
           <ScoreRowContent name={name} aggregate={aggregate} />

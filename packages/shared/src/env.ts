@@ -169,6 +169,18 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_WEBHOOK_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -176,7 +188,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .optional()
-    .default(1_000)
+    .default(5_000)
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
@@ -193,6 +205,11 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(600_000), // 10 minutes
+
+  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
 
   LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
     .number()

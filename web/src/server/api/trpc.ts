@@ -22,6 +22,7 @@ import { prisma, Role } from "@langfuse/shared/src/db";
 import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
+import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -78,6 +79,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
  * errors on the backend.
  */
 import { initTRPC, TRPCError } from "@trpc/server";
+import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import superjson from "superjson";
 import { ZodError } from "zod/v4";
 import { setUpSuperjson } from "@/src/utils/superjson";
@@ -91,8 +93,12 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { env } from "@/src/env.mjs";
+import { BaseError } from "@langfuse/shared";
 
 setUpSuperjson();
+
+const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
@@ -122,23 +128,29 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  */
 export const createTRPCRouter = t.router;
 
+const resolveError = (error: TRPCError) => {
+  if (error.cause instanceof BaseError) {
+    return {
+      code: getTRPCErrorCodeFromHTTPStatusCode(error.cause.httpCode),
+      httpStatus: error.cause.httpCode,
+    };
+  }
+  return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
+};
+
+const logErrorByCode = (errorCode: TRPCError["code"]) => {
+  if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
+    logger.info(`middleware intercepted error with code ${errorCode}`);
+  } else {
+    logger.error(`middleware intercepted error with code ${errorCode}`);
+  }
+};
+
 // global error handling
 const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    if (res.error.code === "NOT_FOUND" || res.error.code === "UNAUTHORIZED") {
-      logger.info(
-        `middleware intercepted error with code ${res.error.code}`,
-        res.error,
-      );
-    } else {
-      logger.error(
-        `middleware intercepted error with code ${res.error.code}`,
-        res.error,
-      );
-    }
-
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
@@ -146,18 +158,25 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         code: "SERVICE_UNAVAILABLE",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
+      logErrorByCode(res.error.code);
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
-      // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
+      // - Either the original error message OR "Internal error" if it's a 5xx error
+      const { code, httpStatus } = resolveError(res.error);
+      const isSafeToExpose = httpStatus >= 400 && httpStatus < 500;
+      const errorMessage = isLangfuseCloud
+        ? "We have been notified and are working on it."
+        : "Please check error logs in your self-hosted deployment.";
+
       res.error = new TRPCError({
-        code: res.error.code,
+        code,
         cause: null, // do not expose stack traces
-        message:
-          res.error.code !== "INTERNAL_SERVER_ERROR"
-            ? res.error.message
-            : "Internal error",
+        message: isSafeToExpose
+          ? res.error.message
+          : "Internal error. " + errorMessage,
       });
+      logErrorByCode(code);
     }
   }
 
@@ -566,7 +585,6 @@ const enforceAdminAuth = t.middleware(async (opts) => {
 
   const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
     result.data.adminApiKey,
-    false,
   );
 
   if (!adminAuthResult.isAuthorized) {

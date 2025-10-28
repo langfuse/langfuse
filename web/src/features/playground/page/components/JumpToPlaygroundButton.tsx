@@ -1,7 +1,6 @@
 import { Terminal, ChevronDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
-import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
@@ -28,7 +27,6 @@ import {
   type UIModelParams,
   ZodModelConfig,
   ChatMessageType,
-  OpenAIToolSchema,
   type ChatMessage,
   OpenAIResponseFormatSchema,
   type Prisma,
@@ -36,7 +34,8 @@ import {
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
-import { normalizeInput, extractAdditionalInput } from "@/src/utils/chatml";
+import { normalizeInput } from "@/src/utils/chatml";
+import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -258,9 +257,29 @@ const parseGeneration = (
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
-  const modelParams = parseModelParams(generation, modelToProviderMap);
-  const tools = parseTools(generation);
+  let modelParams = parseModelParams(generation, modelToProviderMap);
+  const tools = parseTools(generation.input);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
+  const providerOptions = parseLitellmMetadataFromGeneration(generation);
+
+  if (modelParams && providerOptions) {
+    const existingProviderOptions =
+      modelParams.providerOptions?.value ??
+      ({} as UIModelParams["providerOptions"]["value"]);
+
+    const mergedProviderOptions = {
+      ...existingProviderOptions,
+      ...providerOptions,
+    } as UIModelParams["providerOptions"]["value"];
+
+    modelParams = {
+      ...modelParams,
+      providerOptions: {
+        value: mergedProviderOptions,
+        enabled: true,
+      },
+    };
+  }
 
   let input = generation.input?.valueOf();
 
@@ -381,40 +400,15 @@ function parseModelParams(
   return modelParams;
 }
 
-function parseTools(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
-    input: string | null;
-    output: string | null;
-    metadata: string | null;
-  },
-): PlaygroundTool[] {
+function parseTools(inputString: string | null): PlaygroundTool[] {
+  if (!inputString) return [];
+
   try {
-    const input = JSON.parse(generation.input as string);
-
-    // Check additional.tools , langchain puts tools there
-    const additionalInput = extractAdditionalInput(input);
-    if (additionalInput?.tools && Array.isArray(additionalInput.tools)) {
-      return additionalInput.tools.map((tool: any) => ({
-        id: Math.random().toString(36).substring(2),
-        name: tool.name || tool.function?.name,
-        description: tool.description || tool.function?.description,
-        parameters: tool.parameters || tool.function?.parameters,
-      }));
-    }
-
-    // OpenAI format: tools in input.tools field
-    if (typeof input === "object" && input !== null && "tools" in input) {
-      const parsedTools = z.array(OpenAIToolSchema).safeParse(input["tools"]);
-
-      if (parsedTools.success)
-        return parsedTools.data.map((tool) => ({
-          id: Math.random().toString(36).substring(2),
-          ...tool.function,
-        }));
-    }
-  } catch {}
-
-  return [];
+    const input = JSON.parse(inputString);
+    return extractTools(input);
+  } catch {
+    return [];
+  }
 }
 
 function parseStructuredOutputSchema(
@@ -475,4 +469,60 @@ function parseStructuredOutputSchema(
     }
   } catch {}
   return null;
+}
+
+/**
+ * LiteLLM supports custom providers such as with its CustomLLM interface. Clients may
+ * send provider‑specific options in addition to standard parameters (e.g., temperature, top_p, max_tokens).
+ * LiteLLM records those extras on the generation as metadata.requester_metadata. When a user clicks
+ * “Open in Playground,” we lift requester_metadata into providerOptions so those custom options carry
+ * over for re‑run/compare/edit. This lets the Playground faithfully replay LiteLLM CustomLLM‑based
+ * workflows and preserves the original call’s intent.
+ *
+ * References:
+ * - https://docs.litellm.ai/docs/providers/custom_llm_server
+ * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
+ */
+function parseLitellmMetadataFromGeneration(
+  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+    input: string | null;
+    output: string | null;
+    metadata: string | null;
+  },
+): UIModelParams["providerOptions"]["value"] | undefined {
+  let metadata: unknown = generation.metadata;
+
+  if (metadata === null || metadata === undefined) {
+    return undefined;
+  }
+
+  if (typeof metadata === "string") {
+    const trimmedMetadata = metadata.trim();
+
+    if (!trimmedMetadata) {
+      return undefined;
+    }
+
+    try {
+      metadata = JSON.parse(trimmedMetadata);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (typeof metadata !== "object" || metadata === null) {
+    return undefined;
+  }
+
+  const requesterMetadata = (metadata as Record<string, unknown>)[
+    "requester_metadata"
+  ];
+
+  if (typeof requesterMetadata !== "object" || requesterMetadata === null) {
+    return undefined;
+  }
+
+  return {
+    metadata: requesterMetadata,
+  } as UIModelParams["providerOptions"]["value"];
 }

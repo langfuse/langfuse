@@ -2154,6 +2154,32 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map pydantic-ai tool_arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "tool_arguments",
+          otelAttributeValue: {
+            stringValue:
+              '{"query": "What is the weather like?", "location": "New York"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue:
+            '{"query": "What is the weather like?", "location": "New York"}',
+        },
+      ],
+      [
+        "should map pydantic-ai tool_response to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "tool_response",
+          otelAttributeValue: {
+            stringValue: '{"result": "Sunny, 22°C"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"result": "Sunny, 22°C"}',
+        },
+      ],
+      [
         "should map lk.input_text to input",
         {
           entity: "observation",
@@ -4540,6 +4566,219 @@ describe("OTel Resource Span Mapping", () => {
       expect(
         traceLoopObservation?.body.metadata?.attributes?.span_custom_field,
       ).toBe("custom_value");
+    });
+
+    it("should extract Google ADK tool call I/O from tool_call_args/tool_response when llm_request/llm_response are empty", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const googleADKToolSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.33.1" },
+            },
+            {
+              key: "langfuse.environment",
+              value: { stringValue: "production" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "unknown_service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.google_adk",
+              version: "0.1.6",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("89a16f45ba5e6d36", "hex"),
+                parentSpanId: Buffer.from("f55a0bb51dc69634", "hex"),
+                name: "execute_tool_bake_cake",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 310920000,
+                  high: 406677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 858579000,
+                  high: 406677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "session.id",
+                    value: {
+                      stringValue: "test-session-333bff8e",
+                    },
+                  },
+                  {
+                    key: "user.id",
+                    value: { stringValue: "test-user" },
+                  },
+                  {
+                    key: "gen_ai.system",
+                    value: { stringValue: "gcp.vertex.agent" },
+                  },
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "execute_tool" },
+                  },
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "bake_cake" },
+                  },
+                  {
+                    key: "gen_ai.tool.description",
+                    value: {
+                      stringValue:
+                        "a tool that bakes a cake for you, with a lot of chocolate if you ask nicely",
+                    },
+                  },
+                  {
+                    key: "gen_ai.tool.call.id",
+                    value: {
+                      stringValue: "adk-chocolate-caked",
+                    },
+                  },
+                  {
+                    key: "gcp.vertex.agent.tool_call_args",
+                    value: {
+                      stringValue: '{"query": "much duplo"}',
+                    },
+                  },
+                  {
+                    key: "gcp.vertex.agent.event_id",
+                    value: {
+                      stringValue: "some-id",
+                    },
+                  },
+                  {
+                    key: "gcp.vertex.agent.tool_response",
+                    value: {
+                      stringValue: '{"result": "particularly juicy cake"}',
+                    },
+                  },
+                  // These are empty for tool calls in Google ADK - bug trigger
+                  {
+                    key: "gcp.vertex.agent.llm_request",
+                    value: { stringValue: "{}" },
+                  },
+                  {
+                    key: "gcp.vertex.agent.llm_response",
+                    value: { stringValue: "{}" },
+                  },
+                  {
+                    key: "tool.name",
+                    value: { stringValue: "bake_cake" },
+                  },
+                  {
+                    key: "tool.description",
+                    value: {
+                      stringValue:
+                        "a tool that bakes a cake for you, with a lot of chocolate if you ask nicely",
+                    },
+                  },
+                  {
+                    key: "tool.parameters",
+                    value: {
+                      stringValue: '{"query": "cake type"}',
+                    },
+                  },
+                  {
+                    key: "input.value",
+                    value: {
+                      stringValue: '{"query": "juicy chocolate"}',
+                    },
+                  },
+                  {
+                    key: "input.mime_type",
+                    value: { stringValue: "application/json" },
+                  },
+                  {
+                    key: "output.value",
+                    value: {
+                      stringValue:
+                        '{"id":"adk-chocolate-caked","name":"bake_cake","response":{"result":"duplo cake"}}',
+                    },
+                  },
+                  {
+                    key: "output.mime_type",
+                    value: { stringValue: "application/json" },
+                  },
+                  {
+                    key: "openinference.span.kind",
+                    value: { stringValue: "TOOL" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const googleADKEvents = await convertOtelSpanToIngestionEvent(
+        googleADKToolSpan,
+        new Set([traceId]),
+      );
+
+      const toolObservation = googleADKEvents.find(
+        (e) => e.type === "tool-create",
+      );
+
+      // Bug: input/output should NOT be "{}" from empty llm_request/llm_response
+      // Instead, they should come from tool_call_args and tool_response
+      expect(toolObservation?.body.input).not.toBe("{}");
+      expect(toolObservation?.body.output).not.toBe("{}");
+
+      // Verify input is correctly extracted from tool_call_args
+      expect(toolObservation?.body.input).toBe('{"query": "much duplo"}');
+
+      // Verify output is correctly extracted from tool_response
+      expect(toolObservation?.body.output).toBe(
+        '{"result": "particularly juicy cake"}',
+      );
+
+      // Verify Google ADK attributes are NOT in metadata.attributes
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.tool_call_args"
+        ],
+      ).toBeUndefined();
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.tool_response"
+        ],
+      ).toBeUndefined();
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.llm_request"
+        ],
+      ).toBeUndefined();
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.llm_response"
+        ],
+      ).toBeUndefined();
+
+      // Verify trace-level attributes
+      expect(toolObservation?.body.traceId).toBe(traceId);
     });
 
     it("should stringify non-string attributes in observation metadata", async () => {

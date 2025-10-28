@@ -11,16 +11,27 @@ import {
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
+import { getObservationStream } from "../features/database-read-stream/observation-stream";
+import { getTraceStream } from "../features/database-read-stream/trace-stream";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
+    const traceId = randomUUID();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+    });
+
+    await createTracesCh([trace]);
+
     const observations = [
       createObservation({
         project_id: projectId,
-        trace_id: randomUUID(),
+        trace_id: traceId,
         type: "SPAN",
       }),
       createObservation({
@@ -37,7 +48,7 @@ describe("batch export test suite", () => {
 
     const score = createTraceScore({
       project_id: projectId,
-      trace_id: randomUUID(),
+      trace_id: traceId,
       observation_id: observations[0].id,
       name: "test",
       value: 123,
@@ -46,12 +57,10 @@ describe("batch export test suite", () => {
     await createScoresCh([score]);
     await createObservationsCh(observations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getObservationStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "startTime", order: "DESC" },
     });
 
     const rows: any[] = [];
@@ -68,22 +77,32 @@ describe("batch export test suite", () => {
           name: observations[0].name,
           type: observations[0].type,
           test: [score.value],
+          input: "Hello World",
+          output: "Hello John",
+          metadata: expect.objectContaining({
+            source: "API",
+            server: "Node",
+          }),
         }),
         expect.objectContaining({
           id: observations[1].id,
           name: observations[1].name,
           type: observations[1].type,
+          input: "Hello World",
+          output: "Hello John",
         }),
         expect.objectContaining({
           id: observations[2].id,
           name: observations[2].name,
           type: observations[2].type,
+          input: "Hello World",
+          output: "Hello John",
         }),
       ]),
     );
   });
 
-  it("should export observations with filter and sorting", async () => {
+  it("should export filtered observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const observations = [
@@ -112,9 +131,8 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(observations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getObservationStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
@@ -124,7 +142,6 @@ describe("batch export test suite", () => {
           value: ["test1", "test2"],
         },
       ],
-      orderBy: { column: "startTime", order: "ASC" },
     });
 
     const rows: any[] = [];
@@ -134,8 +151,192 @@ describe("batch export test suite", () => {
     }
 
     expect(rows).toHaveLength(2);
-    expect(rows[0].name).toBe("test1");
-    expect(rows[1].name).toBe("test2");
+
+    const exportedNames = rows.map((row) => row.name);
+    expect(exportedNames).toEqual(expect.arrayContaining(["test1", "test2"]));
+    expect(exportedNames).toHaveLength(2);
+
+    // Verify input/output/metadata are properly exported
+    rows.forEach((row) => {
+      expect(row.input).toBe("Hello World");
+      expect(row.output).toBe("Hello John");
+      expect(row.metadata).toEqual(
+        expect.objectContaining({
+          source: "API",
+          server: "Node",
+        }),
+      );
+    });
+  });
+
+  it("should export observations with filter", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test1",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "EVENT",
+        name: "test2",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "SPAN",
+        name: "test3",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "name",
+          value: ["test1", "test2"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
+
+    const exportedNames = rows.map((row) => row.name);
+    expect(exportedNames).toEqual(expect.arrayContaining(["test1", "test2"]));
+    expect(exportedNames).toHaveLength(2);
+
+    // Verify input/output/metadata are present
+    rows.forEach((row) => {
+      expect(row.input).toBe("Hello World");
+      expect(row.output).toBe("Hello John");
+      expect(row.metadata).toMatchObject({
+        source: "API",
+        server: "Node",
+      });
+    });
+  });
+
+  it("should export observations filtered by scores", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: randomUUID(),
+    });
+
+    await createTracesCh([trace]);
+
+    // Create observations with different score values
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "high-accuracy",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "medium-accuracy",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "low-accuracy",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Create scores with different values
+    const scores = [
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[0].id,
+        name: "accuracy",
+        value: 0.95,
+        data_type: "NUMERIC",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[1].id,
+        name: "accuracy",
+        value: 0.75,
+        data_type: "NUMERIC",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[2].id,
+        name: "accuracy",
+        value: 0.45,
+        data_type: "NUMERIC",
+      }),
+    ];
+
+    await createScoresCh(scores);
+
+    // Filter observations with accuracy >= 0.7
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "numberObject",
+          column: "Scores",
+          key: "accuracy",
+          operator: ">=",
+          value: 0.7,
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only include observations with accuracy >= 0.7
+    expect(rows).toHaveLength(2);
+
+    const exportedNames = rows.map((row) => row.name).sort();
+    expect(exportedNames).toEqual(["high-accuracy", "medium-accuracy"]);
+
+    // Verify scores are included in the export
+    const highAccuracyRow = rows.find((r) => r.name === "high-accuracy");
+    expect(highAccuracyRow?.accuracy).toEqual([0.95]);
+
+    const mediumAccuracyRow = rows.find((r) => r.name === "medium-accuracy");
+    expect(mediumAccuracyRow?.accuracy).toEqual([0.75]);
   });
 
   it("should export sessions", async () => {
@@ -201,7 +402,7 @@ describe("batch export test suite", () => {
     await createScoresCh([score]);
     await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Sessions,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -298,7 +499,7 @@ describe("batch export test suite", () => {
 
     await createObservationsCh(generations);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Sessions,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -351,34 +552,9 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const generations = [
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[0].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 1000,
-        end_time: new Date().getTime(),
-      }),
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[1].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 2000,
-        end_time: new Date().getTime(),
-      }),
-      createObservation({
-        project_id: projectId,
-        trace_id: traces[1].id,
-        type: "GENERATION",
-        start_time: new Date().getTime() - 2123,
-        end_time: new Date().getTime(),
-      }),
-    ];
-
     const score = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
-      observation_id: generations[0].id,
       name: "test",
       value: 123,
     });
@@ -386,22 +562,26 @@ describe("batch export test suite", () => {
     const qualitativeScore = createTraceScore({
       project_id: projectId,
       trace_id: traces[0].id,
-      observation_id: generations[0].id,
       name: "qualitative_test",
       value: undefined,
       string_value: "This is some qualitative text",
       data_type: "CATEGORICAL",
     });
 
-    await createScoresCh([score, qualitativeScore]);
-    await createObservationsCh(generations);
+    const booleanScore = createTraceScore({
+      project_id: projectId,
+      trace_id: traces[0].id,
+      name: "is_correct",
+      value: 1,
+      data_type: "BOOLEAN",
+    });
 
-    const stream = await getDatabaseReadStream({
+    await createScoresCh([score, qualitativeScore, booleanScore]);
+
+    const stream = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "timestamp", order: "DESC" },
     });
 
     const rows: any[] = [];
@@ -416,19 +596,20 @@ describe("batch export test suite", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: traces[0].id,
-          latency: expect.closeTo(1.0, 0.1), // allows deviation of ±0.1
           test: [score.value],
           qualitative_test: ["This is some qualitative text"],
+          is_correct: [1],
         }),
         expect.objectContaining({
           id: traces[1].id,
-          latency: expect.closeTo(2.123, 0.1), // allows deviation of ±0.1
           test: null,
           qualitative_test: null,
+          is_correct: null,
         }),
       ]),
     );
   });
+
   it("should export traces with filter and sort", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -465,9 +646,8 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const stream = await getDatabaseReadStream({
+    const stream = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date("2024-01-02"),
       filter: [
         {
@@ -483,7 +663,6 @@ describe("batch export test suite", () => {
           value: true,
         },
       ],
-      orderBy: { column: "timestamp", order: "ASC" },
     });
 
     const rows: any[] = [];
@@ -582,7 +761,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with filter on name and sort by timestamp
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -664,7 +843,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export all scores
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -757,7 +936,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with date range filter
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -871,7 +1050,7 @@ describe("batch export test suite", () => {
     await createScoresCh(scores);
 
     // Export scores with multiple filter conditions
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.Scores,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -989,7 +1168,7 @@ describe("batch export test suite", () => {
     await prisma.datasetItem.createMany({ data: datasetItems });
 
     // Export dataset items
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.DatasetItems,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1129,7 +1308,7 @@ describe("batch export test suite", () => {
     await prisma.datasetItem.createMany({ data: datasetItems });
 
     // Export dataset items
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId,
       tableName: BatchExportTableName.DatasetItems,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1230,7 +1409,7 @@ describe("batch export test suite", () => {
     });
 
     // Export audit logs
-    const stream = await getDatabaseReadStream({
+    const stream = await getDatabaseReadStreamPaginated({
       projectId: projectId,
       tableName: BatchExportTableName.AuditLogs,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -1306,12 +1485,10 @@ describe("batch export test suite", () => {
 
     await createTracesCh(traces);
 
-    const streamByName = await getDatabaseReadStream({
+    const streamByName = await getTraceStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "timestamp", order: "ASC" },
       searchQuery: "findable-trace",
       searchType: ["id"],
     });
@@ -1324,5 +1501,422 @@ describe("batch export test suite", () => {
     expect(rowsByName).toHaveLength(1);
     expect(rowsByName[0].name).toBe("findable-trace-name");
     expect(rowsByName[0].id).toBe("search-test-id-1");
+  });
+
+  it("should ignore observation-level filters when exporting traces", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with different names
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-with-observations",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "another-trace",
+        timestamp: new Date("2024-01-02").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "third-trace",
+        timestamp: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Create observations with varying latencies
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+        start_time: new Date("2024-01-01T00:00:00Z").getTime(),
+        end_time: new Date("2024-01-01T00:00:10Z").getTime(), // 10 seconds
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+        start_time: new Date("2024-01-02T00:00:00Z").getTime(),
+        end_time: new Date("2024-01-02T00:00:02Z").getTime(), // 2 seconds
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Apply filters that include observation-level filters
+    // These should be ignored and all traces matching trace-level filters should be returned
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        // Observation-level filter (should be ignored)
+        {
+          type: "number",
+          operator: ">",
+          column: "Latency (s)",
+          value: 5,
+        },
+        // Trace-level filter (should be applied)
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "Name",
+          value: ["trace-with-observations", "another-trace"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should return both traces matching the name filter
+    // Latency filter should be ignored since it's observation-level
+    expect(rows).toHaveLength(2);
+    const exportedNames = rows.map((row) => row.name).sort();
+    expect(exportedNames).toEqual(["another-trace", "trace-with-observations"]);
+  });
+
+  it("should successfully export traces with mixed trace-level and observation-level filters", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "question_generator",
+        environment: "taboola-trs",
+        timestamp: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "question_generator",
+        environment: "kfc-search-engine-qna",
+        timestamp: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "other_trace",
+        environment: "taboola-trs",
+        timestamp: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "question_generator",
+        environment: "production",
+        timestamp: new Date("2025-10-21T03:00:00Z").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // This mirrors the query from the issue
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date("2025-10-22T00:00:00Z"),
+      filter: [
+        // Observation-level filter (should be ignored)
+        {
+          type: "number",
+          column: "Latency (s)",
+          operator: ">",
+          value: 5,
+        },
+        // Trace-level filters (should be applied)
+        {
+          type: "stringOptions",
+          column: "Name",
+          operator: "any of",
+          value: ["question_generator"],
+        },
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: ">=",
+          value: new Date("2025-10-20T13:39:58.045Z"),
+        },
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: "<=",
+          value: new Date("2025-10-21T13:39:58.045Z"),
+        },
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["taboola-trs", "kfc-search-engine-qna", "default"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only return traces matching all trace-level filters
+    // Observation-level latency filter should be ignored
+    expect(rows).toHaveLength(2);
+    const exportedEnvironments = rows.map((row) => row.environment).sort();
+    expect(exportedEnvironments).toEqual([
+      "kfc-search-engine-qna",
+      "taboola-trs",
+    ]);
+
+    // All should have the correct name
+    rows.forEach((row) => {
+      expect(row.name).toBe("question_generator");
+    });
+  });
+
+  it("should ignore trace-level filters when exporting observations", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with tags
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-with-tag",
+        tags: ["organizationSlug:karacare"],
+        timestamp: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-without-tag",
+        tags: [],
+        timestamp: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace-with-other-tag",
+        tags: ["organizationSlug:other"],
+        timestamp: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Create observations for all traces with specific names
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+        name: "makeRecommendations",
+        start_time: new Date("2025-10-21T00:00:00Z").getTime(),
+        end_time: new Date("2025-10-21T00:00:05Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+        name: "makeRecommendations",
+        start_time: new Date("2025-10-21T01:00:00Z").getTime(),
+        end_time: new Date("2025-10-21T01:00:03Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[2].id,
+        type: "EVENT",
+        name: "otherOperation",
+        start_time: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Apply filters that include trace-level filters (tags)
+    // These should be ignored and all observations matching observation-level filters should be returned
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        // Trace-level filter (should be ignored)
+        {
+          type: "arrayOptions",
+          operator: "any of",
+          column: "Trace Tags",
+          value: ["organizationSlug:karacare"],
+        },
+        // Observation-level filters (should be applied)
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "type",
+          value: ["GENERATION"],
+        },
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "startTime",
+          value: new Date("2025-10-20T22:00:00.000Z"),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "startTime",
+          value: new Date("2025-10-23T21:59:59.999Z"),
+        },
+      ],
+      searchQuery: "makeRecommendations",
+      searchType: ["id"],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should return both observations matching the observation-level filters
+    // Tags filter should be ignored since it's trace-level
+    expect(rows).toHaveLength(2);
+    const exportedNames = rows.map((row) => row.name).sort();
+    expect(exportedNames).toEqual([
+      "makeRecommendations",
+      "makeRecommendations",
+    ]);
+
+    // Verify both observations are included regardless of trace tags
+    const traceIds = rows.map((row) => row.traceId).sort();
+    expect(traceIds).toEqual([traces[0].id, traces[1].id].sort());
+  });
+
+  it("should successfully export observations with mixed observation-level and trace-level filters", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with various tags and user IDs
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "api-trace-1",
+        tags: ["organizationSlug:acme", "env:production"],
+        user_id: "user-123",
+        timestamp: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "api-trace-2",
+        tags: ["organizationSlug:acme"],
+        user_id: "user-456",
+        timestamp: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "api-trace-3",
+        tags: ["organizationSlug:other"],
+        user_id: "user-789",
+        timestamp: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Create observations with specific properties
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+        name: "llm-call",
+        environment: "production",
+        start_time: new Date("2025-10-21T00:00:00Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+        name: "llm-call",
+        environment: "production",
+        start_time: new Date("2025-10-21T01:00:00Z").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[2].id,
+        type: "GENERATION",
+        name: "llm-call",
+        environment: "staging",
+        start_time: new Date("2025-10-21T02:00:00Z").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    // Apply a mix of trace-level and observation-level filters
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        // Trace-level filters (should be ignored)
+        {
+          type: "arrayOptions",
+          operator: "any of",
+          column: "Trace Tags",
+          value: ["organizationSlug:acme"],
+        },
+        {
+          type: "string",
+          operator: "=",
+          column: "User ID",
+          value: "user-123",
+        },
+        // Observation-level filters (should be applied)
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "type",
+          value: ["GENERATION"],
+        },
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "environment",
+          value: ["production"],
+        },
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "name",
+          value: ["llm-call"],
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only return observations matching observation-level filters
+    // Trace-level filters (tags, userId) should be ignored
+    expect(rows).toHaveLength(2);
+
+    // Both observations should have production environment
+    rows.forEach((row) => {
+      expect(row.environment).toBe("production");
+      expect(row.name).toBe("llm-call");
+      expect(row.type).toBe("GENERATION");
+    });
+
+    // Should include observations from both traces with acme tag
+    const traceIds = rows.map((row) => row.traceId).sort();
+    expect(traceIds).toEqual([traces[0].id, traces[1].id].sort());
   });
 });

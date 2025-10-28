@@ -185,6 +185,24 @@ export const createEvent = (
 ): EventRecordInsertType => {
   const spanId = v4();
   const now = Date.now() * 1000; // Convert to micro
+
+  // Default metadata to populate arrays from
+  const defaultMetadata: Record<string, string> = {
+    source: "API",
+    server: "Node",
+  };
+
+  // Merge default metadata with any provided metadata
+  const finalMetadata: Record<string, string> = {
+    ...defaultMetadata,
+    ...event.metadata,
+  };
+
+  // Extract metadata keys and values in sorted order for deterministic array population
+  const sortedKeys = Object.keys(finalMetadata).sort();
+  const metadataNames = sortedKeys;
+  const metadataValues = sortedKeys.map((key) => finalMetadata[key]);
+
   return {
     // Identifiers
     org_id: null,
@@ -227,16 +245,16 @@ export const createEvent = (
     input: "Hello World",
     output: "Hello John",
 
-    // Metadata
-    metadata: { source: "API", server: "Node" },
-    metadata_names: [],
-    metadata_values: [],
-    metadata_string_names: [],
-    metadata_string_values: [],
-    metadata_number_names: [],
-    metadata_number_values: [],
-    metadata_bool_names: [],
-    metadata_bool_values: [],
+    // Metadata - populate both JSON and array columns
+    metadata: finalMetadata,
+    metadata_names: metadataNames,
+    metadata_values: metadataValues,
+    // metadata_string_names: [],
+    // metadata_string_values: [],
+    // metadata_number_names: [],
+    // metadata_number_values: [],
+    // metadata_bool_names: [],
+    // metadata_bool_values: [],
 
     // Source metadata (Instrumentation)
     source: "API",

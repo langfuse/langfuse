@@ -100,6 +100,7 @@ export const JobExecutionStatus = {
   ERROR: "ERROR",
   PENDING: "PENDING",
   CANCELLED: "CANCELLED",
+  DELAYED: "DELAYED",
 } as const;
 export type JobExecutionStatus =
   (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];
@@ -487,6 +488,7 @@ export type JobExecution = {
   job_input_observation_id: string | null;
   job_input_dataset_item_id: string | null;
   job_output_score_id: string | null;
+  execution_trace_id: string | null;
 };
 export type LegacyPrismaObservation = {
   id: string;

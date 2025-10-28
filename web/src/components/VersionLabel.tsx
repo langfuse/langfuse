@@ -27,7 +27,7 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
-  const isLangfuseCloud = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
     undefined,

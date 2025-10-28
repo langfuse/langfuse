@@ -180,7 +180,7 @@ export const traceRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        timestampFilter: timeFilter.optional(),
+        timestampFilter: z.array(timeFilter).optional(),
       }),
     )
     .query(async ({ input }) => {
@@ -194,33 +194,30 @@ export const traceRouter = createTRPCRouter({
         userIds,
         sessionIds,
       ] = await Promise.all([
-        getNumericScoresGroupedByName(
-          input.projectId,
-          timestampFilter ? [timestampFilter] : [],
-        ),
+        getNumericScoresGroupedByName(input.projectId, timestampFilter ?? []),
         getCategoricalScoresGroupedByName(
           input.projectId,
-          timestampFilter ? [timestampFilter] : [],
+          timestampFilter ?? [],
         ),
         getTracesGroupedByName(
           input.projectId,
           tracesTableUiColumnDefinitions,
-          timestampFilter ? [timestampFilter] : [],
+          timestampFilter ?? [],
         ),
         getTracesGroupedByTags({
           projectId: input.projectId,
-          filter: timestampFilter ? [timestampFilter] : [],
+          filter: timestampFilter ?? [],
         }),
         getTracesGroupedByUsers(
           input.projectId,
-          timestampFilter ? [timestampFilter] : [],
+          timestampFilter ?? [],
           undefined,
           100,
           0,
         ),
         getTracesGroupedBySessionId(
           input.projectId,
-          timestampFilter ? [timestampFilter] : [],
+          timestampFilter ?? [],
           undefined,
           100,
           0,
@@ -228,7 +225,7 @@ export const traceRouter = createTRPCRouter({
       ]);
 
       return {
-        name: traceNames.map((n) => ({ value: n.name })),
+        name: traceNames.map((n) => ({ value: n.name, count: n.count })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
         tags: tags,

@@ -26,3 +26,15 @@
 ## Langfuse Cloud
 
 - When attempting to confirm if the current environment is Langfuse Cloud in the frontend, use the `useLangfuseCloudRegion` hook and never environment variables directly.
+
+## Banner Height System
+
+- Use `top-banner-offset` instead of `top-0` for any elements that are positioned `sticky`, `fixed`, or `absolute` with a global reference point (e.g., `top-0`). This ensures proper spacing when system banners (payment, maintenance, etc.) are displayed.
+- The banner height is managed through CSS variables (`--banner-height` and `--banner-offset`) defined in `web/src/styles/globals.css`.
+- Banner components (like PaymentBanner) dynamically update `--banner-height` using ResizeObserver to track their actual height, ensuring accurate positioning even when banners resize (e.g., on mobile wrapping).
+- Available Tailwind utilities:
+  - `top-banner-offset` / `pt-banner-offset` - For sticky/fixed/absolute positioning and padding
+  - `h-screen-with-banner` / `min-h-screen-with-banner` - For full-height containers accounting for banners
+
+## JavaScript / TypeScript Style
+- use concat instead of spread to avoid stack overflow with large arrays

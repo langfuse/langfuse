@@ -43,21 +43,23 @@ import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
 export const ObservationPreview = ({
   observations,
   projectId,
-  scores,
+  serverScores: scores,
   currentObservationId,
   traceId,
   commentCounts,
   viewType = "detailed",
   isTimeline,
+  showCommentButton = false,
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  scores: APIScoreV2[];
+  serverScores: APIScoreV2[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
   viewType?: "focused" | "detailed";
   isTimeline?: boolean;
+  showCommentButton?: boolean;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -69,9 +71,6 @@ export const ObservationPreview = ({
   );
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -82,6 +81,10 @@ export const ObservationPreview = ({
 
   const currentObservation = observations.find(
     (o) => o.id === currentObservationId,
+  );
+
+  const currentObservationScores = scores.filter(
+    (s) => s.observationId === currentObservationId,
   );
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
@@ -168,11 +171,11 @@ export const ObservationPreview = ({
                       traceId: traceId,
                       observationId: preloadedObservation.id,
                     }}
-                    scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
-                    environment={preloadedObservation.environment}
+                    scores={currentObservationScores}
+                    scoreMetadata={{
+                      projectId: projectId,
+                      environment: preloadedObservation.environment,
+                    }}
                   />
 
                   <CreateNewAnnotationQueueItem
@@ -197,6 +200,14 @@ export const ObservationPreview = ({
                   count={commentCounts?.get(preloadedObservation.id)}
                 />
               </>
+            )}
+            {viewType === "focused" && showCommentButton && (
+              <CommentDrawerButton
+                projectId={preloadedObservation.projectId}
+                objectId={preloadedObservation.id}
+                objectType="OBSERVATION"
+                count={commentCounts?.get(preloadedObservation.id)}
+              />
             )}
           </div>
         </div>

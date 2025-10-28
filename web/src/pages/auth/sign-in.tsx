@@ -20,6 +20,7 @@ import {
   SiGoogle,
   SiGitlab,
   SiGithub,
+  SiWordpress,
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
@@ -34,7 +35,7 @@ import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegio
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
-import { Code } from "lucide-react";
+import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -60,6 +61,7 @@ export type PageProps = {
     githubEnterprise: boolean;
     gitlab: boolean;
     okta: boolean;
+    onelogin: boolean;
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
@@ -72,6 +74,7 @@ export type PageProps = {
           connectionId: string;
         }
       | boolean;
+    wordpress: boolean;
     custom:
       | {
           name: string;
@@ -107,6 +110,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_OKTA_CLIENT_ID !== undefined &&
           env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
           env.AUTH_OKTA_ISSUER !== undefined,
+        onelogin:
+          env.AUTH_ONELOGIN_CLIENT_ID !== undefined &&
+          env.AUTH_ONELOGIN_CLIENT_SECRET !== undefined &&
+          env.AUTH_ONELOGIN_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
@@ -133,6 +140,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
                 ? { connectionId: env.AUTH_WORKOS_CONNECTION_ID }
                 : true
             : false,
+        wordpress:
+          env.AUTH_WORDPRESS_CLIENT_ID !== undefined &&
+          env.AUTH_WORDPRESS_CLIENT_SECRET !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -272,6 +282,17 @@ export function SSOButtons({
               }
             />
           )}
+          {authProviders.onelogin && (
+            <AuthProviderButton
+              icon={<Key className="mr-3" size={18} />}
+              label="OneLogin"
+              onClick={() => handleSignIn("onelogin")}
+              loading={providerSigningIn === "onelogin"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "onelogin"
+              }
+            />
+          )}
           {authProviders.auth0 && (
             <AuthProviderButton
               icon={<SiAuth0 className="mr-3" size={18} />}
@@ -392,6 +413,17 @@ export function SSOButtons({
                 }
               />
             </>
+          )}
+          {authProviders.wordpress && (
+            <AuthProviderButton
+              icon={<SiWordpress className="mr-3" size={18} />}
+              label="WordPress"
+              onClick={() => handleSignIn("wordpress")}
+              loading={providerSigningIn === "wordpress"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "wordpress"
+              }
+            />
           )}
           {authProviders.custom && (
             <AuthProviderButton

@@ -275,13 +275,13 @@ export class IngestionService {
     const metadataValues = flattened.values;
 
     // Flatten to typed arrays
-    const typed = this.flattenJsonToTypedPathArrays(metadata);
-    const metadataStringNames = typed.stringNames;
-    const metadataStringValues = typed.stringValues;
-    const metadataNumberNames = typed.numberNames;
-    const metadataNumberValues = typed.numberValues;
-    const metadataBoolNames = typed.boolNames;
-    const metadataBoolValues = typed.boolValues;
+    // const typed = this.flattenJsonToTypedPathArrays(metadata);
+    // const metadataStringNames = typed.stringNames;
+    // const metadataStringValues = typed.stringValues;
+    // const metadataNumberNames = typed.numberNames;
+    // const metadataNumberValues = typed.numberValues;
+    // const metadataBoolNames = typed.boolNames;
+    // const metadataBoolValues = typed.boolValues;
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
@@ -339,12 +339,12 @@ export class IngestionService {
       metadata,
       metadata_names: metadataNames,
       metadata_values: metadataValues,
-      metadata_string_names: metadataStringNames,
-      metadata_string_values: metadataStringValues,
-      metadata_number_names: metadataNumberNames,
-      metadata_number_values: metadataNumberValues,
-      metadata_bool_names: metadataBoolNames,
-      metadata_bool_values: metadataBoolValues,
+      // metadata_string_names: metadataStringNames,
+      // metadata_string_values: metadataStringValues,
+      // metadata_number_names: metadataNumberNames,
+      // metadata_number_values: metadataNumberValues,
+      // metadata_bool_names: metadataBoolNames,
+      // metadata_bool_values: metadataBoolValues,
 
       // Source/instrumentation metadata
       source: eventData.source,
@@ -526,6 +526,7 @@ export class IngestionService {
                 ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
                 : {},
               string_value: validatedScore.stringValue,
+              execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
               created_at: Date.now(),
               updated_at: Date.now(),
@@ -670,7 +671,7 @@ export class IngestionService {
     if (createEventTraceRecord) {
       const traceAsStagingObservation = convertTraceToStagingObservation(
         finalTraceRecord,
-        createdAtTimestamp.getTime(),
+        this.getPartitionAwareTimestamp(createdAtTimestamp),
       );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -699,6 +700,7 @@ export class IngestionService {
           projectId,
           traceId: entityId,
           exactTimestamp: new Date(finalTraceRecord.timestamp),
+          traceEnvironment: finalTraceRecord.environment,
         },
         id: randomUUID(),
         timestamp: new Date(),
@@ -824,10 +826,17 @@ export class IngestionService {
     );
 
     // Dual-write to staging table for batch propagation to events table
+    // Here, we add some additional logic around the first seen timestamp.
+    // We "lock" partitions 4min after their creation, i.e. the 15:00:00 partition
+    // should stop receiving updates at 15:04:00.
+    // This means that we keep the createdAtTimestamp as-is if it is within the last
+    // 3.5 minutes (incl. a 30s buffer around writes) and otherwise,
+    // we set the current timestamp for the event.
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
-        s3_first_seen_timestamp: createdAtTimestamp.getTime(),
+        s3_first_seen_timestamp:
+          this.getPartitionAwareTimestamp(createdAtTimestamp),
       };
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -1005,18 +1014,18 @@ export class IngestionService {
     | {}
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = observationRecord.provided_model_name
-      ? await findModel({
-          projectId,
-          model: observationRecord.provided_model_name,
-        })
-      : null;
+    const { model: internalModel, prices: modelPrices } =
+      observationRecord.provided_model_name
+        ? await findModel({
+            projectId,
+            model: observationRecord.provided_model_name,
+          })
+        : { model: null, prices: [] };
 
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
-    const modelPrices = await this.getModelPrices(internalModel?.id);
 
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
@@ -1037,12 +1046,6 @@ export class IngestionService {
       ...final_cost_details,
       internal_model_id: internalModel?.id,
     };
-  }
-
-  private async getModelPrices(modelId?: string): Promise<Price[]> {
-    return modelId
-      ? ((await this.prisma.price.findMany({ where: { modelId } })) ?? [])
-      : [];
   }
 
   private async getUsageUnits(
@@ -1598,6 +1601,25 @@ export class IngestionService {
   }
 
   /**
+   * Returns a partition-aware timestamp for staging table writes.
+   * If the createdAtTimestamp is within the last 3.5 minutes, returns it as-is.
+   * Otherwise, returns the current timestamp to prevent updates to old partitions.
+   *
+   * This implements the partition locking strategy where partitions are "locked"
+   * 4 minutes after creation (3.5 min + 30s buffer for writes).
+   */
+  private getPartitionAwareTimestamp(createdAtTimestamp: Date): number {
+    const now = Date.now();
+    const createdAt = createdAtTimestamp.getTime();
+    const ageInMs = now - createdAt;
+    const threeAndHalfMinutesInMs = 3.5 * 60 * 1000;
+
+    // If the createdAtTimestamp is within the last 3.5 minutes, use it
+    // Otherwise, use the current timestamp to avoid updating old partitions
+    return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
+  }
+
+  /**
    * Flattens a nested JSON object into path-based names and values.
    * For example: {foo: {bar: "baz"}} becomes:
    * - names: ["foo.bar"]
@@ -1641,52 +1663,52 @@ export class IngestionService {
    * Values are separated into string, number, bool, and other arrays based on their type.
    * Non-primitive values are JSON.stringify'd and placed in the strings group.
    */
-  private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
-    stringNames: string[];
-    stringValues: string[];
-    numberNames: string[];
-    numberValues: number[];
-    boolNames: string[];
-    boolValues: number[]; // ClickHouse uses 0/1 for booleans
-  } {
-    const stringNames: string[] = [];
-    const stringValues: string[] = [];
-    const numberNames: string[] = [];
-    const numberValues: number[] = [];
-    const boolNames: string[] = [];
-    const boolValues: number[] = [];
-
-    const { names, values } = this.flattenJsonToPathArrays(obj);
-
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
-      const value = values[i];
-
-      if (typeof value === "boolean") {
-        boolNames.push(name);
-        boolValues.push(value ? 1 : 0);
-      } else if (typeof value === "number") {
-        numberNames.push(name);
-        numberValues.push(value);
-      } else if (typeof value === "string") {
-        stringNames.push(name);
-        stringValues.push(value);
-      } else {
-        // For arrays, objects, null, undefined, etc., stringify and put in strings
-        stringNames.push(name);
-        stringValues.push(JSON.stringify(value));
-      }
-    }
-
-    return {
-      stringNames,
-      stringValues,
-      numberNames,
-      numberValues,
-      boolNames,
-      boolValues,
-    };
-  }
+  // private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
+  //   stringNames: string[];
+  //   stringValues: string[];
+  //   numberNames: string[];
+  //   numberValues: number[];
+  //   boolNames: string[];
+  //   boolValues: number[]; // ClickHouse uses 0/1 for booleans
+  // } {
+  //   const stringNames: string[] = [];
+  //   const stringValues: string[] = [];
+  //   const numberNames: string[] = [];
+  //   const numberValues: number[] = [];
+  //   const boolNames: string[] = [];
+  //   const boolValues: number[] = [];
+  //
+  //   const { names, values } = this.flattenJsonToPathArrays(obj);
+  //
+  //   for (let i = 0; i < names.length; i++) {
+  //     const name = names[i];
+  //     const value = values[i];
+  //
+  //     if (typeof value === "boolean") {
+  //       boolNames.push(name);
+  //       boolValues.push(value ? 1 : 0);
+  //     } else if (typeof value === "number") {
+  //       numberNames.push(name);
+  //       numberValues.push(value);
+  //     } else if (typeof value === "string") {
+  //       stringNames.push(name);
+  //       stringValues.push(value);
+  //     } else {
+  //       // For arrays, objects, null, undefined, etc., stringify and put in strings
+  //       stringNames.push(name);
+  //       stringValues.push(JSON.stringify(value));
+  //     }
+  //   }
+  //
+  //   return {
+  //     stringNames,
+  //     stringValues,
+  //     numberNames,
+  //     numberValues,
+  //     boolNames,
+  //     boolValues,
+  //   };
+  // }
 }
 
 type ObservationPrompt = Pick<Prompt, "id" | "name" | "version">;

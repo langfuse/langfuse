@@ -49,9 +49,10 @@ import {
 export const TracePreview = ({
   trace,
   observations,
-  scores,
+  serverScores: scores,
   commentCounts,
   viewType = "detailed",
+  showCommentButton = false,
 }: {
   trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
@@ -60,9 +61,10 @@ export const TracePreview = ({
     metadata: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  scores: APIScoreV2[];
+  serverScores: APIScoreV2[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
+  showCommentButton?: boolean;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -73,9 +75,6 @@ export const TracePreview = ({
     "pretty",
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -157,10 +156,10 @@ export const TracePreview = ({
                       traceId: trace.id,
                     }}
                     scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={true}
-                    environment={trace.environment}
+                    scoreMetadata={{
+                      projectId: trace.projectId,
+                      environment: trace.environment,
+                    }}
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}
@@ -175,6 +174,14 @@ export const TracePreview = ({
                   count={commentCounts?.get(trace.id)}
                 />
               </>
+            )}
+            {viewType === "focused" && showCommentButton && (
+              <CommentDrawerButton
+                projectId={trace.projectId}
+                objectId={trace.id}
+                objectType="TRACE"
+                count={commentCounts?.get(trace.id)}
+              />
             )}
           </div>
         </div>
