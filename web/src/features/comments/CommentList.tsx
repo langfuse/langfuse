@@ -43,6 +43,8 @@ import { type z } from "zod/v4";
 import { useMentionAutocomplete } from "@/src/features/comments/hooks/useMentionAutocomplete";
 import { MentionAutocomplete } from "@/src/features/comments/components/MentionAutocomplete";
 import { useRouter } from "next/router";
+import { ReactionPicker } from "@/src/features/comments/ReactionPicker";
+import { ReactionBar } from "@/src/features/comments/ReactionBar";
 import { stripMarkdown } from "@/src/utils/markdown";
 
 const useIsomorphicLayoutEffect =
@@ -312,6 +314,18 @@ export function CommentList({
     },
   });
 
+  const addReactionMutation = api.commentReactions.add.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.commentReactions.invalidate()]);
+    },
+  });
+
+  const removeReactionMutation = api.commentReactions.remove.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.commentReactions.invalidate()]);
+    },
+  });
+
   const commentsWithFormattedTimestamp = useMemo(() => {
     return comments.data?.map((comment) => ({
       ...comment,
@@ -522,15 +536,44 @@ export function CommentList({
                     className="border-none p-0 py-1 text-xs [&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_p]:text-xs"
                   />
 
-                  {/* Future reactions container */}
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 empty:hidden">
-                    {/* Reaction pills will go here (see LFE-7197) */}
+                  {/* Reactions */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <ReactionBar
+                      projectId={projectId}
+                      commentId={comment.id}
+                      onReactionToggle={(emoji, hasReacted) => {
+                        if (hasReacted) {
+                          removeReactionMutation.mutate({
+                            projectId,
+                            commentId: comment.id,
+                            emoji,
+                          });
+                        } else {
+                          addReactionMutation.mutate({
+                            projectId,
+                            commentId: comment.id,
+                            emoji,
+                          });
+                        }
+                      }}
+                    />
+                    {hasWriteAccess && (
+                      <ReactionPicker
+                        onEmojiSelect={(emoji) => {
+                          addReactionMutation.mutate({
+                            projectId,
+                            commentId: comment.id,
+                            emoji,
+                          });
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
 
                 {/* Actions - absolute positioned */}
                 {session.data?.user?.id === comment.authorUserId && (
-                  <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="absolute right-2 top-2 opacity-50 transition-opacity hover:opacity-100">
                     <Button
                       type="button"
                       size="icon-xs"
