@@ -716,7 +716,8 @@ export const scoresRouter = createTRPCRouter({
               AND is_deleted = 0
           ),
 
-          -- CTE 3: Match scores with NULL-safe joins
+          -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)
+          -- NULL-safe comparison: convert NULL to empty string for comparison
           matched_scores AS (
             SELECT
               s1.value as value1,
@@ -731,10 +732,10 @@ export const scoresRouter = createTRPCRouter({
               coalesce(s1.run_id, s2.run_id) as run_id
             FROM score1_filtered s1
             INNER JOIN score2_filtered s2
-              ON (s1.trace_id = s2.trace_id OR (s1.trace_id IS NULL AND s2.trace_id IS NULL))
-              AND (s1.observation_id = s2.observation_id OR (s1.observation_id IS NULL AND s2.observation_id IS NULL))
-              AND (s1.session_id = s2.session_id OR (s1.session_id IS NULL AND s2.session_id IS NULL))
-              AND (s1.run_id = s2.run_id OR (s1.run_id IS NULL AND s2.run_id IS NULL))
+              ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
+              AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
+              AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
+              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
             LIMIT {maxMatchedScoresLimit: UInt32}
           ),
 
@@ -873,7 +874,7 @@ export const scoresRouter = createTRPCRouter({
           std2 as col5,
           pearson_correlation as col6,
           mae as col7,
-          CAST(NULL AS Nullable(Float64)) as col8,
+          rmse as col8,
           CAST(NULL AS Nullable(String)) as col9,
           CAST(NULL AS Nullable(String)) as col10
         FROM stats
