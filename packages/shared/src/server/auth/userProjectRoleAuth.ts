@@ -1,6 +1,6 @@
 import { prisma, Prisma, Role, ProjectMembership } from "../../db";
-import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 import type { FilterState } from "../../types";
+import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { usersTableCols } from "./usersTable";
 
 export function resolveProjectRole({
