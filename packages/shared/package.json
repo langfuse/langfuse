@@ -25,11 +25,6 @@
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
     },
-    "./src/features/rbac": {
-      "types": "./dist/src/features/rbac/index.d.ts",
-      "import": "./dist/src/features/rbac/index.js",
-      "require": "./dist/src/features/rbac/index.js"
-    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
