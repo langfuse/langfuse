@@ -45,7 +45,7 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
     const event = transformTraceForMixpanel(trace, config.projectId);
     mixpanel.addEvent(event);
 
-    if (count % 10000 === 0) {
+    if (count % 1000 === 0) {
       await mixpanel.flush();
       logger.info(
         `Sent ${count} traces to Mixpanel for project ${config.projectId}`,
@@ -80,7 +80,7 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
     const event = transformGenerationForMixpanel(generation, config.projectId);
     mixpanel.addEvent(event);
 
-    if (count % 10000 === 0) {
+    if (count % 1000 === 0) {
       await mixpanel.flush();
       logger.info(
         `Sent ${count} generations to Mixpanel for project ${config.projectId}`,
@@ -113,7 +113,7 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
     const event = transformScoreForMixpanel(score, config.projectId);
     mixpanel.addEvent(event);
 
-    if (count % 10000 === 0) {
+    if (count % 1000 === 0) {
       await mixpanel.flush();
       logger.info(
         `Sent ${count} scores to Mixpanel for project ${config.projectId}`,

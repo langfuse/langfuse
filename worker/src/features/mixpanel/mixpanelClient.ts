@@ -4,7 +4,11 @@ import type { MixpanelEvent } from "./transformers";
 
 type MixpanelClientConfig = {
   projectToken: string;
-  region: string; // "api", "api-eu", or "api-in"
+  /**
+   * Mixpanel region subdomain (e.g., "api", "api-eu", "api-in")
+   * Validated at API layer via MIXPANEL_REGIONS in web/src/features/mixpanel-integration/types.ts
+   */
+  region: string;
 };
 
 export class MixpanelClient {

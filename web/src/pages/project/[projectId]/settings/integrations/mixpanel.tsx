@@ -22,7 +22,11 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
+import {
+  mixpanelIntegrationFormSchema,
+  MIXPANEL_REGIONS,
+  type MixpanelRegion,
+} from "@/src/features/mixpanel-integration/types";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -132,7 +136,8 @@ const MixpanelIntegrationSettingsForm = ({
     resolver: zodResolver(mixpanelIntegrationFormSchema),
     defaultValues: {
       mixpanelRegion:
-        (state?.mixpanelRegion as "api" | "api-eu" | "api-in") ?? "api",
+        (state?.mixpanelRegion as MixpanelRegion) ??
+        MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
     },
@@ -142,7 +147,8 @@ const MixpanelIntegrationSettingsForm = ({
   useEffect(() => {
     mixpanelForm.reset({
       mixpanelRegion:
-        (state?.mixpanelRegion as "api" | "api-eu" | "api-in") ?? "api",
+        (state?.mixpanelRegion as MixpanelRegion) ??
+        MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
     });
@@ -191,13 +197,11 @@ const MixpanelIntegrationSettingsForm = ({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="api">US (api.mixpanel.com)</SelectItem>
-                  <SelectItem value="api-eu">
-                    EU (api-eu.mixpanel.com)
-                  </SelectItem>
-                  <SelectItem value="api-in">
-                    India (api-in.mixpanel.com)
-                  </SelectItem>
+                  {MIXPANEL_REGIONS.map((region) => (
+                    <SelectItem key={region.subdomain} value={region.subdomain}>
+                      {region.description}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormDescription>
