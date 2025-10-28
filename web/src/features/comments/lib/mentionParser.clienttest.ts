@@ -1,10 +1,9 @@
-import { describe, it, expect } from "vitest";
 import {
   extractUniqueMentionedUserIds,
-  sanitizeMentions,
   MENTION_USER_PREFIX,
+  sanitizeMentions,
   type ProjectMember,
-} from "@langfuse/shared";
+} from "./mentionParser";
 
 describe("mentionParser", () => {
   describe("MENTION_USER_PREFIX", () => {

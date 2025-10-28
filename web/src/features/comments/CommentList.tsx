@@ -25,7 +25,6 @@ import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
-import { MENTION_USER_PREFIX } from "@langfuse/shared/src/features/comments/mentionParser";
 import { ArrowUpToLine, LoaderCircle, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
@@ -43,6 +42,7 @@ import { useRouter } from "next/router";
 import { ReactionPicker } from "@/src/features/comments/ReactionPicker";
 import { ReactionBar } from "@/src/features/comments/ReactionBar";
 import { stripMarkdown } from "@/src/utils/markdown";
+import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;

@@ -6,13 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "@langfuse/shared";
-import {
-  Prisma,
-  CreateCommentData,
-  DeleteCommentData,
-  extractUniqueMentionedUserIds,
-  sanitizeMentions,
-} from "@langfuse/shared";
+import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
@@ -23,6 +17,10 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { getUserProjectRoles } from "@langfuse/shared/src/server";
+import {
+  extractUniqueMentionedUserIds,
+  sanitizeMentions,
+} from "@/src/features/comments/lib/mentionParser";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
