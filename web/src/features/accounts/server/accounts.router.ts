@@ -139,7 +139,8 @@ export const accountsRouter = createTRPCRouter({
   createUser: protectedProjectProcedure
     .input(
       z.object({
-        username: z.string(),
+        email: z.string().email(),
+        name: z.string(),
         password: z.string(),
         projectId: z.string(),
         isGbaUser: z.boolean().optional(),
@@ -148,10 +149,39 @@ export const accountsRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const supabase = createSupabaseAdminClient();
 
+      // Register user with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: input.email,
+        password: input.password,
+        options: {
+          data: {
+            name: input.name,
+            full_name: input.name,
+            email_verified: true,
+            phone_verified: false,
+            paymentRequired: true,
+          },
+        },
+      });
+
+      if (authError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Auth error: ${authError.message}`,
+        });
+      }
+
+      if (!authData.user) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create auth user",
+        });
+      }
+
       const hashedPassword = hashChainlitPassword(input.password);
 
-      const { data, error } = await supabase.from("test_users").insert({
-        username: input.username,
+      const { error } = await supabase.from("test_users").insert({
+        username: input.email,
         password: hashedPassword,
       });
 
@@ -166,7 +196,7 @@ export const accountsRouter = createTRPCRouter({
       const djbMetadata = input.isGbaUser ? { ta_only: true } : {};
 
       const userRes = await supabase.from("User").insert({
-        identifier: input.username,
+        identifier: input.email,
         metadata: { role: "admin", provider: "credentials" },
         djb_metadata: djbMetadata,
       });
@@ -178,7 +208,10 @@ export const accountsRouter = createTRPCRouter({
         });
       }
 
-      return data;
+      return {
+        username: input.email,
+        authUserId: authData.user.id,
+      };
     }),
 
   createSyntheticUser: protectedProjectProcedure

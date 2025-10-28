@@ -20,7 +20,8 @@ export function CreateUserDialog() {
 
   const utils = api.useUtils();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [isGbaUser, setIsGbaUser] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -32,7 +33,8 @@ export function CreateUserDialog() {
       toast.success("User created");
       utils.accounts.getUsers.invalidate();
       setIsOpen(false);
-      setUsername("");
+      setEmail("");
+      setName("");
       setPassword("");
       setIsGbaUser(false);
     },
@@ -43,12 +45,13 @@ export function CreateUserDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      toast.error("Please fill in both username and password");
+    if (!email.trim() || !name.trim() || !password.trim()) {
+      toast.error("Please fill in all required fields");
       return;
     }
     createUser.mutate({
-      username: username.trim(),
+      email: email.trim(),
+      name: name.trim(),
       password: password.trim(),
       projectId: projectId,
       isGbaUser: isGbaUser,
@@ -73,12 +76,23 @@ export function CreateUserDialog() {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 px-4 py-6">
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email"
+              disabled={createUser.isLoading}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter name"
               disabled={createUser.isLoading}
             />
           </div>
