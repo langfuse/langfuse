@@ -12,7 +12,6 @@ import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
   CreatePromptTRPCSchema,
-  InvalidRequestError,
   LATEST_PROMPT_LABEL,
   optionalPaginationZod,
   paginationZod,
