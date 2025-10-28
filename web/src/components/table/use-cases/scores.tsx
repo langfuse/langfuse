@@ -244,6 +244,7 @@ export default function ScoresTable({
   const queryFilter = useSidebarFilterState(
     scoreFilterConfig,
     newFilterOptions,
+    projectId,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
