@@ -1385,6 +1385,13 @@ export class OtelIngestionProcessor {
       return { input, output, filteredAttributes };
     }
 
+    // Pydantic-AI uses tool_arguments and tool_response for tool call input/output
+    input = attributes["tool_arguments"];
+    output = attributes["tool_response"];
+    if (input || output) {
+      return { input, output, filteredAttributes };
+    }
+
     // TraceLoop uses attributes property
     const inputAttributes = Object.keys(attributes).filter((key) =>
       key.startsWith("gen_ai.prompt"),
@@ -1461,6 +1468,10 @@ export class OtelIngestionProcessor {
     }
 
     // Vercel AI SDK
+    if ("ai.toolCall.name" in attributes) {
+      return attributes["ai.toolCall.name"] as string;
+    }
+
     const functionIdAttribute = "ai.telemetry.functionId";
     const operationIdAttribute = "ai.operationId";
 

@@ -202,6 +202,7 @@ const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
 
 const PublicEnvironmentName = z
   .string()
+  .toLowerCase()
   .max(40, "Maximum length is 40 characters")
   .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
   .default("default");

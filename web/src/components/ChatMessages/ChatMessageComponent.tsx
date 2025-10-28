@@ -79,7 +79,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   deleteMessage,
   replaceMessage,
   availableRoles,
-  index,
+  index: _index,
   toolCallIds,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
@@ -111,99 +111,58 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       setRoleIndex(roleIndex + 1);
     } else {
       // if user has not set custom roles, we toggle through default roles (assistant, user)
-      if (index === 0) {
-        const eligibleRoles = ROLES.filter(
-          (r) =>
-            r !== ChatMessageRole.Tool ||
-            (toolCallIds && toolCallIds.length > 0),
-        );
-        const currentIndex = eligibleRoles.indexOf(
-          ("role" in message
-            ? message.role
-            : ChatMessageRole.User) as ChatMessageRole,
-        );
-        const nextRole =
-          eligibleRoles[(currentIndex + 1) % eligibleRoles.length];
+      // Allow all roles including system and developer at any position
+      const eligibleRoles = ROLES.filter(
+        (r) =>
+          r !== ChatMessageRole.Tool || (toolCallIds && toolCallIds.length > 0),
+      );
+      const currentIndex = eligibleRoles.indexOf(
+        ("role" in message
+          ? message.role
+          : ChatMessageRole.User) as ChatMessageRole,
+      );
+      const nextRole = eligibleRoles[(currentIndex + 1) % eligibleRoles.length];
 
-        if (nextRole === ChatMessageRole.User) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.User,
-          });
-        } else if (nextRole === ChatMessageRole.Assistant) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.AssistantText,
-          });
-        } else if (nextRole === ChatMessageRole.Tool) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.ToolResult,
-            toolCallId: toolCallIds?.[0] ?? "",
-          });
-        } else if (nextRole === ChatMessageRole.Developer) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.Developer,
-          });
-        } else if (nextRole === ChatMessageRole.System) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.System,
-          });
-        } else if (nextRole === ChatMessageRole.Model) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.ModelText,
-          });
-        } else {
-          const exhaustiveCheck: never = nextRole;
-          console.error(`Unhandled role: ${exhaustiveCheck}`);
-        }
+      if (nextRole === ChatMessageRole.User) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.User,
+        });
+      } else if (nextRole === ChatMessageRole.Assistant) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.AssistantText,
+        });
+      } else if (nextRole === ChatMessageRole.Tool) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.ToolResult,
+          toolCallId: toolCallIds?.[0] ?? "",
+        });
+      } else if (nextRole === ChatMessageRole.Developer) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.Developer,
+        });
+      } else if (nextRole === ChatMessageRole.System) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.System,
+        });
+      } else if (nextRole === ChatMessageRole.Model) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.ModelText,
+        });
       } else {
-        // Instead of directly updating the role, we need to replace the message with a new one
-        // that has the appropriate type and role
-        const newRole:
-          | ChatMessageRole.User
-          | ChatMessageRole.Assistant
-          | ChatMessageRole.Tool =
-          message.role === ChatMessageRole.User
-            ? ChatMessageRole.Assistant
-            : message.role === ChatMessageRole.Assistant &&
-                toolCallIds &&
-                toolCallIds.length > 0
-              ? ChatMessageRole.Tool
-              : ChatMessageRole.User;
-
-        if (newRole === ChatMessageRole.User) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: newRole,
-            type: ChatMessageType.User,
-          });
-        } else if (newRole === ChatMessageRole.Assistant) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: newRole,
-            type: ChatMessageType.AssistantText,
-          });
-        } else if (newRole === ChatMessageRole.Tool) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: newRole,
-            type: ChatMessageType.ToolResult,
-            toolCallId: toolCallIds?.[0] ?? "",
-          });
-        } else {
-          const exhaustiveCheck: never = newRole;
-          console.error(`Unhandled role: ${exhaustiveCheck}`);
-        }
+        const exhaustiveCheck: never = nextRole;
+        console.error(`Unhandled role: ${exhaustiveCheck}`);
       }
     }
   };
