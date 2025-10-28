@@ -97,8 +97,6 @@ export async function handleCommentMentionNotification(
       return;
     }
 
-    // Fetch all users (author + mentioned users) with single efficient query
-    // This replaces ~18-24 individual database queries with 1 SQL query
     const allUserIds = comment.authorUserId
       ? [comment.authorUserId, ...mentionedUserIds]
       : mentionedUserIds;
@@ -127,6 +125,16 @@ export async function handleCommentMentionNotification(
       const author = userMap.get(comment.authorUserId)!;
       authorName = author.name ?? author.email ?? undefined;
     }
+
+    // Build comment preview once (truncate + strip mention markdown)
+    const commentPreview = (() => {
+      const truncated =
+        comment.content.length > 500
+          ? comment.content.substring(0, 497) + "..."
+          : comment.content;
+      // Convert @[DisplayName](user:userId) to @DisplayName
+      return truncated.replace(/@\[([^\]]+)\]\(user:[^)]+\)/g, "@$1");
+    })();
 
     // Process each mentioned user
     for (const userId of mentionedUserIds) {
@@ -166,19 +174,6 @@ export async function handleCommentMentionNotification(
           );
           continue;
         }
-
-        // Truncate comment content for preview (500 chars)
-        let commentPreview =
-          comment.content.length > 500
-            ? comment.content.substring(0, 497) + "..."
-            : comment.content;
-
-        // Strip markdown link syntax from mentions for plain text display
-        // Convert @[DisplayName](user:userId) to @DisplayName
-        commentPreview = commentPreview.replace(
-          /@\[([^\]]+)\]\(user:[^)]+\)/g,
-          "@$1",
-        );
 
         // Construct comment link using NEXTAUTH_URL (which includes basePath if configured)
         const baseUrl = env.NEXTAUTH_URL || "http://localhost:3000";
