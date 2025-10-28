@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import {
   type FilterState,
@@ -15,6 +15,7 @@ import {
 } from "../lib/filter-query-encoding";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import type { FilterConfig } from "../lib/filter-config";
 
 /**
@@ -304,6 +305,57 @@ export function useSidebarFilterState(
     },
     [config.columnToQueryKey, options, setFiltersQuery],
   );
+
+  // track if defaults have been applied before, versioned to support future changes
+  const [defaultsApplied, setDefaultsApplied] = useLocalStorage<boolean>(
+    `${config.tableName}-env-defaults-v1`,
+    false,
+  );
+
+  // init default env filters on first load to deselect envs prefixed with "langfuse-"
+  useEffect(() => {
+    if (filterState.length > 0 || defaultsApplied) return;
+
+    // only if there is an environment facet
+    const environmentFacet = config.facets.find(
+      (f) => f.column === "environment" && f.type === "categorical",
+    );
+    if (!environmentFacet) return;
+
+    const environmentOptions = options["environment"];
+    if (!Array.isArray(environmentOptions) || environmentOptions.length === 0)
+      return;
+
+    const environments = environmentOptions.map((opt) =>
+      typeof opt === "string" ? opt : opt.value,
+    );
+
+    const langfuseEnvironments = environments.filter((env) =>
+      env.startsWith("langfuse-"),
+    );
+
+    // exclude langfuse- environments if there are any
+    if (langfuseEnvironments.length > 0) {
+      const defaultFilter: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: langfuseEnvironments,
+        },
+      ];
+
+      setFilterState(defaultFilter);
+      setDefaultsApplied(true);
+    }
+  }, [
+    filterState.length,
+    defaultsApplied,
+    config.facets,
+    options,
+    setFilterState,
+    setDefaultsApplied,
+  ]);
 
   const clearAll = () => {
     setFilterState([]);
