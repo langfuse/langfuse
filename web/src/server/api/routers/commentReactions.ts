@@ -59,7 +59,7 @@ export const commentReactionsRouter = createTRPCRouter({
           update: {}, // Already exists, no-op
         });
 
-        return { success: true, reaction };
+        return reaction;
       } catch (error) {
         logger.error("Failed to call commentReactions.add", error);
         if (error instanceof TRPCError) {
@@ -113,7 +113,7 @@ export const commentReactionsRouter = createTRPCRouter({
           },
         });
 
-        return { success: true };
+        return;
       } catch (error) {
         logger.error("Failed to call commentReactions.remove", error);
         if (error instanceof TRPCError) {
