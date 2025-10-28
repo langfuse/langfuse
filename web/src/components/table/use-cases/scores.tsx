@@ -11,7 +11,10 @@ import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { scoreFilterConfig } from "@/src/features/filters/config/scores-config";
+import {
+  scoreFilterConfig,
+  SCORE_COLUMN_TO_BACKEND_KEY,
+} from "@/src/features/filters/config/scores-config";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -223,6 +226,11 @@ export default function ScoresTable({
       source: ["ANNOTATION", "API", "EVAL"],
       dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
       value: [],
+      tags:
+        filterOptions.data?.tags?.map((t) => ({
+          value: t.value,
+          count: t.count !== undefined ? Number(t.count) : undefined,
+        })) || [],
     }),
     [filterOptions.data],
   );
@@ -254,7 +262,7 @@ export default function ScoresTable({
 
   const backendFilterState = transformFiltersForBackend(
     filterState,
-    {}, // No backend column remapping needed for scores
+    SCORE_COLUMN_TO_BACKEND_KEY,
     scoreFilterConfig.columnDefinitions,
   );
 
