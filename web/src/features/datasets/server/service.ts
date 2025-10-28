@@ -13,8 +13,8 @@ import {
 import { z } from "zod/v4";
 import {
   type EnrichedDatasetRunItem,
-  getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
+  getLatencyAndTotalCostForObservationsWithChildren,
   getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
   traceException,
@@ -204,25 +204,29 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
   const filterTimestamp = minTimestamp
     ? new Date(minTimestamp.getTime() - 24 * 60 * 60 * 1000)
     : undefined;
+  const traceIds = [...new Set(runItems.map((ri) => ri.traceId))];
+  const observationLevelRunItems = runItems.filter(
+    (ri) => ri.observationId !== null,
+  );
+
   const [traceScores, observationAggregates, traceAggregate] =
     await Promise.all([
       getScoresForTraces({
         projectId,
-        traceIds: runItems.map((ri) => ri.traceId),
+        traceIds,
         timestamp: filterTimestamp,
         includeHasMetadata: true,
         excludeMetadata: true,
       }),
-      getLatencyAndTotalCostForObservations(
+      getLatencyAndTotalCostForObservationsWithChildren(
         projectId,
-        runItems
-          .filter((ri) => ri.observationId !== null)
-          .map((ri) => ri.observationId) as string[],
+        observationLevelRunItems.map((ri) => ri.observationId) as string[],
+        [...new Set(observationLevelRunItems.map((ri) => ri.traceId))],
         filterTimestamp,
       ),
       getLatencyAndTotalCostForObservationsByTraces(
         projectId,
-        runItems.map((ri) => ri.traceId),
+        traceIds,
         filterTimestamp,
       ),
     ]);

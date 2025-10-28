@@ -44,6 +44,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
+import { calculateRecursiveCost } from "../utils/costCalculations";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -1351,6 +1352,120 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
   return rows.map((r) => ({
     traceId: r.trace_id,
     totalCost: Number(r.total_cost),
+    latency: Number(r.latency_ms) / 1000,
+  }));
+};
+
+/**
+ * Get latency and RECURSIVE total cost for observations
+ */
+export const getLatencyAndTotalCostForObservationsWithChildren = async (
+  projectId: string,
+  observationIds: string[],
+  traceIds: string[],
+  timestamp?: Date,
+) => {
+  if (observationIds.length === 0) return [];
+
+  // Query 1: Direct costs + latency for target observations
+  const directQuery = `
+    SELECT
+        id,
+        trace_id,
+        cost_details['total'] AS total_cost,
+        cost_details['input'] AS input_cost,
+        cost_details['output'] AS output_cost,
+        dateDiff('millisecond', start_time, end_time) AS latency_ms
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+    AND id IN ({observationIds: Array(String)})
+    ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
+  `;
+
+  const directResults = await queryClickhouse<{
+    id: string;
+    trace_id: string;
+    total_cost: string;
+    input_cost: string;
+    output_cost: string;
+    latency_ms: string;
+  }>({
+    query: directQuery,
+    params: {
+      projectId,
+      observationIds,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  // Query 2: ALL observations for traces grouped by trace_id (for recursive calculation)
+  const allObservationsQuery = `
+    SELECT
+        trace_id,
+        groupArray((id, parent_observation_id, cost_details['total'], cost_details['input'], cost_details['output'])) AS observations
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)})
+    ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
+    GROUP BY trace_id
+  `;
+
+  const groupedObservations = await queryClickhouse<{
+    trace_id: string;
+    observations: Array<[string, string | null, string, string, string]>; // [id, parent_id, total, input, output]
+  }>({
+    query: allObservationsQuery,
+    params: {
+      projectId,
+      traceIds,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  const observationsByTraceId = new Map(
+    groupedObservations.map((g) => [g.trace_id, g.observations]),
+  );
+
+  // Calculate recursive costs for each observation
+  const calculatedCosts = new Map<string, number>();
+
+  for (const result of directResults) {
+    const observations = observationsByTraceId.get(result.trace_id);
+    if (observations?.length && Boolean(observations.length)) {
+      const cost = calculateRecursiveCost(
+        result.id,
+        observations.map(([id, parent_id, total, input, output]) => ({
+          id,
+          parentObservationId: parent_id,
+          totalCost: total,
+          inputCost: input,
+          outputCost: output,
+        })),
+      );
+      calculatedCosts.set(result.id, cost?.toNumber() ?? 0);
+    }
+  }
+
+  // Return: use calculated recursive cost (includes children)
+  return directResults.map((r) => ({
+    id: r.id,
+    totalCost: (calculatedCosts.get(r.id) ?? Number(r.total_cost)) || 0,
     latency: Number(r.latency_ms) / 1000,
   }));
 };
