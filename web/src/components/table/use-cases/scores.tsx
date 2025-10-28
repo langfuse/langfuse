@@ -30,6 +30,7 @@ import {
   BatchExportTableName,
   BatchActionType,
   TableViewPresetTableName,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
@@ -198,7 +199,10 @@ export default function ScoresTable({
   const filterOptions = api.scores.filterOptions.useQuery(
     {
       projectId,
-      timestampFilter: dateRangeFilter.length > 0 ? dateRangeFilter : undefined,
+      timestampFilter:
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
+          : undefined,
     },
     {
       trpc: {

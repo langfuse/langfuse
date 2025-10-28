@@ -21,6 +21,7 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -161,7 +162,10 @@ export default function SessionsTable({
   const filterOptions = api.sessions.filterOptions.useQuery(
     {
       projectId,
-      timestampFilter: dateRangeFilter.length > 0 ? dateRangeFilter : undefined,
+      timestampFilter:
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
+          : undefined,
     },
     {
       trpc: {

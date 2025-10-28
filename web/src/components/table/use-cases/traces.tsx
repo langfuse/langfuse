@@ -38,6 +38,7 @@ import {
   AnnotationQueueObjectType,
   BatchActionType,
   TableViewPresetTableName,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
@@ -208,7 +209,10 @@ export default function TracesTable({
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
     {
       projectId,
-      timestampFilter: dateRangeFilter.length > 0 ? dateRangeFilter : undefined,
+      timestampFilter:
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
+          : undefined,
     },
     {
       trpc: { context: { skipBatch: true } },
