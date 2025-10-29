@@ -1389,7 +1389,7 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async (
 ) => {
   if (observationIds.length === 0) return [];
 
-  // Query 1: trace_id for target observations
+  // Query 1: filter to observations that exist
   const directQuery = `
     SELECT
         id,

@@ -24,15 +24,21 @@ export const findObservationDescendants = <T extends ObservationCostData>(
   );
 
   // Recursively add children
-  while (true) {
-    const childrenToAdd = allObservations.filter(
+  let childrenToAdd = allObservations.filter(
+    (o) =>
+      o.parentObservationId &&
+      !relevantObs.some((o2) => o2.id === o.id) &&
+      relevantObs.some((o2) => o2.id === o.parentObservationId),
+  );
+
+  while (childrenToAdd.length > 0) {
+    relevantObs = [...relevantObs, ...childrenToAdd];
+    childrenToAdd = allObservations.filter(
       (o) =>
         o.parentObservationId &&
         !relevantObs.some((o2) => o2.id === o.id) &&
         relevantObs.some((o2) => o2.id === o.parentObservationId),
     );
-    if (childrenToAdd.length === 0) break;
-    relevantObs = [...relevantObs, ...childrenToAdd];
   }
 
   return relevantObs;
