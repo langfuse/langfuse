@@ -223,10 +223,7 @@ export const handleEventPropagationJob = async (
             t.project_id,
             t.user_id,
             t.session_id,
-            mapConcat(
-              t.metadata,
-              if(length(t.tags) > 0, map('trace_tags', toJSONString(t.tags)), map())
-            ) AS metadata
+            t.metadata
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
             and t.id in (select arrayJoin(trace_ids) from batch_stats)
