@@ -1,10 +1,9 @@
-import { describe, it, expect } from "vitest";
 import {
   extractUniqueMentionedUserIds,
-  sanitizeMentions,
   MENTION_USER_PREFIX,
+  sanitizeMentions,
   type ProjectMember,
-} from "@langfuse/shared";
+} from "./mentionParser";
 
 describe("mentionParser", () => {
   describe("MENTION_USER_PREFIX", () => {
@@ -276,7 +275,7 @@ describe("mentionParser", () => {
           "@[" + "A".repeat(50) + "[" + "B".repeat(50) + "](user:test)";
 
         const startTime = Date.now();
-        const result = extractUniqueMentionedUserIds(content);
+        void extractUniqueMentionedUserIds(content);
         const duration = Date.now() - startTime;
 
         expect(duration).toBeLessThan(100);

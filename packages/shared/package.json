@@ -25,10 +25,6 @@
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
     },
-    "./src/features/comments/mentionParser": {
-      "import": "./dist/src/features/comments/mentionParser.js",
-      "require": "./dist/src/features/comments/mentionParser.js"
-    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"

@@ -17,7 +17,6 @@ import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
-import { MENTION_USER_PREFIX } from "@langfuse/shared";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
@@ -36,6 +35,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import DOMPurify from "dompurify";
+import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -316,12 +316,14 @@ export function MarkdownView({
   customCodeHeaderClassName,
   audio,
   media,
+  className,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
+  className?: string;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -360,6 +362,7 @@ export function MarkdownView({
           title === "system" || title === "Input"
             ? "bg-primary-foreground"
             : "",
+          className,
         )}
       >
         {typeof markdown === "string" ? (

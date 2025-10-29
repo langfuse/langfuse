@@ -43,7 +43,6 @@ export * from "./features/scoreConfigs";
 
 // comments
 export * from "./features/comments/types";
-export * from "./features/comments/mentionParser";
 
 // experiments
 export * from "./features/experiments/utils";

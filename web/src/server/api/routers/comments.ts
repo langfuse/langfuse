@@ -6,18 +6,21 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { CommentObjectType } from "@langfuse/shared";
-import {
-  Prisma,
-  CreateCommentData,
-  DeleteCommentData,
-  extractUniqueMentionedUserIds,
-  sanitizeMentions,
-} from "@langfuse/shared";
+import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import { getTracesIdentifierForSession } from "@langfuse/shared/src/server";
-import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
+import {
+  getTracesIdentifierForSession,
+  logger,
+  NotificationQueue,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
+import { getUserProjectRoles } from "@langfuse/shared/src/server";
+import {
+  extractUniqueMentionedUserIds,
+  sanitizeMentions,
+} from "@/src/features/comments/lib/mentionParser";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -46,6 +49,7 @@ export const commentsRouter = createTRPCRouter({
 
       // Sanitize mentions
       let sanitizedContent = input.content;
+      let validMentionedUserIds: string[] = [];
 
       if (mentionedUserIds.length > 0) {
         // Check projectMembers:read permission if mentioning users
@@ -79,6 +83,7 @@ export const commentsRouter = createTRPCRouter({
           projectMembers,
         );
         sanitizedContent = sanitizationResult.sanitizedContent;
+        validMentionedUserIds = sanitizationResult.validMentionedUserIds;
       }
 
       // Create comment with sanitized content
@@ -100,6 +105,31 @@ export const commentsRouter = createTRPCRouter({
         after: comment,
       });
 
+      // Enqueue notification job for mentioned users
+      if (validMentionedUserIds.length > 0) {
+        const notificationQueue = NotificationQueue.getInstance();
+        if (notificationQueue) {
+          try {
+            await notificationQueue.add(QueueJobs.NotificationJob, {
+              timestamp: new Date(),
+              id: comment.id,
+              payload: {
+                type: "COMMENT_MENTION" as const,
+                commentId: comment.id,
+                projectId: input.projectId,
+                mentionedUserIds: validMentionedUserIds,
+              },
+              name: QueueJobs.NotificationJob,
+            });
+            logger.info(
+              `Notification job enqueued for comment ${comment.id} with ${validMentionedUserIds.length} mentions`,
+            );
+          } catch (error) {
+            // Log but don't fail the request if notification queueing fails
+            logger.error("Failed to enqueue notification job", error);
+          }
+        }
+      }
       return comment;
     }),
   delete: protectedProjectProcedure
@@ -190,7 +220,7 @@ export const commentsRouter = createTRPCRouter({
           AND c."object_id" = ${input.objectId}
           AND c."object_type"::text = ${input.objectType}
         ORDER BY
-          c.created_at DESC
+          c.created_at ASC
         `,
       );
 
@@ -252,6 +282,52 @@ export const commentsRouter = createTRPCRouter({
           _count.objectId,
         ]),
       );
+    }),
+  getCountByObjectIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        objectType: z.enum(CommentObjectType),
+        objectIds: z.array(z.string()).min(1),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+
+        const commentCounts = await ctx.prisma.comment.groupBy({
+          by: ["objectId"],
+          where: {
+            projectId: input.projectId,
+            objectType: input.objectType,
+            objectId: { in: input.objectIds },
+          },
+          _count: {
+            objectId: true,
+          },
+        });
+
+        // Return as a Map<string, number>
+        return new Map(
+          commentCounts.map(({ objectId, _count }) => [
+            objectId,
+            _count.objectId,
+          ]),
+        );
+      } catch (error) {
+        logger.error("Failed to call comments.getCountByObjectIds", error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching comment counts by object ids failed.",
+        });
+      }
     }),
   getTraceCommentCountsBySessionId: protectedProjectProcedure
     .input(
