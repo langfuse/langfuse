@@ -25,286 +25,10 @@ import {
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-
-// Type for the analytics data returned from the API
-type AnalyticsData = {
-  heatmap: Array<{
-    binX: number;
-    binY: number;
-    count: number;
-    min1: number;
-    max1: number;
-    min2: number;
-    max2: number;
-  }>;
-  confusionMatrix: Array<{
-    rowCategory: string;
-    colCategory: string;
-    count: number;
-  }>;
-  counts: {
-    score1Total: number;
-    score2Total: number;
-    matchedCount: number;
-  };
-  statistics: {
-    matchedCount: number;
-    mean1: number | null;
-    mean2: number | null;
-    std1: number | null;
-    std2: number | null;
-    pearsonCorrelation: number | null;
-    mae: number | null;
-    rmse: number | null;
-  } | null;
-};
-
-function TwoScoreVisualization({
-  analyticsData,
-  score1,
-  score2,
-}: {
-  analyticsData: AnalyticsData;
-  score1: ScoreOption;
-  score2: ScoreOption;
-}) {
-  const isNumeric = score1.dataType === "NUMERIC";
-
-  // Transform API data to match heatmap utils format
-  const heatmapData = useMemo(() => {
-    if (isNumeric && analyticsData.heatmap.length > 0) {
-      return generateNumericHeatmapData({
-        data: analyticsData.heatmap.map((h) => ({
-          bin_x: h.binX,
-          bin_y: h.binY,
-          count: h.count,
-          min1: h.min1,
-          max1: h.max1,
-          min2: h.min2,
-          max2: h.max2,
-        })),
-        nBins: 10,
-        colorVariant: "chart1",
-        showCounts: true,
-        showPercentages: false,
-      });
-    }
-    return null;
-  }, [analyticsData.heatmap, isNumeric]);
-
-  const confusionData = useMemo(() => {
-    if (!isNumeric && analyticsData.confusionMatrix.length > 0) {
-      return generateConfusionMatrixData({
-        data: analyticsData.confusionMatrix.map((c) => ({
-          row_category: c.rowCategory,
-          col_category: c.colCategory,
-          count: c.count,
-        })),
-        colorVariant: "chart1",
-        highlightDiagonal: true,
-        showCounts: true,
-        showPercentages: false,
-      });
-    }
-    return null;
-  }, [analyticsData.confusionMatrix, isNumeric]);
-
-  const maxCount = useMemo(() => {
-    if (isNumeric && analyticsData.heatmap.length > 0) {
-      return Math.max(...analyticsData.heatmap.map((h) => h.count));
-    }
-    if (!isNumeric && analyticsData.confusionMatrix.length > 0) {
-      return Math.max(...analyticsData.confusionMatrix.map((c) => c.count));
-    }
-    return 0;
-  }, [analyticsData, isNumeric]);
-
-  return (
-    <div className="space-y-6 p-4">
-      {/* Summary Stats Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Comparison Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {score1.name} total
-              </p>
-              <p className="text-2xl font-bold">
-                {analyticsData.counts.score1Total.toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {score2.name} total
-              </p>
-              <p className="text-2xl font-bold">
-                {analyticsData.counts.score2Total.toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Matched pairs</p>
-              <p className="text-2xl font-bold">
-                {analyticsData.counts.matchedCount.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Heatmap/Confusion Matrix Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {isNumeric ? "Score Correlation Heatmap" : "Confusion Matrix"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isNumeric && heatmapData ? (
-            <div className="space-y-4">
-              <Heatmap
-                data={heatmapData.cells}
-                rows={10}
-                cols={10}
-                rowLabels={heatmapData.rowLabels}
-                colLabels={heatmapData.colLabels}
-                xAxisLabel={`${score2.name} (${score2.source})`}
-                yAxisLabel={`${score1.name} (${score1.source})`}
-                renderTooltip={(cell) => (
-                  <div className="space-y-1">
-                    <p className="font-semibold">Count: {cell.value}</p>
-                    <p className="text-xs">
-                      {score1.name}:{" "}
-                      {(cell.metadata?.yRange as [number, number])?.[0].toFixed(
-                        2,
-                      )}{" "}
-                      -{" "}
-                      {(cell.metadata?.yRange as [number, number])?.[1].toFixed(
-                        2,
-                      )}
-                    </p>
-                    <p className="text-xs">
-                      {score2.name}:{" "}
-                      {(cell.metadata?.xRange as [number, number])?.[0].toFixed(
-                        2,
-                      )}{" "}
-                      -{" "}
-                      {(cell.metadata?.xRange as [number, number])?.[1].toFixed(
-                        2,
-                      )}
-                    </p>
-                    <p className="text-xs">
-                      {(cell.metadata?.percentage as number)?.toFixed(1)}% of
-                      total
-                    </p>
-                  </div>
-                )}
-              />
-              <HeatmapLegend
-                min={0}
-                max={maxCount}
-                variant="chart1"
-                title="Count"
-              />
-            </div>
-          ) : !isNumeric && confusionData ? (
-            <div className="space-y-4">
-              <Heatmap
-                data={confusionData.cells}
-                rows={confusionData.rows}
-                cols={confusionData.cols}
-                rowLabels={confusionData.rowLabels}
-                colLabels={confusionData.colLabels}
-                xAxisLabel={`${score2.name} (${score2.source})`}
-                yAxisLabel={`${score1.name} (${score1.source})`}
-                renderTooltip={(cell) => (
-                  <div className="space-y-1">
-                    <p className="font-semibold">
-                      {cell.metadata?.rowCategory as string} →{" "}
-                      {cell.metadata?.colCategory as string}
-                    </p>
-                    <p>Count: {cell.value}</p>
-                    <p className="text-xs">
-                      {(cell.metadata?.percentage as number)?.toFixed(1)}% of
-                      total
-                    </p>
-                    {cell.metadata?.isDiagonal && (
-                      <p className="text-xs">✓ Agreement</p>
-                    )}
-                  </div>
-                )}
-              />
-              <HeatmapLegend
-                min={0}
-                max={maxCount}
-                variant="chart1"
-                title="Count"
-              />
-            </div>
-          ) : (
-            <p className="text-center text-muted-foreground">
-              No comparison data available
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Statistics Card (for numeric scores) */}
-      {isNumeric && analyticsData.statistics && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Statistical Measures</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {analyticsData.statistics.pearsonCorrelation !== null && (
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Pearson Correlation
-                  </p>
-                  <p className="text-2xl font-bold">
-                    {analyticsData.statistics.pearsonCorrelation.toFixed(3)}
-                  </p>
-                </div>
-              )}
-              {analyticsData.statistics.mae !== null && (
-                <div>
-                  <p className="text-sm text-muted-foreground">MAE</p>
-                  <p className="text-2xl font-bold">
-                    {analyticsData.statistics.mae.toFixed(3)}
-                  </p>
-                </div>
-              )}
-              {analyticsData.statistics.rmse !== null && (
-                <div>
-                  <p className="text-sm text-muted-foreground">RMSE</p>
-                  <p className="text-2xl font-bold">
-                    {analyticsData.statistics.rmse.toFixed(3)}
-                  </p>
-                </div>
-              )}
-              {analyticsData.statistics.mean1 !== null && (
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Mean {score1.name}
-                  </p>
-                  <p className="text-2xl font-bold">
-                    {analyticsData.statistics.mean1.toFixed(3)}
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
 
 export default function ScoresAnalyticsPage() {
   const router = useRouter();
@@ -372,18 +96,38 @@ export default function ScoresAnalyticsPage() {
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
 
-  // Parse selected scores to get their full details
-  const score1Details = useMemo(() => {
-    if (!urlState.score1) return undefined;
-    return scoreOptions.find((opt) => opt.value === urlState.score1);
+  // Parse score identifiers (format: "name-dataType-source")
+  const parsedScore1 = useMemo(() => {
+    if (!urlState.score1) return null;
+    const selected = scoreOptions.find((opt) => opt.value === urlState.score1);
+    if (!selected) return null;
+    return {
+      name: selected.name,
+      dataType: selected.dataType,
+      source: selected.source,
+    };
   }, [urlState.score1, scoreOptions]);
 
-  const score2Details = useMemo(() => {
-    if (!urlState.score2) return undefined;
-    return scoreOptions.find((opt) => opt.value === urlState.score2);
+  const parsedScore2 = useMemo(() => {
+    if (!urlState.score2) return null;
+    const selected = scoreOptions.find((opt) => opt.value === urlState.score2);
+    if (!selected) return null;
+    return {
+      name: selected.name,
+      dataType: selected.dataType,
+      source: selected.source,
+    };
   }, [urlState.score2, scoreOptions]);
 
   // Fetch comparison analytics when two scores are selected
+  const shouldFetchComparison = !!(
+    parsedScore1 &&
+    parsedScore2 &&
+    projectId &&
+    timeRange.from &&
+    timeRange.to
+  );
+
   const {
     data: analyticsData,
     isLoading: analyticsLoading,
@@ -391,29 +135,65 @@ export default function ScoresAnalyticsPage() {
   } = api.scores.getScoreComparisonAnalytics.useQuery(
     {
       projectId,
-      score1: {
-        name: score1Details?.name ?? "",
-        dataType: score1Details?.dataType ?? "",
-        source: score1Details?.source ?? "",
-      },
-      score2: {
-        name: score2Details?.name ?? "",
-        dataType: score2Details?.dataType ?? "",
-        source: score2Details?.source ?? "",
-      },
-      fromTimestamp: timeRange.start,
-      toTimestamp: timeRange.end,
-      interval: "day",
-      nBins: 10,
+      score1: parsedScore1!,
+      score2: parsedScore2!,
+      fromTimestamp: timeRange.from!,
+      toTimestamp: timeRange.to!,
     },
     {
-      enabled: !!projectId && !!score1Details && !!score2Details,
+      enabled: shouldFetchComparison,
     },
   );
+
+  // Preprocess heatmap data
+  const heatmapData = useMemo(() => {
+    if (!analyticsData || !parsedScore1) return null;
+
+    const isNumeric = parsedScore1.dataType === "NUMERIC";
+
+    if (isNumeric && analyticsData.heatmap.length > 0) {
+      // Transform API data to match heatmap-utils expected format
+      const transformedData = analyticsData.heatmap.map((row) => ({
+        bin_x: row.binX,
+        bin_y: row.binY,
+        count: row.count,
+        min1: row.min1,
+        max1: row.max1,
+        min2: row.min2,
+        max2: row.max2,
+      }));
+
+      return generateNumericHeatmapData({
+        data: transformedData,
+        nBins: 10,
+        colorVariant: "chart1",
+        showCounts: true,
+        showPercentages: false,
+      });
+    } else if (!isNumeric && analyticsData.confusionMatrix.length > 0) {
+      // Transform API data for confusion matrix
+      const transformedData = analyticsData.confusionMatrix.map((row) => ({
+        row_category: row.rowCategory,
+        col_category: row.colCategory,
+        count: row.count,
+      }));
+
+      return generateConfusionMatrixData({
+        data: transformedData,
+        colorVariant: "chart1",
+        highlightDiagonal: true,
+        showCounts: true,
+        showPercentages: true,
+      });
+    }
+
+    return null;
+  }, [analyticsData, parsedScore1]);
 
   const hasError = !!scoresError;
   const hasNoScores = !scoresLoading && !hasError && scoreOptions.length === 0;
   const hasNoSelection = !urlState.score1;
+  const hasTwoScores = !!(urlState.score1 && urlState.score2);
 
   return (
     <Page
@@ -512,47 +292,205 @@ export default function ScoresAnalyticsPage() {
               </p>
             </div>
           </div>
-        ) : urlState.score2 ? (
-          // Two scores selected - show comparison analytics
-          analyticsLoading ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Loading comparison analytics...
-              </p>
-            </div>
-          ) : analyticsError ? (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-destructive/10 p-12">
-              <BarChart3 className="h-12 w-12 text-destructive" />
-              <div className="text-center">
-                <h3 className="text-lg font-semibold">
-                  Error Loading Analytics
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Failed to load comparison data. Please try refreshing the
-                  page.
-                </p>
-              </div>
-            </div>
-          ) : analyticsData ? (
-            <TwoScoreVisualization
-              analyticsData={analyticsData}
-              score1={score1Details!}
-              score2={score2Details!}
-            />
-          ) : null
-        ) : (
-          // Single score selected - placeholder for future implementation
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
+        ) : !hasTwoScores ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
             <BarChart3 className="h-12 w-12 text-muted-foreground" />
             <div className="text-center">
               <h3 className="text-lg font-semibold">Single Score Analytics</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Single score distribution and time series visualization coming
-                soon.
+                Single score analytics coming soon (LF-1919)
               </p>
-              <p className="mt-4 text-sm text-muted-foreground">
-                Select a second score to view comparison analytics.
+              <p className="mt-4 text-xs text-muted-foreground">
+                Select a second score to view comparison heatmaps
+              </p>
+            </div>
+          </div>
+        ) : analyticsLoading ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
+            <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Loading analytics data...
+            </p>
+          </div>
+        ) : analyticsError ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-destructive/10 p-12">
+            <BarChart3 className="h-12 w-12 text-destructive" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">Error Loading Analytics</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Failed to load analytics data. Please try again.
+              </p>
+            </div>
+          </div>
+        ) : analyticsData && heatmapData ? (
+          <div className="space-y-6 p-4">
+            {/* Stats Summary */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Score 1 Total</CardDescription>
+                  <CardTitle className="text-2xl">
+                    {analyticsData.counts.score1Total.toLocaleString()}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Score 2 Total</CardDescription>
+                  <CardTitle className="text-2xl">
+                    {analyticsData.counts.score2Total.toLocaleString()}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Matched Pairs</CardDescription>
+                  <CardTitle className="text-2xl">
+                    {analyticsData.counts.matchedCount.toLocaleString()}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </div>
+
+            {/* Heatmap / Confusion Matrix */}
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {parsedScore1.dataType === "NUMERIC"
+                    ? "Score Comparison Heatmap"
+                    : "Confusion Matrix"}
+                </CardTitle>
+                <CardDescription>
+                  {parsedScore1.dataType === "NUMERIC"
+                    ? "Distribution of matched score pairs showing correlation patterns"
+                    : "Agreement matrix between categorical scores"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-4">
+                <Heatmap
+                  data={heatmapData.cells}
+                  rows={
+                    parsedScore1.dataType === "NUMERIC"
+                      ? 10
+                      : (heatmapData.rows ?? 0)
+                  }
+                  cols={
+                    parsedScore1.dataType === "NUMERIC"
+                      ? 10
+                      : (heatmapData.cols ?? 0)
+                  }
+                  rowLabels={heatmapData.rowLabels}
+                  colLabels={heatmapData.colLabels}
+                  xAxisLabel={`${parsedScore2.name} (${parsedScore2.source})`}
+                  yAxisLabel={`${parsedScore1.name} (${parsedScore1.source})`}
+                  renderTooltip={(cell) => (
+                    <div className="space-y-1">
+                      <p className="font-semibold">Count: {cell.value}</p>
+                      {parsedScore1.dataType === "NUMERIC" ? (
+                        <>
+                          <p className="text-xs">
+                            {parsedScore1.name}:{" "}
+                            {(
+                              cell.metadata?.yRange as [number, number]
+                            )?.[0]?.toFixed(2)}{" "}
+                            -{" "}
+                            {(
+                              cell.metadata?.yRange as [number, number]
+                            )?.[1]?.toFixed(2)}
+                          </p>
+                          <p className="text-xs">
+                            {parsedScore2.name}:{" "}
+                            {(
+                              cell.metadata?.xRange as [number, number]
+                            )?.[0]?.toFixed(2)}{" "}
+                            -{" "}
+                            {(
+                              cell.metadata?.xRange as [number, number]
+                            )?.[1]?.toFixed(2)}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs">
+                          {cell.metadata?.rowCategory as string} →{" "}
+                          {cell.metadata?.colCategory as string}
+                        </p>
+                      )}
+                      <p className="text-xs">
+                        {((cell.metadata?.percentage as number) ?? 0).toFixed(
+                          1,
+                        )}
+                        % of matched pairs
+                      </p>
+                    </div>
+                  )}
+                />
+                <HeatmapLegend
+                  min={0}
+                  max={Math.max(...heatmapData.cells.map((c) => c.value))}
+                  variant="chart1"
+                  title="Count"
+                  orientation="horizontal"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Statistics (for numeric scores) */}
+            {parsedScore1.dataType === "NUMERIC" &&
+              analyticsData.statistics && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Statistical Analysis</CardTitle>
+                    <CardDescription>
+                      Correlation and error metrics for matched score pairs
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Pearson Correlation
+                        </p>
+                        <p className="text-lg font-semibold">
+                          {analyticsData.statistics.pearsonCorrelation?.toFixed(
+                            3,
+                          ) ?? "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Mean Absolute Error
+                        </p>
+                        <p className="text-lg font-semibold">
+                          {analyticsData.statistics.mae?.toFixed(3) ?? "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">RMSE</p>
+                        <p className="text-lg font-semibold">
+                          {analyticsData.statistics.rmse?.toFixed(3) ?? "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Matched Pairs
+                        </p>
+                        <p className="text-lg font-semibold">
+                          {analyticsData.statistics.matchedCount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
+            <BarChart3 className="h-12 w-12 text-muted-foreground" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">No Data Available</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                No matching score pairs found for the selected time range and
+                filters.
               </p>
             </div>
           </div>
