@@ -364,6 +364,7 @@ export type Comment = {
 };
 export type CommentReaction = {
   id: string;
+  project_id: string;
   comment_id: string;
   user_id: string;
   emoji: string;
