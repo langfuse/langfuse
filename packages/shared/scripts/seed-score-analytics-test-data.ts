@@ -16,8 +16,8 @@ import {
   createTracesCh,
   createObservationsCh,
   createScoresCh,
-  PrismaClient,
 } from "../src/server";
+import { PrismaClient } from "../src/index";
 import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();
