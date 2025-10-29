@@ -147,6 +147,7 @@ export const accountsRouter = createTRPCRouter({
         password: z.string(),
         projectId: z.string(),
         isGbaUser: z.boolean().optional(),
+        paymentRequired: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -163,7 +164,7 @@ export const accountsRouter = createTRPCRouter({
               full_name: input.name,
               email_verified: true,
               phone_verified: false,
-              paymentRequired: true,
+              paymentRequired: input.paymentRequired ?? false,
             },
           },
         });

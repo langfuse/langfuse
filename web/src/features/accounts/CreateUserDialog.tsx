@@ -24,6 +24,7 @@ export function CreateUserDialog() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [isGbaUser, setIsGbaUser] = useState(false);
+  const [paymentRequired, setPaymentRequired] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   const projectId = router.query.projectId as string;
@@ -37,6 +38,7 @@ export function CreateUserDialog() {
       setName("");
       setPassword("");
       setIsGbaUser(false);
+      setPaymentRequired(false);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -55,6 +57,7 @@ export function CreateUserDialog() {
       password: password.trim(),
       projectId: projectId,
       isGbaUser: isGbaUser,
+      paymentRequired: paymentRequired,
     });
   };
 
@@ -115,6 +118,17 @@ export function CreateUserDialog() {
               disabled={createUser.isLoading}
             />
             <Label htmlFor="gba-user">GBA user?</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="payment-required"
+              checked={paymentRequired}
+              onCheckedChange={(checked) =>
+                setPaymentRequired(checked === true)
+              }
+              disabled={createUser.isLoading}
+            />
+            <Label htmlFor="payment-required">Payment Required</Label>
           </div>
           <div className="flex justify-end space-x-2">
             <Button
