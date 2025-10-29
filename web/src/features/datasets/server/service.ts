@@ -218,9 +218,9 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
         includeHasMetadata: true,
         excludeMetadata: true,
       }),
-      getLatencyAndTotalCostForObservationsWithChildren(
+      getLatencyAndTotalCostForObservationsWithChildren<WithIO>(
         projectId,
-        observationLevelRunItems.map((ri) => ri.observationId) as string[],
+        observationLevelRunItems,
         observationLevelRunItems.map((ri) => ri.traceId),
         filterTimestamp,
       ),

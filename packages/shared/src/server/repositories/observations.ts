@@ -45,6 +45,7 @@ import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { calculateRecursiveCost } from "../utils/costCalculations";
+import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -1381,48 +1382,17 @@ const toCostInput = (obs: ObservationTuple) => ({
   outputCost: obs[4],
 });
 
-export const getLatencyAndTotalCostForObservationsWithChildren = async (
+export const getLatencyAndTotalCostForObservationsWithChildren = async <
+  WithIO extends boolean = true,
+>(
   projectId: string,
-  observationIds: string[],
+  runItems: DatasetRunItemDomain<WithIO>[],
   traceIds: string[],
   timestamp?: Date,
 ) => {
-  if (observationIds.length === 0) return [];
+  if (runItems.length === 0) return [];
 
-  // Query 1: filter to observations that exist
-  const directQuery = `
-    SELECT
-        id,
-        trace_id
-    FROM observations
-    WHERE project_id = {projectId: String}
-    AND id IN ({observationIds: Array(String)})
-    ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
-    ORDER BY event_ts DESC
-    LIMIT 1 BY id, project_id
-  `;
-
-  const directResults = await queryClickhouse<{
-    id: string;
-    trace_id: string;
-  }>({
-    query: directQuery,
-    params: {
-      projectId,
-      observationIds,
-      ...(timestamp
-        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-        : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "observation",
-      kind: "analytic",
-      projectId,
-    },
-  });
-
-  // Query 2: ALL observations with costs + latency
+  // Query: Get all observations by trace ids with costs + latency
   const allObservationsQuery = `
     SELECT
         trace_id,
@@ -1466,30 +1436,31 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async (
   const calculatedCosts = new Map<string, number>();
   const latencies = new Map<string, number>();
 
-  for (const result of directResults) {
-    const observations = observationsByTraceId.get(result.trace_id);
+  for (const runItem of runItems) {
+    const observations = observationsByTraceId.get(runItem.traceId);
     if (observations?.length) {
+      const observationId = runItem.observationId!;
       // Find target observation and extract latency
       const targetObs = observations.find(
-        (obs) => getObservationId(obs) === result.id,
+        (obs) => getObservationId(obs) === observationId,
       );
       if (targetObs) {
-        latencies.set(result.id, Number(getLatencyMs(targetObs)) / 1000);
+        latencies.set(observationId, Number(getLatencyMs(targetObs)) / 1000);
       }
 
       // Calculate recursive cost
       const cost = calculateRecursiveCost(
-        result.id,
+        observationId,
         observations.map(toCostInput),
       );
-      calculatedCosts.set(result.id, cost?.toNumber() ?? 0);
+      calculatedCosts.set(observationId, cost?.toNumber() ?? 0);
     }
   }
 
-  return directResults.map((r) => ({
-    id: r.id,
-    totalCost: calculatedCosts.get(r.id) ?? 0,
-    latency: latencies.get(r.id) ?? 0,
+  return runItems.map((r) => ({
+    id: r.observationId!,
+    totalCost: calculatedCosts.get(r.observationId!) ?? 0,
+    latency: latencies.get(r.observationId!) ?? 0,
   }));
 };
 
