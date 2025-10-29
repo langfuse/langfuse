@@ -28,15 +28,13 @@
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "https-proxy-agent": "^7.0.6",
     "next": "15.5.4",
-    "next-auth": "^4.24.11",
-    "nodemailer": "^7.0.9",
+    "next-auth": "^4.24.12",
     "zod": "^3.25.62"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
-    "@types/nodemailer": "^7.0.2",
     "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
