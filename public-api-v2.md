@@ -49,15 +49,8 @@ with JSON body
 | `limit` | `integer | null` | Limit of items per page.  Defaults to 50 when not specified. Max allowed value is 10k. (Perhaps even 1k). |
 | `fromStartTime` | `date-time | null` | Retrieve only observations with a `startTime` on or after this datetime (ISO 8601). No specific time by default, the output is capped by `limit` |
 | `toStartTime` | `date-time | null` | Retrieve only observations with a `startTime` before this datetime (ISO 8601). Default is `now()` |
-| `rollups` | `MetricsQueryObject` or similar | When `rollups` is present both `fromStartTime` and `toStartTime` parameters are required. Rollups are defined similar to metrics. And the following rollup config:{
-  "metrics": \[{"measure": "total_cost", "aggregation": "sum"}\],
-  "dimensions": \[{"field": "trace_id"}\]
-}will result in `total_cost_sum` column in the response. |
-| `rawFilters`  | `FilterState` | Raw filter expression (same as on metrics endpoint). Allows more expressive filtering and access to more fields (e.g. metadata) but is more complicated to use.
-
-Raw filters may reference columns from rollups. E.g. `total_cost_sum > 0.5` from the example above.
-
-If any of the top level filters are specified, they will override a corresponding clause of the raw filter expression |
+| `rollups` | `Array<RollupConfig>` | Array of rollup configurations. Each rollup creates a CTE that aggregates measures by dimensions, then joins back to enrich observation rows. Column naming convention: `{dimension1}_{dimension2}_{measure}_{aggregation}` or use explicit `alias`. Example: `[{"measures": [{"measure": "totalCost", "aggregation": "sum"}], "dimensions": ["traceId"]}]` will add a `traceId_totalCost_sum` column. When `rollups` is present both `fromStartTime` and `toStartTime` parameters are required. |
+| `rawFilters`  | `FilterState` | Raw filter expression (same as on metrics endpoint). Allows more expressive filtering and access to more fields (e.g. metadata) but is more complicated to use. Raw filters may reference rollup columns using the naming convention: `{dimensions}_{measure}_{aggregation}`. E.g. `traceId_totalCost_sum > 0.5` to filter by trace-level total cost. If any of the top level filters are specified, they will override a corresponding clause of the raw filter expression |
 | `name` | `string | null` | (Same as before) |
 | `userId` | `string | null` | (Same as before) |
 | `sessionId` | `string | null` | (Same as before) |
@@ -154,89 +147,753 @@ In the `v2` we can utilize the `toUnixTimestamp(start_time)` order of rows in [R
 
 The approach outlined above allows us return data piecewise while reducing the amount of data ClickHouse has to process per "page" of response.
 
-## Future work
+# Implementation Design: Declarative Query Builder
 
-We can further improve SDKs to make use of cursor based pagination by introducing subscription API. Potentially improving DX when polling for recent observations.
+## Overview
 
-# Metrics
+This design introduces a high-level query builder that abstracts away SQL construction complexity. The core insight:
+developers should declare **what data they need** (fields, measures, filters, groupings) and the builder automatically.
 
-Initially the [same API as v1](https://langfuse.com/docs/metrics/features/metrics-api), but on top of [new `events` table](https://linear.app/langfuse/document/rfc-data-model-events-table-schema-ee360eae0de9) and with a tighter default limit (e.g. 100).
+1. **Detects cross-table dependencies** - When fields like `traceName`, `latency` or `tags` require trace-level data
+2. **Generates necessary CTEs** - Automatically creates trace aggregations (via `eventsTracesAggregation`) and measure CTEs
+3. **Uses consistent multi-CTE strategy** - When measures are present, always use separate CTEs per measures with the same grouping key, joined at the end
+4. **Optimizes query execution** - Pushes filters to appropriate CTE levels
 
-We can add IO as a new dimension. It is expensive indeed (1-5 seconds), but not prohibitively so for infrequent use:
+**Note on Traces**: We use `eventsTracesAggregation` to rebuild trace-level data from the events table, not the `traces FINAL` table.
+This approach is more performant and aligns with our move away from the separate traces table.
 
+## Core Concept: Fields vs Measures
+
+The field catalog distinguishes only two types:
+
+### Fields
+Data that can be directly selected from tables. Can appear in:
+- Row-level queries (`SELECT field FROM ...`)
+- GROUP BY clauses in aggregations
+- WHERE clauses as filters
+
+**Examples**: `id`, `traceId`, `userId`, `name`, `input`, `startTime`, `type`, `traceName`
+
+**Key property**: Source location matters. Fields may come from:
+- Events table directly (`e.span_id`, `e.name`)
+- Traces (via `eventsTracesAggregation` CTE: `t.name`, `t.tags`)
+- Scores table via JOIN (`s.value`, `s.name`)
+
+### Measures
+Quantitative data requiring aggregation functions. Cannot be selected directly - must be aggregated with functions like `sum()`, `avg()`, `p95()`.
+
+**Examples**: `totalCost`, `latency`, `count`, `totalTokens`
+
+**Key property**: Each measure defines:
+1. **Allowed aggregations** (based on measure type - integer, decimal, etc.)
+2. **Supported groupings** (which fields it can be grouped by)
+
+## Field Catalog Schema
+
+```typescript
+import { z } from 'zod/v4';
+
+// Reuse existing aggregation types
+export const metricAggregations = z.enum([
+  'sum', 'avg', 'count', 'min', 'max',
+  'p50', 'p75', 'p90', 'p95', 'p99'
+]);
+
+type AggregationFunction = z.infer<typeof metricAggregations>;
+type MeasureType = 'integer' | 'decimal' | 'string' | 'boolean';
+
+/**
+ * Defines where a field/measure comes from and how to access it
+ */
+type FieldSource =
+  | { table: 'events'; sql: string }
+  | { table: 'traces'; sql: string; via: 'trace_id' }
+  | { table: 'scores'; sql: string; via: 'observation_id' | 'trace_id' };
+
+/**
+ * Field - can be selected directly or used in GROUP BY
+ */
+type FieldDef = {
+  kind: 'field';
+  source: FieldSource;
+  alias: string;
+  type: 'string' | 'integer' | 'datetime' | 'json' | 'boolean' | 'array';
+  groupable?: boolean;  // Can this field be used in GROUP BY? Default: true for most fields
+};
+
+/**
+ * Measure - requires aggregation function
+ */
+type MeasureDef = {
+  kind: 'measure';
+  source: FieldSource;
+  alias: string;
+  type: MeasureType;
+  allowedAggregations: AggregationFunction[];
+
+  /**
+   * Which fields this measure can be grouped by:
+   * - ['*']: Can be grouped by any field
+   * - ['traceId', 'userId']: Only these specific fields
+   * - []: Global aggregation only (no GROUP BY)
+   */
+  supportedGroupings: string[] | ['*'];
+
+  unit?: string;
+};
+
+type CatalogEntry = FieldDef | MeasureDef;
+type FieldCatalog = Record<string, CatalogEntry>;
 ```
-WITH costs AS (
+
+## Example Field Catalog: Events Table
+
+```typescript
+export const EVENTS_FIELD_CATALOG: FieldCatalog = {
+  // ========== EVENTS TABLE FIELDS ==========
+
+  id: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.span_id' },
+    alias: 'id',
+    type: 'string',
+    groupable: false,
+  },
+
+  traceId: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.trace_id' },
+    alias: 'trace_id',
+    type: 'string',
+    groupable: true,
+  },
+
+  name: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.name' },
+    alias: 'name',
+    type: 'string',
+    groupable: true,
+  },
+
+  type: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.type' },
+    alias: 'type',
+    type: 'string',
+    groupable: true,
+  },
+
+  startTime: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.start_time' },
+    alias: 'start_time',
+    type: 'datetime',
+    groupable: false,
+  },
+
+  endTime: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.end_time' },
+    alias: 'end_time',
+    type: 'datetime',
+    groupable: false,
+  },
+
+  input: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.input' },
+    alias: 'input',
+    type: 'json',
+    groupable: false,
+  },
+
+  output: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.output' },
+    alias: 'output',
+    type: 'json',
+    groupable: false,
+  },
+
+  metadata: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.metadata' },
+    alias: 'metadata',
+    type: 'json',
+    groupable: false,
+  },
+
+  environment: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.environment' },
+    alias: 'environment',
+    type: 'string',
+    groupable: true,
+  },
+
+  version: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.version' },
+    alias: 'version',
+    type: 'string',
+    groupable: true,
+  },
+
+  level: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.level' },
+    alias: 'level',
+    type: 'string',
+    groupable: true,
+  },
+
+  promptId: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.prompt_id' },
+    alias: 'prompt_id',
+    type: 'string',
+    groupable: true,
+  },
+
+  providedModelName: {
+    kind: 'field',
+    source: { table: 'events', sql: 'e.provided_model_name' },
+    alias: 'provided_model_name',
+    type: 'string',
+    groupable: true,
+  },
+
+  // ========== CROSS-TABLE FIELDS (FROM TRACES VIA eventsTracesAggregation) ==========
+
+  tags: {
+    kind: 'field',
+    source: {
+      table: 'traces',
+      sql: 'groupArray(e.tags)',
+      via: 'trace_id'
+    },
+    alias: 'tags',
+    type: 'array',
+    groupable: false,
+  },
+
+  traceName: {
+    kind: 'field',
+    source: {
+      table: 'traces',
+      sql: "argMaxIf(e.name, e.event_ts, e.parent_span_id = '')",
+      via: 'trace_id'
+    },
+    alias: 'traceName',
+    type: 'string',
+    groupable: true,
+  },
+
+  // ========== MEASURES ==========
+
+  count: {
+    kind: 'measure',
+    source: { table: 'events', sql: '*' },
+    alias: 'count',
+    type: 'integer',
+    allowedAggregations: ['count'],
+    supportedGroupings: ['*'],
+    description: 'Count of observations',
+    unit: 'observations',
+  },
+
+  totalCost: {
+    kind: 'measure',
+    source: { table: 'events', sql: 'e.total_cost' },
+    alias: 'total_cost',
+    type: 'decimal',
+    allowedAggregations: ['sum', 'avg', 'min', 'max', 'p50', 'p95', 'p99'],
+    supportedGroupings: ['*'],
+    unit: 'USD',
+  },
+
+  latency: {
+    kind: 'measure',
+    source: {
+      table: 'events',
+      sql: "date_diff('millisecond', min(e.start_time), max(e.end_time))"
+    },
+    alias: 'latency',
+    type: 'integer',
+    allowedAggregations: ['avg', 'min', 'max', 'p50', 'p75', 'p90', 'p95', 'p99'],
+    supportedGroupings: ['*'],
+    unit: 'milliseconds',
+  },
+
+  totalTokens: {
+    kind: 'measure',
+    source: { table: 'events', sql: "e.usage_details['total']" },
+    alias: 'total_tokens',
+    type: 'integer',
+    allowedAggregations: ['sum', 'avg', 'max'],
+    supportedGroupings: ['*'],
+    unit: 'tokens',
+  },
+
+  // Example: Trace-level measure (constrained grouping)
+  traceCost: {
+    kind: 'measure',
+    source: { table: 'events', sql: 'e.total_cost' },
+    alias: 'trace_total_cost',
+    type: 'decimal',
+    allowedAggregations: ['sum'],
+    supportedGroupings: ['traceId'],  // MUST be grouped by trace
+    description: 'Total cost aggregated at trace level',
+    unit: 'USD',
+  },
+};
+```
+
+## High-Level API
+
+The builder should have a minimal, declarative surface following public API patterns:
+
+```typescript
+interface ApiQueryBuilder {
+  // Row-level queries (no aggregation)
+  select(fields: string[]): QueryBuilder;
+
+  // Aggregation queries (returns aggregated rows)
+  aggregate(config: {
+    measures: Array<{ measure: string; aggregation: AggregationFunction }>;
+    dimensions: string[];  // fields to group by
+  }): QueryBuilder;
+
+  // Rollups - enrich observation rows with aggregation context
+  // Each call creates a CTE and joins back to observations
+  // Chainable: .withRollup(...).withRollup(...)
+  withRollup(rollup: {
+    measures: Array<{
+      measure: string;
+      aggregation: AggregationFunction;
+      alias?: string;  // Optional explicit alias, defaults to {dimensions}_{measure}_{aggregation}
+    }>;
+    dimensions: string[];
+  }): QueryBuilder;
+
+  // Filtering (can reference rollup fields in filters)
+  where(filters: FilterExpression): QueryBuilder;
+
+  // Sorting and pagination
+  orderBy(field: string, direction: 'asc' | 'desc'): QueryBuilder;
+  limit(n: number): QueryBuilder;
+  offset(n: number): QueryBuilder;
+
+  // Cursor-based pagination
+  cursor(encodedCursor: string): QueryBuilder;
+
+  // Execution
+  execute(): Promise<Row[]>;
+  executeStream(): AsyncGenerator<Row>;
+}
+```
+
+## Request Flow Examples
+
+### Example 1: Simple Row Query
+
+**HTTP Request:**
+```json
+POST /api/public/v2/observations
+{
+  "fields": ["id", "traceId", "name", "startTime", "type"],
+  "fromStartTime": "2025-01-01T00:00:00Z",
+  "toStartTime": "2025-01-02T00:00:00Z",
+  "limit": 50
+}
+```
+
+**Builder Calls:**
+```typescript
+const query = builder
+  .select(['id', 'traceId', 'name', 'startTime', 'type'])
+  .where({
+    and: [
+      { field: 'startTime', op: '>=', value: '2025-01-01T00:00:00Z' },
+      { field: 'startTime', op: '<', value: '2025-01-02T00:00:00Z' }
+    ]
+  })
+  .orderBy('startTime', 'desc')
+  .limit(50);
+```
+
+**Generated SQL:**
+```sql
 SELECT
-    o.trace_id as trace_id,
-    min(o.start_time) as trace_start,
-    max(o.end_time) as trace_end,
-    sum(o.total_cost) as total
-FROM observations o
-WHERE o.start_time >= toDateTime('2025-09-12 00:00:00')
-AND o.start_time < toDateTime('2025-09-13 00:00:00')
-AND project_id = '<khan-redaced>'
-GROUP BY 1
-ORDER BY total DESC
-LIMIT 50),
-io AS (
-    SELECT o.trace_id as trace_id, argMin(o.input, o.start_time) as input, argMax(o.output, o.start_time) as output
-    FROM observations o
-    WHERE o.start_time >= toDateTime('2025-09-12 00:00:00')
-    AND o.start_time < toDateTime('2025-09-13 00:00:00')
-    AND project_id = '<khan-redacted>'
-    AND o.trace_id IN (SELECT trace_id FROM costs)
-    AND (isNotNull(o.input) OR isNotNull(o.output))
-    GROUP BY 1
+  e.span_id as id,
+  e.trace_id,
+  e.name,
+  e.start_time,
+  e.type
+FROM events e
+WHERE e.project_id = {projectId: String}
+  AND e.start_time >= {fromStartTime: DateTime64(3)}
+  AND e.start_time < {toStartTime: DateTime64(3)}
+ORDER BY e.start_time DESC
+LIMIT 50
+```
+
+### Example 2: Query with Trace-Level Fields
+
+**HTTP Request:**
+```json
+{
+  "fields": ["id", "traceId", "traceName", "tags", "startTime"],
+  "limit": 50
+}
+```
+
+**Builder Calls:**
+```typescript
+const query = builder
+  .select(['id', 'traceId', 'traceName', 'tags', 'startTime'])
+  .orderBy('startTime', 'desc')
+  .limit(50);
+```
+
+**Builder Logic:**
+1. Detects `traceName` and `tags` require traces CTE (cross-table fields)
+2. Automatically generates `eventsTracesAggregation` CTE
+3. Joins events with traces CTE
+
+**Generated SQL:**
+```sql
+WITH traces AS (
+  SELECT
+    e.trace_id,
+    argMaxIf(e.name, e.event_ts, e.parent_span_id = '') as name,
+    groupArray(e.tags) as tags
+  FROM events e
+  WHERE e.project_id = {projectId: String}
+  GROUP BY e.trace_id
 )
-SELECT c.trace_id, c.total, io.input, io.output
-FROM costs c LEFT JOIN io USING trace_id
-ORDER BY 2 DESC;
+SELECT
+  e.span_id as id,
+  e.trace_id,
+  t.name as traceName,
+  t.tags,
+  e.start_time
+FROM events e
+LEFT JOIN traces t ON e.trace_id = t.trace_id
+WHERE e.project_id = {projectId: String}
+ORDER BY e.start_time DESC
+LIMIT 50
 ```
 
-Or with IO CTE reformulated for `events` table
+### Example 3: Aggregation with Measures
 
+**HTTP Request:**
+```json
+{
+  "measures": [
+    { "measure": "totalCost", "aggregation": "sum" },
+    { "measure": "count", "aggregation": "count" }
+  ],
+  "dimensions": ["traceId", "name"],
+  "fromStartTime": "2025-01-01T00:00:00Z",
+  "toStartTime": "2025-01-02T00:00:00Z",
+  "limit": 100
+}
 ```
-    SELECT
-        o.trace_id as trace_id,
-        anyIf(o.input, isNotNull(o.input) AND notEmpty(o.input)) as input,
-        anyIf(o.output, isNotNull(o.output) AND notEmpty(o.output)) as output
-    FROM events o
-    WHERE o.start_time >= toDateTime('2025-09-12 00:00:00')
-        AND o.start_time < toDateTime('2025-09-13 00:00:00')
-        AND project_id = '<khan-redacted>'
-        AND o.trace_id IN (SELECT trace_id FROM costs)
-        AND (isNotNull(o.input) OR isNotNull(o.output))
-        AND (notEmpty(o.input) OR notEmpty(o.output))
-    GROUP BY 1
+
+**Builder Calls:**
+```typescript
+const query = builder
+  .aggregate({
+    measures: [
+      { measure: 'totalCost', aggregation: 'sum' },
+      { measure: 'count', aggregation: 'count' }
+    ],
+    dimensions: ['traceId', 'name']
+  })
+  .where({ /* time filters */ })
+  .limit(100);
 ```
 
-E.g. the query above (top 50 traces by cost for 1 day with IO) typically returns under 1-2 seconds with IO fields contributing significantly to the total runtime.
-
-And we can further experiment by fetching IO in a separate query (0.6-2.5s for 10 items):
-
-```
-SELECT o.trace_id as trace_id, any(o.input) as input, any(o.output) as output
-FROM observations o
-WHERE o.start_time >= toDateTime('2025-09-14 00:00:00')
-AND o.start_time < toDateTime('2025-09-15 00:00:00')
-AND project_id = '<khan-redaced>'
-AND o.trace_id IN (
-  ...
+**Generated SQL (Single CTE for Shared Grouping):**
+```sql
+-- All measures with same grouping key in one CTE
+WITH measures_cte AS (
+  SELECT
+    e.trace_id,
+    e.name,
+    sum(e.total_cost) as total_cost_sum,
+    count(*) as count
+  FROM events e
+  WHERE e.project_id = {projectId: String}
+    AND e.start_time >= {fromStartTime: DateTime64(3)}
+    AND e.start_time < {toStartTime: DateTime64(3)}
+  GROUP BY e.trace_id, e.name
 )
-AND (isNotNull(o.input) OR isNotNull(o.output))
-GROUP BY 1;
+SELECT
+  trace_id,
+  name,
+  total_cost_sum,
+  count
+FROM measures_cte
+ORDER BY total_cost_sum DESC
+LIMIT 100
 ```
 
-Options:
+### Example 3b: Multiple CTEs for Different Grouping Keys
 
-* For the UI load IO asynchronously after computing metrics and obtaining `trace_id`s for the top traces.
-* API
-  * Accept higher latency if user chooses this extension and implement
-  * Limit API capabilities. Ask users to pull it out of `/public/v2/observations`
-  * Point towards `rollups` parameter in `/public/v2/observations`
+**HTTP Request:**
+```json
+{
+  "fields": ["id", "traceId", "environment", "totalCost"],
+  "rollups": [
+    {
+      "measures": [{ "measure": "totalCost", "aggregation": "sum" }],
+      "dimensions": ["traceId"]
+    },
+    {
+      "measures": [{ "measure": "count", "aggregation": "count" }],
+      "dimensions": ["environment"]
+    }
+  ],
+  "limit": 100
+}
+```
 
-# Traces
+**Builder Calls:**
+```typescript
+// HTTP rollups array maps to chained .withRollup() calls
+const query = builder
+  .select(['id', 'traceId', 'environment', 'totalCost'])
+  .withRollup({
+    measures: [{ measure: 'totalCost', aggregation: 'sum' }],
+    dimensions: ['traceId']
+  })
+  .withRollup({
+    measures: [{ measure: 'count', aggregation: 'count' }],
+    dimensions: ['environment']
+  })
+  .limit(100);
+```
 
-As you may have noticed in the use case breakdown section, we expect nearly every use case to be served either via `/observations` or `/metrics`. Therefore v2 API will not initially include `/public/v2/traces` endpoint. In the Otel world not every product provides such interface. E.g. DataDog doesn't while [Grafana Tempo — does](https://grafana.com/docs/tempo/latest/api_docs/#query-v2). It is certainly possible to build it should there be an appetite.  Although this requires langfuse to be able to efficiently derive `start_` and `end_timestamp` for a given `trace_id`.
+**Builder Logic:**
+Detects two completely different grouping keys (`traceId` vs `environment`), creates separate CTEs, then enriches observation rows with both rollup contexts via separate joins.
 
-An idea how to do so without significantly complicating ingestion. Introduce the following AMT materialized view:  `trace_id, toYYYYMMDD(start_time)(partitioning key) ->  min(start_time), max(start_time)`. Then at query, by default expand ±1day from request timestamps. If there is only row — assume there is no more data for that `trace_id`. If more rows received further extend the time interval and repeat the query. Continue this process until no new records are found or if takes too many steps. This should terminate within one step for the absolute majority of queries and at the same time would allow us to reasonably handle edge cases at the cost of some hit to performance for such traces.
+**Generated SQL (Multiple CTEs for Different Groupings):**
+```sql
+-- Trace-level rollup
+WITH trace_rollup AS (
+  SELECT
+    e.trace_id,
+    sum(e.total_cost) as traceId_totalCost_sum
+  FROM events e
+  WHERE e.project_id = {projectId: String}
+  GROUP BY e.trace_id
+),
+-- Environment-level rollup
+environment_rollup AS (
+  SELECT
+    e.environment,
+    count(*) as environment_count_count
+  FROM events e
+  WHERE e.project_id = {projectId: String}
+  GROUP BY e.environment
+)
+-- Join both rollups back to observation rows
+SELECT
+  e.span_id as id,
+  e.trace_id,
+  e.environment,
+  e.total_cost,
+  t.traceId_totalCost_sum,           -- Systematic naming: dimension_measure_aggregation
+  env.environment_count_count         -- Systematic naming: dimension_measure_aggregation
+FROM events e
+LEFT JOIN trace_rollup t ON e.trace_id = t.trace_id
+LEFT JOIN environment_rollup env ON e.environment = env.environment
+WHERE e.project_id = {projectId: String}
+ORDER BY e.start_time DESC
+LIMIT 100
+```
+
+**Note**: This pattern is useful when you want observation-level rows enriched with multiple aggregation contexts at different granularities. Each rollup requires its own CTE because they group by fundamentally different dimensions.
+
+### Example 4: Rollups with Filtering (Advanced)
+
+**HTTP Request:**
+```json
+{
+  "fields": ["id", "traceId", "startTime", "totalCost"],
+  "rollups": [
+    {
+      "measures": [{ "measure": "totalCost", "aggregation": "sum" }],
+      "dimensions": ["traceId"]
+    }
+  ],
+  "rawFilters": {
+    "and": [
+      { "field": "traceId_totalCost_sum", "op": ">", "value": 0.5 }
+    ]
+  },
+  "limit": 50
+}
+```
+
+**Builder Calls:**
+```typescript
+const query = builder
+  .select(['id', 'traceId', 'startTime', 'totalCost'])
+  .withRollup({
+    measures: [{ measure: 'totalCost', aggregation: 'sum' }],
+    dimensions: ['traceId']
+  })
+  .where({
+    and: [
+      { field: 'traceId_totalCost_sum', op: '>', value: 0.5 }  // Filter on rollup column
+    ]
+  })
+  .orderBy('startTime', 'desc')
+  .limit(50);
+```
+
+**Builder Logic:**
+1. Computes rollup (trace-level totalCost sum)
+2. Filters observations where their trace matches rollup criteria
+3. Returns observation-level rows with rollup context
+
+**Generated SQL:**
+```sql
+WITH rollup AS (
+  SELECT
+    e.trace_id,
+    sum(e.total_cost) as traceId_totalCost_sum
+  FROM events e
+  WHERE e.project_id = {projectId: String}
+    AND e.start_time >= {fromStartTime: DateTime64(3)}
+    AND e.start_time < {toStartTime: DateTime64(3)}
+  GROUP BY e.trace_id
+  HAVING traceId_totalCost_sum > 0.5
+  ORDER BY traceId_totalCost_sum DESC
+  LIMIT 10000  -- safety limit on rollup
+)
+SELECT
+  e.span_id as id,
+  e.trace_id,
+  e.start_time,
+  e.total_cost,
+  r.traceId_totalCost_sum  -- Systematic naming: dimension_measure_aggregation
+FROM events e
+INNER JOIN rollup r ON e.trace_id = r.trace_id
+WHERE e.project_id = {projectId: String}
+ORDER BY r.traceId_totalCost_sum DESC, e.start_time DESC
+LIMIT 50
+```
+
+### Example 5: Rollup with Explicit Alias
+
+**HTTP Request:**
+```json
+{
+  "fields": ["id", "traceId", "startTime"],
+  "rollups": [
+    {
+      "measures": [{ "measure": "totalCost", "aggregation": "sum", "alias": "traceCost" }],
+      "dimensions": ["traceId"]
+    }
+  ],
+  "limit": 50
+}
+```
+
+**Builder Calls:**
+```typescript
+const query = builder
+  .select(['id', 'traceId', 'startTime'])
+  .withRollup({
+    measures: [{ measure: 'totalCost', aggregation: 'sum', alias: 'traceCost' }],
+    dimensions: ['traceId']
+  })
+  .limit(50);
+```
+
+**Generated SQL:**
+```sql
+WITH rollup AS (
+  SELECT
+    e.trace_id,
+    sum(e.total_cost) as traceCost  -- Uses explicit alias
+  FROM events e
+  WHERE e.project_id = {projectId: String}
+  GROUP BY e.trace_id
+)
+SELECT
+  e.span_id as id,
+  e.trace_id,
+  e.start_time,
+  r.traceCost  -- Reference by alias
+FROM events e
+LEFT JOIN rollup r ON e.trace_id = r.trace_id
+WHERE e.project_id = {projectId: String}
+ORDER BY e.start_time DESC
+LIMIT 50
+```
+
+## Rollup Column Naming Convention
+
+**Default naming**: `{dimension1}_{dimension2}_{...}_{measure}_{aggregation}`
+
+**Examples:**
+- `dimensions: ['traceId']`, `measure: 'totalCost'`, `aggregation: 'sum'` → `traceId_totalCost_sum`
+- `dimensions: ['environment']`, `measure: 'count'`, `aggregation: 'count'` → `environment_count_count`
+- `dimensions: ['traceId', 'name']`, `measure: 'latency'`, `aggregation: 'p95'` → `traceId_name_latency_p95`
+
+**Explicit aliases**: Use the `alias` field to override the default naming:
+```json
+{
+  "measures": [
+    { "measure": "totalCost", "aggregation": "sum", "alias": "traceTotalCost" }
+  ]
+}
+```
+
+**Why systematic naming?**
+- Predictable: Users know exactly what column name to reference in filters
+- Collision-free: Multiple rollups won't conflict
+- Self-documenting: Column name describes the aggregation
+
+## Query Builder Execution Flow
+
+```
+1. Parse HTTP Request
+   ↓
+2. Validate Against Field Catalog
+   - Check field existence
+   - Verify measure aggregations
+   - Validate grouping compatibility
+   ↓
+3. Analyze Dependencies
+   - Detect cross-table fields (traces, scores)
+   - Identify required CTEs
+   - Determine join strategy
+   ↓
+4. Generate Query Plan
+   - Row query: SELECT fields FROM events [+ JOINs]
+   - Aggregation: Multiple measure CTEs → JOIN
+   - Rollups: Rollup CTE → Filter observations
+   ↓
+5. Build SQL
+   - Generate CTEs (traces, measures, rollups)
+   - Construct main SELECT
+   - Apply filters at appropriate CTE level
+   - Add ORDER BY, LIMIT
+   ↓
+6. Execute & Stream Results
+```
+
+## Builder Implementation Principles
+
+1. **Declarative Configuration**: Developer specifies WHAT, builder determines HOW
+2. **Automatic Optimization**: Builder pushes filters to appropriate CTE levels
+3. **Type Safety**: Field catalog ensures only valid fields/measures/aggregations
+4. **One CTE per Grouping Key**: Measures sharing the same dimensions are computed in a single CTE to minimize data scans. Only create separate CTEs when grouping keys differ (e.g., trace-level vs observation-level aggregations).
+5. **Systematic Column Naming**: Rollup columns follow `{dimensions}_{measure}_{aggregation}` convention for predictability, or use explicit aliases for custom naming.
