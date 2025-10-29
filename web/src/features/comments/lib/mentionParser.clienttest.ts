@@ -275,7 +275,7 @@ describe("mentionParser", () => {
           "@[" + "A".repeat(50) + "[" + "B".repeat(50) + "](user:test)";
 
         const startTime = Date.now();
-        const result = extractUniqueMentionedUserIds(content);
+        void extractUniqueMentionedUserIds(content);
         const duration = Date.now() - startTime;
 
         expect(duration).toBeLessThan(100);
