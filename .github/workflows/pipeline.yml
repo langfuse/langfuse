@@ -595,7 +595,17 @@ jobs:
         tests-web-async,
       ]
     if: always()
+    outputs:
+      success: ${{ steps.set-success-output.outputs.success }}
     steps:
+      - name: Set check result as an output
+        id: set-success-output
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "success=false" >> $GITHUB_OUTPUT
+          else
+            echo "success=true" >> $GITHUB_OUTPUT
+          fi
       - name: Successful deploy
         if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: exit 0
@@ -612,10 +622,14 @@ jobs:
           notify_when: "failure"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Output job results
+        run: |
+          echo "Job results: ${{ steps.set-success-output.outputs.success }}"
 
   push-docker-image:
     needs: all-ci-passed
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
+    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     environment: "protected branches"
     runs-on: ubuntu-latest
     permissions:

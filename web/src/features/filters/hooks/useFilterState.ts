@@ -9,6 +9,7 @@ import {
   datasetRunsTableCols,
   datasetItemFilterColumns,
   datasetRunItemsTableCols,
+  usersTableCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -17,7 +18,6 @@ import {
   decodeDelimitedArray,
   withDefault,
 } from "use-query-params";
-import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
