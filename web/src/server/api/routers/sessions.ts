@@ -279,7 +279,7 @@ export const sessionRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        timestampFilter: timeFilter.optional(),
+        timestampFilter: z.array(timeFilter).optional(),
       }),
     )
     .query(async ({ input }): Promise<SessionOptions> => {
@@ -301,16 +301,17 @@ export const sessionRouter = createTRPCRouter({
           value: "",
         },
       ];
-      if (timestampFilter) {
-        filter.push(timestampFilter);
+      if (timestampFilter && timestampFilter.length > 0) {
+        filter.push(...timestampFilter);
       }
       // Create a proper trace timestamp filter for score functions
-      const scoreTimestampFilter = timestampFilter
-        ? {
-            ...timestampFilter,
-            column: "Timestamp", // Use exact trace column name for score functions
-          }
-        : null;
+      const scoreTimestampFilter =
+        timestampFilter && timestampFilter.length > 0
+          ? timestampFilter.map((tf) => ({
+              ...tf,
+              column: "Timestamp", // Use exact trace column name for score functions
+            }))
+          : [];
 
       const [userIds, tags, numericScoreNames, categoricalScoreNames] =
         await Promise.all([
@@ -327,13 +328,10 @@ export const sessionRouter = createTRPCRouter({
             filter,
             columns,
           }),
-          getNumericScoresGroupedByName(
-            input.projectId,
-            scoreTimestampFilter ? [scoreTimestampFilter] : [],
-          ),
+          getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
           getCategoricalScoresGroupedByName(
             input.projectId,
-            scoreTimestampFilter ? [scoreTimestampFilter] : [],
+            scoreTimestampFilter,
           ),
         ]);
 

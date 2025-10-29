@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.123.0",
+  "version": "3.123.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -33,6 +33,7 @@
     "@dnd-kit/modifiers": "^7.0.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@ferrucc-io/emoji-picker": "^0.0.47",
     "@headlessui/react": "2.2.7",
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.5",
