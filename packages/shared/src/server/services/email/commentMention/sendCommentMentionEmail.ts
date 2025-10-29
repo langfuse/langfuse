@@ -36,13 +36,15 @@ export const sendCommentMentionEmail = async ({
 
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
+    // Sanitize the comment preview to prevent HTML/CRLF injection before rendering into HTML
+    const safeCommentPreview = sanitizeEmailSubject(commentPreview);
     const htmlTemplate = await render(
       CommentMentionEmailTemplate({
         mentionedUserName,
         mentionedUserEmail,
         authorName,
         projectName,
-        commentPreview,
+        commentPreview: safeCommentPreview,
         commentLink,
         settingsLink,
       }),
