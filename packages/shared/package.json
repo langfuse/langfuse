@@ -77,7 +77,6 @@
     "@slack/oauth": "^3.0.4",
     "@slack/web-api": "^7.10.0",
     "@types/bcryptjs": "^2.4.6",
-    "@types/nodemailer": "^7.0.3",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.10",
     "date-fns": "^3.3.1",
