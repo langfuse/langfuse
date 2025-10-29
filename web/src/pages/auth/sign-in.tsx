@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   SiOkta,
+  SiAuthentik,
   SiAuth0,
   SiAmazoncognito,
   SiKeycloak,
@@ -61,6 +62,7 @@ export type PageProps = {
     githubEnterprise: boolean;
     gitlab: boolean;
     okta: boolean;
+    authentik: boolean;
     onelogin: boolean;
     azureAd: boolean;
     auth0: boolean;
@@ -110,6 +112,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_OKTA_CLIENT_ID !== undefined &&
           env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
           env.AUTH_OKTA_ISSUER !== undefined,
+        authentik:
+          env.AUTH_AUTHENTIK_CLIENT_ID !== undefined &&
+          env.AUTH_AUTHENTIK_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTHENTIK_ISSUER !== undefined,
         onelogin:
           env.AUTH_ONELOGIN_CLIENT_ID !== undefined &&
           env.AUTH_ONELOGIN_CLIENT_SECRET !== undefined &&
@@ -279,6 +285,17 @@ export function SSOButtons({
               loading={providerSigningIn === "okta"}
               showLastUsedBadge={
                 hasMultipleAuthMethods && lastUsedMethod === "okta"
+              }
+            />
+          )}
+          {authProviders.authentik && (
+            <AuthProviderButton
+              icon={<SiAuthentik className="mr-3" size={18} />}
+              label="Authentik"
+              onClick={() => handleSignIn("authentik")}
+              loading={providerSigningIn === "authentik"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "authentik"
               }
             />
           )}
