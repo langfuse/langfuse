@@ -150,22 +150,23 @@ export const accountsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const supabase = createSupabaseAdminClient();
+      const supabaseAuth = createSupabaseAdminClient();
 
       // Register user with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: input.email,
-        password: input.password,
-        options: {
-          data: {
-            name: input.name,
-            full_name: input.name,
-            email_verified: true,
-            phone_verified: false,
-            paymentRequired: true,
+      const { data: authData, error: authError } =
+        await supabaseAuth.auth.signUp({
+          email: input.email,
+          password: input.password,
+          options: {
+            data: {
+              name: input.name,
+              full_name: input.name,
+              email_verified: true,
+              phone_verified: false,
+              paymentRequired: true,
+            },
           },
-        },
-      });
+        });
 
       if (authError) {
         throw new TRPCError({
@@ -182,8 +183,8 @@ export const accountsRouter = createTRPCRouter({
       }
 
       const hashedPassword = hashChainlitPassword(input.password);
-      const supabase2 = createSupabaseAdminClient();
-      const { error } = await supabase2
+      const supabase = createSupabaseAdminClient();
+      const { error } = await supabase
         .schema("public")
         .from("test_users")
         .insert({
@@ -201,7 +202,7 @@ export const accountsRouter = createTRPCRouter({
       // Prepare djb_metadata based on GBA user flag
       const djbMetadata = input.isGbaUser ? { ta_only: true } : {};
 
-      const userRes = await supabase2
+      const userRes = await supabase
         .schema("public")
         .from("User")
         .insert({
@@ -496,7 +497,45 @@ export const accountsRouter = createTRPCRouter({
             : hashChainlitPassword(input.password),
       };
 
+      // Update Supabase Auth if password is being changed
+      if (input.password.trim() !== "") {
+        // Get the auth user by email
+        const { data: authUsers, error: listError } =
+          await supabase.auth.admin.listUsers();
+
+        if (listError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Failed to list auth users: ${listError.message}`,
+          });
+        }
+
+        const authUser = authUsers.users.find(
+          (user) =>
+            user.email?.toLowerCase() ===
+            currentUserRes.data.identifier.toLowerCase(),
+        );
+
+        if (authUser) {
+          const supabaseAuth = createSupabaseAdminClient();
+          // Update the auth user's password
+          const { error: updateAuthError } =
+            await supabaseAuth.auth.admin.updateUserById(authUser.id, {
+              email: input.username,
+              password: input.password,
+            });
+
+          if (updateAuthError) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: `Failed to update auth password: ${updateAuthError.message}`,
+            });
+          }
+        }
+      }
+
       const { data, error } = await supabase
+        .schema("public")
         .from("test_users")
         .update(updateData)
         .eq("id", currentTestUserRes.data.id)

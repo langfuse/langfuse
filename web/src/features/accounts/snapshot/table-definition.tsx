@@ -152,7 +152,7 @@ function ManageSnapshotUserCell({
           <DialogBody>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="edit-username">Username</Label>
+                <Label htmlFor="edit-username">Email</Label>
                 <Input
                   id="edit-username"
                   value={editUsername}

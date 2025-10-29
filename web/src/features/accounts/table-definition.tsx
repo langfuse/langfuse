@@ -137,12 +137,12 @@ function ManageAccountCell({
           <DialogBody>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">Email</Label>
                 <Input
                   id="username"
                   value={editUsername}
                   onChange={(e) => setEditUsername(e.target.value)}
-                  placeholder="Enter username"
+                  placeholder="Enter email"
                   className="font-mono"
                 />
               </div>
