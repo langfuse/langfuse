@@ -63,6 +63,7 @@ export function PopoverFilterBuilder({
   onChange,
   columnsWithCustomSelect = [],
   filterWithAI = false,
+  buttonVariant = "outline",
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
@@ -71,6 +72,7 @@ export function PopoverFilterBuilder({
     | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
+  buttonVariant?: "outline" | "ghost";
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -125,7 +127,7 @@ export function PopoverFilterBuilder({
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="outline" type="button">
+          <Button variant={buttonVariant} type="button">
             <span>Filters</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState
