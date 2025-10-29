@@ -12,6 +12,7 @@ import { MembershipInvitesPage } from "@/src/features/rbac/components/Membership
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
+import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -198,7 +199,7 @@ export const getProjectSettingsPages = ({
   {
     title: "Integrations",
     slug: "integrations",
-    cmdKKeywords: ["posthog"],
+    cmdKKeywords: ["posthog", "mixpanel", "analytics"],
     content: <Integrations projectId={project.id} />,
   },
   {
@@ -285,6 +286,31 @@ const Integrations = (props: { projectId: string }) => {
             <Button asChild variant="ghost">
               <Link
                 href="https://langfuse.com/integrations/analytics/posthog"
+                target="_blank"
+              >
+                Integration Docs ↗
+              </Link>
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <MixpanelLogo className="mb-4 w-20 text-foreground" />
+          <p className="mb-4 text-sm text-primary">
+            Integrate with Mixpanel to sync your Langfuse traces, generations,
+            and scores for advanced product analytics and insights.
+          </p>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              hasAccess={hasAccess}
+              href={`/project/${props.projectId}/settings/integrations/mixpanel`}
+            >
+              Configure
+            </ActionButton>
+            <Button asChild variant="ghost">
+              <Link
+                href="https://langfuse.com/docs/integrations/mixpanel"
                 target="_blank"
               >
                 Integration Docs ↗

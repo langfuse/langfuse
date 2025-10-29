@@ -4,12 +4,16 @@ import {
   QueueName,
   TQueueJobTypes,
   logger,
-  getTracesForPostHog,
-  getGenerationsForPostHog,
-  getScoresForPostHog,
+  getTracesForAnalyticsIntegrations,
+  getGenerationsForAnalyticsIntegrations,
+  getScoresForAnalyticsIntegrations,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
-import { v5 } from "uuid";
+import {
+  transformTraceForPostHog,
+  transformGenerationForPostHog,
+  transformScoreForPostHog,
+} from "./transformers";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 
@@ -21,14 +25,12 @@ type PostHogExecutionConfig = {
   postHogHost: string;
 };
 
-const POSTHOG_UUID_NAMESPACE = "0f6c91df-d035-4813-b838-9741ba38ef0b";
-
 const postHogSettings = {
   flushAt: 1000,
 };
 
 const processPostHogTraces = async (config: PostHogExecutionConfig) => {
-  const postHogTraces = getTracesForPostHog(
+  const traces = getTracesForAnalyticsIntegrations(
     config.projectId,
     config.minTimestamp,
     config.maxTimestamp,
@@ -52,22 +54,10 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
   });
 
   let count = 0;
-  for await (const trace of postHogTraces) {
+  for await (const trace of traces) {
     count++;
-    const uuid = v5(
-      `${config.projectId}-${trace.langfuse_id}`,
-      POSTHOG_UUID_NAMESPACE,
-    );
-    posthog.capture({
-      distinctId: trace.langfuse_user_id
-        ? (trace.langfuse_user_id as string)
-        : // use random uuid for anonymous users to maximize posthog performance, will be ignored as we set $process_person_profile to false
-          uuid,
-      event: "langfuse trace",
-      properties: trace,
-      timestamp: trace.timestamp as Date,
-      uuid,
-    });
+    const event = transformTraceForPostHog(trace, config.projectId);
+    posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
       logger.info(
@@ -82,7 +72,7 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
 };
 
 const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
-  const postHogGenerations = getGenerationsForPostHog(
+  const generations = getGenerationsForAnalyticsIntegrations(
     config.projectId,
     config.minTimestamp,
     config.maxTimestamp,
@@ -106,22 +96,10 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
   });
 
   let count = 0;
-  for await (const generation of postHogGenerations) {
+  for await (const generation of generations) {
     count++;
-    const uuid = v5(
-      `${config.projectId}-${generation.langfuse_id}`,
-      POSTHOG_UUID_NAMESPACE,
-    );
-    posthog.capture({
-      distinctId: generation.langfuse_user_id
-        ? (generation.langfuse_user_id as string)
-        : // use random uuid for anonymous users to maximize posthog performance, will be ignored as we set $process_person_profile to false
-          uuid,
-      event: "langfuse generation",
-      properties: generation,
-      timestamp: generation.timestamp as Date,
-      uuid,
-    });
+    const event = transformGenerationForPostHog(generation, config.projectId);
+    posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
       logger.info(
@@ -136,7 +114,7 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
 };
 
 const processPostHogScores = async (config: PostHogExecutionConfig) => {
-  const postHogScores = getScoresForPostHog(
+  const scores = getScoresForAnalyticsIntegrations(
     config.projectId,
     config.minTimestamp,
     config.maxTimestamp,
@@ -159,22 +137,10 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     );
   });
   let count = 0;
-  for await (const score of postHogScores) {
+  for await (const score of scores) {
     count++;
-    const uuid = v5(
-      `${config.projectId}-${score.langfuse_id}`,
-      POSTHOG_UUID_NAMESPACE,
-    );
-    posthog.capture({
-      distinctId: score.langfuse_user_id
-        ? (score.langfuse_user_id as string)
-        : // use random uuid for anonymous users to maximize posthog performance, will be ignored as we set $process_person_profile to false
-          uuid,
-      event: "langfuse score",
-      properties: score,
-      timestamp: score.timestamp as Date,
-      uuid,
-    });
+    const event = transformScoreForPostHog(score, config.projectId);
+    posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
       logger.info(

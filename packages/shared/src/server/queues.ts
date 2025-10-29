@@ -92,6 +92,9 @@ export const EvalExecutionEvent = z.object({
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
+export const MixpanelIntegrationProcessingEventSchema = z.object({
+  projectId: z.string(),
+});
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -241,6 +244,9 @@ export type ExperimentCreateEventType = z.infer<
 export type PostHogIntegrationProcessingEventType = z.infer<
   typeof PostHogIntegrationProcessingEventSchema
 >;
+export type MixpanelIntegrationProcessingEventType = z.infer<
+  typeof MixpanelIntegrationProcessingEventSchema
+>;
 export type DataRetentionProcessingEventType = z.infer<
   typeof DataRetentionProcessingEventSchema
 >;
@@ -278,6 +284,8 @@ export enum QueueName {
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  MixpanelIntegrationQueue = "mixpanel-integration-queue",
+  MixpanelIntegrationProcessingQueue = "mixpanel-integration-processing-queue",
   BlobStorageIntegrationQueue = "blobstorage-integration-queue",
   BlobStorageIntegrationProcessingQueue = "blobstorage-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
@@ -311,6 +319,8 @@ export enum QueueJobs {
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  MixpanelIntegrationJob = "mixpanel-integration-job",
+  MixpanelIntegrationProcessingJob = "mixpanel-integration-processing-job",
   BlobStorageIntegrationJob = "blobstorage-integration-job",
   BlobStorageIntegrationProcessingJob = "blobstorage-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
@@ -408,6 +418,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: PostHogIntegrationProcessingEventType;
     name: QueueJobs.PostHogIntegrationProcessingJob;
+  };
+  [QueueName.MixpanelIntegrationProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MixpanelIntegrationProcessingEventType;
+    name: QueueJobs.MixpanelIntegrationProcessingJob;
   };
   [QueueName.DataRetentionProcessingQueue]: {
     timestamp: Date;

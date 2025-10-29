@@ -182,28 +182,25 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        timestampFilter: timeFilter.optional(),
+        timestampFilter: z.array(timeFilter).optional(),
       }),
     )
     .query(async ({ input }) => {
       const { timestampFilter } = input;
       const [names, tags, traceNames, userIds] = await Promise.all([
-        getScoreNames(
-          input.projectId,
-          timestampFilter ? [timestampFilter] : [],
-        ),
+        getScoreNames(input.projectId, timestampFilter ?? []),
         getTracesGroupedByTags({
           projectId: input.projectId,
-          filter: timestampFilter ? [timestampFilter] : [],
+          filter: timestampFilter ?? [],
         }),
         getTracesGroupedByName(
           input.projectId,
           tracesTableUiColumnDefinitions,
-          timestampFilter ? [timestampFilter] : [],
+          timestampFilter ?? [],
         ),
         getTracesGroupedByUsers(
           input.projectId,
-          timestampFilter ? [timestampFilter] : [],
+          timestampFilter ?? [],
           undefined,
           100, // limit to top 100 users
           0,
