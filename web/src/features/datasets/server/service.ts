@@ -204,7 +204,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
   const filterTimestamp = minTimestamp
     ? new Date(minTimestamp.getTime() - 24 * 60 * 60 * 1000)
     : undefined;
-  const traceIds = [...new Set(runItems.map((ri) => ri.traceId))];
+  const traceIds = runItems.map((ri) => ri.traceId);
   const observationLevelRunItems = runItems.filter(
     (ri) => ri.observationId !== null,
   );
@@ -221,7 +221,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
       getLatencyAndTotalCostForObservationsWithChildren(
         projectId,
         observationLevelRunItems.map((ri) => ri.observationId) as string[],
-        [...new Set(observationLevelRunItems.map((ri) => ri.traceId))],
+        observationLevelRunItems.map((ri) => ri.traceId),
         filterTimestamp,
       ),
       getLatencyAndTotalCostForObservationsByTraces(
