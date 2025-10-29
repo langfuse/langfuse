@@ -115,16 +115,12 @@ const DatasetRunTableMultiSelectAction = ({
         <DropdownMenuContent key="dropdown-menu-content">
           <Link
             key="compare"
-            href={
-              selectedRunIds.length < 2
-                ? "#"
-                : {
-                    pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
-                    query: { runs: selectedRunIds },
-                  }
-            }
+            href={{
+              pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+              query: { runs: selectedRunIds },
+            }}
           >
-            <DropdownMenuItem disabled={selectedRunIds.length < 2}>
+            <DropdownMenuItem>
               <Columns3 className="mr-2 h-4 w-4" />
               <span>Compare</span>
             </DropdownMenuItem>
