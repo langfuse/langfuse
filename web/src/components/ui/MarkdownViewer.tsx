@@ -16,6 +16,7 @@ import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
@@ -34,6 +35,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import DOMPurify from "dompurify";
+import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -139,6 +141,16 @@ function MarkdownRenderer({
               );
             },
             a({ children, href }) {
+              // Handle mention links
+              if (href?.startsWith(MENTION_USER_PREFIX)) {
+                const userId = href.replace(MENTION_USER_PREFIX, "");
+                const displayName = String(children);
+                return (
+                  <MentionBadge userId={userId} displayName={displayName} />
+                );
+              }
+
+              // Handle regular links
               const safeHref = getSafeUrl(href);
               if (safeHref) {
                 return (
@@ -304,12 +316,14 @@ export function MarkdownView({
   customCodeHeaderClassName,
   audio,
   media,
+  className,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
+  className?: string;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -348,6 +362,7 @@ export function MarkdownView({
           title === "system" || title === "Input"
             ? "bg-primary-foreground"
             : "",
+          className,
         )}
       >
         {typeof markdown === "string" ? (

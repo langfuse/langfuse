@@ -186,6 +186,16 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const NotificationEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("COMMENT_MENTION"),
+    commentId: z.string(),
+    projectId: z.string(),
+    mentionedUserIds: z.array(z.string()),
+  }),
+  // Future notification types can be added here
+]);
+
 export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
   action: EventActionSchema,
@@ -249,6 +259,7 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
 
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),
@@ -289,6 +300,7 @@ export enum QueueName {
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
+  NotificationQueue = "notification-queue",
 }
 
 export enum QueueJobs {
@@ -323,6 +335,7 @@ export enum QueueJobs {
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
+  NotificationJob = "notification-job",
 }
 
 export type TQueueJobTypes = {
@@ -472,5 +485,11 @@ export type TQueueJobTypes = {
       partition?: string;
     };
     name: QueueJobs.EventPropagationJob;
+  };
+  [QueueName.NotificationQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: NotificationEventType;
+    name: QueueJobs.NotificationJob;
   };
 };

@@ -29,6 +29,7 @@ import ProtectedLabelsSettings from "@/src/features/prompts/components/Protected
 import { Slack } from "lucide-react";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
+import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -212,6 +213,12 @@ export const getProjectSettingsPages = ({
     slug: "audit-logs",
     cmdKKeywords: ["trail"],
     content: <AuditLogsSettingsPage projectId={project.id} />,
+  },
+  {
+    title: "Notifications",
+    slug: "notifications",
+    cmdKKeywords: ["inbox", "email", "mention", "alert"],
+    content: <NotificationSettings />,
   },
   {
     title: "Billing",
