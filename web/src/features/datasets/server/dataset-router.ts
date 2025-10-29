@@ -1275,7 +1275,6 @@ export const datasetRouter = createTRPCRouter({
       const enrichedRunItems = await getRunItemsByRunIdOrItemId(
         input.projectId,
         runItems,
-        datasetRun.createdAt,
       );
 
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above

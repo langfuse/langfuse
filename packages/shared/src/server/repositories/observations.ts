@@ -1359,6 +1359,28 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
 /**
  * Get latency and RECURSIVE total cost for observations
  */
+
+// Tuple type for observation data from ClickHouse groupArray
+type ObservationTuple = [
+  id: string,
+  parentObservationId: string | null,
+  totalCost: string,
+  inputCost: string,
+  outputCost: string,
+  latencyMs: number,
+];
+
+// Helpers to extract fields from tuple
+const getObservationId = (obs: ObservationTuple) => obs[0];
+const getLatencyMs = (obs: ObservationTuple) => obs[5];
+const toCostInput = (obs: ObservationTuple) => ({
+  id: obs[0],
+  parentObservationId: obs[1],
+  totalCost: obs[2],
+  inputCost: obs[3],
+  outputCost: obs[4],
+});
+
 export const getLatencyAndTotalCostForObservationsWithChildren = async (
   projectId: string,
   observationIds: string[],
@@ -1367,28 +1389,22 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async (
 ) => {
   if (observationIds.length === 0) return [];
 
-  // Query 1: Direct costs + latency for target observations
+  // Query 1: trace_id for target observations
   const directQuery = `
     SELECT
         id,
-        trace_id,
-        cost_details['total'] AS total_cost,
-        cost_details['input'] AS input_cost,
-        cost_details['output'] AS output_cost,
-        dateDiff('millisecond', start_time, end_time) AS latency_ms
-    FROM observations FINAL
+        trace_id
+    FROM observations
     WHERE project_id = {projectId: String}
     AND id IN ({observationIds: Array(String)})
     ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
+    ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id
   `;
 
   const directResults = await queryClickhouse<{
     id: string;
     trace_id: string;
-    total_cost: string;
-    input_cost: string;
-    output_cost: string;
-    latency_ms: string;
   }>({
     query: directQuery,
     params: {
@@ -1406,11 +1422,18 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async (
     },
   });
 
-  // Query 2: ALL observations for traces grouped by trace_id (for recursive calculation)
+  // Query 2: ALL observations with costs + latency
   const allObservationsQuery = `
     SELECT
         trace_id,
-        groupArray((id, parent_observation_id, cost_details['total'], cost_details['input'], cost_details['output'])) AS observations
+        groupArray((
+          id,
+          parent_observation_id,
+          cost_details['total'],
+          cost_details['input'],
+          cost_details['output'],
+          dateDiff('millisecond', start_time, end_time)
+        )) AS observations
     FROM observations FINAL
     WHERE project_id = {projectId: String}
     AND trace_id IN ({traceIds: Array(String)})
@@ -1420,7 +1443,7 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async (
 
   const groupedObservations = await queryClickhouse<{
     trace_id: string;
-    observations: Array<[string, string | null, string, string, string]>; // [id, parent_id, total, input, output]
+    observations: ObservationTuple[];
   }>({
     query: allObservationsQuery,
     params: {
@@ -1442,31 +1465,34 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async (
     groupedObservations.map((g) => [g.trace_id, g.observations]),
   );
 
-  // Calculate recursive costs for each observation
+  // Calculate recursive costs and extract latency for each target observation
   const calculatedCosts = new Map<string, number>();
+  const latencies = new Map<string, number>();
 
   for (const result of directResults) {
     const observations = observationsByTraceId.get(result.trace_id);
-    if (observations?.length && Boolean(observations.length)) {
+    if (observations?.length) {
+      // Find target observation and extract latency
+      const targetObs = observations.find(
+        (obs) => getObservationId(obs) === result.id,
+      );
+      if (targetObs) {
+        latencies.set(result.id, Number(getLatencyMs(targetObs)) / 1000);
+      }
+
+      // Calculate recursive cost
       const cost = calculateRecursiveCost(
         result.id,
-        observations.map(([id, parent_id, total, input, output]) => ({
-          id,
-          parentObservationId: parent_id,
-          totalCost: total,
-          inputCost: input,
-          outputCost: output,
-        })),
+        observations.map(toCostInput),
       );
       calculatedCosts.set(result.id, cost?.toNumber() ?? 0);
     }
   }
 
-  // Return: use calculated recursive cost (includes children)
   return directResults.map((r) => ({
     id: r.id,
-    totalCost: (calculatedCosts.get(r.id) ?? Number(r.total_cost)) || 0,
-    latency: Number(r.latency_ms) / 1000,
+    totalCost: calculatedCosts.get(r.id) ?? 0,
+    latency: latencies.get(r.id) ?? 0,
   }));
 };
 
