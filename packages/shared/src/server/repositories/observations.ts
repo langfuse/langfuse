@@ -1419,6 +1419,9 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async <
     params: {
       projectId,
       traceIds,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
