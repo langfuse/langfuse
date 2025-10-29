@@ -71,11 +71,11 @@ export const sumObservationCosts = (
       const output = outputCost || new Decimal(0);
       const combinedCost = input.plus(output);
 
-      return prev
-        ? prev.plus(combinedCost)
-        : combinedCost.isZero()
-          ? undefined
-          : combinedCost;
+      if (combinedCost.isZero()) {
+        return prev;
+      }
+
+      return prev ? prev.plus(combinedCost) : combinedCost;
     }
 
     return prev;
