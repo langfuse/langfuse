@@ -47,13 +47,13 @@ This script populates your Langfuse project with test data for the Score Analyti
 
 ```bash
 # From the root of the langfuse repo
-npx tsx scripts/seed-score-analytics-test-data.ts <projectId>
+pnpm tsx scripts/seed-score-analytics-test-data.ts <projectId>
 ```
 
 ### Example
 
 ```bash
-npx tsx scripts/seed-score-analytics-test-data.ts clkv6g5jo0000jz088vzn1ja4
+pnpm tsx scripts/seed-score-analytics-test-data.ts 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a
 ```
 
 ## Expected Output
