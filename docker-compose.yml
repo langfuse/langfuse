@@ -6,6 +6,7 @@
 services:
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:3
+    container_name: ${WORKER_CONTAINER_NAME:-langfuse-worker}
     restart: always
     depends_on: &langfuse-depends-on
       postgres:
@@ -17,7 +18,9 @@ services:
       clickhouse:
         condition: service_healthy
     ports:
-      - 127.0.0.1:3030:3030
+      - ${WORKER_HOST_IP:-127.0.0.1}:${WORKER_HOST_PORT:-3030}:3030
+    networks:
+      - default
     environment: &langfuse-worker-env
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
@@ -68,10 +71,13 @@ services:
 
   langfuse-web:
     image: docker.io/langfuse/langfuse:3
+    container_name: ${WEB_CONTAINER_NAME:-langfuse-web}
     restart: always
     depends_on: *langfuse-depends-on
     ports:
-      - 3000:3000
+      - ${WEB_HOST_IP:-0.0.0.0}:${WEB_HOST_PORT:-3000}:3000
+    networks:
+      - default
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-mysecret} # CHANGEME
@@ -87,6 +93,7 @@ services:
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
+    container_name: ${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}
     restart: always
     user: "101:101"
     environment:
@@ -97,17 +104,20 @@ services:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - 127.0.0.1:8123:8123
-      - 127.0.0.1:9000:9000
+      - ${HOST_IP:-127.0.0.1}:${CLICKHOUSE_HTTP_PORT:-8123}:8123
+      - ${HOST_IP:-127.0.0.1}:${CLICKHOUSE_NATIVE_PORT:-9000}:9000
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 1s
+    networks:
+      - default
 
   minio:
     image: docker.io/minio/minio
+    container_name: ${MINIO_CONTAINER_NAME:-langfuse-minio}
     restart: always
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
@@ -116,8 +126,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret} # CHANGEME
     ports:
-      - 9090:9000
-      - 127.0.0.1:9091:9001
+      - ${MINIO_API_HOST_IP:-0.0.0.0}:${MINIO_API_PORT:-9090}:9000
+      - ${HOST_IP:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9091}:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -126,23 +136,29 @@ services:
       timeout: 5s
       retries: 5
       start_period: 1s
+    networks:
+      - default
 
   redis:
     image: docker.io/redis:7
+    container_name: ${REDIS_CONTAINER_NAME:-langfuse-redis}
     restart: always
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
-      - 127.0.0.1:6379:6379
+      - ${HOST_IP:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 10s
       retries: 10
+    networks:
+      - default
 
   postgres:
     image: docker.io/postgres:${POSTGRES_VERSION:-17}
+    container_name: ${POSTGRES_CONTAINER_NAME:-langfuse-postgres}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -156,16 +172,27 @@ services:
       TZ: UTC
       PGTZ: UTC
     ports:
-      - 127.0.0.1:5432:5432
+      - ${HOST_IP:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - default
 
 volumes:
   langfuse_postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-langfuse_postgres_data}
     driver: local
   langfuse_clickhouse_data:
+    name: ${CLICKHOUSE_DATA_VOLUME_NAME:-langfuse_clickhouse_data}
     driver: local
   langfuse_clickhouse_logs:
+    name: ${CLICKHOUSE_LOGS_VOLUME_NAME:-langfuse_clickhouse_logs}
     driver: local
   langfuse_minio_data:
+    name: ${MINIO_VOLUME_NAME:-langfuse_minio_data}
     driver: local
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK_NAME:-langfuse-network}
+    driver: bridge
