@@ -21,6 +21,7 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -157,14 +158,14 @@ export default function SessionsTable({
     order: "DESC",
   });
 
-  // Extract and type-check the datetime filter from dateRangeFilter
-  // API expects specifically a datetime filter, but dateRangeFilter is FilterState which can contain any filter type
-  const createdAtFilter = dateRangeFilter.find((f) => f.column === "createdAt");
+  // dateRangeFilter contains only createdAt datetime filters, pass directly to API
   const filterOptions = api.sessions.filterOptions.useQuery(
     {
       projectId,
       timestampFilter:
-        createdAtFilter?.type === "datetime" ? createdAtFilter : undefined,
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
+          : undefined,
     },
     {
       trpc: {
