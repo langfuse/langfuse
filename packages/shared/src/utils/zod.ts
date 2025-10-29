@@ -86,7 +86,7 @@ export const noUrlCheck = (value: string) => !urlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
 
-export const htmlRegex = /<[^>]*>/;
+export const htmlRegex = /<[^>]*>/g;
 
 export const StringNoHTML = z.string().refine((val) => !htmlRegex.test(val), {
   message: "Text cannot contain HTML tags",
