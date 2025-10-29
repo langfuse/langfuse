@@ -1,6 +1,6 @@
 # Score Analytics Test Data Seeding Script
 
-This script populates your Langfuse project with test data for the Score Analytics feature.
+This script populates your Langfuse project with test data for the Score Analytics feature. It creates traces, observations, and scores directly in **ClickHouse** using factory functions and batch insertions.
 
 ## What it creates
 
@@ -47,13 +47,13 @@ This script populates your Langfuse project with test data for the Score Analyti
 
 ```bash
 # From the root of the langfuse repo
-pnpm dotenv -e .env -- tsx scripts/seed-score-analytics-test-data.ts <projectId>
+pnpm dotenv -e .env -- tsx packages/shared/scripts/seed-score-analytics-test-data.ts <projectId>
 ```
 
 ### Example
 
 ```bash
-pnpm dotenv -e .env -- tsx scripts/seed-score-analytics-test-data.ts 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a
+pnpm dotenv -e .env -- tsx packages/shared/scripts/seed-score-analytics-test-data.ts 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a
 ```
 
 **Note**: The script requires environment variables to be loaded, which is why we use `dotenv -e .env` before the `tsx` command.
@@ -156,3 +156,18 @@ Or by metadata: `test_type: "boolean_scores" | "categorical_scores" | "numeric_s
 - ANNOTATION scores are intentionally slightly different from EVAL scores to simulate realistic human annotation variance
 - Timestamps are realistic with jitter to simulate real-world data collection
 - Each trace/observation gets unique IDs for proper isolation
+- **Architecture**: Uses ClickHouse for traces, observations, and scores (NOT Postgres) via factory functions (`createTrace`, `createObservation`, `createTraceScore`) and batch insertion (`createTracesCh`, `createObservationsCh`, `createScoresCh`)
+
+## Known Issues
+
+Currently blocked by a dependency resolution error in Node v24 environment:
+```
+Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: Package subpath './protocols' is not defined by "exports" in .../node_modules/@smithy/core/package.json
+```
+
+This affects:
+- This seeding script
+- The existing `seed-postgres.ts` script
+- The official `pnpm run db:seed` command
+
+**Workaround**: The script logic is correct, but execution is currently blocked by this Node v24 + pnpm + AWS SDK v3 (@smithy/core) compatibility issue. This needs to be resolved at the infrastructure level.
