@@ -3,10 +3,10 @@
  * Script to seed test data for score analytics feature
  *
  * Usage:
- *   npx tsx scripts/seed-score-analytics-test-data.ts <projectId>
+ *   pnpm dotenv -e .env -- tsx scripts/seed-score-analytics-test-data.ts <projectId>
  *
  * Example:
- *   npx tsx scripts/seed-score-analytics-test-data.ts clkv6g5jo0000jz088vzn1ja4
+ *   pnpm dotenv -e .env -- tsx scripts/seed-score-analytics-test-data.ts 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a
  */
 
 import { prisma } from "../packages/shared/src/server";
