@@ -4,7 +4,6 @@
     "declaration": false,
     "declarationMap": false,
     "outDir": "dist",
-    "rootDir": ".",
     "plugins": [
       {
         "name": "next"
