@@ -227,6 +227,7 @@ export function PromptTable() {
   const queryFilter = useSidebarFilterState(
     promptFilterConfig,
     newFilterOptions,
+    projectId,
   );
 
   useEffect(() => {

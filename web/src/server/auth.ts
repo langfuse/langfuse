@@ -48,6 +48,7 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
+  resolveProjectRole,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -57,7 +58,6 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { resolveProjectRole } from "@/src/features/rbac/utils/userProjectRole";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();

@@ -31,6 +31,7 @@ import {
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
+import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 
@@ -1236,7 +1237,7 @@ export const getTracesForBlobStorageExport = function (
   });
 };
 
-export const getTracesForPostHog = async function* (
+export const getTracesForAnalyticsIntegrations = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
@@ -1268,6 +1269,7 @@ export const getTracesForPostHog = async function* (
       t.tags as tags,
       t.environment as environment,
       t.metadata['$posthog_session_id'] as posthog_session_id,
+      t.metadata['$mixpanel_session_id'] as mixpanel_session_id,
       o.total_cost as total_cost,
       o.latency_milliseconds / 1000 as latency,
       o.observation_count as observation_count
@@ -1308,6 +1310,9 @@ export const getTracesForPostHog = async function* (
       langfuse_id: record.id,
       langfuse_trace_name: record.name,
       langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.id as string)}`,
+      langfuse_user_url: record.user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+        : undefined,
       langfuse_cost_usd: record.total_cost,
       langfuse_count_observations: record.observation_count,
       langfuse_session_id: record.session_id,
@@ -1319,17 +1324,9 @@ export const getTracesForPostHog = async function* (
       langfuse_tags: record.tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
-      $session_id: record.posthog_session_id ?? null,
-      ...(record.user_id
-        ? {
-            $set: {
-              langfuse_user_url: `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`,
-            },
-          }
-        : // Capture as anonymous PostHog event (cheaper/faster)
-          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
-          { $process_person_profile: false }),
-    };
+      posthog_session_id: record.posthog_session_id ?? null,
+      mixpanel_session_id: record.mixpanel_session_id ?? null,
+    } satisfies AnalyticsTraceEvent;
   }
 };
 
