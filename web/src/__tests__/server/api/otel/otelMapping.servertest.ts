@@ -1217,6 +1217,8 @@ describe("OTel Resource Span Mapping", () => {
       ["ai.embed.doEmbed", "embedding-create"],
       ["ai.embedMany", "embedding-create"],
       ["ai.embedMany.doEmbed", "embedding-create"],
+      ["ai.embed generate-document-embedding", "embedding-create"],
+      ["ai.embed.doEmbed generate-document-embedding", "embedding-create"],
       ["ai.toolCall", "tool-create"],
     ])(
       "should map AI SDK %s operation to %s event",

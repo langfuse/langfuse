@@ -226,23 +226,43 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
-    new SimpleAttributeMapper("Vercel_AI_SDK_Operation", 4, "operation.name", {
-      // Format:
-      // Vercel AI SDK Value: Langfuse ObservationType
-      "ai.generateText": "GENERATION",
-      "ai.generateText.doGenerate": "GENERATION",
-      "ai.streamText": "GENERATION",
-      "ai.streamText.doStream": "GENERATION",
-      "ai.generateObject": "GENERATION",
-      "ai.generateObject.doGenerate": "GENERATION",
-      "ai.streamObject": "GENERATION",
-      "ai.streamObject.doStream": "GENERATION",
-      "ai.embed": "EMBEDDING",
-      "ai.embed.doEmbed": "EMBEDDING",
-      "ai.embedMany": "EMBEDDING",
-      "ai.embedMany.doEmbed": "EMBEDDING",
-      "ai.toolCall": "TOOL",
-    }),
+    new CustomAttributeMapper(
+      "Vercel_AI_SDK_Operation",
+      4,
+      (attributes) => hasMeaningfulValue(attributes["operation.name"]),
+      (attributes) => {
+        const operationName = attributes["operation.name"] as string;
+        // Format:
+        // Vercel AI SDK Value: Langfuse ObservationType
+        // IMPORTANT: prefixes inversely ordered by length to avoid false matches
+        // AI SDK may append function ID after operation name (e.g., "ai.embed my-function"), first seen on 2025-10-29 in SDK v5
+        const prefixMappings: Array<[string, LangfuseObservationType]> = [
+          ["ai.generateText.doGenerate", "GENERATION"],
+          ["ai.generateText", "GENERATION"],
+          ["ai.streamText.doStream", "GENERATION"],
+          ["ai.streamText", "GENERATION"],
+          ["ai.generateObject.doGenerate", "GENERATION"],
+          ["ai.generateObject", "GENERATION"],
+          ["ai.streamObject.doStream", "GENERATION"],
+          ["ai.streamObject", "GENERATION"],
+          ["ai.embed.doEmbed", "EMBEDDING"],
+          ["ai.embedMany.doEmbed", "EMBEDDING"],
+          ["ai.embedMany", "EMBEDDING"],
+          ["ai.embed", "EMBEDDING"],
+          ["ai.toolCall", "TOOL"],
+        ];
+
+        // Check if operation.name starts with any known operation prefix
+        // instead of checking for exact match due to the potentially added functionId
+        for (const [prefix, type] of prefixMappings) {
+          if (operationName.startsWith(prefix)) {
+            return type;
+          }
+        }
+
+        return null;
+      },
+    ),
 
     new CustomAttributeMapper(
       "ModelBased",
