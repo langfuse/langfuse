@@ -1824,6 +1824,28 @@ export class OtelIngestionProcessor {
             usageDetails["input_cache_read"] =
               openaiMetadata["cacheReadInputTokens"];
           }
+          // Bedrock provider metadata extraction
+          // "ai.response.providerMetadata": "{\"bedrock\":{\"usage\":{\"cacheReadInputTokens\":4482,\"cacheWriteInputTokens\":0,\"cacheCreationInputTokens\":0}}}"
+          if ("bedrock" in parsed) {
+            const bedrockMetadata = parsed["bedrock"] as Record<string, any>;
+
+            if (bedrockMetadata["usage"]) {
+              const usage = bedrockMetadata["usage"] as Record<string, number>;
+
+              if (usage["cacheReadInputTokens"] !== undefined) {
+                usageDetails["input_cache_read"] =
+                  usage["cacheReadInputTokens"];
+              }
+              if (usage["cacheWriteInputTokens"] !== undefined) {
+                usageDetails["input_cache_write"] =
+                  usage["cacheWriteInputTokens"];
+              }
+              if (usage["cacheCreationInputTokens"] !== undefined) {
+                usageDetails["input_cache_creation"] =
+                  usage["cacheCreationInputTokens"];
+              }
+            }
+          }
         }
 
         return usageDetails;

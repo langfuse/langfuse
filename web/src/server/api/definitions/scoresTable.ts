@@ -16,8 +16,9 @@ export const scoresTableCols: ColumnDefinition[] = [
   {
     name: "Trace Name",
     id: "traceName",
-    type: "string",
+    type: "stringOptions",
     internal: 't."name"',
+    options: [], // to be added at runtime
     nullable: true,
   },
   {
@@ -57,8 +58,9 @@ export const scoresTableCols: ColumnDefinition[] = [
   {
     name: "User ID",
     id: "userId",
-    type: "string",
+    type: "stringOptions",
     internal: 't."user_id"',
+    options: [], // to be added at runtime
     nullable: true,
   },
   {
@@ -74,6 +76,8 @@ export const scoresTableCols: ColumnDefinition[] = [
 export type ScoreOptions = {
   name: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
+  traceName: Array<SingleValueOption>;
+  userId: Array<SingleValueOption>;
 };
 
 export function scoresTableColsWithOptions(
@@ -85,6 +89,12 @@ export function scoresTableColsWithOptions(
     }
     if (col.id === "tags") {
       return formatColumnOptions(col, options?.tags ?? []);
+    }
+    if (col.id === "traceName") {
+      return formatColumnOptions(col, options?.traceName ?? []);
+    }
+    if (col.id === "userId") {
+      return formatColumnOptions(col, options?.userId ?? []);
     }
     return col;
   });

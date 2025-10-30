@@ -1,4 +1,8 @@
-import { FileContent, SeederOptions } from "./types";
+import {
+  FileContent,
+  SeederOptions,
+  getTotalObservationsForMode,
+} from "./types";
 import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { FrameworkTraceLoader } from "./framework-traces/framework-trace-loader";
@@ -240,19 +244,22 @@ export class SeederOrchestrator {
     projectIds: string[],
     opts: SeederOptions,
   ): Promise<void> {
-    logger.info(`Creating synthetic data for ${projectIds.length} projects.`);
+    const totalObservations = getTotalObservationsForMode(opts.mode);
+
+    logger.info(
+      `Creating synthetic data (mode: ${opts.mode}, observations: ${totalObservations}) for ${projectIds.length} projects.`,
+    );
 
     for (const projectId of projectIds) {
       logger.info(`Processing synthetic data for project ${projectId}`);
 
       const observationsPerTrace = 15;
       const tracesPerProject = Math.floor(
-        (opts.totalObservations || 1000) / observationsPerTrace,
+        totalObservations / observationsPerTrace,
       );
       const scoresPerTrace = 10;
 
-      // For large datasets, use bulk generation for better performance
-      if (tracesPerProject > 100) {
+      if (opts.mode === "bulk") {
         logger.info(`Using bulk generation for ${tracesPerProject} traces`);
 
         const traceQuery = this.queryBuilder.buildBulkTracesInsert(
