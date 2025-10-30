@@ -20,16 +20,36 @@ export function convertChatMlToPlayground(
   // Handle assistant messages with tool calls (from json field)
   // Note: ChatMlSchema may nest in json.json due to content union matching
   const jsonData = msg.json?.json || msg.json;
-  if (jsonData?.tool_calls && Array.isArray(jsonData.tool_calls)) {
-    const toolCalls = jsonData.tool_calls.map((tc: any) => {
+  const toolCallsSource = msg.tool_calls || jsonData?.tool_calls;
+
+  if (toolCallsSource && Array.isArray(toolCallsSource)) {
+    const toolCalls = toolCallsSource.map((tc: any) => {
       let args: Record<string, unknown>;
-      try {
-        args =
-          typeof tc.function?.arguments === "string"
-            ? JSON.parse(tc.function.arguments)
-            : (tc.function?.arguments ?? {});
-      } catch {
-        args = {};
+      let name: string;
+
+      // Handle flat format: {id, name, arguments, type}
+      if (tc.name && !tc.function) {
+        name = tc.name;
+        try {
+          args =
+            typeof tc.arguments === "string"
+              ? JSON.parse(tc.arguments)
+              : (tc.arguments ?? {});
+        } catch {
+          args = {};
+        }
+      }
+      // Handle nested format: {id, type, function: {name, arguments}}
+      else {
+        name = tc.function?.name || "";
+        try {
+          args =
+            typeof tc.function?.arguments === "string"
+              ? JSON.parse(tc.function.arguments)
+              : (tc.function?.arguments ?? {});
+        } catch {
+          args = {};
+        }
       }
 
       return {
@@ -47,13 +67,16 @@ export function convertChatMlToPlayground(
     };
   }
 
-  // Handle tool results (from json field)
-  if (jsonData?.tool_call_id || jsonData?.toolCallId) {
+  // Handle tool results
+  // Check top-level field first, then fall back to json field
+  const toolCallId =
+    msg.tool_call_id || jsonData?.tool_call_id || jsonData?.toolCallId;
+  if (toolCallId) {
     return {
       role: ChatMessageRole.Tool,
       content: (msg.content as string) || "",
       type: ChatMessageType.ToolResult,
-      toolCallId: (jsonData.tool_call_id || jsonData.toolCallId) as string,
+      toolCallId: toolCallId as string,
     };
   }
 
