@@ -74,6 +74,9 @@ export function ScoreDistributionCategoricalChart({
 
   // Configure colors and chart config
   const colors = getTwoScoreColors();
+  console.log("colors", colors);
+  console.log(score1Name);
+  console.log(score2Name);
   const singleColor = getSingleScoreColor();
   const config: ChartConfig = isComparisonMode
     ? getTwoScoreChartConfig(score1Name, score2Name!)

@@ -740,6 +740,50 @@ export const scoresRouter = createTRPCRouter({
       // Note: ClickHouse uses uppercase for interval units
       const clickhouseInterval = `INTERVAL ${interval.count} ${interval.unit.toUpperCase()}`;
 
+      // Determine if we're dealing with numeric or categorical/boolean data
+      const isNumeric = score1.dataType === "NUMERIC";
+
+      // Build distribution CTEs conditionally based on data type
+      const distribution1CTE = isNumeric
+        ? `-- CTE 9: Distribution for score1 (numeric)
+          distribution1 AS (
+            SELECT
+              floor((value - (SELECT min(value) FROM score1_filtered)) /
+                    (((SELECT max(value) FROM score1_filtered) - (SELECT min(value) FROM score1_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score1_filtered
+            GROUP BY bin_index
+          )`
+        : `-- CTE 9: Distribution for score1 (categorical/boolean)
+          distribution1 AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY string_value) - 1) as bin_index,
+              count() as count
+            FROM score1_filtered
+            WHERE string_value IS NOT NULL
+            GROUP BY string_value
+          )`;
+
+      const distribution2CTE = isNumeric
+        ? `-- CTE 10: Distribution for score2 (numeric)
+          distribution2 AS (
+            SELECT
+              floor((value - (SELECT min(value) FROM score2_filtered)) /
+                    (((SELECT max(value) FROM score2_filtered) - (SELECT min(value) FROM score2_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score2_filtered
+            GROUP BY bin_index
+          )`
+        : `-- CTE 10: Distribution for score2 (categorical/boolean)
+          distribution2 AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY string_value) - 1) as bin_index,
+              count() as count
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL
+            GROUP BY string_value
+          )`;
+
       // Construct comprehensive UNION ALL query
       const query = `
         WITH
@@ -856,25 +900,9 @@ export const scoresRouter = createTRPCRouter({
             ORDER BY ts
           ),
 
-          -- CTE 9: Distribution for score1
-          distribution1 AS (
-            SELECT
-              floor((value - (SELECT min(value) FROM score1_filtered)) /
-                    (((SELECT max(value) FROM score1_filtered) - (SELECT min(value) FROM score1_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
-              count() as count
-            FROM score1_filtered
-            GROUP BY bin_index
-          ),
+          ${distribution1CTE},
 
-          -- CTE 10: Distribution for score2
-          distribution2 AS (
-            SELECT
-              floor((value - (SELECT min(value) FROM score2_filtered)) /
-                    (((SELECT max(value) FROM score2_filtered) - (SELECT min(value) FROM score2_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
-              count() as count
-            FROM score2_filtered
-            GROUP BY bin_index
-          )
+          ${distribution2CTE}
 
         -- Return multiple result sets via UNION ALL
         SELECT
