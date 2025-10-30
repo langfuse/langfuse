@@ -1061,14 +1061,14 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      // Test week interval
+      // Test 7-day interval (week equivalent)
       const weekResult = await caller.scores.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: { count: 1, unit: "week" },
+        interval: { count: 7, unit: "day" },
         nBins: 10,
       });
 
