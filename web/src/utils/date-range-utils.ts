@@ -374,6 +374,70 @@ export const toAbsoluteTimeRange = (
 };
 
 /**
+ * Determines the optimal interval for score analytics based on time range.
+ * Maps time ranges to appropriate intervals for ClickHouse aggregation.
+ *
+ * Target: 20-50 data points for optimal visualization
+ *
+ * @param timeRange - The time range (relative or absolute)
+ * @returns Interval suitable for score analytics API ("hour" | "day" | "week" | "month")
+ */
+export function getScoreAnalyticsInterval(
+  timeRange: TimeRange,
+): "hour" | "day" | "week" | "month" {
+  // Handle preset ranges
+  if ("range" in timeRange) {
+    const preset = TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES];
+
+    if (!preset) {
+      return "day"; // Fallback
+    }
+
+    // Map dateTrunc to interval (note: API doesn't support "minute")
+    switch (preset.dateTrunc) {
+      case "minute":
+      case "hour":
+        return "hour";
+      case "day":
+        return "day";
+      case "week":
+        return "week";
+      case "month":
+        return "month";
+      default:
+        return "day"; // Fallback
+    }
+  }
+
+  // Handle custom ranges
+  const absoluteRange = toAbsoluteTimeRange(timeRange);
+  if (!absoluteRange) {
+    return "day"; // Fallback
+  }
+
+  const durationMs = absoluteRange.to.getTime() - absoluteRange.from.getTime();
+  const durationMinutes = durationMs / (1000 * 60);
+
+  // Calculate based on duration to get ~20-50 data points
+  // < 7 days → hour (yields 1-168 points)
+  if (durationMinutes < 7 * 24 * 60) {
+    return "hour";
+  }
+  // 7-90 days → day (yields 7-90 points)
+  else if (durationMinutes < 90 * 24 * 60) {
+    return "day";
+  }
+  // 90 days - 1 year → week (yields 13-52 points)
+  else if (durationMinutes < 365 * 24 * 60) {
+    return "week";
+  }
+  // > 1 year → month (yields 12+ points)
+  else {
+    return "month";
+  }
+}
+
+/**
  * Converts a range object to a string for URL serialization
  * - Named ranges: "last7Days" -> "7d" (abbreviated)
  * - Custom ranges: {from, to} -> "1693872000000-1694131199999"

@@ -14,6 +14,7 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
+  getScoreAnalyticsInterval,
 } from "@/src/utils/date-range-utils";
 import { BarChart3, Loader2 } from "lucide-react";
 import { api } from "@/src/utils/api";
@@ -138,6 +139,12 @@ export default function ScoresAnalyticsPage() {
     absoluteTimeRange?.to
   );
 
+  // Calculate optimal interval based on time range
+  const interval = useMemo(
+    () => getScoreAnalyticsInterval(timeRange),
+    [timeRange],
+  );
+
   // TODO: REMOVE BEFORE MERGING - Debug logging
   useEffect(() => {
     console.log("[Score Analytics] Fetch conditions:", {
@@ -168,6 +175,7 @@ export default function ScoresAnalyticsPage() {
       score2: parsedScore2 ?? parsedScore1!, // Use same score if only one selected
       fromTimestamp: absoluteTimeRange?.from!,
       toTimestamp: absoluteTimeRange?.to!,
+      interval,
     },
     {
       enabled: shouldFetchAnalytics,
@@ -378,7 +386,7 @@ export default function ScoresAnalyticsPage() {
                 }
                 source={parsedScore1.source}
                 analytics={analyticsData}
-                interval="day"
+                interval={interval}
                 nBins={10}
               />
             ) : hasTwoScores && parsedScore1 && parsedScore2 ? (
