@@ -8,8 +8,6 @@ import { ErrorPage } from "@/src/components/error-page";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace";
-import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
-import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 export function TracePage({
   traceId,
@@ -37,31 +35,6 @@ export function TracePage({
       },
     },
   );
-
-  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
-    trace.data?.projectId ?? "",
-  );
-
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId: trace.data?.projectId as string,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      enabled: !!trace.data?.projectId && isAuthenticatedAndProjectMember,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
-  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
-  const allTags = filterOptionTags.map((t) => t.value);
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
@@ -100,16 +73,6 @@ export function TracePage({
         ],
         actionButtonsLeft: (
           <div className="ml-1 flex items-center gap-1">
-            <div className="max-h-[10dvh] overflow-y-auto">
-              <TagTraceDetailsPopover
-                tags={trace.data.tags}
-                availableTags={allTags}
-                traceId={trace.data.id}
-                projectId={trace.data.projectId}
-                className="flex-wrap"
-                key={trace.data.id}
-              />
-            </div>
             <div className="flex items-center gap-0">
               <StarTraceDetailsToggle
                 traceId={trace.data.id}
