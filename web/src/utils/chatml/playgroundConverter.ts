@@ -34,7 +34,7 @@ export function convertChatMlToPlayground(
 
       return {
         id: tc.id || "",
-        name: tc.function?.name || "",
+        name,
         args,
       };
     });

@@ -72,7 +72,13 @@ export const IOPreview: React.FC<{
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  const { canDisplayAsChat, allMessages, additionalInput } = useMemo(() => {
+  const {
+    canDisplayAsChat,
+    allMessages,
+    additionalInput,
+    allTools,
+    toolCallCounts,
+  } = useMemo(() => {
     const ctx = { metadata, observationName: props.observationName };
     const inResult = normalizeInput(input, ctx);
     const outResult = normalizeOutput(output, ctx);
@@ -83,12 +89,46 @@ export const IOPreview: React.FC<{
       outputClean,
     );
 
+    // extract all unique tools from messages
+    const toolsMap = new Map<
+      string,
+      { name: string; description?: string; parameters?: Record<string, any> }
+    >();
+    for (const message of messages) {
+      if (message.tools && Array.isArray(message.tools)) {
+        for (const tool of message.tools) {
+          if (!toolsMap.has(tool.name)) {
+            toolsMap.set(tool.name, tool);
+          }
+        }
+      }
+    }
+    const uniqueTools = Array.from(toolsMap.values());
+
+    // extract tool call counts from normalized tool_calls
+    const callCounts = new Map<string, number>();
+    for (const message of messages) {
+      if (message.tool_calls && Array.isArray(message.tool_calls)) {
+        for (const toolCall of message.tool_calls) {
+          // we can expect our normalized ChatMLSchema here
+          if (toolCall.name && typeof toolCall.name === "string") {
+            callCounts.set(
+              toolCall.name,
+              (callCounts.get(toolCall.name) || 0) + 1,
+            );
+          }
+        }
+      }
+    }
+
     return {
       // display as chat if normalization succeeded AND we have messages to show
       canDisplayAsChat:
         (inResult.success || outResult.success) && messages.length > 0,
       allMessages: messages,
       additionalInput: extractAdditionalInput(input),
+      allTools: uniqueTools,
+      toolCallCounts: callCounts,
     };
   }, [input, output, metadata, props.observationName]);
 
@@ -111,6 +151,14 @@ export const IOPreview: React.FC<{
   // default I/O
   return (
     <>
+      {/* Show tools at the top if available */}
+      {allTools.length > 0 && (
+        <div className="mb-4 border-b border-border pb-4">
+          <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
+          <ToolCallsPill tools={allTools} toolCallCounts={toolCallCounts} />
+        </div>
+      )}
+
       {isPrettyViewAvailable && !currentView ? (
         <div className="flex w-full flex-row justify-start">
           <Tabs
