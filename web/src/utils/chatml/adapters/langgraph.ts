@@ -1,7 +1,6 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 import {
   removeNullFields,
-  // stringifyToolCallArgs,
   stringifyToolResultContent,
   parseMetadata,
 } from "../helpers";

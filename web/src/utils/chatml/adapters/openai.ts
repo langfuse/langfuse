@@ -230,7 +230,11 @@ export const openAIAdapter: ProviderAdapter = {
       }
 
       // LangChain (type without role)
-      if ("messages" in ctx.metadata) {
+      if (
+        ctx.metadata &&
+        typeof ctx.metadata === "object" &&
+        "messages" in ctx.metadata
+      ) {
         const messages = (ctx.metadata as Record<string, unknown>).messages;
         if (Array.isArray(messages)) {
           const hasLangChainType = messages.some((msg: unknown) => {

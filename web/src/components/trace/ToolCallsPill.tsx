@@ -71,9 +71,9 @@ export function ToolCallsPill({
                 <Badge
                   variant={isCalled ? undefined : "secondary"}
                   className={cn(
-                    "text-xs font-medium uppercase",
+                    "text-xs font-medium",
                     isCalled &&
-                      "border-transparent bg-accent-light-green text-foreground dark:bg-accent-dark-green",
+                      "border-transparent bg-light-green text-dark-green",
                   )}
                 >
                   {statusText}
