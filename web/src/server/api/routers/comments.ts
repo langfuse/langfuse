@@ -200,17 +200,41 @@ export const commentsRouter = createTRPCRouter({
       });
 
       try {
-        const comments = await fetchCommentsWithUserInfo(
-          ctx.prisma,
-          input.projectId,
-          input.objectType,
-          [input.objectId],
+        // For single object view, we want DESC order (most recent first)
+        const comments = await ctx.prisma.$queryRaw<
+          Array<{
+            id: string;
+            objectId: string;
+            content: string;
+            createdAt: Date;
+            authorUserId: string | null;
+            authorUserImage: string | null;
+            authorUserName: string | null;
+            authorUserEmail: string | null;
+          }>
+        >(
+          Prisma.sql`
+            SELECT
+              c.id,
+              c.object_id AS "objectId",
+              c.content,
+              c.created_at AS "createdAt",
+              u.id AS "authorUserId",
+              u.image AS "authorUserImage",
+              u.name AS "authorUserName",
+              u.email AS "authorUserEmail"
+            FROM comments c
+            LEFT JOIN users u ON u.id = c.author_user_id
+            WHERE
+              c."project_id" = ${input.projectId}
+              AND c."object_type"::text = ${input.objectType}
+              AND c."object_id" = ${input.objectId}
+            ORDER BY
+              c.created_at DESC
+          `,
         );
 
-        // Sort by createdAt DESC for single object view
-        return comments.sort(
-          (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
-        );
+        return comments;
       } catch (error) {
         logger.error("Failed to call comments.getByObjectId", error);
         if (error instanceof TRPCError) {
