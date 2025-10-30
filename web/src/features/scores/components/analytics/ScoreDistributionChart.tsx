@@ -6,6 +6,11 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import {
+  getSingleScoreChartConfig,
+  getSingleScoreColor,
+  getBarChartHoverOpacity,
+} from "@/src/features/scores/lib/color-scales";
 
 export interface ScoreDistributionChartProps {
   data: Array<{ binIndex: number; count: number }>;
@@ -62,14 +67,7 @@ export function ScoreDistributionChart({
     return transformed;
   }, [data, dataType, binLabels, categories]);
 
-  const config: ChartConfig = {
-    metric: {
-      theme: {
-        light: "hsl(var(--dark-green))",
-        dark: "hsl(var(--dark-green))",
-      },
-    },
-  };
+  const config: ChartConfig = getSingleScoreChartConfig("metric");
 
   if (chartData.length === 0) {
     return (
@@ -114,10 +112,11 @@ export function ScoreDistributionChart({
           {chartData.map((_, index) => (
             <Cell
               key={`cell-${index}`}
-              fill="hsl(var(--dark-green))"
-              fillOpacity={
-                activeIndex === null || activeIndex === index ? 1 : 0.3
-              }
+              fill={getSingleScoreColor()}
+              fillOpacity={getBarChartHoverOpacity(
+                index === activeIndex,
+                activeIndex !== null,
+              )}
             />
           ))}
         </Bar>

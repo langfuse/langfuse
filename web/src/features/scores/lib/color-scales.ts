@@ -1,6 +1,7 @@
 /**
- * Color scale utilities for heatmap visualization
- * Uses OKLCH color space for perceptually uniform lightness gradients
+ * Color scale utilities for score analytics visualizations
+ * - Heatmap: Uses OKLCH color space for perceptually uniform lightness gradients
+ * - Charts: Uses CSS variables from globals.css for consistent theming
  * Aligned with dashboard chart colors from global.css
  */
 
@@ -164,4 +165,94 @@ export function getDiagonalColor(
   const lightness = 80 - normalized * 40;
 
   return `oklch(${lightness}% ${baseColor.c * 2} ${baseColor.h})`;
+}
+
+/**
+ * =======================
+ * Chart Color Functions
+ * =======================
+ * These functions provide colors for distribution and time series charts
+ */
+
+/**
+ * Get the base color for single score charts
+ * Uses the brand's dark green color from CSS variables
+ * @returns HSL color string using CSS variable
+ */
+export function getSingleScoreColor(): string {
+  return "hsl(var(--dark-green))";
+}
+
+/**
+ * Get colors for two-score comparison charts
+ * Returns distinct colors to differentiate between two scores
+ * @returns Object with color strings for score1 and score2
+ */
+export function getTwoScoreColors(): {
+  score1: string;
+  score2: string;
+} {
+  return {
+    score1: "hsl(var(--chart-1))", // dark-green
+    score2: "hsl(var(--chart-2))", // Another distinct color
+  };
+}
+
+/**
+ * Get opacity values for bar chart hover states
+ * @param isHovered - Whether the current bar is being hovered
+ * @param hasActiveHover - Whether any bar is currently being hovered
+ * @returns Opacity value (0-1)
+ */
+export function getBarChartHoverOpacity(
+  isHovered: boolean,
+  hasActiveHover: boolean,
+): number {
+  if (!hasActiveHover) {
+    // No hover active - all bars at full opacity
+    return 1;
+  }
+  if (isHovered) {
+    // This bar is hovered - full opacity
+    return 1;
+  }
+  // Another bar is hovered - dim this one
+  return 0.3;
+}
+
+/**
+ * Chart color configuration for Recharts ChartConfig
+ * Single score variant
+ */
+export function getSingleScoreChartConfig(metricKey: string) {
+  return {
+    [metricKey]: {
+      theme: {
+        light: getSingleScoreColor(),
+        dark: getSingleScoreColor(),
+      },
+    },
+  };
+}
+
+/**
+ * Chart color configuration for Recharts ChartConfig
+ * Two score comparison variant
+ */
+export function getTwoScoreChartConfig(score1Key: string, score2Key: string) {
+  const colors = getTwoScoreColors();
+  return {
+    [score1Key]: {
+      theme: {
+        light: colors.score1,
+        dark: colors.score1,
+      },
+    },
+    [score2Key]: {
+      theme: {
+        light: colors.score2,
+        dark: colors.score2,
+      },
+    },
+  };
 }

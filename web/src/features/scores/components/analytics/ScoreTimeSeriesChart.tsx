@@ -6,6 +6,10 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import {
+  getSingleScoreChartConfig,
+  getSingleScoreColor,
+} from "@/src/features/scores/lib/color-scales";
 
 export interface ScoreTimeSeriesChartProps {
   data: Array<{
@@ -45,14 +49,7 @@ export function ScoreTimeSeriesChart({
     return transformed;
   }, [data, scoreName, interval]);
 
-  const config: ChartConfig = {
-    [scoreName]: {
-      theme: {
-        light: "hsl(var(--dark-green))",
-        dark: "hsl(var(--dark-green))",
-      },
-    },
-  };
+  const config: ChartConfig = getSingleScoreChartConfig(scoreName);
 
   if (chartData.length === 0) {
     return (
@@ -81,7 +78,7 @@ export function ScoreTimeSeriesChart({
         <Line
           type="monotone"
           dataKey={scoreName}
-          stroke="hsl(var(--dark-green))"
+          stroke={getSingleScoreColor()}
           strokeWidth={2}
           dot={true}
           activeDot={{ r: 6, strokeWidth: 0 }}
