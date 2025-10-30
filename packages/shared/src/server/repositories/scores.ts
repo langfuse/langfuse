@@ -1208,6 +1208,7 @@ export const getAggregatedScoresForPrompts = async (
       s.source,
       s.data_type,
       s.comment,
+      s.timestamp,
       length(mapKeys(s.metadata)) > 0 AS has_metadata
     FROM scores s FINAL LEFT JOIN observations o FINAL
       ON o.trace_id = s.trace_id

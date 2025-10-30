@@ -327,14 +327,18 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       updateMutation.mutate({
         ...baseScoreData,
         id: scoreId,
+        timestamp: field.timestamp ?? undefined,
       } as UpdateAnnotationScoreData);
     } else {
       const id = uuid();
-      // Update scoreId in form for future updates
+      const timestamp = new Date();
+      // Update scoreId and timestamp in form for future updates
       form.setValue(`scoreData.${index}.id`, id);
+      form.setValue(`scoreData.${index}.timestamp`, timestamp);
       createMutation.mutate({
         ...baseScoreData,
         id,
+        timestamp,
       } as CreateAnnotationScoreData);
     }
   };
@@ -773,6 +777,7 @@ export function AnnotationForm<Target extends ScoreTarget>({
       value: score.value,
       stringValue: score.stringValue,
       comment: score.comment,
+      timestamp: score.timestamp,
     });
   });
 
@@ -788,6 +793,7 @@ export function AnnotationForm<Target extends ScoreTarget>({
         value: null,
         stringValue: null,
         comment: null,
+        timestamp: null,
       });
     }
   });
