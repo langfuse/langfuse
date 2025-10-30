@@ -47,7 +47,7 @@ export interface NumericHeatmapInput {
 export function generateNumericHeatmapData({
   data,
   nBins,
-  colorVariant = "chart1",
+  colorVariant = "accent",
   showPercentages = false,
   showCounts = true,
 }: NumericHeatmapInput): {
@@ -143,7 +143,7 @@ export interface ConfusionMatrixInput {
  */
 export function generateConfusionMatrixData({
   data,
-  colorVariant = "chart1",
+  colorVariant = "accent",
   highlightDiagonal = true,
   showPercentages = false,
   showCounts = true,
