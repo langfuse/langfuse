@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -82,40 +82,38 @@ export function ScoreDistributionChart({
 
   return (
     <ChartContainer config={config}>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart
-          accessibilityLayer
-          data={chartData}
-          margin={{ bottom: hasManyCategories ? 60 : 20 }}
-        >
-          <XAxis
-            dataKey="dimension"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            angle={hasManyCategories ? -45 : 0}
-            textAnchor={hasManyCategories ? "end" : "middle"}
-            height={hasManyCategories ? 90 : 30}
-          />
-          <YAxis
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
-          <Bar
-            dataKey="metric"
-            radius={[4, 4, 0, 0]}
-            className="fill-[--color-metric]"
-          />
-          <ChartTooltip
-            content={<ChartTooltipContent />}
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            itemStyle={{ color: "hsl(var(--foreground))" }}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+      <BarChart
+        accessibilityLayer
+        data={chartData}
+        margin={{ bottom: hasManyCategories ? 60 : 20 }}
+      >
+        <XAxis
+          dataKey="dimension"
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+          angle={hasManyCategories ? -45 : 0}
+          textAnchor={hasManyCategories ? "end" : "middle"}
+          height={hasManyCategories ? 90 : 30}
+        />
+        <YAxis
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+        />
+        <Bar
+          dataKey="metric"
+          radius={[4, 4, 0, 0]}
+          className="fill-[--color-metric]"
+        />
+        <ChartTooltip
+          content={<ChartTooltipContent />}
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
+      </BarChart>
     </ChartContainer>
   );
 }

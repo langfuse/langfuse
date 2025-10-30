@@ -133,7 +133,7 @@ export function SingleScoreAnalytics({
               )}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="h-[300px]">
           {distribution.length > 0 ? (
             <ScoreDistributionChart
               data={distribution}
@@ -163,7 +163,7 @@ export function SingleScoreAnalytics({
               )}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="h-[300px]">
             {timeSeries.length > 0 ? (
               <ScoreTimeSeriesChart
                 data={timeSeries}
