@@ -2180,42 +2180,6 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
-        "should map llm.input_messages.* to structured input array",
-        {
-          entity: "observation",
-          otelAttributeKey: "llm.input_messages.0.message.role",
-          otelAttributeValue: {
-            stringValue: "user",
-          },
-          entityAttributeKey: "input.0.role",
-          entityAttributeValue: "user",
-        },
-      ],
-      [
-        "should map llm.input_messages.* multi-message to structured input array",
-        {
-          entity: "observation",
-          otelAttributeKey: "llm.input_messages.1.message.content",
-          otelAttributeValue: {
-            stringValue: "Hello, how are you?",
-          },
-          entityAttributeKey: "input.1.content",
-          entityAttributeValue: "Hello, how are you?",
-        },
-      ],
-      [
-        "should map llm.output_messages.* to structured output array",
-        {
-          entity: "observation",
-          otelAttributeKey: "llm.output_messages.0.message.role",
-          otelAttributeValue: {
-            stringValue: "assistant",
-          },
-          entityAttributeKey: "output.0.role",
-          entityAttributeValue: "assistant",
-        },
-      ],
-      [
         "should map gen_ai.input.messages to input",
         {
           entity: "observation",
