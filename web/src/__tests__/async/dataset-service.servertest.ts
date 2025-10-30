@@ -494,6 +494,7 @@ describe("Fetch datasets for UI presentation", () => {
         comment: "comment",
         // createScore adds metadata to the score
         hasMetadata: true,
+        timestamp: expect.any(Date),
       },
     };
 
