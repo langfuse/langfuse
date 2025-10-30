@@ -315,10 +315,15 @@ export function Trace(props: {
   const commentsMap = new Map(
     [
       ...(observationCommentCounts.data
-        ? Object.entries(observationCommentCounts.data)
+        ? Array.from(observationCommentCounts.data.entries())
         : []),
       ...(traceCommentCounts.data
-        ? [[`trace-${props.trace.id}`, traceCommentCounts.data[props.trace.id]]]
+        ? [
+            [
+              `trace-${props.trace.id}`,
+              traceCommentCounts.data.get(props.trace.id),
+            ],
+          ]
         : []),
     ].filter(([, count]) => count !== undefined) as [string, number][],
   );
