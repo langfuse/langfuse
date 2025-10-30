@@ -1275,6 +1275,7 @@ describe("Fetch datasets for UI presentation", () => {
         values: expect.arrayContaining([100.5]),
         average: 100.5,
         comment: "comment",
+        timestamp: expect.any(Date),
         // createScore adds metadata to the score
         hasMetadata: true,
       },
