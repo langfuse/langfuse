@@ -1,5 +1,6 @@
 import { geminiAdapter } from "./gemini";
 import type { NormalizerContext } from "../types";
+import { normalizeInput } from "./index";
 
 describe("geminiAdapter", () => {
   describe("detect", () => {
@@ -203,17 +204,90 @@ describe("geminiAdapter", () => {
       // Should be normalized to our ChatML format
       const toolCall = result[0].tool_calls[0];
       expect(toolCall.id).toBe("call_abc123");
+      // previous, before flattinging
+      // TODO: remove
+      // expect(toolCall.function).toBeDefined();
+      // expect(toolCall.function.name).toBe("get_weather");
+      // expect(typeof toolCall.function.arguments).toBe("string");
       expect(toolCall.type).toBe("function");
-      expect(toolCall.function).toBeDefined();
-      expect(toolCall.function.name).toBe("get_weather");
-      expect(typeof toolCall.function.arguments).toBe("string");
-      expect(toolCall.function.arguments).toBe(
+      expect(toolCall.name).toBe("get_weather");
+      expect(typeof toolCall.arguments).toBe("string");
+      expect(toolCall.arguments).toBe(
         JSON.stringify({ location: "San Francisco", unit: "celsius" }),
       );
 
       // Old fields should be removed
-      expect(toolCall.name).toBeUndefined();
       expect(toolCall.args).toBeUndefined();
+    });
+
+    it("should handle Google ADK format with tool calls and function responses", () => {
+      // This is the format from google-adk-2025-08-28.json
+      const input = {
+        model: "gemini-2.0-flash",
+        config: {
+          system_instruction: "Always greet using the say_hello tool.",
+          tools: [
+            {
+              function_declarations: [
+                {
+                  name: "say_hello",
+                  description: "Greet the user",
+                },
+              ],
+            },
+          ],
+        },
+        contents: [
+          {
+            parts: [{ text: "hi" }],
+            role: "user",
+          },
+          {
+            parts: [
+              {
+                function_call: {
+                  args: {},
+                  name: "say_hello",
+                },
+              },
+            ],
+            role: "model",
+          },
+          {
+            parts: [
+              {
+                function_response: {
+                  name: "say_hello",
+                  response: {
+                    greeting: "Hello Langfuse 👋",
+                  },
+                },
+              },
+            ],
+            role: "user",
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "gemini" });
+      expect(result.success).toBe(true);
+      expect(result.data).toHaveLength(3);
+
+      // First message: user text
+      expect(result.data?.[0].role).toBe("user");
+      expect(result.data?.[0].content).toBe("hi");
+      expect(result.data?.[0].tools).toBeDefined();
+      expect(result.data?.[0].tools?.[0].name).toBe("say_hello");
+
+      // Second message: assistant with tool_call
+      expect(result.data?.[1].role).toBe("model");
+      expect(result.data?.[1].tool_calls).toBeDefined();
+      expect(result.data?.[1].tool_calls?.[0].name).toBe("say_hello");
+      expect(result.data?.[1].tool_calls?.[0].arguments).toBe("{}");
+
+      // Third message: tool result
+      expect(result.data?.[2].role).toBe("user");
+      expect(result.data?.[2].content).toBeDefined();
     });
   });
 });
