@@ -27,9 +27,13 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError(result.errorMessage);
       }
 
+      // Create comment with content as-is (no mention processing)
       const comment = await prisma.comment.create({
         data: {
-          ...body,
+          content: body.content,
+          objectId: body.objectId,
+          objectType: body.objectType,
+          authorUserId: body.authorUserId,
           id: v4(),
           projectId: auth.scope.projectId,
         },

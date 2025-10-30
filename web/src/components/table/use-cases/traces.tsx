@@ -7,7 +7,6 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
@@ -38,6 +37,7 @@ import {
   AnnotationQueueObjectType,
   BatchActionType,
   TableViewPresetTableName,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
@@ -79,6 +79,7 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import TagList from "@/src/features/tag/components/TagList";
 
 export type TracesTableRow = {
   // Shown by default
@@ -206,7 +207,13 @@ export default function TracesTable({
     );
 
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
+    {
+      projectId,
+      timestampFilter:
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
+          : undefined,
+    },
     {
       trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
@@ -262,7 +269,11 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions);
+  const queryFilter = useSidebarFilterState(
+    traceFilterConfig,
+    filterOptions,
+    projectId,
+  );
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
@@ -349,8 +360,6 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-
-  const traceFilterOptions = traceFilterOptionsResponse.data;
 
   const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
     "traces",
@@ -703,24 +712,18 @@ export default function TracesTable({
         href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
-        const tags: TracesTableRow["tags"] = row.getValue("tags");
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const filterOptionTags = traceFilterOptions?.tags ?? [];
-        const allTags = filterOptionTags.map((t) => t.value);
+        const traceTags: string[] | undefined = row.getValue("tags");
         return (
-          <TagTracePopover
-            tags={tags}
-            availableTags={allTags}
-            projectId={projectId}
-            traceId={traceId}
-            tracesFilter={tracesAllQueryFilter}
-            className={cn(
-              rowHeight === "s"
-                ? "overflow-x-auto"
-                : "max-h-full flex-wrap overflow-y-auto",
-            )}
-            hideControls={hideControls}
-          />
+          traceTags && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} />
+            </div>
+          )
         );
       },
       enableHiding: true,

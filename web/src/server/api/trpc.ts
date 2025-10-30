@@ -138,23 +138,19 @@ const resolveError = (error: TRPCError) => {
   return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
 };
 
+const logErrorByCode = (errorCode: TRPCError["code"]) => {
+  if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
+    logger.info(`middleware intercepted error with code ${errorCode}`);
+  } else {
+    logger.error(`middleware intercepted error with code ${errorCode}`);
+  }
+};
+
 // global error handling
 const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    if (res.error.code === "NOT_FOUND" || res.error.code === "UNAUTHORIZED") {
-      logger.info(
-        `middleware intercepted error with code ${res.error.code}`,
-        res.error,
-      );
-    } else {
-      logger.error(
-        `middleware intercepted error with code ${res.error.code}`,
-        res.error,
-      );
-    }
-
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
@@ -162,6 +158,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         code: "SERVICE_UNAVAILABLE",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
+      logErrorByCode(res.error.code);
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
@@ -179,6 +176,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
           ? res.error.message
           : "Internal error. " + errorMessage,
       });
+      logErrorByCode(code);
     }
   }
 
