@@ -157,12 +157,12 @@ export const IOPreview: React.FC<{
           <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
           <ToolCallsPill
             tools={allTools.sort((a, b) => {
-              const aCount = toolCallCounts.get(a.name) || 0;
-              const bCount = toolCallCounts.get(b.name) || 0;
+              const callCountA = toolCallCounts.get(a.name) || 0;
+              const callCountB = toolCallCounts.get(b.name) || 0;
               // Sort by called status (called first), then by call count descending
-              if (aCount > 0 && bCount === 0) return -1;
-              if (aCount === 0 && bCount > 0) return 1;
-              return bCount - aCount;
+              if (callCountA > 0 && callCountB === 0) return -1;
+              if (callCountA === 0 && callCountB > 0) return 1;
+              return callCountB - callCountA;
             })}
             toolCallCounts={toolCallCounts}
           />
