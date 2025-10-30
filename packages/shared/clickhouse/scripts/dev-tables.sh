@@ -178,9 +178,9 @@ CREATE TABLE IF NOT EXISTS events
 
       -- I/O
       input String CODEC(ZSTD(3)),
-      input_truncated String MATERIALIZED leftUTF8(input, 5000),
+      input_truncated String MATERIALIZED leftUTF8(input, 1024),
       output String CODEC(ZSTD(3)),
-      output_truncated String MATERIALIZED leftUTF8(output, 5000),
+      output_truncated String MATERIALIZED leftUTF8(output, 1024),
 
       -- TODO Metadata: Decide for approach
       -- -- Approach 1: Use plain JSON type with default config
