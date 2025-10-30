@@ -40,6 +40,8 @@ export async function handleMcpRequest(
     res.setHeader("X-Accel-Buffering", "no");
 
     // CORS headers for MCP clients
+    // Note: MCP clients (Claude Desktop, Cursor) need permissive CORS for local development
+    // TODO(LF-1927): Consider restricting origins based on allowed client list
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader(
@@ -69,9 +71,12 @@ export async function handleMcpRequest(
         resolve();
       });
 
-      // Handle errors
+      // Handle errors (sanitized logging)
       req.on("error", (error) => {
-        logger.error("MCP request error", error);
+        logger.error("MCP request error", {
+          message: error instanceof Error ? error.message : "Unknown error",
+          name: error instanceof Error ? error.name : typeof error,
+        });
         reject(error);
       });
 
@@ -82,7 +87,10 @@ export async function handleMcpRequest(
       };
     });
   } catch (error) {
-    logger.error("MCP transport error", error);
+    logger.error("MCP transport error", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      name: error instanceof Error ? error.name : typeof error,
+    });
 
     // If headers not sent, send error response
     if (!res.headersSent) {
@@ -103,8 +111,12 @@ export async function handleMcpRequest(
 /**
  * Handle MCP POST message endpoint.
  *
- * This endpoint receives POST requests from MCP clients and forwards them
- * to the connected SSE transport.
+ * Note: The SSEServerTransport from MCP SDK automatically creates and handles
+ * the /message endpoint internally. This function is kept for reference but may
+ * not be needed if SSEServerTransport handles POST messages automatically.
+ *
+ * TODO(LF-1927): Verify if a separate /api/public/mcp/message route is needed
+ * by testing with MCP clients. If not needed, remove this function.
  *
  * @param req - Next.js API request
  * @param res - Next.js API response
@@ -126,7 +138,10 @@ export async function handleMcpPostMessage(
     // This endpoint is called by the SSE transport's /message endpoint
     res.status(200).json({ received: true });
   } catch (error) {
-    logger.error("MCP POST message error", error);
+    logger.error("MCP POST message error", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      name: error instanceof Error ? error.name : typeof error,
+    });
     const mcpError = formatErrorForUser(error);
     res.status(500).json({
       error: mcpError.message,

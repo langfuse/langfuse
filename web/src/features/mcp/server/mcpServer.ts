@@ -55,6 +55,19 @@ export function createMcpServer(_context: ServerContext): Server {
 
   // TODO(LF-1928): Register prompt resources using _context
   // TODO(LF-1929): Register prompt tools using _context
+  //
+  // CRITICAL: All mutating tool handlers MUST include audit logging:
+  // import { auditLog } from "@/src/features/audit-logs/auditLog";
+  // await auditLog({
+  //   action: "create" | "update" | "delete",
+  //   resourceType: "prompt",
+  //   resourceId: prompt.id,
+  //   projectId: _context.projectId,
+  //   orgId: _context.orgId,
+  //   apiKeyId: _context.apiKeyId,
+  //   after: newData,  // For create/update
+  //   before: oldData, // For update/delete
+  // });
 
   return server;
 }

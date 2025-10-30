@@ -10,6 +10,11 @@
  * - BasicAuth using Langfuse API keys
  * - Context captured in closures (no session storage)
  *
+ * Note: This endpoint does NOT use withMiddlewares() like other public APIs because
+ * SSE streaming requires direct response control, which conflicts with standard
+ * middleware error handling that sends JSON responses. Instead, error handling
+ * and CORS are implemented directly in the transport layer.
+ *
  * Authentication: Added in LF-1927 (currently using placeholder)
  * Resources: Added in LF-1928
  * Tools: Added in LF-1929
@@ -43,8 +48,13 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
-    // TODO(LF-1927): Replace with real authentication
-    // For now, use placeholder context to test the infrastructure
+    // TODO(LF-1927): Replace with real authentication using ApiAuthService
+    // SECURITY WARNING: This endpoint currently uses placeholder auth and should
+    // NOT be exposed to production until LF-1927 is complete.
+    // Real implementation should use:
+    // - ApiAuthService.verifyAuthHeaderAndReturnScope()
+    // - BasicAuth format (Public Key:Secret Key)
+    // - Rate limiting via RateLimitService
     const context: ServerContext = {
       projectId: "placeholder-project-id",
       orgId: "placeholder-org-id",
@@ -56,7 +66,8 @@ export default async function handler(
 
     logger.info("MCP request received", {
       method: req.method,
-      // Sanitized logging - no PII
+      hasAuthHeader: !!req.headers.authorization,
+      userAgent: req.headers["user-agent"],
     });
 
     // Build fresh server per request (stateless pattern)
