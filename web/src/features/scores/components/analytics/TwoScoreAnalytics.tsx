@@ -36,13 +36,27 @@ export function TwoScoreAnalytics({
   const categories = useMemo(() => {
     if (score1.dataType === "NUMERIC") return undefined;
 
-    // Get unique categories from confusion matrix (use row categories for score1)
-    const uniqueCategories = new Set<string>();
-    analytics.confusionMatrix.forEach((row) => {
-      uniqueCategories.add(row.rowCategory);
-    });
+    // Try confusionMatrix first (available when scores overlap)
+    if (analytics.confusionMatrix.length > 0) {
+      const uniqueCategories = new Set<string>();
+      analytics.confusionMatrix.forEach((row) => {
+        uniqueCategories.add(row.rowCategory);
+      });
+      return Array.from(uniqueCategories).sort();
+    }
 
-    return Array.from(uniqueCategories).sort();
+    // Fallback: extract from distribution data when no overlap (matchedCount = 0)
+    // Backend uses ROW_NUMBER() OVER (ORDER BY string_value) for binIndex
+    // So binIndex 0 = first alphabetically sorted category
+
+    // For boolean: assume alphabetical order ["False", "True"]
+    if (score1.dataType === "BOOLEAN") {
+      return ["False", "True"];
+    }
+
+    // For categorical: we can't reliably determine category names without confusionMatrix
+    // The distribution only has binIndex, not actual category strings
+    return undefined;
   }, [score1.dataType, analytics.confusionMatrix]);
 
   // Fill missing bins for categorical/boolean data
@@ -96,6 +110,19 @@ export function TwoScoreAnalytics({
   const totalCount1 = analytics.counts.score1Total;
   const totalCount2 = analytics.counts.score2Total;
 
+  // Check if comparing the same score (would cause duplicate keys in chart data)
+  const isSameScore =
+    score1.name === score2.name && score1.source === score2.source;
+
+  // Add suffixes to differentiate when comparing same score
+  const score1DisplayName = isSameScore
+    ? `${score1.name} (${score1.source}) - Set 1`
+    : `${score1.name} (${score1.source})`;
+
+  const score2DisplayName = isSameScore
+    ? `${score2.name} (${score2.source}) - Set 2`
+    : `${score2.name} (${score2.source})`;
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {/* Distribution Card */}
@@ -109,15 +136,30 @@ export function TwoScoreAnalytics({
         </CardHeader>
         <CardContent className="h-[300px]">
           {distribution1.length > 0 ? (
-            <ScoreDistributionChart
-              distribution1={distribution1}
-              distribution2={distribution2}
-              dataType={score1.dataType}
-              score1Name={`${score1.name} (${score1.source})`}
-              score2Name={`${score2.name} (${score2.source})`}
-              binLabels={binLabels}
-              categories={categories}
-            />
+            !categories && score1.dataType === "CATEGORICAL" ? (
+              <div className="flex h-[200px] items-center justify-center text-center text-sm text-muted-foreground">
+                <div className="max-w-md">
+                  <p className="font-medium">
+                    Cannot display categorical comparison
+                  </p>
+                  <p className="mt-2">
+                    Categorical score comparison requires overlapping data to
+                    determine category names. No matching traces/observations
+                    found between these two scores.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ScoreDistributionChart
+                distribution1={distribution1}
+                distribution2={distribution2}
+                dataType={score1.dataType}
+                score1Name={score1DisplayName}
+                score2Name={score2DisplayName}
+                binLabels={binLabels}
+                categories={categories}
+              />
+            )
           ) : (
             <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
               No distribution data available for the selected time range
