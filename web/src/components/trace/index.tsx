@@ -166,11 +166,6 @@ export function Trace(props: {
       objectType: "OBSERVATION",
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
       enabled: isAuthenticatedAndProjectMember,
     },
@@ -183,11 +178,6 @@ export function Trace(props: {
       objectType: "TRACE",
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
       enabled: isAuthenticatedAndProjectMember,
     },
@@ -258,20 +248,11 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const traceComments = api.comments.getByObjectId.useQuery(
-    {
-      projectId: props.projectId,
-      objectId: props.trace.id,
-      objectType: "TRACE",
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-    },
-  );
+  const traceComments = api.comments.getByObjectId.useQuery({
+    projectId: props.projectId,
+    objectId: props.trace.id,
+    objectType: "TRACE",
+  });
 
   const downloadTraceAsJson = useCallback(async () => {
     // Fetch fresh comments data
