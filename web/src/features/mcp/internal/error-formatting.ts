@@ -41,8 +41,8 @@ export function formatErrorForUser(error: unknown): McpError {
 
   // Zod validation errors
   if (error instanceof ZodError) {
-    const messages = (error as any).errors.map(
-      (e: any) => `${e.path.join(".")}: ${e.message}`,
+    const messages = error.issues.map(
+      (issue) => `${issue.path.join(".")}: ${issue.message}`,
     );
     return new McpError(
       ErrorCode.InvalidParams,
