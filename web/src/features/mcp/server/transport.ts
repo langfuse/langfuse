@@ -41,7 +41,7 @@ export async function handleMcpRequest(
 
     // CORS headers for MCP clients
     // Note: MCP clients (Claude Desktop, Cursor) need permissive CORS for local development
-    // TODO(LF-1927): Consider restricting origins based on allowed client list
+    // TODO(Security): Consider restricting origins based on allowed client list
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader(

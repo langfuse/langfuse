@@ -50,7 +50,9 @@ export function createMcpServer(_context: ServerContext): Server {
   );
 
   // Context is captured here and available to all handlers via closure
-  // Tools and resources will be registered in LF-1928 (resources) and LF-1929 (tools)
+  // Authentication completed in LF-1927 using BasicAuth
+  // Resources will be registered in LF-1928
+  // Tools will be registered in LF-1929
   // Each handler will have access to '_context' without storing it in server
 
   // TODO(LF-1928): Register prompt resources using _context
