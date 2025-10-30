@@ -388,6 +388,8 @@ export default function ScoresAnalyticsPage() {
                 analytics={analyticsData}
                 interval={interval}
                 nBins={10}
+                fromDate={absoluteTimeRange!.from}
+                toDate={absoluteTimeRange!.to}
               />
             ) : hasTwoScores && parsedScore1 && parsedScore2 ? (
               // Two score comparison (existing logic)

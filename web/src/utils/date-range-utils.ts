@@ -1,5 +1,17 @@
 import { z } from "zod/v4";
-import { addMinutes, format } from "date-fns";
+import {
+  addMinutes,
+  format,
+  addHours,
+  addDays,
+  addWeeks,
+  addMonths,
+  startOfHour,
+  startOfDay,
+  startOfWeek,
+  startOfMonth,
+  isBefore,
+} from "date-fns";
 import { type DateTrunc } from "@langfuse/shared/src/server";
 
 interface TimeRangeDefinition {
@@ -489,4 +501,81 @@ export function rangeFromString<T extends string>(
   }
 
   return { range: fallback };
+}
+
+/**
+ * Fills gaps in time series data to ensure all intervals are represented.
+ * Generates all time points in the range at the specified interval and merges with actual data.
+ *
+ * @param data - Array of time series data points with timestamp and values
+ * @param fromDate - Start of the time range
+ * @param toDate - End of the time range
+ * @param interval - The interval granularity ("hour" | "day" | "week" | "month")
+ * @returns Array with all time points filled in, missing points have null values
+ */
+export function fillTimeSeriesGaps<
+  T extends { timestamp: Date; [key: string]: unknown },
+>(
+  data: T[],
+  fromDate: Date,
+  toDate: Date,
+  interval: "hour" | "day" | "week" | "month",
+): T[] {
+  // Determine the start function and add function based on interval
+  const intervalConfig = {
+    hour: { start: startOfHour, add: addHours },
+    day: { start: startOfDay, add: addDays },
+    week: { start: startOfWeek, add: addWeeks },
+    month: { start: startOfMonth, add: addMonths },
+  }[interval];
+
+  // Normalize the from and to dates to the interval boundaries
+  const normalizedFrom = intervalConfig.start(fromDate);
+  const normalizedTo = intervalConfig.start(toDate);
+
+  // Create a map of existing data points keyed by normalized timestamp
+  const dataMap = new Map<number, T>();
+  for (const item of data) {
+    const normalizedTimestamp = intervalConfig.start(item.timestamp).getTime();
+    dataMap.set(normalizedTimestamp, item);
+  }
+
+  // Generate all time points in the range
+  const filledData: T[] = [];
+  let currentTime = normalizedFrom;
+
+  while (
+    isBefore(currentTime, normalizedTo) ||
+    currentTime.getTime() === normalizedTo.getTime()
+  ) {
+    const timestamp = currentTime.getTime();
+    const existingData = dataMap.get(timestamp);
+
+    if (existingData) {
+      // Use existing data point
+      filledData.push(existingData);
+    } else {
+      // Create a placeholder with null values for all numeric fields
+      const placeholder = { timestamp: new Date(timestamp) } as T;
+
+      // Copy structure from first data point if available to determine which fields should be null
+      if (data.length > 0) {
+        const sampleItem = data[0];
+        for (const key in sampleItem) {
+          if (key !== "timestamp" && typeof sampleItem[key] === "number") {
+            (placeholder as any)[key] = null;
+          } else if (key !== "timestamp") {
+            (placeholder as any)[key] = sampleItem[key];
+          }
+        }
+      }
+
+      filledData.push(placeholder);
+    }
+
+    // Move to next interval
+    currentTime = intervalConfig.add(currentTime, 1);
+  }
+
+  return filledData;
 }

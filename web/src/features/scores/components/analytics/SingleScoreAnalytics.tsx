@@ -9,6 +9,7 @@ import {
 } from "@/src/components/ui/card";
 import { ScoreDistributionChart } from "./ScoreDistributionChart";
 import { ScoreTimeSeriesChart } from "./ScoreTimeSeriesChart";
+import { fillTimeSeriesGaps } from "@/src/utils/date-range-utils";
 
 interface SingleScoreAnalyticsProps {
   scoreId: string;
@@ -18,6 +19,8 @@ interface SingleScoreAnalyticsProps {
   analytics: RouterOutputs["scores"]["getScoreComparisonAnalytics"];
   interval: "hour" | "day" | "week" | "month";
   nBins: number;
+  fromDate: Date;
+  toDate: Date;
 }
 
 export function SingleScoreAnalytics({
@@ -27,6 +30,8 @@ export function SingleScoreAnalytics({
   analytics,
   interval,
   nBins,
+  fromDate,
+  toDate,
 }: SingleScoreAnalyticsProps) {
   // TODO: REMOVE BEFORE MERGING - Debug component render
   console.log("[SingleScoreAnalytics] Rendering with:", {
@@ -40,8 +45,12 @@ export function SingleScoreAnalytics({
 
   // Use distribution1 for single score
   const distribution = analytics.distribution1;
-  const timeSeries = analytics.timeSeries;
   const totalCount = analytics.counts.score1Total;
+
+  // Fill gaps in time series to ensure all intervals are displayed
+  const timeSeries = useMemo(() => {
+    return fillTimeSeriesGaps(analytics.timeSeries, fromDate, toDate, interval);
+  }, [analytics.timeSeries, fromDate, toDate, interval]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
