@@ -32,9 +32,6 @@ type EnrichedComment = {
 
 /**
  * Fetches comments with enriched user information for a given project and object type.
- * User information is scoped to users who have access to the project via:
- * - Organization membership (org-level access), OR
- * - Project membership (project-specific access)
  *
  * @param prisma - Prisma client instance
  * @param projectId - Project ID to filter comments
@@ -65,21 +62,6 @@ async function fetchCommentsWithUserInfo(
         u.email AS "authorUserEmail"
       FROM comments c
       LEFT JOIN users u ON u.id = c.author_user_id
-        AND (
-          -- User has organization-level access to this project
-          u.id IN (
-            SELECT om.user_id
-            FROM organization_memberships om
-            INNER JOIN projects p ON p.org_id = om.org_id
-            WHERE p.id = ${projectId}
-          )
-          -- OR user has project-specific access
-          OR u.id IN (
-            SELECT user_id
-            FROM project_memberships
-            WHERE project_id = ${projectId}
-          )
-        )
       WHERE
         c."project_id" = ${projectId}
         AND c."object_type"::text = ${objectType}
