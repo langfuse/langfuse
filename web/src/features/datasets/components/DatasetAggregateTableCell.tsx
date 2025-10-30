@@ -15,6 +15,8 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
 import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
+import { useTrpcError } from "@/src/hooks/useTrpcError";
+import { Card } from "@/src/components/ui/card";
 
 const DatasetAggregateCell = ({
   value,
@@ -25,6 +27,7 @@ const DatasetAggregateCell = ({
   value: EnrichedDatasetRunItem;
   serverScoreColumns: ScoreColumn[];
 }) => {
+  const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
   const router = useRouter();
@@ -58,6 +61,7 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
+      meta: { silentHttpCodes },
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -77,10 +81,18 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
+      meta: { silentHttpCodes },
     },
   );
 
   const data = value.observation === undefined ? trace.data : observation.data;
+  const isLoading =
+    value.observation === undefined ? trace.isLoading : observation.isLoading;
+
+  const { isSilentError } = useTrpcError(
+    value.observation === undefined ? trace.error : observation.error,
+    silentHttpCodes,
+  );
 
   const latency = value.observation?.latency ?? value.trace.duration;
   const totalCost =
@@ -131,27 +143,29 @@ const DatasetAggregateCell = ({
           "rounded-md p-1 ring-2 ring-inset ring-accent-dark-blue",
       )}
     >
-      <div className="absolute bottom-2 right-2 z-10 flex flex-row gap-1">
-        {/* Triggers review/annotation */}
-        <Button
-          disabled={!hasAnnotationWriteAccess}
-          variant="outline"
-          className="h-6 px-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={handleOpenReview}
-        >
-          Annotate
-        </Button>
-        {/* Triggers peek view */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-          title="View trace/observation"
-          onClick={handleOpenPeek}
-        >
-          <ListTree className="h-3 w-3" />
-        </Button>
-      </div>
+      {!(isSilentError || isLoading) && (
+        <div className="absolute bottom-2 right-2 z-10 flex flex-row gap-1">
+          {/* Triggers review/annotation */}
+          <Button
+            disabled={!hasAnnotationWriteAccess}
+            variant="outline"
+            className="h-6 px-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+            onClick={handleOpenReview}
+          >
+            Annotate
+          </Button>
+          {/* Triggers peek view */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+            title="View trace/observation"
+            onClick={handleOpenPeek}
+          >
+            <ListTree className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
       {/* Displays trace/observation output */}
       <div
         className={cn(
@@ -159,16 +173,23 @@ const DatasetAggregateCell = ({
           !selectedFields.includes("output") && "hidden",
         )}
       >
-        <MemoizedIOTableCell
-          isLoading={
-            (!value.observation ? trace.isLoading : observation.isLoading) ||
-            !data
-          }
-          data={data?.output ?? "null"}
-          className={"min-h-8 bg-accent-light-green"}
-          singleLine={false}
-          enableExpandOnHover
-        />
+        {isSilentError ? (
+          <Card className="flex h-full w-full flex-col items-center justify-center">
+            <h2 className="mb-2 text-lg font-bold">Not found</h2>
+            <p className="mb-6 text-center">
+              The {value.observation ? "observation" : "trace"} is either still
+              being processed or has been deleted.
+            </p>
+          </Card>
+        ) : (
+          <MemoizedIOTableCell
+            isLoading={isLoading || !data}
+            data={data?.output ?? "null"}
+            className={"min-h-8 bg-accent-light-green"}
+            singleLine={false}
+            enableExpandOnHover
+          />
+        )}
       </div>
       {/* Displays scores */}
       <div
@@ -196,30 +217,32 @@ const DatasetAggregateCell = ({
         </div>
       </div>
       {/* Displays latency and cost */}
-      <div
-        className={cn(
-          "flex max-h-fit flex-shrink-0",
-          !selectedFields.includes("resourceMetrics") && "hidden",
-        )}
-      >
-        <div className="max-h-fit w-full min-w-0">
-          <div className="flex w-full flex-row flex-wrap gap-1">
-            {!!latency && (
-              <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
-                <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
-                <span className="capitalize">
-                  {formatIntervalSeconds(latency)}
-                </span>
-              </Badge>
-            )}
-            {totalCost && (
-              <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
-                <span className="mr-0.5">{usdFormatter(totalCost)}</span>
-              </Badge>
-            )}
+      {!isLoading && (
+        <div
+          className={cn(
+            "flex max-h-fit flex-shrink-0",
+            !selectedFields.includes("resourceMetrics") && "hidden",
+          )}
+        >
+          <div className="max-h-fit w-full min-w-0">
+            <div className="flex w-full flex-row flex-wrap gap-1">
+              {!!latency && (
+                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+                  <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+                  <span className="capitalize">
+                    {formatIntervalSeconds(latency)}
+                  </span>
+                </Badge>
+              )}
+              {totalCost && (
+                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+                  <span className="mr-0.5">{usdFormatter(totalCost)}</span>
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

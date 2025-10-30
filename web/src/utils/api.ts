@@ -57,7 +57,10 @@ let buildId: string | null = null;
 
 const CLIENT_STALE_CACHE_CODES = [404, 400];
 
-const handleTrpcError = (error: unknown) => {
+const handleTrpcError = (
+  error: unknown,
+  shouldSilenceError: boolean = false,
+) => {
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
@@ -81,7 +84,9 @@ const handleTrpcError = (error: unknown) => {
     captureException(error);
   }
 
-  trpcErrorToast(error);
+  if (!shouldSilenceError) {
+    trpcErrorToast(error);
+  }
 };
 
 // onError update build id to compare versions
@@ -109,6 +114,20 @@ const buildIdLink = (): TRPCLink<AppRouter> => () => {
       return unsubscribe;
     });
   };
+};
+
+const shouldSilenceError = (
+  meta: Record<string, unknown>,
+  error: Error,
+): boolean => {
+  if (Array.isArray(meta?.silentHttpCodes)) {
+    return (
+      error instanceof TRPCClientError &&
+      meta.silentHttpCodes.includes(error.data.httpStatus)
+    );
+  }
+
+  return false;
 };
 
 /** A set of type-safe react-query hooks for your tRPC API. */
@@ -164,8 +183,8 @@ export const api = createTRPCNext<AppRouter>({
           },
         },
         queryCache: new QueryCache({
-          onError: (error) => {
-            handleTrpcError(error);
+          onError: (error, query) => {
+            handleTrpcError(error, shouldSilenceError(query.meta ?? {}, error));
           },
         }),
       },
