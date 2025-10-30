@@ -124,6 +124,7 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // IMPORTANT: Create NEW additional_kwargs without tool_calls to prevent
       // ChatMlSchema from overwriting our flattened version when it spreads additional_kwargs
       // Don't mutate original object - JSON view needs to show original data
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { tool_calls: _removed, ...restKwargs } = additionalKwargs;
       normalized.additional_kwargs = restKwargs;
     }
