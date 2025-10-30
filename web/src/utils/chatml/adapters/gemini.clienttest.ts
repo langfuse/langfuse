@@ -271,23 +271,31 @@ describe("geminiAdapter", () => {
 
       const result = normalizeInput(input, { framework: "gemini" });
       expect(result.success).toBe(true);
-      expect(result.data).toHaveLength(3);
+      expect(result.data).toHaveLength(4);
 
-      // First message: user text
-      expect(result.data?.[0].role).toBe("user");
-      expect(result.data?.[0].content).toBe("hi");
+      // First message: system instruction
+      expect(result.data?.[0].role).toBe("system");
+      expect(result.data?.[0].content).toBe(
+        "Always greet using the say_hello tool.",
+      );
       expect(result.data?.[0].tools).toBeDefined();
       expect(result.data?.[0].tools?.[0].name).toBe("say_hello");
 
-      // Second message: assistant with tool_call
-      expect(result.data?.[1].role).toBe("model");
-      expect(result.data?.[1].tool_calls).toBeDefined();
-      expect(result.data?.[1].tool_calls?.[0].name).toBe("say_hello");
-      expect(result.data?.[1].tool_calls?.[0].arguments).toBe("{}");
+      // Second message: user text
+      expect(result.data?.[1].role).toBe("user");
+      expect(result.data?.[1].content).toBe("hi");
+      expect(result.data?.[1].tools).toBeDefined();
+      expect(result.data?.[1].tools?.[0].name).toBe("say_hello");
 
-      // Third message: tool result
-      expect(result.data?.[2].role).toBe("user");
-      expect(result.data?.[2].content).toBeDefined();
+      // Third message: assistant with tool_call
+      expect(result.data?.[2].role).toBe("model");
+      expect(result.data?.[2].tool_calls).toBeDefined();
+      expect(result.data?.[2].tool_calls?.[0].name).toBe("say_hello");
+      expect(result.data?.[2].tool_calls?.[0].arguments).toBe("{}");
+
+      // Fourth message: tool result
+      expect(result.data?.[3].role).toBe("user");
+      expect(result.data?.[3].content).toBeDefined();
     });
   });
 });

@@ -328,8 +328,8 @@ function preprocessData(data: unknown): unknown {
     }
   }
 
-  // Google ADK format: { model, config: { tools: [...] }, contents: [...] }
-  // Extract tools from config and attach to messages
+  // Google ADK format: { model, config: { tools: [...], system_instruction: "..." }, contents: [...] }
+  // Extract system_instruction and tools from config
   if (
     typeof data === "object" &&
     !Array.isArray(data) &&
@@ -340,21 +340,36 @@ function preprocessData(data: unknown): unknown {
     const config = obj.config as Record<string, unknown> | undefined;
     const contents = obj.contents;
 
-    if (config && "tools" in config && Array.isArray(config.tools)) {
-      const extractedTools = extractToolDeclarations(config.tools);
+    if (config && Array.isArray(contents)) {
+      const messages: unknown[] = [];
 
-      if (extractedTools.length > 0 && Array.isArray(contents)) {
-        // Attach tools to all messages
-        return filterAndNormalizeMessages(contents).map((msg) => ({
-          ...(msg as Record<string, unknown>),
-          tools: extractedTools,
-        }));
+      // Extract system_instruction from config and prepend as system message
+      if (
+        config.system_instruction &&
+        typeof config.system_instruction === "string"
+      ) {
+        messages.push({
+          role: "system",
+          content: config.system_instruction,
+        });
       }
-    }
 
-    // Fallback: just return normalized contents
-    if (Array.isArray(contents)) {
-      return filterAndNormalizeMessages(contents);
+      messages.push(...contents);
+
+      // Extract and attach tools if present
+      if ("tools" in config && Array.isArray(config.tools)) {
+        const extractedTools = extractToolDeclarations(config.tools);
+
+        if (extractedTools.length > 0) {
+          return filterAndNormalizeMessages(messages).map((msg) => ({
+            ...(msg as Record<string, unknown>),
+            tools: extractedTools,
+          }));
+        }
+      }
+
+      // Fallback: no tools, just normalize messages
+      return filterAndNormalizeMessages(messages);
     }
   }
 
