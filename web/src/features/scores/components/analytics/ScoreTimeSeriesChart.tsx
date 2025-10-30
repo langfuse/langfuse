@@ -48,8 +48,8 @@ export function ScoreTimeSeriesChart({
   const config: ChartConfig = {
     [scoreName]: {
       theme: {
-        light: "hsl(var(--accent))",
-        dark: "hsl(var(--accent))",
+        light: "hsl(var(--dark-green))",
+        dark: "hsl(var(--dark-green))",
       },
     },
   };
@@ -81,7 +81,7 @@ export function ScoreTimeSeriesChart({
         <Line
           type="monotone"
           dataKey={scoreName}
-          stroke="hsl(var(--accent))"
+          stroke="hsl(var(--dark-green))"
           strokeWidth={2}
           dot={true}
           activeDot={{ r: 6, strokeWidth: 0 }}

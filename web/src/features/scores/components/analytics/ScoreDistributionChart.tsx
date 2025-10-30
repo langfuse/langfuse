@@ -65,8 +65,8 @@ export function ScoreDistributionChart({
   const config: ChartConfig = {
     metric: {
       theme: {
-        light: "hsl(var(--accent))",
-        dark: "hsl(var(--accent))",
+        light: "hsl(var(--dark-green))",
+        dark: "hsl(var(--dark-green))",
       },
     },
   };
@@ -114,7 +114,7 @@ export function ScoreDistributionChart({
           {chartData.map((_, index) => (
             <Cell
               key={`cell-${index}`}
-              fill="hsl(var(--accent))"
+              fill="hsl(var(--dark-green))"
               fillOpacity={
                 activeIndex === null || activeIndex === index ? 1 : 0.3
               }
