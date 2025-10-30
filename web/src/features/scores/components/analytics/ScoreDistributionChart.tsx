@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState } from "react";
+import { Bar, BarChart, Cell, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -24,6 +24,8 @@ export function ScoreDistributionChart({
   binLabels,
   categories,
 }: ScoreDistributionChartProps) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
   // Debug logging
   console.log("[ScoreDistributionChart] Rendering:", {
     dataLength: data.length,
@@ -63,8 +65,8 @@ export function ScoreDistributionChart({
   const config: ChartConfig = {
     metric: {
       theme: {
-        light: "hsl(var(--chart-1))",
-        dark: "hsl(var(--chart-1))",
+        light: "hsl(var(--accent))",
+        dark: "hsl(var(--accent))",
       },
     },
   };
@@ -86,6 +88,7 @@ export function ScoreDistributionChart({
         accessibilityLayer
         data={chartData}
         margin={{ bottom: hasManyCategories ? 60 : 20 }}
+        onMouseLeave={() => setActiveIndex(null)}
       >
         <XAxis
           dataKey="dimension"
@@ -106,8 +109,18 @@ export function ScoreDistributionChart({
         <Bar
           dataKey="metric"
           radius={[4, 4, 0, 0]}
-          className="fill-[--color-metric]"
-        />
+          onMouseEnter={(_, index) => setActiveIndex(index)}
+        >
+          {chartData.map((_, index) => (
+            <Cell
+              key={`cell-${index}`}
+              fill="hsl(var(--accent))"
+              fillOpacity={
+                activeIndex === null || activeIndex === index ? 1 : 0.3
+              }
+            />
+          ))}
+        </Bar>
         <ChartTooltip
           content={<ChartTooltipContent />}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
