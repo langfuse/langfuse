@@ -36,16 +36,6 @@ export function SingleScoreAnalytics({
   fromDate,
   toDate,
 }: SingleScoreAnalyticsProps) {
-  // TODO: REMOVE BEFORE MERGING - Debug component render
-  console.log("[SingleScoreAnalytics] Rendering with:", {
-    scoreName,
-    dataType,
-    source,
-    distributionLength: analytics.distribution1.length,
-    timeSeriesLength: analytics.timeSeries.length,
-    totalCount: analytics.counts.score1Total,
-  });
-
   // Use distribution1 for single score
   const distribution = analytics.distribution1;
   const totalCount = analytics.counts.score1Total;
@@ -148,10 +138,9 @@ export function SingleScoreAnalytics({
         <CardContent className="h-[300px]">
           {distribution.length > 0 ? (
             <ScoreDistributionChart
-              data={distribution}
+              distribution1={distribution}
               dataType={dataType}
-              scoreName={scoreName}
-              totalCount={totalCount}
+              score1Name={scoreName}
               binLabels={binLabels}
               categories={categories}
             />
