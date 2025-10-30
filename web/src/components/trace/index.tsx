@@ -629,14 +629,14 @@ export function Trace(props: {
                   <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
                     <div className="flex flex-row justify-between px-3 pl-5">
                       {props.selectedTab?.includes("timeline") ? (
-                        <span className="whitespace-nowrap px-1 py-2 text-sm text-muted-foreground">
+                        <span className="whitespace-nowrap px-1 py-3 text-sm text-muted-foreground">
                           Node display
                         </span>
                       ) : (
                         <CommandInput
                           showBorder={false}
                           placeholder="Search"
-                          className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                          className="h-9 min-w-20 border-0 pr-0 focus:ring-0"
                           value={searchQuery}
                           onValueChange={setSearchQuery}
                         />
