@@ -20,9 +20,11 @@ export const convertRunItemToItemsByItemUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: isPresent(item.trace?.totalCost)
-      ? usdFormatter(item.trace.totalCost)
-      : undefined,
+    totalCost: isPresent(item.observation?.calculatedTotalCost)
+      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
+      : isPresent(item.trace?.totalCost)
+        ? usdFormatter(item.trace.totalCost)
+        : undefined,
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };
@@ -41,9 +43,11 @@ export const convertRunItemToItemsByRunUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: isPresent(item.trace?.totalCost)
-      ? usdFormatter(item.trace.totalCost)
-      : undefined,
+    totalCost: isPresent(item.observation?.calculatedTotalCost)
+      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
+      : isPresent(item.trace?.totalCost)
+        ? usdFormatter(item.trace.totalCost)
+        : undefined,
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };

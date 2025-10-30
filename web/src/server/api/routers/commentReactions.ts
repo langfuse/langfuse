@@ -52,6 +52,7 @@ export const commentReactionsRouter = createTRPCRouter({
             },
           },
           create: {
+            projectId: input.projectId,
             commentId: input.commentId,
             userId: ctx.session.user.id,
             emoji: input.emoji,
@@ -103,15 +104,22 @@ export const commentReactionsRouter = createTRPCRouter({
           });
         }
 
-        await ctx.prisma.commentReaction.delete({
+        // Delete reaction with project safety check
+        const deletedReaction = await ctx.prisma.commentReaction.deleteMany({
           where: {
-            commentId_userId_emoji: {
-              commentId: input.commentId,
-              userId: ctx.session.user.id,
-              emoji: input.emoji,
-            },
+            commentId: input.commentId,
+            userId: ctx.session.user.id,
+            emoji: input.emoji,
+            projectId: input.projectId,
           },
         });
+
+        if (deletedReaction.count === 0) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Reaction not found",
+          });
+        }
 
         return;
       } catch (error) {
@@ -178,7 +186,10 @@ export const commentReactionsRouter = createTRPCRouter({
         });
 
         const reactions = await ctx.prisma.commentReaction.findMany({
-          where: { commentId: input.commentId },
+          where: {
+            commentId: input.commentId,
+            projectId: input.projectId,
+          },
           orderBy: { createdAt: "asc" },
           ...(canSeeUserDetails && {
             include: {

@@ -784,7 +784,7 @@ export default function ObservationsTable({
                 rowHeight !== "s" && "flex-wrap",
               )}
             >
-              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+              <TagList selectedTags={traceTags} isLoading={false} />
             </div>
           )
         );
