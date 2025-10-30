@@ -672,7 +672,53 @@ export const scoresRouter = createTRPCRouter({
         }),
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
-        interval: z.enum(["hour", "day", "week", "month"]).default("day"),
+        interval: z
+          .object({
+            count: z.number().int().positive(),
+            unit: z.enum(["second", "minute", "hour", "day", "month", "year"]),
+          })
+          .refine(
+            (val) => {
+              // Validate against allowed intervals
+              const allowed = [
+                // Seconds
+                { count: 1, unit: "second" },
+                { count: 5, unit: "second" },
+                { count: 10, unit: "second" },
+                { count: 30, unit: "second" },
+                // Minutes
+                { count: 1, unit: "minute" },
+                { count: 5, unit: "minute" },
+                { count: 10, unit: "minute" },
+                { count: 30, unit: "minute" },
+                // Hours
+                { count: 1, unit: "hour" },
+                { count: 3, unit: "hour" },
+                { count: 6, unit: "hour" },
+                { count: 12, unit: "hour" },
+                // Days
+                { count: 1, unit: "day" },
+                { count: 2, unit: "day" },
+                { count: 5, unit: "day" },
+                { count: 7, unit: "day" },
+                { count: 14, unit: "day" },
+                // Months
+                { count: 1, unit: "month" },
+                { count: 3, unit: "month" },
+                { count: 6, unit: "month" },
+                // Years
+                { count: 1, unit: "year" },
+              ];
+              return allowed.some(
+                (a) => a.count === val.count && a.unit === val.unit,
+              );
+            },
+            {
+              message:
+                "Invalid interval. Must be one of the allowed interval combinations.",
+            },
+          )
+          .default({ count: 1, unit: "day" }),
         nBins: z.number().int().min(5).max(50).default(10),
         maxMatchedScoresLimit: z.number().int().default(100000),
       }),
@@ -690,13 +736,9 @@ export const scoresRouter = createTRPCRouter({
       } = input;
 
       // Convert interval to ClickHouse INTERVAL syntax
-      const intervalMap: Record<string, string> = {
-        hour: "INTERVAL 1 HOUR",
-        day: "INTERVAL 1 DAY",
-        week: "INTERVAL 1 WEEK",
-        month: "INTERVAL 1 MONTH",
-      };
-      const clickhouseInterval = intervalMap[interval];
+      // ClickHouse format: INTERVAL {count} {UNIT}
+      // Note: ClickHouse uses uppercase for interval units
+      const clickhouseInterval = `INTERVAL ${interval.count} ${interval.unit.toUpperCase()}`;
 
       // Construct comprehensive UNION ALL query
       const query = `

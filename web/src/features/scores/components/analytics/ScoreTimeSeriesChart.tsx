@@ -10,6 +10,7 @@ import {
   getSingleScoreChartConfig,
   getSingleScoreColor,
 } from "@/src/features/scores/lib/color-scales";
+import { type IntervalConfig } from "@/src/utils/date-range-utils";
 
 export interface ScoreTimeSeriesChartProps {
   data: Array<{
@@ -19,7 +20,7 @@ export interface ScoreTimeSeriesChartProps {
     count: number;
   }>;
   scoreName: string;
-  interval: "hour" | "day" | "week" | "month";
+  interval: IntervalConfig;
   overallAverage: number;
 }
 
@@ -96,14 +97,25 @@ export function ScoreTimeSeriesChart({
 
 /**
  * Format timestamp based on aggregation interval
+ * Intelligently shows seconds/minutes/hours/dates based on interval granularity
  */
-function formatTimestamp(
-  date: Date,
-  interval: "hour" | "day" | "week" | "month",
-): string {
-  const showMinutes = interval === "hour";
+function formatTimestamp(date: Date, interval: IntervalConfig): string {
+  const { unit } = interval;
 
-  if (showMinutes) {
+  // For second and minute intervals, show full time
+  if (unit === "second" || unit === "minute") {
+    return date.toLocaleTimeString("en-US", {
+      year: "2-digit",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: unit === "second" ? "2-digit" : undefined,
+    });
+  }
+
+  // For hour intervals, show date and time (no seconds)
+  if (unit === "hour") {
     return date.toLocaleTimeString("en-US", {
       year: "2-digit",
       month: "numeric",
@@ -113,6 +125,7 @@ function formatTimestamp(
     });
   }
 
+  // For day/month/year intervals, show only date
   return date.toLocaleDateString("en-US", {
     year: "2-digit",
     month: "numeric",

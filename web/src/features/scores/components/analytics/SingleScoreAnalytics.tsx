@@ -9,7 +9,10 @@ import {
 } from "@/src/components/ui/card";
 import { ScoreDistributionChart } from "./ScoreDistributionChart";
 import { ScoreTimeSeriesChart } from "./ScoreTimeSeriesChart";
-import { fillTimeSeriesGaps } from "@/src/utils/date-range-utils";
+import {
+  fillTimeSeriesGaps,
+  type IntervalConfig,
+} from "@/src/utils/date-range-utils";
 
 interface SingleScoreAnalyticsProps {
   scoreId: string;
@@ -17,7 +20,7 @@ interface SingleScoreAnalyticsProps {
   dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
   source: string;
   analytics: RouterOutputs["scores"]["getScoreComparisonAnalytics"];
-  interval: "hour" | "day" | "week" | "month";
+  interval: IntervalConfig;
   nBins: number;
   fromDate: Date;
   toDate: Date;
@@ -166,7 +169,8 @@ export function SingleScoreAnalytics({
           <CardHeader>
             <CardTitle>Trend Over Time</CardTitle>
             <CardDescription>
-              Average by {interval}
+              Average by {interval.count} {interval.unit}
+              {interval.count > 1 && "s"}
               {overallAverage > 0 && (
                 <> | Overall avg: {overallAverage.toFixed(3)}</>
               )}

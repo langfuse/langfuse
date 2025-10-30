@@ -2,14 +2,19 @@ import { z } from "zod/v4";
 import {
   addMinutes,
   format,
+  addSeconds,
   addHours,
   addDays,
   addWeeks,
   addMonths,
+  addYears,
+  startOfSecond,
+  startOfMinute,
   startOfHour,
   startOfDay,
   startOfWeek,
   startOfMonth,
+  startOfYear,
   isBefore,
 } from "date-fns";
 import { type DateTrunc } from "@langfuse/shared/src/server";
@@ -366,6 +371,66 @@ export type AbsoluteTimeRange = {
 
 export type TimeRange = RelativeTimeRange | AbsoluteTimeRange;
 
+/**
+ * =======================
+ * Interval Configuration
+ * =======================
+ */
+
+/**
+ * Supported interval units for time series aggregation
+ */
+export type IntervalUnit =
+  | "second"
+  | "minute"
+  | "hour"
+  | "day"
+  | "month"
+  | "year";
+
+/**
+ * Interval configuration with count and unit
+ * Used for ClickHouse INTERVAL N UNIT queries
+ */
+export type IntervalConfig = {
+  count: number;
+  unit: IntervalUnit;
+};
+
+/**
+ * Allowed intervals - only "clean" values to avoid crooked numbers
+ * These are the only intervals that can be selected by the algorithm
+ */
+export const ALLOWED_INTERVALS: readonly IntervalConfig[] = [
+  // Seconds
+  { count: 1, unit: "second" },
+  { count: 5, unit: "second" },
+  { count: 10, unit: "second" },
+  { count: 30, unit: "second" },
+  // Minutes
+  { count: 1, unit: "minute" },
+  { count: 5, unit: "minute" },
+  { count: 10, unit: "minute" },
+  { count: 30, unit: "minute" },
+  // Hours
+  { count: 1, unit: "hour" },
+  { count: 3, unit: "hour" },
+  { count: 6, unit: "hour" },
+  { count: 12, unit: "hour" },
+  // Days
+  { count: 1, unit: "day" },
+  { count: 2, unit: "day" },
+  { count: 5, unit: "day" },
+  { count: 7, unit: "day" },
+  { count: 14, unit: "day" },
+  // Months
+  { count: 1, unit: "month" },
+  { count: 3, unit: "month" },
+  { count: 6, unit: "month" },
+  // Years
+  { count: 1, unit: "year" },
+] as const;
+
 export const toAbsoluteTimeRange = (
   timeRange: TimeRange,
 ): AbsoluteTimeRange | null => {
@@ -384,6 +449,100 @@ export const toAbsoluteTimeRange = (
     to: new Date(),
   };
 };
+
+/**
+ * =======================
+ * Optimal Interval Selection
+ * =======================
+ */
+
+/**
+ * Convert interval configuration to approximate milliseconds
+ * Note: Month and year use average durations for calculation purposes
+ *
+ * @param interval - The interval configuration
+ * @returns Approximate duration in milliseconds
+ */
+function getIntervalDuration(interval: IntervalConfig): number {
+  const { count, unit } = interval;
+
+  const MS_PER_UNIT = {
+    second: 1000,
+    minute: 60 * 1000,
+    hour: 60 * 60 * 1000,
+    day: 24 * 60 * 60 * 1000,
+    month: 30.44 * 24 * 60 * 60 * 1000, // Average month length
+    year: 365.25 * 24 * 60 * 60 * 1000, // Account for leap years
+  };
+
+  return count * MS_PER_UNIT[unit];
+}
+
+/**
+ * Select the optimal interval from ALLOWED_INTERVALS to achieve target data points
+ *
+ * Algorithm:
+ * 1. Calculate duration between fromDate and toDate
+ * 2. For each allowed interval, calculate how many data points it would produce
+ * 3. Score each interval based on proximity to target range (10-16 points, prefer 13)
+ * 4. Return the interval with the highest score
+ *
+ * @param fromDate - Start of the time range
+ * @param toDate - End of the time range
+ * @param targetPoints - Ideal number of data points (default: 13, middle of 10-16 range)
+ * @param minPoints - Minimum acceptable data points (default: 10)
+ * @param maxPoints - Maximum acceptable data points (default: 16)
+ * @returns The optimal interval configuration
+ */
+export function getOptimalInterval(
+  fromDate: Date,
+  toDate: Date,
+  targetPoints: number = 13,
+  minPoints: number = 10,
+  maxPoints: number = 16,
+): IntervalConfig {
+  const durationMs = toDate.getTime() - fromDate.getTime();
+
+  // Edge case: invalid or zero duration
+  if (durationMs <= 0) {
+    return { count: 1, unit: "day" };
+  }
+
+  let bestInterval: IntervalConfig = { count: 1, unit: "day" };
+  let bestScore = -Infinity;
+
+  for (const interval of ALLOWED_INTERVALS) {
+    const intervalMs = getIntervalDuration(interval);
+    const dataPoints = Math.floor(durationMs / intervalMs) + 1;
+
+    // Calculate score based on proximity to target range
+    let score: number;
+
+    if (dataPoints >= minPoints && dataPoints <= maxPoints) {
+      // Within target range - prefer closer to targetPoints
+      // Score from 0 to maxPoints (higher is better)
+      score = maxPoints - Math.abs(dataPoints - targetPoints);
+    } else if (dataPoints < minPoints) {
+      // Below minimum - penalize heavily
+      // The fewer points, the worse the score
+      const deficit = minPoints - dataPoints;
+      score = dataPoints - deficit * 2; // Double penalty for being below min
+    } else {
+      // Above maximum - penalize, but less severely than below minimum
+      // Too many points is better than too few
+      const excess = dataPoints - maxPoints;
+      score = maxPoints - excess * 0.5; // Half penalty for being above max
+    }
+
+    // Update best interval if this one scores higher
+    if (score > bestScore) {
+      bestScore = score;
+      bestInterval = interval;
+    }
+  }
+
+  return bestInterval;
+}
 
 /**
  * Determines the optimal interval for score analytics based on time range.
@@ -510,33 +669,31 @@ export function rangeFromString<T extends string>(
  * @param data - Array of time series data points with timestamp and values
  * @param fromDate - Start of the time range
  * @param toDate - End of the time range
- * @param interval - The interval granularity ("hour" | "day" | "week" | "month")
+ * @param interval - The interval configuration (count and unit)
  * @returns Array with all time points filled in, missing points have null values
  */
 export function fillTimeSeriesGaps<
   T extends { timestamp: Date; [key: string]: unknown },
->(
-  data: T[],
-  fromDate: Date,
-  toDate: Date,
-  interval: "hour" | "day" | "week" | "month",
-): T[] {
-  // Determine the start function and add function based on interval
-  const intervalConfig = {
+>(data: T[], fromDate: Date, toDate: Date, interval: IntervalConfig): T[] {
+  // Determine the start function and add function based on interval unit
+  const unitConfig = {
+    second: { start: startOfSecond, add: addSeconds },
+    minute: { start: startOfMinute, add: addMinutes },
     hour: { start: startOfHour, add: addHours },
     day: { start: startOfDay, add: addDays },
     week: { start: startOfWeek, add: addWeeks },
     month: { start: startOfMonth, add: addMonths },
-  }[interval];
+    year: { start: startOfYear, add: addYears },
+  }[interval.unit];
 
   // Normalize the from and to dates to the interval boundaries
-  const normalizedFrom = intervalConfig.start(fromDate);
-  const normalizedTo = intervalConfig.start(toDate);
+  const normalizedFrom = unitConfig.start(fromDate);
+  const normalizedTo = unitConfig.start(toDate);
 
   // Create a map of existing data points keyed by normalized timestamp
   const dataMap = new Map<number, T>();
   for (const item of data) {
-    const normalizedTimestamp = intervalConfig.start(item.timestamp).getTime();
+    const normalizedTimestamp = unitConfig.start(item.timestamp).getTime();
     dataMap.set(normalizedTimestamp, item);
   }
 
@@ -573,8 +730,8 @@ export function fillTimeSeriesGaps<
       filledData.push(placeholder);
     }
 
-    // Move to next interval
-    currentTime = intervalConfig.add(currentTime, 1);
+    // Move to next interval (use interval.count to support multi-unit intervals like 6 hours)
+    currentTime = unitConfig.add(currentTime, interval.count);
   }
 
   return filledData;

@@ -14,7 +14,7 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
-  getScoreAnalyticsInterval,
+  getOptimalInterval,
 } from "@/src/utils/date-range-utils";
 import { BarChart3, Loader2 } from "lucide-react";
 import { api } from "@/src/utils/api";
@@ -140,10 +140,10 @@ export default function ScoresAnalyticsPage() {
   );
 
   // Calculate optimal interval based on time range
-  const interval = useMemo(
-    () => getScoreAnalyticsInterval(timeRange),
-    [timeRange],
-  );
+  const interval = useMemo(() => {
+    if (!absoluteTimeRange) return { count: 1, unit: "day" as const };
+    return getOptimalInterval(absoluteTimeRange.from, absoluteTimeRange.to);
+  }, [absoluteTimeRange]);
 
   // TODO: REMOVE BEFORE MERGING - Debug logging
   useEffect(() => {
