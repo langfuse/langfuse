@@ -396,4 +396,26 @@ describe("Playground Jump Full Pipeline", () => {
     });
     expect(tools[1].name).toBe("search_web");
   });
+
+  it("should stringify array content in tool messages for playground (eg as from langgraph)", () => {
+    // CodeMirror expects string but got array in tool result content
+    const input = [
+      {
+        role: "tool",
+        content: [{ url: "https://example.com", title: "Example" }],
+        tool_call_id: "call_123",
+      },
+    ];
+
+    const inResult = normalizeInput(input, { framework: "langgraph" });
+    expect(inResult.success).toBe(true);
+
+    const playgroundMsg = convertChatMlToPlayground(inResult.data![0]);
+    expect(playgroundMsg?.type).toBe("tool-result");
+    // Array must be stringified, not left as object
+    expect(typeof playgroundMsg?.content).toBe("string");
+    expect(playgroundMsg?.content).toBe(
+      '[{"url":"https://example.com","title":"Example"}]',
+    );
+  });
 });
