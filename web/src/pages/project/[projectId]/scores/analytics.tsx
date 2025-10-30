@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,

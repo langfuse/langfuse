@@ -24,9 +24,15 @@ export function ScoreTimeSeriesChart({
   scoreName,
   interval,
 }: ScoreTimeSeriesChartProps) {
+  console.log("[ScoreTimeSeriesChart] Rendering:", {
+    dataLength: data.length,
+    scoreName,
+    interval,
+  });
+
   // Transform data for Recharts
   const chartData = useMemo(() => {
-    return data.map((item) => {
+    const transformed = data.map((item) => {
       // Format timestamp based on interval
       const timestamp = formatTimestamp(item.timestamp, interval);
 
@@ -35,6 +41,8 @@ export function ScoreTimeSeriesChart({
         [scoreName]: item.avg1,
       };
     });
+    console.log("[ScoreTimeSeriesChart] Transformed data:", transformed);
+    return transformed;
   }, [data, scoreName, interval]);
 
   const config: ChartConfig = {

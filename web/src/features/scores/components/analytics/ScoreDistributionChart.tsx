@@ -24,9 +24,17 @@ export function ScoreDistributionChart({
   binLabels,
   categories,
 }: ScoreDistributionChartProps) {
+  // Debug logging
+  console.log("[ScoreDistributionChart] Rendering:", {
+    dataLength: data.length,
+    dataType,
+    binLabels: binLabels?.length,
+    categories: categories?.length,
+  });
+
   // Transform data for Recharts
   const chartData = useMemo(() => {
-    return data.map((item) => {
+    const transformed = data.map((item) => {
       let label: string;
 
       if (dataType === "NUMERIC" && binLabels) {
@@ -48,6 +56,8 @@ export function ScoreDistributionChart({
         metric: item.count,
       };
     });
+    console.log("[ScoreDistributionChart] Transformed data:", transformed);
+    return transformed;
   }, [data, dataType, binLabels, categories]);
 
   const config: ChartConfig = {
