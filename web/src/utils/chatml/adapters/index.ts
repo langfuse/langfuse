@@ -1,15 +1,13 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 import { mapToChatMl, mapOutputToChatMl } from "../core";
 import { langgraphAdapter } from "./langgraph";
-import { openaiChatCompletionAdapter } from "./openai-chat-completion";
 import { openAIAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { genericAdapter } from "./generic";
 
 const adapters: ProviderAdapter[] = [
   langgraphAdapter, // Must be before openAI (both use langfuse-sdk scope)
-  openaiChatCompletionAdapter, // Chat Completions API format ({"tools": [], "messages": []})
-  openAIAdapter, // remaining/modern OpenAI formats (responses, parts, ...)
+  openAIAdapter, // OpenAI (Chat Completions & Responses API)
   geminiAdapter, // Gemini/VertexAI format
   // Add more adapters here as needed
   genericAdapter, // Always last (fallback)

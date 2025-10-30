@@ -12,52 +12,39 @@ import { z } from "zod/v4";
  */
 
 // INPUT SCHEMAS (requests)
-const OpenAIInputChatCompletionsSchema = z
-  .object({
-    messages: z.array(z.any()),
-    tools: z.array(z.any()).optional(),
-  })
-  .passthrough();
+const OpenAIInputChatCompletionsSchema = z.looseObject({
+  messages: z.array(z.any()),
+  tools: z.array(z.any()).optional(),
+});
 
 const OpenAIInputMessagesSchema = z.array(
-  z
-    .object({
-      role: z.enum(["system", "user", "assistant", "tool", "function"]),
-    })
-    .passthrough(),
+  z.looseObject({
+    role: z.enum(["system", "user", "assistant", "tool", "function"]),
+  }),
 );
 
 // OUTPUT SCHEMAS (responses)
-const OpenAIOutputResponsesSchema = z
-  .object({
-    output: z.array(z.any()),
-    tools: z.array(z.any()).optional(),
-  })
-  .passthrough();
+const OpenAIOutputResponsesSchema = z.looseObject({
+  output: z.array(z.any()),
+  tools: z.array(z.any()).optional(),
+});
 
-const OpenAIOutputChoicesSchema = z
-  .object({
-    choices: z.array(z.any()),
-  })
-  .passthrough();
+const OpenAIOutputChoicesSchema = z.looseObject({
+  model: z.string(),
+  choices: z.array(z.any()),
+});
 
-const OpenAIOutputSingleMessageSchema = z
-  .object({
-    role: z.string(),
-    tool_calls: z.array(
-      z
-        .object({
-          type: z.string(),
-          function: z
-            .object({
-              name: z.string(),
-            })
-            .passthrough(),
-        })
-        .passthrough(),
-    ),
-  })
-  .passthrough();
+const OpenAIOutputSingleMessageSchema = z.looseObject({
+  role: z.string(),
+  tool_calls: z.array(
+    z.looseObject({
+      type: z.string(),
+      function: z.looseObject({
+        name: z.string(),
+      }),
+    }),
+  ),
+});
 
 function normalizeMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
@@ -184,6 +171,21 @@ function preprocessData(data: unknown): unknown {
     }
   }
 
+  // Chat Completions response: {choices: [{message: {...}}]}
+  if (typeof data === "object" && !Array.isArray(data) && "choices" in data) {
+    const obj = data as Record<string, unknown>;
+    if (Array.isArray(obj.choices) && obj.choices.length > 0) {
+      const firstChoice = obj.choices[0] as Record<string, unknown>;
+      if (
+        firstChoice &&
+        typeof firstChoice === "object" &&
+        "message" in firstChoice
+      ) {
+        return normalizeMessage(firstChoice.message);
+      }
+    }
+  }
+
   // Array of messages
   if (Array.isArray(data)) {
     return data.map(normalizeMessage);
@@ -214,8 +216,9 @@ export const openAIAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // Explicit rejection: LangGraph/LangChain traces
+    // REJECTIONS: Explicit rejection of LangGraph/LangChain formats
     if (meta && typeof meta === "object") {
+      // LangGraph
       if (
         "langgraph_step" in meta ||
         "langgraph_node" in meta ||
@@ -225,199 +228,61 @@ export const openAIAdapter: ProviderAdapter = {
       ) {
         return false;
       }
-    }
 
-    // OpenAI Chat Completions API format: { tools: [...], messages: [...] }
-    if (
-      typeof ctx.metadata === "object" &&
-      ctx.metadata !== null &&
-      "tools" in ctx.metadata &&
-      "messages" in ctx.metadata
-    ) {
-      const metadata = ctx.metadata as Record<string, unknown>;
-      if (Array.isArray(metadata.tools) && Array.isArray(metadata.messages)) {
-        return true;
+      // LangChain (type without role)
+      if ("messages" in ctx.metadata) {
+        const messages = (ctx.metadata as Record<string, unknown>).messages;
+        if (Array.isArray(messages)) {
+          const hasLangChainType = messages.some((msg: unknown) => {
+            const message = msg as Record<string, unknown>;
+            return (
+              message.type &&
+              typeof message.type === "string" &&
+              ["human", "ai", "tool", "system"].includes(message.type) &&
+              !("role" in message)
+            );
+          });
+          if (hasLangChainType) return false;
+        }
       }
     }
 
-    // OpenAI Responses API format: { tools: [...], output: [...] }
-    if (
-      typeof ctx.metadata === "object" &&
-      ctx.metadata !== null &&
-      "tools" in ctx.metadata &&
-      "output" in ctx.metadata
-    ) {
-      const metadata = ctx.metadata as Record<string, unknown>;
-      if (Array.isArray(metadata.tools) && Array.isArray(metadata.output)) {
-        return true;
-      }
-    }
+    // HINTS: Fast checks for explicit OpenAI indicators
+    if (ctx.framework === "openai") return true;
+    if (ctx.observationName?.toLowerCase().includes("openai")) return true;
+    if (meta?.ls_provider === "openai") return true;
 
-    // OpenAI via observation metadata attributes
+    // Metadata attributes check
     if (meta && typeof meta === "object" && "attributes" in meta) {
-      const attributes = (meta as Record<string, unknown>).attributes as Record<
-        string,
-        unknown
-      >;
+      const attributes = (meta as Record<string, unknown>).attributes;
       if (
         attributes &&
         typeof attributes === "object" &&
-        attributes["llm.system"] === "openai"
+        (attributes as Record<string, unknown>)["llm.system"] === "openai"
       ) {
         return true;
       }
     }
 
-    // Reject if messages have LangChain structure (type without role)
-    if (
-      typeof ctx.metadata === "object" &&
-      ctx.metadata !== null &&
-      "messages" in ctx.metadata
-    ) {
-      const messages = (ctx.metadata as Record<string, unknown>).messages;
-      if (Array.isArray(messages)) {
-        const hasLangChainType = messages.some((msg: unknown) => {
-          const message = msg as Record<string, unknown>;
-          return (
-            message.type &&
-            typeof message.type === "string" &&
-            ["human", "ai", "tool", "system"].includes(message.type) &&
-            !("role" in message)
-          );
-        });
-        if (hasLangChainType) return false;
-      }
-    }
-
-    // Explicit framework override
-    if (ctx.framework === "openai") return true;
-
-    // LangSmith metadata
-    if (meta?.ls_provider === "openai") return true;
-
-    // Observation name hint
-    if (ctx.observationName?.toLowerCase().includes("openai")) return true;
-
-    // Structural: has OpenAI-style messages with role
-    if (
-      typeof ctx.metadata === "object" &&
-      ctx.metadata !== null &&
-      "messages" in ctx.metadata
-    ) {
-      const messages = (ctx.metadata as Record<string, unknown>).messages;
-      if (Array.isArray(messages)) {
-        const hasRole = messages.some((msg: unknown) => {
-          const message = msg as Record<string, unknown>;
-          return (
-            message.role &&
-            typeof message.role === "string" &&
-            ["system", "user", "assistant", "tool", "function"].includes(
-              message.role,
-            )
-          );
-        });
-        if (hasRole) return true;
-
-        // OpenAI-style tool_calls at top level
-        const hasToolCalls = messages.some((msg: unknown) => {
-          const message = msg as Record<string, unknown>;
-          return (
-            message.tool_calls &&
-            Array.isArray(message.tool_calls) &&
-            message.tool_calls.some((tc: unknown) => {
-              const call = tc as Record<string, unknown>;
-              return (
-                call.type === "function" &&
-                call.function &&
-                typeof call.function === "object" &&
-                typeof (call.function as Record<string, unknown>).name ===
-                  "string"
-              );
-            })
-          );
-        });
-        if (hasToolCalls) return true;
-
-        // OpenAI multimodal content with specific types
-        const hasMultimodal = messages.some((msg: unknown) => {
-          const message = msg as Record<string, unknown>;
-          return (
-            Array.isArray(message.content) &&
-            message.content.some((part: unknown) => {
-              if (typeof part !== "object" || !part) return false;
-              const p = part as Record<string, unknown>;
-              return (
-                typeof p.type === "string" &&
-                ["text", "image_url", "input_audio"].includes(p.type)
-              );
-            })
-          );
-        });
-        if (hasMultimodal) return true;
-      }
-    }
-
-    // OpenAI output format with choices
-    if (
-      typeof ctx.metadata === "object" &&
-      ctx.metadata !== null &&
-      "choices" in ctx.metadata
-    ) {
+    // STRUCTURAL: Schema-based detection on metadata
+    if (OpenAIInputChatCompletionsSchema.safeParse(ctx.metadata).success)
       return true;
-    }
+    if (OpenAIInputMessagesSchema.safeParse(ctx.metadata).success) return true;
+    if (OpenAIOutputResponsesSchema.safeParse(ctx.metadata).success)
+      return true;
+    if (OpenAIOutputChoicesSchema.safeParse(ctx.metadata).success) return true;
+    if (OpenAIOutputSingleMessageSchema.safeParse(ctx.metadata).success)
+      return true;
 
-    // LAST RESORT: Structural detection on actual data content (performance!)
-    // Check for Chat Completions format: {tools, messages}
-    if (
-      ctx.data &&
-      typeof ctx.data === "object" &&
-      !Array.isArray(ctx.data) &&
-      "tools" in ctx.data &&
-      "messages" in ctx.data
-    ) {
-      const data = ctx.data as Record<string, unknown>;
-      if (Array.isArray(data.tools) && Array.isArray(data.messages)) {
-        return true;
-      }
-    }
-
-    // Check for Responses format: {tools, output}
-    if (
-      ctx.data &&
-      typeof ctx.data === "object" &&
-      !Array.isArray(ctx.data) &&
-      "tools" in ctx.data &&
-      "output" in ctx.data
-    ) {
-      const data = ctx.data as Record<string, unknown>;
-      if (Array.isArray(data.tools) && Array.isArray(data.output)) {
-        return true;
-      }
-    }
-
-    // Check for single message with nested tool_calls
-    if (
-      ctx.data &&
-      typeof ctx.data === "object" &&
-      "role" in ctx.data &&
-      "tool_calls" in ctx.data
-    ) {
-      const data = ctx.data as Record<string, unknown>;
-      if (Array.isArray(data.tool_calls)) {
-        const hasNestedToolCalls = data.tool_calls.some((tc: unknown) => {
-          const call = tc as Record<string, unknown>;
-          return (
-            call.type === "function" &&
-            call.function &&
-            typeof call.function === "object" &&
-            typeof (call.function as Record<string, unknown>).name === "string"
-          );
-        });
-        if (hasNestedToolCalls) {
-          return true;
-        }
-      }
-    }
+    // finally, test on data if available. we might've done this already if we passed
+    // data into metadata. we only do this last due to performance concerns.
+    if (OpenAIInputChatCompletionsSchema.safeParse(ctx.data).success)
+      return true;
+    if (OpenAIInputMessagesSchema.safeParse(ctx.data).success) return true;
+    if (OpenAIOutputResponsesSchema.safeParse(ctx.data).success) return true;
+    if (OpenAIOutputChoicesSchema.safeParse(ctx.data).success) return true;
+    if (OpenAIOutputSingleMessageSchema.safeParse(ctx.data).success)
+      return true;
 
     return false;
   },
