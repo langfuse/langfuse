@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
@@ -174,18 +174,16 @@ export default function ScoresAnalyticsPage() {
     },
   );
 
-  // TODO: REMOVE BEFORE MERGING - Debug analytics query result
-  useEffect(() => {
-    if (shouldFetchAnalytics) {
-      console.log("[Score Analytics] Query state:", {
-        isLoading: analyticsLoading,
-        hasData: !!analyticsData,
-        hasError: !!analyticsError,
-        error: analyticsError,
-        data: analyticsData,
-      });
-    }
-  }, [shouldFetchAnalytics, analyticsLoading, analyticsData, analyticsError]);
+  // Debug logging for query state
+  if (typeof window !== "undefined" && shouldFetchAnalytics) {
+    console.log("[Score Analytics] Query state:", {
+      isLoading: analyticsLoading,
+      hasData: !!analyticsData,
+      hasError: !!analyticsError,
+      error: analyticsError,
+      dataKeys: analyticsData ? Object.keys(analyticsData) : [],
+    });
+  }
 
   // Preprocess heatmap data
   const heatmapData = useMemo(() => {
@@ -237,9 +235,10 @@ export default function ScoresAnalyticsPage() {
   const hasNoSelection = !urlState.score1;
   const hasTwoScores = !!(urlState.score1 && urlState.score2);
 
-  // TODO: REMOVE BEFORE MERGING - Debug rendering conditions
-  useEffect(() => {
-    console.log("[Score Analytics] Rendering conditions:", {
+  // Debug logging (inline to avoid hooks issues)
+  if (typeof window !== "undefined") {
+    // Only log in browser, not during SSR
+    const debugInfo = {
       hasTwoScores,
       parsedScore1: !!parsedScore1,
       parsedScore2: !!parsedScore2,
@@ -249,15 +248,9 @@ export default function ScoresAnalyticsPage() {
       willRenderSingleScore: !hasTwoScores && !!parsedScore1 && !!analyticsData,
       willRenderTwoScores:
         hasTwoScores && !!parsedScore1 && !!parsedScore2 && !!analyticsData,
-    });
-  }, [
-    hasTwoScores,
-    parsedScore1,
-    parsedScore2,
-    analyticsData,
-    analyticsLoading,
-    analyticsError,
-  ]);
+    };
+    console.log("[Score Analytics] Rendering conditions:", debugInfo);
+  }
 
   return (
     <Page
