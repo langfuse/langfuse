@@ -82,7 +82,10 @@ export function ScoreDistributionNumericChart({
   const hasManyBins = chartData.length > 10;
 
   return (
-    <ChartContainer config={config}>
+    <ChartContainer
+      config={config}
+      className="[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-transparent"
+    >
       <BarChart
         accessibilityLayer
         data={chartData}
