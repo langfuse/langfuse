@@ -53,7 +53,7 @@ importers:
         version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       zod:
         specifier: ^3.25.62
         version: 3.25.62
@@ -236,7 +236,7 @@ importers:
         version: 4.1.1
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       nodemailer:
         specifier: ^7.0.10
         version: 7.0.10
@@ -385,6 +385,9 @@ importers:
       '@marsidev/react-turnstile':
         specifier: ^0.5.4
         version: 0.5.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.20.2
+        version: 1.20.2
       '@mui/material':
         specifier: ^7.3.1
         version: 7.3.1(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -633,7 +636,7 @@ importers:
         version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-query-params:
         specifier: ^5.1.0
         version: 5.1.0(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(use-query-params@2.2.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
@@ -745,6 +748,9 @@ importers:
       zod:
         specifier: ^3.25.62
         version: 3.25.62
+      zod-to-json-schema:
+        specifier: ^3.23.5
+        version: 3.24.6(zod@3.25.62)
     devDependencies:
       '@jedmao/location':
         specifier: ^3.0.0
@@ -3143,6 +3149,10 @@ packages:
 
   '@microsoft/tsdoc@0.14.2':
     resolution: {integrity: sha512-9b8mPpKrfeGRuhFH5iO1iwCLeIIsV6+H1sRfxbkoGXIyQE2BTsPd9zqSqQJ+pv5sJ/hT5M1zvOFL02MnEezFug==}
+
+  '@modelcontextprotocol/sdk@1.20.2':
+    resolution: {integrity: sha512-6rqTdFt67AAAzln3NOKsXRmv5ZzPkgbfaebKBqUbts7vK1GZudqnrun5a8d3M/h955cam9RHZ6Jb4Y1XhnmFPg==}
+    engines: {node: '>=18'}
 
   '@mrleebo/prisma-ast@0.7.0':
     resolution: {integrity: sha512-GTPkYf1meO2UXXIrz/SIDFWz+P4kXo2PTt36LYh/oNxV1PieYi7ZgenQk4IV0ut71Je3Z8ZoNZ8Tr7v2c1X1pg==}
@@ -8446,6 +8456,14 @@ packages:
     resolution: {integrity: sha512-v0eOBUbiaFojBu2s2NPBfYUoRR9GjcDNvCXVaqEf5vVfpIAh9f8RCo4vXTP8c63QRKCFwoLpMpTdPwwhEKVgzA==}
     engines: {node: '>=14.18'}
 
+  eventsource-parser@3.0.6:
+    resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
+    engines: {node: '>=18.0.0'}
+
+  eventsource@3.0.7:
+    resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
+    engines: {node: '>=18.0.0'}
+
   execa@5.1.1:
     resolution: {integrity: sha512-8uSpZZocAZRBAPIEINJj3Lo9HyGitllczc27Eh5YYojjMFMn8yHMDMaUHE2Jqfq05D/wucwI4JGURyXt1vchyg==}
     engines: {node: '>=10'}
@@ -8468,6 +8486,12 @@ packages:
 
   exponential-backoff@3.1.2:
     resolution: {integrity: sha512-8QxYTVXUkuy7fIIoitQkPwGonB8F3Zj8eEO8Sqg9Zv/bkI7RJAzowee4gr81Hak/dUTpA2Z7VfQgoijjPNlUZA==}
+
+  express-rate-limit@7.5.1:
+    resolution: {integrity: sha512-7iN8iPMDzOMHPUYllBEsQdWVB6fPDMPqwjBaFrgr4Jgr/+okjvzAy+UHlYYL/Vs0OsOrMkwS6PJDkFlJwoxUnw==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      express: '>= 4.11'
 
   express@5.1.0:
     resolution: {integrity: sha512-DT9ck5YIRU+8GYzzU5kT3eHGA5iL+1Zd0EutOmTE9Dtk+Tvuzd23VBU+ec7HPNSTxXYO55gPV/hq4pSBJDjFpA==}
@@ -11251,6 +11275,10 @@ packages:
     resolution: {integrity: sha512-saLsH7WeYYPiD25LDuLRRY/i+6HaPYr6G1OUlN39otzkSTxKnubR9RTxS3/Kk50s1g2JTgFwWQDQyplC5/SHZg==}
     engines: {node: '>= 6'}
 
+  pkce-challenge@5.0.0:
+    resolution: {integrity: sha512-ueGLflrrnvwB3xuo/uGob5pd5FN7l0MsLf0Z87o/UQmRtwjvfylfc9MurIxRAWywCYTgrvpXBcqjV4OfCYGCIQ==}
+    engines: {node: '>=16.20.0'}
+
   pkg-dir@4.2.0:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
@@ -13622,6 +13650,11 @@ packages:
     resolution: {integrity: sha512-5wlSS0bXfF/BrL4jPAbz9da5hDlDptdEppYfe+x4eIJ7jioqKG9uUxOwPzqof09u/XeVdrgFu29lZi+8XNDJtA==}
     peerDependencies:
       zod: ^3.23.3
+
+  zod-to-json-schema@3.24.6:
+    resolution: {integrity: sha512-h/z3PKvcTcTetyjl1fkj79MHNEjm+HpD6NXheWjzOekY7kV+lwDYnHw+ivHkijnCSMz1yJaWBD9vu/Fcmk+vEg==}
+    peerDependencies:
+      zod: ^3.24.1
 
   zod@3.22.4:
     resolution: {integrity: sha512-iC+8Io04lddc+mVqQ9AZ7OQ2MrUKGN+oIQyq1vemgt46jwCwLfhq7/pwnBnNXXXZb8VTVLKwp9EDkx+ryxIWmg==}
@@ -17248,7 +17281,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 10.0.0
       zod: 3.25.62
-      zod-to-json-schema: 3.23.5(zod@3.25.62)
+      zod-to-json-schema: 3.24.6(zod@3.25.62)
     transitivePeerDependencies:
       - openai
 
@@ -17265,7 +17298,7 @@ snapshots:
       p-retry: 4.6.2
       uuid: 10.0.0
       zod: 3.25.62
-      zod-to-json-schema: 3.23.5(zod@3.25.62)
+      zod-to-json-schema: 3.24.6(zod@3.25.62)
     transitivePeerDependencies:
       - openai
 
@@ -17273,7 +17306,7 @@ snapshots:
     dependencies:
       '@langchain/core': 0.3.58(openai@4.104.0(zod@3.25.62))
       uuid: 10.0.0
-      zod-to-json-schema: 3.23.5(zod@3.25.62)
+      zod-to-json-schema: 3.24.6(zod@3.25.62)
     transitivePeerDependencies:
       - zod
     optional: true
@@ -17282,7 +17315,7 @@ snapshots:
     dependencies:
       '@langchain/core': 0.3.58(openai@5.12.2(zod@3.25.62))
       uuid: 10.0.0
-      zod-to-json-schema: 3.23.5(zod@3.25.62)
+      zod-to-json-schema: 3.24.6(zod@3.25.62)
     transitivePeerDependencies:
       - zod
 
@@ -17451,6 +17484,23 @@ snapshots:
 
   '@microsoft/tsdoc@0.14.2': {}
 
+  '@modelcontextprotocol/sdk@1.20.2':
+    dependencies:
+      ajv: 6.12.6
+      content-type: 1.0.5
+      cors: 2.8.5
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.1.0
+      express-rate-limit: 7.5.1(express@5.1.0)
+      pkce-challenge: 5.0.0
+      raw-body: 3.0.0
+      zod: 3.25.62
+      zod-to-json-schema: 3.24.6(zod@3.25.62)
+    transitivePeerDependencies:
+      - supports-color
+
   '@mrleebo/prisma-ast@0.7.0':
     dependencies:
       chevrotain: 10.5.0
@@ -17596,7 +17646,7 @@ snapshots:
   '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))':
     dependencies:
       '@prisma/client': 6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2)
-      next-auth: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      next-auth: 4.24.12(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
 
   '@next/bundle-analyzer@15.5.4':
     dependencies:
@@ -24113,6 +24163,12 @@ snapshots:
 
   eventsource-parser@1.1.2: {}
 
+  eventsource-parser@3.0.6: {}
+
+  eventsource@3.0.7:
+    dependencies:
+      eventsource-parser: 3.0.6
+
   execa@5.1.1:
     dependencies:
       cross-spawn: 7.0.6
@@ -24150,6 +24206,10 @@ snapshots:
       jest-util: 29.7.0
 
   exponential-backoff@3.1.2: {}
+
+  express-rate-limit@7.5.1(express@5.1.0):
+    dependencies:
+      express: 5.1.0
 
   express@5.1.0:
     dependencies:
@@ -27030,7 +27090,7 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  next-auth@4.24.12(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
       '@babel/runtime': 7.28.4
       '@panva/hkdf': 1.2.1
@@ -27648,6 +27708,8 @@ snapshots:
       thread-stream: 2.7.0
 
   pirates@4.0.6: {}
+
+  pkce-challenge@5.0.0: {}
 
   pkg-dir@4.2.0:
     dependencies:
@@ -30408,6 +30470,10 @@ snapshots:
       zod: 3.25.62
 
   zod-to-json-schema@3.23.5(zod@3.25.62):
+    dependencies:
+      zod: 3.25.62
+
+  zod-to-json-schema@3.24.6(zod@3.25.62):
     dependencies:
       zod: 3.25.62
 

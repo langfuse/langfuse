@@ -43,6 +43,7 @@
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.1",
     "@marsidev/react-turnstile": "^0.5.4",
+    "@modelcontextprotocol/sdk": "^1.20.2",
     "@mui/material": "^7.3.1",
     "@mui/x-tree-view": "^8.10.2",
     "@next-auth/prisma-adapter": "^1.0.7",
@@ -162,7 +163,8 @@
     "uuid": "^9.0.1",
     "vaul": "^1.1.2",
     "vis-network": "^9.1.9",
-    "zod": "^3.25.62"
+    "zod": "^3.25.62",
+    "zod-to-json-schema": "^3.23.5"
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
