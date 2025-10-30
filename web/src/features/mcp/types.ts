@@ -8,10 +8,28 @@
 /**
  * Server context captured from authenticated request.
  * Stateless design - all context from request, no session storage.
+ *
+ * SECURITY & COMPLIANCE:
+ *
+ * Audit Logging: All mutating operations must create audit log entries
+ * using @/src/features/audit-logs/auditLog
+ *
+ * PII Protection: userId is PII - use sanitized logging
+ *
+ * RBAC: Check accessLevel and scope before operations
+ *
+ * Rate Limiting: Use RateLimitService from public API
+ *
+ * @see /web/src/features/public-api/server/apiAuth.ts - Auth patterns
+ * @see /web/src/features/audit-logs/auditLog.ts - Audit logging
+ * @see /web/src/features/rbac/README.md - RBAC patterns
  */
 export interface ServerContext {
-  /** Project ID from authenticated API key */
-  projectId: string;
+  /**
+   * Project ID from authenticated API key
+   * Note: Can be null for organization-scoped keys
+   */
+  projectId: string | null;
 
   /** Organization ID from authenticated API key */
   orgId: string;
@@ -22,7 +40,12 @@ export interface ServerContext {
   /** API Key ID for audit logging */
   apiKeyId: string;
 
-  /** Access level from API key scope */
+  /**
+   * Access level from API key
+   * - "organization": Organization-scoped key (projectId will be null)
+   * - "project": Project-scoped key with full access
+   * - "scores": Project-scoped key with limited (scores-only) access
+   */
   accessLevel: "project" | "organization" | "scores";
 
   /** Public key used for authentication */
@@ -31,6 +54,9 @@ export interface ServerContext {
 
 /**
  * Configuration for MCP tool definition
+ *
+ * @deprecated Use DefineToolOptions from define-tool.ts for new tools.
+ * This interface exists for reference but defineTool() uses DefineToolOptions.
  */
 export interface ToolConfig {
   /** Tool name (must be unique) */
@@ -54,6 +80,13 @@ export interface ToolConfig {
 
 /**
  * Resource URI structure for Langfuse resources
+ *
+ * TODO(LF-1928): This will be used when implementing MCP resource handlers.
+ * Resources provide read-only URI-based access to Langfuse data.
+ *
+ * Example URIs:
+ * - langfuse://prompts?projectId={id}&name={name}
+ * - langfuse://prompt/{name}?projectId={id}&label={label}
  */
 export interface ResourceUri {
   /** URI scheme (always "langfuse") */

@@ -25,9 +25,12 @@ import { logger } from "@langfuse/shared/src/server";
  * @returns Formatted McpError
  */
 export function formatErrorForUser(error: unknown): McpError {
-  // Log server errors for monitoring
+  // Log server errors for monitoring (sanitized to avoid PII exposure)
   if (isApiServerError(error)) {
-    logger.error("MCP API Server Error", error);
+    logger.error("MCP API Server Error", {
+      message: error.message,
+      name: error.name,
+    });
     return new McpError(
       ErrorCode.InternalError,
       "An internal server error occurred. Please try again later.",
@@ -78,17 +81,22 @@ export function formatErrorForUser(error: unknown): McpError {
     return new McpError(ErrorCode.InvalidRequest, error.message);
   }
 
-  // Generic errors
+  // Generic errors (sanitized logging)
   if (error instanceof Error) {
-    logger.error("MCP Unexpected Error", error);
+    logger.error("MCP Unexpected Error", {
+      message: error.message,
+      name: error.name,
+    });
     return new McpError(
       ErrorCode.InternalError,
       "An unexpected error occurred. Please try again later.",
     );
   }
 
-  // Unknown error type
-  logger.error("MCP Unknown Error Type", { error });
+  // Unknown error type (sanitized logging)
+  logger.error("MCP Unknown Error Type", {
+    errorType: typeof error,
+  });
   return new McpError(
     ErrorCode.InternalError,
     "An unexpected error occurred. Please try again later.",

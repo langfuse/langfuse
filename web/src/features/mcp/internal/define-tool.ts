@@ -101,7 +101,7 @@ export interface ToolDefinition {
  */
 export function defineTool<TInput>(
   options: DefineToolOptions<TInput>,
-): [ToolDefinition, ToolHandler<unknown>] {
+): [ToolDefinition, ToolHandler<TInput>] {
   const {
     name,
     description,
@@ -113,6 +113,11 @@ export function defineTool<TInput>(
   } = options;
 
   // Convert Zod schema to JSON Schema for MCP
+  // Note: Cast to any is necessary because zodToJsonSchema returns JsonSchema7
+  // which isn't directly compatible with MCP's tool schema type.
+  // The cast back to ToolDefinition['inputSchema'] is safe because:
+  // 1. We use $refStrategy: "none" to avoid $ref usage
+  // 2. MCP expects JSON Schema Draft 7 compatible object schemas
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const jsonSchema = zodToJsonSchema(inputSchema as any, {
     name: `${name}Input`,
@@ -136,7 +141,7 @@ export function defineTool<TInput>(
   }
 
   // Wrap handler with validation and error handling
-  const wrappedHandler: ToolHandler<unknown> = wrapErrorHandling(
+  const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
     async (rawInput: unknown, context: ServerContext) => {
       // Validate input with Zod schema
       const validatedInput = inputSchema.parse(rawInput);
