@@ -15,7 +15,7 @@
  * middleware error handling that sends JSON responses. Instead, error handling
  * and CORS are implemented directly in the transport layer.
  *
- * Authentication: Added in LF-1927 (currently using placeholder)
+ * Authentication: BasicAuth (Public Key:Secret Key) - LF-1927
  * Resources: Added in LF-1928
  * Tools: Added in LF-1929
  */
@@ -25,7 +25,11 @@ import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { formatErrorForUser } from "@/src/features/mcp/internal/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, redis } from "@langfuse/shared/src/server";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { prisma } from "@langfuse/shared/src/db";
+import { UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 
 /**
  * MCP API Route Handler
@@ -33,12 +37,13 @@ import { logger } from "@langfuse/shared/src/server";
  * Handles MCP protocol requests using Streamable HTTP (SSE) transport.
  *
  * Request flow:
- * 1. Authenticate request (placeholder for now, real auth in LF-1927)
- * 2. Extract ServerContext from auth
- * 3. Create fresh MCP server instance with context in closures
- * 4. Connect to SSE transport
- * 5. Handle MCP protocol communication
- * 6. Discard server instance after request
+ * 1. Authenticate request using BasicAuth (Public Key:Secret Key)
+ * 2. Check rate limits
+ * 3. Extract ServerContext from authenticated API key
+ * 4. Create fresh MCP server instance with context in closures
+ * 5. Connect to SSE transport
+ * 6. Handle MCP protocol communication
+ * 7. Discard server instance after request
  *
  * @param req - Next.js API request
  * @param res - Next.js API response
@@ -48,25 +53,58 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
-    // TODO(LF-1927): Replace with real authentication using ApiAuthService
-    // SECURITY WARNING: This endpoint currently uses placeholder auth and should
-    // NOT be exposed to production until LF-1927 is complete.
-    // Real implementation should use:
-    // - ApiAuthService.verifyAuthHeaderAndReturnScope()
-    // - BasicAuth format (Public Key:Secret Key)
-    // - Rate limiting via RateLimitService
+    // Authenticate request using BasicAuth (Public Key:Secret Key)
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+
+    if (!authCheck.validKey) {
+      throw new UnauthorizedError(authCheck.error);
+    }
+
+    // MCP requires project-scoped access (no Bearer auth, no org-level keys)
+    if (
+      authCheck.scope.accessLevel !== "project" ||
+      !authCheck.scope.projectId
+    ) {
+      throw new ForbiddenError(
+        "Access denied: MCP requires project-scoped API keys with BasicAuth",
+      );
+    }
+
+    // Check if ingestion is suspended due to usage limits
+    if (authCheck.scope.isIngestionSuspended) {
+      throw new ForbiddenError(
+        "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
+      );
+    }
+
+    // Rate limit MCP requests
+    const rateLimitCheck =
+      await RateLimitService.getInstance().rateLimitRequest(
+        authCheck.scope,
+        "public-api",
+      );
+
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
+    }
+
+    // Build ServerContext from authenticated scope
     const context: ServerContext = {
-      projectId: "placeholder-project-id",
-      orgId: "placeholder-org-id",
-      userId: "placeholder-user-id",
-      apiKeyId: "placeholder-api-key-id",
+      projectId: authCheck.scope.projectId,
+      orgId: authCheck.scope.orgId,
+      userId: undefined, // API keys don't have associated users
+      apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
-      publicKey: "placeholder-public-key",
+      publicKey: authCheck.scope.publicKey,
     };
 
-    logger.info("MCP request received", {
+    logger.info("MCP request authenticated", {
       method: req.method,
-      hasAuthHeader: !!req.headers.authorization,
+      projectId: context.projectId,
+      orgId: context.orgId,
       userAgent: req.headers["user-agent"],
     });
 

@@ -27,9 +27,9 @@
 export interface ServerContext {
   /**
    * Project ID from authenticated API key
-   * Note: Can be null for organization-scoped keys
+   * MCP requires project-scoped access only (never null)
    */
-  projectId: string | null;
+  projectId: string;
 
   /** Organization ID from authenticated API key */
   orgId: string;
@@ -42,11 +42,9 @@ export interface ServerContext {
 
   /**
    * Access level from API key
-   * - "organization": Organization-scoped key (projectId will be null)
-   * - "project": Project-scoped key with full access
-   * - "scores": Project-scoped key with limited (scores-only) access
+   * MCP enforces "project" level access only
    */
-  accessLevel: "project" | "organization" | "scores";
+  accessLevel: "project";
 
   /** Public key used for authentication */
   publicKey: string;
