@@ -35,3 +35,6 @@
 - Available Tailwind utilities:
   - `top-banner-offset` / `pt-banner-offset` - For sticky/fixed/absolute positioning and padding
   - `h-screen-with-banner` / `min-h-screen-with-banner` - For full-height containers accounting for banners
+
+## JavaScript / TypeScript Style
+- use concat instead of spread to avoid stack overflow with large arrays

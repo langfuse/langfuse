@@ -10,39 +10,7 @@ import {
   UpdateTableViewPresetsInput,
   UpdateTableViewPresetsNameInput,
 } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
-import {
-  LangfuseNotFoundError,
-  TableViewPresetTableName,
-} from "@langfuse/shared";
-
-/**
- * Maps domain errors to appropriate TRPC errors
- * @param fn Function to execute that might throw domain errors
- * @param errorConfig Optional configuration for customizing error messages
- */
-export async function withErrorMapping<T>(
-  fn: () => Promise<T>,
-  errorConfig?: {
-    notFoundMessage?: string;
-  },
-): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    // Map domain errors to TRPC errors
-    if (error instanceof LangfuseNotFoundError) {
-      throw new TRPCError({
-        code: "NOT_FOUND",
-        message: errorConfig?.notFoundMessage || error.message,
-        cause: error,
-      });
-    }
-
-    // Re-throw unknown errors
-    throw error;
-  }
-}
+import { TableViewPresetTableName } from "@langfuse/shared";
 
 export const TableViewPresetsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -74,13 +42,9 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:CUD",
       });
 
-      const view = await withErrorMapping(
-        () =>
-          TableViewService.updateTableViewPresets(input, ctx.session.user?.id),
-        {
-          notFoundMessage:
-            "Saved table view preset not found, failed to update",
-        },
+      const view = await TableViewService.updateTableViewPresets(
+        input,
+        ctx.session.user?.id,
       );
 
       return {
@@ -98,16 +62,9 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:CUD",
       });
 
-      const view = await withErrorMapping(
-        () =>
-          TableViewService.updateTableViewPresetsName(
-            input,
-            ctx.session.user?.id,
-          ),
-        {
-          notFoundMessage:
-            "Saved table view preset not found, failed to update name",
-        },
+      const view = await TableViewService.updateTableViewPresetsName(
+        input,
+        ctx.session.user?.id,
       );
 
       return {
@@ -169,16 +126,9 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:read",
       });
 
-      return await withErrorMapping(
-        () =>
-          TableViewService.getTableViewPresetsById(
-            input.viewId,
-            input.projectId,
-          ),
-        {
-          notFoundMessage:
-            "Saved table view preset not found, likely it has been deleted",
-        },
+      return await TableViewService.getTableViewPresetsById(
+        input.viewId,
+        input.projectId,
       );
     }),
 

@@ -106,6 +106,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const queryFilter = useSidebarFilterState(
     evaluatorFilterConfig,
     newFilterOptions,
+    projectId,
   );
 
   const evaluators = api.evals.allConfigs.useQuery({
@@ -182,7 +183,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     }),
     columnHelper.accessor("totalCost", {
-      header: "Total Cost (1d)",
+      header: "Total Cost (7d)",
       id: "totalCost",
       size: 120,
       cell: (row) => {
@@ -190,7 +191,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
         if (!costs.data) return <Skeleton className="h-4 w-16" />;
 
-        if (totalCost != null) return usdFormatter(totalCost, 2, 6);
+        if (totalCost != null) return usdFormatter(totalCost, 2, 4);
 
         return "–";
       },

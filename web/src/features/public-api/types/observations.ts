@@ -13,6 +13,7 @@ import {
   type ObservationPriceFields,
 } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
+import { useEventsTableSchema } from "../../query/types";
 
 /**
  * Objects
@@ -161,11 +162,6 @@ export const transformDbToApiObservation = (
 /**
  * Endpoints
  */
-
-const useEventsTableSchema = z
-  .union([z.literal("true"), z.literal("false"), z.boolean()])
-  .optional()
-  .transform((val) => val === "true" || val === true);
 
 // GET /observations
 export const GetObservationsV1Query = z.object({

@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   SiOkta,
+  SiAuthentik,
   SiAuth0,
   SiAmazoncognito,
   SiKeycloak,
@@ -35,7 +36,7 @@ import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegio
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
-import { Code } from "lucide-react";
+import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -61,6 +62,8 @@ export type PageProps = {
     githubEnterprise: boolean;
     gitlab: boolean;
     okta: boolean;
+    authentik: boolean;
+    onelogin: boolean;
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
@@ -109,6 +112,14 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_OKTA_CLIENT_ID !== undefined &&
           env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
           env.AUTH_OKTA_ISSUER !== undefined,
+        authentik:
+          env.AUTH_AUTHENTIK_CLIENT_ID !== undefined &&
+          env.AUTH_AUTHENTIK_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTHENTIK_ISSUER !== undefined,
+        onelogin:
+          env.AUTH_ONELOGIN_CLIENT_ID !== undefined &&
+          env.AUTH_ONELOGIN_CLIENT_SECRET !== undefined &&
+          env.AUTH_ONELOGIN_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
@@ -274,6 +285,28 @@ export function SSOButtons({
               loading={providerSigningIn === "okta"}
               showLastUsedBadge={
                 hasMultipleAuthMethods && lastUsedMethod === "okta"
+              }
+            />
+          )}
+          {authProviders.authentik && (
+            <AuthProviderButton
+              icon={<SiAuthentik className="mr-3" size={18} />}
+              label="Authentik"
+              onClick={() => handleSignIn("authentik")}
+              loading={providerSigningIn === "authentik"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "authentik"
+              }
+            />
+          )}
+          {authProviders.onelogin && (
+            <AuthProviderButton
+              icon={<Key className="mr-3" size={18} />}
+              label="OneLogin"
+              onClick={() => handleSignIn("onelogin")}
+              loading={providerSigningIn === "onelogin"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "onelogin"
               }
             />
           )}

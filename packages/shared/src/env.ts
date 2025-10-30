@@ -188,7 +188,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .optional()
-    .default(1_000)
+    .default(5_000)
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
