@@ -475,6 +475,37 @@ export const scoresRouter = createTRPCRouter({
               sessionId: input.scoreTarget.sessionId,
             };
 
+        if (inflatedParams.traceId) {
+          const clickhouseTrace = await getTraceById({
+            traceId: inflatedParams.traceId,
+            projectId: input.projectId,
+            clickhouseFeatureTag: "annotations-trpc",
+          });
+
+          if (!clickhouseTrace) {
+            logger.error(
+              `No trace with id ${inflatedParams.traceId} in project ${input.projectId} in Clickhouse`,
+            );
+            throw new LangfuseNotFoundError(
+              `No trace with id ${inflatedParams.traceId} in project ${input.projectId} in Clickhouse`,
+            );
+          }
+        } else if (inflatedParams.sessionId) {
+          // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+          const traceIdentifiers = await getTracesIdentifierForSession(
+            input.projectId,
+            inflatedParams.sessionId,
+          );
+          if (traceIdentifiers.length === 0) {
+            logger.error(
+              `No trace referencing session with id ${inflatedParams.sessionId} in project ${input.projectId} in Clickhouse`,
+            );
+            throw new LangfuseNotFoundError(
+              `No trace referencing session with id ${inflatedParams.sessionId} in project ${input.projectId} in Clickhouse`,
+            );
+          }
+        }
+
         const timestamp = input.timestamp;
 
         await upsertScore({
