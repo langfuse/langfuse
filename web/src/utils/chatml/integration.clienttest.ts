@@ -361,6 +361,31 @@ describe("ChatML Integration", () => {
     expect(inResult.data[2].role).toBe("tool");
   });
 
+  it("should handle Microsoft Agent format with simple text parts", () => {
+    // Microsoft Agent format uses top-level parts array (not OpenAI format)
+    const input = [
+      {
+        role: "user",
+        parts: [
+          {
+            type: "text",
+            content: "What's the weather like in Portland?",
+          },
+        ],
+      },
+    ];
+
+    const inResult = normalizeInput(input, {});
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+    expect(inResult.data).toHaveLength(1);
+    expect(inResult.data[0].role).toBe("user");
+    expect(inResult.data[0].content).toBe(
+      "What's the weather like in Portland?",
+    );
+  });
+
   it("should handle Microsoft Agent framework format with parts-based tool calls", () => {
     const input = [
       {
