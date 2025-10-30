@@ -9,7 +9,6 @@ import {
   ScoreDataType,
   isPresent,
 } from "@langfuse/shared";
-import { TraceDomain, ScoreDomain } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   FullObservationsWithScores,
@@ -22,19 +21,16 @@ import {
   getScoresForObservations,
   getTracesTable,
   getTracesTableMetrics,
-  getTracesByIds,
-  getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
   getTraceIdentifiers,
   getDatasetRunItemsCh,
+  getTracesByIds,
+  getScoresForTraces,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";
-import {
-  fetchCommentsForExport,
-  type ExportComment,
-} from "./fetchCommentsForExport";
+import { fetchCommentsForExport } from "./fetchCommentsForExport";
 
 const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -251,92 +247,11 @@ export const getDatabaseReadStreamPaginated = async ({
             sessions.map((s) => s.session_id),
           );
 
-          // Fetch all trace IDs for all sessions
-          const allTraceIds = sessions.flatMap((s) => s.trace_ids);
-
-          // Fetch trace data, scores, and comments if there are any traces
-          let tracesData: TraceDomain[] = [];
-          let scoresData: ScoreDomain[] = [];
-          let traceComments = new Map<string, ExportComment[]>();
-
-          if (allTraceIds.length > 0) {
-            const minTimestamp = sessions.reduce(
-              (min, s) => {
-                const sessionTime = new Date(s.min_timestamp);
-                return !min || sessionTime < min ? sessionTime : min;
-              },
-              undefined as Date | undefined,
-            );
-
-            [tracesData, scoresData, traceComments] = await Promise.all([
-              getTracesByIds(
-                allTraceIds,
-                projectId,
-                minTimestamp,
-                clickhouseConfigs,
-              ),
-              getScoresForTraces({
-                projectId,
-                traceIds: allTraceIds,
-                clickhouseConfigs,
-              }),
-              fetchCommentsForExport(projectId, "TRACE", allTraceIds),
-            ]);
-          }
-
-          // Add comments and traces to each session
-          return rows.map((row) => {
-            // Get traces for this session
-            const sessionTraces = sessions.find((s) => s.session_id === row.id);
-            const traceIdsForSession = sessionTraces?.trace_ids ?? [];
-
-            // Build traces array with scores and comments
-            const traces = traceIdsForSession
-              .map((traceId) => {
-                const trace = tracesData.find((t) => t.id === traceId);
-                if (!trace) return null;
-
-                const traceScores = scoresData.filter(
-                  (s) => s.traceId === traceId,
-                );
-
-                return {
-                  id: trace.id,
-                  timestamp: trace.timestamp,
-                  name: trace.name,
-                  userId: trace.userId,
-                  metadata: trace.metadata,
-                  release: trace.release,
-                  version: trace.version,
-                  environment: trace.environment,
-                  public: trace.public,
-                  bookmarked: trace.bookmarked,
-                  tags: trace.tags,
-                  input: trace.input,
-                  output: trace.output,
-                  sessionId: trace.sessionId,
-                  scores: traceScores.map((score) => ({
-                    id: score.id,
-                    name: score.name,
-                    value: score.value,
-                    stringValue: score.stringValue,
-                    dataType: score.dataType,
-                    source: score.source,
-                    comment: score.comment,
-                    authorUserId: score.authorUserId,
-                    timestamp: score.timestamp,
-                  })),
-                  comments: traceComments.get(traceId) ?? [],
-                };
-              })
-              .filter(isPresent);
-
-            return {
-              ...row,
-              traces,
-              comments: sessionComments.get(row.id) ?? [],
-            };
-          });
+          // Add comments to each session
+          return rows.map((row) => ({
+            ...row,
+            comments: sessionComments.get(row.id) ?? [],
+          }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
