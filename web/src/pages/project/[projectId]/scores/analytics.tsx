@@ -11,7 +11,10 @@ import { ObjectTypeFilter } from "@/src/features/scores/components/analytics/Obj
 import { type ScoreOption } from "@/src/features/scores/components/analytics/ScoreSelector";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
-import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  toAbsoluteTimeRange,
+} from "@/src/utils/date-range-utils";
 import { BarChart3, Loader2 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import {
@@ -119,14 +122,39 @@ export default function ScoresAnalyticsPage() {
     };
   }, [urlState.score2, scoreOptions]);
 
+  // Convert time range to absolute dates
+  const absoluteTimeRange = useMemo(
+    () => toAbsoluteTimeRange(timeRange),
+    [timeRange],
+  );
+
   // Fetch comparison analytics when two scores are selected
   const shouldFetchComparison = !!(
     parsedScore1 &&
     parsedScore2 &&
     projectId &&
-    timeRange.from &&
-    timeRange.to
+    absoluteTimeRange?.from &&
+    absoluteTimeRange?.to
   );
+
+  // TODO: REMOVE BEFORE MERGING - Debug logging
+  useEffect(() => {
+    console.log("[Score Analytics] Fetch conditions:", {
+      parsedScore1,
+      parsedScore2,
+      projectId,
+      timeRange,
+      absoluteTimeRange,
+      shouldFetchComparison,
+    });
+  }, [
+    parsedScore1,
+    parsedScore2,
+    projectId,
+    timeRange,
+    absoluteTimeRange,
+    shouldFetchComparison,
+  ]);
 
   const {
     data: analyticsData,
@@ -137,13 +165,26 @@ export default function ScoresAnalyticsPage() {
       projectId,
       score1: parsedScore1!,
       score2: parsedScore2!,
-      fromTimestamp: timeRange.from!,
-      toTimestamp: timeRange.to!,
+      fromTimestamp: absoluteTimeRange?.from!,
+      toTimestamp: absoluteTimeRange?.to!,
     },
     {
       enabled: shouldFetchComparison,
     },
   );
+
+  // TODO: REMOVE BEFORE MERGING - Debug analytics query result
+  useEffect(() => {
+    if (shouldFetchComparison) {
+      console.log("[Score Analytics] Query state:", {
+        isLoading: analyticsLoading,
+        hasData: !!analyticsData,
+        hasError: !!analyticsError,
+        error: analyticsError,
+        data: analyticsData,
+      });
+    }
+  }, [shouldFetchComparison, analyticsLoading, analyticsData, analyticsError]);
 
   // Preprocess heatmap data
   const heatmapData = useMemo(() => {
