@@ -313,10 +313,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     form.setValue(`scoreData.${index}.stringValue`, stringValue);
 
     // Fire mutation
-    const { id: scoreId, ...fieldWithoutId } = field;
+    const {
+      id: scoreId,
+      timestamp: scoreTimestamp,
+      ...fieldWithoutIdAndTimestamp
+    } = field;
 
     const baseScoreData = {
-      ...fieldWithoutId,
+      ...fieldWithoutIdAndTimestamp,
       ...scoreMetadata,
       value,
       stringValue,
@@ -327,7 +331,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       updateMutation.mutate({
         ...baseScoreData,
         id: scoreId,
-        timestamp: field.timestamp ?? undefined,
+        timestamp: scoreTimestamp ?? undefined,
       } as UpdateAnnotationScoreData);
     } else {
       const id = uuid();

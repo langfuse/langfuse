@@ -475,7 +475,7 @@ export const scoresRouter = createTRPCRouter({
               sessionId: input.scoreTarget.sessionId,
             };
 
-        const timestamp = input.timestamp ?? new Date();
+        const timestamp = input.timestamp;
 
         await upsertScore({
           id: input.id,
