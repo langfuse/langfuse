@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS events
       completion_start_time Nullable(DateTime64(6)),
 
       -- Prompt
-      prompt_id Nullable(String),
+      prompt_id String,
       prompt_name String,
       prompt_version String,
 
