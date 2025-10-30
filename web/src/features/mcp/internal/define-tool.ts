@@ -8,8 +8,8 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { z } from "zod/v4";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { wrapErrorHandling } from "./error-formatting.js";
-import type { ServerContext } from "../types.js";
+import { wrapErrorHandling } from "./error-formatting";
+import type { ServerContext } from "../types";
 
 /**
  * Tool handler function type
