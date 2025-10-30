@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Line, LineChart, XAxis, YAxis } from "recharts";
+import { Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -64,35 +64,37 @@ export function ScoreTimeSeriesChart({
 
   return (
     <ChartContainer config={config}>
-      <LineChart accessibilityLayer data={chartData}>
-        <XAxis
-          dataKey="time_dimension"
-          stroke="hsl(var(--chart-grid))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis
-          stroke="hsl(var(--chart-grid))"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-        />
-        <Line
-          type="monotone"
-          dataKey={scoreName}
-          stroke="hsl(var(--chart-1))"
-          strokeWidth={2}
-          dot={true}
-          activeDot={{ r: 6, strokeWidth: 0 }}
-          connectNulls
-        />
-        <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
-        />
-      </LineChart>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart accessibilityLayer data={chartData}>
+          <XAxis
+            dataKey="time_dimension"
+            stroke="hsl(var(--chart-grid))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            stroke="hsl(var(--chart-grid))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Line
+            type="monotone"
+            dataKey={scoreName}
+            stroke="hsl(var(--chart-1))"
+            strokeWidth={2}
+            dot={true}
+            activeDot={{ r: 6, strokeWidth: 0 }}
+            connectNulls
+          />
+          <ChartTooltip
+            content={<ChartTooltipContent />}
+            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+            itemStyle={{ color: "hsl(var(--foreground))" }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </ChartContainer>
   );
 }
