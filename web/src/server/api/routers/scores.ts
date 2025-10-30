@@ -477,31 +477,8 @@ export const scoresRouter = createTRPCRouter({
 
         const timestamp = input.timestamp ?? new Date();
 
-        const score = {
-          id: input.id,
-          projectId: input.projectId,
-          environment: input.environment ?? "default",
-          ...inflatedParams,
-          // only trace and session scores are supported for annotation
-          datasetRunId: null,
-          value: input.value ?? null,
-          stringValue: input.stringValue ?? null,
-          dataType: input.dataType ?? null,
-          configId: input.configId ?? null,
-          name: input.name,
-          comment: input.comment ?? null,
-          metadata: {},
-          authorUserId: ctx.session.user.id,
-          source: ScoreSource.ANNOTATION,
-          queueId: input.queueId ?? null,
-          executionTraceId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          timestamp,
-        };
-
         await upsertScore({
-          id: score.id,
+          id: input.id,
           timestamp: convertDateToClickhouseDateTime(timestamp),
           project_id: input.projectId,
           environment: input.environment ?? "default",
@@ -519,12 +496,36 @@ export const scoresRouter = createTRPCRouter({
           queue_id: input.queueId,
         });
 
+        updatedScore = {
+          id: input.id,
+          projectId: input.projectId,
+          environment: input.environment ?? "default",
+          traceId: inflatedParams.traceId,
+          observationId: inflatedParams.observationId,
+          sessionId: inflatedParams.sessionId,
+          datasetRunId: null,
+          name: input.name,
+          dataType: input.dataType ?? null,
+          configId: input.configId ?? null,
+          metadata: {},
+          executionTraceId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          source: ScoreSource.ANNOTATION,
+          value: input.value ?? null,
+          stringValue: input.stringValue ?? null,
+          comment: input.comment ?? null,
+          authorUserId: ctx.session.user.id,
+          queueId: input.queueId ?? null,
+          timestamp,
+        };
+
         await auditLog({
           session: ctx.session,
           resourceType: "score",
           resourceId: input.id,
           action: "update",
-          after: score,
+          after: updatedScore,
         });
       } else {
         // validate score against config
@@ -586,7 +587,7 @@ export const scoresRouter = createTRPCRouter({
           comment: input.comment ?? null,
           authorUserId: ctx.session.user.id,
           queueId: input.queueId ?? null,
-          timestamp: new Date(),
+          timestamp: score.timestamp,
         };
 
         await auditLog({
