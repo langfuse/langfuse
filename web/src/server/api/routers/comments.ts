@@ -94,13 +94,13 @@ export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateCommentData)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:CUD",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:CUD",
+      });
 
+      try {
         const result = await validateCommentReferenceObject({
           ctx,
           input,
@@ -146,13 +146,13 @@ export const commentsRouter = createTRPCRouter({
   delete: protectedProjectProcedure
     .input(DeleteCommentData)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:CUD",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:CUD",
+      });
 
+      try {
         const comment = await ctx.prisma.comment.findFirst({
           where: {
             id: input.commentId,
@@ -211,13 +211,13 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
 
+      try {
         const comments = await fetchCommentsWithUserInfo(
           ctx.prisma,
           input.projectId,
@@ -249,13 +249,13 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
 
+      try {
         const commentCount = await ctx.prisma.comment.count({
           where: {
             projectId: input.projectId,
@@ -283,13 +283,13 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
 
+      try {
         // latency of query to be improved
         const commentCounts = await ctx.prisma.comment.groupBy({
           by: ["objectId"],
@@ -327,13 +327,13 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
 
+      try {
         const clickhouseTraces = await getTracesIdentifierForSession(
           input.projectId,
           input.sessionId,
@@ -374,13 +374,13 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
 
+      try {
         const clickhouseTraces = await getTracesIdentifierForSession(
           input.projectId,
           input.sessionId,
