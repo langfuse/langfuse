@@ -49,7 +49,7 @@ export function ToolCallsPill({
         return (
           <div
             key={`${tool.name}-${index}`}
-            className="w-full overflow-hidden rounded-lg border border-border bg-background"
+            className="w-full overflow-hidden rounded-sm border"
           >
             {/* Card header */}
             <div
