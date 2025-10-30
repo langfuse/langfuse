@@ -174,7 +174,7 @@ describe("geminiAdapter", () => {
       expect(result.extra).toBe("metadata");
     });
 
-    it("should normalize tool_calls from Gemini format to OpenAI format", () => {
+    it("should normalize tool_calls from Gemini format to flat ChatML format", () => {
       const input = [
         {
           role: "assistant",

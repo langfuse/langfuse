@@ -25,6 +25,7 @@ import {
   cleanLegacyOutput,
   extractAdditionalInput,
 } from "@/src/utils/chatml";
+import { ToolCallsPill } from "@/src/components/trace/ToolCallsPill";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;

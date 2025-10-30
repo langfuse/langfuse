@@ -43,10 +43,14 @@ function normalizeToolCall(toolCall: unknown): Record<string, unknown> {
   const tc = toolCall as Record<string, unknown>;
 
   // is Gemini format?: {name, args, id, type: "tool_call"}
+  // Convert to flat ChatML format: {id, name, arguments, type}
   if (tc.type === "tool_call" && tc.name && "args" in tc) {
     // Convert to our ChatML / OpenAI format: {id, type: "function", function: {name, arguments}}
     return {
-      id: tc.id,
+      id: tc.id || "",
+      name: tc.name,
+      arguments:
+        typeof tc.args === "string" ? tc.args : JSON.stringify(tc.args ?? {}),
       type: "function",
       function: {
         name: tc.name,
@@ -63,7 +67,7 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
 
   const message = msg as Record<string, unknown>;
-  const normalized = { ...message };
+  let normalized = { ...message };
 
   if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
     normalized.tool_calls = normalized.tool_calls.map(normalizeToolCall);

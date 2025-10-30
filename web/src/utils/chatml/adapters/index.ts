@@ -1,13 +1,15 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
 import { mapToChatMl, mapOutputToChatMl } from "../core";
 import { langgraphAdapter } from "./langgraph";
+import { openaiChatCompletionAdapter } from "./openai-chat-completion";
 import { openAIAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { genericAdapter } from "./generic";
 
 const adapters: ProviderAdapter[] = [
   langgraphAdapter, // Must be before openAI (both use langfuse-sdk scope)
-  openAIAdapter,
+  openaiChatCompletionAdapter, // Chat Completions API format ({"tools": [], "messages": []})
+  openAIAdapter, // remaining/modern OpenAI formats (responses, parts, ...)
   geminiAdapter, // Gemini/VertexAI format
   // Add more adapters here as needed
   genericAdapter, // Always last (fallback)
@@ -37,7 +39,11 @@ export function normalizeInput(input: unknown, ctx: NormalizerContext = {}) {
 }
 
 export function normalizeOutput(output: unknown, ctx: NormalizerContext = {}) {
-  const adapter = selectAdapter({ ...ctx, metadata: ctx.metadata ?? output });
+  const adapter = selectAdapter({
+    ...ctx,
+    metadata: ctx.metadata ?? output,
+    data: output,
+  });
   const preprocessed = adapter.preprocess(output, "output", ctx);
   return mapOutputToChatMl(preprocessed);
 }
