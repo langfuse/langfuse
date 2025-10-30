@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS events
       experiment_item_expected_output String,
       experiment_item_metadata_names Array(String),
       experiment_item_metadata_values Array(Dynamic(max_types=32)), -- We will restrict this to 200 characters for strings on the server.
-      experiment_item_root_id String,
+      experiment_item_root_span_id String,
 
       -- Source metadata (Instrumentation)
       source LowCardinality(String),
