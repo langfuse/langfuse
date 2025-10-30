@@ -73,19 +73,17 @@ export function HeatmapLegend({
         </div>
       )}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">{labels[0]}</span>
-        <div className="flex h-4 max-w-xs flex-1 gap-0.5">
+        <span className="text-xs text-muted-foreground">{min}</span>
+        <div className="flex h-3 flex-1 gap-0.5">
           {colors.map((color, idx) => (
             <div
               key={idx}
-              className="flex-1 rounded-sm border border-border first:rounded-l last:rounded-r"
+              className="aspect-square flex-1 border-[0.5px] border-border/30 first:rounded-l last:rounded-r"
               style={{ backgroundColor: color }}
             />
           ))}
         </div>
-        <span className="text-xs text-muted-foreground">
-          {labels[steps - 1]}
-        </span>
+        <span className="text-xs text-muted-foreground">{max}</span>
       </div>
     </div>
   );

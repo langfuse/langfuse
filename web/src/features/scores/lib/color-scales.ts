@@ -14,6 +14,7 @@ export const HEATMAP_BASE_COLORS = {
   chart3: { l: 69.6, c: 0.165, h: 251 }, // --color-3 (blue-ish)
   chart4: { l: 80.2, c: 0.134, h: 225 }, // --color-4 (light blue-ish)
   chart5: { l: 90.7, c: 0.231, h: 133 }, // --color-5 (green-ish)
+  accent: { l: 65, c: 0.1, h: 240 }, // --accent (blue-ish, muted but visible)
 } as const;
 
 export type HeatmapColorVariant = keyof typeof HEATMAP_BASE_COLORS;
@@ -36,8 +37,8 @@ export function generateMonoColorScale(
   const lightnessRange = maxLightness - minLightness;
 
   for (let i = 0; i < steps; i++) {
-    // Linear interpolation of lightness
-    const lightness = minLightness + (lightnessRange * i) / (steps - 1);
+    // Linear interpolation of lightness (reversed: darker = higher values)
+    const lightness = maxLightness - (lightnessRange * i) / (steps - 1);
     // Keep chroma and hue constant for mono-color
     colors.push(`oklch(${lightness}% ${baseColor.c} ${baseColor.h})`);
   }
@@ -94,6 +95,32 @@ export function getContrastColor(oklchColor: string): "black" | "white" {
 }
 
 /**
+ * Increase the chroma (saturation) of an OKLCH color for hover effects
+ * @param oklchColor - OKLCH color string (e.g., "oklch(66.2% 0.08 240)")
+ * @param chromaMultiplier - How much to multiply chroma by (default: 2.5)
+ * @returns OKLCH color string with increased chroma
+ */
+export function getHoverColor(
+  oklchColor: string,
+  chromaMultiplier: number = 2.5,
+): string {
+  // Parse OKLCH color
+  const match = oklchColor.match(
+    /oklch\((\d+\.?\d*)%\s+(\d+\.?\d*)\s+(\d+\.?\d*)\)/,
+  );
+  if (!match) return oklchColor;
+
+  const lightness = parseFloat(match[1]);
+  const chroma = parseFloat(match[2]);
+  const hue = parseFloat(match[3]);
+
+  // Increase chroma for hover effect, but cap at reasonable max
+  const newChroma = Math.min(chroma * chromaMultiplier, 0.37);
+
+  return `oklch(${lightness}% ${newChroma} ${hue})`;
+}
+
+/**
  * Create a custom mono-color scale with specific lightness range
  * Useful for categorical data where you want to emphasize differences
  * @param variant - Which chart color variant to use
@@ -128,13 +155,13 @@ export function getDiagonalColor(
   const baseColor = HEATMAP_BASE_COLORS[variant];
 
   // Handle edge cases
-  if (max === min) return `oklch(60% ${baseColor.c * 1.3} ${baseColor.h})`;
+  if (max === min) return `oklch(60% ${baseColor.c * 2} ${baseColor.h})`;
 
   // Normalize value to [0, 1]
   const normalized = (value - min) / (max - min);
 
-  // Vary lightness from 40% to 80%, with higher chroma for emphasis
-  const lightness = 40 + normalized * 40;
+  // Vary lightness from 80% to 40% (reversed: higher values = darker), with higher chroma for emphasis
+  const lightness = 80 - normalized * 40;
 
-  return `oklch(${lightness}% ${baseColor.c * 1.3} ${baseColor.h})`;
+  return `oklch(${lightness}% ${baseColor.c * 2} ${baseColor.h})`;
 }

@@ -24,6 +24,10 @@ export interface HeatmapProps {
   height?: number | string;
   className?: string;
 
+  // Display options
+  showValues?: boolean; // Whether to show numbers in cells (default: true)
+  emptyColor?: string; // Color for empty cells (default: lightest color)
+
   // Tooltip
   renderTooltip?: (cell: HeatmapCell) => React.ReactNode;
 
@@ -47,6 +51,8 @@ export function Heatmap({
   width = "100%",
   height,
   className,
+  showValues = true,
+  emptyColor,
   renderTooltip,
   onCellClick,
   onCellHover,
@@ -75,36 +81,23 @@ export function Heatmap({
         {/* Y-axis label (vertical) */}
         {yAxisLabel && (
           <div className="flex justify-center">
-            <span
-              className="text-sm font-medium text-muted-foreground"
-              style={{
-                writingMode: "vertical-rl",
-                transform: "rotate(180deg)",
-              }}
-            >
+            <span className="text-sm font-medium text-muted-foreground">
               {yAxisLabel}
             </span>
           </div>
         )}
 
-        <div className="flex items-center justify-center gap-2 sm:gap-4">
+        <div className="flex items-stretch justify-center gap-2 sm:gap-4">
           {/* Row labels */}
           {rowLabels && rowLabels.length > 0 && (
             <div
-              className="flex flex-col justify-around gap-0.5 pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs"
+              className="grid gap-1 pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs"
               style={{
-                height: height || "auto",
-                minHeight: `calc(${rows} * 24px + ${rows - 1} * 2px)`,
+                gridTemplateRows: `repeat(${rows}, ${cellMinSize})`,
               }}
             >
               {rowLabels.map((label, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-end"
-                  style={{
-                    height: `calc((100% - ${(rows - 1) * 2}px) / ${rows})`,
-                  }}
-                >
+                <div key={idx} className="flex items-center justify-end">
                   <span className="max-w-[60px] truncate sm:max-w-[80px]">
                     {label}
                   </span>
@@ -115,7 +108,7 @@ export function Heatmap({
 
           {/* Grid */}
           <div
-            className="grid max-w-full flex-1 gap-0.5 overflow-x-auto"
+            className="grid max-w-full flex-1 gap-1 overflow-x-auto"
             style={{
               gridTemplateColumns: `repeat(${cols}, ${cellMinSize})`,
               gridTemplateRows: `repeat(${rows}, ${cellMinSize})`,
@@ -137,6 +130,8 @@ export function Heatmap({
                   onClick={onCellClick}
                   renderTooltip={renderTooltip}
                   cellClassName={cellClassName}
+                  showValues={showValues}
+                  emptyColor={emptyColor}
                 />
               );
             })}
@@ -155,16 +150,16 @@ export function Heatmap({
             )}
 
             <div
-              className="flex flex-1 justify-around text-center text-[10px] text-muted-foreground sm:text-xs"
-              style={{ maxWidth: "600px" }}
+              className="grid flex-1 gap-1 text-center text-[10px] text-muted-foreground sm:text-xs"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, ${cellMinSize})`,
+                maxWidth: "600px",
+              }}
             >
               {colLabels.map((label, idx) => (
                 <div
                   key={idx}
-                  className="truncate"
-                  style={{
-                    width: `calc((100% - ${(cols - 1) * 2}px) / ${cols})`,
-                  }}
+                  className="flex items-center justify-center truncate"
                   title={label}
                 >
                   {label}

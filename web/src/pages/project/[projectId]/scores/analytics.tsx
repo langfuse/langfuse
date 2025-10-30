@@ -207,7 +207,7 @@ export default function ScoresAnalyticsPage() {
       return generateNumericHeatmapData({
         data: transformedData,
         nBins: 10,
-        colorVariant: "chart1",
+        colorVariant: "accent",
         showCounts: true,
         showPercentages: false,
       });
@@ -221,7 +221,7 @@ export default function ScoresAnalyticsPage() {
 
       return generateConfusionMatrixData({
         data: transformedData,
-        colorVariant: "chart1",
+        colorVariant: "accent",
         highlightDiagonal: true,
         showCounts: true,
         showPercentages: true,
@@ -252,7 +252,7 @@ export default function ScoresAnalyticsPage() {
         },
       }}
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex max-h-full flex-col gap-0">
         {/* Controls Section - Compact Toolbar */}
         <div className="flex flex-col gap-1 border-b border-border p-2 lg:flex-row lg:items-center lg:gap-4">
           {/* Left: Score Selectors */}
@@ -363,135 +363,146 @@ export default function ScoresAnalyticsPage() {
               </p>
             </div>
           </div>
-        ) : analyticsData && heatmapData ? (
-          <div className="space-y-6 p-4">
-            {/* Stats Summary */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        ) : analyticsData ? (
+          <div className="max-h-full space-y-6 overflow-y-scroll p-4 pt-6">
+            {/* 2x2 Grid Layout */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Row 1, Col 1: Distribution Placeholder */}
               <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Score 1 Total</CardDescription>
-                  <CardTitle className="text-2xl">
-                    {analyticsData.counts.score1Total.toLocaleString()}
-                  </CardTitle>
+                <CardHeader>
+                  <CardTitle>Score Distribution</CardTitle>
+                  <CardDescription>
+                    Distribution of selected scores (coming soon)
+                  </CardDescription>
                 </CardHeader>
+                <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                  Histogram visualization coming soon
+                </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Score 2 Total</CardDescription>
-                  <CardTitle className="text-2xl">
-                    {analyticsData.counts.score2Total.toLocaleString()}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Matched Pairs</CardDescription>
-                  <CardTitle className="text-2xl">
-                    {analyticsData.counts.matchedCount.toLocaleString()}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-            </div>
 
-            {/* Heatmap / Confusion Matrix */}
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {parsedScore1.dataType === "NUMERIC"
-                    ? "Score Comparison Heatmap"
-                    : "Confusion Matrix"}
-                </CardTitle>
-                <CardDescription>
-                  {parsedScore1.dataType === "NUMERIC"
-                    ? "Distribution of matched score pairs showing correlation patterns"
-                    : "Agreement matrix between categorical scores"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center gap-4">
-                <Heatmap
-                  data={heatmapData.cells}
-                  rows={
-                    parsedScore1.dataType === "NUMERIC"
-                      ? 10
-                      : (heatmapData.rows ?? 0)
-                  }
-                  cols={
-                    parsedScore1.dataType === "NUMERIC"
-                      ? 10
-                      : (heatmapData.cols ?? 0)
-                  }
-                  rowLabels={heatmapData.rowLabels}
-                  colLabels={heatmapData.colLabels}
-                  xAxisLabel={`${parsedScore2.name} (${parsedScore2.source})`}
-                  yAxisLabel={`${parsedScore1.name} (${parsedScore1.source})`}
-                  renderTooltip={(cell) => (
-                    <div className="space-y-1">
-                      <p className="font-semibold">Count: {cell.value}</p>
-                      {parsedScore1.dataType === "NUMERIC" ? (
-                        <>
-                          <p className="text-xs">
-                            {parsedScore1.name}:{" "}
-                            {(
-                              cell.metadata?.yRange as [number, number]
-                            )?.[0]?.toFixed(2)}{" "}
-                            -{" "}
-                            {(
-                              cell.metadata?.yRange as [number, number]
-                            )?.[1]?.toFixed(2)}
-                          </p>
-                          <p className="text-xs">
-                            {parsedScore2.name}:{" "}
-                            {(
-                              cell.metadata?.xRange as [number, number]
-                            )?.[0]?.toFixed(2)}{" "}
-                            -{" "}
-                            {(
-                              cell.metadata?.xRange as [number, number]
-                            )?.[1]?.toFixed(2)}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-xs">
-                          {cell.metadata?.rowCategory as string} →{" "}
-                          {cell.metadata?.colCategory as string}
-                        </p>
-                      )}
-                      <p className="text-xs">
-                        {((cell.metadata?.percentage as number) ?? 0).toFixed(
-                          1,
+              {/* Row 1, Col 2: Score Over Time Placeholder */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Scores Over Time</CardTitle>
+                  <CardDescription>
+                    Time series of selected scores (coming soon)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                  Time series chart coming soon
+                </CardContent>
+              </Card>
+
+              {/* Row 2, Col 1: Heatmap / Confusion Matrix */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>
+                    {parsedScore1.dataType === "NUMERIC"
+                      ? "Score Comparison Heatmap"
+                      : "Confusion Matrix"}
+                  </CardTitle>
+                  <CardDescription>
+                    {parsedScore1.dataType === "NUMERIC"
+                      ? "Distribution of matched score pairs showing correlation patterns"
+                      : "Agreement matrix between categorical scores"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center gap-4">
+                  {heatmapData && heatmapData.cells.length > 0 ? (
+                    <>
+                      <Heatmap
+                        data={heatmapData.cells}
+                        rows={
+                          parsedScore1.dataType === "NUMERIC"
+                            ? 10
+                            : (heatmapData.rows ?? 0)
+                        }
+                        cols={
+                          parsedScore1.dataType === "NUMERIC"
+                            ? 10
+                            : (heatmapData.cols ?? 0)
+                        }
+                        rowLabels={heatmapData.rowLabels}
+                        colLabels={heatmapData.colLabels}
+                        xAxisLabel={`${parsedScore2.name} (${parsedScore2.source})`}
+                        yAxisLabel={`${parsedScore1.name} (${parsedScore1.source})`}
+                        renderTooltip={(cell) => (
+                          <div className="space-y-1">
+                            <p className="font-semibold">Count: {cell.value}</p>
+                            {parsedScore1.dataType === "NUMERIC" ? (
+                              <>
+                                <p className="text-xs">
+                                  {parsedScore1.name}:{" "}
+                                  {(
+                                    cell.metadata?.yRange as [number, number]
+                                  )?.[0]?.toFixed(2)}{" "}
+                                  -{" "}
+                                  {(
+                                    cell.metadata?.yRange as [number, number]
+                                  )?.[1]?.toFixed(2)}
+                                </p>
+                                <p className="text-xs">
+                                  {parsedScore2.name}:{" "}
+                                  {(
+                                    cell.metadata?.xRange as [number, number]
+                                  )?.[0]?.toFixed(2)}{" "}
+                                  -{" "}
+                                  {(
+                                    cell.metadata?.xRange as [number, number]
+                                  )?.[1]?.toFixed(2)}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs">
+                                {cell.metadata?.rowCategory as string} →{" "}
+                                {cell.metadata?.colCategory as string}
+                              </p>
+                            )}
+                            <p className="text-xs">
+                              {(
+                                (cell.metadata?.percentage as number) ?? 0
+                              ).toFixed(1)}
+                              % of matched pairs
+                            </p>
+                          </div>
                         )}
-                        % of matched pairs
-                      </p>
+                      />
+                      <HeatmapLegend
+                        min={0}
+                        max={Math.max(...heatmapData.cells.map((c) => c.value))}
+                        variant="accent"
+                        title="Count"
+                        orientation="horizontal"
+                        steps={10}
+                      />
+                    </>
+                  ) : (
+                    <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                      No matched score pairs found for the selected time range
                     </div>
                   )}
-                />
-                <HeatmapLegend
-                  min={0}
-                  max={Math.max(...heatmapData.cells.map((c) => c.value))}
-                  variant="chart1"
-                  title="Count"
-                  orientation="horizontal"
-                />
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* Statistics (for numeric scores) */}
-            {parsedScore1.dataType === "NUMERIC" &&
-              analyticsData.statistics && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Statistical Analysis</CardTitle>
-                    <CardDescription>
-                      Correlation and error metrics for matched score pairs
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {/* Row 2, Col 2: Summary Statistics */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Summary Statistics</CardTitle>
+                  <CardDescription>
+                    {parsedScore1.dataType === "NUMERIC"
+                      ? "Correlation and error metrics for matched score pairs"
+                      : "Summary metrics for matched score pairs"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {parsedScore1.dataType === "NUMERIC" &&
+                  analyticsData.statistics ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <p className="text-sm text-muted-foreground">
                           Pearson Correlation
                         </p>
-                        <p className="text-lg font-semibold">
+                        <p className="text-2xl font-semibold">
                           {analyticsData.statistics.pearsonCorrelation?.toFixed(
                             3,
                           ) ?? "N/A"}
@@ -501,13 +512,13 @@ export default function ScoresAnalyticsPage() {
                         <p className="text-sm text-muted-foreground">
                           Mean Absolute Error
                         </p>
-                        <p className="text-lg font-semibold">
+                        <p className="text-2xl font-semibold">
                           {analyticsData.statistics.mae?.toFixed(3) ?? "N/A"}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">RMSE</p>
-                        <p className="text-lg font-semibold">
+                        <p className="text-2xl font-semibold">
                           {analyticsData.statistics.rmse?.toFixed(3) ?? "N/A"}
                         </p>
                       </div>
@@ -515,14 +526,42 @@ export default function ScoresAnalyticsPage() {
                         <p className="text-sm text-muted-foreground">
                           Matched Pairs
                         </p>
-                        <p className="text-lg font-semibold">
+                        <p className="text-2xl font-semibold">
                           {analyticsData.statistics.matchedCount.toLocaleString()}
                         </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Score 1 Total
+                        </p>
+                        <p className="text-2xl font-semibold">
+                          {analyticsData.counts.score1Total.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Score 2 Total
+                        </p>
+                        <p className="text-2xl font-semibold">
+                          {analyticsData.counts.score2Total.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Matched Pairs
+                        </p>
+                        <p className="text-2xl font-semibold">
+                          {analyticsData.counts.matchedCount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
