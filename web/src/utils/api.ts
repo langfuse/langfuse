@@ -164,7 +164,11 @@ export const api = createTRPCNext<AppRouter>({
           },
         },
         queryCache: new QueryCache({
-          onError: (error) => {
+          onError: (error, query) => {
+            // Skip toast if query has suppressErrorToast meta flag
+            if (query.meta?.suppressErrorToast) {
+              return;
+            }
             handleTrpcError(error);
           },
         }),

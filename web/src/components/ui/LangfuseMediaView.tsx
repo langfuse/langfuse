@@ -56,7 +56,7 @@ export const LangfuseMediaView = ({
       </div>
     );
 
-  const { data } = api.media.getById.useQuery(
+  const { data, error } = api.media.getById.useQuery(
     {
       mediaId: mediaData.id,
       projectId: projectId as string,
@@ -67,10 +67,27 @@ export const LangfuseMediaView = ({
       refetchOnMount: false,
       refetchOnReconnect: false,
       staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
+      meta: {
+        suppressErrorToast: true, // Show inline error instead of toast
+      },
     },
   );
 
   const mediaUrl = data?.url;
+
+  // Show inline error if media couldn't be loaded
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2">
+        <span title={error.message}>
+          <ImageOff className="h-4 w-4 text-destructive" />
+        </span>
+        <span className="truncate text-sm text-destructive">
+          {error.message || "Media asset not found"}
+        </span>
+      </div>
+    );
+  }
 
   if (!mediaUrl) return null;
 
