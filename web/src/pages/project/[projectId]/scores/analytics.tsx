@@ -23,6 +23,7 @@ import {
   HeatmapLegend,
 } from "@/src/features/scores/components/analytics";
 import { SingleScoreAnalytics } from "@/src/features/scores/components/analytics/SingleScoreAnalytics";
+import { TwoScoreAnalytics } from "@/src/features/scores/components/analytics/TwoScoreAnalytics";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
@@ -392,36 +393,31 @@ export default function ScoresAnalyticsPage() {
                 toDate={absoluteTimeRange!.to}
               />
             ) : hasTwoScores && parsedScore1 && parsedScore2 ? (
-              // Two score comparison (existing logic)
+              // Two score comparison
               <>
-                {/* 2x2 Grid Layout */}
+                {/* Distribution and Time Series Charts */}
+                <TwoScoreAnalytics
+                  score1={{
+                    ...parsedScore1,
+                    dataType: parsedScore1.dataType as
+                      | "NUMERIC"
+                      | "CATEGORICAL"
+                      | "BOOLEAN",
+                  }}
+                  score2={{
+                    ...parsedScore2,
+                    dataType: parsedScore2.dataType as
+                      | "NUMERIC"
+                      | "CATEGORICAL"
+                      | "BOOLEAN",
+                  }}
+                  analytics={analyticsData}
+                  interval={interval}
+                  nBins={10}
+                />
+
+                {/* 2x2 Grid Layout for Heatmap and Stats */}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  {/* Row 1, Col 1: Distribution Placeholder */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Score Distribution</CardTitle>
-                      <CardDescription>
-                        Distribution of selected scores (coming soon)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                      Histogram visualization coming soon
-                    </CardContent>
-                  </Card>
-
-                  {/* Row 1, Col 2: Score Over Time Placeholder */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Scores Over Time</CardTitle>
-                      <CardDescription>
-                        Time series of selected scores (coming soon)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                      Time series chart coming soon
-                    </CardContent>
-                  </Card>
-
                   {/* Row 2, Col 1: Heatmap / Confusion Matrix */}
                   <Card>
                     <CardHeader>

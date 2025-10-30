@@ -36,8 +36,40 @@ export function SingleScoreAnalytics({
   fromDate,
   toDate,
 }: SingleScoreAnalyticsProps) {
-  // Use distribution1 for single score
-  const distribution = analytics.distribution1;
+  // Extract categories for categorical/boolean scores
+  const categories = useMemo(() => {
+    if (dataType === "NUMERIC") return undefined;
+
+    // Get unique categories from confusion matrix
+    const uniqueCategories = new Set<string>();
+    analytics.confusionMatrix.forEach((row) => {
+      uniqueCategories.add(row.rowCategory);
+    });
+
+    return Array.from(uniqueCategories).sort();
+  }, [dataType, analytics.confusionMatrix]);
+
+  // Fill missing bins for categorical/boolean data
+  // Backend only returns bins with data, but we want to show all categories
+  const distribution = useMemo(() => {
+    const rawDistribution = analytics.distribution1;
+
+    if (dataType === "NUMERIC" || !categories) {
+      return rawDistribution;
+    }
+
+    // Create a map of existing bins
+    const binMap = new Map(
+      rawDistribution.map((item) => [item.binIndex, item.count]),
+    );
+
+    // Fill in zeros for missing categories
+    return categories.map((_, index) => ({
+      binIndex: index,
+      count: binMap.get(index) ?? 0,
+    }));
+  }, [analytics.distribution1, dataType, categories]);
+
   const totalCount = analytics.counts.score1Total;
 
   // Fill gaps in time series to ensure all intervals are displayed
@@ -89,19 +121,6 @@ export function SingleScoreAnalytics({
       return formatBinLabel(start, end);
     });
   }, [dataType, analytics.heatmap, analytics.statistics, nBins]);
-
-  // Extract categories for categorical/boolean scores
-  const categories = useMemo(() => {
-    if (dataType === "NUMERIC") return undefined;
-
-    // Get unique categories from confusion matrix
-    const uniqueCategories = new Set<string>();
-    analytics.confusionMatrix.forEach((row) => {
-      uniqueCategories.add(row.rowCategory);
-    });
-
-    return Array.from(uniqueCategories).sort();
-  }, [dataType, analytics.confusionMatrix]);
 
   // Calculate overall average from time series
   const overallAverage = useMemo(() => {
