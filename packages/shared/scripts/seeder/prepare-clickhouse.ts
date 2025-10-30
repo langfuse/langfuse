@@ -9,7 +9,6 @@ export const prepareClickhouse = async (
   projectIds: string[],
   opts: {
     numberOfDays: number;
-    totalObservations: number;
     numberOfRuns?: number;
   },
 ) => {
@@ -18,8 +17,8 @@ export const prepareClickhouse = async (
   );
 
   const formattedOpts: SeederOptions = {
+    mode: "bulk",
     numberOfDays: opts.numberOfDays,
-    totalObservations: opts.totalObservations,
     numberOfRuns: opts.numberOfRuns || 1,
   };
 

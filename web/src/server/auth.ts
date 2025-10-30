@@ -23,6 +23,7 @@ import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
+import AuthentikProvider from "next-auth/providers/authentik";
 import OneLoginProvider from "next-auth/providers/onelogin";
 import EmailProvider from "next-auth/providers/email";
 import { randomInt } from "crypto";
@@ -239,6 +240,25 @@ if (
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
       },
       checks: env.AUTH_OKTA_CHECKS,
+    }),
+  );
+
+if (
+  env.AUTH_AUTHENTIK_CLIENT_ID &&
+  env.AUTH_AUTHENTIK_CLIENT_SECRET &&
+  env.AUTH_AUTHENTIK_ISSUER
+)
+  staticProviders.push(
+    AuthentikProvider({
+      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+      issuer: env.AUTH_AUTHENTIK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_AUTHENTIK_CHECKS,
     }),
   );
 

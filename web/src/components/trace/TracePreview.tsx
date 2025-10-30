@@ -45,6 +45,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import TagList from "@/src/features/tag/components/TagList";
 
 export const TracePreview = ({
   trace,
@@ -346,39 +347,41 @@ export const TracePreview = ({
             className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
-              <div>
-                <IOPreview
-                  key={trace.id + "-io"}
-                  input={trace.input ?? undefined}
-                  output={trace.output ?? undefined}
-                  media={traceMedia.data}
-                  currentView={currentView}
-                  setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-                  inputExpansionState={expansionState.input}
-                  outputExpansionState={expansionState.output}
-                  onInputExpansionChange={(expansion) =>
-                    setFieldExpansion("input", expansion)
-                  }
-                  onOutputExpansionChange={(expansion) =>
-                    setFieldExpansion("output", expansion)
-                  }
-                />
+              <IOPreview
+                key={trace.id + "-io"}
+                input={trace.input ?? undefined}
+                output={trace.output ?? undefined}
+                media={traceMedia.data}
+                currentView={currentView}
+                setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+                inputExpansionState={expansionState.input}
+                outputExpansionState={expansionState.output}
+                onInputExpansionChange={(expansion) =>
+                  setFieldExpansion("input", expansion)
+                }
+                onOutputExpansionChange={(expansion) =>
+                  setFieldExpansion("output", expansion)
+                }
+              />
+
+              <div className="text-sm font-medium">{"Tags"}</div>
+              <div className="flex flex-wrap gap-x-1 gap-y-1">
+                <TagList selectedTags={trace.tags} isLoading={false} />
               </div>
-              <div>
-                <PrettyJsonView
-                  key={trace.id + "-metadata"}
-                  title="Metadata"
-                  json={trace.metadata}
-                  media={
-                    traceMedia.data?.filter((m) => m.field === "metadata") ?? []
-                  }
-                  currentView={currentView}
-                  externalExpansionState={expansionState.metadata}
-                  onExternalExpansionChange={(expansion) =>
-                    setFieldExpansion("metadata", expansion)
-                  }
-                />
-              </div>
+
+              <PrettyJsonView
+                key={trace.id + "-metadata"}
+                title="Metadata"
+                json={trace.metadata}
+                media={
+                  traceMedia.data?.filter((m) => m.field === "metadata") ?? []
+                }
+                currentView={currentView}
+                externalExpansionState={expansionState.metadata}
+                onExternalExpansionChange={(expansion) =>
+                  setFieldExpansion("metadata", expansion)
+                }
+              />
             </div>
           </TabsBarContent>
           <TabsBarContent value="log">
