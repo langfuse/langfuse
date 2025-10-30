@@ -321,6 +321,7 @@ describe("Fetch datasets for UI presentation", () => {
         id: undefined,
         comment: undefined,
         hasMetadata: undefined,
+        timestamp: undefined,
       },
       [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
         id: score3.id,
@@ -329,6 +330,7 @@ describe("Fetch datasets for UI presentation", () => {
         average: 1,
         comment: "some other comment for non run related score",
         hasMetadata: true,
+        timestamp: expect.any(Date),
       },
     };
 
