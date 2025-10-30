@@ -69,6 +69,8 @@ export function ScoreTimeSeriesChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          minTickGap={30}
+          interval="preserveStartEnd"
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
@@ -97,25 +99,17 @@ export function ScoreTimeSeriesChart({
 
 /**
  * Format timestamp based on aggregation interval
- * Intelligently shows seconds/minutes/hours/dates based on interval granularity
+ * Matches the dashboard pattern from BaseTimeSeriesChart.tsx
+ *
+ * For fine-grained intervals (second, minute, hour): shows full datetime
+ * For coarse intervals (day, month, year): shows date only
  */
 function formatTimestamp(date: Date, interval: IntervalConfig): string {
   const { unit } = interval;
 
-  // For second and minute intervals, show full time
-  if (unit === "second" || unit === "minute") {
-    return date.toLocaleTimeString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: unit === "second" ? "2-digit" : undefined,
-    });
-  }
-
-  // For hour intervals, show date and time (no seconds)
-  if (unit === "hour") {
+  // Fine-grained intervals: show date and time
+  // Pattern matches dashboard's convertDate for "minute" and "hour" dateTrunc
+  if (unit === "second" || unit === "minute" || unit === "hour") {
     return date.toLocaleTimeString("en-US", {
       year: "2-digit",
       month: "numeric",
@@ -125,7 +119,8 @@ function formatTimestamp(date: Date, interval: IntervalConfig): string {
     });
   }
 
-  // For day/month/year intervals, show only date
+  // Coarse intervals: show date only
+  // Pattern matches dashboard's convertDate for "day", "week", "month" dateTrunc
   return date.toLocaleDateString("en-US", {
     year: "2-digit",
     month: "numeric",
