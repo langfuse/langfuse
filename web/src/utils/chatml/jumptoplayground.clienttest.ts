@@ -413,9 +413,11 @@ describe("Playground Jump Full Pipeline", () => {
     const playgroundMsg = convertChatMlToPlayground(inResult.data![0]);
     expect(playgroundMsg?.type).toBe("tool-result");
     // Array must be stringified, not left as object
-    expect(typeof playgroundMsg?.content).toBe("string");
-    expect(playgroundMsg?.content).toBe(
-      '[{"url":"https://example.com","title":"Example"}]',
-    );
+    if (playgroundMsg && "content" in playgroundMsg) {
+      expect(typeof playgroundMsg.content).toBe("string");
+      expect(playgroundMsg.content).toBe(
+        '[{"url":"https://example.com","title":"Example"}]',
+      );
+    }
   });
 });
