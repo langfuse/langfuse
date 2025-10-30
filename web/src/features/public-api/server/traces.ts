@@ -9,7 +9,7 @@ import {
   measureAndReturn,
   deriveFilters,
   createPublicApiTracesColumnMapping,
-  createTracesUiColumnDefinitions,
+  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import {
@@ -65,7 +65,7 @@ export const generateTracesForPublicApi = async ({
     props,
     filterParams,
     advancedFilters,
-    tracesUiColumnDefinitions,
+    tracesTableUiColumnDefinitions,
   );
   const appliedFilter = filter.apply();
 
@@ -265,7 +265,7 @@ export const getTracesCountForPublicApi = async ({
     props,
     filterParams,
     advancedFilters,
-    tracesUiColumnDefinitions,
+    tracesTableUiColumnDefinitions,
   );
   const appliedFilter = filter.apply();
 
@@ -326,7 +326,3 @@ const orderByColumns = [
 
 // Use factory functions to create column mappings (eliminates duplication with events table)
 const filterParams = createPublicApiTracesColumnMapping("traces", "t");
-const tracesUiColumnDefinitions = createTracesUiColumnDefinitions(
-  "traces",
-  "t",
-);
