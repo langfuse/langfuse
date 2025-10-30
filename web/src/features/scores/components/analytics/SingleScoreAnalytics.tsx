@@ -28,6 +28,16 @@ export function SingleScoreAnalytics({
   interval,
   nBins,
 }: SingleScoreAnalyticsProps) {
+  // TODO: REMOVE BEFORE MERGING - Debug component render
+  console.log("[SingleScoreAnalytics] Rendering with:", {
+    scoreName,
+    dataType,
+    source,
+    distributionLength: analytics.distribution1.length,
+    timeSeriesLength: analytics.timeSeries.length,
+    totalCount: analytics.counts.score1Total,
+  });
+
   // Use distribution1 for single score
   const distribution = analytics.distribution1;
   const timeSeries = analytics.timeSeries;

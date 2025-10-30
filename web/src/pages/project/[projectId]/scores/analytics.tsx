@@ -187,6 +187,28 @@ export default function ScoresAnalyticsPage() {
     }
   }, [shouldFetchAnalytics, analyticsLoading, analyticsData, analyticsError]);
 
+  // TODO: REMOVE BEFORE MERGING - Debug rendering conditions
+  useEffect(() => {
+    console.log("[Score Analytics] Rendering conditions:", {
+      hasTwoScores,
+      parsedScore1: !!parsedScore1,
+      parsedScore2: !!parsedScore2,
+      analyticsData: !!analyticsData,
+      analyticsLoading,
+      analyticsError: !!analyticsError,
+      willRenderSingleScore: !hasTwoScores && !!parsedScore1 && !!analyticsData,
+      willRenderTwoScores:
+        hasTwoScores && !!parsedScore1 && !!parsedScore2 && !!analyticsData,
+    });
+  }, [
+    hasTwoScores,
+    parsedScore1,
+    parsedScore2,
+    analyticsData,
+    analyticsLoading,
+    analyticsError,
+  ]);
+
   // Preprocess heatmap data
   const heatmapData = useMemo(() => {
     if (!analyticsData || !parsedScore1) return null;
