@@ -2922,6 +2922,49 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/organizations/apiKeys:
+    get:
+      description: >-
+        Get all API keys for the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: organizations_getOrganizationApiKeys
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationApiKeysResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/projects:
     get:
       description: Get Project associated with API key
@@ -7826,6 +7869,45 @@ components:
             $ref: '#/components/schemas/OrganizationProject'
       required:
         - projects
+    OrganizationApiKey:
+      title: OrganizationApiKey
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        publicKey:
+          type: string
+        displaySecretKey:
+          type: string
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - displaySecretKey
+    OrganizationApiKeysResponse:
+      title: OrganizationApiKeysResponse
+      type: object
+      properties:
+        apiKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationApiKey'
+      required:
+        - apiKeys
     Projects:
       title: Projects
       type: object
