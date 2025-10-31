@@ -1102,7 +1102,11 @@ describe("Public Organizations API", () => {
       // Create first test organization with API keys
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
       const org = await prisma.organization.create({
-        data: { name: uniqueOrgName, metadata: {} },
+        data: {
+          name: uniqueOrgName,
+          cloudConfig: { plan: "Team" },
+          metadata: {},
+        },
       });
       testOrgId = org.id;
 
@@ -1135,6 +1139,7 @@ describe("Public Organizations API", () => {
       const secondOrg = await prisma.organization.create({
         data: {
           name: `Second Test Org ${randomUUID().substring(0, 8)}`,
+          cloudConfig: { plan: "Team" },
           metadata: {},
         },
       });
