@@ -64,6 +64,7 @@ export type AnnotationScore = {
   observationId?: string | null;
   sessionId?: string | null;
   comment?: string | null;
+  timestamp?: Date | null;
 };
 
 type AnalyticsData = {
@@ -125,6 +126,7 @@ export type AnnotationScoreFormData = {
   value?: number | null;
   stringValue?: string | null;
   comment?: string | null;
+  timestamp?: Date | null;
 };
 
 export type InnerAnnotationFormProps<Target extends ScoreTarget> = {
