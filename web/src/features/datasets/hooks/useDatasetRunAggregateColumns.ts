@@ -6,6 +6,7 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { useRouter } from "next/router";
 
 export function useDatasetRunAggregateColumns({
   projectId,
@@ -20,6 +21,8 @@ export function useDatasetRunAggregateColumns({
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
 }) {
+  const router = useRouter();
+  const baselineRunId = router.query.baseline as string | undefined;
   const datasetRunItemsFilterOptionsResponse =
     api.datasets.runItemFilterOptions.useQuery({
       projectId,
@@ -76,6 +79,7 @@ export function useDatasetRunAggregateColumns({
       serverScoreColumns: scoreKeysAndProps.data?.scoreColumns,
       updateRunFilters,
       getFiltersForRun,
+      baselineRunId,
     });
   }, [
     runAggregateColumnProps,
@@ -84,6 +88,7 @@ export function useDatasetRunAggregateColumns({
     scoreKeysAndProps.data?.scoreColumns,
     updateRunFilters,
     getFiltersForRun,
+    baselineRunId,
   ]);
 
   return {

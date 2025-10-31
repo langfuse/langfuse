@@ -18,6 +18,7 @@ import {
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { type ScoreDiff } from "@/src/features/datasets/lib/calculateScoreDiff";
 
 const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
   if (aggregate.type === "NUMERIC") {
@@ -48,9 +49,11 @@ const ScoreDetailRow = ({
 const ScoreRowContent = ({
   name,
   aggregate,
+  diff,
 }: {
   name: string;
   aggregate: AggregatedScoreData | null;
+  diff?: ScoreDiff | null;
 }) => {
   return (
     <div
@@ -69,9 +72,29 @@ const ScoreRowContent = ({
       </span>
       <div className="flex flex-shrink-0 items-center gap-1">
         {aggregate ? (
-          <span className="line-clamp-1 font-medium">
-            {resolveScoreValue(aggregate)}
-          </span>
+          <>
+            <span className="line-clamp-1 font-medium">
+              {resolveScoreValue(aggregate)}
+            </span>
+            {diff && diff.type === "NUMERIC" && (
+              <span
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-xs font-semibold",
+                  diff.direction === "+"
+                    ? "bg-light-green text-dark-green"
+                    : "bg-light-red text-dark-red",
+                )}
+              >
+                {diff.direction}
+                {diff.absoluteDifference.toFixed(2)}
+              </span>
+            )}
+            {diff && diff.type === "CATEGORICAL" && diff.isDifferent && (
+              <span className="rounded bg-light-yellow px-1.5 py-0.5 text-xs font-semibold text-dark-yellow">
+                Mismatch
+              </span>
+            )}
+          </>
         ) : (
           <span className="text-sm text-muted-foreground">-</span>
         )}
@@ -90,11 +113,13 @@ export const ScoreRow = ({
   name,
   source,
   aggregate,
+  diff,
 }: {
   projectId: string;
   name: string;
   source: ScoreSourceType;
   aggregate: AggregatedScoreData | null;
+  diff?: ScoreDiff | null;
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
 
@@ -116,14 +141,14 @@ export const ScoreRow = ({
   );
 
   if (!aggregate) {
-    return <ScoreRowContent name={name} aggregate={aggregate} />;
+    return <ScoreRowContent name={name} aggregate={aggregate} diff={diff} />;
   }
 
   return (
     <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
       <HoverCardTrigger asChild>
         <div className="group/io-cell relative h-full w-full">
-          <ScoreRowContent name={name} aggregate={aggregate} />
+          <ScoreRowContent name={name} aggregate={aggregate} diff={diff} />
         </div>
       </HoverCardTrigger>
       <HoverCardContent

@@ -17,32 +17,33 @@ import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregat
 import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { Card } from "@/src/components/ui/card";
+import { type ScoreAggregate } from "@langfuse/shared";
+import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { type ScoreDiff } from "@/src/features/datasets/lib/calculateScoreDiff";
+import { useMemo } from "react";
 
-const DatasetAggregateCell = ({
-  value,
+const DatasetAggregateCellContent = ({
   projectId,
+  value,
+  scores,
   serverScoreColumns,
+  scoreDiffs,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
+  scores: ScoreAggregate;
   serverScoreColumns: ScoreColumn[];
+  scoreDiffs?: Record<string, ScoreDiff>;
 }) => {
+  const router = useRouter();
   const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
-  const router = useRouter();
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });
-
-  // Merge cached score writes into aggregates for optimistic display
-  const displayScores = useMergedAggregates(
-    value.scores,
-    value.trace.id,
-    value.observation?.id,
-  );
 
   // Merge server columns with cache-only columns
   const mergedScoreColumns = useMergeScoreColumns(serverScoreColumns);
@@ -126,7 +127,7 @@ const DatasetAggregateCell = ({
     setActiveCell({
       traceId: value.trace.id,
       observationId: value.observation?.id,
-      scoreAggregates: displayScores,
+      scoreAggregates: scores,
       environment: data?.environment,
     });
   };
@@ -207,7 +208,8 @@ const DatasetAggregateCell = ({
                   projectId={projectId}
                   name={scoreColumn.name}
                   source={scoreColumn.source}
-                  aggregate={displayScores[scoreColumn.key] ?? null}
+                  aggregate={scores[scoreColumn.key] ?? null}
+                  diff={scoreDiffs?.[scoreColumn.key] ?? null}
                 />
               ))
             ) : (
@@ -247,18 +249,96 @@ const DatasetAggregateCell = ({
   );
 };
 
+const DatasetAggregateCellAgainstBaseline = ({
+  value,
+  projectId,
+  serverScoreColumns,
+  baselineRunValue,
+}: {
+  projectId: string;
+  value: EnrichedDatasetRunItem;
+  serverScoreColumns: ScoreColumn[];
+  baselineRunValue: EnrichedDatasetRunItem;
+}) => {
+  // Merge cached score writes into aggregates for optimistic display
+  const displayScores = useMergedAggregates(
+    value.scores,
+    value.trace.id,
+    value.observation?.id,
+  );
+
+  const baselineScores = useMergedAggregates(
+    baselineRunValue.scores,
+    baselineRunValue.trace.id,
+    baselineRunValue.observation?.id,
+  );
+
+  // Compute diffs between current and baseline scores
+  const scoreDiffs = useMemo(
+    () => computeScoreDiffs(displayScores, baselineScores),
+    [displayScores, baselineScores],
+  );
+
+  return (
+    <DatasetAggregateCellContent
+      projectId={projectId}
+      value={value}
+      serverScoreColumns={serverScoreColumns}
+      scores={displayScores}
+      scoreDiffs={scoreDiffs}
+    />
+  );
+};
+
+const DatasetAggregateCell = ({
+  value,
+  projectId,
+  serverScoreColumns,
+}: {
+  projectId: string;
+  value: EnrichedDatasetRunItem;
+  serverScoreColumns: ScoreColumn[];
+}) => {
+  // Merge cached score writes into aggregates for optimistic display
+  const displayScores = useMergedAggregates(
+    value.scores,
+    value.trace.id,
+    value.observation?.id,
+  );
+
+  return (
+    <DatasetAggregateCellContent
+      projectId={projectId}
+      value={value}
+      serverScoreColumns={serverScoreColumns}
+      scores={displayScores}
+    />
+  );
+};
+
 type DatasetAggregateTableCellProps = {
   projectId: string;
   value: EnrichedDatasetRunItem;
   serverScoreColumns: ScoreColumn[];
+  isBaselineRun: boolean;
+  baselineRunValue?: EnrichedDatasetRunItem;
 };
 
 export const DatasetAggregateTableCell = ({
   projectId,
   value,
   serverScoreColumns,
+  isBaselineRun,
+  baselineRunValue,
 }: DatasetAggregateTableCellProps) => {
-  return (
+  return baselineRunValue && !isBaselineRun ? (
+    <DatasetAggregateCellAgainstBaseline
+      projectId={projectId}
+      value={value}
+      serverScoreColumns={serverScoreColumns}
+      baselineRunValue={baselineRunValue}
+    />
+  ) : (
     <DatasetAggregateCell
       projectId={projectId}
       value={value}

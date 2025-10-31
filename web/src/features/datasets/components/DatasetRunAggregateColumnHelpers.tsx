@@ -7,9 +7,79 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { type FilterState } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreColumn } from "@/src/features/scores/types";
+import { Toggle } from "@/src/components/ui/toggle";
+import { useRouter } from "next/router";
+import { cn } from "@/src/utils/tailwind";
+
+function BaselineToggle({ runId }: { runId: string }) {
+  const router = useRouter();
+  const [isHovered, setIsHovered] = useState(false);
+  const justSetBaselineRef = useRef(false);
+  const previousBaselineRef = useRef<string | undefined>(undefined);
+
+  const baselineRunId = router.query.baseline as string | undefined;
+  const hasBaseline = Boolean(baselineRunId);
+  const isBaseline = baselineRunId === runId;
+
+  useEffect(() => {
+    if (baselineRunId === runId && previousBaselineRef.current !== runId) {
+      justSetBaselineRef.current = true;
+    }
+    previousBaselineRef.current = baselineRunId;
+  }, [baselineRunId, runId]);
+
+  const handleClick = () => {
+    if (isBaseline) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { baseline, ...restQuery } = router.query;
+      void router.push({
+        pathname: router.pathname,
+        query: restQuery,
+      });
+    } else {
+      void router.push({
+        pathname: router.pathname,
+        query: { ...router.query, baseline: runId },
+      });
+    }
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    justSetBaselineRef.current = false;
+  };
+
+  let text: string;
+  if (!hasBaseline) {
+    text = "Set as baseline";
+  } else if (isBaseline) {
+    text =
+      isHovered && !justSetBaselineRef.current ? "Clear baseline" : "Baseline";
+  } else {
+    text = isHovered ? "Set as baseline" : "Comparison";
+  }
+
+  return (
+    <Toggle
+      className={cn(
+        "p-1 text-muted-foreground/50 hover:bg-background hover:text-primary-accent data-[state=on]:bg-transparent data-[state=on]:text-current",
+        isBaseline && "text-primary-accent",
+      )}
+      onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {text}
+    </Toggle>
+  );
+}
 
 function RunAggregateHeader({
   runId,
@@ -32,7 +102,7 @@ function RunAggregateHeader({
   );
 
   return (
-    <div className="flex w-full flex-row items-center justify-between gap-2">
+    <div className="flex w-full flex-row items-center justify-between gap-1">
       <span>{runName}</span>
       <PopoverFilterBuilder
         buttonType="icon"
@@ -42,6 +112,7 @@ function RunAggregateHeader({
           debouncedUpdateRunFilters(runId, filters)
         }
       />
+      <BaselineToggle runId={runId} />
     </div>
   );
 }
@@ -66,6 +137,7 @@ export const constructDatasetRunAggregateColumns = ({
   updateRunFilters,
   getFiltersForRun,
   serverScoreColumns,
+  baselineRunId,
 }: {
   runAggregateColumnProps: RunAggregateColumnProps[];
   projectId: string;
@@ -73,6 +145,7 @@ export const constructDatasetRunAggregateColumns = ({
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
   serverScoreColumns?: ScoreColumn[];
+  baselineRunId?: string;
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   const isDataLoading = !isScoreColumnsAvailable(serverScoreColumns);
 
@@ -107,13 +180,19 @@ export const constructDatasetRunAggregateColumns = ({
         if (!runData.hasOwnProperty(id)) return null;
 
         const value: EnrichedDatasetRunItem | undefined = runData[id];
+        const baselineRunValue = baselineRunId
+          ? runData[baselineRunId]
+          : undefined;
 
         if (!value) return null;
         return (
           <DatasetAggregateTableCell
+            key={baselineRunId ?? id}
             value={value}
             projectId={projectId}
             serverScoreColumns={serverScoreColumns}
+            isBaselineRun={baselineRunId === id}
+            baselineRunValue={baselineRunValue}
           />
         );
       },
