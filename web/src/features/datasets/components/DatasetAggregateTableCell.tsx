@@ -199,8 +199,8 @@ const DatasetAggregateCellContent = ({
           !selectedFields.includes("scores") && "hidden",
         )}
       >
-        <div className="mt-1 w-full min-w-0 overflow-hidden">
-          <div className="grid max-h-full w-full grid-cols-2 gap-1 overflow-y-auto">
+        <div className="mt-1 w-full min-w-0 overflow-hidden @container">
+          <div className="grid max-h-full w-full grid-cols-1 gap-1 overflow-y-auto @[400px]:grid-cols-2">
             {mergedScoreColumns.length > 0 ? (
               mergedScoreColumns.map((scoreColumn) => (
                 <ScoreRow
