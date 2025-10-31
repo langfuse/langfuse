@@ -59,7 +59,7 @@ const CLIENT_STALE_CACHE_CODES = [404, 400];
 
 // Cache to store hashes of recently shown errors (client-side only)
 const recentErrorCache = new Set<string>();
-const ERROR_DEBOUNCE_MS = 30000;
+const ERROR_DEBOUNCE_MS = 20000;
 
 /**
  * Creates a unique hash for an error to track it for debouncing; implementation hashes based on the tRPC path and http status
