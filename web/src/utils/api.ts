@@ -57,6 +57,51 @@ let buildId: string | null = null;
 
 const CLIENT_STALE_CACHE_CODES = [404, 400];
 
+// Cache to store hashes of recently shown errors (client-side only)
+const recentErrorCache = new Set<string>();
+const ERROR_DEBOUNCE_MS = 30000;
+
+/**
+ * Creates a unique hash for an error to track it for debouncing; implementation hashes based on the tRPC path and http status
+ */
+const getErrorHash = (error: unknown): string => {
+  if (error instanceof TRPCClientError) {
+    const path = (error.data as { path?: string })?.path;
+    const code = error.data?.httpStatus;
+
+    if (path && code) return `${path}::${code}`;
+  }
+
+  if (error instanceof Error) {
+    return `error::${error.message}`;
+  }
+
+  return "unknown_error::";
+};
+
+/**
+ * Checks if a toast should be shown for a given error and managed debouncing logic.
+ * @returns `true` if a toast should be shown, `false` if it should be suppressed.
+ */
+const shouldShowToast = (error: unknown): boolean => {
+  if (typeof window === "undefined") return true;
+
+  const errorHash = getErrorHash(error);
+
+  if (recentErrorCache.has(errorHash)) {
+    return false;
+  }
+
+  recentErrorCache.add(errorHash);
+
+  // Set a timer to remove error hash from cache after the debounce period
+  setTimeout(() => {
+    recentErrorCache.delete(errorHash);
+  }, ERROR_DEBOUNCE_MS);
+
+  return true;
+};
+
 const handleTrpcError = (
   error: unknown,
   shouldSilenceError: boolean = false,
@@ -84,7 +129,7 @@ const handleTrpcError = (
     captureException(error);
   }
 
-  if (!shouldSilenceError) {
+  if (!shouldSilenceError && shouldShowToast(error)) {
     trpcErrorToast(error);
   }
 };
