@@ -200,7 +200,7 @@ const DatasetAggregateCellContent = ({
         )}
       >
         <div className="mt-1 w-full min-w-0 overflow-hidden">
-          <div className="flex max-h-full w-full flex-wrap gap-1 overflow-y-auto">
+          <div className="grid max-h-full w-full grid-cols-2 gap-1 overflow-y-auto">
             {mergedScoreColumns.length > 0 ? (
               mergedScoreColumns.map((scoreColumn) => (
                 <ScoreRow

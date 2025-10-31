@@ -58,13 +58,13 @@ const ScoreRowContent = ({
   return (
     <div
       className={cn(
-        "flex w-full items-center justify-between gap-2",
+        "flex w-full items-center gap-2",
         aggregate && "cursor-pointer",
       )}
     >
       <span
         className={cn(
-          "min-w-16 flex-1 truncate",
+          "w-32 truncate",
           aggregate ? "font-medium" : "text-muted-foreground",
         )}
       >
@@ -91,18 +91,18 @@ const ScoreRowContent = ({
             )}
             {diff && diff.type === "CATEGORICAL" && diff.isDifferent && (
               <span className="rounded bg-light-yellow px-1.5 py-0.5 text-xs font-semibold text-dark-yellow">
-                Mismatch
+                Varies
               </span>
             )}
           </>
         ) : (
           <span className="text-sm text-muted-foreground">-</span>
         )}
-        <div className="flex h-3 w-3 items-center justify-center">
-          {aggregate?.comment && (
+        {aggregate?.comment && (
+          <div className="flex h-3 w-3 items-center justify-center">
             <MessageCircleMore size={12} className="text-muted-foreground" />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
