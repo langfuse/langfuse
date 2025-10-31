@@ -37,4 +37,9 @@
   - `h-screen-with-banner` / `min-h-screen-with-banner` - For full-height containers accounting for banners
 
 ## JavaScript / TypeScript Style
+
 - use concat instead of spread to avoid stack overflow with large arrays
+
+## Seeder
+
+- make sure that for new features with data model changes, the database seeder is adjusted.
