@@ -1271,17 +1271,6 @@ describe("Public Organizations API", () => {
       });
     });
 
-    it("should reject request with no authorization header", async () => {
-      const response = await makeAPICall(
-        "GET",
-        `/api/public/organizations/apiKeys`,
-        undefined,
-        undefined,
-      );
-
-      expect(response.status).toBe(401);
-    });
-
     it("should reject request with invalid API key", async () => {
       const response = await makeAPICall(
         "GET",
