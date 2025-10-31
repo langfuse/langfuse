@@ -14,10 +14,22 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ServerContext } from "../types";
 import { listPromptsResource, getPromptResource } from "./resources/prompts";
 import { formatErrorForUser } from "../internal/error-formatting";
+import {
+  getPromptTool,
+  handleGetPrompt,
+  listPromptsTool,
+  handleListPrompts,
+  createPromptTool,
+  handleCreatePrompt,
+  updatePromptLabelsTool,
+  handleUpdatePromptLabels,
+} from "./tools";
 
 const MCP_SERVER_NAME = "langfuse";
 const MCP_SERVER_VERSION = "0.1.0";
@@ -120,20 +132,83 @@ export function createMcpServer(_context: ServerContext): Server {
     }
   });
 
-  // TODO(LF-1929): Register prompt tools using _context
-  //
-  // CRITICAL: All mutating tool handlers MUST include audit logging:
-  // import { auditLog } from "@/src/features/audit-logs/auditLog";
-  // await auditLog({
-  //   action: "create" | "update" | "delete",
-  //   resourceType: "prompt",
-  //   resourceId: prompt.id,
-  //   projectId: _context.projectId,
-  //   orgId: _context.orgId,
-  //   apiKeyId: _context.apiKeyId,
-  //   after: newData,  // For create/update
-  //   before: oldData, // For update/delete
-  // });
+  // Register tool handlers (LF-1929)
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+      tools: [
+        getPromptTool,
+        listPromptsTool,
+        createPromptTool,
+        updatePromptLabelsTool,
+      ],
+    };
+  });
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+
+    // Route to appropriate tool handler based on name
+    // Handlers are wrapped with validation and error handling via defineTool
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toolArgs = args as any;
+
+    switch (name) {
+      case "getPrompt":
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                await handleGetPrompt(toolArgs, _context),
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      case "listPrompts":
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                await handleListPrompts(toolArgs, _context),
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      case "createPrompt":
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                await handleCreatePrompt(toolArgs, _context),
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      case "updatePromptLabels":
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                await handleUpdatePromptLabels(toolArgs, _context),
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  });
 
   return server;
 }
