@@ -141,8 +141,6 @@ export const allMembersRoutes = {
   allFromProject: protectedProjectProcedure
     .input(projectLevelMemberQuery)
     .query(async ({ input, ctx }) => {
-      // at this point user access to project was already checked.
-
       const orgId = ctx.session.orgId;
       const orgAccess = hasOrganizationAccess({
         session: ctx.session,
