@@ -154,7 +154,7 @@ export const allMembersRoutes = {
         scope: "projectMembers:read",
       });
 
-      if (!projectAccess) {
+      if (!orgAccess && !projectAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have the required access rights",
