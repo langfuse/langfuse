@@ -91,9 +91,10 @@ export const allInvitesRoutes = {
   allInvitesFromProject: protectedProjectProcedure
     .input(projectLevelInviteQuery)
     .query(async ({ input, ctx }) => {
+      const orgId = ctx.session.orgId;
       const orgAccess = hasOrganizationAccess({
         session: ctx.session,
-        organizationId: ctx.session.orgId,
+        organizationId: orgId,
         scope: "organizationMembers:read",
       });
       const projectAccess = hasProjectAccess({
@@ -111,7 +112,7 @@ export const allInvitesRoutes = {
         ctx.prisma,
         {
           ...input,
-          orgId: ctx.session.orgId,
+          orgId,
         },
         orgAccess,
       );
