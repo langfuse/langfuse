@@ -35,7 +35,7 @@ Automatically activates when working on:
 - [ ] **Router**: Define in `features/[feature]/server/*Router.ts`
 - [ ] **Procedures**: Use appropriate procedure type (protected, public)
 - [ ] **Authentication**: Use JWT authorization via middlewares.
-- [ ] **Entitlement check**: Access ressources based on ressource and role
+- [ ] **Entitlement check**: Access resources based on resource and role
 - [ ] **Validation**: Zod v4 schema for input
 - [ ] **Service**: Business logic in service file
 - [ ] **Error handling**: Use traceException wrapper
