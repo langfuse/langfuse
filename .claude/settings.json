@@ -7,12 +7,7 @@
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(head:*)",
-      "Bash(tail:*)",
-      "Edit:*",
-      "Write:*",
-      "MultiEdit:*",
-      "NotebookEdit:*",
-      "Bash:*"
+      "Bash(tail:*)"
     ],
     "deny": []
   },
