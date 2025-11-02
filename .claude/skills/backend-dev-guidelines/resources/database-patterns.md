@@ -25,7 +25,7 @@ Langfuse uses a **dual database architecture**:
 
 **Key Principle**: Use PostgreSQL for transactional data and relationships. Use ClickHouse for high-volume analytics and time-series data.
 
-**⚠️ CRITICAL SECURITY REQUIREMENT**: All queries MUST filter by `project_id` (or `projectId`) to ensure proper data isolation between projects. This is non-negotiable for multi-tenant security.
+**⚠️ Important**: All queries must filter by `project_id` (or `projectId`) to ensure proper data isolation between tenants. This is essential for the multi-tenant architecture.
 
 ---
 
@@ -57,14 +57,14 @@ const project = await prisma.project.create({
 
 // ✅ GOOD: Read with projectId filter
 const trace = await prisma.trace.findUnique({
-  where: { id: traceId, projectId },  // ← Always include projectId
+  where: { id: traceId, projectId },  // ← Always include projectId for tenant isolation
   include: {
     scores: true,
     project: { select: { id: true, name: true } },
   },
 });
 
-// ❌ BAD: Missing projectId filter (security risk!)
+// ❌ BAD: Missing projectId filter
 // const trace = await prisma.trace.findUnique({
 //   where: { id: traceId },  // ← Missing projectId!
 // });
@@ -207,7 +207,7 @@ const client = clickhouseClient(undefined, "ReadOnly");
 
 ClickHouse queries use **raw SQL** with parameterized queries. Parameters use `{paramName: Type}` syntax:
 
-**⚠️ CRITICAL**: ALL ClickHouse queries MUST include `project_id` filter for data isolation.
+**⚠️ Important**: All ClickHouse queries must include `project_id` filter to ensure proper tenant isolation.
 
 **Simple query:**
 
@@ -225,14 +225,14 @@ const rows = await queryClickhouse<{ id: string; name: string }>({
     LIMIT {limit: UInt32}
   `,
   params: {
-    projectId,  // ← REQUIRED parameter
+    projectId,  // ← Required for tenant isolation
     startTime: convertDateToClickhouseDateTime(startDate),
     limit: 100,
   },
   tags: { feature: "tracing", type: "trace" },
 });
 
-// ❌ BAD: Missing project_id filter (SECURITY RISK!)
+// ❌ BAD: Missing project_id filter
 // const rows = await queryClickhouse({
 //   query: `SELECT * FROM traces WHERE timestamp >= {startTime: DateTime64(3)}`,
 //   params: { startTime },
@@ -323,28 +323,27 @@ const params = {
 
 ### ClickHouse Query Best Practices
 
-**1. ALWAYS filter by `project_id` (SECURITY):**
+**1. Always filter by `project_id` for tenant isolation:**
 
 ```typescript
-// ✅ CORRECT: project_id filter is MANDATORY
+// ✅ CORRECT: project_id filter is required
 const query = `
   SELECT *
   FROM traces
-  WHERE project_id = {projectId: String}  -- ← ALWAYS REQUIRED
+  WHERE project_id = {projectId: String}  -- ← Required for tenant isolation
   AND timestamp >= {startTime: DateTime64(3)}
 `;
 
-// ❌ WRONG: Missing project_id (SECURITY VULNERABILITY!)
+// ❌ WRONG: Missing project_id filter
 // const query = `
 //   SELECT * FROM traces WHERE timestamp >= {startTime: DateTime64(3)}
 // `;
 ```
 
-**Why this is critical:**
-- Langfuse is multi-tenant - each project must be isolated
-- Missing `project_id` filter allows cross-project data access
-- This is a **security vulnerability** that can expose sensitive data
-- ALL queries on project-scoped tables (traces, observations, scores, sessions, etc.) MUST filter by `project_id`
+**Why this is important:**
+- Langfuse is multi-tenant - each project's data must be isolated
+- The `project_id` filter ensures queries only access data from the intended tenant
+- All queries on project-scoped tables (traces, observations, scores, sessions, etc.) must filter by `project_id`
 
 **2. Use LIMIT BY for deduplication:**
 
@@ -366,7 +365,7 @@ const query = `
 const query = `
   SELECT *
   FROM observations
-  WHERE project_id = {projectId: String}  -- ← Required for security
+  WHERE project_id = {projectId: String}  -- ← Required for tenant isolation
   AND start_time >= {startTime: DateTime64(3)}  -- ← Improves performance
   AND start_time < {endTime: DateTime64(3)}
 `;
