@@ -17,7 +17,6 @@ import {
   orderByToClickhouseSql,
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
-  createTracesUiColumnDefinitions,
   deriveFilters,
   type ApiColumnMapping,
   ObservationPriceFields,
@@ -34,6 +33,7 @@ import {
   eventsTableLegacyTraceUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
 } from "../tableMappings/mapEventsTable";
+import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { queryClickhouse } from "./clickhouse";
 import { ObservationRecordReadType } from "./definitions";
@@ -149,8 +149,7 @@ const PUBLIC_API_TRACES_COLUMN_MAPPING = createPublicApiTracesColumnMapping(
   "t",
 );
 
-const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS =
-  createTracesUiColumnDefinitions("traces", "t");
+const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS = tracesTableUiColumnDefinitions;
 
 /**
  * Order by columns for traces CTE (post-aggregation)

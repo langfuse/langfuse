@@ -35,6 +35,7 @@ function RunAggregateHeader({
     <div className="flex w-full flex-row items-center justify-between gap-2">
       <span>{runName}</span>
       <PopoverFilterBuilder
+        buttonType="icon"
         columns={columns}
         filterState={getFiltersForRun(runId)}
         onChange={(filters: FilterState) =>
