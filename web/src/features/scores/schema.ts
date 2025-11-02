@@ -2,8 +2,11 @@ import { ScoreDataType } from "@langfuse/shared";
 import { z } from "zod/v4";
 
 export const AnnotationScoreDataSchema = z.object({
-  name: z.string(),
+  // Required for ClickHouse deduplication (not shown in UI)
   id: z.string().nullish(),
+  timestamp: z.date().nullish(),
+  // Required for score writes (shown in UI)
+  name: z.string(),
   value: z.number().nullish(),
   stringValue: z.string().nullish(),
   dataType: z.enum(ScoreDataType),

@@ -56,6 +56,7 @@ const CreateAnnotationScoreBase = z.object({
   configId: z.string(),
   comment: StringNoHTML.nullish(),
   queueId: z.string().nullish(),
+  timestamp: z.date().optional(), // Required for ClickHouse deduplication
 });
 
 const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({

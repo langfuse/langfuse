@@ -127,6 +127,9 @@ describe("mergeScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -174,6 +177,9 @@ describe("mergeScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -242,6 +248,9 @@ describe("mergeScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -326,6 +335,9 @@ describe("mergeAggregatesWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -369,6 +381,9 @@ describe("mergeAggregatesWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -412,6 +427,9 @@ describe("mergeAggregatesWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
       {
         id: "score-3",
@@ -425,6 +443,9 @@ describe("mergeAggregatesWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -539,6 +560,9 @@ describe("mergeAnnotationScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -583,6 +607,9 @@ describe("mergeAnnotationScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -613,9 +640,10 @@ describe("mergeAnnotationScoresWithCache", () => {
         comment: "Test",
         traceId: "trace-1",
         observationId: "obs-1",
-        sessionId: undefined,
+        sessionId: null,
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
       },
     ];
 
@@ -638,6 +666,7 @@ describe("mergeAnnotationScoresWithCache", () => {
       traceId: "trace-1",
       observationId: "obs-1",
       sessionId: null,
+      timestamp: expect.any(Date),
     });
   });
 });

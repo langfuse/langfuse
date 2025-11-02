@@ -4,6 +4,7 @@ import { env } from "../../env";
 import { logger } from "../logger";
 
 const defaultRedisOptions: Partial<RedisOptions> = {
+  enableReadyCheck: true,
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
   keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
@@ -76,6 +77,7 @@ const createRedisClusterInstance = (
     dnsLookup: (address, callback) => {
       callback(null, address);
     },
+    slotsRefreshTimeout: 5000,
     redisOptions: {
       username: env.REDIS_USERNAME || undefined,
       password: env.REDIS_AUTH || undefined,
