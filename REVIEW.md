@@ -9,10 +9,12 @@
 - ClickHouse migrations in the `packages/shared/clickhouse/migrations/unclustered` directory must not include `ON CLUSTER` statements and must not use `Replicated` merge tree table types.
 - Migrations in `packages/shared/clickhouse/migrations/clustered` should match their counterparts in `packages/shared/clickhouse/migrations/unclustered` aside from the restrictions listed above.
 - When adding new indexes on ClickHouse, ensure that there is a corresponding `MATERIALIZE INDEX` statement in the same migration. The materialization can use `SETTINGS mutations_sync = 2` if they operate on smaller tables, but may timeout otherwise.
+- **CRITICAL SECURITY**: All ClickHouse queries on project-scoped tables (traces, observations, scores, events, sessions, etc.) MUST include `WHERE project_id = {projectId: String}` filter. Missing this filter is a security vulnerability that allows cross-project data access.
 
 ### Postgres
 
 - Most `schema.prisma` changes should produce a change in `packages/shared/prisma/migrations`.
+- **CRITICAL SECURITY**: All Prisma queries on project-scoped tables MUST include `projectId` in the WHERE clause (e.g., `where: { id: traceId, projectId }`). Missing this filter is a security vulnerability that allows cross-project data access.
 
 ### Environment Variables
 

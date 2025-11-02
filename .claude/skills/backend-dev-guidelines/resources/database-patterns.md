@@ -25,6 +25,8 @@ Langfuse uses a **dual database architecture**:
 
 **Key Principle**: Use PostgreSQL for transactional data and relationships. Use ClickHouse for high-volume analytics and time-series data.
 
+**⚠️ CRITICAL SECURITY REQUIREMENT**: All queries MUST filter by `project_id` (or `projectId`) to ensure proper data isolation between projects. This is non-negotiable for multi-tenant security.
+
 ---
 
 ## PostgreSQL with Prisma
@@ -42,6 +44,8 @@ const user = await prisma.user.findUnique({ where: { id } });
 
 ### Common CRUD Operations
 
+**⚠️ ALWAYS include `projectId` in WHERE clauses** for project-scoped data:
+
 ```typescript
 // Create
 const project = await prisma.project.create({
@@ -51,14 +55,19 @@ const project = await prisma.project.create({
   },
 });
 
-// Read with relations
+// ✅ GOOD: Read with projectId filter
 const trace = await prisma.trace.findUnique({
-  where: { id: traceId, projectId },
+  where: { id: traceId, projectId },  // ← Always include projectId
   include: {
     scores: true,
     project: { select: { id: true, name: true } },
   },
 });
+
+// ❌ BAD: Missing projectId filter (security risk!)
+// const trace = await prisma.trace.findUnique({
+//   where: { id: traceId },  // ← Missing projectId!
+// });
 
 // Update
 await prisma.user.update({
@@ -66,14 +75,14 @@ await prisma.user.update({
   data: { lastLogin: new Date() },
 });
 
-// Delete
+// ✅ GOOD: Delete with projectId
 await prisma.apiKey.delete({
-  where: { id: apiKeyId, projectId },
+  where: { id: apiKeyId, projectId },  // ← Always include projectId
 });
 
-// Count
+// ✅ GOOD: Count with projectId
 const traceCount = await prisma.trace.count({
-  where: { projectId, userId },
+  where: { projectId, userId },  // ← Always include projectId
 });
 ```
 
@@ -198,27 +207,36 @@ const client = clickhouseClient(undefined, "ReadOnly");
 
 ClickHouse queries use **raw SQL** with parameterized queries. Parameters use `{paramName: Type}` syntax:
 
+**⚠️ CRITICAL**: ALL ClickHouse queries MUST include `project_id` filter for data isolation.
+
 **Simple query:**
 
 ```typescript
 import { queryClickhouse } from "@langfuse/shared/src/server/repositories/clickhouse";
 
+// ✅ GOOD: Always filter by project_id
 const rows = await queryClickhouse<{ id: string; name: string }>({
   query: `
     SELECT id, name, timestamp
     FROM traces
-    WHERE project_id = {projectId: String}
+    WHERE project_id = {projectId: String}  -- ← REQUIRED: Always filter by project_id
     AND timestamp >= {startTime: DateTime64(3)}
     ORDER BY timestamp DESC
     LIMIT {limit: UInt32}
   `,
   params: {
-    projectId,
+    projectId,  // ← REQUIRED parameter
     startTime: convertDateToClickhouseDateTime(startDate),
     limit: 100,
   },
   tags: { feature: "tracing", type: "trace" },
 });
+
+// ❌ BAD: Missing project_id filter (SECURITY RISK!)
+// const rows = await queryClickhouse({
+//   query: `SELECT * FROM traces WHERE timestamp >= {startTime: DateTime64(3)}`,
+//   params: { startTime },
+// });
 ```
 
 **Streaming query (for large result sets):**
@@ -305,33 +323,56 @@ const params = {
 
 ### ClickHouse Query Best Practices
 
-**Use LIMIT BY for deduplication:**
+**1. ALWAYS filter by `project_id` (SECURITY):**
+
+```typescript
+// ✅ CORRECT: project_id filter is MANDATORY
+const query = `
+  SELECT *
+  FROM traces
+  WHERE project_id = {projectId: String}  -- ← ALWAYS REQUIRED
+  AND timestamp >= {startTime: DateTime64(3)}
+`;
+
+// ❌ WRONG: Missing project_id (SECURITY VULNERABILITY!)
+// const query = `
+//   SELECT * FROM traces WHERE timestamp >= {startTime: DateTime64(3)}
+// `;
+```
+
+**Why this is critical:**
+- Langfuse is multi-tenant - each project must be isolated
+- Missing `project_id` filter allows cross-project data access
+- This is a **security vulnerability** that can expose sensitive data
+- ALL queries on project-scoped tables (traces, observations, scores, sessions, etc.) MUST filter by `project_id`
+
+**2. Use LIMIT BY for deduplication:**
 
 ```typescript
 // Get latest version of each trace
 const query = `
   SELECT *
   FROM traces
-  WHERE project_id = {projectId: String}
+  WHERE project_id = {projectId: String}  -- ← Always include project_id
   ORDER BY event_ts DESC
   LIMIT 1 BY id, project_id
 `;
 ```
 
-**Use time-based filtering:**
+**3. Use time-based filtering for performance:**
 
 ```typescript
-// Always filter by timestamp for performance
+// Combine project_id filter with timestamp for optimal performance
 const query = `
   SELECT *
   FROM observations
-  WHERE project_id = {projectId: String}
-  AND start_time >= {startTime: DateTime64(3)}
+  WHERE project_id = {projectId: String}  -- ← Required for security
+  AND start_time >= {startTime: DateTime64(3)}  -- ← Improves performance
   AND start_time < {endTime: DateTime64(3)}
 `;
 ```
 
-**Use CTEs for complex queries:**
+**4. Use CTEs for complex queries (still require `project_id`):**
 
 ```typescript
 const query = `
@@ -341,7 +382,7 @@ const query = `
       count() as observation_count,
       sum(total_cost) as total_cost
     FROM observations
-    WHERE project_id = {projectId: String}
+    WHERE project_id = {projectId: String}  -- ← Filter in CTE
     GROUP BY trace_id
   )
   SELECT
@@ -351,9 +392,11 @@ const query = `
     o.total_cost
   FROM traces t
   LEFT JOIN observations_agg o ON t.id = o.trace_id
-  WHERE t.project_id = {projectId: String}
+  WHERE t.project_id = {projectId: String}  -- ← Filter in main query
 `;
 ```
+
+**Note**: When using CTEs or subqueries, ensure `project_id` filter is applied at each level.
 
 **Error handling with retries:**
 
@@ -474,6 +517,44 @@ export const getScoresByTraceId = async (
 4. Is it configuration or user data? → **PostgreSQL**
 5. Is it frequently updated? → **PostgreSQL**
 6. Is it append-only analytics data? → **ClickHouse**
+
+### Project-Scoped vs Global Tables
+
+**Project-scoped tables (MUST filter by `project_id`):**
+- `traces` - All trace queries require `project_id`
+- `observations` - All observation queries require `project_id`
+- `scores` - All score queries require `project_id`
+- `events` - All event queries require `project_id`
+- `dataset_run_items_rmt` - All dataset run queries require `project_id`
+
+**Global tables (no `project_id` filter needed):**
+- `users` - User management (use `id` for filtering)
+- `organizations` - Organization data (use `id` for filtering)
+- System configuration tables
+
+**Example of correct filtering:**
+
+```typescript
+// ✅ CORRECT: Project-scoped query
+const traces = await queryClickhouse({
+  query: `
+    SELECT * FROM traces
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {startTime: DateTime64(3)}
+  `,
+  params: { projectId, startTime },
+});
+
+// ✅ CORRECT: Global table query (no project_id needed)
+const user = await prisma.user.findUnique({
+  where: { id: userId },
+});
+
+// ❌ WRONG: Project-scoped query without project_id filter
+// const traces = await queryClickhouse({
+//   query: `SELECT * FROM traces WHERE timestamp >= {startTime: DateTime64(3)}`,
+// });
+```
 
 ---
 
