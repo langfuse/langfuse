@@ -17,41 +17,47 @@ Automatically activates when working on:
 - Creating or modifying public API endpoints (REST)
 - Creating or modifying BullMQ queue consumers and producers
 - Building services with business logic
+- Authenticating API requests
+- Accessing ressources based on entitlements
 - Implementing middleware (tRPC, NextAuth, public API)
 - Database operations with Prisma (PostgreSQL) or ClickHouse
 - Error tracking with traceException and OpenTelemetry instrumentation
 - Input validation with Zod v4
-- Environment configuration with from environment variables
+- Environment configuration from env variables
 - Backend testing and refactoring
 
 ---
 
 ## Quick Start
 
-### New tRPC Feature Checklist (Web)
+### UI: New tRPC Feature Checklist (Web)
 
 - [ ] **Router**: Define in `features/[feature]/server/*Router.ts`
 - [ ] **Procedures**: Use appropriate procedure type (protected, public)
-- [ ] **Service**: Business logic in service file
+- [ ] **Authentication**: Use JWT authorization via middlewares.
+- [ ] **Entitlement check**: Access ressources based on ressource and role
 - [ ] **Validation**: Zod v4 schema for input
+- [ ] **Service**: Business logic in service file
 - [ ] **Error handling**: Use traceException wrapper
 - [ ] **Tests**: Unit + integration tests in `__tests__/`
 - [ ] **Config**: Access via env.mjs
 
-### New Public API Endpoint Checklist (Web)
+### SDKs: New Public API Endpoint Checklist (Web)
 
 - [ ] **Route file**: Create in `pages/api/public/`
 - [ ] **Wrapper**: Use `withMiddlewares` + `createAuthedProjectAPIRoute`
 - [ ] **Types**: Define in `features/public-api/types/`
-- [ ] **Validation**: Zod v4 schemas for query/body/response
-- [ ] **Versioning**: Zod v4 schemas for query/body/response
+- [ ] **Authentication**: Authorization via basic auth
+- [ ] **Validation**: Zod schemas for query/body/response
+- [ ] **Versioning**: Versioning in API path and Zod schemas for query/body/response
 - [ ] **Tests**: Add end-to-end test in `__tests__/async/`
 
 ### New Queue Processor Checklist (Worker)
 
 - [ ] **Processor**: Create in `worker/src/queues/`
+- [ ] **Queue types**: Create queue types in `packages/shared/src/server/queues`
 - [ ] **Service**: Business logic in `features/` or `worker/src/features/`
-- [ ] **Error handling**: Use traceException + mark unrecoverable errors
+- [ ] **Error handling**: Distinguish between errors which should fail queue processing and errors which should result in a succeeded event.
 - [ ] **Queue registration**: Add to WorkerManager in app.ts
 - [ ] **Tests**: Add vitest tests in worker
 
@@ -94,7 +100,7 @@ Automatically activates when working on:
 
 **Key Principles:**
 
-- **Web**: tRPC procedures OR public API routes → Services → Database
+- **Web**: tRPC procedures for UI OR public API routes for SDKs → Services → Database
 - **Worker**: Queue processors → Services → Database
 - **packages/shared**: Shared code for Web and Worker
 
@@ -227,41 +233,15 @@ import { encrypt, decrypt, sign, verify } from "@langfuse/shared/encryption";
 
 **What Goes Where:**
 
-- **`@langfuse/shared`** (main export):
-  - Prisma types (`@prisma/client` re-exports)
-  - Zod schemas and validation
-  - Type definitions and interfaces
-  - Constants and enums
-  - Table definitions
-  - Feature types (evals, prompts, datasets, etc.)
-  - Utility functions (JSON, string checks, type checks)
+The shared package provides types, utilities, and server code used by both web and worker packages. It has **5 export paths** that control frontend vs backend access:
 
-- **`@langfuse/shared/src/db`**:
-  - Prisma client instance
-  - Database types (Prisma, DB)
-  - Use when you need direct database access
-
-- **`@langfuse/shared/src/server`**:
-  - All server-side code (never imported by client)
-  - Services (Storage, Prompt, Email, etc.)
-  - Redis queues and cache
-  - Authentication utilities
-  - ClickHouse client and queries
-  - OpenTelemetry instrumentation
-  - Logger
-  - Repositories
-  - LLM integration utilities
-  - Ingestion processors
-
-- **`@langfuse/shared/src/server/auth/apiKeys`**:
-  - API key creation and management
-  - Hashing and verification
-  - Use when working with API keys specifically
-
-- **`@langfuse/shared/encryption`**:
-  - Encryption/decryption functions
-  - Digital signature utilities
-  - Use for security-sensitive data
+| Import Path                                | Usage                 | What's Included                                                                    |
+| ------------------------------------------ | --------------------- | ---------------------------------------------------------------------------------- |
+| `@langfuse/shared`                         | ✅ Frontend + Backend | Prisma types, Zod schemas, constants, table definitions, domain models, utilities  |
+| `@langfuse/shared/src/db`                  | 🔒 Backend only       | Prisma client instance                                                             |
+| `@langfuse/shared/src/server`              | 🔒 Backend only       | Services, repositories, queues, auth, ClickHouse, LLM integration, instrumentation |
+| `@langfuse/shared/src/server/auth/apiKeys` | 🔒 Backend only       | API key management (separated to avoid circular deps)                              |
+| `@langfuse/shared/encryption`              | 🔒 Backend only       | Database field encryption/decryption                                               |
 
 **Naming Conventions:**
 
@@ -330,7 +310,7 @@ const dataset = await prisma.dataset.findUnique({
 });
 ```
 
-### 6. ### 6. Instrument Critical Operations (all API routes are auto-instrumented by a wrapper span)
+### 6. Instrument Critical Operations (all API routes are auto-instrumented by a wrapper span)
 
 ```typescript
 import { instrumentAsync } from "@langfuse/shared/src/server";
@@ -474,12 +454,9 @@ import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 | Understand architecture   | [architecture-overview.md](architecture-overview.md)         |
 | Create routes/controllers | [routing-and-controllers.md](routing-and-controllers.md)     |
 | Organize business logic   | [services-and-repositories.md](services-and-repositories.md) |
-| Validate input            | [validation-patterns.md](validation-patterns.md)             |
-| Add error tracking        | [sentry-and-monitoring.md](sentry-and-monitoring.md)         |
 | Create middleware         | [middleware-guide.md](middleware-guide.md)                   |
 | Database access           | [database-patterns.md](database-patterns.md)                 |
 | Manage config             | [configuration.md](configuration.md)                         |
-| Handle async/errors       | [async-and-errors.md](async-and-errors.md)                   |
 | Write tests               | [testing-guide.md](testing-guide.md)                         |
 | See examples              | [complete-examples.md](complete-examples.md)                 |
 
@@ -499,14 +476,6 @@ Route definitions, BaseController, error handling, examples
 
 Service patterns, DI, repository pattern, caching
 
-### [validation-patterns.md](validation-patterns.md)
-
-Zod schemas, validation, DTO pattern
-
-### [sentry-and-monitoring.md](sentry-and-monitoring.md)
-
-Sentry init, error capture, performance monitoring
-
 ### [middleware-guide.md](middleware-guide.md)
 
 Auth, audit, error boundaries, AsyncLocalStorage
@@ -519,17 +488,9 @@ PrismaService, repositories, transactions, optimization
 
 UnifiedConfig, environment configs, secrets
 
-### [async-and-errors.md](async-and-errors.md)
-
-Async patterns, custom errors, asyncErrorWrapper
-
 ### [testing-guide.md](testing-guide.md)
 
 Unit/integration tests, mocking, coverage
-
-### [complete-examples.md](complete-examples.md)
-
-Full examples, refactoring guide
 
 ---
 

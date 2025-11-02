@@ -1,275 +1,535 @@
-# Configuration Management - UnifiedConfig Pattern
+# Configuration Management - Environment Variables
 
-Complete guide to managing configuration in backend microservices.
+Complete guide to managing configuration across Langfuse's monorepo packages.
 
 ## Table of Contents
 
-- [UnifiedConfig Overview](#unifiedconfig-overview)
-- [NEVER Use process.env Directly](#never-use-processenv-directly)
-- [Configuration Structure](#configuration-structure)
-- [Environment-Specific Configs](#environment-specific-configs)
-- [Secrets Management](#secrets-management)
-- [Migration Guide](#migration-guide)
+- [Environment Variable Pattern](#environment-variable-pattern)
+- [Package-Specific Configuration](#package-specific-configuration)
+- [Special Environment Variables](#special-environment-variables)
+- [Best Practices](#best-practices)
 
 ---
 
-## UnifiedConfig Overview
+## Environment Variable Pattern
 
-### Why UnifiedConfig?
+### Why Zod-Validated Environment Variables?
 
-**Problems with process.env:**
+**Problems with raw process.env:**
+
 - ❌ No type safety
 - ❌ No validation
 - ❌ Hard to test
-- ❌ Scattered throughout code
-- ❌ No default values
 - ❌ Runtime errors for typos
+- ❌ No default values
 
-**Benefits of unifiedConfig:**
+**Benefits of Zod validation:**
+
 - ✅ Type-safe configuration
-- ✅ Single source of truth
 - ✅ Validated at startup
-- ✅ Easy to test with mocks
-- ✅ Clear structure
-- ✅ Fallback to environment variables
+- ✅ Clear error messages
+- ✅ Default values
+- ✅ Environment-specific transformation
 
 ---
 
-## NEVER Use process.env Directly
+## Package-Specific Configuration
 
-### The Rule
+Each package has its own `env.ts` or `env.mjs` file that validates and exports environment variables:
+
+```
+langfuse/
+├── web/src/env.mjs              # Next.js app (t3-env pattern)
+├── worker/src/env.ts            # Worker service (Zod schema)
+├── packages/shared/src/env.ts   # Shared config (Zod schema)
+└── ee/src/env.ts                # Enterprise Edition (Zod schema)
+```
+
+### Web Package (`web/src/env.mjs`)
+
+Uses **t3-oss/env-nextjs** for Next.js-specific validation with server/client separation.
+
+**Key Features:**
+- Separates server-side and client-side environment variables
+- Client variables must be prefixed with `NEXT_PUBLIC_`
+- Validates at build time (unless `DOCKER_BUILD=1`)
+- `runtimeEnv` section manually maps all variables
+
+**Structure:**
+
+```typescript
+import { createEnv } from "@t3-oss/env-nextjs";
+import { z } from "zod";
+
+export const env = createEnv({
+  // Server-side only variables (never exposed to client)
+  server: {
+    DATABASE_URL: z.string().url(),
+    NEXTAUTH_SECRET: z.string().min(1),
+    SALT: z.string(),
+    CLICKHOUSE_URL: z.string().url(),
+    // ... 100+ server variables
+  },
+
+  // Client-side variables (exposed to browser)
+  client: {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
+      .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+      .optional(),
+    NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
+    // ... client variables
+  },
+
+  // Runtime mapping (required for Next.js edge runtime)
+  runtimeEnv: {
+    DATABASE_URL: process.env.DATABASE_URL,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    // ... must map ALL variables
+  },
+
+  // Skip validation in Docker builds
+  skipValidation: process.env.DOCKER_BUILD === "1",
+  emptyStringAsUndefined: true,
+});
+```
+
+**Usage:**
+
+```typescript
+// In server-side code (tRPC, API routes)
+import { env } from "@/src/env.mjs";
+
+const dbUrl = env.DATABASE_URL;
+const salt = env.SALT;
+
+// In client-side code (React components)
+import { env } from "@/src/env.mjs";
+
+const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+```
+
+### Worker Package (`worker/src/env.ts`)
+
+Uses **plain Zod schema** for Express.js worker service.
+
+**Structure:**
+
+```typescript
+import { z } from "zod/v4";
+import { removeEmptyEnvVariables } from "@langfuse/shared";
+
+const EnvSchema = z.object({
+  BUILD_ID: z.string().optional(),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  DATABASE_URL: z.string(),
+  PORT: z.coerce.number().positive().max(65536).default(3030),
+
+  // ClickHouse
+  CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_PASSWORD: z.string(),
+
+  // S3 Event Upload (required)
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
+    error: "Langfuse requires a bucket name for S3 Event Uploads.",
+  }),
+
+  // Queue concurrency settings
+  LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce.number().positive().default(20),
+  LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce.number().positive().default(5),
+
+  // Queue consumer toggles
+  QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z.enum(["true", "false"]).default("true"),
+  QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED: z.enum(["true", "false"]).default("true"),
+
+  // ... 150+ worker-specific variables
+});
+
+export const env: z.infer<typeof EnvSchema> =
+  process.env.DOCKER_BUILD === "1"
+    ? (process.env as any)
+    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+```
+
+**Usage:**
+
+```typescript
+import { env } from "./env";
+
+const concurrency = env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY;
+const s3Bucket = env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET;
+```
+
+### Shared Package (`packages/shared/src/env.ts`)
+
+Uses **plain Zod schema** for configuration shared between web and worker.
+
+**Structure:**
+
+```typescript
+import { z } from "zod/v4";
+import { removeEmptyEnvVariables } from "./utils/environment";
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+
+  // Redis configuration
+  REDIS_HOST: z.string().nullish(),
+  REDIS_PORT: z.coerce.number().positive().max(65536).default(6379).nullable(),
+  REDIS_AUTH: z.string().nullish(),
+  REDIS_CONNECTION_STRING: z.string().nullish(),
+  REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+
+  // ClickHouse
+  CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+
+  // S3 Event Upload
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(),
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
+
+  // Logging
+  LANGFUSE_LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).optional(),
+  LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
+
+  // Encryption
+  ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32").optional(),
+
+  // ... 80+ shared variables
+});
+
+export const env: z.infer<typeof EnvSchema> =
+  process.env.DOCKER_BUILD === "1"
+    ? (process.env as any)
+    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+```
+
+**Usage:**
+
+```typescript
+import { env } from "@langfuse/shared/src/env";
+
+const redisHost = env.REDIS_HOST;
+const clickhouseUrl = env.CLICKHOUSE_URL;
+```
+
+### Enterprise Edition Package (`ee/src/env.ts`)
+
+Minimal Zod schema for EE-specific variables.
+
+**Structure:**
+
+```typescript
+import { z } from "zod/v4";
+import { removeEmptyEnvVariables } from "@langfuse/shared";
+
+const EnvSchema = z.object({
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
+  LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+});
+
+export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+```
+
+**Usage:**
+
+```typescript
+import { env } from "@langfuse/ee/src/env";
+
+const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
+```
+
+---
+
+## Special Environment Variables
+
+### NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+
+**Purpose:** Identifies the cloud deployment region for Langfuse Cloud.
+
+**Type:** `"US" | "EU" | "STAGING" | "DEV" | "HIPAA" | undefined`
+
+**Where Used:**
+- **web/src/env.mjs** - Client-side accessible (prefixed with `NEXT_PUBLIC_`)
+- **ee/src/env.ts** - Enterprise features
+- **packages/shared/src/env.ts** - Shared logic
+- **worker/src/env.ts** - Worker processing
+
+**When Set:**
+
+| Environment | Value | Purpose |
+|-------------|-------|---------|
+| **Developer Laptop** | `"DEV"` or `"STAGING"` | Local development against cloud infrastructure |
+| **Langfuse Cloud US** | `"US"` | Production US region |
+| **Langfuse Cloud EU** | `"EU"` | Production EU region |
+| **Langfuse Cloud HIPAA** | `"HIPAA"` | HIPAA-compliant region |
+| **OSS Self-Hosted** | `undefined` (not set) | Self-hosted deployments don't have region |
+
+**Use Cases:**
+
+```typescript
+// Check if running in cloud
+if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  // Enable cloud-specific features
+  - Usage metering and billing
+  - Cloud spend alerts
+  - Free tier enforcement
+  - Stripe integration
+  - PostHog analytics
+}
+
+// Region-specific behavior
+if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA") {
+  // HIPAA compliance features
+}
+
+// Development/staging checks
+if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
+  // Enable debug features
+}
+```
+
+**Example Configuration:**
+
+```bash
+# .env file on developer laptop
+NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV
+
+# Cloud US deployment
+NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=US
+
+# Self-hosted OSS deployment
+# (variable not set)
+```
+
+### LANGFUSE_EE_LICENSE_KEY
+
+**Purpose:** Enables Enterprise Edition features in self-hosted deployments.
+
+**Type:** `string | undefined`
+
+**Where Used:**
+- **web/src/env.mjs** - Web app EE features
+- **ee/src/env.ts** - EE package
+
+**When Set:**
+
+| Deployment | Value | Features Enabled |
+|------------|-------|------------------|
+| **Langfuse Cloud** | Not set | Cloud features controlled by `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` |
+| **OSS Self-Hosted** | Not set | Core open-source features only |
+| **EE Self-Hosted** | License key string | Enterprise features enabled |
+
+**Enterprise Features Controlled:**
+
+When `LANGFUSE_EE_LICENSE_KEY` is set and valid:
+- SSO integrations (custom OIDC, SAML)
+- Advanced RBAC
+- Audit logging
+- Custom branding
+- SLA support
+- Advanced security features
+
+**Usage Pattern:**
+
+```typescript
+import { env } from "@/src/env.mjs";
+
+// Check if EE license is present
+if (env.LANGFUSE_EE_LICENSE_KEY) {
+  // Validate license
+  const isValidLicense = await validateEELicense(env.LANGFUSE_EE_LICENSE_KEY);
+
+  if (isValidLicense) {
+    // Enable EE features
+    enableCustomSSO();
+    enableAdvancedRBAC();
+  }
+}
+```
+
+**Example Configuration:**
+
+```bash
+# OSS self-hosted (no license)
+# LANGFUSE_EE_LICENSE_KEY not set
+
+# EE self-hosted
+LANGFUSE_EE_LICENSE_KEY=ee_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Langfuse Cloud (uses region instead)
+NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=US
+# LANGFUSE_EE_LICENSE_KEY not used
+```
+
+### Other Important Variables
+
+**DOCKER_BUILD**
+
+```typescript
+// Skip validation during Docker builds
+skipValidation: process.env.DOCKER_BUILD === "1"
+```
+
+**Purpose:** Docker builds happen before runtime env vars are available, so validation must be skipped.
+
+**SALT**
+
+```typescript
+SALT: z.string({
+  required_error: "A strong Salt is required to encrypt API keys securely.",
+})
+```
+
+**Purpose:** Required for encrypting API keys in database. Must be set in production.
+
+**ENCRYPTION_KEY**
+
+```typescript
+ENCRYPTION_KEY: z.string().length(64, "Must be 256 bits, 64 hex characters")
+```
+
+**Purpose:** Optional 256-bit key for encrypting sensitive database fields.
+
+**Generate:** `openssl rand -hex 32`
+
+---
+
+## Best Practices
+
+### 1. Always Import from env.mjs/env.ts
 
 ```typescript
 // ❌ NEVER DO THIS
-const timeout = parseInt(process.env.TIMEOUT_MS || '5000');
-const dbHost = process.env.DB_HOST || 'localhost';
+const dbUrl = process.env.DATABASE_URL;
 
 // ✅ ALWAYS DO THIS
-import { config } from './config/unifiedConfig';
-const timeout = config.timeouts.default;
-const dbHost = config.database.host;
+import { env } from "@/src/env.mjs";
+const dbUrl = env.DATABASE_URL; // Type-safe, validated
 ```
 
-### Why This Matters
-
-**Example of problems:**
-```typescript
-// Typo in environment variable name
-const host = process.env.DB_HSOT; // undefined! No error!
-
-// Type safety
-const port = process.env.PORT; // string! Need parseInt
-const timeout = parseInt(process.env.TIMEOUT); // NaN if not set!
-```
-
-**With unifiedConfig:**
-```typescript
-const port = config.server.port; // number, guaranteed
-const timeout = config.timeouts.default; // number, with fallback
-```
-
----
-
-## Configuration Structure
-
-### UnifiedConfig Interface
+### 2. Use Appropriate Import Path
 
 ```typescript
-export interface UnifiedConfig {
-    database: {
-        host: string;
-        port: number;
-        username: string;
-        password: string;
-        database: string;
-    };
-    server: {
-        port: number;
-        sessionSecret: string;
-    };
-    tokens: {
-        jwt: string;
-        inactivity: string;
-        internal: string;
-    };
-    keycloak: {
-        realm: string;
-        client: string;
-        baseUrl: string;
-        secret: string;
-    };
-    aws: {
-        region: string;
-        emailQueueUrl: string;
-        accessKeyId: string;
-        secretAccessKey: string;
-    };
-    sentry: {
-        dsn: string;
-        environment: string;
-        tracesSampleRate: number;
-    };
-    // ... more sections
-}
+// In web package
+import { env } from "@/src/env.mjs";
+
+// In worker package
+import { env } from "./env";
+
+// In shared package
+import { env } from "@langfuse/shared/src/env";
 ```
 
-### Implementation Pattern
-
-**File:** `/blog-api/src/config/unifiedConfig.ts`
+### 3. Client Variables Must Start with NEXT_PUBLIC_
 
 ```typescript
-import * as fs from 'fs';
-import * as path from 'path';
-import * as ini from 'ini';
+// ❌ Won't work in browser
+API_KEY: z.string() // in server config
 
-const configPath = path.join(__dirname, '../../config.ini');
-const iniConfig = ini.parse(fs.readFileSync(configPath, 'utf-8'));
-
-export const config: UnifiedConfig = {
-    database: {
-        host: iniConfig.database?.host || process.env.DB_HOST || 'localhost',
-        port: parseInt(iniConfig.database?.port || process.env.DB_PORT || '3306'),
-        username: iniConfig.database?.username || process.env.DB_USER || 'root',
-        password: iniConfig.database?.password || process.env.DB_PASSWORD || '',
-        database: iniConfig.database?.database || process.env.DB_NAME || 'blog_dev',
-    },
-    server: {
-        port: parseInt(iniConfig.server?.port || process.env.PORT || '3002'),
-        sessionSecret: iniConfig.server?.sessionSecret || process.env.SESSION_SECRET || 'dev-secret',
-    },
-    // ... more configuration
-};
-
-// Validate critical config
-if (!config.tokens.jwt) {
-    throw new Error('JWT secret not configured!');
-}
+// ✅ Accessible in browser
+NEXT_PUBLIC_API_KEY: z.string() // in client config
 ```
 
-**Key Points:**
-- Read from config.ini first
-- Fallback to process.env
-- Default values for development
-- Validation at startup
-- Type-safe access
+### 4. Provide Sensible Defaults for Development
 
----
-
-## Environment-Specific Configs
-
-### config.ini Structure
-
-```ini
-[database]
-host = localhost
-port = 3306
-username = root
-password = password1
-database = blog_dev
-
-[server]
-port = 3002
-sessionSecret = your-secret-here
-
-[tokens]
-jwt = your-jwt-secret
-inactivity = 30m
-internal = internal-api-token
-
-[keycloak]
-realm = myapp
-client = myapp-client
-baseUrl = http://localhost:8080
-secret = keycloak-client-secret
-
-[sentry]
-dsn = https://your-sentry-dsn
-environment = development
-tracesSampleRate = 0.1
+```typescript
+PORT: z.coerce.number().positive().default(3030),
+NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+REDIS_PORT: z.coerce.number().positive().default(6379),
 ```
 
-### Environment Overrides
+### 5. Use Coercion for Numbers
+
+```typescript
+// .env files are always strings
+PORT: z.coerce.number() // Converts "3000" to 3000
+```
+
+### 6. Transform Complex Values
+
+```typescript
+// Split comma-separated values
+LANGFUSE_LOG_PROPAGATED_HEADERS: z.string().optional().transform((s) =>
+  s ? s.split(",").map((s) => s.toLowerCase().trim()) : []
+),
+
+// Parse project:rate pairs
+LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z.string().optional().transform((val) => {
+  const map = new Map<string, number>();
+  val?.split(",").forEach(part => {
+    const [projectId, rate] = part.split(":");
+    map.set(projectId, parseFloat(rate));
+  });
+  return map;
+}),
+```
+
+### 7. Validation at Startup
+
+All environment variables are validated when the application starts. Invalid configuration will cause immediate failure with clear error messages:
 
 ```bash
-# .env file (optional overrides)
-DB_HOST=production-db.example.com
-DB_PASSWORD=secure-password
-PORT=80
+❌ Validation error:
+  - SALT: Required
+  - CLICKHOUSE_URL: Invalid url
+  - PORT: Number must be less than or equal to 65536
 ```
 
-**Precedence:**
-1. config.ini (highest priority)
-2. process.env variables
-3. Hard-coded defaults (lowest priority)
+### 8. Skip Validation in Docker Builds
 
----
-
-## Secrets Management
-
-### DO NOT Commit Secrets
-
-```gitignore
-# .gitignore
-config.ini
-.env
-sentry.ini
-*.pem
-*.key
-```
-
-### Use Environment Variables in Production
+Always include the Docker build escape hatch:
 
 ```typescript
-// Development: config.ini
-// Production: Environment variables
-
-export const config: UnifiedConfig = {
-    database: {
-        password: process.env.DB_PASSWORD || iniConfig.database?.password || '',
-    },
-    tokens: {
-        jwt: process.env.JWT_SECRET || iniConfig.tokens?.jwt || '',
-    },
-};
+export const env =
+  process.env.DOCKER_BUILD === "1"
+    ? (process.env as any)
+    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
 ```
 
----
+### 9. Use removeEmptyEnvVariables Helper
 
-## Migration Guide
+Treats empty strings as undefined:
 
-### Find All process.env Usage
+```typescript
+import { removeEmptyEnvVariables } from "@langfuse/shared";
+
+EnvSchema.parse(removeEmptyEnvVariables(process.env));
+```
+
+This prevents errors from `.env` files with empty values:
 
 ```bash
-grep -r "process.env" blog-api/src/ --include="*.ts" | wc -l
+# .env
+OPTIONAL_VAR=    # Treated as undefined, not empty string
 ```
 
-### Migration Example
+---
 
-**Before:**
-```typescript
-// Scattered throughout code
-const timeout = parseInt(process.env.OPENID_HTTP_TIMEOUT_MS || '15000');
-const keycloakUrl = process.env.KEYCLOAK_BASE_URL;
-const jwtSecret = process.env.JWT_SECRET;
+## Configuration File Locations
+
+```
+langfuse/
+├── .env                          # Local development overrides
+├── .env.dev.example              # Example dev configuration
+├── web/src/env.mjs               # Web app env validation
+├── worker/src/env.ts             # Worker env validation
+├── packages/shared/src/env.ts    # Shared env validation
+└── ee/src/env.ts                 # EE env validation
 ```
 
-**After:**
-```typescript
-import { config } from './config/unifiedConfig';
-
-const timeout = config.keycloak.timeout;
-const keycloakUrl = config.keycloak.baseUrl;
-const jwtSecret = config.tokens.jwt;
-```
-
-**Benefits:**
-- Type-safe
-- Centralized
-- Easy to test
-- Validated at startup
+**DO NOT commit:**
+- `.env`
+- `.env.local`
+- `.env.production`
 
 ---
 
 **Related Files:**
-- [SKILL.md](SKILL.md)
-- [testing-guide.md](testing-guide.md)
+
+- [SKILL.md](../SKILL.md) - Main guide
+- [architecture-overview.md](architecture-overview.md) - Architecture patterns

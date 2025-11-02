@@ -1,364 +1,434 @@
-# Architecture Overview - Backend Services
+# Architecture Overview - Langfuse Backend
 
-Complete guide to the layered architecture pattern used in backend services.
+Complete guide to the layered architecture pattern used in Langfuse's Next.js 14/tRPC/Express monorepo.
 
 ## Table of Contents
 
 - [Layered Architecture Pattern](#layered-architecture-pattern)
 - [Request Lifecycle](#request-lifecycle)
-- [Service Comparison](#service-comparison)
-- [Directory Structure Rationale](#directory-structure-rationale)
+- [Directory Structure](#directory-structure)
 - [Module Organization](#module-organization)
 - [Separation of Concerns](#separation-of-concerns)
+- [Database Architecture](#database-architecture)
 
 ---
 
 ## Layered Architecture Pattern
 
-### The Four Layers
+Langfuse uses a **three-layer architecture** with two primary entry points (tRPC and Public API) plus async processing via Worker.
+
+### The Three Layers
 
 ```
-┌─────────────────────────────────────┐
-│         HTTP Request                │
-└───────────────┬─────────────────────┘
-                ↓
-┌─────────────────────────────────────┐
-│  Layer 1: ROUTES                    │
-│  - Route definitions only           │
-│  - Middleware registration          │
-│  - Delegate to controllers          │
-│  - NO business logic                │
-└───────────────┬─────────────────────┘
-                ↓
-┌─────────────────────────────────────┐
-│  Layer 2: CONTROLLERS               │
-│  - Request/response handling        │
-│  - Input validation                 │
-│  - Call services                    │
-│  - Format responses                 │
-│  - Error handling                   │
-└───────────────┬─────────────────────┘
-                ↓
-┌─────────────────────────────────────┐
-│  Layer 3: SERVICES                  │
-│  - Business logic                   │
-│  - Orchestration                    │
-│  - Call repositories                │
-│  - No HTTP knowledge                │
-└───────────────┬─────────────────────┘
-                ↓
-┌─────────────────────────────────────┐
-│  Layer 4: REPOSITORIES              │
-│  - Data access abstraction          │
-│  - Prisma operations                │
-│  - Query optimization               │
-│  - Caching                          │
-└───────────────┬─────────────────────┘
-                ↓
-┌─────────────────────────────────────┐
-│         Database (MySQL)            │
-└─────────────────────────────────────┘
+# Web Package (Next.js 14)
+
+┌─ tRPC API ──────────────────┐   ┌── Public REST API ──────────┐
+│                             │   │                             │
+│  HTTP Request               │   │  HTTP Request               │
+│      ↓                      │   │      ↓                      │
+│  tRPC Procedure             │   │  withMiddlewares +          │
+│  (protectedProjectProcedure)│   │  createAuthedProjectAPIRoute│
+│      ↓                      │   │      ↓                      │
+│  Service (business logic)   │   │  Service (business logic)   │
+│      ↓                      │   │      ↓                      │
+│  Prisma / ClickHouse        │   │  Prisma / ClickHouse        │
+│                             │   │                             │
+└─────────────────────────────┘   └─────────────────────────────┘
+                 ↓
+            [optional]: Publish to Redis BullMQ queue
+                 ↓
+┌─ Worker Package (Express) ──────────────────────────────────┐
+│                                                             │
+│  BullMQ Queue Job                                           │
+│      ↓                                                      │
+│  Queue Processor (handles job)                              │
+│      ↓                                                      │
+│  Service (business logic)                                   │
+│      ↓                                                      │
+│  Prisma / ClickHouse                                        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+### Layer Breakdown
+
+**Layer 1: API Entry Points**
+
+Two types of entry points:
+
+- **tRPC Procedures** - Type-safe RPC for UI
+  - Located in `features/[feature]/server/*Router.ts`
+  - Uses middleware for auth/validation
+  - Types shared between client/server
+
+- **Public REST APIs** - REST endpoints for SDKs
+  - Located in `pages/api/public/`
+  - Uses `withMiddlewares` + `createAuthedProjectAPIRoute`
+  - Versioned with Zod schemas
+
+**Layer 2: Services**
+
+- Business logic and orchestration
+- Shared between tRPC, Public API, and Worker
+- Located in `features/[feature]/server/service.ts`
+- No HTTP/Request/Response knowledge
+- Use repositories for complex queries or Prisma directly for simple CRUD
+
+**Layer 3: Data Access**
+
+- **Repositories** for complex data access patterns (traces, observations, scores, events)
+- **Direct Prisma** for simple CRUD operations in services
+- PostgreSQL for transactional data
+- ClickHouse for analytics/traces (accessed via repositories)
+- Redis for caching/queues
+
+**Async Processing Layer: Worker**
+
+- BullMQ queue processors
+- Same service layer as Web
+- Handles long-running operations
 
 ### Why This Architecture?
 
 **Testability:**
 
-- Each layer can be tested independently
-- Easy to mock dependencies
+- tRPC procedures easily testable with type-safe callers
+- Services tested independently with mocked DB
+- Queue processors tested with vitest
 - Clear test boundaries
 
 **Maintainability:**
 
-- Changes isolated to specific layers
-- Business logic separate from HTTP concerns
-- Easy to locate bugs
+- Business logic isolated in services
+- tRPC provides type safety end-to-end
+- Changes to API don't affect service layer
+- Easy to locate and fix bugs
 
 **Reusability:**
 
-- Services can be used by routes, cron jobs, scripts
-- Repositories hide database implementation
-- Business logic not tied to HTTP
+- Services used by tRPC, Public API, Worker, and scripts
+- Business logic not tied to HTTP or tRPC
+- Consistent patterns across packages
 
 **Scalability:**
 
-- Easy to add new endpoints
+- Worker handles async operations separately
+- Easy to add new tRPC procedures
 - Clear patterns to follow
-- Consistent structure
+- Shared code in packages/shared
 
 ---
 
 ## Request Lifecycle
 
-### Complete Flow Example
+### tRPC Request Flow (UI)
 
 ```typescript
-1. HTTP POST /api/users
+1. HTTP POST /api/trpc/datasets.create
    ↓
-2. Express matches route in userRoutes.ts
+2. Next.js API route catches request (pages/api/trpc/[trpc].ts)
    ↓
-3. Middleware chain executes:
-   - SSOMiddleware.verifyLoginStatus (authentication)
-   - auditMiddleware (context tracking)
+3. tRPC router resolves procedure:
+   - Match route to procedure in datasetRouter.ts
    ↓
-4. Route handler delegates to controller:
-   router.post('/users', (req, res) => userController.create(req, res))
+4. tRPC middleware chain executes:
+   - protectedProjectProcedure (authentication)
+   - hasEntitlement checks
+   - Input validation with Zod v4
    ↓
-5. Controller validates and calls service:
-   - Validate input with Zod
-   - Call userService.create(data)
-   - Handle success/error
+5. Procedure handler calls service:
+   export const datasetRouter = createTRPCRouter({
+     create: protectedProjectProcedure
+       .input(createDatasetSchema)
+       .mutation(async ({ input, ctx }) => {
+         return await createDataset(input, ctx.session);
+       }),
+   })
    ↓
 6. Service executes business logic:
-   - Check business rules
-   - Call userRepository.create(data)
-   - Return result
+   - Validate business rules
+   - Use repositories for complex queries or Prisma directly
+   - ClickHouse queries via repositories if needed
    ↓
-7. Repository performs database operation:
-   - PrismaService.main.user.create({ data })
-   - Handle database errors
-   - Return created user
+7. Database operations:
+   - prisma.dataset.create({ data })
+   - clickhouse queries via getTracesTable()
    ↓
 8. Response flows back:
-   Repository → Service → Controller → Express → Client
+   Database → Service → Procedure → tRPC → Client
+```
+
+### Public API Request Flow (SDKs)
+
+```typescript
+1. HTTP POST /api/public/datasets
+   ↓
+2. Next.js API route handler (pages/api/public/datasets.ts)
+   ↓
+3. withMiddlewares wrapper executes:
+   - Basic auth verification
+   - Rate limiting
+   - CORS handling
+   ↓
+4. createAuthedProjectAPIRoute handler:
+   - Parse and validate request with Zod v4
+   - Extract auth context (project, user)
+   ↓
+5. Handler calls service function:
+   const dataset = await createDataset({
+     name: req.body.name,
+     projectId: req.auth.projectId,
+   });
+   ↓
+6. Service executes (same as tRPC path)
+   ↓
+7. Response formatted and returned:
+   res.status(201).json(dataset);
+```
+
+### Worker/Queue Processing Flow
+
+```typescript
+1. Job added to Redis BullMQ queue:
+   await evalQueue.add("eval-job", {
+     evalId, projectId
+   });
+   ↓
+2. Worker picks up job from Redis
+   ↓
+3. Queue processor handles job:
+   // worker/src/queues/evalQueue.ts
+   async process(job: Job<EvalJobType>) {
+     await processEvaluation(job.data);
+   }
+   ↓
+4. Processor calls service:
+   - Same service layer as Web
+   - Business logic execution
+   ↓
+5. Service performs operations:
+   - Prisma transactions
+   - ClickHouse queries
+   - External API calls (LLMs)
+   ↓
+6. Job completes or fails:
+   - Success: job.updateProgress(100)
+   - Failure: throw error for retry
 ```
 
 ---
 
-## Service Comparison
+## Directory Structure
 
-### Email Service (Mature Pattern ✅)
-
-**Strengths:**
-
-- Comprehensive BaseController with Sentry integration
-- Clean route delegation (no business logic in routes)
-- Consistent dependency injection pattern
-- Good middleware organization
-- Type-safe throughout
-- Excellent error handling
-
-**Example Structure:**
+### Web Package (`/web/src/`)
 
 ```
-email/src/
-├── controllers/
-│   ├── BaseController.ts          ✅ Excellent template
-│   ├── NotificationController.ts  ✅ Extends BaseController
-│   └── EmailController.ts         ✅ Clean patterns
-├── routes/
-│   ├── notificationRoutes.ts      ✅ Clean delegation
-│   └── emailRoutes.ts             ✅ No business logic
-├── services/
-│   ├── NotificationService.ts     ✅ Dependency injection
-│   └── BatchingService.ts         ✅ Clear responsibility
-└── middleware/
-    ├── errorBoundary.ts           ✅ Comprehensive
-    └── DevImpersonationSSOMiddleware.ts
+web/src/
+├── features/                    # Feature-organized code
+│   ├── datasets/
+│   │   ├── server/             # Backend logic
+│   │   │   ├── datasetRouter.ts    # tRPC router
+│   │   │   └── datasetService.ts   # Business logic
+│   │   ├── components/         # React components
+│   │   └── types/              # Feature types
+│   │
+│   ├── public-api/
+│   │   ├── server/
+│   │   │   ├── withMiddlewares.ts
+│   │   │   └── createAuthedProjectAPIRoute.ts
+│   │   └── types/              # API schemas
+│   │
+│   └── [feature-name]/
+│       ├── server/
+│       │   ├── *Router.ts      # tRPC router
+│       │   └── service.ts      # Business logic
+│       ├── components/
+│       └── types/
+│
+├── server/
+│   ├── api/
+│   │   ├── routers/            # tRPC routers
+│   │   ├── trpc.ts             # tRPC setup & middleware
+│   │   └── root.ts             # Main router combining all
+│   ├── auth.ts                 # NextAuth.js config
+│   └── db.ts                   # Database utilities
+│
+├── pages/
+│   ├── api/
+│   │   ├── public/             # Public REST APIs
+│   │   │   ├── datasets.ts
+│   │   │   └── traces.ts
+│   │   └── trpc/
+│   │       └── [trpc].ts       # tRPC endpoint
+│   └── [routes].tsx            # Next.js pages
+│
+├── __tests__/                  # Jest tests
+│   ├── async/                  # Integration tests
+│   └── sync/                   # Unit tests
+│
+├── instrumentation.ts          # OpenTelemetry (FIRST IMPORT)
+└── env.mjs                     # Environment config
 ```
 
-**Use as template** for new services!
-
-### Form Service (Transitioning ⚠️)
-
-**Strengths:**
-
-- Excellent workflow architecture (event sourcing)
-- Good Sentry integration
-- Innovative audit middleware (AsyncLocalStorage)
-- Comprehensive permission system
-
-**Weaknesses:**
-
-- Some routes have 200+ lines of business logic
-- Inconsistent controller naming
-- Direct process.env usage (60+ occurrences)
-- Minimal repository pattern usage
-
-**Example:**
+### Worker Package (`/worker/src/`)
 
 ```
-form/src/
-├── routes/
-│   ├── responseRoutes.ts          ❌ Business logic in routes
-│   └── proxyRoutes.ts             ✅ Good validation pattern
-├── controllers/
-│   ├── formController.ts          ⚠️ Lowercase naming
-│   └── UserProfileController.ts   ✅ PascalCase naming
-├── workflow/                      ✅ Excellent architecture!
-│   ├── core/
-│   │   ├── WorkflowEngineV3.ts   ✅ Event sourcing
-│   │   └── DryRunWrapper.ts      ✅ Innovative
-│   └── services/
-└── middleware/
-    └── auditMiddleware.ts         ✅ AsyncLocalStorage pattern
+worker/src/
+├── queues/                     # BullMQ processors
+│   ├── evalQueue.ts           # Evaluation jobs
+│   ├── ingestionQueue.ts      # Data ingestion
+│   ├── batchExportQueue.ts    # Batch exports
+│   └── workerManager.ts       # Queue registration
+│
+├── features/                   # Business logic
+│   └── [feature]/
+│       └── service.ts
+│
+├── __tests__/                  # Vitest tests
+│
+├── instrumentation.ts          # OpenTelemetry (FIRST IMPORT)
+├── app.ts                      # Express setup + queue registration
+├── env.ts                      # Environment config
+└── index.ts                    # Server start
 ```
 
-**Learn from:** workflow/, middleware/auditMiddleware.ts
-**Avoid:** responseRoutes.ts, direct process.env
+### Shared Package (`/packages/shared/`)
 
----
+The shared package provides types, utilities, and server code used by both web and worker packages. It has **5 export paths** that control frontend vs backend access:
 
-## Directory Structure Rationale
+| Import Path                                | Usage                 | What's Included                                                                    |
+| ------------------------------------------ | --------------------- | ---------------------------------------------------------------------------------- |
+| `@langfuse/shared`                         | ✅ Frontend + Backend | Prisma types, Zod schemas, constants, table definitions, domain models, utilities  |
+| `@langfuse/shared/src/db`                  | 🔒 Backend only       | Prisma client instance                                                             |
+| `@langfuse/shared/src/server`              | 🔒 Backend only       | Services, repositories, queues, auth, ClickHouse, LLM integration, instrumentation |
+| `@langfuse/shared/src/server/auth/apiKeys` | 🔒 Backend only       | API key management (separated to avoid circular deps)                              |
+| `@langfuse/shared/encryption`              | 🔒 Backend only       | Database field encryption/decryption                                               |
 
-### Controllers Directory
+**Key Structure:**
 
-**Purpose:** Handle HTTP request/response concerns
+```
+packages/shared/src/
+├── server/                  # 🔒 All server-only code
+│   ├── auth/                # Authentication & authorization
+│   ├── clickhouse/          # ClickHouse client & queries
+│   ├── redis/               # Redis client & 30+ queue types
+│   ├── repositories/        # Data access (traces, observations, scores, events)
+│   ├── services/            # Business services (Storage, Email, Slack, etc.)
+│   ├── llm/                 # LLM integration
+│   ├── instrumentation/     # OpenTelemetry
+│   └── queues.ts, logger.ts, filterToPrisma.ts, etc.
+│
+├── features/                # ✅ Feature types (evals, scores, prompts, datasets)
+├── domain/                  # ✅ Domain models (automations, webhooks, etc.)
+├── tableDefinitions/        # ✅ Table schemas
+├── interfaces/              # ✅ Shared interfaces (filters, orderBy)
+├── utils/                   # ✅ Utilities (JSON, Zod, string checks)
+├── encryption/              # 🔒 Encryption utilities
+└── db.ts, constants.ts, types.ts, etc.
+```
 
-**Contents:**
+**Common Import Patterns:**
 
-- `BaseController.ts` - Base class with common methods
-- `{Feature}Controller.ts` - Feature-specific controllers
+```typescript
+// ✅ Main export - Safe for frontend + backend
+import {
+  Prisma,
+  Role,
+  type Dataset,
+  CloudConfigSchema,
+} from "@langfuse/shared";
 
-**Naming:** PascalCase + Controller
+// 🔒 Database - Backend only
+import { prisma } from "@langfuse/shared/src/db";
 
-**Responsibilities:**
+// 🔒 Server utilities - Backend only
+import {
+  logger,
+  instrumentAsync,
+  traceException,
+  redis,
+  clickhouseClient,
+  StorageService,
+  fetchLLMCompletion,
+  filterToPrisma,
+} from "@langfuse/shared/src/server";
 
-- Parse request parameters
-- Validate input (Zod)
-- Call appropriate service methods
-- Format responses
-- Handle errors (via BaseController)
-- Set HTTP status codes
+// 🔒 API keys - Backend only
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
-### Services Directory
-
-**Purpose:** Business logic and orchestration
-
-**Contents:**
-
-- `{feature}Service.ts` - Feature business logic
-
-**Naming:** camelCase + Service (or PascalCase + Service)
-
-**Responsibilities:**
-
-- Implement business rules
-- Orchestrate multiple repositories
-- Transaction management
-- Business validations
-- No HTTP knowledge (Request/Response types)
-
-### Repositories Directory
-
-**Purpose:** Data access abstraction
-
-**Contents:**
-
-- `{Entity}Repository.ts` - Database operations for entity
-
-**Naming:** PascalCase + Repository
-
-**Responsibilities:**
-
-- Prisma query operations
-- Query optimization
-- Database error handling
-- Caching layer
-- Hide Prisma implementation details
-
-**Current Gap:** Only 1 repository exists (WorkflowRepository)
-
-### Routes Directory
-
-**Purpose:** Route registration ONLY
-
-**Contents:**
-
-- `{feature}Routes.ts` - Express router for feature
-
-**Naming:** camelCase + Routes
-
-**Responsibilities:**
-
-- Register routes with Express
-- Apply middleware
-- Delegate to controllers
-- **NO business logic!**
-
-### Middleware Directory
-
-**Purpose:** Cross-cutting concerns
-
-**Contents:**
-
-- Authentication middleware
-- Audit middleware
-- Error boundaries
-- Validation middleware
-- Custom middleware
-
-**Naming:** camelCase
-
-**Types:**
-
-- Request processing (before handler)
-- Response processing (after handler)
-- Error handling (error boundary)
-
-### Config Directory
-
-**Purpose:** Configuration management
-
-**Contents:**
-
-- `unifiedConfig.ts` - Type-safe configuration
-- Environment-specific configs
-
-**Pattern:** Single source of truth
-
-### Types Directory
-
-**Purpose:** TypeScript type definitions
-
-**Contents:**
-
-- `{feature}.types.ts` - Feature-specific types
-- DTOs (Data Transfer Objects)
-- Request/Response types
-- Domain models
+// 🔒 Encryption - Backend only
+import { encrypt, decrypt } from "@langfuse/shared/encryption";
+```
 
 ---
 
 ## Module Organization
 
-### Feature-Based Organization
+### Feature-Based Organization (Recommended)
 
-For large features, use subdirectories:
+For most features, organize by domain within `features/`:
 
 ```
-src/workflow/
-├── core/              # Core engine
-├── services/          # Workflow-specific services
-├── actions/           # System actions
-├── models/            # Domain models
-├── validators/        # Workflow validation
-└── utils/             # Workflow utilities
+src/features/datasets/
+├── server/                 # Backend code
+│   ├── datasetRouter.ts   # tRPC procedures
+│   └── service.ts         # Business logic
+├── components/            # React components
+│   ├── DatasetTable.tsx
+│   └── DatasetForm.tsx
+├── types/                 # Feature types
+│   └── index.ts
+└── utils/                 # Feature utilities
 ```
 
 **When to use:**
 
-- Feature has 5+ files
-- Clear sub-domains exist
+- Any feature with UI + API
+- Clear domain boundary
+- Multiple related procedures
+
+### Subdomain Organization
+
+For complex features with multiple subdomains:
+
+```
+src/features/evaluations/
+├── server/
+│   ├── evalRouter.ts          # Main router
+│   ├── evalService.ts         # Core service
+│   ├── templates/             # Template subdomain
+│   │   ├── templateRouter.ts
+│   │   └── templateService.ts
+│   └── configs/               # Config subdomain
+│       ├── configRouter.ts
+│       └── configService.ts
+├── components/
+│   ├── templates/
+│   └── configs/
+└── types/
+```
+
+**When to use:**
+
+- Feature has 10+ files
+- Clear subdomains exist
 - Logical grouping improves clarity
 
-### Flat Organization
+### Flat Organization (Rare)
 
-For simple features:
+For small, standalone features:
 
 ```
-src/
-├── controllers/UserController.ts
-├── services/userService.ts
-├── routes/userRoutes.ts
-└── repositories/UserRepository.ts
+src/server/api/routers/
+├── healthRouter.ts            # Simple health check
+└── versionRouter.ts           # Version info
 ```
 
 **When to use:**
 
-- Simple features (< 5 files)
-- No clear sub-domains
-- Flat structure is clearer
+- Simple features (1-2 procedures)
+- No UI components
+- Standalone utilities
 
 ---
 
@@ -366,101 +436,410 @@ src/
 
 ### What Goes Where
 
-**Routes Layer:**
+**tRPC Procedures (Entry Layer):**
 
-- ✅ Route definitions
-- ✅ Middleware registration
-- ✅ Controller delegation
-- ❌ Business logic
-- ❌ Database operations
-- ❌ Validation logic (should be in validator or controller)
+- ✅ Procedure definitions (query/mutation)
+- ✅ Middleware application (auth, validation)
+- ✅ Input schemas (Zod v4)
+- ✅ Service delegation
+- ✅ Error transformation (TRPCError)
+- ❌ Business logic (belongs in services)
+- ❌ Database operations (belongs in services)
+- ❌ Complex validation (belongs in services)
 
-**Controllers Layer:**
+**Public API Routes (Entry Layer):**
 
-- ✅ Request parsing (params, body, query)
-- ✅ Input validation (Zod)
-- ✅ Service calls
+- ✅ Route registration
+- ✅ Middleware wrapper application
+- ✅ Input validation (Zod v4)
+- ✅ Service delegation
 - ✅ Response formatting
-- ✅ Error handling
-- ❌ Business logic
-- ❌ Database operations
+- ✅ HTTP status codes
+- ❌ Business logic (belongs in services)
+- ❌ Database operations (belongs in services)
 
 **Services Layer:**
 
 - ✅ Business logic
 - ✅ Business rules enforcement
-- ✅ Orchestration (multiple repos)
-- ✅ Transaction management
+- ✅ Transaction orchestration
+- ✅ Repository calls for complex queries
+- ✅ Direct Prisma operations for simple CRUD
+- ✅ ClickHouse queries (via repositories)
+- ✅ Redis cache access
+- ✅ External API calls (LLMs, etc.)
 - ❌ HTTP concerns (Request/Response)
-- ❌ Direct Prisma calls (use repositories)
+- ❌ tRPC-specific types (TRPCError in entry layer)
+- ❌ NextAuth session handling (passed as parameter)
 
-**Repositories Layer:**
+**Queue Processors (Worker):**
 
-- ✅ Prisma operations
-- ✅ Query construction
-- ✅ Database error handling
-- ✅ Caching
-- ❌ Business logic
-- ❌ HTTP concerns
+- ✅ Job registration and configuration
+- ✅ Job data extraction
+- ✅ Service delegation
+- ✅ Progress updates
+- ✅ Error handling (retry logic)
+- ❌ Business logic (belongs in services)
+- ❌ Database operations (belongs in services)
 
-### Example: User Creation
+### Example: Dataset Creation
 
-**Route:**
+**tRPC Procedure (Entry Point):**
 
 ```typescript
-router.post(
-  "/users",
-  SSOMiddleware.verifyLoginStatus,
-  auditMiddleware,
-  (req, res) => userController.create(req, res),
-);
+// web/src/features/datasets/server/datasetRouter.ts
+import { z } from "zod/v4";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import { TRPCError } from "@trpc/server";
+import { createDataset } from "./service";
+
+export const datasetRouter = createTRPCRouter({
+  create: protectedProjectProcedure
+    .input(
+      z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        projectId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        return await createDataset({
+          ...input,
+          userId: ctx.session.user.id,
+        });
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create dataset",
+          cause: error,
+        });
+      }
+    }),
+});
 ```
 
-**Controller:**
+**Service (Business Logic):**
 
 ```typescript
-async create(req: Request, res: Response): Promise<void> {
-    try {
-        const validated = createUserSchema.parse(req.body);
-        const user = await this.userService.create(validated);
-        this.handleSuccess(res, user, 'User created');
-    } catch (error) {
-        this.handleError(error, res, 'create');
+// web/src/features/datasets/server/service.ts
+import { prisma } from "@langfuse/shared/src/db";
+import { instrumentAsync, traceException } from "@langfuse/shared/src/server";
+
+export async function createDataset(data: {
+  name: string;
+  description?: string;
+  projectId: string;
+  userId: string;
+}) {
+  return await instrumentAsync({ name: "dataset.create" }, async (span) => {
+    // Business rule: Check for duplicate names in project
+    const existing = await prisma.dataset.findFirst({
+      where: {
+        name: data.name,
+        projectId: data.projectId,
+      },
+    });
+
+    if (existing) {
+      throw new Error(`Dataset with name "${data.name}" already exists`);
     }
+
+    // Create dataset
+    const dataset = await prisma.dataset.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        projectId: data.projectId,
+        createdById: data.userId,
+      },
+    });
+
+    span.setAttributes({
+      datasetId: dataset.id,
+      projectId: dataset.projectId,
+    });
+
+    return dataset;
+  });
 }
 ```
 
-**Service:**
+**Public API (Alternative Entry Point):**
 
 ```typescript
-async create(data: CreateUserDTO): Promise<User> {
-    // Business rule: check if email already exists
-    const existing = await this.userRepository.findByEmail(data.email);
-    if (existing) throw new ConflictError('Email already exists');
+// web/src/pages/api/public/datasets.ts
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { createDataset } from "@/src/features/datasets/server/service";
+import { z } from "zod/v4";
 
-    // Create user
-    return await this.userRepository.create(data);
-}
+const createDatasetSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+});
+
+export default withMiddlewares({
+  POST: createAuthedProjectAPIRoute({
+    name: "Create Dataset",
+    bodySchema: createDatasetSchema,
+    fn: async ({ body, auth, res }) => {
+      const dataset = await createDataset({
+        name: body.name,
+        description: body.description,
+        projectId: auth.scope.projectId,
+        userId: auth.scope.userId,
+      });
+
+      return res.status(201).json(dataset);
+    },
+  }),
+});
 ```
 
-**Repository:**
+**Queue Processor (Async Processing):**
 
 ```typescript
-async create(data: CreateUserDTO): Promise<User> {
-    return PrismaService.main.user.create({ data });
-}
+// worker/src/queues/datasetExportQueue.ts
+import { Job } from "bullmq";
+import { exportDataset } from "../features/datasets/exportService";
 
-async findByEmail(email: string): Promise<User | null> {
-    return PrismaService.main.user.findUnique({ where: { email } });
+export async function processDatasetExport(
+  job: Job<{ datasetId: string; projectId: string; format: string }>,
+) {
+  const { datasetId, projectId, format } = job.data;
+
+  await job.updateProgress(10);
+
+  // Delegate to service
+  const exportUrl = await exportDataset({
+    datasetId,
+    projectId,
+    format,
+    onProgress: (percent) => job.updateProgress(percent),
+  });
+
+  await job.updateProgress(100);
+
+  return { exportUrl };
 }
 ```
 
 **Notice:** Each layer has clear, distinct responsibilities!
 
+- **Entry layers** (tRPC/Public API/Queue) handle protocol concerns
+- **Service layer** contains all business logic
+- **Data layer** accessed via repositories (complex queries) or Prisma directly (simple CRUD)
+
+---
+
+## Database Architecture
+
+### Dual Database System
+
+Langfuse uses two databases with different purposes:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       Application                           │
+│                                                             │
+│  ┌──────────────┐              ┌──────────────┐           │
+│  │  PostgreSQL  │              │  ClickHouse  │           │
+│  │              │              │              │           │
+│  │ Transactional│              │  Analytics   │           │
+│  │    Data      │              │    Data      │           │
+│  └──────────────┘              └──────────────┘           │
+│         ↑                              ↑                   │
+│         │                              │                   │
+│    Prisma ORM                    Direct SQL               │
+│  (schema migrations)              (via client)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**PostgreSQL (Primary Database):**
+
+- Accessed via Prisma ORM
+- Transactional data (users, projects, datasets, etc.)
+- ACID guarantees
+- Schema managed via `prisma migrate`
+- Located in `packages/shared/prisma/`
+
+**ClickHouse (Analytics Database):**
+
+- Accessed via direct SQL queries
+- High-volume trace/observation data
+- Columnar storage for analytics
+- Optimized for aggregations
+- Schema in `packages/shared/src/server/clickhouse/`
+- Schema managed via `golang-migrate`
+
+**Redis (Cache & Queues):**
+
+- BullMQ job queues
+- Caching layer
+- Session storage
+- Rate limiting
+
+### Data Access Pattern
+
+**Services access databases directly:**
+
+```typescript
+// PostgreSQL via Prisma
+import { prisma } from "@langfuse/shared/src/db";
+
+const dataset = await prisma.dataset.create({ data });
+
+// ClickHouse via helper functions
+import { getTracesTable } from "@langfuse/shared/src/server";
+
+const traces = await getTracesTable({
+  projectId,
+  filter: [...],
+  limit: 1000,
+});
+
+// Redis via queue/cache utilities
+import { redis } from "@langfuse/shared/src/server";
+
+await redis.set(`cache:${key}`, value, "EX", 3600);
+```
+
+**Repository Pattern:**
+
+Langfuse uses repositories in `packages/shared/src/server/repositories/` for complex data access patterns. Repositories provide:
+- Abstraction over complex queries (traces, observations, scores, events)
+- Data converters for transforming database models to application models
+- ClickHouse query builders and stream processing
+- Reusable query logic across services
+
+Services can use repositories for complex operations OR Prisma directly for simple CRUD operations.
+
+---
+
+## Best Practices
+
+### 1. Keep Procedures Thin
+
+tRPC procedures should only handle protocol concerns:
+
+```typescript
+// ❌ BAD: Business logic in procedure
+export const datasetRouter = createTRPCRouter({
+  create: protectedProjectProcedure
+    .input(createSchema)
+    .mutation(async ({ input, ctx }) => {
+      // 200 lines of business logic here
+      const existing = await prisma.dataset.findFirst(...);
+      if (existing) throw new Error(...);
+      const dataset = await prisma.dataset.create(...);
+      await sendNotification(...);
+      return dataset;
+    }),
+});
+
+// ✅ GOOD: Delegate to service
+export const datasetRouter = createTRPCRouter({
+  create: protectedProjectProcedure
+    .input(createSchema)
+    .mutation(async ({ input, ctx }) => {
+      return await createDataset(input, ctx.session);
+    }),
+});
+```
+
+### 2. Services Should Be Protocol-Agnostic
+
+Services should work regardless of entry point:
+
+```typescript
+// ✅ GOOD: No HTTP/tRPC knowledge
+export async function createDataset(data: CreateDatasetInput) {
+  // Pure business logic
+  return await prisma.dataset.create({ data });
+}
+
+// ❌ BAD: tRPC-specific
+export async function createDataset(ctx: TRPCContext) {
+  // Coupled to tRPC
+}
+```
+
+### 3. Instrument Critical Operations
+
+Use OpenTelemetry for observability:
+
+```typescript
+import { instrumentAsync } from "@langfuse/shared/src/server";
+
+export async function processEvaluation(evalId: string) {
+  return await instrumentAsync(
+    { name: "evaluation.process", attributes: { evalId } },
+    async (span) => {
+      // Operation here
+      span.setAttributes({ score: result.score });
+      return result;
+    },
+  );
+}
+```
+
+### 4. Use Proper Error Handling
+
+Transform errors at entry points:
+
+```typescript
+// tRPC procedure
+try {
+  return await service();
+} catch (error) {
+  traceException(error); // Log to Sentry
+  throw new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "User-friendly message",
+    cause: error,
+  });
+}
+
+// Public API
+try {
+  return await service();
+} catch (error) {
+  traceException(error);
+  return res.status(500).json({
+    error: "User-friendly message",
+  });
+}
+```
+
+### 5. Validate at Entry Points
+
+Use Zod v4 for all input validation:
+
+```typescript
+import { z } from "zod/v4";
+
+// tRPC
+.input(z.object({
+  name: z.string().min(1).max(255),
+  projectId: z.string(),
+}))
+
+// Public API
+const bodySchema = z.object({
+  name: z.string().min(1).max(255),
+});
+const validated = bodySchema.parse(req.body);
+```
+
 ---
 
 **Related Files:**
 
-- [SKILL.md](SKILL.md) - Main guide
-- [routing-and-controllers.md](routing-and-controllers.md) - Routes and controllers details
-- [services-and-repositories.md](services-and-repositories.md) - Service and repository patterns
+- [SKILL.md](../SKILL.md) - Main guide
+- [routing-and-controllers.md](routing-and-controllers.md) - tRPC and Public API details
+- [services-and-repositories.md](services-and-repositories.md) - Service patterns
+- [testing-guide.md](testing-guide.md) - Testing strategies

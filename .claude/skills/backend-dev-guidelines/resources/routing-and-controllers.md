@@ -1,756 +1,844 @@
-# Routing and Controllers - Best Practices
+# Routing Patterns - Next.js & tRPC
 
-Complete guide to clean route definitions and controller patterns.
+Complete guide to routing and separation of concerns in Langfuse's Next.js + tRPC architecture.
 
 ## Table of Contents
 
-- [Routes: Routing Only](#routes-routing-only)
-- [BaseController Pattern](#basecontroller-pattern)
-- [Good Examples](#good-examples)
+- [Architecture Overview](#architecture-overview)
+- [tRPC Routers](#trpc-routers)
+- [Public REST API Routes](#public-rest-api-routes)
+- [Service Layer](#service-layer)
+- [Repository Layer](#repository-layer)
+- [Separation of Concerns](#separation-of-concerns)
 - [Anti-Patterns](#anti-patterns)
-- [Refactoring Guide](#refactoring-guide)
-- [Error Handling](#error-handling)
-- [HTTP Status Codes](#http-status-codes)
 
 ---
 
-## Routes: Routing Only
+## Architecture Overview
 
-### The Golden Rule
+Langfuse uses a **layered architecture** with clear separation of concerns:
 
-**Routes should ONLY:**
-- ✅ Define route paths
-- ✅ Register middleware
-- ✅ Delegate to controllers
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        ENTRY POINTS                          │
+│  ┌──────────────────────┐    ┌─────────────────────────┐   │
+│  │   tRPC Procedures    │    │  Public REST API Routes │   │
+│  │  (Internal UI API)   │    │   (SDK/External API)    │   │
+│  └──────────────────────┘    └─────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       SERVICE LAYER                          │
+│         Business logic, orchestration, validation            │
+│   web/src/features/*/server/ or packages/shared/services/   │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     REPOSITORY LAYER                         │
+│         Complex queries, data transformation                 │
+│         packages/shared/src/server/repositories/             │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      DATABASE LAYER                          │
+│       PostgreSQL (Prisma) + ClickHouse (Direct Client)      │
+└─────────────────────────────────────────────────────────────┘
+```
 
-**Routes should NEVER:**
+### Key Principles
+
+**Entry Points (Routes/Procedures):**
+- ✅ Define routing and procedure signatures
+- ✅ Handle authentication/authorization (via middleware)
+- ✅ Validate input (Zod schemas)
+- ✅ Delegate to services
+- ✅ Return responses
+
+**Entry Points should NEVER:**
 - ❌ Contain business logic
 - ❌ Access database directly
-- ❌ Implement validation logic (use Zod + controller)
-- ❌ Format complex responses
-- ❌ Handle complex error scenarios
+- ❌ Perform complex data transformations
+- ❌ Make direct repository calls (use services)
 
-### Clean Route Pattern
+**Services:**
+- ✅ Contain business logic
+- ✅ Orchestrate multiple operations
+- ✅ Call repositories or Prisma/ClickHouse
+- ✅ Handle complex workflows
+- ❌ Should NOT know about HTTP, tRPC, or request/response objects
+
+**Repositories:**
+- ✅ Complex database queries
+- ✅ Data transformation (DB → domain models)
+- ✅ ClickHouse query builders
+- ✅ Reusable query logic
+- ❌ Should NOT contain business logic
+
+---
+
+## tRPC Routers
+
+**Location:** `web/src/server/api/routers/`
+
+tRPC routers define type-safe procedures for the internal UI. Each router groups related operations.
+
+### Router Structure
+
+**File:** `web/src/server/api/routers/scores.ts`
 
 ```typescript
-// routes/userRoutes.ts
-import { Router } from 'express';
-import { UserController } from '../controllers/UserController';
-import { SSOMiddlewareClient } from '../middleware/SSOMiddleware';
-import { auditMiddleware } from '../middleware/auditMiddleware';
+import { z } from "zod/v4";
+import { createTRPCRouter, protectedProjectProcedure } from "@/src/server/api/trpc";
+import { paginationZod, singleFilter, orderBy } from "@langfuse/shared";
+import {
+  getScoresUiTable,
+  getScoresUiCount,
+  upsertScore,
+} from "@langfuse/shared/src/server";
 
-const router = Router();
-const controller = new UserController();
+const ScoreAllOptions = z.object({
+  projectId: z.string(),
+  filter: z.array(singleFilter),
+  orderBy: orderBy,
+  ...paginationZod,
+});
 
-// ✅ CLEAN: Route definition only
-router.get('/:id',
-    SSOMiddlewareClient.verifyLoginStatus,
-    auditMiddleware,
-    async (req, res) => controller.getUser(req, res)
-);
+export const scoresRouter = createTRPCRouter({
+  /**
+   * Get all scores for a project
+   */
+  all: protectedProjectProcedure
+    .input(ScoreAllOptions)
+    .query(async ({ input, ctx }) => {
+      // Delegate to repository for data fetching
+      const clickhouseScoreData = await getScoresUiTable({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: input.orderBy,
+        limit: input.limit,
+        offset: input.page * input.limit,
+      });
 
-router.post('/',
-    SSOMiddlewareClient.verifyLoginStatus,
-    auditMiddleware,
-    async (req, res) => controller.createUser(req, res)
-);
+      // Delegate to Prisma for related data
+      const [jobExecutions, users] = await Promise.all([
+        ctx.prisma.jobExecution.findMany({
+          where: {
+            jobOutputScoreId: {
+              in: clickhouseScoreData.map((score) => score.id),
+            },
+          },
+        }),
+        ctx.prisma.user.findMany({
+          where: {
+            id: {
+              in: clickhouseScoreData
+                .map((s) => s.authorUserId)
+                .filter((id): id is string => id !== null),
+            },
+          },
+        }),
+      ]);
 
-router.put('/:id',
-    SSOMiddlewareClient.verifyLoginStatus,
-    auditMiddleware,
-    async (req, res) => controller.updateUser(req, res)
-);
+      // Transform and combine data
+      return clickhouseScoreData.map((score) => ({
+        ...score,
+        jobConfigurationId:
+          jobExecutions.find((j) => j.jobOutputScoreId === score.id)
+            ?.jobConfigurationId ?? null,
+        authorUserImage:
+          users.find((u) => u.id === score.authorUserId)?.image ?? null,
+        authorUserName:
+          users.find((u) => u.id === score.authorUserId)?.name ?? null,
+      }));
+    }),
 
-export default router;
+  /**
+   * Create or update score
+   */
+  createAnnotationScore: protectedProjectProcedure
+    .input(CreateAnnotationScoreData)
+    .mutation(async ({ input, ctx }) => {
+      // Validation
+      validateConfigAgainstBody(input);
+
+      // Delegate to repository
+      await upsertScore({
+        id: input.id ?? randomUUID(),
+        traceId: input.traceId,
+        projectId: input.projectId,
+        name: input.name,
+        value: input.value,
+        source: ScoreSource.ANNOTATION,
+        authorUserId: ctx.session.user.id,
+        comment: input.comment,
+      });
+
+      // Audit log
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: input.id,
+        action: "create",
+      });
+
+      return { success: true };
+    }),
+});
 ```
 
 **Key Points:**
-- Each route: method, path, middleware chain, controller delegation
-- No try-catch needed (controller handles errors)
-- Clean, readable, maintainable
-- Easy to see all endpoints at a glance
+- Use appropriate procedure type (`protectedProjectProcedure`, `authenticatedProcedure`, etc.)
+- Define input schema with Zod (`.input()`)
+- Use `.query()` for reads, `.mutation()` for writes
+- Delegate to services/repositories for data access
+- Keep procedures thin - no business logic
+- Type-safe throughout (TypeScript infers types from Zod schemas)
 
----
+### Registering Routers
 
-## BaseController Pattern
-
-### Why BaseController?
-
-**Benefits:**
-- Consistent error handling across all controllers
-- Automatic Sentry integration
-- Standardized response formats
-- Reusable helper methods
-- Performance tracking utilities
-- Logging and breadcrumb helpers
-
-### BaseController Pattern (Template)
-
-**File:** `/email/src/controllers/BaseController.ts`
+**File:** `web/src/server/api/root.ts`
 
 ```typescript
-import * as Sentry from '@sentry/node';
-import { Response } from 'express';
+import { createTRPCRouter } from "@/src/server/api/trpc";
+import { scoresRouter } from "./routers/scores";
+import { tracesRouter } from "./routers/traces";
+import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
 
-export abstract class BaseController {
-    /**
-     * Handle errors with Sentry integration
-     */
-    protected handleError(
-        error: unknown,
-        res: Response,
-        context: string,
-        statusCode = 500
-    ): void {
-        Sentry.withScope((scope) => {
-            scope.setTag('controller', this.constructor.name);
-            scope.setTag('operation', context);
-            scope.setUser({ id: res.locals?.claims?.userId });
-
-            if (error instanceof Error) {
-                scope.setContext('error_details', {
-                    message: error.message,
-                    stack: error.stack,
-                });
-            }
-
-            Sentry.captureException(error);
-        });
-
-        res.status(statusCode).json({
-            success: false,
-            error: {
-                message: error instanceof Error ? error.message : 'An error occurred',
-                code: statusCode,
-            },
-        });
-    }
-
-    /**
-     * Handle success responses
-     */
-    protected handleSuccess<T>(
-        res: Response,
-        data: T,
-        message?: string,
-        statusCode = 200
-    ): void {
-        res.status(statusCode).json({
-            success: true,
-            message,
-            data,
-        });
-    }
-
-    /**
-     * Performance tracking wrapper
-     */
-    protected async withTransaction<T>(
-        name: string,
-        operation: string,
-        callback: () => Promise<T>
-    ): Promise<T> {
-        return await Sentry.startSpan(
-            { name, op: operation },
-            callback
-        );
-    }
-
-    /**
-     * Validate required fields
-     */
-    protected validateRequest(
-        required: string[],
-        actual: Record<string, any>,
-        res: Response
-    ): boolean {
-        const missing = required.filter((field) => !actual[field]);
-
-        if (missing.length > 0) {
-            Sentry.captureMessage(
-                `Missing required fields: ${missing.join(', ')}`,
-                'warning'
-            );
-
-            res.status(400).json({
-                success: false,
-                error: {
-                    message: 'Missing required fields',
-                    code: 'VALIDATION_ERROR',
-                    details: { missing },
-                },
-            });
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Logging helpers
-     */
-    protected logInfo(message: string, context?: Record<string, any>): void {
-        Sentry.addBreadcrumb({
-            category: this.constructor.name,
-            message,
-            level: 'info',
-            data: context,
-        });
-    }
-
-    protected logWarning(message: string, context?: Record<string, any>): void {
-        Sentry.captureMessage(message, {
-            level: 'warning',
-            tags: { controller: this.constructor.name },
-            extra: context,
-        });
-    }
-
-    /**
-     * Add Sentry breadcrumb
-     */
-    protected addBreadcrumb(
-        message: string,
-        category: string,
-        data?: Record<string, any>
-    ): void {
-        Sentry.addBreadcrumb({ message, category, level: 'info', data });
-    }
-
-    /**
-     * Capture custom metric
-     */
-    protected captureMetric(name: string, value: number, unit: string): void {
-        Sentry.metrics.gauge(name, value, { unit });
-    }
-}
-```
-
-### Using BaseController
-
-```typescript
-// controllers/UserController.ts
-import { Request, Response } from 'express';
-import { BaseController } from './BaseController';
-import { UserService } from '../services/userService';
-import { createUserSchema } from '../validators/userSchemas';
-
-export class UserController extends BaseController {
-    private userService: UserService;
-
-    constructor() {
-        super();
-        this.userService = new UserService();
-    }
-
-    async getUser(req: Request, res: Response): Promise<void> {
-        try {
-            this.addBreadcrumb('Fetching user', 'user_controller', { userId: req.params.id });
-
-            const user = await this.userService.findById(req.params.id);
-
-            if (!user) {
-                return this.handleError(
-                    new Error('User not found'),
-                    res,
-                    'getUser',
-                    404
-                );
-            }
-
-            this.handleSuccess(res, user);
-        } catch (error) {
-            this.handleError(error, res, 'getUser');
-        }
-    }
-
-    async createUser(req: Request, res: Response): Promise<void> {
-        try {
-            // Validate input
-            const validated = createUserSchema.parse(req.body);
-
-            // Track performance
-            const user = await this.withTransaction(
-                'user.create',
-                'db.query',
-                () => this.userService.create(validated)
-            );
-
-            this.handleSuccess(res, user, 'User created successfully', 201);
-        } catch (error) {
-            this.handleError(error, res, 'createUser');
-        }
-    }
-
-    async updateUser(req: Request, res: Response): Promise<void> {
-        try {
-            const validated = updateUserSchema.parse(req.body);
-            const user = await this.userService.update(req.params.id, validated);
-            this.handleSuccess(res, user, 'User updated');
-        } catch (error) {
-            this.handleError(error, res, 'updateUser');
-        }
-    }
-}
-```
-
-**Benefits:**
-- Consistent error handling
-- Automatic Sentry integration
-- Performance tracking
-- Clean, readable code
-- Easy to test
-
----
-
-## Good Examples
-
-### Example 1: Email Notification Routes (Excellent ✅)
-
-**File:** `/email/src/routes/notificationRoutes.ts`
-
-```typescript
-import { Router } from 'express';
-import { NotificationController } from '../controllers/NotificationController';
-import { SSOMiddlewareClient } from '../middleware/SSOMiddleware';
-
-const router = Router();
-const controller = new NotificationController();
-
-// ✅ EXCELLENT: Clean delegation
-router.get('/',
-    SSOMiddlewareClient.verifyLoginStatus,
-    async (req, res) => controller.getNotifications(req, res)
-);
-
-router.post('/',
-    SSOMiddlewareClient.verifyLoginStatus,
-    async (req, res) => controller.createNotification(req, res)
-);
-
-router.put('/:id/read',
-    SSOMiddlewareClient.verifyLoginStatus,
-    async (req, res) => controller.markAsRead(req, res)
-);
-
-export default router;
-```
-
-**What Makes This Excellent:**
-- Zero business logic in routes
-- Clear middleware chain
-- Consistent pattern
-- Easy to understand
-
-### Example 2: Proxy Routes with Validation (Good ✅)
-
-**File:** `/form/src/routes/proxyRoutes.ts`
-
-```typescript
-import { z } from 'zod';
-
-const createProxySchema = z.object({
-    originalUserID: z.string().min(1),
-    proxyUserID: z.string().min(1),
-    startsAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
+export const appRouter = createTRPCRouter({
+  scores: scoresRouter,
+  traces: tracesRouter,
+  dashboard: dashboardRouter,
+  // ... other routers
 });
 
-router.post('/',
-    SSOMiddlewareClient.verifyLoginStatus,
-    async (req, res) => {
-        try {
-            const validated = createProxySchema.parse(req.body);
-            const proxy = await proxyService.createProxyRelationship(validated);
-            res.status(201).json({ success: true, data: proxy });
-        } catch (error) {
-            handler.handleException(res, error);
-        }
-    }
-);
+export type AppRouter = typeof appRouter;
 ```
 
-**What Makes This Good:**
-- Zod validation
-- Delegates to service
-- Proper HTTP status codes
-- Error handling
+**Calling from frontend:**
 
-**Could Be Better:**
-- Move validation to controller
-- Use BaseController
+```typescript
+// Type-safe client call
+const { data, isLoading } = api.scores.all.useQuery({
+  projectId: "proj_123",
+  page: 0,
+  limit: 50,
+  filter: [],
+  orderBy: null,
+});
+```
+
+---
+
+## Public REST API Routes
+
+**Location:** `web/src/pages/api/public/`
+
+Public API routes use **Next.js file-based routing** and provide REST endpoints for SDKs and external integrations.
+
+### File-based Routing
+
+Next.js uses file system for routing:
+
+```
+web/src/pages/api/public/
+├── scores/
+│   ├── index.ts          → GET/POST /api/public/scores
+│   └── [scoreId].ts      → GET/PATCH/DELETE /api/public/scores/:scoreId
+├── traces/
+│   ├── index.ts          → GET /api/public/traces
+│   └── [traceId].ts      → GET /api/public/traces/:traceId
+└── datasets/
+    └── [name]/
+        ├── index.ts      → GET/POST /api/public/datasets/:name
+        └── items/
+            └── index.ts  → GET /api/public/datasets/:name/items
+```
+
+**Dynamic routes:**
+- `[param].ts` → Single dynamic segment (e.g., `/api/public/scores/[scoreId].ts`)
+- `[...param].ts` → Catch-all route (e.g., `/api/public/[...path].ts`)
+
+### REST API Pattern
+
+**File:** `web/src/pages/api/public/scores/index.ts`
+
+```typescript
+import { v4 } from "uuid";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  GetScoresQueryV1,
+  GetScoresResponseV1,
+  PostScoresBodyV1,
+  PostScoresResponseV1,
+} from "@langfuse/shared";
+import { eventTypes, processEventBatch } from "@langfuse/shared/src/server";
+import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+
+export default withMiddlewares({
+  // POST /api/public/scores
+  POST: createAuthedProjectAPIRoute({
+    name: "Create Score",
+    bodySchema: PostScoresBodyV1,
+    responseSchema: PostScoresResponseV1,
+    fn: async ({ body, auth, res }) => {
+      const event = {
+        id: v4(),
+        type: eventTypes.SCORE_CREATE,
+        timestamp: new Date().toISOString(),
+        body,
+      };
+
+      if (!event.body.id) {
+        event.body.id = v4();
+      }
+
+      const result = await processEventBatch([event], auth);
+
+      if (result.errors.length > 0) {
+        const error = result.errors[0];
+        res.status(error.status).json({
+          message: error.error ?? error.message,
+        });
+        return { id: "" };
+      }
+
+      return { id: event.body.id };
+    },
+  }),
+
+  // GET /api/public/scores
+  GET: createAuthedProjectAPIRoute({
+    name: "Get Scores",
+    querySchema: GetScoresQueryV1,
+    responseSchema: GetScoresResponseV1,
+    fn: async ({ query, auth }) => {
+      const scoresApiService = new ScoresApiService("v1");
+
+      const [items, count] = await Promise.all([
+        scoresApiService.generateScoresForPublicApi({
+          projectId: auth.scope.projectId,
+          page: query.page,
+          limit: query.limit,
+          userId: query.userId,
+          name: query.name,
+        }),
+        scoresApiService.getScoresCountForPublicApi({
+          projectId: auth.scope.projectId,
+          userId: query.userId,
+          name: query.name,
+        }),
+      ]);
+
+      return {
+        data: items,
+        meta: {
+          page: query.page,
+          limit: query.limit,
+          totalItems: count,
+          totalPages: Math.ceil(count / query.limit),
+        },
+      };
+    },
+  }),
+});
+```
+
+**Key Points:**
+- Use `withMiddlewares` for all public API routes (provides CORS, error handling, OpenTelemetry)
+- Use `createAuthedProjectAPIRoute` for authenticated endpoints (handles auth, rate limiting, validation)
+- Define separate handlers for each HTTP method
+- Input/output validated with Zod schemas
+- Delegate to services for business logic
+
+### Simple Public Routes
+
+For routes that don't need authentication:
+
+```typescript
+// web/src/pages/api/public/health.ts
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+
+export default withMiddlewares({
+  GET: async (req, res) => {
+    res.status(200).json({ status: "ok" });
+  },
+});
+```
+
+---
+
+## Service Layer
+
+**Location:** `web/src/features/*/server/` or `packages/shared/src/server/services/`
+
+Services contain business logic and orchestrate operations. They're called by tRPC procedures and API routes.
+
+### Service Pattern
+
+**File:** `web/src/features/public-api/server/scores-api-service.ts`
+
+```typescript
+import {
+  _handleGenerateScoresForPublicApi,
+  _handleGetScoresCountForPublicApi,
+  type ScoreQueryType,
+} from "@/src/features/public-api/server/scores";
+import { _handleGetScoreById } from "@langfuse/shared/src/server";
+
+export class ScoresApiService {
+  constructor(private readonly apiVersion: "v1" | "v2") {}
+
+  /**
+   * Get a specific score by ID
+   */
+  async getScoreById({
+    projectId,
+    scoreId,
+    source,
+  }: {
+    projectId: string;
+    scoreId: string;
+    source?: ScoreSourceType;
+  }) {
+    return _handleGetScoreById({
+      projectId,
+      scoreId,
+      source,
+      scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
+      preferredClickhouseService: "ReadOnly",
+    });
+  }
+
+  /**
+   * Get list of scores with version-aware filtering
+   */
+  async generateScoresForPublicApi(props: ScoreQueryType) {
+    return _handleGenerateScoresForPublicApi({
+      props,
+      scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
+    });
+  }
+
+  /**
+   * Get count of scores with version-aware filtering
+   */
+  async getScoresCountForPublicApi(props: ScoreQueryType) {
+    return _handleGetScoresCountForPublicApi({
+      props,
+      scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
+    });
+  }
+}
+```
+
+**Key Points:**
+- Services contain business logic, not routing logic
+- Services should NOT import tRPC or Next.js types
+- Services can call repositories, Prisma, ClickHouse directly
+- Services orchestrate multiple operations
+- Services are reusable across tRPC and public API
+
+### Where to Put Services
+
+**Feature-specific services:**
+```
+web/src/features/
+├── datasets/
+│   └── server/
+│       └── dataset-service.ts
+├── evals/
+│   └── server/
+│       └── eval-service.ts
+└── public-api/
+    └── server/
+        └── scores-api-service.ts
+```
+
+**Shared services:**
+```
+packages/shared/src/server/services/
+├── SlackService.ts
+├── DashboardService/
+├── StorageService.ts
+└── DefaultEvaluationModelService/
+```
+
+---
+
+## Repository Layer
+
+**Location:** `packages/shared/src/server/repositories/`
+
+Repositories handle complex database queries, data transformation, and provide reusable query logic.
+
+### Repository Structure
+
+```
+packages/shared/src/server/repositories/
+├── traces.ts              # Trace queries (ClickHouse)
+├── observations.ts        # Observation queries (ClickHouse)
+├── scores.ts              # Score queries (ClickHouse)
+├── clickhouse.ts          # Core ClickHouse helpers
+└── definitions.ts         # Type definitions
+```
+
+### Repository Pattern
+
+**File:** `packages/shared/src/server/repositories/traces.ts`
+
+```typescript
+import { queryClickhouse, upsertClickhouse } from "./clickhouse";
+import { TraceRecordReadType } from "./definitions";
+import { convertClickhouseToDomain } from "./traces_converters";
+
+/**
+ * Get traces by IDs
+ */
+export const getTracesByIds = async (
+  projectId: string,
+  traceIds: string[]
+): Promise<TraceRecordReadType[]> => {
+  const rows = await queryClickhouse<TraceRecordReadType>({
+    query: `
+      SELECT *
+      FROM traces
+      WHERE project_id = {projectId: String}
+      AND id IN ({traceIds: Array(String)})
+      ORDER BY event_ts DESC
+      LIMIT 1 BY id, project_id
+    `,
+    params: { projectId, traceIds },
+    tags: { feature: "tracing", type: "trace" },
+  });
+
+  return rows.map(convertClickhouseToDomain);
+};
+
+/**
+ * Upsert trace to ClickHouse
+ */
+export const upsertTrace = async (
+  trace: TraceRecordInsertType
+): Promise<void> => {
+  await upsertClickhouse({
+    table: "traces",
+    records: [trace],
+    eventBodyMapper: (body) => ({
+      id: body.id,
+      name: body.name,
+      user_id: body.user_id,
+      // ... map fields
+    }),
+    tags: { feature: "ingestion", type: "trace" },
+  });
+};
+```
+
+**Key Points:**
+- Use `queryClickhouse` for SELECT queries
+- Use `upsertClickhouse` for INSERT/UPDATE
+- Use `commandClickhouse` for DDL (ALTER TABLE, etc.)
+- Include data converters (`convertClickhouseToDomain`)
+- Add OpenTelemetry tags for observability
+- Repositories should NOT contain business logic
+
+### When to Use Repositories
+
+✅ **Use repositories for:**
+- Complex ClickHouse queries with CTEs, joins, aggregations
+- Queries used in multiple places (DRY principle)
+- Data transformation from DB types to domain models
+- Streaming large result sets
+
+❌ **Use direct Prisma/ClickHouse for:**
+- Simple CRUD operations
+- One-off queries
+- Prototyping (can refactor to repository later)
+
+---
+
+## Separation of Concerns
+
+### ✅ Good Example: Proper Layering
+
+**tRPC Procedure (Entry Point):**
+
+```typescript
+// web/src/server/api/routers/scores.ts
+export const scoresRouter = createTRPCRouter({
+  all: protectedProjectProcedure
+    .input(ScoreFilterOptions)
+    .query(async ({ input }) => {
+      // ✅ Thin procedure - delegates to repository
+      return await getScoresUiTable({
+        projectId: input.projectId,
+        filter: input.filter,
+        orderBy: input.orderBy,
+      });
+    }),
+
+  create: protectedProjectProcedure
+    .input(CreateScoreInput)
+    .mutation(async ({ input, ctx }) => {
+      // ✅ Delegates to service for orchestration
+      return await createScoreWithValidation({
+        scoreData: input,
+        userId: ctx.session.user.id,
+        projectId: ctx.session.projectId,
+      });
+    }),
+});
+```
+
+**Service (Business Logic):**
+
+```typescript
+// web/src/features/scores/server/score-service.ts
+export async function createScoreWithValidation({
+  scoreData,
+  userId,
+  projectId,
+}: {
+  scoreData: CreateScoreInput;
+  userId: string;
+  projectId: string;
+}) {
+  // ✅ Business logic: validation
+  const config = await prisma.scoreConfig.findUnique({
+    where: { id: scoreData.configId },
+  });
+
+  if (!config) {
+    throw new LangfuseNotFoundError("Score config not found");
+  }
+
+  validateConfigAgainstBody(config, scoreData);
+
+  // ✅ Business logic: orchestration
+  const scoreId = randomUUID();
+
+  await Promise.all([
+    // Create score in ClickHouse
+    upsertScore({
+      id: scoreId,
+      projectId,
+      traceId: scoreData.traceId,
+      name: scoreData.name,
+      value: scoreData.value,
+      authorUserId: userId,
+    }),
+    // Audit log in PostgreSQL
+    auditLog({
+      userId,
+      resourceType: "score",
+      resourceId: scoreId,
+      action: "create",
+    }),
+  ]);
+
+  return { id: scoreId };
+}
+```
+
+**Repository (Data Access):**
+
+```typescript
+// packages/shared/src/server/repositories/scores.ts
+export const upsertScore = async (
+  score: ScoreInsertType
+): Promise<void> => {
+  // ✅ Pure data access - no business logic
+  await upsertClickhouse({
+    table: "scores",
+    records: [score],
+    eventBodyMapper: (body) => ({
+      id: body.id,
+      trace_id: body.traceId,
+      name: body.name,
+      value: body.value,
+      author_user_id: body.authorUserId,
+    }),
+    tags: { feature: "scoring" },
+  });
+};
+```
+
+### Why This Works
+
+1. **tRPC Procedure**: Thin, delegates to service
+2. **Service**: Contains all business logic (validation, orchestration)
+3. **Repository**: Pure data access, reusable
+4. **Service is protocol-agnostic**: Can be called from tRPC, public API, or worker
+5. **Clear separation**: Easy to test, maintain, extend
 
 ---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Business Logic in Routes (Bad ❌)
+### ❌ Anti-Pattern 1: Business Logic in Routes
 
-**File:** `/form/src/routes/responseRoutes.ts` (actual production code)
+**Bad:**
 
 ```typescript
-// ❌ ANTI-PATTERN: 200+ lines of business logic in route
-router.post('/:formID/submit', async (req: Request, res: Response) => {
-    try {
-        const username = res.locals.claims.preferred_username;
-        const responses = req.body.responses;
-        const stepInstanceId = req.body.stepInstanceId;
+// ❌ BAD: Business logic in tRPC procedure
+export const scoresRouter = createTRPCRouter({
+  create: protectedProjectProcedure
+    .input(CreateScoreInput)
+    .mutation(async ({ input, ctx }) => {
+      // ❌ Validation logic in route
+      const config = await ctx.prisma.scoreConfig.findUnique({
+        where: { id: input.configId },
+      });
 
-        // ❌ Permission checking in route
-        const userId = await userProfileService.getProfileByEmail(username).then(p => p.id);
-        const canComplete = await permissionService.canCompleteStep(userId, stepInstanceId);
-        if (!canComplete) {
-            return res.status(403).json({ error: 'No permission' });
-        }
+      if (!config) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
 
-        // ❌ Workflow logic in route
-        const { createWorkflowEngine, CompleteStepCommand } = require('../workflow/core/WorkflowEngineV3');
-        const engine = await createWorkflowEngine();
-        const command = new CompleteStepCommand(
-            stepInstanceId,
-            userId,
-            responses,
-            additionalContext
-        );
-        const events = await engine.executeCommand(command);
+      if (config.dataType === "NUMERIC" && typeof input.value !== "number") {
+        throw new TRPCError({ code: "BAD_REQUEST" });
+      }
 
-        // ❌ Impersonation handling in route
-        if (res.locals.isImpersonating) {
-            impersonationContextStore.storeContext(stepInstanceId, {
-                originalUserId: res.locals.originalUserId,
-                effectiveUserId: userId,
-            });
-        }
+      // ❌ Direct database access
+      await ctx.prisma.score.create({
+        data: {
+          id: randomUUID(),
+          projectId: ctx.session.projectId,
+          traceId: input.traceId,
+          name: input.name,
+          value: input.value,
+        },
+      });
 
-        // ❌ Response processing in route
-        const post = await PrismaService.main.post.findUnique({
-            where: { id: postData.id },
-            include: { comments: true },
-        });
+      // ❌ More business logic
+      await auditLog({ ... });
 
-        // ❌ Permission check in route
-        await checkPostPermissions(post, userId);
-
-        // ... 100+ more lines of business logic
-
-        res.json({ success: true, data: result });
-    } catch (e) {
-        handler.handleException(res, e);
-    }
+      return { success: true };
+    }),
 });
 ```
 
-**Why This Is Terrible:**
-- 200+ lines of business logic
-- Hard to test (requires HTTP mocking)
-- Hard to reuse (tied to route)
-- Mixed responsibilities
-- Difficult to debug
-- Performance tracking difficult
+**Why it's bad:**
+- Business logic tied to tRPC (can't reuse in public API)
+- Hard to test (need to mock tRPC context)
+- No separation of concerns
+- Difficult to maintain
 
-### How to Refactor (Step-by-Step)
-
-**Step 1: Create Controller**
+**Good:**
 
 ```typescript
-// controllers/PostController.ts
-export class PostController extends BaseController {
-    private postService: PostService;
-
-    constructor() {
-        super();
-        this.postService = new PostService();
-    }
-
-    async createPost(req: Request, res: Response): Promise<void> {
-        try {
-            const validated = createPostSchema.parse({
-                ...req.body,
-            });
-
-            const result = await this.postService.createPost(
-                validated,
-                res.locals.userId
-            );
-
-            this.handleSuccess(res, result, 'Post created successfully');
-        } catch (error) {
-            this.handleError(error, res, 'createPost');
-        }
-    }
-}
-```
-
-**Step 2: Create Service**
-
-```typescript
-// services/postService.ts
-export class PostService {
-    async createPost(
-        data: CreatePostDTO,
-        userId: string
-    ): Promise<PostResult> {
-        // Permission check
-        const canCreate = await permissionService.canCreatePost(userId);
-        if (!canCreate) {
-            throw new ForbiddenError('No permission to create post');
-        }
-
-        // Execute workflow
-        const engine = await createWorkflowEngine();
-        const command = new CompleteStepCommand(/* ... */);
-        const events = await engine.executeCommand(command);
-
-        // Handle impersonation if needed
-        if (context.isImpersonating) {
-            await this.handleImpersonation(data.stepInstanceId, context);
-        }
-
-        // Synchronize roles
-        await this.synchronizeRoles(events, userId);
-
-        return { events, success: true };
-    }
-
-    private async handleImpersonation(stepInstanceId: number, context: any) {
-        impersonationContextStore.storeContext(stepInstanceId, {
-            originalUserId: context.originalUserId,
-            effectiveUserId: context.effectiveUserId,
-        });
-    }
-
-    private async synchronizeRoles(events: WorkflowEvent[], userId: string) {
-        // Role synchronization logic
-    }
-}
-```
-
-**Step 3: Update Route**
-
-```typescript
-// routes/postRoutes.ts
-import { PostController } from '../controllers/PostController';
-
-const router = Router();
-const controller = new PostController();
-
-// ✅ CLEAN: Just routing
-router.post('/',
-    SSOMiddlewareClient.verifyLoginStatus,
-    auditMiddleware,
-    async (req, res) => controller.createPost(req, res)
-);
-```
-
-**Result:**
-- Route: 8 lines (was 200+)
-- Controller: 25 lines (request handling)
-- Service: 50 lines (business logic)
-- Testable, reusable, maintainable!
-
----
-
-## Error Handling
-
-### Controller Error Handling
-
-```typescript
-async createUser(req: Request, res: Response): Promise<void> {
-    try {
-        const result = await this.userService.create(req.body);
-        this.handleSuccess(res, result, 'User created', 201);
-    } catch (error) {
-        // BaseController.handleError automatically:
-        // - Captures to Sentry with context
-        // - Sets appropriate status code
-        // - Returns formatted error response
-        this.handleError(error, res, 'createUser');
-    }
-}
-```
-
-### Custom Error Status Codes
-
-```typescript
-async getUser(req: Request, res: Response): Promise<void> {
-    try {
-        const user = await this.userService.findById(req.params.id);
-
-        if (!user) {
-            // Custom 404 status
-            return this.handleError(
-                new Error('User not found'),
-                res,
-                'getUser',
-                404  // Custom status code
-            );
-        }
-
-        this.handleSuccess(res, user);
-    } catch (error) {
-        this.handleError(error, res, 'getUser');
-    }
-}
-```
-
-### Validation Errors
-
-```typescript
-async createUser(req: Request, res: Response): Promise<void> {
-    try {
-        const validated = createUserSchema.parse(req.body);
-        const user = await this.userService.create(validated);
-        this.handleSuccess(res, user, 'User created', 201);
-    } catch (error) {
-        // Zod errors get 400 status
-        if (error instanceof z.ZodError) {
-            return this.handleError(error, res, 'createUser', 400);
-        }
-        this.handleError(error, res, 'createUser');
-    }
-}
-```
-
----
-
-## HTTP Status Codes
-
-### Standard Codes
-
-| Code | Use Case | Example |
-|------|----------|---------|
-| 200 | Success (GET, PUT) | User retrieved, Updated |
-| 201 | Created (POST) | User created |
-| 204 | No Content (DELETE) | User deleted |
-| 400 | Bad Request | Invalid input data |
-| 401 | Unauthorized | Not authenticated |
-| 403 | Forbidden | No permission |
-| 404 | Not Found | Resource doesn't exist |
-| 409 | Conflict | Duplicate resource |
-| 422 | Unprocessable Entity | Validation failed |
-| 500 | Internal Server Error | Unexpected error |
-
-### Usage Examples
-
-```typescript
-// 200 - Success (default)
-this.handleSuccess(res, user);
-
-// 201 - Created
-this.handleSuccess(res, user, 'Created', 201);
-
-// 400 - Bad Request
-this.handleError(error, res, 'operation', 400);
-
-// 404 - Not Found
-this.handleError(new Error('Not found'), res, 'operation', 404);
-
-// 403 - Forbidden
-this.handleError(new ForbiddenError('No permission'), res, 'operation', 403);
-```
-
----
-
-## Refactoring Guide
-
-### Identify Routes Needing Refactoring
-
-**Red Flags:**
-- Route file > 100 lines
-- Multiple try-catch blocks in one route
-- Direct database access (Prisma calls)
-- Complex business logic (if statements, loops)
-- Permission checks in routes
-
-**Check your routes:**
-```bash
-# Find large route files
-wc -l form/src/routes/*.ts | sort -n
-
-# Find routes with Prisma usage
-grep -r "PrismaService" form/src/routes/
-```
-
-### Refactoring Process
-
-**1. Extract to Controller:**
-```typescript
-// Before: Route with logic
-router.post('/action', async (req, res) => {
-    try {
-        // 50 lines of logic
-    } catch (e) {
-        handler.handleException(res, e);
-    }
+// ✅ GOOD: Thin procedure, delegates to service
+export const scoresRouter = createTRPCRouter({
+  create: protectedProjectProcedure
+    .input(CreateScoreInput)
+    .mutation(async ({ input, ctx }) => {
+      return await createScoreWithValidation({
+        scoreData: input,
+        userId: ctx.session.user.id,
+        projectId: ctx.session.projectId,
+      });
+    }),
 });
-
-// After: Clean route
-router.post('/action', (req, res) => controller.performAction(req, res));
-
-// New controller method
-async performAction(req: Request, res: Response): Promise<void> {
-    try {
-        const result = await this.service.performAction(req.body);
-        this.handleSuccess(res, result);
-    } catch (error) {
-        this.handleError(error, res, 'performAction');
-    }
-}
 ```
 
-**2. Extract to Service:**
-```typescript
-// Controller stays thin
-async performAction(req: Request, res: Response): Promise<void> {
-    try {
-        const validated = actionSchema.parse(req.body);
-        const result = await this.actionService.execute(validated);
-        this.handleSuccess(res, result);
-    } catch (error) {
-        this.handleError(error, res, 'performAction');
-    }
-}
+### ❌ Anti-Pattern 2: Database Calls in Routes
 
-// Service contains business logic
-export class ActionService {
-    async execute(data: ActionDTO): Promise<Result> {
-        // All business logic here
-        // Permission checks
-        // Database operations
-        // Complex transformations
-        return result;
-    }
-}
+**Bad:**
+
+```typescript
+// ❌ BAD: Direct database access in route
+export default withMiddlewares({
+  GET: createAuthedProjectAPIRoute({
+    name: "Get Scores",
+    fn: async ({ auth }) => {
+      // ❌ Direct ClickHouse query in route
+      const scores = await queryClickhouse({
+        query: "SELECT * FROM scores WHERE project_id = {projectId: String}",
+        params: { projectId: auth.scope.projectId },
+      });
+
+      return { data: scores };
+    },
+  }),
+});
 ```
 
-**3. Add Repository (if needed):**
+**Good:**
+
 ```typescript
-// Service calls repository
-export class ActionService {
-    constructor(private actionRepository: ActionRepository) {}
+// ✅ GOOD: Delegates to service or repository
+export default withMiddlewares({
+  GET: createAuthedProjectAPIRoute({
+    name: "Get Scores",
+    fn: async ({ auth, query }) => {
+      const scoresService = new ScoresApiService("v1");
 
-    async execute(data: ActionDTO): Promise<Result> {
-        // Business logic
-        const entity = await this.actionRepository.findById(data.id);
-        // More logic
-        return await this.actionRepository.update(data.id, changes);
-    }
-}
+      return await scoresService.generateScoresForPublicApi({
+        projectId: auth.scope.projectId,
+        page: query.page,
+        limit: query.limit,
+      });
+    },
+  }),
+});
+```
 
-// Repository handles data access
-export class ActionRepository {
-    async findById(id: number): Promise<Entity | null> {
-        return PrismaService.main.entity.findUnique({ where: { id } });
-    }
+### ❌ Anti-Pattern 3: Business Logic in Repositories
 
-    async update(id: number, data: Partial<Entity>): Promise<Entity> {
-        return PrismaService.main.entity.update({ where: { id }, data });
-    }
-}
+**Bad:**
+
+```typescript
+// ❌ BAD: Business logic in repository
+export const upsertScore = async (
+  score: ScoreInsertType
+): Promise<void> => {
+  // ❌ Validation in repository
+  if (!score.name) {
+    throw new Error("Score name is required");
+  }
+
+  // ❌ Authorization check in repository
+  const project = await prisma.project.findUnique({
+    where: { id: score.projectId },
+  });
+
+  if (!project) {
+    throw new Error("Project not found");
+  }
+
+  // ❌ Side effects in repository
+  await auditLog({ ... });
+
+  await upsertClickhouse({ ... });
+};
+```
+
+**Good:**
+
+```typescript
+// ✅ GOOD: Pure data access, no business logic
+export const upsertScore = async (
+  score: ScoreInsertType
+): Promise<void> => {
+  await upsertClickhouse({
+    table: "scores",
+    records: [score],
+    eventBodyMapper: (body) => ({
+      id: body.id,
+      trace_id: body.traceId,
+      name: body.name,
+      value: body.value,
+    }),
+    tags: { feature: "scoring" },
+  });
+};
 ```
 
 ---
 
 **Related Files:**
-- [SKILL.md](SKILL.md) - Main guide
-- [services-and-repositories.md](services-and-repositories.md) - Service layer details
-- [complete-examples.md](complete-examples.md) - Full refactoring examples
+
+- [SKILL.md](../SKILL.md) - Main backend development guidelines
+- [architecture-overview.md](architecture-overview.md) - System architecture
+- [middleware-guide.md](middleware-guide.md) - Middleware patterns
+- [database-patterns.md](database-patterns.md) - Database access patterns
