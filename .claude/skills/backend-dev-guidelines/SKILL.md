@@ -1,6 +1,6 @@
 ---
 name: backend-dev-guidelines
-description: Comprehensive backend development guide for Langfuse's Next.js 14/tRPC/Express/TypeScript monorepo. Use when creating tRPC routers, public API endpoints, BullMQ queue processors, services, or working with tRPC procedures, Next.js API routes, Prisma database access, ClickHouse analytics queries, Redis queues, OpenTelemetry instrumentation, Zod v4 validation, env.mjs configuration, or async patterns. Covers layered architecture (tRPC procedures → services, queue processors → services), traceException error handling, observability patterns, and testing strategies.
+description: Comprehensive backend development guide for Langfuse's Next.js 14/tRPC/Express/TypeScript monorepo. Use when creating tRPC routers, public API endpoints, BullMQ queue processors, services, or working with tRPC procedures, Next.js API routes, Prisma database access, ClickHouse analytics queries, Redis queues, OpenTelemetry instrumentation, Zod v4 validation, env.mjs configuration, tenant isolation patterns, or async patterns. Covers layered architecture (tRPC procedures → services, queue processors → services), dual database system (PostgreSQL + ClickHouse), projectId filtering for multi-tenant isolation, traceException error handling, observability patterns, and testing strategies (Jest for web, vitest for worker).
 ---
 
 # Backend Development Guidelines
@@ -299,14 +299,23 @@ const schema = z.object({
 const validated = schema.parse(input);
 ```
 
-### 4. Direct Prisma Usage from @langfuse/shared from within services
+### 4. Services Use Prisma Directly for Simple CRUD or Repositories for Complex Queries
 
 ```typescript
-// Services use Prisma directly
+// Services use Prisma directly for simple CRUD
 import { prisma } from "@langfuse/shared/src/db";
 
 const dataset = await prisma.dataset.findUnique({
-  where: { id: datasetId },
+  where: { id: datasetId, projectId }, // Always filter by projectId for tenant isolation
+});
+
+// Or use repositories for complex queries (traces, observations, scores)
+import { getTracesTable } from "@langfuse/shared/src/server";
+
+const traces = await getTracesTable({
+  projectId,
+  filter: [...],
+  limit: 1000,
 });
 ```
 
@@ -324,7 +333,26 @@ const result = await instrumentAsync(
 );
 ```
 
-### 7. Comprehensive Testing Required
+### 7. Always Filter by projectId for Tenant Isolation
+
+```typescript
+// ✅ CORRECT: Filter by projectId for tenant isolation
+const trace = await prisma.trace.findUnique({
+  where: { id: traceId, projectId }, // Required for multi-tenant data isolation
+});
+
+// ✅ CORRECT: ClickHouse queries also require projectId
+const traces = await queryClickhouse({
+  query: `
+    SELECT * FROM traces
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {startTime: DateTime64(3)}
+  `,
+  params: { projectId, startTime },
+});
+```
+
+### 8. Comprehensive Testing Required
 
 Write tests for all new features and bug fixes. See [testing-guide.md](resources/testing-guide.md) for detailed examples.
 
@@ -390,7 +418,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma } from "@prisma/client";
 
 // ClickHouse
-import { getTracesTable } from "@langfuse/shared/src/server";
+import {
+  queryClickhouse,
+  queryClickhouseStream,
+  upsertClickhouse,
+} from "@langfuse/shared/src/server";
 
 // Error tracking & instrumentation
 import {
@@ -429,21 +461,24 @@ import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 | 404  | Not Found    |
 | 500  | Server Error |
 
-### Service Templates
+### Example Features to Reference
 
-**Blog API** (✅ Mature) - Use as template for REST APIs
-**Auth Service** (✅ Mature) - Use as template for authentication patterns
+Reference existing Langfuse features for implementation patterns:
+- **Datasets** (`web/src/features/datasets/`) - Complete feature with tRPC router, public API, and service
+- **Prompts** (`web/src/features/prompts/`) - Feature with versioning and templates
+- **Evaluations** (`web/src/features/evals/`) - Complex feature with worker integration
+- **Public API** (`web/src/features/public-api/`) - Middleware and route patterns
 
 ---
 
 ## Anti-Patterns to Avoid
 
-❌ Business logic in routes
-❌ Direct process.env usage
+❌ Business logic in routes/procedures
+❌ Direct process.env usage (always use env.mjs/env.ts)
 ❌ Missing error handling
-❌ No input validation
-❌ Direct Prisma everywhere
-❌ console.log instead of Sentry
+❌ No input validation (always use Zod v4)
+❌ Missing projectId filter on tenant-scoped queries
+❌ console.log instead of logger/traceException
 
 ---
 
@@ -451,46 +486,45 @@ import { QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
 
 | Need to...                | Read this                                                    |
 | ------------------------- | ------------------------------------------------------------ |
-| Understand architecture   | [architecture-overview.md](architecture-overview.md)         |
-| Create routes/controllers | [routing-and-controllers.md](routing-and-controllers.md)     |
-| Organize business logic   | [services-and-repositories.md](services-and-repositories.md) |
-| Create middleware         | [middleware-guide.md](middleware-guide.md)                   |
-| Database access           | [database-patterns.md](database-patterns.md)                 |
-| Manage config             | [configuration.md](configuration.md)                         |
-| Write tests               | [testing-guide.md](testing-guide.md)                         |
-| See examples              | [complete-examples.md](complete-examples.md)                 |
+| Understand architecture   | [architecture-overview.md](resources/architecture-overview.md)         |
+| Create routes/controllers | [routing-and-controllers.md](resources/routing-and-controllers.md)     |
+| Organize business logic   | [services-and-repositories.md](resources/services-and-repositories.md) |
+| Create middleware         | [middleware-guide.md](resources/middleware-guide.md)                   |
+| Database access           | [database-patterns.md](resources/database-patterns.md)                 |
+| Manage config             | [configuration.md](resources/configuration.md)                         |
+| Write tests               | [testing-guide.md](resources/testing-guide.md)                         |
 
 ---
 
 ## Resource Files
 
-### [architecture-overview.md](architecture-overview.md)
+### [architecture-overview.md](resources/architecture-overview.md)
 
-Layered architecture, request lifecycle, separation of concerns
+Three-layer architecture (tRPC/Public API → Services → Data Access), request lifecycle for tRPC/Public API/Worker, Next.js 14 directory structure, dual database system (PostgreSQL + ClickHouse), separation of concerns, repository pattern for complex queries
 
-### [routing-and-controllers.md](routing-and-controllers.md)
+### [routing-and-controllers.md](resources/routing-and-controllers.md)
 
-Route definitions, BaseController, error handling, examples
+Next.js file-based routing, tRPC router patterns, Public REST API routes, layered architecture (Entry Points → Services → Repositories → Database), service layer organization, anti-patterns to avoid
 
-### [services-and-repositories.md](services-and-repositories.md)
+### [services-and-repositories.md](resources/services-and-repositories.md)
 
-Service patterns, DI, repository pattern, caching
+Service layer overview, dependency injection patterns, singleton patterns, repository pattern for data access, service design principles, caching strategies, testing services
 
-### [middleware-guide.md](middleware-guide.md)
+### [middleware-guide.md](resources/middleware-guide.md)
 
-Auth, audit, error boundaries, AsyncLocalStorage
+tRPC middleware (withErrorHandling, withOtelInstrumentation, enforceUserIsAuthed), seven tRPC procedure types (publicProcedure, authenticatedProcedure, protectedProjectProcedure, etc.), Public API middleware (withMiddlewares, createAuthedProjectAPIRoute), authentication patterns (NextAuth for tRPC, Basic Auth for Public API)
 
-### [database-patterns.md](database-patterns.md)
+### [database-patterns.md](resources/database-patterns.md)
 
-PrismaService, repositories, transactions, optimization
+Dual database architecture (PostgreSQL via Prisma + ClickHouse via direct client), PostgreSQL CRUD operations, ClickHouse query patterns (queryClickhouse, queryClickhouseStream, upsertClickhouse), repository pattern for complex queries, tenant isolation with projectId filtering, when to use which database
 
-### [configuration.md](configuration.md)
+### [configuration.md](resources/configuration.md)
 
-UnifiedConfig, environment configs, secrets
+Environment variable validation with Zod, package-specific configs (web/env.mjs with t3-oss/env-nextjs, worker/env.ts, shared/env.ts), NEXT_PUBLIC_LANGFUSE_CLOUD_REGION usage, LANGFUSE_EE_LICENSE_KEY for enterprise features, best practices for env management
 
-### [testing-guide.md](testing-guide.md)
+### [testing-guide.md](resources/testing-guide.md)
 
-Unit/integration tests, mocking, coverage
+Integration tests (Public API with makeZodVerifiedAPICall), tRPC tests (createInnerTRPCContext, appRouter.createCaller), service-level tests (repository/service functions), worker tests (vitest with streams), test isolation principles, running tests (Jest for web, vitest for worker)
 
 ---
 
@@ -503,5 +537,5 @@ Unit/integration tests, mocking, coverage
 ---
 
 **Skill Status**: COMPLETE ✅
-**Line Count**: < 500 ✅
-**Progressive Disclosure**: 11 resource files ✅
+**Line Count**: ~540 lines
+**Progressive Disclosure**: 7 resource files ✅
