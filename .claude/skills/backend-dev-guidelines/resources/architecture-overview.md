@@ -711,6 +711,7 @@ await redis.set(`cache:${key}`, value, "EX", 3600);
 **Repository Pattern:**
 
 Langfuse uses repositories in `packages/shared/src/server/repositories/` for complex data access patterns. Repositories provide:
+
 - Abstraction over complex queries (traces, observations, scores, events)
 - Data converters for transforming database models to application models
 - ClickHouse query builders and stream processing
@@ -768,24 +769,48 @@ export async function createDataset(ctx: TRPCContext) {
 }
 ```
 
-### 3. Instrument Critical Operations
+### 3. Observability with OpenTelemetry + DataDog
 
-Use OpenTelemetry for observability:
+**Langfuse uses OpenTelemetry for backend observability, with traces and logs sent to DataDog.**
+
+Use structured logging and instrumentation:
 
 ```typescript
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import {
+  logger,
+  traceException,
+  instrumentAsync,
+} from "@langfuse/shared/src/server";
 
 export async function processEvaluation(evalId: string) {
   return await instrumentAsync(
     { name: "evaluation.process", attributes: { evalId } },
     async (span) => {
-      // Operation here
-      span.setAttributes({ score: result.score });
-      return result;
+      // Structured logging (includes trace_id, span_id, dd.trace_id)
+      logger.info("Starting evaluation", { evalId });
+
+      try {
+        // Operation here
+        const result = await runEvaluation(evalId);
+
+        span.setAttributes({
+          score: result.score,
+          status: "success",
+        });
+
+        return result;
+      } catch (error) {
+        // Record exception to OpenTelemetry span (sent to DataDog)
+        traceException(error, span);
+        logger.error("Evaluation failed", { evalId, error: error.message });
+        throw error;
+      }
     },
   );
 }
 ```
+
+**Note**: Frontend uses Sentry for error tracking, but backend (tRPC, API routes, services, worker) uses OpenTelemetry + DataDog.
 
 ### 4. Use Proper Error Handling
 
@@ -796,7 +821,7 @@ Transform errors at entry points:
 try {
   return await service();
 } catch (error) {
-  traceException(error); // Log to Sentry
+  traceException(error); // Record to OpenTelemetry span (sent to DataDog)
   throw new TRPCError({
     code: "INTERNAL_SERVER_ERROR",
     message: "User-friendly message",
@@ -808,7 +833,7 @@ try {
 try {
   return await service();
 } catch (error) {
-  traceException(error);
+  traceException(error); // Record to OpenTelemetry span (sent to DataDog)
   return res.status(500).json({
     error: "User-friendly message",
   });

@@ -21,7 +21,7 @@ Automatically activates when working on:
 - Accessing resources based on entitlements
 - Implementing middleware (tRPC, NextAuth, public API)
 - Database operations with Prisma (PostgreSQL) or ClickHouse
-- Error tracking with traceException and OpenTelemetry instrumentation
+- Observability with OpenTelemetry, DataDog, logger, and traceException
 - Input validation with Zod v4
 - Environment configuration from env variables
 - Backend testing and refactoring
@@ -319,40 +319,44 @@ const traces = await getTracesTable({
 });
 ```
 
-### 6. Instrument Critical Operations (all API routes are auto-instrumented by a wrapper span)
+### 6. Observability: OpenTelemetry + DataDog (Not Sentry for Backend)
+
+**Langfuse uses OpenTelemetry for backend observability, with traces and logs sent to DataDog.**
 
 ```typescript
-import { instrumentAsync } from "@langfuse/shared/src/server";
+// Import observability utilities
+import {
+  logger,          // Winston logger with OpenTelemetry/DataDog context
+  traceException,  // Record exceptions to OpenTelemetry spans
+  instrumentAsync, // Create instrumented spans
+} from "@langfuse/shared/src/server";
 
+// Structured logging (includes trace_id, span_id, dd.trace_id)
+logger.info("Processing dataset", { datasetId, projectId });
+logger.error("Failed to create dataset", { error: err.message });
+
+// Record exceptions to OpenTelemetry (sent to DataDog)
+try {
+  await operation();
+} catch (error) {
+  traceException(error); // Records to current span
+  throw error;
+}
+
+// Instrument critical operations (all API routes auto-instrumented)
 const result = await instrumentAsync(
   { name: "dataset.create" },
   async (span) => {
+    span.setAttributes({ datasetId, projectId });
     // Operation here
     return dataset;
   },
 );
 ```
 
-### 7. Always Filter by projectId for Tenant Isolation
+**Note**: Frontend uses Sentry, but backend (tRPC, API routes, services, worker) uses OpenTelemetry + DataDog.
 
-```typescript
-// ✅ CORRECT: Filter by projectId for tenant isolation
-const trace = await prisma.trace.findUnique({
-  where: { id: traceId, projectId }, // Required for multi-tenant data isolation
-});
-
-// ✅ CORRECT: ClickHouse queries also require projectId
-const traces = await queryClickhouse({
-  query: `
-    SELECT * FROM traces
-    WHERE project_id = {projectId: String}
-    AND timestamp >= {startTime: DateTime64(3)}
-  `,
-  params: { projectId, startTime },
-});
-```
-
-### 8. Comprehensive Testing Required
+### 7. Comprehensive Testing Required
 
 Write tests for all new features and bug fixes. See [testing-guide.md](resources/testing-guide.md) for detailed examples.
 
@@ -400,6 +404,25 @@ expect(rows).toHaveLength(2);
 - Tests must be independent and runnable in any order
 - Never use `pruneDatabase` in tests
 
+### 8. Always Filter by projectId for Tenant Isolation
+
+```typescript
+// ✅ CORRECT: Filter by projectId for tenant isolation
+const trace = await prisma.trace.findUnique({
+  where: { id: traceId, projectId }, // Required for multi-tenant data isolation
+});
+
+// ✅ CORRECT: ClickHouse queries also require projectId
+const traces = await queryClickhouse({
+  query: `
+    SELECT * FROM traces
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {startTime: DateTime64(3)}
+  `,
+  params: { projectId, startTime },
+});
+```
+
 ---
 
 ## Common Imports
@@ -424,11 +447,11 @@ import {
   upsertClickhouse,
 } from "@langfuse/shared/src/server";
 
-// Error tracking & instrumentation
+// Observability - OpenTelemetry + DataDog (NOT Sentry for backend)
 import {
-  traceException,
-  instrumentAsync,
-  logger,
+  logger,          // Winston logger with OTEL/DataDog trace context
+  traceException,  // Record exceptions to OpenTelemetry spans
+  instrumentAsync, // Create instrumented spans for operations
 } from "@langfuse/shared/src/server";
 
 // Config
@@ -478,7 +501,7 @@ Reference existing Langfuse features for implementation patterns:
 ❌ Missing error handling
 ❌ No input validation (always use Zod v4)
 ❌ Missing projectId filter on tenant-scoped queries
-❌ console.log instead of logger/traceException
+❌ console.log instead of logger/traceException (OpenTelemetry)
 
 ---
 
@@ -531,7 +554,6 @@ Integration tests (Public API with makeZodVerifiedAPICall), tRPC tests (createIn
 ## Related Skills
 
 - **database-verification** - Verify column names and schema consistency
-- **error-tracking** - Sentry integration patterns
 - **skill-developer** - Meta-skill for creating and managing skills
 
 ---
