@@ -18,7 +18,7 @@ Automatically activates when working on:
 - Creating or modifying BullMQ queue consumers and producers
 - Building services with business logic
 - Authenticating API requests
-- Accessing ressources based on entitlements
+- Accessing resources based on entitlements
 - Implementing middleware (tRPC, NextAuth, public API)
 - Database operations with Prisma (PostgreSQL) or ClickHouse
 - Error tracking with traceException and OpenTelemetry instrumentation
