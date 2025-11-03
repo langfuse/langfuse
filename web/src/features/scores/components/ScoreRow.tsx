@@ -51,7 +51,7 @@ const ScoreValueSection = ({
   diff,
 }: {
   aggregate: AggregatedScoreData | null;
-  diff?: BaselineDiff | null;
+  diff?: BaselineDiff;
 }) => {
   return (
     <div className="flex flex-shrink-0 items-center gap-1">
@@ -87,7 +87,7 @@ export const ScoreRow = ({
   name: string;
   source: ScoreSourceType;
   aggregate: AggregatedScoreData | null;
-  diff?: BaselineDiff | null;
+  diff?: BaselineDiff;
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
 
