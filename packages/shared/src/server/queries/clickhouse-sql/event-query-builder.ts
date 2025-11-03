@@ -151,6 +151,10 @@ const EVENTS_AGGREGATION_FIELDS = {
   user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
   input: "argMaxIf(input, event_ts, parent_span_id = '') AS input",
   output: "argMaxIf(output, event_ts, parent_span_id = '') AS output",
+  input_truncated:
+    "argMaxIf(input_truncated, event_ts, parent_span_id = '') AS input_truncated",
+  output_truncated:
+    "argMaxIf(output_truncated, event_ts, parent_span_id = '') AS output_truncated",
   metadata:
     "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_values), event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
@@ -161,7 +165,8 @@ const EVENTS_AGGREGATION_FIELDS = {
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
 
-  bookmarked: "any(bookmarked) AS bookmarked",
+  bookmarked:
+    "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
   public: "argMaxIf(public, event_ts, parent_span_id = '') AS public",
   // Legacy fields for backward compatibility
   tags: "array() AS tags",

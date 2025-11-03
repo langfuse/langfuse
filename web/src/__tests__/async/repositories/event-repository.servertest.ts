@@ -6,11 +6,13 @@ import {
   getObservationByIdFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
+  updateEvents,
+  getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
-import { type FilterCondition } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { type FilterCondition } from "@langfuse/shared";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -1499,6 +1501,101 @@ describe("Clickhouse Events Repository Test", () => {
 
       // Cleanup
       await prisma.model.delete({ where: { id: modelId } });
+    });
+  });
+
+  maybe("Update methods", () => {
+    it("should allow to set bookmarked on a root span", async () => {
+      const traceId = randomUUID();
+      const traceId2 = randomUUID();
+      const rootSpanId = randomUUID();
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "root-event",
+        bookmarked: false,
+        parent_span_id: "",
+      });
+      const rootEvent2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "root-event2",
+        bookmarked: true,
+        parent_span_id: "",
+      });
+
+      const events = Array(3)
+        .keys()
+        .map((i) => {
+          const id = randomUUID();
+          return createEvent({
+            id: id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "event-" + i,
+            bookmarked: false,
+            parent_span_id: rootSpanId,
+          });
+        });
+
+      await createEventsCh([rootEvent, rootEvent2, ...events]);
+
+      var result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(false);
+
+      // Model setting bookmark as true on the root span
+      await updateEvents(
+        projectId,
+        { traceIds: [traceId], rootOnly: true },
+        { bookmarked: true },
+      );
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(true);
+
+      // Non-root event on bookmarked
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-hijack",
+          bookmarked: true,
+          parent_span_id: rootSpanId,
+        }),
+      ]);
+
+      // Removing bookmark on all span in a trace
+      // including the non-root, added above
+      await updateEvents(
+        projectId,
+        { traceIds: [traceId] },
+        { bookmarked: false },
+      );
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(false);
+
+      // Trace id 2 should remain bookmarked
+      result = await getTraceByIdFromEventsTable({
+        projectId,
+        traceId: traceId2,
+      });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(true);
     });
   });
 });
