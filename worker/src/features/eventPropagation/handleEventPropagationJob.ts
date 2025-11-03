@@ -217,6 +217,13 @@ export const handleEventPropagationJob = async (
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
+        ), experiment_traces_to_exclude as (
+          select distinct
+            project_id,
+            trace_id
+          from dataset_run_items_rmt
+          where project_id in (select arrayJoin(project_ids) from batch_stats)
+            and created_at >= now() - interval 24 hour
         ), relevant_traces as (
           select
             t.id,
@@ -231,50 +238,6 @@ export const handleEventPropagationJob = async (
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
           order by t.event_ts desc
           limit 1 by t.project_id, t.id
-        ), relevant_dataset_run_items_obs as (
-          select
-            dri.id,
-            dri.project_id,
-            dri.trace_id,
-            dri.observation_id,
-            dri.dataset_run_id,
-            dri.dataset_run_name,
-            dri.dataset_run_description,
-            dri.dataset_run_metadata,
-            dri.dataset_id,
-            dri.dataset_item_id,
-            dri.dataset_item_expected_output,
-            dri.dataset_item_metadata
-          from dataset_run_items_rmt dri
-          where dri.project_id in (select arrayJoin(project_ids) from batch_stats)
-            and dri.trace_id in (select arrayJoin(trace_ids) from batch_stats)
-            and dri.observation_id IS NOT NULL
-            and dri.created_at >= (select min(min_start_time) - interval 1 day from batch_stats)
-            and dri.created_at <= (select max(max_start_time) + interval 1 day from batch_stats)
-          order by dri.event_ts desc
-          limit 1 by dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
-        ), relevant_dataset_run_items_trace as (
-          select
-            dri.id,
-            dri.project_id,
-            dri.trace_id,
-            dri.observation_id,
-            dri.dataset_run_id,
-            dri.dataset_run_name,
-            dri.dataset_run_description,
-            dri.dataset_run_metadata,
-            dri.dataset_id,
-            dri.dataset_item_id,
-            dri.dataset_item_expected_output,
-            dri.dataset_item_metadata
-          from dataset_run_items_rmt dri
-          where dri.project_id in (select arrayJoin(project_ids) from batch_stats)
-            and dri.trace_id in (select arrayJoin(trace_ids) from batch_stats)
-            and dri.observation_id IS NULL
-            and dri.created_at >= (select min(min_start_time) - interval 1 day from batch_stats)
-            and dri.created_at <= (select max(max_start_time) + interval 1 day from batch_stats)
-          order by dri.event_ts desc
-          limit 1 by dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
         )
 
         INSERT INTO events (
@@ -326,17 +289,6 @@ export const handleEventPropagationJob = async (
           blob_storage_file_path,
           event_raw,
           event_bytes,
-          experiment_id,
-          experiment_name,
-          experiment_metadata_names,
-          experiment_metadata_values,
-          experiment_description,
-          experiment_dataset_id,
-          experiment_item_id,
-          experiment_item_expected_output,
-          experiment_item_metadata_names,
-          experiment_item_metadata_values,
-          experiment_is_root,
           created_at,
           updated_at,
           event_ts,
@@ -399,23 +351,6 @@ export const handleEventPropagationJob = async (
           '' AS blob_storage_file_path,
           '' AS event_raw,
           byteSize(*) AS event_bytes,
-          -- Experiment columns: prioritize observation-level over trace-level
-          coalesce(drio.dataset_run_id, drit.dataset_run_id, '') AS experiment_id,
-          coalesce(drio.dataset_run_name, drit.dataset_run_name, '') AS experiment_name,
-          mapKeys(coalesce(drio.dataset_run_metadata, drit.dataset_run_metadata, map())) AS experiment_metadata_names,
-          mapValues(coalesce(drio.dataset_run_metadata, drit.dataset_run_metadata, map())) AS experiment_metadata_values,
-          coalesce(drio.dataset_run_description, drit.dataset_run_description, '') AS experiment_description,
-          coalesce(drio.dataset_id, drit.dataset_id, '') AS experiment_dataset_id,
-          coalesce(drio.dataset_item_id, drit.dataset_item_id, '') AS experiment_item_id,
-          coalesce(drio.dataset_item_expected_output, drit.dataset_item_expected_output, '') AS experiment_item_expected_output,
-          mapKeys(coalesce(drio.dataset_item_metadata, drit.dataset_item_metadata, map())) AS experiment_item_metadata_names,
-          mapValues(coalesce(drio.dataset_item_metadata, drit.dataset_item_metadata, map())) AS experiment_item_metadata_values,
-          -- experiment_is_root: 1 if observation-level match, or trace-level match for root observation
-          CASE
-            WHEN drio.id IS NOT NULL THEN 1
-            WHEN drit.id IS NOT NULL AND obs.id = concat('t-', obs.trace_id) THEN 1
-            ELSE 0
-          END AS experiment_is_root,
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
@@ -426,17 +361,10 @@ export const handleEventPropagationJob = async (
           obs.project_id = t.project_id AND
           obs.trace_id = t.id
         )
-        LEFT JOIN relevant_dataset_run_items_obs drio
+        LEFT ANTI JOIN experiment_traces_to_exclude excl
         ON (
-          drio.observation_id = obs.id AND
-          drio.project_id = obs.project_id AND
-          drio.trace_id = obs.trace_id
-        )
-        LEFT JOIN relevant_dataset_run_items_trace drit
-        ON (
-          drit.observation_id IS NULL AND
-          drit.project_id = obs.project_id AND
-          drit.trace_id = obs.trace_id
+          excl.project_id = obs.project_id AND
+          excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
       `,
