@@ -19,6 +19,8 @@ const EVENTS_FIELDS = {
   level: "e.level as level",
   statusMessage: 'e.status_message as "status_message"',
   version: "e.version as version",
+  bookmarked: "e.bookmarked as bookmarked",
+  public: "e.public as public",
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
@@ -159,10 +161,10 @@ const EVENTS_AGGREGATION_FIELDS = {
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
 
+  bookmarked: "any(bookmarked) AS bookmarked",
+  public: "argMaxIf(public, event_ts, parent_span_id = '') AS public",
   // Legacy fields for backward compatibility
   tags: "array() AS tags",
-  bookmarked: "false AS bookmarked",
-  public: "false AS public",
   release: "'' AS release",
 } as const;
 
