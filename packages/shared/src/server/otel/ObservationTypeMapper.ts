@@ -229,7 +229,21 @@ export class ObservationTypeMapperRegistry {
     new CustomAttributeMapper(
       "Vercel_AI_SDK_Operation",
       4,
-      (attributes) => hasMeaningfulValue(attributes["operation.name"]),
+      (attributes) => {
+        const modelKeys = [
+          LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+          "gen_ai.request.model",
+          "gen_ai.response.model",
+        ];
+        const hasModelInformation = modelKeys.some((key) =>
+          hasMeaningfulValue(attributes[key]),
+        );
+
+        return (
+          hasModelInformation &&
+          hasMeaningfulValue(attributes["operation.name"])
+        );
+      },
       (attributes) => {
         const operationName = attributes["operation.name"] as string;
         // Format:
