@@ -32,20 +32,29 @@ export function TwoScoreAnalytics({
   analytics,
   nBins,
 }: TwoScoreAnalyticsProps) {
+  // Detect cross-type comparison (treat as categorical)
+  const isCrossType = score1.dataType !== score2.dataType;
+  const isBothNumeric =
+    score1.dataType === "NUMERIC" && score2.dataType === "NUMERIC";
+
   // Check if stacked distribution is available (categorical comparison)
   const hasStackedDistribution =
     analytics.stackedDistribution && analytics.stackedDistribution.length > 0;
 
-  // Extract categories for categorical/boolean scores
+  // Extract categories for categorical/boolean/cross-type scores
   const categories = useMemo(() => {
     console.log("[TwoScoreAnalytics] Category extraction:", {
-      dataType: score1.dataType,
+      score1DataType: score1.dataType,
+      score2DataType: score2.dataType,
+      isCrossType,
+      isBothNumeric,
       hasStackedDistribution,
       stackedDistributionLength: analytics.stackedDistribution?.length ?? 0,
       confusionMatrixLength: analytics.confusionMatrix?.length ?? 0,
     });
 
-    if (score1.dataType === "NUMERIC") return undefined;
+    // Only treat as numeric if BOTH scores are numeric (no cross-type)
+    if (isBothNumeric) return undefined;
 
     // For categorical scores with stacked distribution, extract from stackedDistribution
     if (hasStackedDistribution) {
@@ -87,16 +96,18 @@ export function TwoScoreAnalytics({
     return undefined;
   }, [
     score1.dataType,
+    score2.dataType,
+    isBothNumeric,
     analytics.confusionMatrix,
     hasStackedDistribution,
     analytics.stackedDistribution,
   ]);
 
-  // Fill missing bins for categorical/boolean data
+  // Fill missing bins for categorical/boolean/cross-type data
   const distribution1 = useMemo(() => {
     const raw = analytics.distribution1;
 
-    if (score1.dataType === "NUMERIC" || !categories) {
+    if (isBothNumeric || !categories) {
       return raw;
     }
 
@@ -105,12 +116,12 @@ export function TwoScoreAnalytics({
       binIndex: index,
       count: binMap.get(index) ?? 0,
     }));
-  }, [analytics.distribution1, score1.dataType, categories]);
+  }, [analytics.distribution1, isBothNumeric, categories]);
 
   const distribution2 = useMemo(() => {
     const raw = analytics.distribution2;
 
-    if (score1.dataType === "NUMERIC" || !categories) {
+    if (isBothNumeric || !categories) {
       return raw;
     }
 
@@ -119,12 +130,11 @@ export function TwoScoreAnalytics({
       binIndex: index,
       count: binMap.get(index) ?? 0,
     }));
-  }, [analytics.distribution2, score1.dataType, categories]);
+  }, [analytics.distribution2, isBothNumeric, categories]);
 
-  // Generate bin labels for numeric scores
+  // Generate bin labels for numeric scores (only when both are numeric)
   const binLabels = useMemo(() => {
-    if (score1.dataType !== "NUMERIC" || !analytics.statistics)
-      return undefined;
+    if (!isBothNumeric || !analytics.statistics) return undefined;
 
     const heatmapRow = analytics.heatmap[0];
     if (!heatmapRow) return undefined;
@@ -140,7 +150,7 @@ export function TwoScoreAnalytics({
       const end = min + (i + 1) * binWidth;
       return formatBinLabel(start, end);
     });
-  }, [score1.dataType, analytics.heatmap, analytics.statistics, nBins]);
+  }, [isBothNumeric, analytics.heatmap, analytics.statistics, nBins]);
 
   const totalCount1 = analytics.counts.score1Total;
   const totalCount2 = analytics.counts.score2Total;
@@ -188,7 +198,7 @@ export function TwoScoreAnalytics({
               <ScoreDistributionChart
                 distribution1={distribution1}
                 distribution2={distribution2}
-                dataType={score1.dataType}
+                dataType={isBothNumeric ? "NUMERIC" : score1.dataType}
                 score1Name={score1DisplayName}
                 score2Name={score2DisplayName}
                 binLabels={binLabels}

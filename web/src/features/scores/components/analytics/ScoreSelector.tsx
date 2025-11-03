@@ -22,7 +22,7 @@ interface ScoreSelectorProps {
   onChange: (value: string | undefined) => void;
   options: ScoreOption[];
   placeholder?: string;
-  filterByDataType?: string; // When set, only show scores matching this data type
+  filterByDataType?: string | string[]; // Single type or array of compatible types
   className?: string;
 }
 
@@ -35,7 +35,12 @@ export function ScoreSelector({
   className,
 }: ScoreSelectorProps) {
   const filteredOptions = filterByDataType
-    ? options.filter((opt) => opt.dataType === filterByDataType)
+    ? options.filter((opt) => {
+        if (Array.isArray(filterByDataType)) {
+          return filterByDataType.includes(opt.dataType);
+        }
+        return opt.dataType === filterByDataType;
+      })
     : options;
 
   const handleClear = () => {

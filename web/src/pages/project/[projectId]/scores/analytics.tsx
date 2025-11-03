@@ -102,7 +102,21 @@ export default function ScoresAnalyticsPage() {
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
 
-  // Clear score2 when score1's dataType changes
+  // Determine which score types are compatible with score1
+  // For NUMERIC: only NUMERIC is allowed (no cross-type)
+  // For BOOLEAN/CATEGORICAL: allow BOOLEAN, CATEGORICAL, or NUMERIC (cross-type as categorical)
+  const compatibleScore2DataTypes = useMemo(() => {
+    if (!score1DataType) return undefined;
+
+    if (score1DataType === "NUMERIC") {
+      return ["NUMERIC"]; // Numeric only compares with numeric
+    } else {
+      // Boolean and Categorical can compare with each other and with numeric (treated as categorical)
+      return ["BOOLEAN", "CATEGORICAL", "NUMERIC"];
+    }
+  }, [score1DataType]);
+
+  // Clear score2 when score1's dataType changes and score2 is no longer compatible
   const prevScore1DataTypeRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     // Skip on initial render
@@ -111,13 +125,28 @@ export default function ScoresAnalyticsPage() {
       return;
     }
 
-    // If dataType has changed and there's a score2 selected, clear it
+    // If dataType has changed and there's a score2 selected, check if it's still compatible
     if (prevScore1DataTypeRef.current !== score1DataType && urlState.score2) {
-      setScore2(undefined);
+      const score2Option = scoreOptions.find(
+        (opt) => opt.value === urlState.score2,
+      );
+      const isCompatible = compatibleScore2DataTypes?.includes(
+        score2Option?.dataType ?? "",
+      );
+
+      if (!isCompatible) {
+        setScore2(undefined);
+      }
     }
 
     prevScore1DataTypeRef.current = score1DataType;
-  }, [score1DataType, urlState.score2, setScore2]);
+  }, [
+    score1DataType,
+    urlState.score2,
+    setScore2,
+    compatibleScore2DataTypes,
+    scoreOptions,
+  ]);
 
   // Parse score identifiers (format: "name-dataType-source")
   const parsedScore1 = useMemo(() => {
@@ -311,7 +340,7 @@ export default function ScoresAnalyticsPage() {
               onChange={setScore2}
               options={scoreOptions}
               placeholder="Second score"
-              filterByDataType={score1DataType}
+              filterByDataType={compatibleScore2DataTypes}
               className="h-8 w-[160px]"
             />
           </div>

@@ -741,9 +741,18 @@ export const scoresRouter = createTRPCRouter({
       const clickhouseInterval = `INTERVAL ${interval.count} ${interval.unit.toUpperCase()}`;
 
       // Determine if we're dealing with numeric or categorical/boolean data
-      const isNumeric = score1.dataType === "NUMERIC";
+      // Cross-type comparisons: treat as categorical if either score is non-numeric
+      const isCrossType =
+        score1.dataType !== score2.dataType &&
+        (score1.dataType !== "NUMERIC" || score2.dataType !== "NUMERIC");
+
+      const isNumeric =
+        score1.dataType === "NUMERIC" && score2.dataType === "NUMERIC";
       const isCategoricalComparison =
-        score1.dataType === "CATEGORICAL" && score2.dataType === "CATEGORICAL";
+        !isNumeric && // Any non-numeric comparison
+        (score1.dataType === "CATEGORICAL" ||
+          score2.dataType === "CATEGORICAL" ||
+          isCrossType);
 
       // Build distribution CTEs conditionally based on data type
       const distribution1CTE = isNumeric
@@ -757,14 +766,14 @@ export const scoresRouter = createTRPCRouter({
             CROSS JOIN bounds b
             GROUP BY bin_index
           )`
-        : `-- CTE 9: Distribution for score1 (categorical/boolean)
+        : `-- CTE 9: Distribution for score1 (categorical/boolean or cross-type)
           distribution1 AS (
             SELECT
-              (ROW_NUMBER() OVER (ORDER BY string_value) - 1) as bin_index,
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value, toString(value))) - 1) as bin_index,
               count() as count
             FROM score1_filtered
-            WHERE string_value IS NOT NULL
-            GROUP BY string_value
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY COALESCE(string_value, toString(value))
           )`;
 
       const distribution2CTE = isNumeric
@@ -778,14 +787,14 @@ export const scoresRouter = createTRPCRouter({
             CROSS JOIN bounds b
             GROUP BY bin_index
           )`
-        : `-- CTE 10: Distribution for score2 (categorical/boolean)
+        : `-- CTE 10: Distribution for score2 (categorical/boolean or cross-type)
           distribution2 AS (
             SELECT
-              (ROW_NUMBER() OVER (ORDER BY string_value) - 1) as bin_index,
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value, toString(value))) - 1) as bin_index,
               count() as count
             FROM score2_filtered
-            WHERE string_value IS NOT NULL
-            GROUP BY string_value
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY COALESCE(string_value, toString(value))
           )`;
 
       // Construct comprehensive UNION ALL query
@@ -878,14 +887,14 @@ export const scoresRouter = createTRPCRouter({
             GROUP BY bin_x, bin_y, b.global_min, b.global_max, b.min1, b.max1, b.min2, b.max2
           ),
 
-          -- CTE 6: Confusion matrix (categorical/boolean only)
+          -- CTE 6: Confusion matrix (categorical/boolean and cross-type)
           confusion AS (
             SELECT
-              string_value1 as row_category,
-              string_value2 as col_category,
+              COALESCE(string_value1, toString(value1)) as row_category,
+              COALESCE(string_value2, toString(value2)) as col_category,
               count() as count
             FROM matched_scores
-            GROUP BY string_value1, string_value2
+            GROUP BY row_category, col_category
           ),
 
           ${
@@ -893,8 +902,9 @@ export const scoresRouter = createTRPCRouter({
               ? `-- CTE 6a: LEFT JOIN score1 with score2 for stacked distribution
           score1_with_score2 AS (
             SELECT
-              s1.string_value as score1_category,
-              s2.string_value as score2_category
+              -- Use string_value for categorical/boolean, convert value to string for numeric
+              COALESCE(s1.string_value, toString(s1.value)) as score1_category,
+              COALESCE(s2.string_value, toString(s2.value)) as score2_category
             FROM score1_filtered s1
             LEFT JOIN score2_filtered s2
               ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
@@ -918,10 +928,10 @@ export const scoresRouter = createTRPCRouter({
 
           -- CTE 6c: All score2 categories for legend
           score2_categories AS (
-            SELECT DISTINCT string_value as category
+            SELECT DISTINCT COALESCE(string_value, toString(value)) as category
             FROM score2_filtered
-            WHERE string_value IS NOT NULL
-            ORDER BY string_value
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            ORDER BY category
           ),`
               : ""
           }
