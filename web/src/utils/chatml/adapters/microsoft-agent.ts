@@ -122,7 +122,7 @@ function extractToolDefinitions(tools: unknown): Array<{
     const t = tool as Record<string, unknown>;
 
     // Handle OpenAI-style tool definitions: {type: "function", function: {name, description, parameters}}
-    // intentionally not imported from openai for seperation of concerns
+    // intentionally not imported from openai for separation of concerns
     if (t.type === "function" && t.function && typeof t.function === "object") {
       const func = t.function as Record<string, unknown>;
       const toolDef: Record<string, unknown> = {
