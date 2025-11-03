@@ -38,6 +38,13 @@ export function TwoScoreAnalytics({
 
   // Extract categories for categorical/boolean scores
   const categories = useMemo(() => {
+    console.log("[TwoScoreAnalytics] Category extraction:", {
+      dataType: score1.dataType,
+      hasStackedDistribution,
+      stackedDistributionLength: analytics.stackedDistribution?.length ?? 0,
+      confusionMatrixLength: analytics.confusionMatrix?.length ?? 0,
+    });
+
     if (score1.dataType === "NUMERIC") return undefined;
 
     // For categorical scores with stacked distribution, extract from stackedDistribution
@@ -46,7 +53,12 @@ export function TwoScoreAnalytics({
       analytics.stackedDistribution!.forEach((item) => {
         uniqueCategories.add(item.score1Category);
       });
-      return Array.from(uniqueCategories).sort();
+      const result = Array.from(uniqueCategories).sort();
+      console.log(
+        "[TwoScoreAnalytics] Categories from stackedDistribution:",
+        result,
+      );
+      return result;
     }
 
     // Fallback: Try confusionMatrix (for backward compatibility or boolean scores)
@@ -55,16 +67,23 @@ export function TwoScoreAnalytics({
       analytics.confusionMatrix.forEach((row) => {
         uniqueCategories.add(row.rowCategory);
       });
-      return Array.from(uniqueCategories).sort();
+      const result = Array.from(uniqueCategories).sort();
+      console.log(
+        "[TwoScoreAnalytics] Categories from confusionMatrix:",
+        result,
+      );
+      return result;
     }
 
     // For boolean: assume alphabetical order ["False", "True"]
     if (score1.dataType === "BOOLEAN") {
+      console.log("[TwoScoreAnalytics] Categories for boolean (hardcoded)");
       return ["False", "True"];
     }
 
     // For categorical: we can't reliably determine category names without stackedDistribution or confusionMatrix
     // The distribution only has binIndex, not actual category strings
+    console.log("[TwoScoreAnalytics] No categories found, returning undefined");
     return undefined;
   }, [
     score1.dataType,

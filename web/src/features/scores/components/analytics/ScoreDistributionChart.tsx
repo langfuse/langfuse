@@ -1,5 +1,6 @@
 import { ScoreDistributionNumericChart } from "./ScoreDistributionNumericChart";
 import { ScoreDistributionCategoricalChart } from "./ScoreDistributionCategoricalChart";
+import { ScoreDistributionBooleanChart } from "./ScoreDistributionBooleanChart";
 
 export interface ScoreDistributionChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -9,7 +10,7 @@ export interface ScoreDistributionChartProps {
   score2Name?: string;
   // For numeric scores, provide bin labels
   binLabels?: string[];
-  // For categorical scores, provide category names
+  // For categorical/boolean scores, provide category names
   categories?: string[];
   // For categorical comparison, provide stacked distribution data
   stackedDistribution?: Array<{
@@ -24,7 +25,8 @@ export interface ScoreDistributionChartProps {
  * Orchestrator component for score distribution charts
  * Routes to specialized components based on data type:
  * - Numeric: ScoreDistributionNumericChart (grouped bars for comparison)
- * - Categorical/Boolean: ScoreDistributionCategoricalChart (stacked bars for comparison)
+ * - Categorical: ScoreDistributionCategoricalChart (stacked bars for comparison)
+ * - Boolean: ScoreDistributionBooleanChart (grouped bars for comparison)
  */
 export function ScoreDistributionChart({
   distribution1,
@@ -46,7 +48,7 @@ export function ScoreDistributionChart({
     );
   }
 
-  // Route to appropriate chart component
+  // Route to appropriate chart component based on data type
   if (dataType === "NUMERIC") {
     if (!binLabels || binLabels.length === 0) {
       return (
@@ -67,7 +69,27 @@ export function ScoreDistributionChart({
     );
   }
 
-  // Categorical or Boolean
+  if (dataType === "BOOLEAN") {
+    if (!categories || categories.length === 0) {
+      return (
+        <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+          No categories available for boolean distribution
+        </div>
+      );
+    }
+
+    return (
+      <ScoreDistributionBooleanChart
+        distribution1={distribution1}
+        distribution2={distribution2}
+        categories={categories}
+        score1Name={score1Name}
+        score2Name={score2Name}
+      />
+    );
+  }
+
+  // Categorical
   if (!categories || categories.length === 0) {
     return (
       <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
@@ -79,10 +101,8 @@ export function ScoreDistributionChart({
   return (
     <ScoreDistributionCategoricalChart
       distribution1={distribution1}
-      distribution2={distribution2}
       categories={categories}
       score1Name={score1Name}
-      score2Name={score2Name}
       stackedDistribution={stackedDistribution}
       score2Categories={score2Categories}
     />
