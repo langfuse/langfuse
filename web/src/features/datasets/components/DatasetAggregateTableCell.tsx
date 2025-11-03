@@ -142,9 +142,8 @@ const DatasetAggregateCellContent = ({
   return (
     <div
       className={cn(
-        "group flex h-full w-full flex-col overflow-hidden",
-        isActiveCell &&
-          "rounded-md p-1 ring-2 ring-inset ring-accent-dark-blue",
+        "group flex h-full w-full flex-col overflow-hidden rounded-md border-2 border-transparent",
+        isActiveCell && "border-accent-dark-blue",
       )}
     >
       {/* Displays trace/observation output */}
