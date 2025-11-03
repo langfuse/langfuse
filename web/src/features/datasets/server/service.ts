@@ -14,7 +14,7 @@ import { z } from "zod/v4";
 import {
   type EnrichedDatasetRunItem,
   getLatencyAndTotalCostForObservationsByTraces,
-  getLatencyAndTotalCostForObservationsWithChildren,
+  getObservationsGroupedByTraceId,
   getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
   traceException,
@@ -22,6 +22,7 @@ import {
 import Decimal from "decimal.js";
 import { groupBy } from "lodash";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { calculateRecursiveMetricsForRunItems } from "./utils";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -209,7 +210,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
     (ri) => ri.observationId !== null,
   );
 
-  const [traceScores, observationAggregates, traceAggregate] =
+  const [traceScores, observationsByTraceId, traceAggregate] =
     await Promise.all([
       getScoresForTraces({
         projectId,
@@ -218,9 +219,8 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
         includeHasMetadata: true,
         excludeMetadata: true,
       }),
-      getLatencyAndTotalCostForObservationsWithChildren<WithIO>(
+      getObservationsGroupedByTraceId(
         projectId,
-        observationLevelRunItems,
         observationLevelRunItems.map((ri) => ri.traceId),
         filterTimestamp,
       ),
@@ -230,6 +230,12 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
         filterTimestamp,
       ),
     ]);
+
+  // Calculate recursive metrics for observation-level run items
+  const observationAggregates = calculateRecursiveMetricsForRunItems<WithIO>(
+    observationLevelRunItems,
+    observationsByTraceId,
+  );
 
   const validatedTraceScores = filterAndValidateDbScoreList({
     scores: traceScores,

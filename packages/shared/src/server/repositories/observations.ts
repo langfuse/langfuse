@@ -45,8 +45,6 @@ import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
 import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
-import { calculateRecursiveCost } from "../utils/costCalculations";
-import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -1359,11 +1357,9 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
 };
 
 /**
- * Get latency and RECURSIVE total cost for observations
+ * Tuple type for observation data from ClickHouse groupArray
  */
-
-// Tuple type for observation data from ClickHouse groupArray
-type ObservationTuple = [
+export type ObservationTuple = [
   id: string,
   parentObservationId: string | null,
   totalCost: string,
@@ -1372,29 +1368,21 @@ type ObservationTuple = [
   latencyMs: number,
 ];
 
-// Helpers to extract fields from tuple
-const getObservationId = (obs: ObservationTuple) => obs[0];
-const getLatencyMs = (obs: ObservationTuple) => obs[5];
-const toCostInput = (obs: ObservationTuple) => ({
-  id: obs[0],
-  parentObservationId: obs[1],
-  totalCost: obs[2],
-  inputCost: obs[3],
-  outputCost: obs[4],
-});
-
-export const getLatencyAndTotalCostForObservationsWithChildren = async <
-  WithIO extends boolean = true,
->(
+/**
+ * Get observations grouped by trace ID with cost and latency data
+ *
+ * This is a pure data-fetching function that returns observations organized by trace.
+ * For business logic like recursive cost calculations, use the utility functions
+ * in the utils layer.
+ */
+export const getObservationsGroupedByTraceId = async (
   projectId: string,
-  runItems: DatasetRunItemDomain<WithIO>[],
   traceIds: string[],
   timestamp?: Date,
-) => {
-  if (runItems.length === 0) return [];
+): Promise<Map<string, ObservationTuple[]>> => {
+  if (traceIds.length === 0) return new Map();
 
-  // Query: Get all observations by trace ids with costs + latency
-  const allObservationsQuery = `
+  const query = `
     SELECT
         trace_id,
         groupArray((
@@ -1416,7 +1404,7 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async <
     trace_id: string;
     observations: ObservationTuple[];
   }>({
-    query: allObservationsQuery,
+    query,
     params: {
       projectId,
       traceIds,
@@ -1432,40 +1420,7 @@ export const getLatencyAndTotalCostForObservationsWithChildren = async <
     },
   });
 
-  const observationsByTraceId = new Map(
-    groupedObservations.map((g) => [g.trace_id, g.observations]),
-  );
-
-  // Calculate recursive costs and extract latency for each target observation
-  const calculatedCosts = new Map<string, number>();
-  const latencies = new Map<string, number>();
-
-  for (const runItem of runItems) {
-    const observations = observationsByTraceId.get(runItem.traceId);
-    if (observations?.length) {
-      const observationId = runItem.observationId!;
-      // Find target observation and extract latency
-      const targetObs = observations.find(
-        (obs) => getObservationId(obs) === observationId,
-      );
-      if (targetObs) {
-        latencies.set(observationId, Number(getLatencyMs(targetObs)) / 1000);
-      }
-
-      // Calculate recursive cost
-      const cost = calculateRecursiveCost(
-        observationId,
-        observations.map(toCostInput),
-      );
-      calculatedCosts.set(observationId, cost?.toNumber() ?? 0);
-    }
-  }
-
-  return runItems.map((r) => ({
-    id: r.observationId!,
-    totalCost: calculatedCosts.get(r.observationId!) ?? 0,
-    latency: latencies.get(r.observationId!) ?? 0,
-  }));
+  return new Map(groupedObservations.map((g) => [g.trace_id, g.observations]));
 };
 
 export const getObservationCountsByProjectInCreationInterval = async ({
