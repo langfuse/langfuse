@@ -52,6 +52,18 @@ describe("geminiAdapter", () => {
         false,
       );
       expect(geminiAdapter.detect({})).toBe(false);
+
+      // Should reject Microsoft Agent format (parts without contents wrapper)
+      expect(
+        geminiAdapter.detect({
+          metadata: [
+            {
+              role: "user",
+              parts: [{ type: "text", content: "Hello" }],
+            },
+          ],
+        }),
+      ).toBe(false);
     });
   });
 
