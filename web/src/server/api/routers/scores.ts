@@ -745,13 +745,14 @@ export const scoresRouter = createTRPCRouter({
 
       // Build distribution CTEs conditionally based on data type
       const distribution1CTE = isNumeric
-        ? `-- CTE 9: Distribution for score1 (numeric)
+        ? `-- CTE 9: Distribution for score1 (numeric, using global bounds)
           distribution1 AS (
             SELECT
-              floor((value - (SELECT min(value) FROM score1_filtered)) /
-                    (((SELECT max(value) FROM score1_filtered) - (SELECT min(value) FROM score1_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
+              floor((s.value - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
               count() as count
-            FROM score1_filtered
+            FROM score1_filtered s
+            CROSS JOIN bounds b
             GROUP BY bin_index
           )`
         : `-- CTE 9: Distribution for score1 (categorical/boolean)
@@ -765,13 +766,14 @@ export const scoresRouter = createTRPCRouter({
           )`;
 
       const distribution2CTE = isNumeric
-        ? `-- CTE 10: Distribution for score2 (numeric)
+        ? `-- CTE 10: Distribution for score2 (numeric, using global bounds)
           distribution2 AS (
             SELECT
-              floor((value - (SELECT min(value) FROM score2_filtered)) /
-                    (((SELECT max(value) FROM score2_filtered) - (SELECT min(value) FROM score2_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
+              floor((s.value - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
               count() as count
-            FROM score2_filtered
+            FROM score2_filtered s
+            CROSS JOIN bounds b
             GROUP BY bin_index
           )`
         : `-- CTE 10: Distribution for score2 (categorical/boolean)
@@ -842,26 +844,36 @@ export const scoresRouter = createTRPCRouter({
             LIMIT {maxMatchedScoresLimit: UInt32}
           ),
 
-          -- CTE 4: Bounds (for numeric heatmap binning)
+          -- CTE 4: Bounds (for numeric heatmap and distribution binning)
+          -- Calculate global bounds across ALL scores (not just matched) for consistent binning
           bounds AS (
             SELECT
-              min(value1) as min1,
-              max(value1) as max1,
-              min(value2) as min2,
-              max(value2) as max2
-            FROM matched_scores
+              least(
+                (SELECT min(value) FROM score1_filtered),
+                (SELECT min(value) FROM score2_filtered)
+              ) as global_min,
+              greatest(
+                (SELECT max(value) FROM score1_filtered),
+                (SELECT max(value) FROM score2_filtered)
+              ) as global_max,
+              -- Keep individual bounds for reference (used in response)
+              (SELECT min(value) FROM score1_filtered) as min1,
+              (SELECT max(value) FROM score1_filtered) as max1,
+              (SELECT min(value) FROM score2_filtered) as min2,
+              (SELECT max(value) FROM score2_filtered) as max2
           ),
 
-          -- CTE 5: Heatmap (numeric only, 10x10 grid)
+          -- CTE 5: Heatmap (numeric only, NxN grid using global bounds)
           heatmap AS (
             SELECT
-              floor((m.value1 - b.min1) / ((b.max1 - b.min1 + 0.0001) / {nBins: UInt8})) as bin_x,
-              floor((m.value2 - b.min2) / ((b.max2 - b.min2 + 0.0001) / {nBins: UInt8})) as bin_y,
+              floor((m.value1 - b.global_min) / ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_x,
+              floor((m.value2 - b.global_min) / ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_y,
               count() as count,
+              b.global_min, b.global_max,
               b.min1, b.max1, b.min2, b.max2
             FROM matched_scores m
             CROSS JOIN bounds b
-            GROUP BY bin_x, bin_y, b.min1, b.max1, b.min2, b.max2
+            GROUP BY bin_x, bin_y, b.global_min, b.global_max, b.min1, b.max1, b.min2, b.max2
           ),
 
           -- CTE 6: Confusion matrix (categorical/boolean only)
@@ -925,10 +937,10 @@ export const scoresRouter = createTRPCRouter({
           CAST(bin_x AS Float64) as col1,
           CAST(bin_y AS Float64) as col2,
           CAST(count AS Float64) as col3,
-          min1 as col4,
-          max1 as col5,
-          min2 as col6,
-          max2 as col7,
+          global_min as col4,  -- Use global bounds for both axes
+          global_max as col5,
+          global_min as col6,  -- Same global bounds for Y axis
+          global_max as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           CAST(NULL AS Nullable(String)) as col9,
           CAST(NULL AS Nullable(String)) as col10

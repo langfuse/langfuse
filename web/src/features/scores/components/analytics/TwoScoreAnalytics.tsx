@@ -96,8 +96,10 @@ export function TwoScoreAnalytics({
     const heatmapRow = analytics.heatmap[0];
     if (!heatmapRow) return undefined;
 
-    const min = heatmapRow.min1;
-    const max = heatmapRow.max1;
+    // Backend now returns global bounds (min/max across BOTH scores) in min1/max1
+    // This ensures both distributions use the same bins for meaningful comparison
+    const min = heatmapRow.min1; // global_min from backend
+    const max = heatmapRow.max1; // global_max from backend
     const binWidth = (max - min) / nBins;
 
     return Array.from({ length: nBins }, (_, i) => {
