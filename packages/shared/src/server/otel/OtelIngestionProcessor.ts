@@ -966,6 +966,8 @@ export class OtelIngestionProcessor {
       `ai.telemetry.metadata.sessionId`,
       `ai.telemetry.metadata.userId`,
       `ai.telemetry.metadata.tags`,
+      // LlamaIndex
+      `tag.tags`,
     ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
 
     const attributeKeys = Object.keys(attributes);
@@ -1954,7 +1956,8 @@ export class OtelIngestionProcessor {
       attributes[
         `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`
       ] ||
-      attributes["ai.telemetry.metadata.tags"];
+      attributes["ai.telemetry.metadata.tags"] ||
+      attributes["tag.tags"];
 
     if (tagsValue === undefined || tagsValue === null) {
       return [];
