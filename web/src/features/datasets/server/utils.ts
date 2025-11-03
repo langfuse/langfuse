@@ -23,12 +23,6 @@ const toCostInput = (obs: ObservationTuple) => ({
  * @param runItems - Dataset run items to calculate metrics for
  * @param observationsByTraceId - Map of trace IDs to their observations (from getObservationsGroupedByTraceId)
  * @returns Array of metrics with id, totalCost, and latency for each run item
- *
- * @example
- * ```typescript
- * const observationsByTraceId = await getObservationsGroupedByTraceId(projectId, traceIds);
- * const metrics = calculateRecursiveMetricsForRunItems(runItems, observationsByTraceId);
- * ```
  */
 export const calculateRecursiveMetricsForRunItems = <
   WithIO extends boolean = true,
@@ -39,7 +33,9 @@ export const calculateRecursiveMetricsForRunItems = <
   const calculatedCosts = new Map<string, number>();
   const latencies = new Map<string, number>();
 
-  for (const runItem of runItems) {
+  const observationLevelRunItems = runItems.filter((ri) => !!ri.observationId);
+
+  for (const runItem of observationLevelRunItems) {
     const observations = observationsByTraceId.get(runItem.traceId);
     if (observations?.length) {
       const observationId = runItem.observationId!;
@@ -61,7 +57,7 @@ export const calculateRecursiveMetricsForRunItems = <
     }
   }
 
-  return runItems.map((r) => ({
+  return observationLevelRunItems.map((r) => ({
     id: r.observationId!,
     totalCost: calculatedCosts.get(r.observationId!) ?? 0,
     latency: latencies.get(r.observationId!) ?? 0,
