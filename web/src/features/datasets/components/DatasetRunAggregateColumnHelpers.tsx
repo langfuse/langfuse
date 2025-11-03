@@ -14,6 +14,37 @@ import { Toggle } from "@/src/components/ui/toggle";
 import { useRouter } from "next/router";
 import { cn } from "@/src/utils/tailwind";
 
+function DatasetAggregateCellWithBaselineDetection({
+  value,
+  runData,
+  runId,
+  projectId,
+  serverScoreColumns,
+}: {
+  value: EnrichedDatasetRunItem;
+  runData: Record<string, EnrichedDatasetRunItem>;
+  runId: string;
+  projectId: string;
+  serverScoreColumns?: ScoreColumn[];
+}) {
+  const router = useRouter();
+  const baselineRunId = router.query.baseline as string | undefined;
+
+  const baselineRunValue = baselineRunId ? runData[baselineRunId] : undefined;
+  const isBaselineRun = baselineRunId === runId;
+
+  return (
+    <DatasetAggregateTableCell
+      key={baselineRunId ?? runId}
+      value={value}
+      projectId={projectId}
+      serverScoreColumns={serverScoreColumns ?? []}
+      isBaselineRun={isBaselineRun}
+      baselineRunValue={baselineRunValue}
+    />
+  );
+}
+
 function BaselineToggle({ runId }: { runId: string }) {
   const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
@@ -137,7 +168,6 @@ export const constructDatasetRunAggregateColumns = ({
   updateRunFilters,
   getFiltersForRun,
   serverScoreColumns,
-  baselineRunId,
 }: {
   runAggregateColumnProps: RunAggregateColumnProps[];
   projectId: string;
@@ -145,7 +175,6 @@ export const constructDatasetRunAggregateColumns = ({
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
   serverScoreColumns?: ScoreColumn[];
-  baselineRunId?: string;
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   const isDataLoading = !isScoreColumnsAvailable(serverScoreColumns);
 
@@ -180,19 +209,16 @@ export const constructDatasetRunAggregateColumns = ({
         if (!runData.hasOwnProperty(id)) return null;
 
         const value: EnrichedDatasetRunItem | undefined = runData[id];
-        const baselineRunValue = baselineRunId
-          ? runData[baselineRunId]
-          : undefined;
 
         if (!value) return null;
+
         return (
-          <DatasetAggregateTableCell
-            key={baselineRunId ?? id}
+          <DatasetAggregateCellWithBaselineDetection
             value={value}
+            runData={runData}
+            runId={id}
             projectId={projectId}
             serverScoreColumns={serverScoreColumns}
-            isBaselineRun={baselineRunId === id}
-            baselineRunValue={baselineRunValue}
           />
         );
       },
