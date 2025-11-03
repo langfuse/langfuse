@@ -17,11 +17,26 @@ const OpenAIInputChatCompletionsSchema = z.looseObject({
   tools: z.array(z.any()).optional(),
 });
 
-const OpenAIInputMessagesSchema = z.array(
-  z.looseObject({
-    role: z.enum(["system", "user", "assistant", "tool", "function"]),
-  }),
-);
+const OpenAIInputMessagesSchema = z
+  .array(
+    z.looseObject({
+      role: z.enum(["system", "user", "assistant", "tool", "function"]),
+    }),
+  )
+  .refine(
+    (data) => {
+      // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
+      // OpenAI uses parts inside content, not at message level
+      return !data.some(
+        (msg) =>
+          typeof msg === "object" &&
+          msg !== null &&
+          "parts" in msg &&
+          Array.isArray((msg as Record<string, unknown>).parts),
+      );
+    },
+    { message: "Messages with top-level parts are not OpenAI format" },
+  );
 
 // OUTPUT SCHEMAS (responses)
 const OpenAIOutputResponsesSchema = z.looseObject({

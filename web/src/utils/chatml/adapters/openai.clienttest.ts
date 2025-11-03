@@ -71,6 +71,22 @@ describe("OpenAI Adapter", () => {
         }),
       ).toBe(true);
     });
+
+    it("should reject Microsoft Agent format with top-level parts", () => {
+      // Microsoft Agent/Gemini use top-level parts, OpenAI uses parts inside content
+      const input = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
+        },
+      ];
+
+      // Should reject when passed as metadata
+      expect(openAIAdapter.detect({ metadata: input })).toBe(false);
+
+      // Should also reject when passed as data
+      expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
+    });
   });
 
   it("should normalize tool_calls arguments to JSON strings", () => {
