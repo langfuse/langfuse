@@ -20,16 +20,30 @@ const LangChainMessageSchema = z.array(
 );
 
 // LangGraph message with additional_kwargs
-const LangGraphMessageSchema = z.array(
-  z.looseObject({
-    role: z.string().optional(),
-    additional_kwargs: z
-      .looseObject({
-        tool_calls: z.array(z.any()).optional(),
-      })
-      .optional(),
-  }),
-);
+const LangGraphMessageSchema = z
+  .array(
+    z.looseObject({
+      role: z.string().optional(),
+      additional_kwargs: z
+        .looseObject({
+          tool_calls: z.array(z.any()).optional(),
+        })
+        .optional(),
+    }),
+  )
+  .refine(
+    (data) => {
+      // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
+      return !data.some(
+        (msg) =>
+          typeof msg === "object" &&
+          msg !== null &&
+          "parts" in msg &&
+          Array.isArray((msg as Record<string, unknown>).parts),
+      );
+    },
+    { message: "Messages with top-level parts are not LangGraph format" },
+  );
 
 // Wrapped messages format
 const LangGraphWrappedSchema = z.looseObject({
