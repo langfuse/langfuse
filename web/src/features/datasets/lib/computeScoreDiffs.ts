@@ -1,5 +1,5 @@
 import { type ScoreAggregate } from "@langfuse/shared";
-import { calculateScoreDiff, type ScoreDiff } from "./calculateScoreDiff";
+import { type BaselineDiff, calculateScoreDiff } from "./calculateBaselineDiff";
 
 /**
  * Compute diffs for all scores between current and baseline aggregates
@@ -8,10 +8,10 @@ import { calculateScoreDiff, type ScoreDiff } from "./calculateScoreDiff";
 export function computeScoreDiffs(
   currentScores: ScoreAggregate,
   baselineScores: ScoreAggregate | null,
-): Record<string, ScoreDiff> {
+): Record<string, BaselineDiff> {
   if (!baselineScores) return {};
 
-  const diffs: Record<string, ScoreDiff> = {};
+  const diffs: Record<string, BaselineDiff> = {};
 
   for (const [key, currentAgg] of Object.entries(currentScores)) {
     const baselineAgg = baselineScores[key];

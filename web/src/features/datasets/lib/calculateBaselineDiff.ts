@@ -1,4 +1,5 @@
 import { type AggregatedScoreData } from "@langfuse/shared";
+import type Decimal from "decimal.js";
 
 export type NumericDiff = {
   type: "NUMERIC";
@@ -11,7 +12,34 @@ export type CategoricalDiff = {
   isDifferent: true;
 };
 
-export type ScoreDiff = NumericDiff | CategoricalDiff | null;
+export type BaselineDiff = NumericDiff | CategoricalDiff | null;
+
+/**
+ * Calculate numeric diff between current and baseline values
+ * Handles number, Decimal, null, undefined
+ * Returns null if diff cannot be calculated or values are equal
+ */
+export function calculateNumericDiff(
+  current: number | Decimal | null | undefined,
+  baseline: number | Decimal | null | undefined,
+): BaselineDiff | null {
+  if (current == null || baseline == null) return null;
+
+  // Convert to numbers
+  const currentNum = typeof current === "number" ? current : current.toNumber();
+  const baselineNum =
+    typeof baseline === "number" ? baseline : baseline.toNumber();
+
+  //  Same value → no diff
+  const diff = currentNum - baselineNum;
+  if (diff === 0) return null;
+
+  return {
+    absoluteDifference: Math.abs(diff),
+    direction: diff > 0 ? "+" : "-",
+    type: "NUMERIC",
+  };
+}
 
 /**
  * Calculate diff between current and baseline score aggregate
@@ -20,7 +48,7 @@ export type ScoreDiff = NumericDiff | CategoricalDiff | null;
 export function calculateScoreDiff(
   current: AggregatedScoreData | null,
   baseline: AggregatedScoreData | null,
-): ScoreDiff {
+): BaselineDiff {
   // Missing data → no diff
   if (!current || !baseline) return null;
 
@@ -31,16 +59,7 @@ export function calculateScoreDiff(
   if (current.type !== baseline.type) return null;
 
   if (current.type === "NUMERIC" && baseline.type === "NUMERIC") {
-    const diff = current.average - baseline.average;
-
-    // Same value → no diff
-    if (diff === 0) return null;
-
-    return {
-      type: "NUMERIC",
-      absoluteDifference: Math.abs(diff),
-      direction: diff > 0 ? "+" : "-",
-    };
+    return calculateNumericDiff(current.average, baseline.average);
   }
 
   if (current.type === "CATEGORICAL" && baseline.type === "CATEGORICAL") {
