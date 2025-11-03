@@ -25,6 +25,7 @@ export * from "./llm/testModelCall";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
+export * from "./utils/compareVersions";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";

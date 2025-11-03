@@ -16,12 +16,75 @@ import {
   redis,
   TQueueJobTypes,
   traceException,
+  compareVersions,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { ForbiddenError } from "@langfuse/shared";
+
+/**
+ * Check if an observation should write directly to events table.
+ * Based on environment='sdk-experiment', scope_name, and scope_version requirements.
+ *
+ * Rules:
+ * 1. Environment must be 'sdk-experiment'
+ * 2. Scope name must contain 'langfuse' (case-insensitive)
+ * 3. Version requirements (based on telemetry_sdk_language):
+ *    - Python SDK: scope_version >= 3.9.0
+ *    - JS/JavaScript SDK: scope_version >= 4.4.0
+ */
+function shouldWriteDirectlyToEvents(observation: any): boolean {
+  // Rule 1: Check environment is sdk-experiment
+  if (observation.body?.environment !== "sdk-experiment") {
+    return false;
+  }
+
+  // Rule 2: Must be a Langfuse SDK (check scope_name contains 'langfuse')
+  const scopeName = observation.body?.metadata?.scope?.name;
+  if (!scopeName || !String(scopeName).toLowerCase().includes("langfuse")) {
+    return false;
+  }
+
+  const scopeVersion = observation.body?.metadata?.scope?.version;
+  if (!scopeVersion) return false;
+
+  // Get telemetry SDK language from resourceAttributes
+  const telemetrySdkLanguage =
+    observation.body?.metadata?.resourceAttributes?.["telemetry.sdk.language"];
+  if (!telemetrySdkLanguage) return false;
+
+  // Ensure version has 'v' prefix for compareVersions
+  const version = String(scopeVersion);
+  const versionWithPrefix = version.startsWith("v") ? version : `v${version}`;
+
+  try {
+    // Rule 3: Check version based on telemetry SDK language
+    // Python SDK >= 3.9.0
+    if (telemetrySdkLanguage === "python") {
+      const comparison = compareVersions(versionWithPrefix, "v3.9.0");
+      return comparison === null; // null means current >= latest
+    }
+
+    // JS/JavaScript SDK >= 4.4.0
+    if (
+      telemetrySdkLanguage === "js" ||
+      telemetrySdkLanguage === "javascript"
+    ) {
+      const comparison = compareVersions(versionWithPrefix, "v4.4.0");
+      return comparison === null; // null means current >= latest
+    }
+  } catch (error) {
+    logger.warn(
+      `Failed to parse SDK version ${scopeVersion} for language ${telemetrySdkLanguage}`,
+      error,
+    );
+    return false;
+  }
+
+  return false;
+}
 
 export const otelIngestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
@@ -118,6 +181,19 @@ export const otelIngestionQueueProcessor: Processor = async (
       clickhouseClient(),
     );
 
+    // Decide whether observations should be processed via new flow (directly to events table)
+    // or via the dual write (staging table and batch job to events).
+    // Rules:
+    // 1. If the environment is `sdk-experiment`, JS SDK 4.4.0+ and python SDK 3.9.0+ will write directly to events.
+    // 2. All other observations will go through the dual write until we have SDKs in place that have old trace updates
+    //    deprecated and new methods in place.
+    // 3. Non-Langfuse SDK spans will go through the dual write until a yet to be determined cutoff date.
+
+    // Check if ANY observation qualifies for direct write - if so, ALL observations use the new flow
+    const useDirectWrite = observations.some((o) =>
+      shouldWriteDirectlyToEvents(o),
+    );
+
     // Running everything concurrently might be detrimental to the event loop, but has probably
     // the highest possible throughput. Therefore, we start with a Promise.all.
     // If necessary, we may use a for each instead.
@@ -133,16 +209,23 @@ export const otelIngestionQueueProcessor: Processor = async (
             observation.body.id || "", // id is always defined for observations
             new Date(), // Use the current timestamp as event time
             [observation],
-            // TODO: Eventually we want to set this one to true, but then skip the event processing below and vice versa
-            false,
+            !useDirectWrite && // forwardToEventsTable: false for new SDKs, true for old SDKs
+              // Additional flags during the migration phase
+              env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
+              env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED ===
+                "true" &&
+              env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true",
           ),
         ),
       ].flat(),
     );
 
-    // If inserts into the events table are enabled, we run the dedicated processing for the otel
-    // spans and move them into the dedicated IngestionService processor.
-    if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true") {
+    // If inserts into the events table are enabled AND observations qualify for direct write,
+    // run the dedicated processing for the otel spans and move them into the dedicated IngestionService processor.
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
+      useDirectWrite
+    ) {
       try {
         const events = processor.processToEvent(parsedSpans);
         await Promise.all(

@@ -525,7 +525,7 @@ export async function initializeBackfillCutoff(): Promise<Date> {
 export async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
   const now = new Date();
   const timeSinceLastRun = now.getTime() - lastRun.getTime();
-  return timeSinceLastRun >= env.LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS;
+  return timeSinceLastRun >= 1000; // TODO: REVERT env.LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS;
 }
 
 /**
