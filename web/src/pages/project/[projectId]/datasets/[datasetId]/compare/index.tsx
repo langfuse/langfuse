@@ -162,9 +162,23 @@ function DatasetCompareInternal() {
                     setLocalRuns([]);
                   } else {
                     capture("dataset_run:compare_run_removed");
-                    setRunState({
-                      runs: runIds?.filter((id) => id !== changedValueId) ?? [],
-                    });
+                    const newRunIds =
+                      runIds?.filter((id) => id !== changedValueId) ?? [];
+
+                    // Clear baseline if the removed run was the baseline
+                    const baselineRunId = router.query.baseline as
+                      | string
+                      | undefined;
+                    if (baselineRunId === changedValueId) {
+                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                      const { baseline, ...restQuery } = router.query;
+                      void router.push({
+                        pathname: router.pathname,
+                        query: { ...restQuery, runs: newRunIds },
+                      });
+                    } else {
+                      setRunState({ runs: newRunIds });
+                    }
                     setLocalRuns([]);
                   }
                 }
