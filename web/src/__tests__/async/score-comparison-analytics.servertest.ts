@@ -112,7 +112,7 @@ describe("Score Comparison Analytics tRPC", () => {
         },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -163,7 +163,7 @@ describe("Score Comparison Analytics tRPC", () => {
         },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -196,7 +196,7 @@ describe("Score Comparison Analytics tRPC", () => {
           },
           fromTimestamp: now,
           toTimestamp: now,
-          interval: "day",
+          interval: { count: 1, unit: "day" },
           nBins: 3, // Too small
         }),
       ).rejects.toThrow();
@@ -216,7 +216,7 @@ describe("Score Comparison Analytics tRPC", () => {
           },
           fromTimestamp: now,
           toTimestamp: now,
-          interval: "day",
+          interval: { count: 1, unit: "day" },
           nBins: 100, // Too large
         }),
       ).rejects.toThrow();
@@ -293,7 +293,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -351,7 +351,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -409,7 +409,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -482,7 +482,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 5,
       });
 
@@ -498,7 +498,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 20,
       });
 
@@ -558,7 +558,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -622,7 +622,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "BOOLEAN", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -696,7 +696,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -773,7 +773,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -833,7 +833,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -927,7 +927,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "hour",
+        interval: { count: 1, unit: "hour" },
         nBins: 10,
       });
 
@@ -1009,7 +1009,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -1061,14 +1061,14 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      // Test week interval
+      // Test 7-day interval (week equivalent)
       const weekResult = await caller.scores.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "week",
+        interval: { count: 7, unit: "day" },
         nBins: 10,
       });
 
@@ -1081,7 +1081,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "month",
+        interval: { count: 1, unit: "month" },
         nBins: 10,
       });
 
@@ -1134,7 +1134,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -1201,7 +1201,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -1275,7 +1275,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -1357,7 +1357,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -1417,7 +1417,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 
@@ -1471,7 +1471,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
         maxMatchedScoresLimit: 100,
       });
@@ -1566,7 +1566,7 @@ describe("Score Comparison Analytics tRPC", () => {
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
         fromTimestamp,
         toTimestamp,
-        interval: "day",
+        interval: { count: 1, unit: "day" },
         nBins: 10,
       });
 

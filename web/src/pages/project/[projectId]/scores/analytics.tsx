@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
@@ -23,6 +23,7 @@ import {
   HeatmapLegend,
 } from "@/src/features/scores/components/analytics";
 import { SingleScoreAnalytics } from "@/src/features/scores/components/analytics/SingleScoreAnalytics";
+import { TwoScoreAnalytics } from "@/src/features/scores/components/analytics/TwoScoreAnalytics";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
@@ -101,6 +102,52 @@ export default function ScoresAnalyticsPage() {
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
 
+  // Determine which score types are compatible with score1
+  // For NUMERIC: only NUMERIC is allowed (no cross-type)
+  // For BOOLEAN/CATEGORICAL: allow BOOLEAN, CATEGORICAL, or NUMERIC (cross-type as categorical)
+  const compatibleScore2DataTypes = useMemo(() => {
+    if (!score1DataType) return undefined;
+
+    if (score1DataType === "NUMERIC") {
+      return ["NUMERIC"]; // Numeric only compares with numeric
+    } else {
+      // Boolean and Categorical can compare with each other and with numeric (treated as categorical)
+      return ["BOOLEAN", "CATEGORICAL", "NUMERIC"];
+    }
+  }, [score1DataType]);
+
+  // Clear score2 when score1's dataType changes and score2 is no longer compatible
+  const prevScore1DataTypeRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // Skip on initial render
+    if (prevScore1DataTypeRef.current === undefined) {
+      prevScore1DataTypeRef.current = score1DataType;
+      return;
+    }
+
+    // If dataType has changed and there's a score2 selected, check if it's still compatible
+    if (prevScore1DataTypeRef.current !== score1DataType && urlState.score2) {
+      const score2Option = scoreOptions.find(
+        (opt) => opt.value === urlState.score2,
+      );
+      const isCompatible = compatibleScore2DataTypes?.includes(
+        score2Option?.dataType ?? "",
+      );
+
+      if (!isCompatible) {
+        setScore2(undefined);
+      }
+    }
+
+    prevScore1DataTypeRef.current = score1DataType;
+  }, [
+    score1DataType,
+    urlState.score2,
+    setScore2,
+    compatibleScore2DataTypes,
+    scoreOptions,
+  ]);
+
   // Parse score identifiers (format: "name-dataType-source")
   const parsedScore1 = useMemo(() => {
     if (!urlState.score1) return null;
@@ -176,6 +223,7 @@ export default function ScoresAnalyticsPage() {
       fromTimestamp: absoluteTimeRange?.from!,
       toTimestamp: absoluteTimeRange?.to!,
       interval,
+      objectType: urlState.objectType,
     },
     {
       enabled: shouldFetchAnalytics,
@@ -293,7 +341,7 @@ export default function ScoresAnalyticsPage() {
               onChange={setScore2}
               options={scoreOptions}
               placeholder="Second score"
-              filterByDataType={score1DataType}
+              filterByDataType={compatibleScore2DataTypes}
               className="h-8 w-[160px]"
             />
           </div>
@@ -392,36 +440,31 @@ export default function ScoresAnalyticsPage() {
                 toDate={absoluteTimeRange!.to}
               />
             ) : hasTwoScores && parsedScore1 && parsedScore2 ? (
-              // Two score comparison (existing logic)
+              // Two score comparison
               <>
-                {/* 2x2 Grid Layout */}
+                {/* Distribution and Time Series Charts */}
+                <TwoScoreAnalytics
+                  score1={{
+                    ...parsedScore1,
+                    dataType: parsedScore1.dataType as
+                      | "NUMERIC"
+                      | "CATEGORICAL"
+                      | "BOOLEAN",
+                  }}
+                  score2={{
+                    ...parsedScore2,
+                    dataType: parsedScore2.dataType as
+                      | "NUMERIC"
+                      | "CATEGORICAL"
+                      | "BOOLEAN",
+                  }}
+                  analytics={analyticsData}
+                  interval={interval}
+                  nBins={10}
+                />
+
+                {/* 2x2 Grid Layout for Heatmap and Stats */}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  {/* Row 1, Col 1: Distribution Placeholder */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Score Distribution</CardTitle>
-                      <CardDescription>
-                        Distribution of selected scores (coming soon)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                      Histogram visualization coming soon
-                    </CardContent>
-                  </Card>
-
-                  {/* Row 1, Col 2: Score Over Time Placeholder */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Scores Over Time</CardTitle>
-                      <CardDescription>
-                        Time series of selected scores (coming soon)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                      Time series chart coming soon
-                    </CardContent>
-                  </Card>
-
                   {/* Row 2, Col 1: Heatmap / Confusion Matrix */}
                   <Card>
                     <CardHeader>

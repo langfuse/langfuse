@@ -721,6 +721,9 @@ export const scoresRouter = createTRPCRouter({
           .default({ count: 1, unit: "day" }),
         nBins: z.number().int().min(5).max(50).default(10),
         maxMatchedScoresLimit: z.number().int().default(100000),
+        objectType: z
+          .enum(["all", "trace", "session", "observation", "run"])
+          .default("all"),
       }),
     )
     .query(async ({ input }) => {
@@ -733,12 +736,84 @@ export const scoresRouter = createTRPCRouter({
         interval,
         nBins,
         maxMatchedScoresLimit,
+        objectType,
       } = input;
 
       // Convert interval to ClickHouse INTERVAL syntax
       // ClickHouse format: INTERVAL {count} {UNIT}
       // Note: ClickHouse uses uppercase for interval units
       const clickhouseInterval = `INTERVAL ${interval.count} ${interval.unit.toUpperCase()}`;
+
+      // Build object type filter based on selection
+      const objectTypeFilter =
+        objectType === "all"
+          ? ""
+          : objectType === "trace"
+            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND run_id IS NULL"
+            : objectType === "observation"
+              ? "AND observation_id IS NOT NULL"
+              : objectType === "session"
+                ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND run_id IS NULL"
+                : objectType === "run"
+                  ? "AND run_id IS NOT NULL"
+                  : "";
+
+      // Determine if we're dealing with numeric or categorical/boolean data
+      // Cross-type comparisons: treat as categorical if either score is non-numeric
+      const isCrossType =
+        score1.dataType !== score2.dataType &&
+        (score1.dataType !== "NUMERIC" || score2.dataType !== "NUMERIC");
+
+      const isNumeric =
+        score1.dataType === "NUMERIC" && score2.dataType === "NUMERIC";
+      const isCategoricalComparison =
+        !isNumeric && // Any non-numeric comparison
+        (score1.dataType === "CATEGORICAL" ||
+          score2.dataType === "CATEGORICAL" ||
+          isCrossType);
+
+      // Build distribution CTEs conditionally based on data type
+      const distribution1CTE = isNumeric
+        ? `-- CTE 9: Distribution for score1 (numeric, using global bounds)
+          distribution1 AS (
+            SELECT
+              floor((s.value - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score1_filtered s
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 9: Distribution for score1 (categorical/boolean or cross-type)
+          distribution1 AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value, toString(value))) - 1) as bin_index,
+              count() as count
+            FROM score1_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY COALESCE(string_value, toString(value))
+          )`;
+
+      const distribution2CTE = isNumeric
+        ? `-- CTE 10: Distribution for score2 (numeric, using global bounds)
+          distribution2 AS (
+            SELECT
+              floor((s.value - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score2_filtered s
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 10: Distribution for score2 (categorical/boolean or cross-type)
+          distribution2 AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value, toString(value))) - 1) as bin_index,
+              count() as count
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY COALESCE(string_value, toString(value))
+          )`;
 
       // Construct comprehensive UNION ALL query
       const query = `
@@ -757,6 +832,7 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
+              ${objectTypeFilter}
           ),
 
           -- CTE 2: Filter score 2
@@ -773,6 +849,7 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
+              ${objectTypeFilter}
           ),
 
           -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)
@@ -798,37 +875,86 @@ export const scoresRouter = createTRPCRouter({
             LIMIT {maxMatchedScoresLimit: UInt32}
           ),
 
-          -- CTE 4: Bounds (for numeric heatmap binning)
+          -- CTE 4: Bounds (for numeric heatmap and distribution binning)
+          -- Calculate global bounds across ALL scores (not just matched) for consistent binning
           bounds AS (
             SELECT
-              min(value1) as min1,
-              max(value1) as max1,
-              min(value2) as min2,
-              max(value2) as max2
-            FROM matched_scores
+              least(
+                (SELECT min(value) FROM score1_filtered),
+                (SELECT min(value) FROM score2_filtered)
+              ) as global_min,
+              greatest(
+                (SELECT max(value) FROM score1_filtered),
+                (SELECT max(value) FROM score2_filtered)
+              ) as global_max,
+              -- Keep individual bounds for reference (used in response)
+              (SELECT min(value) FROM score1_filtered) as min1,
+              (SELECT max(value) FROM score1_filtered) as max1,
+              (SELECT min(value) FROM score2_filtered) as min2,
+              (SELECT max(value) FROM score2_filtered) as max2
           ),
 
-          -- CTE 5: Heatmap (numeric only, 10x10 grid)
+          -- CTE 5: Heatmap (numeric only, NxN grid using independent bounds per score)
           heatmap AS (
             SELECT
               floor((m.value1 - b.min1) / ((b.max1 - b.min1 + 0.0001) / {nBins: UInt8})) as bin_x,
               floor((m.value2 - b.min2) / ((b.max2 - b.min2 + 0.0001) / {nBins: UInt8})) as bin_y,
               count() as count,
+              b.global_min, b.global_max,
               b.min1, b.max1, b.min2, b.max2
             FROM matched_scores m
             CROSS JOIN bounds b
-            GROUP BY bin_x, bin_y, b.min1, b.max1, b.min2, b.max2
+            GROUP BY bin_x, bin_y, b.global_min, b.global_max, b.min1, b.max1, b.min2, b.max2
           ),
 
-          -- CTE 6: Confusion matrix (categorical/boolean only)
+          -- CTE 6: Confusion matrix (categorical/boolean and cross-type)
           confusion AS (
             SELECT
-              string_value1 as row_category,
-              string_value2 as col_category,
+              COALESCE(string_value1, toString(value1)) as row_category,
+              COALESCE(string_value2, toString(value2)) as col_category,
               count() as count
             FROM matched_scores
-            GROUP BY string_value1, string_value2
+            GROUP BY row_category, col_category
           ),
+
+          ${
+            isCategoricalComparison
+              ? `-- CTE 6a: LEFT JOIN score1 with score2 for stacked distribution
+          score1_with_score2 AS (
+            SELECT
+              -- Use string_value for categorical/boolean, convert value to string for numeric
+              COALESCE(s1.string_value, toString(s1.value)) as score1_category,
+              COALESCE(s2.string_value, toString(s2.value)) as score2_category
+            FROM score1_filtered s1
+            LEFT JOIN score2_filtered s2
+              ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
+              AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
+              AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
+              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
+            LIMIT {maxMatchedScoresLimit: UInt32}
+          ),
+
+          -- CTE 6b: Stacked distribution (score1 categories with score2 breakdowns)
+          stacked_distribution AS (
+            SELECT
+              score1_category,
+              coalesce(score2_category, '__unmatched__') as score2_stack,
+              count() as count
+            FROM score1_with_score2
+            WHERE score1_category IS NOT NULL
+            GROUP BY score1_category, score2_stack
+            ORDER BY score1_category, score2_stack
+          ),
+
+          -- CTE 6c: All score2 categories for legend
+          score2_categories AS (
+            SELECT DISTINCT COALESCE(string_value, toString(value)) as category
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            ORDER BY category
+          ),`
+              : ""
+          }
 
           -- CTE 7: Statistics
           stats AS (
@@ -856,25 +982,9 @@ export const scoresRouter = createTRPCRouter({
             ORDER BY ts
           ),
 
-          -- CTE 9: Distribution for score1
-          distribution1 AS (
-            SELECT
-              floor((value - (SELECT min(value) FROM score1_filtered)) /
-                    (((SELECT max(value) FROM score1_filtered) - (SELECT min(value) FROM score1_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
-              count() as count
-            FROM score1_filtered
-            GROUP BY bin_index
-          ),
+          ${distribution1CTE},
 
-          -- CTE 10: Distribution for score2
-          distribution2 AS (
-            SELECT
-              floor((value - (SELECT min(value) FROM score2_filtered)) /
-                    (((SELECT max(value) FROM score2_filtered) - (SELECT min(value) FROM score2_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
-              count() as count
-            FROM score2_filtered
-            GROUP BY bin_index
-          )
+          ${distribution2CTE}
 
         -- Return multiple result sets via UNION ALL
         SELECT
@@ -897,10 +1007,10 @@ export const scoresRouter = createTRPCRouter({
           CAST(bin_x AS Float64) as col1,
           CAST(bin_y AS Float64) as col2,
           CAST(count AS Float64) as col3,
-          min1 as col4,
-          max1 as col5,
-          min2 as col6,
-          max2 as col7,
+          global_min as col4,  -- Use global bounds for both axes
+          global_max as col5,
+          global_min as col6,  -- Same global bounds for Y axis
+          global_max as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           CAST(NULL AS Nullable(String)) as col9,
           CAST(NULL AS Nullable(String)) as col10
@@ -985,6 +1095,43 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(String)) as col9,
           CAST(NULL AS Nullable(String)) as col10
         FROM distribution2
+
+        ${
+          isCategoricalComparison
+            ? `
+        UNION ALL
+
+        SELECT
+          'stacked' as result_type,
+          CAST(count AS Float64) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          score1_category as col9,
+          score2_stack as col10
+        FROM stacked_distribution
+
+        UNION ALL
+
+        SELECT
+          'score2_categories' as result_type,
+          CAST(NULL AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10
+        FROM score2_categories`
+            : ""
+        }
       `;
 
       // Execute query
@@ -1038,6 +1185,10 @@ export const scoresRouter = createTRPCRouter({
       const dist2Rows = results.filter(
         (r) => r.result_type === "distribution2",
       );
+      const stackedRows = results.filter((r) => r.result_type === "stacked");
+      const score2CategoriesRows = results.filter(
+        (r) => r.result_type === "score2_categories",
+      );
 
       // Build structured response
       return {
@@ -1086,6 +1237,14 @@ export const scoresRouter = createTRPCRouter({
           binIndex: row.col1 ?? 0,
           count: row.col2 ?? 0,
         })),
+        stackedDistribution: stackedRows.map((row) => ({
+          score1Category: row.col9 ?? "",
+          score2Stack: row.col10 ?? "",
+          count: row.col1 ?? 0,
+        })),
+        score2Categories: score2CategoriesRows
+          .map((row) => row.col9 ?? "")
+          .filter((c) => c !== ""),
       };
     }),
 });

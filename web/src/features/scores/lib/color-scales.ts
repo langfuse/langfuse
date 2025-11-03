@@ -180,7 +180,7 @@ export function getDiagonalColor(
  * @returns HSL color string using CSS variable
  */
 export function getSingleScoreColor(): string {
-  return "hsl(var(--dark-green))";
+  return "hsl(var(--chart-3))";
 }
 
 /**
@@ -193,8 +193,8 @@ export function getTwoScoreColors(): {
   score2: string;
 } {
   return {
-    score1: "hsl(var(--chart-1))", // dark-green
-    score2: "hsl(var(--chart-2))", // Another distinct color
+    score1: "hsl(var(--chart-3))",
+    score2: "hsl(var(--chart-2))",
   };
 }
 
