@@ -139,9 +139,8 @@ const DatasetAggregateCellContent = ({
   return (
     <div
       className={cn(
-        "group relative flex h-full w-full flex-col gap-2 overflow-hidden",
-        isActiveCell &&
-          "rounded-md p-1 ring-2 ring-inset ring-accent-dark-blue",
+        "group relative flex h-full w-full flex-col gap-2 overflow-hidden rounded-md border-2 border-transparent",
+        isActiveCell && "border-accent-dark-blue",
       )}
     >
       {!(isSilentError || isLoading) && (
@@ -222,7 +221,7 @@ const DatasetAggregateCellContent = ({
       {!isLoading && (
         <div
           className={cn(
-            "flex max-h-fit flex-shrink-0",
+            "flex max-h-fit flex-shrink-0 px-1",
             !selectedFields.includes("resourceMetrics") && "hidden",
           )}
         >
