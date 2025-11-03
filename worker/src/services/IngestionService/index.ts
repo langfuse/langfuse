@@ -133,6 +133,19 @@ export type EventInput = {
   eventRaw?: string;
   eventBytes?: number;
 
+  // Experiment fields
+  experimentId?: string;
+  experimentName?: string;
+  experimentMetadataNames?: string[];
+  experimentMetadataValues?: unknown[];
+  experimentDescription?: string;
+  experimentDatasetId?: string;
+  experimentItemId?: string;
+  experimentItemRootSpanId?: string;
+  experimentItemExpectedOutput?: string;
+  experimentItemMetadataNames?: string[];
+  experimentItemMetadataValues?: unknown[];
+
   // Catch-all for future fields
   [key: string]: any;
 };
@@ -360,6 +373,19 @@ export class IngestionService {
       blob_storage_file_path: fileKey,
       // event_raw: eventData.eventRaw ?? "",
       event_bytes: eventData.eventBytes ?? 0,
+
+      // Experiment fields
+      experiment_id: eventData.experimentId,
+      experiment_name: eventData.experimentName,
+      experiment_metadata_names: eventData.experimentMetadataNames,
+      experiment_metadata_values: eventData.experimentMetadataValues,
+      experiment_description: eventData.experimentDescription,
+      experiment_dataset_id: eventData.experimentDatasetId,
+      experiment_item_id: eventData.experimentItemId,
+      experiment_item_root_span_id: eventData.experimentItemRootSpanId,
+      experiment_item_expected_output: eventData.experimentItemExpectedOutput,
+      experiment_item_metadata_names: eventData.experimentItemMetadataNames,
+      experiment_item_metadata_values: eventData.experimentItemMetadataValues,
 
       // System timestamps
       created_at: now,

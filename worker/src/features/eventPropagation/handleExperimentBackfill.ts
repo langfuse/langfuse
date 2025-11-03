@@ -3,10 +3,12 @@ import {
   queryClickhouse,
   redis,
   convertDateToClickhouseDateTime,
-  EventRecordInsertType,
+  clickhouseClient,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
+import { ClickhouseWriter } from "../../services/ClickhouseWriter";
+import { IngestionService } from "../../services/IngestionService";
+import { prisma } from "@langfuse/shared/src/db";
 
 const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
   "langfuse:event-propagation:experiment-backfill:last-run";
@@ -107,8 +109,8 @@ export async function getDatasetRunItemsSinceLastRun(
   const rows = await queryClickhouse<DatasetRunItem>({
     query,
     params: {
-      lastRun: lastRun.toISOString().replace("T", " ").substring(0, 23),
-      upperBound: upperBound.toISOString().replace("T", " ").substring(0, 23),
+      lastRun: convertDateToClickhouseDateTime(lastRun),
+      upperBound: convertDateToClickhouseDateTime(upperBound),
     },
     tags: {
       feature: "experiment-backfill",
@@ -357,127 +359,104 @@ export function enrichSpansWithExperiment(
 }
 
 /**
- * Write enriched spans to the events table using ClickhouseWriter.
- * Converts EnrichedSpan to EventRecordInsertType and uses the batching mechanism.
+ * Write enriched spans to the events table using IngestionService.writeEvent().
+ * Converts EnrichedSpan to EventInput format.
  */
 async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
   if (spans.length === 0) {
     return;
   }
 
-  const clickhouseWriter = ClickhouseWriter.getInstance();
-  const now = Date.now() * 1000; // Microseconds
+  // Ensure required dependencies are available
+  if (!redis) throw new Error("Redis not available");
+  if (!prisma) throw new Error("Prisma not available");
+
+  const ingestionService = new IngestionService(
+    redis,
+    prisma,
+    ClickhouseWriter.getInstance(),
+    clickhouseClient(),
+  );
 
   for (const span of spans) {
-    // Parse timestamps
-    const startTime = new Date(span.start_time).getTime() * 1000; // Microseconds
-    const endTime =
-      span.end_time && span.end_time !== ""
-        ? new Date(span.end_time).getTime() * 1000
-        : null;
-    const completionStartTime =
-      span.completion_start_time && span.completion_start_time !== ""
-        ? new Date(span.completion_start_time).getTime() * 1000
-        : null;
+    // Convert EnrichedSpan to EventInput format
+    const eventInput = {
+      // Required identifiers
+      projectId: span.project_id,
+      traceId: span.trace_id,
+      spanId: span.span_id,
+      startTimeISO: span.start_time,
+      endTimeISO: span.end_time || span.start_time, // Required field, use start_time as fallback
 
-    // Convert to EventRecordInsertType
-    const eventRecord: EventRecordInsertType = {
-      // Identifiers
-      id: span.span_id,
-      project_id: span.project_id,
-      trace_id: span.trace_id,
-      span_id: span.span_id,
-      parent_span_id: span.parent_span_id || null,
+      // Optional identifiers
+      parentSpanId: span.parent_span_id || undefined,
 
       // Core properties
       name: span.name,
       type: span.type,
-      environment: span.environment || "default",
-      version: span.version || null,
+      environment: span.environment || undefined,
+      version: span.version || undefined,
+      completionStartTime: span.completion_start_time || undefined,
 
       // User/session
-      user_id: span.user_id || null,
-      session_id: span.session_id || null,
-
-      // Status
-      level: span.level || "DEFAULT",
-      status_message: span.status_message || null,
-
-      // Timestamps (microseconds)
-      start_time: startTime,
-      end_time: endTime,
-      completion_start_time: completionStartTime,
+      userId: span.user_id || undefined,
+      sessionId: span.session_id || undefined,
+      level: span.level || undefined,
+      statusMessage: span.status_message || undefined,
 
       // Prompt
-      prompt_id: span.prompt_id || null,
-      prompt_name: span.prompt_name || null,
-      prompt_version: span.prompt_version || null,
+      promptId: span.prompt_id || undefined,
+      promptName: span.prompt_name || undefined,
+      promptVersion: span.prompt_version || undefined,
 
       // Model
-      model_id: span.model_id || null,
-      provided_model_name: span.provided_model_name || null,
-      model_parameters: span.model_parameters || null,
+      modelName: span.provided_model_name || undefined,
+      modelParameters: span.model_parameters || undefined,
 
-      // Usage & Cost - parse from JSON strings
-      provided_usage_details: span.provided_usage_details
+      // Usage & Cost - parse from JSON strings if present
+      providedUsageDetails: span.provided_usage_details
         ? JSON.parse(span.provided_usage_details)
-        : {},
-      usage_details: span.usage_details ? JSON.parse(span.usage_details) : {},
-      provided_cost_details: span.provided_cost_details
+        : undefined,
+      usageDetails: span.usage_details
+        ? JSON.parse(span.usage_details)
+        : undefined,
+      providedCostDetails: span.provided_cost_details
         ? JSON.parse(span.provided_cost_details)
-        : {},
-      cost_details: span.cost_details ? JSON.parse(span.cost_details) : {},
-      total_cost: span.total_cost || null,
+        : undefined,
+      costDetails: span.cost_details
+        ? JSON.parse(span.cost_details)
+        : undefined,
+      totalCost: span.total_cost || undefined,
 
       // I/O
-      input: span.input || null,
-      output: span.output || null,
+      input: span.input || undefined,
+      output: span.output || undefined,
 
       // Metadata
-      metadata: span.metadata as Record<string, string>,
-      metadata_names: Object.keys(span.metadata),
-      metadata_values: Object.values(span.metadata),
+      metadata: span.metadata,
 
       // Source/instrumentation
       source: "ingestion-api",
-      service_name: null,
-      service_version: null,
-      scope_name: null,
-      scope_version: null,
-      telemetry_sdk_language: null,
-      telemetry_sdk_name: null,
-      telemetry_sdk_version: null,
 
-      // Storage
-      blob_storage_file_path: "",
-      event_raw: "",
-      event_bytes: 0,
+      // Experiment fields
+      experimentId: span.experiment_id,
+      experimentName: span.experiment_name,
+      experimentMetadataNames: span.experiment_metadata_names,
+      experimentMetadataValues: span.experiment_metadata_values,
+      experimentDescription: span.experiment_description,
+      experimentDatasetId: span.experiment_dataset_id,
+      experimentItemId: span.experiment_item_id,
+      experimentItemRootSpanId: span.experiment_item_root_span_id,
+      experimentItemExpectedOutput: span.experiment_item_expected_output,
+      experimentItemMetadataNames: span.experiment_item_metadata_names,
+      experimentItemMetadataValues: span.experiment_item_metadata_values,
+    };
 
-      // System timestamps
-      created_at: now,
-      updated_at: now,
-      event_ts: now,
-      is_deleted: 0,
-
-      // Experiment fields (added as any to bypass type checking)
-      experiment_id: span.experiment_id,
-      experiment_name: span.experiment_name,
-      experiment_metadata_names: span.experiment_metadata_names,
-      experiment_metadata_values: span.experiment_metadata_values,
-      experiment_description: span.experiment_description,
-      experiment_dataset_id: span.experiment_dataset_id,
-      experiment_item_id: span.experiment_item_id,
-      experiment_item_root_span_id: span.experiment_item_root_span_id,
-      experiment_item_expected_output: span.experiment_item_expected_output,
-      experiment_item_metadata_names: span.experiment_item_metadata_names,
-      experiment_item_metadata_values: span.experiment_item_metadata_values,
-    } as any; // Use 'as any' to include experiment fields not yet in the schema
-
-    clickhouseWriter.addToQueue(TableName.Events, eventRecord);
+    await ingestionService.writeEvent(eventInput, ""); // Empty fileKey since we're not storing raw events
   }
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Queued ${spans.length} enriched spans for writing to events table`,
+    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events table via IngestionService`,
   );
 }
 
