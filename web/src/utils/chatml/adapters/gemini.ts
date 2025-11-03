@@ -304,6 +304,21 @@ function extractToolDeclarations(tools: unknown[]): Array<{
 function preprocessData(data: unknown): unknown {
   if (!data) return data;
 
+  // Gemini response with candidates wrapper: {candidates: [{content: {parts, role}}]}
+  // Unwrap to get the first candidate's content
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    "candidates" in data &&
+    Array.isArray((data as Record<string, unknown>).candidates)
+  ) {
+    const obj = data as Record<string, unknown>;
+    const candidate = (obj.candidates as Record<string, unknown>[])[0];
+    if (candidate?.content) {
+      return normalizeGeminiMessage(candidate.content);
+    }
+  }
+
   // Gemini output response format: { content: {parts: [...], role: "..."}, finish_reason: "...", ... }
   // Unwrap content to top level for message normalization
   if (
