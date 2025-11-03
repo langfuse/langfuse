@@ -1,17 +1,5 @@
+import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { type AggregatedScoreData } from "@langfuse/shared";
-
-export type NumericDiff = {
-  type: "NUMERIC";
-  absoluteDifference: number;
-  direction: "+" | "-";
-};
-
-export type CategoricalDiff = {
-  type: "CATEGORICAL";
-  isDifferent: true;
-};
-
-export type ScoreDiff = NumericDiff | CategoricalDiff | null;
 
 /**
  * Calculate diff between current and baseline score aggregate
@@ -20,7 +8,7 @@ export type ScoreDiff = NumericDiff | CategoricalDiff | null;
 export function calculateScoreDiff(
   current: AggregatedScoreData | null,
   baseline: AggregatedScoreData | null,
-): ScoreDiff {
+): BaselineDiff {
   // Missing data → no diff
   if (!current || !baseline) return null;
 

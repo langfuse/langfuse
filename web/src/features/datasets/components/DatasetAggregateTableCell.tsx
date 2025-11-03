@@ -19,8 +19,10 @@ import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { Card } from "@/src/components/ui/card";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
-import { type ScoreDiff } from "@/src/features/datasets/lib/calculateScoreDiff";
 import { useMemo } from "react";
+import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -28,12 +30,14 @@ const DatasetAggregateCellContent = ({
   scores,
   serverScoreColumns,
   scoreDiffs,
+  baselineRunValue,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
   scores: ScoreAggregate;
   serverScoreColumns: ScoreColumn[];
-  scoreDiffs?: Record<string, ScoreDiff>;
+  scoreDiffs?: Record<string, BaselineDiff>;
+  baselineRunValue?: EnrichedDatasetRunItem;
 }) => {
   const router = useRouter();
   const silentHttpCodes = [404];
@@ -95,9 +99,8 @@ const DatasetAggregateCellContent = ({
     silentHttpCodes,
   );
 
-  const latency = value.observation?.latency ?? value.trace.duration;
-  const totalCost =
-    value.observation?.calculatedTotalCost ?? value.trace.totalCost;
+  const { latency, totalCost, latencyDiff, totalCostDiff } =
+    useResourceMetricsDiff(value, baselineRunValue);
 
   // Note that we implement custom handling for opening peek view from cell
   const handleOpenPeek = () => {
@@ -139,33 +142,10 @@ const DatasetAggregateCellContent = ({
   return (
     <div
       className={cn(
-        "group relative flex h-full w-full flex-col gap-2 overflow-hidden rounded-md border-2 border-transparent",
+        "group flex h-full w-full flex-col overflow-hidden rounded-md border-2 border-transparent",
         isActiveCell && "border-accent-dark-blue",
       )}
     >
-      {!(isSilentError || isLoading) && (
-        <div className="absolute bottom-2 right-2 z-10 flex flex-row gap-1">
-          {/* Triggers review/annotation */}
-          <Button
-            disabled={!hasAnnotationWriteAccess}
-            variant="outline"
-            className="h-6 px-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
-            onClick={handleOpenReview}
-          >
-            Annotate
-          </Button>
-          {/* Triggers peek view */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
-            title="View trace/observation"
-            onClick={handleOpenPeek}
-          >
-            <ListTree className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
       {/* Displays trace/observation output */}
       <div
         className={cn(
@@ -194,12 +174,12 @@ const DatasetAggregateCellContent = ({
       {/* Displays scores */}
       <div
         className={cn(
-          "flex max-h-[50%] flex-shrink overflow-hidden px-1",
+          "flex min-h-0 flex-1 overflow-hidden px-1 py-2",
           !selectedFields.includes("scores") && "hidden",
         )}
       >
-        <div className="mt-1 w-full min-w-0 overflow-hidden @container">
-          <div className="grid max-h-full w-full grid-cols-1 gap-1 overflow-y-auto @[400px]:grid-cols-2">
+        <div className="w-full min-w-0 overflow-hidden @container">
+          <div className="grid max-h-full w-full grid-cols-1 gap-1 overflow-y-auto @[500px]:grid-cols-2">
             {mergedScoreColumns.length > 0 ? (
               mergedScoreColumns.map((scoreColumn) => (
                 <ScoreRow
@@ -217,31 +197,66 @@ const DatasetAggregateCellContent = ({
           </div>
         </div>
       </div>
-      {/* Displays latency and cost */}
+      {/* Displays resource metrics and action buttons */}
       {!isLoading && (
-        <div
-          className={cn(
-            "flex max-h-fit flex-shrink-0 px-1",
-            !selectedFields.includes("resourceMetrics") && "hidden",
-          )}
-        >
-          <div className="max-h-fit w-full min-w-0">
-            <div className="flex w-full flex-row flex-wrap gap-1">
-              {!!latency && (
-                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+        <div className="mt-auto flex min-h-6 flex-shrink-0 items-center justify-between gap-2 px-1 pb-1">
+          <div
+            className={cn(
+              "flex flex-row flex-wrap gap-1",
+              !selectedFields.includes("resourceMetrics") && "hidden",
+            )}
+          >
+            {!!latency &&
+              (latencyDiff ? (
+                <DiffLabel
+                  diff={latencyDiff}
+                  formatValue={(value) => formatIntervalSeconds(value)}
+                  className="ml-1"
+                />
+              ) : (
+                <Badge variant="tertiary" size="sm" className="font-normal">
                   <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
                   </span>
                 </Badge>
-              )}
-              {totalCost && (
-                <Badge variant="tertiary" className="p-0.5 px-1 font-normal">
+              ))}
+            {totalCost &&
+              (totalCostDiff ? (
+                <DiffLabel
+                  diff={totalCostDiff}
+                  formatValue={(value) => usdFormatter(value, 2, 4)}
+                  className="ml-1"
+                />
+              ) : (
+                <Badge variant="tertiary" size="sm" className="font-normal">
                   <span className="mr-0.5">{usdFormatter(totalCost)}</span>
                 </Badge>
-              )}
-            </div>
+              ))}
           </div>
+          {!(isSilentError || isLoading) && (
+            <div className="flex flex-row gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* Triggers review/annotation */}
+              <Button
+                disabled={!hasAnnotationWriteAccess}
+                variant="outline"
+                className="h-6 px-1 text-xs"
+                onClick={handleOpenReview}
+              >
+                Annotate
+              </Button>
+              {/* Triggers peek view */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6 p-0"
+                title="View trace/observation"
+                onClick={handleOpenPeek}
+              >
+                <ListTree className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -285,6 +300,7 @@ const DatasetAggregateCellAgainstBaseline = ({
       serverScoreColumns={serverScoreColumns}
       scores={displayScores}
       scoreDiffs={scoreDiffs}
+      baselineRunValue={baselineRunValue}
     />
   );
 };
