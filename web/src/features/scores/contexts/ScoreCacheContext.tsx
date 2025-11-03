@@ -30,6 +30,7 @@ export type CachedScore = Pick<
   | "traceId"
   | "observationId"
   | "sessionId"
+  | "timestamp"
 > & {
   // Score identity - non-nullable
   configId: string;
