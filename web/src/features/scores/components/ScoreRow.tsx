@@ -161,18 +161,16 @@ export const ScoreRow = ({
               <ScoreDetailRow
                 label="Comment"
                 value={
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="line-clamp-2 cursor-help">
-                        {aggregate.comment}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-sm">
-                      <p className="whitespace-pre-wrap text-xs">
-                        {aggregate.comment}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <span
+                    title={aggregate.comment}
+                    className="line-clamp-[10] max-h-[240px] overflow-hidden break-words"
+                    style={{
+                      textAlign: "justify",
+                      textAlignLast: "right",
+                    }}
+                  >
+                    {aggregate.comment}
+                  </span>
                 }
               />
             )}
