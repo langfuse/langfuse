@@ -2172,6 +2172,32 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Api Keys",
+          "request": {
+            "description": "Get all API keys for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "apiKeys"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
