@@ -59,42 +59,8 @@ function getField(obj: unknown, snakeName: string, camelName: string): unknown {
   return o[snakeName] ?? o[camelName];
 }
 
-/**
- * Check if message is a Gemini tool definition (to be filtered out)
- */
-export function isGeminiToolDefinition(msg: unknown): boolean {
-  if (!msg || typeof msg !== "object") return false;
-
-  const message = msg as Record<string, unknown>;
-
-  // Gemini tool definitions: {role: "tool", content: {type: "function", function: {...}}}
-  return (
-    message.role === "tool" &&
-    typeof message.content === "object" &&
-    message.content !== null &&
-    !Array.isArray(message.content) &&
-    (message.content as Record<string, unknown>).type === "function" &&
-    !!(message.content as Record<string, unknown>).function
-  );
-}
-
-// get tool definitions from Gemini tool definition messages
-export function extractGeminiToolDefinitions(messages: unknown[]): Array<{
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-}> {
-  return messages.filter(isGeminiToolDefinition).map((msg) => {
-    const message = msg as Record<string, unknown>;
-    const func = (message.content as Record<string, unknown>)
-      .function as Record<string, unknown>;
-    return {
-      name: (func.name as string) || "",
-      description: (func.description as string) || "",
-      parameters: (func.parameters as Record<string, unknown>) || {},
-    };
-  });
-}
+// Note: Gemini tools come from config.tools with function_declarations, not from messages
+// The format {role: "tool", content: {type: "function"}} is LangGraph, handled by langgraph adapter
 
 /**
  * Extract both tool calls and text from parts array
@@ -275,7 +241,7 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   }
 
   // process nested content.parts[]
-  // Legacy format: {content: {parts: [{function_call: {...}}], role: "model"}}
+  // Gemini format: {content: {parts: [{function_call: {...}}], role: "model"}}
   if (
     normalized.content &&
     typeof normalized.content === "object" &&
@@ -309,8 +275,7 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   if (
     normalized.role === "tool" &&
     typeof normalized.content === "object" &&
-    !Array.isArray(normalized.content) &&
-    !isGeminiToolDefinition(msg)
+    !Array.isArray(normalized.content)
   ) {
     normalized.content = stringifyToolResultContent(normalized.content);
   }
@@ -318,11 +283,9 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   return normalized;
 }
 
-// filter out tool definitions and normalize remaining messages
-function filterAndNormalizeMessages(data: unknown[]): unknown[] {
-  return data
-    .filter((msg) => !isGeminiToolDefinition(msg))
-    .map(normalizeGeminiMessage);
+// normalize messages
+function normalizeMessages(data: unknown[]): unknown[] {
+  return data.map(normalizeGeminiMessage);
 }
 
 // unwrap outer wrappers first then normalize inner structure
@@ -393,7 +356,7 @@ function preprocessData(data: unknown): unknown {
         const extractedTools = extractToolDeclarations(config.tools);
 
         if (extractedTools.length > 0) {
-          return filterAndNormalizeMessages(messages).map((msg) => ({
+          return normalizeMessages(messages).map((msg) => ({
             ...(msg as Record<string, unknown>),
             tools: extractedTools,
           }));
@@ -401,7 +364,7 @@ function preprocessData(data: unknown): unknown {
       }
 
       // No tools, just normalize messages
-      return filterAndNormalizeMessages(messages);
+      return normalizeMessages(messages);
     }
   }
 
@@ -411,14 +374,14 @@ function preprocessData(data: unknown): unknown {
   // {contents: [{parts, role}], model: "..."}
   if (GeminiRequestSchema.safeParse(data).success) {
     const obj = data as Record<string, unknown>;
-    return filterAndNormalizeMessages(obj.contents as unknown[]);
+    return normalizeMessages(obj.contents as unknown[]);
   }
 
   // ========================================
   // STEP 5: Handle arrays
   // ========================================
   if (Array.isArray(data)) {
-    return filterAndNormalizeMessages(data);
+    return normalizeMessages(data);
   }
 
   // ========================================
@@ -429,7 +392,7 @@ function preprocessData(data: unknown): unknown {
     return {
       ...obj,
       messages: Array.isArray(obj.messages)
-        ? filterAndNormalizeMessages(obj.messages)
+        ? normalizeMessages(obj.messages)
         : obj.messages,
     };
   }
@@ -473,19 +436,6 @@ export const geminiAdapter: ProviderAdapter = {
     if (GeminiADKInputSchema.safeParse(ctx.data).success) return true;
     if (GeminiRawAPISchema.safeParse(ctx.data).success) return true;
     if (GeminiADKOutputSchema.safeParse(ctx.data).success) return true;
-
-    // Structural: check if data contains Gemini tool definition messages (legacy)
-    if (
-      typeof ctx.metadata === "object" &&
-      ctx.metadata !== null &&
-      "messages" in ctx.metadata
-    ) {
-      const messages = (ctx.metadata as Record<string, unknown>).messages;
-      if (Array.isArray(messages)) {
-        const hasGeminiTools = messages.some(isGeminiToolDefinition);
-        if (hasGeminiTools) return true;
-      }
-    }
 
     return false;
   },

@@ -260,8 +260,9 @@ export const langgraphAdapter: ProviderAdapter = {
     // EXPLICIT: Framework hint
     if (ctx.framework === "langgraph") return true;
 
-    // HINTS: LangGraph-specific metadata markers
+    // HINTS: LangGraph/LangChain-specific metadata markers
     if (meta && typeof meta === "object") {
+      // LangGraph markers
       if (
         "langgraph_step" in meta ||
         "langgraph_node" in meta ||
@@ -270,6 +271,14 @@ export const langgraphAdapter: ProviderAdapter = {
         meta.framework === "langgraph" ||
         (Array.isArray(meta.tags) && meta.tags.includes("langgraph"))
       ) {
+        return true;
+      }
+
+      // LangSmith/LangChain markers (ls_ prefix indicates LangChain ecosystem)
+      const hasLangChainMarkers = Object.keys(meta).some((key) =>
+        key.startsWith("ls_"),
+      );
+      if (hasLangChainMarkers) {
         return true;
       }
     }

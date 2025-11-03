@@ -3,12 +3,14 @@ import { mapToChatMl, mapOutputToChatMl } from "../core";
 import { langgraphAdapter } from "./langgraph";
 import { openAIAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
+import { microsoftAgentAdapter } from "./microsoft-agent";
 import { genericAdapter } from "./generic";
 
 const adapters: ProviderAdapter[] = [
   langgraphAdapter, // Must be before openAI (both use langfuse-sdk scope)
   openAIAdapter, // OpenAI (Chat Completions & Responses API)
   geminiAdapter, // Gemini/VertexAI format
+  microsoftAgentAdapter, // Microsoft Agent Framework
   // Add more adapters here as needed
   genericAdapter, // Always last (fallback)
 ];
@@ -31,7 +33,11 @@ function selectAdapter(ctx: NormalizerContext): ProviderAdapter {
 }
 
 export function normalizeInput(input: unknown, ctx: NormalizerContext = {}) {
-  const adapter = selectAdapter({ ...ctx, metadata: ctx.metadata ?? input });
+  const adapter = selectAdapter({
+    ...ctx,
+    metadata: ctx.metadata ?? input,
+    data: input,
+  });
   const preprocessed = adapter.preprocess(input, "input", ctx);
   return mapToChatMl(preprocessed);
 }
