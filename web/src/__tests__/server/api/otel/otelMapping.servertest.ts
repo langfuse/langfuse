@@ -1234,6 +1234,10 @@ describe("OTel Resource Span Mapping", () => {
                       key: "operation.name",
                       value: { stringValue: operationName },
                     },
+                    {
+                      key: "gen_ai.response.model",
+                      value: { stringValue: "gpt-4o" },
+                    },
                   ],
                 },
               ],
