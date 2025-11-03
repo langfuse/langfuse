@@ -1,12 +1,5 @@
-import { useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useMemo } from "react";
+import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -14,10 +7,8 @@ import {
   type ChartConfig,
 } from "@/src/components/ui/chart";
 import {
-  getSingleScoreChartConfig,
   getSingleScoreColor,
   getTwoScoreColors,
-  getBarChartHoverOpacity,
 } from "@/src/features/scores/lib/color-scales";
 
 interface CategoricalChartProps {
@@ -41,8 +32,6 @@ export function ScoreDistributionCategoricalChart({
   score1Name,
   score2Name,
 }: CategoricalChartProps) {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
-
   const isComparisonMode = Boolean(distribution2 && score2Name);
 
   // Transform data for Recharts
@@ -109,7 +98,6 @@ export function ScoreDistributionCategoricalChart({
         accessibilityLayer
         data={chartData}
         margin={{ bottom: hasManyCategories ? 60 : 20 }}
-        onMouseLeave={() => setActiveIndex(null)}
       >
         <XAxis
           dataKey="name"
@@ -132,19 +120,9 @@ export function ScoreDistributionCategoricalChart({
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
-        <Bar
-          dataKey="pv"
-          fill="hsl(var(--chart-3))"
-          radius={[4, 4, 0, 0]}
-          onMouseEnter={(_, index) => setActiveIndex(index)}
-        />
+        <Bar dataKey="pv" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
         {isComparisonMode && (
-          <Bar
-            dataKey="uv"
-            fill="hsl(var(--chart-2))"
-            radius={[4, 4, 0, 0]}
-            onMouseEnter={(_, index) => setActiveIndex(index)}
-          />
+          <Bar dataKey="uv" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
         )}
       </BarChart>
     </ChartContainer>

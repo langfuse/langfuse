@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
@@ -101,6 +101,23 @@ export default function ScoresAnalyticsPage() {
     const selected = scoreOptions.find((opt) => opt.value === urlState.score1);
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
+
+  // Clear score2 when score1's dataType changes
+  const prevScore1DataTypeRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // Skip on initial render
+    if (prevScore1DataTypeRef.current === undefined) {
+      prevScore1DataTypeRef.current = score1DataType;
+      return;
+    }
+
+    // If dataType has changed and there's a score2 selected, clear it
+    if (prevScore1DataTypeRef.current !== score1DataType && urlState.score2) {
+      setScore2(undefined);
+    }
+
+    prevScore1DataTypeRef.current = score1DataType;
+  }, [score1DataType, urlState.score2, setScore2]);
 
   // Parse score identifiers (format: "name-dataType-source")
   const parsedScore1 = useMemo(() => {
