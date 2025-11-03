@@ -72,7 +72,10 @@ export function ScoreSelector({
 
   return (
     <div className="flex items-center gap-2">
-      <Select value={value} onValueChange={onChange}>
+      <Select
+        value={value ?? ""}
+        onValueChange={(val) => onChange(val === "" ? undefined : val)}
+      >
         <SelectTrigger className={className}>
           <SelectValue placeholder={placeholder} className="p-0" />
         </SelectTrigger>

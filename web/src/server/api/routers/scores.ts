@@ -721,6 +721,9 @@ export const scoresRouter = createTRPCRouter({
           .default({ count: 1, unit: "day" }),
         nBins: z.number().int().min(5).max(50).default(10),
         maxMatchedScoresLimit: z.number().int().default(100000),
+        objectType: z
+          .enum(["all", "trace", "session", "observation", "run"])
+          .default("all"),
       }),
     )
     .query(async ({ input }) => {
@@ -733,12 +736,27 @@ export const scoresRouter = createTRPCRouter({
         interval,
         nBins,
         maxMatchedScoresLimit,
+        objectType,
       } = input;
 
       // Convert interval to ClickHouse INTERVAL syntax
       // ClickHouse format: INTERVAL {count} {UNIT}
       // Note: ClickHouse uses uppercase for interval units
       const clickhouseInterval = `INTERVAL ${interval.count} ${interval.unit.toUpperCase()}`;
+
+      // Build object type filter based on selection
+      const objectTypeFilter =
+        objectType === "all"
+          ? ""
+          : objectType === "trace"
+            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND run_id IS NULL"
+            : objectType === "observation"
+              ? "AND observation_id IS NOT NULL"
+              : objectType === "session"
+                ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND run_id IS NULL"
+                : objectType === "run"
+                  ? "AND run_id IS NOT NULL"
+                  : "";
 
       // Determine if we're dealing with numeric or categorical/boolean data
       // Cross-type comparisons: treat as categorical if either score is non-numeric
@@ -814,6 +832,7 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
+              ${objectTypeFilter}
           ),
 
           -- CTE 2: Filter score 2
@@ -830,6 +849,7 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
+              ${objectTypeFilter}
           ),
 
           -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)

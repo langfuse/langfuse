@@ -223,6 +223,7 @@ export default function ScoresAnalyticsPage() {
       fromTimestamp: absoluteTimeRange?.from!,
       toTimestamp: absoluteTimeRange?.to!,
       interval,
+      objectType: urlState.objectType,
     },
     {
       enabled: shouldFetchAnalytics,
