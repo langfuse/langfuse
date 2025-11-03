@@ -52,7 +52,7 @@ describe("geminiAdapter", () => {
     it("should preserve tool result messages (not filter them)", () => {
       const input = [
         {
-          role: "assistant",
+          role: "model",
           content: [{ type: "text", text: "Let me check." }],
         },
         {
@@ -73,7 +73,7 @@ describe("geminiAdapter", () => {
     it("should stringify object content in tool result messages", () => {
       const input = [
         {
-          role: "assistant",
+          role: "model",
           content: [{ type: "text", text: "Let me check." }],
         },
         {
@@ -106,7 +106,7 @@ describe("geminiAdapter", () => {
     it("should normalize tool_calls from Gemini format to flat ChatML format", () => {
       const input = [
         {
-          role: "assistant",
+          role: "model",
           content: "",
           tool_calls: [
             {
@@ -125,7 +125,7 @@ describe("geminiAdapter", () => {
       const result = geminiAdapter.preprocess(input, "input", {}) as any[];
 
       expect(result.length).toBe(1);
-      expect(result[0].role).toBe("assistant");
+      expect(result[0].role).toBe("model");
       expect(result[0].tool_calls).toBeDefined();
       expect(result[0].tool_calls.length).toBe(1);
 

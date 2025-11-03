@@ -210,4 +210,83 @@ describe("LangGraph Adapter", () => {
       tool_calls: [{ id: "call_123", function: { name: "Web-Search" } }],
     });
   });
+
+  it("should filter tool definitions from google vertex langchain trace", () => {
+    // Format from google-vertex-tools-langchain-2025-09-19.json
+    const input = [
+      {
+        role: "system",
+        content: "You are a helpful assistant.",
+      },
+      {
+        role: "user",
+        content: "Hello, I'm interested in learning more.",
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "transition_to_service_a",
+            description: "Transition to Service A",
+            parameters: {
+              properties: {
+                reason: {
+                  description: "Reason for transition",
+                  type: "string",
+                },
+              },
+              required: ["reason"],
+              type: "object",
+            },
+          },
+        },
+      },
+      {
+        role: "tool",
+        content: {
+          type: "function",
+          function: {
+            name: "get_customer_info",
+            description: "Retrieve customer info",
+            parameters: {
+              type: "object",
+              properties: {
+                customer_id: {
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        role: "assistant",
+        content: "How can I help you today?",
+      },
+    ];
+
+    const ctx = {
+      metadata: {
+        ls_provider: "google_vertexai",
+      },
+    };
+
+    const result = normalizeInput(input, ctx);
+
+    expect(result.success).toBe(true);
+
+    // Tool definitions should be filtered out - only 3 messages remain
+    expect(result.data).toHaveLength(3);
+
+    // Check no tool definition messages remain
+    const toolMessages = result.data?.filter((msg: any) => msg.role === "tool");
+    expect(toolMessages).toHaveLength(0);
+
+    // Tools should be attached to messages
+    expect(result.data?.[0].tools).toBeDefined();
+    expect(result.data?.[0].tools).toHaveLength(2);
+    expect(result.data?.[0].tools?.[0].name).toBe("transition_to_service_a");
+    expect(result.data?.[0].tools?.[1].name).toBe("get_customer_info");
+  });
 });
