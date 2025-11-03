@@ -13,35 +13,51 @@ export type ObservationCostData = {
 };
 
 /**
- * Find all descendants of a root observation (recursive)
+ * Find all descendants of a root observation using BFS traversal
  */
 export const findObservationDescendants = <T extends ObservationCostData>(
   rootObsId: string,
   allObservations: T[],
 ): T[] => {
-  let relevantObs = allObservations.filter(
-    (o) => o.id === rootObsId || o.parentObservationId === rootObsId,
-  );
+  // Build lookup structures for efficient traversal
+  const childrenByParentId = new Map<string, T[]>();
+  const observationById = new Map<string, T>();
 
-  // Recursively add children
-  let childrenToAdd = allObservations.filter(
-    (o) =>
-      o.parentObservationId &&
-      !relevantObs.some((o2) => o2.id === o.id) &&
-      relevantObs.some((o2) => o2.id === o.parentObservationId),
-  );
-
-  while (childrenToAdd.length > 0) {
-    relevantObs = [...relevantObs, ...childrenToAdd];
-    childrenToAdd = allObservations.filter(
-      (o) =>
-        o.parentObservationId &&
-        !relevantObs.some((o2) => o2.id === o.id) &&
-        relevantObs.some((o2) => o2.id === o.parentObservationId),
-    );
+  for (const obs of allObservations) {
+    observationById.set(obs.id, obs);
+    if (obs.parentObservationId) {
+      if (!childrenByParentId.has(obs.parentObservationId)) {
+        childrenByParentId.set(obs.parentObservationId, []);
+      }
+      childrenByParentId.get(obs.parentObservationId)!.push(obs);
+    }
   }
 
-  return relevantObs;
+  // BFS traversal starting from root
+  const result: T[] = [];
+  const visited = new Set<string>();
+  const queue = [rootObsId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (visited.has(currentId)) continue;
+
+    visited.add(currentId);
+    const currentObs = observationById.get(currentId);
+    if (currentObs) {
+      result.push(currentObs);
+    }
+
+    // Add unvisited children to queue
+    const children = childrenByParentId.get(currentId) ?? [];
+    for (const child of children) {
+      if (!visited.has(child.id)) {
+        queue.push(child.id);
+      }
+    }
+  }
+
+  return result;
 };
 
 /**
