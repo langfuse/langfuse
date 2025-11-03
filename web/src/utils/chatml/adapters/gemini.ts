@@ -4,29 +4,14 @@ import { z } from "zod/v4";
 
 /**
  * Detection schemas for Gemini/VertexAI formats
- * These are permissive - only validate structural markers
+ *
+ * Two main format families (inner structure is identical):
+ * 1. Raw Gemini API (Vertex): {candidates: [{content: {parts, role}}]}
+ * 2. Google ADK: {content: {parts, role}} or {config, contents: [{parts, role}]}
  */
 
-// Gemini generateContent request: {contents: [{parts: [...], role: "..."}]}
-const GeminiRequestSchema = z.looseObject({
-  contents: z.array(
-    z.looseObject({
-      parts: z.array(z.any()),
-      role: z.string().optional(),
-    }),
-  ),
-});
-
-// Google ADK format: {config: {tools: [...]}, contents: [...]}
-const GeminiADKSchema = z.looseObject({
-  config: z.looseObject({
-    tools: z.array(z.any()),
-  }),
-  contents: z.array(z.any()),
-});
-
-// Gemini response with candidates: {candidates: [{content: {...}}]}
-const GeminiResponseSchema = z.looseObject({
+// Raw Gemini API response: {candidates: [{content: {...}}]}
+const GeminiRawAPISchema = z.looseObject({
   candidates: z.array(
     z.looseObject({
       content: z.looseObject({
@@ -37,23 +22,52 @@ const GeminiResponseSchema = z.looseObject({
   ),
 });
 
-// Gemini output format (unwrapped): {content: {parts: [...], role: "..."}}
-const GeminiOutputSchema = z.looseObject({
+// ADK output format: {content: {parts: [...], role: "..."}}
+const GeminiADKOutputSchema = z.looseObject({
   content: z.looseObject({
     parts: z.array(z.any()),
     role: z.string(),
   }),
 });
 
+// ADK input format: {config: {tools, system_instruction}, contents: [...]}
+const GeminiADKInputSchema = z.looseObject({
+  config: z.looseObject({
+    tools: z.array(z.any()).optional(),
+    system_instruction: z.string().optional(),
+  }),
+  contents: z.array(z.any()),
+});
+
+// Simple request format: {contents: [{parts: [...], role: "..."}]}
+const GeminiRequestSchema = z.looseObject({
+  contents: z.array(
+    z.looseObject({
+      parts: z.array(z.any()),
+      role: z.string().optional(),
+    }),
+  ),
+});
+
+/**
+ * Case-insensitive field accessor
+ * Handles both snake_case and camelCase (e.g., function_call OR functionCall)
+ */
+function getField(obj: unknown, snakeName: string, camelName: string): unknown {
+  if (!obj || typeof obj !== "object") return undefined;
+  const o = obj as Record<string, unknown>;
+  return o[snakeName] ?? o[camelName];
+}
+
+/**
+ * Check if message is a Gemini tool definition (to be filtered out)
+ */
 export function isGeminiToolDefinition(msg: unknown): boolean {
   if (!msg || typeof msg !== "object") return false;
 
   const message = msg as Record<string, unknown>;
 
-  // Gemini tool definitions have:
-  // - role: "tool"
-  // - content.type: "function"
-  // - content.function: {name, description, parameters}
+  // Gemini tool definitions: {role: "tool", content: {type: "function", function: {...}}}
   return (
     message.role === "tool" &&
     typeof message.content === "object" &&
@@ -64,6 +78,7 @@ export function isGeminiToolDefinition(msg: unknown): boolean {
   );
 }
 
+// get tool definitions from Gemini tool definition messages
 export function extractGeminiToolDefinitions(messages: unknown[]): Array<{
   name: string;
   description: string;
@@ -81,175 +96,61 @@ export function extractGeminiToolDefinitions(messages: unknown[]): Array<{
   });
 }
 
-function normalizeToolCall(toolCall: unknown): Record<string, unknown> {
-  if (!toolCall || typeof toolCall !== "object") return {};
+/**
+ * Extract both tool calls and text from parts array
+ * Handles: function_call/functionCall, text, function_response/functionResponse
+ * snake_case is from python SDK while camelCase is from JavaScript SDK / REST
+ */
+function extractFromParts(parts: unknown[]): {
+  toolCalls: Array<Record<string, unknown>>;
+  text: string;
+} {
+  const toolCalls: Array<Record<string, unknown>> = [];
+  const textParts: string[] = [];
 
-  const tc = toolCall as Record<string, unknown>;
+  for (const part of parts) {
+    if (typeof part === "string") {
+      textParts.push(part);
+      continue;
+    }
+    if (!part || typeof part !== "object") continue;
 
-  // is Gemini format?: {name, args, id, type: "tool_call"}
-  // Convert to flat ChatML format: {id, name, arguments, type}
-  if (tc.type === "tool_call" && tc.name && "args" in tc) {
-    return {
-      id: tc.id || "",
-      name: tc.name,
-      arguments:
-        typeof tc.args === "string" ? tc.args : JSON.stringify(tc.args ?? {}),
-      type: "function",
-    };
-  }
-
-  return tc;
-}
-
-// extract tool calls from Gemini parts array
-// Handles: {parts: [{function_call: {name, args}}]}
-function extractToolCallsFromParts(
-  parts: unknown[],
-): Array<Record<string, unknown>> {
-  const functionCallParts = parts.filter((part: unknown) => {
-    return typeof part === "object" && part !== null && "function_call" in part;
-  });
-
-  return functionCallParts.map((part: unknown) => {
     const p = part as Record<string, unknown>;
-    const fc = p.function_call as Record<string, unknown>;
-    return {
-      id: fc.id || "",
-      name: fc.name,
-      arguments:
-        typeof fc.args === "string" ? fc.args : JSON.stringify(fc.args ?? {}),
-      type: "function",
-    };
-  });
-}
 
-// Handles: {text: "..."}, {type: "text", text: "..."}, {function_response: {...}}
-function extractTextFromParts(parts: unknown[]): string {
-  return parts
-    .map((part: unknown) => {
-      if (typeof part === "object" && part !== null) {
-        const p = part as Record<string, unknown>;
-        // {text: "..."} or {type: "text", text: "..."}
-        if (typeof p.text === "string") return p.text;
-        // {function_response: {name, response}}
-        if (p.function_response && typeof p.function_response === "object") {
-          const fr = p.function_response as Record<string, unknown>;
-          return JSON.stringify(fr.response || {});
-        }
-      }
-      if (typeof part === "string") return part;
-      return "";
-    })
-    .filter((text: unknown) => text !== "")
-    .join("");
-}
-
-function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
-  if (!msg || typeof msg !== "object") return {};
-
-  const message = msg as Record<string, unknown>;
-  let normalized = { ...message };
-
-  // Convert direct tool call message to tool_calls array format
-  // Format: { type: "tool_call", name: "...", args: {...} }
-  // Convert to: { role: "assistant", tool_calls: [{ id, name, arguments, type }] }
-  if (
-    normalized.type === "tool_call" &&
-    normalized.name &&
-    typeof normalized.name === "string"
-  ) {
-    const toolCall: Record<string, unknown> = {
-      id: normalized.id || "",
-      name: normalized.name,
-      arguments:
-        typeof normalized.args === "string"
-          ? normalized.args
-          : JSON.stringify(normalized.args ?? {}),
-      type: "function",
-    };
-
-    // Remove the direct tool call properties and add tool_calls array
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { type: _type, name: _name, args: _args, ...rest } = normalized;
-    normalized = {
-      ...rest,
-      role: rest.role || "assistant",
-      tool_calls: [toolCall],
-    };
-  }
-
-  // Normalize tool_calls array if present
-  if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
-    normalized.tool_calls = normalized.tool_calls.map(normalizeToolCall);
-  }
-
-  // Process top-level parts array (Google ADK format)
-  // Gemini format: {parts: [{function_call/text/function_response}], role: "..."}
-  if (normalized.parts && Array.isArray(normalized.parts)) {
-    // Extract tool calls from parts
-    const toolCalls = extractToolCallsFromParts(normalized.parts);
-    if (toolCalls.length > 0) {
-      normalized.tool_calls = toolCalls;
+    // Check for function_call OR functionCall (case-insensitive)
+    const fc = getField(p, "function_call", "functionCall");
+    if (fc && typeof fc === "object") {
+      const functionCall = fc as Record<string, unknown>;
+      toolCalls.push({
+        id: functionCall.id || "",
+        name: functionCall.name,
+        arguments:
+          typeof functionCall.args === "string"
+            ? functionCall.args
+            : JSON.stringify(functionCall.args ?? {}),
+        type: "function",
+      });
+      continue;
     }
 
-    // Extract text content from parts
-    const textContent = extractTextFromParts(normalized.parts);
-    if (textContent) {
-      normalized.content = textContent;
-      // Remove parts field after extracting to avoid showing in passthrough
-      delete normalized.parts;
+    // {text: "..."} or {type: "text", text: "..."}
+    if (typeof p.text === "string") {
+      textParts.push(p.text);
+      continue;
+    }
+
+    // {function_response: {name, response}} OR {functionResponse: {name, response}}
+    const fr = getField(p, "function_response", "functionResponse");
+    if (fr && typeof fr === "object") {
+      const functionResponse = fr as Record<string, unknown>;
+      textParts.push(JSON.stringify(functionResponse.response || {}));
     }
   }
 
-  // Process nested content.parts[] (legacy format)
-  // Gemini format: content: {parts: [{function_call: {...}}], role: "model"}
-  if (
-    normalized.content &&
-    typeof normalized.content === "object" &&
-    !Array.isArray(normalized.content) &&
-    "parts" in normalized.content
-  ) {
-    const content = normalized.content as Record<string, unknown>;
-    if (Array.isArray(content.parts)) {
-      const toolCalls = extractToolCallsFromParts(content.parts);
-      if (toolCalls.length > 0) {
-        normalized.tool_calls = toolCalls;
-      }
-    }
-
-    // Also extract role if nested
-    if (content.role && typeof content.role === "string") {
-      normalized.role = content.role;
-    }
-  }
-
-  // Process content as array (structured content format)
-  // Gemini format: content: [{type: "text", text: "..."}]
-  if (Array.isArray(normalized.content)) {
-    const textContent = extractTextFromParts(normalized.content);
-    if (textContent) {
-      normalized.content = textContent;
-    }
-  }
-
-  // Stringify object content for tool result messages, results should be strings in playground
-  // NOTE: this will probably change down the line as we introduce structured tool results
-  if (
-    normalized.role === "tool" &&
-    typeof normalized.content === "object" &&
-    !Array.isArray(normalized.content) &&
-    !isGeminiToolDefinition(msg)
-  ) {
-    normalized.content = stringifyToolResultContent(normalized.content);
-  }
-
-  return normalized;
-}
-
-function filterAndNormalizeMessages(data: unknown[]): unknown[] {
-  return data
-    .filter((msg) => !isGeminiToolDefinition(msg))
-    .map(normalizeGeminiMessage);
+  return {
+    toolCalls,
+    text: textParts.join(""),
+  };
 }
 
 /**
@@ -268,16 +169,13 @@ function extractToolDeclarations(tools: unknown[]): Array<{
   }> = [];
 
   for (const tool of tools) {
-    if (typeof tool !== "object" || !tool) continue;
+    if (!tool || typeof tool !== "object") continue;
     const t = tool as Record<string, unknown>;
 
-    if (
-      "function_declarations" in t &&
-      Array.isArray(t.function_declarations)
-    ) {
-      for (const decl of t.function_declarations as Array<
-        Record<string, unknown>
-      >) {
+    // Check for function_declarations OR functionDeclarations
+    const fd = getField(t, "function_declarations", "functionDeclarations");
+    if (fd && Array.isArray(fd)) {
+      for (const decl of fd as Array<Record<string, unknown>>) {
         const toolDef: Record<string, unknown> = {
           name: (decl.name as string) || "",
         };
@@ -301,56 +199,173 @@ function extractToolDeclarations(tools: unknown[]): Array<{
   return declarations;
 }
 
-function preprocessData(data: unknown): unknown {
-  if (!data) return data;
+// normalize a single Gemini message to ChatML format
+function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
+  if (!msg || typeof msg !== "object") return {};
 
-  // Gemini response with candidates wrapper: {candidates: [{content: {parts, role}}]}
-  // Unwrap to get the first candidate's content
+  const message = msg as Record<string, unknown>;
+  let normalized = { ...message };
+
+  // convert Gemini "model" role → "assistant"
+  // if (message.role === "model") {
+  //   normalized.role = "assistant";
+  // }
+
+  // handle direct tool call message format
+  // {type: "tool_call", name: "...", args: {...}} → {role: "assistant", tool_calls: [...]}
   if (
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    "candidates" in data &&
-    Array.isArray((data as Record<string, unknown>).candidates)
+    normalized.type === "tool_call" &&
+    normalized.name &&
+    typeof normalized.name === "string"
   ) {
-    const obj = data as Record<string, unknown>;
-    const candidate = (obj.candidates as Record<string, unknown>[])[0];
-    if (candidate?.content) {
-      return normalizeGeminiMessage(candidate.content);
+    const toolCall: Record<string, unknown> = {
+      id: normalized.id || "",
+      name: normalized.name,
+      arguments:
+        typeof normalized.args === "string"
+          ? normalized.args
+          : JSON.stringify(normalized.args ?? {}),
+      type: "function",
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { type: _type, name: _name, args: _args, ...rest } = normalized;
+    normalized = {
+      ...rest,
+      role: rest.role || "assistant",
+      tool_calls: [toolCall],
+    };
+  }
+
+  // normalize existing tool_calls array
+  if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
+    normalized.tool_calls = normalized.tool_calls.map((tc) => {
+      if (!tc || typeof tc !== "object") return {};
+      const toolCall = tc as Record<string, unknown>;
+
+      // Convert Gemini format {type: "tool_call", name, args} → flat format
+      if (toolCall.type === "tool_call" && "args" in toolCall) {
+        return {
+          id: toolCall.id || "",
+          name: toolCall.name,
+          arguments:
+            typeof toolCall.args === "string"
+              ? toolCall.args
+              : JSON.stringify(toolCall.args ?? {}),
+          type: "function",
+        };
+      }
+
+      return toolCall;
+    });
+  }
+
+  // process top-level parts array
+  // Gemini format: {parts: [{function_call/text/function_response}], role: "..."}
+  if (normalized.parts && Array.isArray(normalized.parts)) {
+    const { toolCalls, text } = extractFromParts(normalized.parts);
+    if (toolCalls.length > 0) {
+      normalized.tool_calls = toolCalls;
+    }
+    if (text) {
+      normalized.content = text;
+      // Remove parts to avoid showing in passthrough
+      delete normalized.parts;
     }
   }
 
-  // Gemini output response format: { content: {parts: [...], role: "..."}, finish_reason: "...", ... }
-  // Unwrap content to top level for message normalization
+  // process nested content.parts[]
+  // Legacy format: {content: {parts: [{function_call: {...}}], role: "model"}}
   if (
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    "content" in data &&
-    typeof (data as Record<string, unknown>).content === "object" &&
-    (data as Record<string, unknown>).content !== null
+    normalized.content &&
+    typeof normalized.content === "object" &&
+    !Array.isArray(normalized.content) &&
+    "parts" in normalized.content
   ) {
-    const obj = data as Record<string, unknown>;
-    const content = obj.content as Record<string, unknown>;
+    const content = normalized.content as Record<string, unknown>;
+    if (Array.isArray(content.parts)) {
+      const { toolCalls } = extractFromParts(content.parts);
+      if (toolCalls.length > 0) {
+        normalized.tool_calls = toolCalls;
+      }
 
-    // Check if content has Gemini structure (parts array)
-    if ("parts" in content && Array.isArray(content.parts)) {
-      // Merge content fields to top level, preserving other fields
+      // Extract role if nested
+      if (content.role && typeof content.role === "string") {
+        normalized.role = content.role;
+      }
+    }
+  }
+
+  // process content as array (structured content format)
+  // Gemini format: {content: [{type: "text", text: "..."}]}
+  if (Array.isArray(normalized.content)) {
+    const { text } = extractFromParts(normalized.content);
+    if (text) {
+      normalized.content = text;
+    }
+  }
+
+  // stringify object content for tool result messages
+  if (
+    normalized.role === "tool" &&
+    typeof normalized.content === "object" &&
+    !Array.isArray(normalized.content) &&
+    !isGeminiToolDefinition(msg)
+  ) {
+    normalized.content = stringifyToolResultContent(normalized.content);
+  }
+
+  return normalized;
+}
+
+// filter out tool definitions and normalize remaining messages
+function filterAndNormalizeMessages(data: unknown[]): unknown[] {
+  return data
+    .filter((msg) => !isGeminiToolDefinition(msg))
+    .map(normalizeGeminiMessage);
+}
+
+// unwrap outer wrappers first then normalize inner structure
+function preprocessData(data: unknown): unknown {
+  if (!data) return data;
+
+  // ========================================
+  // STEP 1: Unwrap Raw Gemini API format
+  // ========================================
+  // {candidates: [{content: {parts, role}}]} → {parts, role, ...otherFields}
+  if (GeminiRawAPISchema.safeParse(data).success) {
+    const obj = data as Record<string, unknown>;
+    const candidates = obj.candidates as Array<Record<string, unknown>>;
+    if (candidates[0]?.content) {
+      // Unwrap: merge first candidate's content with other top-level fields
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { content: _content, ...rest } = obj;
+      const { candidates: _candidates, ...otherFields } = obj;
       return normalizeGeminiMessage({
-        ...content,
-        ...rest,
+        ...candidates[0].content,
+        ...otherFields,
       });
     }
   }
 
-  // Google ADK format: { model, config: { tools: [...], system_instruction: "..." }, contents: [...] }
-  // Extract system_instruction and tools from config
-  if (
-    typeof data === "object" &&
-    !Array.isArray(data) &&
-    "contents" in data &&
-    "config" in data
-  ) {
+  // ========================================
+  // STEP 2: Unwrap ADK output format
+  // ========================================
+  // {content: {parts, role}, finish_reason: "..."} → {parts, role, finish_reason: "..."}
+  if (GeminiADKOutputSchema.safeParse(data).success) {
+    const obj = data as Record<string, unknown>;
+    const content = obj.content as Record<string, unknown>;
+    if ("parts" in content && Array.isArray(content.parts)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { content: _content, ...otherFields } = obj;
+      return normalizeGeminiMessage({ ...content, ...otherFields });
+    }
+  }
+
+  // ========================================
+  // STEP 3: Handle ADK input format
+  // ========================================
+  // {config: {tools, system_instruction}, contents: [...]}
+  if (GeminiADKInputSchema.safeParse(data).success) {
     const obj = data as Record<string, unknown>;
     const config = obj.config as Record<string, unknown> | undefined;
     const contents = obj.contents;
@@ -359,13 +374,15 @@ function preprocessData(data: unknown): unknown {
       const messages: unknown[] = [];
 
       // Extract system_instruction from config and prepend as system message
-      if (
-        config.system_instruction &&
-        typeof config.system_instruction === "string"
-      ) {
+      const systemInstruction = getField(
+        config,
+        "system_instruction",
+        "systemInstruction",
+      );
+      if (systemInstruction && typeof systemInstruction === "string") {
         messages.push({
           role: "system",
-          content: config.system_instruction,
+          content: systemInstruction,
         });
       }
 
@@ -383,17 +400,30 @@ function preprocessData(data: unknown): unknown {
         }
       }
 
-      // Fallback: no tools, just normalize messages
+      // No tools, just normalize messages
       return filterAndNormalizeMessages(messages);
     }
   }
 
-  // Array of messages - filter tool definitions and normalize content
+  // ========================================
+  // STEP 4: Handle simple request format
+  // ========================================
+  // {contents: [{parts, role}], model: "..."}
+  if (GeminiRequestSchema.safeParse(data).success) {
+    const obj = data as Record<string, unknown>;
+    return filterAndNormalizeMessages(obj.contents as unknown[]);
+  }
+
+  // ========================================
+  // STEP 5: Handle arrays
+  // ========================================
   if (Array.isArray(data)) {
     return filterAndNormalizeMessages(data);
   }
 
-  // Object with messages key
+  // ========================================
+  // STEP 6: Handle messages wrapper
+  // ========================================
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
     return {
@@ -432,17 +462,17 @@ export const geminiAdapter: ProviderAdapter = {
       }
     }
 
-    // STRUCTURAL: Schema-based detection on metadata
+    // STRUCTURAL: Schema-based detection on metadata (check metadata first for performance)
     if (GeminiRequestSchema.safeParse(ctx.metadata).success) return true;
-    if (GeminiADKSchema.safeParse(ctx.metadata).success) return true;
-    if (GeminiResponseSchema.safeParse(ctx.metadata).success) return true;
-    if (GeminiOutputSchema.safeParse(ctx.metadata).success) return true;
+    if (GeminiADKInputSchema.safeParse(ctx.metadata).success) return true;
+    if (GeminiRawAPISchema.safeParse(ctx.metadata).success) return true;
+    if (GeminiADKOutputSchema.safeParse(ctx.metadata).success) return true;
 
-    // Schema-based detection, only do finally because of performance implications
+    // Schema-based detection on data (slower, do last)
     if (GeminiRequestSchema.safeParse(ctx.data).success) return true;
-    if (GeminiADKSchema.safeParse(ctx.data).success) return true;
-    if (GeminiResponseSchema.safeParse(ctx.data).success) return true;
-    if (GeminiOutputSchema.safeParse(ctx.data).success) return true;
+    if (GeminiADKInputSchema.safeParse(ctx.data).success) return true;
+    if (GeminiRawAPISchema.safeParse(ctx.data).success) return true;
+    if (GeminiADKOutputSchema.safeParse(ctx.data).success) return true;
 
     // Structural: check if data contains Gemini tool definition messages (legacy)
     if (
