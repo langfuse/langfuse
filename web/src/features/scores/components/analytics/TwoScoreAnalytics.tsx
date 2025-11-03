@@ -8,7 +8,11 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { ScoreDistributionChart } from "./ScoreDistributionChart";
-import { type IntervalConfig } from "@/src/utils/date-range-utils";
+import { ScoreTimeSeriesChart } from "./ScoreTimeSeriesChart";
+import {
+  fillTimeSeriesGaps,
+  type IntervalConfig,
+} from "@/src/utils/date-range-utils";
 
 interface TwoScoreAnalyticsProps {
   score1: {
@@ -24,13 +28,18 @@ interface TwoScoreAnalyticsProps {
   analytics: RouterOutputs["scores"]["getScoreComparisonAnalytics"];
   interval: IntervalConfig;
   nBins: number;
+  fromDate: Date;
+  toDate: Date;
 }
 
 export function TwoScoreAnalytics({
   score1,
   score2,
   analytics,
+  interval,
   nBins,
+  fromDate,
+  toDate,
 }: TwoScoreAnalyticsProps) {
   // Detect cross-type comparison (treat as categorical)
   const isCrossType = score1.dataType !== score2.dataType;
@@ -98,6 +107,7 @@ export function TwoScoreAnalytics({
     score1.dataType,
     score2.dataType,
     isBothNumeric,
+    isCrossType,
     analytics.confusionMatrix,
     hasStackedDistribution,
     analytics.stackedDistribution,
@@ -154,6 +164,30 @@ export function TwoScoreAnalytics({
 
   const totalCount1 = analytics.counts.score1Total;
   const totalCount2 = analytics.counts.score2Total;
+
+  // Fill gaps in time series to ensure all intervals are displayed
+  const timeSeries = useMemo(() => {
+    return fillTimeSeriesGaps(analytics.timeSeries, fromDate, toDate, interval);
+  }, [analytics.timeSeries, fromDate, toDate, interval]);
+
+  // Calculate overall averages from time series
+  const overallAverage1 = useMemo(() => {
+    if (timeSeries.length === 0) return 0;
+    const validValues = timeSeries
+      .map((t) => t.avg1)
+      .filter((v): v is number => v !== null);
+    if (validValues.length === 0) return 0;
+    return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
+  }, [timeSeries]);
+
+  const overallAverage2 = useMemo(() => {
+    if (timeSeries.length === 0) return 0;
+    const validValues = timeSeries
+      .map((t) => t.avg2)
+      .filter((v): v is number => v !== null);
+    if (validValues.length === 0) return 0;
+    return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
+  }, [timeSeries]);
 
   // Check if comparing the same score (would cause duplicate keys in chart data)
   const isSameScore =
@@ -215,18 +249,45 @@ export function TwoScoreAnalytics({
         </CardContent>
       </Card>
 
-      {/* Time Series Card Placeholder */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Scores Over Time</CardTitle>
-          <CardDescription>
-            Time series comparison (coming soon)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-          Two-score time series chart coming in next phase
-        </CardContent>
-      </Card>
+      {/* Time Series Card (Numeric only in Phase 1) */}
+      {isBothNumeric && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Scores Over Time</CardTitle>
+            <CardDescription>
+              Average by {interval.count} {interval.unit}
+              {interval.count > 1 && "s"}
+              {overallAverage1 > 0 && (
+                <>
+                  {" "}
+                  | {score1.name} avg: {overallAverage1.toFixed(3)}
+                </>
+              )}
+              {overallAverage2 > 0 && (
+                <>
+                  {" "}
+                  | {score2.name} avg: {overallAverage2.toFixed(3)}
+                </>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {timeSeries.length > 0 ? (
+              <ScoreTimeSeriesChart
+                data={timeSeries}
+                dataType="NUMERIC"
+                score1Name={score1DisplayName}
+                score2Name={score2DisplayName}
+                interval={interval}
+              />
+            ) : (
+              <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+                No time series data available for the selected time range
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

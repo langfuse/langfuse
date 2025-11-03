@@ -461,6 +461,8 @@ export default function ScoresAnalyticsPage() {
                   analytics={analyticsData}
                   interval={interval}
                   nBins={10}
+                  fromDate={absoluteTimeRange!.from}
+                  toDate={absoluteTimeRange!.to}
                 />
 
                 {/* 2x2 Grid Layout for Heatmap and Stats */}

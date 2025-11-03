@@ -188,9 +188,9 @@ export function SingleScoreAnalytics({
             {timeSeries.length > 0 ? (
               <ScoreTimeSeriesChart
                 data={timeSeries}
-                scoreName={`${scoreName} (${source})`}
+                dataType={dataType}
+                score1Name={`${scoreName} (${source})`}
                 interval={interval}
-                overallAverage={overallAverage}
               />
             ) : (
               <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
