@@ -238,11 +238,13 @@ export class ObservationTypeMapperRegistry {
         const hasModelInformation = modelKeys.some((key) =>
           hasMeaningfulValue(attributes[key]),
         );
-
-        return (
-          hasModelInformation &&
-          hasMeaningfulValue(attributes["operation.name"])
+        const hasOperationName = hasMeaningfulValue(
+          attributes["operation.name"],
         );
+
+        const isToolCall = Boolean(attributes["ai.toolCall"]);
+
+        return (hasModelInformation && hasOperationName) || isToolCall;
       },
       (attributes) => {
         const operationName = attributes["operation.name"] as string;
