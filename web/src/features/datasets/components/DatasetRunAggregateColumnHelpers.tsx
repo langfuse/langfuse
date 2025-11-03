@@ -133,17 +133,21 @@ function RunAggregateHeader({
   );
 
   return (
-    <div className="flex w-full flex-row items-center justify-between gap-1">
-      <span>{runName}</span>
-      <PopoverFilterBuilder
-        buttonType="icon"
-        columns={columns}
-        filterState={getFiltersForRun(runId)}
-        onChange={(filters: FilterState) =>
-          debouncedUpdateRunFilters(runId, filters)
-        }
-      />
-      <BaselineToggle runId={runId} />
+    <div className="flex w-full flex-row items-center gap-1">
+      <span className="flex-1 truncate" title={runName}>
+        {runName}
+      </span>
+      <div className="flex w-fit flex-shrink-0 gap-1">
+        <PopoverFilterBuilder
+          buttonType="icon"
+          columns={columns}
+          filterState={getFiltersForRun(runId)}
+          onChange={(filters: FilterState) =>
+            debouncedUpdateRunFilters(runId, filters)
+          }
+        />
+        <BaselineToggle runId={runId} />
+      </div>
     </div>
   );
 }
