@@ -17,6 +17,12 @@ interface CategoricalChartProps {
   categories: string[];
   score1Name: string;
   score2Name?: string;
+  stackedDistribution?: Array<{
+    score1Category: string;
+    score2Stack: string;
+    count: number;
+  }>;
+  score2Categories?: string[];
 }
 
 /**
@@ -31,11 +37,36 @@ export function ScoreDistributionCategoricalChart({
   categories,
   score1Name,
   score2Name,
+  stackedDistribution,
+  score2Categories,
 }: CategoricalChartProps) {
   const isComparisonMode = Boolean(distribution2 && score2Name);
+  const hasStackedData = Boolean(
+    stackedDistribution && stackedDistribution.length > 0,
+  );
 
   // Transform data for Recharts
   const chartData = useMemo(() => {
+    // Use stacked distribution if available (categorical comparison)
+    if (hasStackedData && stackedDistribution) {
+      const grouped = new Map<string, Record<string, number>>();
+
+      stackedDistribution.forEach((item) => {
+        if (!grouped.has(item.score1Category)) {
+          grouped.set(item.score1Category, {});
+        }
+        grouped.get(item.score1Category)![item.score2Stack] = item.count;
+      });
+
+      return Array.from(grouped.entries())
+        .sort()
+        .map(([category, stacks]) => ({
+          name: category,
+          ...stacks,
+        }));
+    }
+
+    // Fallback to old grouped bar approach (for boolean or old behavior)
     const dist2Map = distribution2
       ? new Map(distribution2.map((d) => [d.binIndex, d.count]))
       : null;
@@ -56,38 +87,92 @@ export function ScoreDistributionCategoricalChart({
         };
       }
     });
-  }, [distribution1, distribution2, categories, isComparisonMode]);
+  }, [
+    distribution1,
+    distribution2,
+    categories,
+    isComparisonMode,
+    hasStackedData,
+    stackedDistribution,
+  ]);
 
   const hasManyCategories = chartData.length > 10;
 
-  // Configure chart labels for tooltip
+  // Configure chart colors and config
   const colors = getTwoScoreColors();
-  const config: ChartConfig = isComparisonMode
-    ? {
-        pv: {
-          label: score1Name,
+
+  // For stacked charts: create config for all stack keys
+  const config: ChartConfig = useMemo(() => {
+    if (hasStackedData && score2Categories) {
+      const stackKeys = [...score2Categories, "__unmatched__"];
+      const chartColors = [
+        "hsl(var(--chart-1))",
+        "hsl(var(--chart-2))",
+        "hsl(var(--chart-3))",
+        "hsl(var(--chart-4))",
+        "hsl(var(--chart-5))",
+      ];
+
+      const stackConfig: ChartConfig = {};
+      stackKeys.forEach((key, index) => {
+        stackConfig[key] = {
+          label: key === "__unmatched__" ? "Unmatched" : key,
           theme: {
-            light: colors.score1,
-            dark: colors.score1,
+            light:
+              key === "__unmatched__"
+                ? "hsl(var(--muted-foreground))"
+                : chartColors[index % chartColors.length]!,
+            dark:
+              key === "__unmatched__"
+                ? "hsl(var(--muted-foreground))"
+                : chartColors[index % chartColors.length]!,
           },
-        },
-        uv: {
-          label: score2Name,
-          theme: {
-            light: colors.score2,
-            dark: colors.score2,
+        };
+      });
+      return stackConfig;
+    }
+
+    // Fallback to grouped bar config
+    return isComparisonMode
+      ? {
+          pv: {
+            label: score1Name,
+            theme: {
+              light: colors.score1,
+              dark: colors.score1,
+            },
           },
-        },
-      }
-    : {
-        pv: {
-          label: score1Name,
-          theme: {
-            light: getSingleScoreColor(),
-            dark: getSingleScoreColor(),
+          uv: {
+            label: score2Name,
+            theme: {
+              light: colors.score2,
+              dark: colors.score2,
+            },
           },
-        },
-      };
+        }
+      : {
+          pv: {
+            label: score1Name,
+            theme: {
+              light: getSingleScoreColor(),
+              dark: getSingleScoreColor(),
+            },
+          },
+        };
+  }, [
+    hasStackedData,
+    score2Categories,
+    isComparisonMode,
+    score1Name,
+    score2Name,
+    colors,
+  ]);
+
+  // Get stack keys for stacked mode
+  const stackKeys = useMemo(() => {
+    if (!hasStackedData || !score2Categories) return [];
+    return [...score2Categories, "__unmatched__"];
+  }, [hasStackedData, score2Categories]);
 
   return (
     <ChartContainer
@@ -120,9 +205,36 @@ export function ScoreDistributionCategoricalChart({
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
-        <Bar dataKey="pv" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
-        {isComparisonMode && (
-          <Bar dataKey="uv" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+
+        {hasStackedData ? (
+          // Stacked bars - one Bar component per score2 category
+          <>
+            {stackKeys.map((stackKey) => (
+              <Bar
+                key={stackKey}
+                dataKey={stackKey}
+                stackId="stack"
+                fill={config[stackKey]?.theme?.light ?? "hsl(var(--chart-1))"}
+                radius={[0, 0, 0, 0]}
+              />
+            ))}
+          </>
+        ) : (
+          // Grouped bars (old behavior for boolean or when no stacked data)
+          <>
+            <Bar
+              dataKey="pv"
+              fill="hsl(var(--chart-3))"
+              radius={[4, 4, 0, 0]}
+            />
+            {isComparisonMode && (
+              <Bar
+                dataKey="uv"
+                fill="hsl(var(--chart-2))"
+                radius={[4, 4, 0, 0]}
+              />
+            )}
+          </>
         )}
       </BarChart>
     </ChartContainer>

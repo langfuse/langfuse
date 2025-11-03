@@ -11,6 +11,13 @@ export interface ScoreDistributionChartProps {
   binLabels?: string[];
   // For categorical scores, provide category names
   categories?: string[];
+  // For categorical comparison, provide stacked distribution data
+  stackedDistribution?: Array<{
+    score1Category: string;
+    score2Stack: string;
+    count: number;
+  }>;
+  score2Categories?: string[];
 }
 
 /**
@@ -27,6 +34,8 @@ export function ScoreDistributionChart({
   score2Name,
   binLabels,
   categories,
+  stackedDistribution,
+  score2Categories,
 }: ScoreDistributionChartProps) {
   // Empty state check
   if (distribution1.length === 0) {
@@ -74,6 +83,8 @@ export function ScoreDistributionChart({
       categories={categories}
       score1Name={score1Name}
       score2Name={score2Name}
+      stackedDistribution={stackedDistribution}
+      score2Categories={score2Categories}
     />
   );
 }

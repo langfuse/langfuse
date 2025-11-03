@@ -742,6 +742,8 @@ export const scoresRouter = createTRPCRouter({
 
       // Determine if we're dealing with numeric or categorical/boolean data
       const isNumeric = score1.dataType === "NUMERIC";
+      const isCategoricalComparison =
+        score1.dataType === "CATEGORICAL" && score2.dataType === "CATEGORICAL";
 
       // Build distribution CTEs conditionally based on data type
       const distribution1CTE = isNumeric
@@ -886,6 +888,44 @@ export const scoresRouter = createTRPCRouter({
             GROUP BY string_value1, string_value2
           ),
 
+          ${
+            isCategoricalComparison
+              ? `-- CTE 6a: LEFT JOIN score1 with score2 for stacked distribution
+          score1_with_score2 AS (
+            SELECT
+              s1.string_value as score1_category,
+              s2.string_value as score2_category
+            FROM score1_filtered s1
+            LEFT JOIN score2_filtered s2
+              ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
+              AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
+              AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
+              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
+            LIMIT {maxMatchedScoresLimit: UInt32}
+          ),
+
+          -- CTE 6b: Stacked distribution (score1 categories with score2 breakdowns)
+          stacked_distribution AS (
+            SELECT
+              score1_category,
+              coalesce(score2_category, '__unmatched__') as score2_stack,
+              count() as count
+            FROM score1_with_score2
+            WHERE score1_category IS NOT NULL
+            GROUP BY score1_category, score2_stack
+            ORDER BY score1_category, score2_stack
+          ),
+
+          -- CTE 6c: All score2 categories for legend
+          score2_categories AS (
+            SELECT DISTINCT string_value as category
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL
+            ORDER BY string_value
+          ),`
+              : ""
+          }
+
           -- CTE 7: Statistics
           stats AS (
             SELECT
@@ -1025,6 +1065,43 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(String)) as col9,
           CAST(NULL AS Nullable(String)) as col10
         FROM distribution2
+
+        ${
+          isCategoricalComparison
+            ? `
+        UNION ALL
+
+        SELECT
+          'stacked' as result_type,
+          CAST(count AS Float64) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          score1_category as col9,
+          score2_stack as col10
+        FROM stacked_distribution
+
+        UNION ALL
+
+        SELECT
+          'score2_categories' as result_type,
+          CAST(NULL AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10
+        FROM score2_categories`
+            : ""
+        }
       `;
 
       // Execute query
@@ -1078,6 +1155,10 @@ export const scoresRouter = createTRPCRouter({
       const dist2Rows = results.filter(
         (r) => r.result_type === "distribution2",
       );
+      const stackedRows = results.filter((r) => r.result_type === "stacked");
+      const score2CategoriesRows = results.filter(
+        (r) => r.result_type === "score2_categories",
+      );
 
       // Build structured response
       return {
@@ -1126,6 +1207,14 @@ export const scoresRouter = createTRPCRouter({
           binIndex: row.col1 ?? 0,
           count: row.col2 ?? 0,
         })),
+        stackedDistribution: stackedRows.map((row) => ({
+          score1Category: row.col9 ?? "",
+          score2Stack: row.col10 ?? "",
+          count: row.col1 ?? 0,
+        })),
+        score2Categories: score2CategoriesRows
+          .map((row) => row.col9 ?? "")
+          .filter((c) => c !== ""),
       };
     }),
 });

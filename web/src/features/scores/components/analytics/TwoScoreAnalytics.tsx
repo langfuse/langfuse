@@ -32,11 +32,24 @@ export function TwoScoreAnalytics({
   analytics,
   nBins,
 }: TwoScoreAnalyticsProps) {
+  // Check if stacked distribution is available (categorical comparison)
+  const hasStackedDistribution =
+    analytics.stackedDistribution && analytics.stackedDistribution.length > 0;
+
   // Extract categories for categorical/boolean scores
   const categories = useMemo(() => {
     if (score1.dataType === "NUMERIC") return undefined;
 
-    // Try confusionMatrix first (available when scores overlap)
+    // For categorical scores with stacked distribution, extract from stackedDistribution
+    if (hasStackedDistribution) {
+      const uniqueCategories = new Set<string>();
+      analytics.stackedDistribution!.forEach((item) => {
+        uniqueCategories.add(item.score1Category);
+      });
+      return Array.from(uniqueCategories).sort();
+    }
+
+    // Fallback: Try confusionMatrix (for backward compatibility or boolean scores)
     if (analytics.confusionMatrix.length > 0) {
       const uniqueCategories = new Set<string>();
       analytics.confusionMatrix.forEach((row) => {
@@ -45,19 +58,20 @@ export function TwoScoreAnalytics({
       return Array.from(uniqueCategories).sort();
     }
 
-    // Fallback: extract from distribution data when no overlap (matchedCount = 0)
-    // Backend uses ROW_NUMBER() OVER (ORDER BY string_value) for binIndex
-    // So binIndex 0 = first alphabetically sorted category
-
     // For boolean: assume alphabetical order ["False", "True"]
     if (score1.dataType === "BOOLEAN") {
       return ["False", "True"];
     }
 
-    // For categorical: we can't reliably determine category names without confusionMatrix
+    // For categorical: we can't reliably determine category names without stackedDistribution or confusionMatrix
     // The distribution only has binIndex, not actual category strings
     return undefined;
-  }, [score1.dataType, analytics.confusionMatrix]);
+  }, [
+    score1.dataType,
+    analytics.confusionMatrix,
+    hasStackedDistribution,
+    analytics.stackedDistribution,
+  ]);
 
   // Fill missing bins for categorical/boolean data
   const distribution1 = useMemo(() => {
@@ -160,6 +174,8 @@ export function TwoScoreAnalytics({
                 score2Name={score2DisplayName}
                 binLabels={binLabels}
                 categories={categories}
+                stackedDistribution={analytics.stackedDistribution}
+                score2Categories={analytics.score2Categories}
               />
             )
           ) : (
