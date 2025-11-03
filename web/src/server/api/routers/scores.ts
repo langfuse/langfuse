@@ -865,11 +865,11 @@ export const scoresRouter = createTRPCRouter({
               (SELECT max(value) FROM score2_filtered) as max2
           ),
 
-          -- CTE 5: Heatmap (numeric only, NxN grid using global bounds)
+          -- CTE 5: Heatmap (numeric only, NxN grid using independent bounds per score)
           heatmap AS (
             SELECT
-              floor((m.value1 - b.global_min) / ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_x,
-              floor((m.value2 - b.global_min) / ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_y,
+              floor((m.value1 - b.min1) / ((b.max1 - b.min1 + 0.0001) / {nBins: UInt8})) as bin_x,
+              floor((m.value2 - b.min2) / ((b.max2 - b.min2 + 0.0001) / {nBins: UInt8})) as bin_y,
               count() as count,
               b.global_min, b.global_max,
               b.min1, b.max1, b.min2, b.max2
