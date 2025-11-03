@@ -643,16 +643,14 @@ export default function ObservationsEventsTable({
       },
     },
     {
-      accessorKey: "tokens",
+      accessorKey: "usage",
       header: "Tokens",
       id: "tokens",
       size: 150,
       cell: ({ row }) => {
-        const value: {
-          inputUsage: number;
-          outputUsage: number;
-          totalUsage: number;
-        } = row.getValue("usage");
+        const value = row.original.usage;
+        if (!value) return null;
+
         return (
           <BreakdownTooltip details={row.original.usageDetails}>
             <div className="flex items-center gap-1">
