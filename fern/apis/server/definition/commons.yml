@@ -384,6 +384,12 @@ types:
       name: string
       description: optional<string>
       metadata: optional<unknown>
+      inputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item inputs
+      expectedOutputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime
       updatedAt: datetime
