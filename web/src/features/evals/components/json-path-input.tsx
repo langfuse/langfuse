@@ -42,7 +42,7 @@ export function JsonPathInputWithSuggestions(props: {
     if (sampleValue === undefined || sampleValue === null)
       return [] as string[];
     return extractJsonPathSuggestions(sampleValue, {
-      maxDepth: 5,
+      maxDepth: 10,
       maxPaths: 150,
       includeIntermediate: true,
     });

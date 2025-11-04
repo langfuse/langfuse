@@ -4,6 +4,8 @@ type SuggestionOptions = {
   maxDepth?: number;
   maxPaths?: number;
   includeIntermediate?: boolean;
+  // Max number of elements to sample per array when inferring nested keys
+  arraySampleSize?: number;
 };
 
 function tryParseJsonDeep(value: unknown): unknown {
@@ -43,6 +45,7 @@ export function extractJsonPathSuggestions(
   const maxDepth = options.maxDepth ?? 5;
   const maxPaths = options.maxPaths ?? 150;
   const includeIntermediate = options.includeIntermediate ?? true;
+  const arraySampleSize = options.arraySampleSize ?? 10;
 
   const value = tryParseJsonDeep(rawValue);
 
@@ -64,8 +67,10 @@ export function extractJsonPathSuggestions(
       if (includeIntermediate) suggestions.add(arrayPath);
 
       if (v.length > 0) {
-        const first = v[0];
-        queue.push({ v: first, p: arrayPath, d: d + 1 });
+        const sampleCount = Math.min(v.length, arraySampleSize);
+        for (let i = 0; i < sampleCount; i++) {
+          queue.push({ v: v[i], p: arrayPath, d: d + 1 });
+        }
       }
       continue;
     }
