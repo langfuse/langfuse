@@ -694,7 +694,7 @@ function JsonPrettyTable({
 
 export function PrettyJsonView(props: {
   json?: unknown;
-  title?: string;
+  title?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;

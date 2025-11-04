@@ -6,10 +6,7 @@ import {
 } from "../helpers";
 import { z } from "zod/v4";
 
-/**
- * Detection schemas for LangChain/LangGraph formats
- * These are permissive - only validate structural markers
- */
+// Detection schemas for LangChain/LangGraph formats
 
 // LangChain message with type field (no role)
 const LangChainMessageSchema = z.array(
@@ -71,9 +68,7 @@ function isLangGraphToolDefinition(msg: unknown): boolean {
   );
 }
 
-/**
- * Extract tool definitions from messages array
- */
+// extract tool definitions from messages array
 function extractToolDefinitions(messages: unknown[]): Array<{
   name: string;
   description?: string;
@@ -132,18 +127,25 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       unknown
     >;
 
-    // Extract tool_calls if present
-    if (additionalKwargs.tool_calls && !normalized.tool_calls) {
-      normalized.tool_calls = additionalKwargs.tool_calls;
-      // IMPORTANT: Create NEW additional_kwargs without tool_calls to prevent
-      // ChatMlSchema from overwriting our flattened version when it spreads additional_kwargs
+    // Handle tool_calls from additional_kwargs
+    if (additionalKwargs.tool_calls) {
+      if (!normalized.tool_calls) {
+        // No top-level tool_calls, extract from additional_kwargs
+        normalized.tool_calls = additionalKwargs.tool_calls;
+      }
+      // IMPORTANT: Always remove tool_calls from additional_kwargs to prevent
+      // ChatMlSchema from overwriting our processed version when it spreads additional_kwargs
+      // This handles both cases:
+      // 1. LangGraph format: tool_calls extracted from additional_kwargs
+      // 2. LangChain format: top-level tool_calls already exists, prevent overwrite
       // Don't mutate original object - JSON view needs to show original data
+      // Filter out null fields to prevent them from creating extra json blocks in UI
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { tool_calls: _removed, ...restKwargs } = additionalKwargs;
-      normalized.additional_kwargs = restKwargs;
+      normalized.additional_kwargs = removeNullFields(restKwargs);
     }
 
-    // Keep other fields in additional_kwargs (including null values) for JSON view
+    // Keep other fields in additional_kwargs (non-null values) for JSON view
     // ChatMlSchema will spread these into passthrough json field
   }
 
@@ -168,13 +170,16 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
           ...(tc.index !== undefined ? { index: tc.index } : {}),
         };
       }
-      // Already flat format, just ensure arguments is stringified
+      // Already flat format - handle both 'args' (LangChain) and 'arguments' (OpenAI)
+      // LangChain uses 'args', OpenAI uses 'arguments'
+      const argsValue = tc.args ?? tc.arguments;
       return {
         ...tc,
+        name: tc.name,
         arguments:
-          typeof tc.arguments === "string"
-            ? tc.arguments
-            : JSON.stringify(tc.arguments ?? {}),
+          typeof argsValue === "string"
+            ? argsValue
+            : JSON.stringify(argsValue ?? {}),
       };
     });
   }
@@ -299,6 +304,15 @@ export const langgraphAdapter: ProviderAdapter = {
     // finally Schema-based detection on data b/c of performance
     if (LangChainMessageSchema.safeParse(ctx.data).success) return true;
     if (LangGraphMessageSchema.safeParse(ctx.data).success) return true;
+
+    // Check wrapped messages format on data
+    if (LangGraphWrappedSchema.safeParse(ctx.data).success) {
+      const wrapped = ctx.data as { messages: unknown[] };
+      if (LangChainMessageSchema.safeParse(wrapped.messages).success)
+        return true;
+      if (LangGraphMessageSchema.safeParse(wrapped.messages).success)
+        return true;
+    }
 
     return false;
   },

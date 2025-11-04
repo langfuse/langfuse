@@ -320,7 +320,7 @@ export function MarkdownView({
   controlButtons,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
-  title?: string;
+  title?: React.ReactNode;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];

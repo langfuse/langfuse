@@ -15,12 +15,14 @@ interface ToolDefinition {
 interface ToolCallsPillProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
+  toolNameToDefinitionNumber?: Map<string, number>;
   className?: string;
 }
 
 export function ToolCallsPill({
   tools,
   toolCallCounts,
+  toolNameToDefinitionNumber,
   className,
 }: ToolCallsPillProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -39,6 +41,7 @@ export function ToolCallsPill({
         const isExpanded = expandedIndex === index;
         const callCount = toolCallCounts.get(tool.name) || 0;
         const isCalled = callCount > 0;
+        const toolDefinitionNumber = toolNameToDefinitionNumber?.get(tool.name);
         const statusText =
           callCount === 0
             ? "not called"
@@ -58,10 +61,13 @@ export function ToolCallsPill({
                 setExpandedIndex(isExpanded ? null : index);
               }}
             >
-              {/* Left: Tool icon + name */}
+              {/* Left: Tool icon + definition number + name */}
               <div className="flex items-center gap-2">
                 <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="font-mono text-xs font-medium text-foreground">
+                  {toolDefinitionNumber !== undefined && (
+                    <span className="mr-1">{toolDefinitionNumber}.</span>
+                  )}
                   {tool.name}
                 </span>
               </div>

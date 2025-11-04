@@ -26,7 +26,8 @@ import {
   extractAdditionalInput,
 } from "@/src/utils/chatml";
 import { ToolCallsPill } from "@/src/components/trace/ToolCallsPill";
-import { Wrench, ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
+import { ToolCallInvocationsView } from "@/src/components/trace/ToolCallInvocationsView";
+import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -79,6 +80,8 @@ export const IOPreview: React.FC<{
     additionalInput,
     allTools,
     toolCallCounts,
+    messageToToolCallNumbers,
+    toolNameToDefinitionNumber,
   } = useMemo(() => {
     const ctx = { metadata, observationName: props.observationName };
     const inResult = normalizeInput(input, ctx);
@@ -90,46 +93,63 @@ export const IOPreview: React.FC<{
       outputClean,
     );
 
-    // extract all unique tools from messages
+    // extract all unique tools from messages and assign them sequential numbers
     const toolsMap = new Map<
       string,
       { name: string; description?: string; parameters?: Record<string, any> }
     >();
+    const toolNameToDefinitionNumber = new Map<string, number>();
+    let toolDefinitionCounter = 0;
+
     for (const message of messages) {
       if (message.tools && Array.isArray(message.tools)) {
         for (const tool of message.tools) {
           if (!toolsMap.has(tool.name)) {
             toolsMap.set(tool.name, tool);
+            toolDefinitionCounter++;
+            toolNameToDefinitionNumber.set(tool.name, toolDefinitionCounter);
           }
         }
       }
     }
     const uniqueTools = Array.from(toolsMap.values());
 
-    // extract tool call counts from normalized tool_calls
-    const callCounts = new Map<string, number>();
-    for (const message of messages) {
+    // sequential numbering for tool call invocations
+    let toolCallCounter = 0;
+    const messageToToolCallNumbers = new Map<number, number[]>();
+    const toolCallCounts = new Map<string, number>();
+
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
       if (message.tool_calls && Array.isArray(message.tool_calls)) {
+        const messageToolNumbers: number[] = [];
+
         for (const toolCall of message.tool_calls) {
-          // we can expect our normalized ChatMLSchema here
           if (toolCall.name && typeof toolCall.name === "string") {
-            callCounts.set(
+            toolCallCounter++;
+            messageToolNumbers.push(toolCallCounter);
+            toolCallCounts.set(
               toolCall.name,
-              (callCounts.get(toolCall.name) || 0) + 1,
+              (toolCallCounts.get(toolCall.name) || 0) + 1,
             );
           }
+        }
+
+        if (messageToolNumbers.length > 0) {
+          messageToToolCallNumbers.set(i, messageToolNumbers);
         }
       }
     }
 
     return {
-      // display as chat if normalization succeeded AND we have messages to show
       canDisplayAsChat:
         (inResult.success || outResult.success) && messages.length > 0,
       allMessages: messages,
       additionalInput: extractAdditionalInput(input),
       allTools: uniqueTools,
-      toolCallCounts: callCounts,
+      toolCallCounts,
+      messageToToolCallNumbers,
+      toolNameToDefinitionNumber,
     };
   }, [input, output, metadata, props.observationName]);
 
@@ -166,6 +186,7 @@ export const IOPreview: React.FC<{
               return callCountB - callCountA;
             })}
             toolCallCounts={toolCallCounts}
+            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
           />
         </div>
       )}
@@ -211,6 +232,7 @@ export const IOPreview: React.FC<{
                 }
                 media={media ?? []}
                 currentView={selectedView}
+                messageToToolCallNumbers={messageToToolCallNumbers}
               />
             ) : (
               <>
@@ -296,26 +318,11 @@ export const IOPreview: React.FC<{
   );
 };
 
-// create message title with tool icon when tool_calls exist
+// create message title
 const getMessageTitle = (
   message: z.infer<typeof ChatMlMessageSchema>,
-): React.ReactNode => {
-  const baseTitle = message.name ?? message.role;
-  const hasToolCalls =
-    message.tool_calls &&
-    Array.isArray(message.tool_calls) &&
-    message.tool_calls.length > 0;
-
-  if (hasToolCalls) {
-    return (
-      <span className="flex items-center gap-1.5">
-        {baseTitle}
-        <Wrench className="h-3 w-3" />
-      </span>
-    );
-  }
-
-  return baseTitle;
+): string => {
+  return message.name ?? message.role;
 };
 
 export const OpenAiMessageView: React.FC<{
@@ -327,6 +334,7 @@ export const OpenAiMessageView: React.FC<{
   additionalInput?: Record<string, unknown>;
   projectIdForPromptButtons?: string;
   currentView?: "pretty" | "json";
+  messageToToolCallNumbers?: Map<number, number[]>;
 }> = ({
   title,
   messages,
@@ -336,6 +344,7 @@ export const OpenAiMessageView: React.FC<{
   additionalInput,
   projectIdForPromptButtons,
   currentView = "json",
+  messageToToolCallNumbers,
 }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
@@ -396,15 +405,16 @@ export const OpenAiMessageView: React.FC<{
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
           {messagesToRender
+            .map((message, originalIndex) => ({ message, originalIndex }))
             .filter(
-              (_, i) =>
+              ({ originalIndex }) =>
                 // show all if not collapsed or null; show first and last n if collapsed
                 !isCollapsed ||
-                i == 0 ||
-                i > messagesToRender.length - COLLAPSE_THRESHOLD,
+                originalIndex == 0 ||
+                originalIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
             )
-            .map((message, index) => (
-              <Fragment key={index}>
+            .map(({ message, originalIndex }) => (
+              <Fragment key={originalIndex}>
                 {isPlaceholderMessage(message) ? (
                   <>
                     <div
@@ -434,7 +444,7 @@ export const OpenAiMessageView: React.FC<{
                 ) : (
                   <>
                     {shouldRenderContent(message) &&
-                      !showTableView.has(index) && (
+                      !showTableView.has(originalIndex) && (
                         <>
                           <div
                             style={{
@@ -455,7 +465,9 @@ export const OpenAiMessageView: React.FC<{
                                   <Button
                                     variant="ghost"
                                     size="icon-xs"
-                                    onClick={() => toggleTableView(index)}
+                                    onClick={() =>
+                                      toggleTableView(originalIndex)
+                                    }
                                     title="Show full message data"
                                     className="-mr-2 hover:bg-border"
                                   >
@@ -464,6 +476,18 @@ export const OpenAiMessageView: React.FC<{
                                 ) : undefined
                               }
                             />
+                            {message.tool_calls &&
+                              Array.isArray(message.tool_calls) &&
+                              message.tool_calls.length > 0 && (
+                                <div className="mt-2">
+                                  <ToolCallInvocationsView
+                                    message={message}
+                                    toolCallNumbers={messageToToolCallNumbers?.get(
+                                      originalIndex,
+                                    )}
+                                  />
+                                </div>
+                              )}
                           </div>
                           <div
                             style={{
@@ -482,7 +506,9 @@ export const OpenAiMessageView: React.FC<{
                                   <Button
                                     variant="ghost"
                                     size="icon-xs"
-                                    onClick={() => toggleTableView(index)}
+                                    onClick={() =>
+                                      toggleTableView(originalIndex)
+                                    }
                                     title="Show full message data"
                                     className="-mr-2 hover:bg-border"
                                   >
@@ -491,31 +517,68 @@ export const OpenAiMessageView: React.FC<{
                                 ) : undefined
                               }
                             />
+                            {message.tool_calls &&
+                              Array.isArray(message.tool_calls) &&
+                              message.tool_calls.length > 0 && (
+                                <div className="mt-2">
+                                  <ToolCallInvocationsView
+                                    message={message}
+                                    toolCallNumbers={messageToToolCallNumbers?.get(
+                                      originalIndex,
+                                    )}
+                                  />
+                                </div>
+                              )}
                           </div>
                         </>
                       )}
-                    {showTableView.has(index) && (
-                      <PrettyJsonView
-                        title={getMessageTitle(message)}
-                        json={message}
-                        projectIdForPromptButtons={projectIdForPromptButtons}
-                        currentView="pretty"
-                        controlButtons={
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => toggleTableView(index)}
-                            title="Show formatted view"
-                            className="-mr-2 hover:bg-border"
-                          >
-                            <ListChevronsDownUp className="h-3 w-3 text-primary" />
-                          </Button>
-                        }
-                      />
+                    {(showTableView.has(originalIndex) ||
+                      !shouldRenderContent(message)) && (
+                      <>
+                        {/* If message has no content but has tool_calls, show invocations view */}
+                        {!shouldRenderContent(message) &&
+                        message.tool_calls &&
+                        Array.isArray(message.tool_calls) &&
+                        message.tool_calls.length > 0 ? (
+                          <div>
+                            <div className="px-1 py-1 text-sm font-medium capitalize">
+                              {getMessageTitle(message)}
+                            </div>
+                            <ToolCallInvocationsView
+                              message={message}
+                              toolCallNumbers={messageToToolCallNumbers?.get(
+                                originalIndex,
+                              )}
+                            />
+                          </div>
+                        ) : (
+                          <PrettyJsonView
+                            title={getMessageTitle(message)}
+                            json={message}
+                            projectIdForPromptButtons={
+                              projectIdForPromptButtons
+                            }
+                            currentView="pretty"
+                            controlButtons={
+                              shouldRenderContent(message) ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  onClick={() => toggleTableView(originalIndex)}
+                                  title="Show formatted view"
+                                  className="-mr-2 hover:bg-border"
+                                >
+                                  <ListChevronsDownUp className="h-3 w-3 text-primary" />
+                                </Button>
+                              ) : undefined
+                            }
+                          />
+                        )}
+                      </>
                     )}
                   </>
                 )}
-                {isCollapsed !== null && index === 0 ? (
+                {isCollapsed !== null && originalIndex === 0 ? (
                   <Button
                     variant="ghost"
                     size="xs"
