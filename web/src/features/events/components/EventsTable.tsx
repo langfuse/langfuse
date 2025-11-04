@@ -140,10 +140,7 @@ export default function ObservationsEventsTable({
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
 
-  const { selectAll, setSelectAll } = useSelectAll(
-    projectId,
-    "observations-events",
-  );
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
 
   const [paginationState, setPaginationState] = useQueryParams({
     page: withDefault(NumberParam, 1),
@@ -151,7 +148,7 @@ export default function ObservationsEventsTable({
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
-    "observations-events",
+    "observations",
     "s",
   );
 
@@ -363,7 +360,7 @@ export default function ObservationsEventsTable({
 
   const { selectActionColumn } = TableSelectionManager<EventsTableRow>({
     projectId,
-    tableName: "observations-events",
+    tableName: "observations",
     setSelectedRows,
   });
 
@@ -1094,7 +1091,7 @@ export default function ObservationsEventsTable({
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"observations-events"}
+              tableName={"observations"}
               columns={columns}
               peekView={peekConfig}
               data={
