@@ -1,42 +1,13 @@
-import Ajv, { AnySchema } from "ajv";
-import addFormats from "ajv-formats";
 import type { PrismaClient } from "../../db";
+import {
+  validateFieldAgainstSchema,
+  type FieldValidationError,
+  type FieldValidationResult,
+} from "../../utils/jsonSchemaValidation";
 
-/**
- * Creates a fresh Ajv instance for validation
- * Using a fresh instance for each validation prevents memory leaks from cached compiled schemas
- */
-const createAjvInstance = () => {
-  const ajv = new Ajv({
-    strict: false,
-    allErrors: true, // Return all errors, not just first
-    verbose: true,
-  });
-  addFormats(ajv);
-
-  return ajv;
-};
-
-/**
- * Validates if a given object is a valid JSON Schema
- * Used by Zod schema validation
- */
-export function isValidJSONSchema(schema: unknown) {
-  try {
-    const ajv = createAjvInstance();
-    // This will throw an error if the schema is invalid
-    ajv.compile(schema as AnySchema);
-
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-export type FieldValidationError = {
-  path: string;
-  message: string;
-  keyword?: string;
-};
+// Re-export for backward compatibility
+export { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
+export type { FieldValidationError, FieldValidationResult };
 
 export type ValidationError = {
   datasetItemId: string;
@@ -49,18 +20,9 @@ export type ValidationResult = {
   errors: ValidationError[];
 };
 
-export type FieldValidationResult =
-  | {
-      isValid: true;
-    }
-  | {
-      isValid: false;
-      errors: FieldValidationError[];
-    };
-
 /**
  * Validates a single dataset item field against a JSON schema
- * Creates a fresh Ajv instance for each validation to prevent memory leaks
+ * Wrapper around validateFieldAgainstSchema for dataset-specific usage
  */
 export function validateDatasetItemField(params: {
   data: unknown;
@@ -68,23 +30,10 @@ export function validateDatasetItemField(params: {
   itemId: string;
   field: "input" | "expectedOutput";
 }): FieldValidationResult {
-  const { data, schema } = params;
-  const ajv = createAjvInstance();
-  const validate = ajv.compile(schema);
-  const isValid = validate(data);
-
-  if (!isValid && validate.errors) {
-    return {
-      isValid: false,
-      errors: validate.errors.map((err) => ({
-        path: err.instancePath || "/",
-        message: err.message || "Validation failed",
-        keyword: err.keyword,
-      })),
-    };
-  }
-
-  return { isValid: true };
+  return validateFieldAgainstSchema({
+    data: params.data,
+    schema: params.schema,
+  });
 }
 
 /**

@@ -138,7 +138,7 @@ export const DatasetActionButton = forwardRef<
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="mb-4">
             {props.mode === "create"

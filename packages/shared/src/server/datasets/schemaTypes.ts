@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import { jsonSchemaNullable } from "../../utils/zod";
-import { isValidJSONSchema } from "./schemaValidation";
+import { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
 
 /**
  * Schema for validating JSON Schema objects
