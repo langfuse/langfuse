@@ -13,7 +13,8 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import {
   observationEventsFilterConfig,
   OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY,
-} from "@/src/features/filters/config/observations-events-config";
+  getEventsColumnName,
+} from "../config/filter-config";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -30,7 +31,7 @@ import {
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -67,7 +68,6 @@ export type EventsTableRow = {
   // Identity fields
   id: string;
   traceId?: string;
-  traceName?: string;
   spanId: string;
   parentSpanId?: string;
 
@@ -289,11 +289,6 @@ export default function ObservationsEventsTable({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
         })) || [],
-      traceName:
-        filterOptions.data?.traceName?.map((tn) => ({
-          value: tn.value,
-          count: tn.count !== undefined ? Number(tn.count) : undefined,
-        })) || [],
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       providedModelName:
         filterOptions.data?.providedModelName?.map((m) => ({
@@ -471,7 +466,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "startTime",
       id: "startTime",
-      header: "Start Time",
+      header: getEventsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -483,7 +478,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "type",
       id: "type",
-      header: "Type",
+      header: getEventsColumnName("type"),
       size: 50,
       enableSorting: true,
       cell: ({ row }) => {
@@ -498,7 +493,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "name",
       id: "name",
-      header: "Name",
+      header: getEventsColumnName("name"),
       size: 150,
       enableSorting: true,
       cell: ({ row }) => {
@@ -512,7 +507,7 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "inputTruncated",
-      header: "Input",
+      header: getEventsColumnName("inputTruncated"),
       id: "inputTruncated",
       size: 300,
       cell: ({ row }) => {
@@ -533,7 +528,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "outputTruncated",
       id: "outputTruncated",
-      header: "Output",
+      header: getEventsColumnName("outputTruncated"),
       size: 300,
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("outputTruncated");
@@ -553,7 +548,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "level",
       id: "level",
-      header: "Level",
+      header: getEventsColumnName("level"),
       size: 100,
       headerTooltip: {
         description:
@@ -579,7 +574,7 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "statusMessage",
-      header: "Status Message",
+      header: getEventsColumnName("statusMessage"),
       id: "statusMessage",
       size: 150,
       headerTooltip: {
@@ -593,7 +588,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "latency",
       id: "latency",
-      header: "Latency",
+      header: getEventsColumnName("latency"),
       size: 100,
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
@@ -606,7 +601,7 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "totalCost",
-      header: "Total Cost",
+      header: getEventsColumnName("totalCost"),
       id: "totalCost",
       size: 120,
       cell: ({ row }) => {
@@ -627,7 +622,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
-      header: "Time to First Token",
+      header: getEventsColumnName("timeToFirstToken"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -644,7 +639,7 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "usage",
-      header: "Tokens",
+      header: getEventsColumnName("usage"),
       id: "tokens",
       size: 150,
       cell: ({ row }) => {
@@ -671,7 +666,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "providedModelName",
       id: "providedModelName",
-      header: "Model",
+      header: getEventsColumnName("providedModelName"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -715,7 +710,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "promptName",
       id: "promptName",
-      header: "Prompt",
+      header: getEventsColumnName("promptName"),
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
         href: "https://langfuse.com/docs/prompt-management/get-started",
@@ -732,7 +727,7 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "environment",
-      header: "Environment",
+      header: getEventsColumnName("environment"),
       id: "environment",
       size: 150,
       enableHiding: true,
@@ -752,7 +747,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "traceTags",
       id: "traceTags",
-      header: "Trace Tags",
+      header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
       cell: ({ row }) => {
@@ -773,7 +768,7 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "scores",
-      header: "Scores",
+      header: getEventsColumnName("scores"),
       id: "scores",
       enableHiding: true,
       defaultHidden: true,
@@ -785,7 +780,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "endTime",
       id: "endTime",
-      header: "End Time",
+      header: getEventsColumnName("endTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
@@ -798,7 +793,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "id",
       id: "id",
-      header: "ObservationID",
+      header: getEventsColumnName("id"),
       size: 100,
       defaultHidden: true,
       enableSorting: true,
@@ -813,18 +808,9 @@ export default function ObservationsEventsTable({
       },
     },
     {
-      accessorKey: "traceName",
-      id: "traceName",
-      header: "Trace Name",
-      size: 150,
-      enableHiding: true,
-      enableSorting: true,
-      defaultHidden: true,
-    },
-    {
       accessorKey: "traceId",
       id: "traceId",
-      header: "Trace ID",
+      header: getEventsColumnName("traceId"),
       size: 100,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
@@ -839,7 +825,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "modelId",
       id: "modelId",
-      header: "Model ID",
+      header: getEventsColumnName("modelId"),
       size: 100,
       enableHiding: true,
       defaultHidden: true,
@@ -847,7 +833,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "version",
       id: "version",
-      header: "Version",
+      header: getEventsColumnName("version"),
       size: 100,
       headerTooltip: {
         description: "Track changes via the version tag.",
@@ -860,7 +846,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "userId",
       id: "userId",
-      header: "User ID",
+      header: getEventsColumnName("userId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
@@ -868,7 +854,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "sessionId",
       id: "sessionId",
-      header: "Session ID",
+      header: getEventsColumnName("sessionId"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
@@ -876,7 +862,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "source",
       id: "source",
-      header: "Source",
+      header: getEventsColumnName("source"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
@@ -884,7 +870,7 @@ export default function ObservationsEventsTable({
     {
       accessorKey: "serviceName",
       id: "serviceName",
-      header: "Service Name",
+      header: getEventsColumnName("serviceName"),
       size: 150,
       enableHiding: true,
       defaultHidden: true,
@@ -951,7 +937,6 @@ export default function ObservationsEventsTable({
             id: observation.id,
             traceId: observation.traceId ?? undefined,
             type: observation.type ?? undefined,
-            traceName: observation.traceName ?? "",
             spanId: observation.id, // span_id maps to id
             parentSpanId: observation.parentObservationId ?? undefined,
             startTime: observation.startTime,
@@ -1025,12 +1010,7 @@ export default function ObservationsEventsTable({
             projectId,
             controllers: viewControllers,
           }}
-          columnsWithCustomSelect={[
-            "providedModelName",
-            "name",
-            "traceName",
-            "promptName",
-          ]}
+          columnsWithCustomSelect={["providedModelName", "name", "promptName"]}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibilityState}
           columnOrder={columnOrder}

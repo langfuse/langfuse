@@ -3,6 +3,12 @@ import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
+// Helper function to get column name from eventsTableCols by ID
+export const getEventsColumnName = (id: string): string => {
+  const column = eventsTableCols.find((col) => col.id === id);
+  return column?.name ?? id;
+};
+
 const OBSERVATION_EVENTS_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   environment: "environment",
   name: "name",
@@ -60,87 +66,82 @@ export const observationEventsFilterConfig: FilterConfig = {
     {
       type: "categorical" as const,
       column: "environment",
-      label: "Environment",
+      label: getEventsColumnName("environment"),
     },
     {
       type: "categorical" as const,
       column: "type",
-      label: "Type",
+      label: getEventsColumnName("type"),
     },
     {
       type: "categorical" as const,
       column: "name",
-      label: "Name",
-    },
-    {
-      type: "categorical" as const,
-      column: "traceName",
-      label: "Trace Name",
+      label: getEventsColumnName("name"),
     },
     {
       type: "categorical" as const,
       column: "level",
-      label: "Level",
+      label: getEventsColumnName("level"),
     },
     {
       type: "categorical" as const,
       column: "providedModelName",
-      label: "Provided Model Name",
+      label: getEventsColumnName("providedModelName"),
     },
     {
       type: "categorical" as const,
       column: "modelId",
-      label: "Model ID",
+      label: getEventsColumnName("modelId"),
     },
     {
       type: "categorical" as const,
       column: "promptName",
-      label: "Prompt Name",
+      label: getEventsColumnName("promptName"),
     },
     {
       type: "categorical" as const,
       column: "traceTags",
-      label: "Trace Tags",
+      label: getEventsColumnName("traceTags"),
     },
     {
       type: "stringKeyValue" as const,
       column: "metadata",
-      label: "Metadata",
+      label: getEventsColumnName("metadata"),
     },
     {
       type: "string" as const,
       column: "version",
-      label: "Version",
+      label: getEventsColumnName("version"),
     },
     {
       type: "string" as const,
       column: "statusMessage",
-      label: "Status Message",
+      label: getEventsColumnName("statusMessage"),
     },
     {
       type: "string" as const,
       column: "userId",
-      label: "User ID",
+      label: getEventsColumnName("userId"),
     },
     {
       type: "string" as const,
       column: "sessionId",
-      label: "Session ID",
+      label: getEventsColumnName("sessionId"),
     },
     {
       type: "string" as const,
       column: "source",
-      label: "Source",
+      label: getEventsColumnName("source"),
     },
     {
       type: "string" as const,
       column: "serviceName",
-      label: "Service Name",
+      label: getEventsColumnName("serviceName"),
     },
     {
       type: "numeric" as const,
       column: "latency",
-      label: "Latency",
+      label: getEventsColumnName("latency"),
       min: 0,
       max: 60,
       unit: "s",
@@ -148,7 +149,7 @@ export const observationEventsFilterConfig: FilterConfig = {
     {
       type: "numeric" as const,
       column: "timeToFirstToken",
-      label: "Time to First Token",
+      label: getEventsColumnName("timeToFirstToken"),
       min: 0,
       max: 60,
       unit: "s",
@@ -156,28 +157,28 @@ export const observationEventsFilterConfig: FilterConfig = {
     {
       type: "numeric" as const,
       column: "inputTokens",
-      label: "Input Tokens",
+      label: getEventsColumnName("inputTokens"),
       min: 0,
       max: 1000000,
     },
     {
       type: "numeric" as const,
       column: "outputTokens",
-      label: "Output Tokens",
+      label: getEventsColumnName("outputTokens"),
       min: 0,
       max: 1000000,
     },
     {
       type: "numeric" as const,
       column: "totalTokens",
-      label: "Total Tokens",
+      label: getEventsColumnName("totalTokens"),
       min: 0,
       max: 1000000,
     },
     {
       type: "numeric" as const,
       column: "inputCost",
-      label: "Input Cost",
+      label: getEventsColumnName("inputCost"),
       min: 0,
       max: 100,
       unit: "$",
@@ -185,7 +186,7 @@ export const observationEventsFilterConfig: FilterConfig = {
     {
       type: "numeric" as const,
       column: "outputCost",
-      label: "Output Cost",
+      label: getEventsColumnName("outputCost"),
       min: 0,
       max: 100,
       unit: "$",
@@ -193,7 +194,7 @@ export const observationEventsFilterConfig: FilterConfig = {
     {
       type: "numeric" as const,
       column: "totalCost",
-      label: "Total Cost",
+      label: getEventsColumnName("totalCost"),
       min: 0,
       max: 100,
       unit: "$",
