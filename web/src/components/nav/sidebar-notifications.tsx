@@ -39,6 +39,15 @@ const notifications: SidebarNotification[] = [
     createdAt: "2025-11-03",
   },
   {
+    id: "lw4-2",
+    title: "Launch Week 4: Day 2",
+    description:
+      "Collaborate with your team in Langfuse with @mentions & emoji reactions for comments.",
+    link: "https://langfuse.com/changelog/2025-11-04-comment-mentions-and-reactions",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-04",
+  },
+  {
     id: "js-sdk-v4",
     title: "New JS/TS SDK v4",
     description:
