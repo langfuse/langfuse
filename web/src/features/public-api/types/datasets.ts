@@ -10,6 +10,7 @@ import {
   removeObjectKeys,
   type DatasetRunItemDomain,
 } from "@langfuse/shared";
+import { DatasetJSONSchema } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
 /**
@@ -117,8 +118,8 @@ export const PostDatasetsV2Body = z.object({
   name: z.string(),
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
-  inputSchema: jsonSchema.nullish(),
-  expectedOutputSchema: jsonSchema.nullish(),
+  inputSchema: DatasetJSONSchema.nullish(),
+  expectedOutputSchema: DatasetJSONSchema.nullish(),
 });
 export const PostDatasetsV2Response = APIDataset.strict();
 
@@ -242,8 +243,8 @@ export const PostDatasetsV1Body = z.object({
   name: z.string(),
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
-  inputSchema: jsonSchema.nullish(),
-  expectedOutputSchema: jsonSchema.nullish(),
+  inputSchema: DatasetJSONSchema.nullish(),
+  expectedOutputSchema: DatasetJSONSchema.nullish(),
 });
 export const PostDatasetsV1Response = APIDataset.extend({
   items: z.array(APIDatasetItem),

@@ -26,8 +26,8 @@ export default withMiddlewares({
           name,
           description: description ?? undefined,
           metadata: metadata ?? undefined,
-          inputSchema: inputSchema ?? undefined,
-          expectedOutputSchema: expectedOutputSchema ?? undefined,
+          inputSchema,
+          expectedOutputSchema,
         },
         projectId: auth.scope.projectId,
       });

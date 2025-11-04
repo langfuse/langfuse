@@ -1,7 +1,7 @@
 import {
   DatasetNameSchema,
   InvalidRequestError,
-  type Prisma,
+  Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { validateAllDatasetItems } from "@langfuse/shared/src/server";
@@ -107,15 +107,35 @@ export const upsertDataset = async ({
       name: input.name,
       description: input.description ?? undefined,
       metadata: input.metadata ?? undefined,
-      inputSchema: input.inputSchema ?? undefined,
-      expectedOutputSchema: input.expectedOutputSchema ?? undefined,
+      inputSchema:
+        input.inputSchema === undefined
+          ? undefined
+          : input.inputSchema === null
+            ? Prisma.DbNull
+            : input.inputSchema,
+      expectedOutputSchema:
+        input.expectedOutputSchema === undefined
+          ? undefined
+          : input.expectedOutputSchema === null
+            ? Prisma.DbNull
+            : input.expectedOutputSchema,
       projectId,
     },
     update: {
       description: input.description ?? undefined,
       metadata: input.metadata ?? undefined,
-      inputSchema: input.inputSchema ?? undefined,
-      expectedOutputSchema: input.expectedOutputSchema ?? undefined,
+      inputSchema:
+        input.inputSchema === undefined
+          ? undefined
+          : input.inputSchema === null
+            ? Prisma.DbNull
+            : input.inputSchema,
+      expectedOutputSchema:
+        input.expectedOutputSchema === undefined
+          ? undefined
+          : input.expectedOutputSchema === null
+            ? Prisma.DbNull
+            : input.expectedOutputSchema,
     },
   });
 };
@@ -149,8 +169,18 @@ export const updateDataset = async ({
       metadata: input.metadata ?? undefined,
       remoteExperimentUrl: input.remoteExperimentUrl,
       remoteExperimentPayload: input.remoteExperimentPayload ?? undefined,
-      inputSchema: input.inputSchema ?? undefined,
-      expectedOutputSchema: input.expectedOutputSchema ?? undefined,
+      inputSchema:
+        input.inputSchema === undefined
+          ? undefined
+          : input.inputSchema === null
+            ? Prisma.DbNull
+            : input.inputSchema,
+      expectedOutputSchema:
+        input.expectedOutputSchema === undefined
+          ? undefined
+          : input.expectedOutputSchema === null
+            ? Prisma.DbNull
+            : input.expectedOutputSchema,
     },
   });
 };

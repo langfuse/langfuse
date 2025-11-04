@@ -12,7 +12,7 @@ import {
 import {
   type DatasetItem,
   LangfuseNotFoundError,
-  LangfuseInvalidRequestError,
+  InvalidRequestError,
   Prisma,
 } from "@langfuse/shared";
 import { logger, validateDatasetItemData } from "@langfuse/shared/src/server";
@@ -81,7 +81,7 @@ export default withMiddlewares({
           inputErrors: validationResult.inputErrors,
           expectedOutputErrors: validationResult.expectedOutputErrors,
         };
-        throw new LangfuseInvalidRequestError(
+        throw new InvalidRequestError(
           `Dataset item validation failed: ${JSON.stringify(errorDetails)}`,
         );
       }
