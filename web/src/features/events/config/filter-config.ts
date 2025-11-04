@@ -6,7 +6,10 @@ import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-tr
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {
   const column = eventsTableCols.find((col) => col.id === id);
-  return column?.name ?? id;
+  if (!column) {
+    throw new Error(`Column ${id} not found in eventsTableCols`);
+  }
+  return column?.name;
 };
 
 const OBSERVATION_EVENTS_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {

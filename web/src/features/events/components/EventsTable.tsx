@@ -6,7 +6,6 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -31,7 +30,7 @@ import {
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -577,6 +576,58 @@ export default function ObservationsEventsTable({
       enableSorting: true,
     },
     {
+      accessorKey: "cost",
+      header: "Cost",
+      id: "cost",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return observations.isPending ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: [
+        {
+          accessorKey: "inputCost",
+          id: "inputCost",
+          header: getEventsColumnName("inputCost"),
+          size: 120,
+          cell: ({ row }) => {
+            const value = row.getValue("cost") as {
+              inputCost: number | undefined;
+              outputCost: number | undefined;
+            };
+
+            return value.inputCost !== undefined ? (
+              <span>{usdFormatter(value.inputCost)}</span>
+            ) : undefined;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "outputCost",
+          id: "outputCost",
+          header: getEventsColumnName("outputCost"),
+          size: 120,
+          cell: ({ row }) => {
+            const value = row.getValue("cost") as {
+              inputCost: number | undefined;
+              outputCost: number | undefined;
+            };
+
+            return value.outputCost !== undefined ? (
+              <span>{usdFormatter(value.outputCost)}</span>
+            ) : undefined;
+          },
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+        },
+      ],
+    },
+    {
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
       header: getEventsColumnName("timeToFirstToken"),
@@ -596,29 +647,93 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "usage",
-      header: getEventsColumnName("usage"),
-      id: "tokens",
-      size: 150,
-      cell: ({ row }) => {
-        const value = row.original.usage;
-        if (!value) return null;
-
-        return (
-          <BreakdownTooltip details={row.original.usageDetails}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={value.inputUsage}
-                outputUsage={value.outputUsage}
-                totalUsage={value.totalUsage}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
+      header: "Usage",
+      id: "usage",
       enableHiding: true,
-      enableSorting: true,
+      defaultHidden: true,
+      cell: () => {
+        return observations.isPending ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: [
+        {
+          accessorKey: "tokensPerSecond",
+          id: "tokensPerSecond",
+          header: "Tokens per second",
+          size: 200,
+          cell: ({ row }) => {
+            const latency: number | undefined = row.getValue("latency");
+            const usage = row.getValue("usage") as {
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
+            };
+            return latency !== undefined &&
+              (usage.outputUsage !== 0 || usage.totalUsage !== 0) ? (
+              <span>
+                {usage.outputUsage && latency
+                  ? Number((usage.outputUsage / latency).toFixed(1))
+                  : undefined}
+              </span>
+            ) : undefined;
+          },
+          defaultHidden: true,
+          enableHiding: true,
+          enableSorting: true,
+        },
+        {
+          accessorKey: "inputTokens",
+          id: "inputTokens",
+          header: getEventsColumnName("inputTokens"),
+          size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+          cell: ({ row }) => {
+            const value = row.getValue("usage") as {
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
+            };
+            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
+          },
+        },
+        {
+          accessorKey: "outputTokens",
+          id: "outputTokens",
+          header: getEventsColumnName("outputTokens"),
+          size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+          cell: ({ row }) => {
+            const value = row.getValue("usage") as {
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
+            };
+            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
+          },
+        },
+        {
+          accessorKey: "totalTokens",
+          id: "totalTokens",
+          header: getEventsColumnName("totalTokens"),
+          size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting: true,
+          cell: ({ row }) => {
+            const value = row.getValue("usage") as {
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
+            };
+            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
+          },
+        },
+      ],
     },
     {
       accessorKey: "providedModelName",

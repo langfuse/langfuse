@@ -45,7 +45,7 @@ import { convertObservation } from "./observations_converters";
 import {
   EventsQueryBuilder,
   CTEQueryBuilder,
-  EventsObservationAggregationQueryBuilder,
+  EventsAggQueryBuilder,
 } from "../queries/clickhouse-sql/event-query-builder";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
@@ -809,12 +809,11 @@ export const getEventsGroupedByModel = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.provided_model_name",
     selectExpression: "e.provided_model_name as name, count() as count",
   })
-    .whereRaw("e.type = 'GENERATION'")
     .where(appliedEventsFilter)
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
@@ -848,7 +847,7 @@ export const getEventsGroupedByModelId = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.model_id",
     selectExpression: "e.model_id as modelId, count() as count",
@@ -887,7 +886,7 @@ export const getEventsGroupedByName = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.name",
     selectExpression: "e.name as name, count() as count",
@@ -926,7 +925,7 @@ export const getEventsGroupedByPromptName = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.prompt_id",
     selectExpression: "e.prompt_id as id, count() as count",
@@ -992,7 +991,7 @@ export const getEventsGroupedByType = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.type",
     selectExpression: "e.type as type, count() as count",
@@ -1032,7 +1031,7 @@ export const getEventsGroupedByUserId = async (
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "t.user_id",
     selectExpression: "t.user_id as userId, count() as count",
@@ -1076,7 +1075,7 @@ export const getEventsGroupedByVersion = async (
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.version",
     selectExpression: "e.version as version, count() as count",
@@ -1116,7 +1115,7 @@ export const getEventsGroupedBySessionId = async (
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "t.session_id",
     selectExpression: "t.session_id as sessionId, count() as count",
@@ -1160,7 +1159,7 @@ export const getEventsGroupedByLevel = async (
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.level",
     selectExpression: "e.level as level, count() as count",
@@ -1200,7 +1199,7 @@ export const getEventsGroupedByEnvironment = async (
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+  const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.environment",
     selectExpression: "e.environment as environment, count() as count",

@@ -29,7 +29,7 @@ export {
 } from "./public-api-filter-builder";
 export {
   CTEQueryBuilder,
-  EventsAggregationQueryBuilder,
+  EventsAggQueryBuilder,
   type CTESchema,
   type CTEWithSchema,
 } from "./clickhouse-sql/event-query-builder";

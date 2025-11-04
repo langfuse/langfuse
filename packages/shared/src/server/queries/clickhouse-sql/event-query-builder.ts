@@ -821,7 +821,7 @@ export class CTEQueryBuilder<
  * Used for filter options queries.
  *
  * @example
- * const builder = new EventsObservationAggregationQueryBuilder({
+ * const builder = new EventsAggQueryBuilder({
  *   projectId: "abc123",
  *   groupByColumn: "e.provided_model_name",
  *   selectExpression: "e.provided_model_name as name"
@@ -830,7 +830,7 @@ export class CTEQueryBuilder<
  *   .orderBy("ORDER BY count() DESC")
  *   .limit(1000, 0);
  */
-export class EventsObservationAggregationQueryBuilder extends AbstractCTEQueryBuilder {
+export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
   private projectId: string;
   private groupByColumn: string;
   private selectExpression: string;
