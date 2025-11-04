@@ -53,6 +53,7 @@ import {
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
   overwriteObject,
+  flattenJsonToPathArrays,
 } from "./utils";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
@@ -137,14 +138,14 @@ export type EventInput = {
   experimentId?: string;
   experimentName?: string;
   experimentMetadataNames?: string[];
-  experimentMetadataValues?: unknown[];
+  experimentMetadataValues?: Array<string | null | undefined>;
   experimentDescription?: string;
   experimentDatasetId?: string;
   experimentItemId?: string;
   experimentItemRootSpanId?: string;
   experimentItemExpectedOutput?: string;
   experimentItemMetadataNames?: string[];
-  experimentItemMetadataValues?: unknown[];
+  experimentItemMetadataValues?: Array<string | null | undefined>;
 
   // Catch-all for future fields
   [key: string]: any;
@@ -283,7 +284,7 @@ export class IngestionService {
     const metadata = eventData.metadata;
 
     // Flatten to path-based arrays
-    const flattened = this.flattenJsonToPathArrays(metadata);
+    const flattened = flattenJsonToPathArrays(metadata);
     const metadataNames = flattened.names;
     const metadataValues = flattened.values;
 
@@ -1644,97 +1645,6 @@ export class IngestionService {
     // Otherwise, use the current timestamp to avoid updating old partitions
     return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
   }
-
-  /**
-   * Flattens a nested JSON object into path-based names and values.
-   * For example: {foo: {bar: "baz"}} becomes:
-   * - names: ["foo.bar"]
-   * - values: ["baz"]
-   */
-  private flattenJsonToPathArrays(
-    obj: Record<string, unknown>,
-    prefix: string = "",
-  ): { names: string[]; values: unknown[] } {
-    const names: string[] = [];
-    const values: unknown[] = [];
-
-    for (const [key, value] of Object.entries(obj)) {
-      const path = prefix ? `${prefix}.${key}` : key;
-
-      if (
-        value !== null &&
-        value !== undefined &&
-        typeof value === "object" &&
-        !Array.isArray(value)
-      ) {
-        // Recursively flatten nested objects
-        const nested = this.flattenJsonToPathArrays(
-          value as Record<string, unknown>,
-          path,
-        );
-        names.push(...nested.names);
-        values.push(...nested.values);
-      } else {
-        // Leaf value
-        names.push(path);
-        values.push(value);
-      }
-    }
-
-    return { names, values };
-  }
-
-  /**
-   * Flattens a nested JSON object into type-specific path arrays.
-   * Values are separated into string, number, bool, and other arrays based on their type.
-   * Non-primitive values are JSON.stringify'd and placed in the strings group.
-   */
-  // private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
-  //   stringNames: string[];
-  //   stringValues: string[];
-  //   numberNames: string[];
-  //   numberValues: number[];
-  //   boolNames: string[];
-  //   boolValues: number[]; // ClickHouse uses 0/1 for booleans
-  // } {
-  //   const stringNames: string[] = [];
-  //   const stringValues: string[] = [];
-  //   const numberNames: string[] = [];
-  //   const numberValues: number[] = [];
-  //   const boolNames: string[] = [];
-  //   const boolValues: number[] = [];
-  //
-  //   const { names, values } = this.flattenJsonToPathArrays(obj);
-  //
-  //   for (let i = 0; i < names.length; i++) {
-  //     const name = names[i];
-  //     const value = values[i];
-  //
-  //     if (typeof value === "boolean") {
-  //       boolNames.push(name);
-  //       boolValues.push(value ? 1 : 0);
-  //     } else if (typeof value === "number") {
-  //       numberNames.push(name);
-  //       numberValues.push(value);
-  //     } else if (typeof value === "string") {
-  //       stringNames.push(name);
-  //       stringValues.push(value);
-  //     } else {
-  //       // For arrays, objects, null, undefined, etc., stringify and put in strings
-  //       stringNames.push(name);
-  //       stringValues.push(JSON.stringify(value));
-  //     }
-  //   }
-  //
-  //   return {
-  //     stringNames,
-  //     stringValues,
-  //     numberNames,
-  //     numberValues,
-  //     boolNames,
-  //     boolValues,
-  //   };
-  // }
 }
 
 type ObservationPrompt = Pick<Prompt, "id" | "name" | "version">;

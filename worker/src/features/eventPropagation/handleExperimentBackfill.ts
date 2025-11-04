@@ -4,6 +4,7 @@ import {
   redis,
   convertDateToClickhouseDateTime,
   clickhouseClient,
+  flattenJsonToPathArrays,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
@@ -66,14 +67,14 @@ interface EnrichedSpan extends SpanRecord {
   experiment_id: string;
   experiment_name: string;
   experiment_metadata_names: string[];
-  experiment_metadata_values: unknown[];
+  experiment_metadata_values: Array<string | null | undefined>;
   experiment_description: string;
   experiment_dataset_id: string;
   experiment_item_id: string;
   experiment_item_root_span_id: string;
   experiment_item_expected_output: string;
   experiment_item_metadata_names: string[];
-  experiment_item_metadata_values: unknown[];
+  experiment_item_metadata_values: Array<string | null | undefined>;
 }
 
 /**
@@ -317,6 +318,13 @@ export function enrichSpansWithExperiment(
 ): EnrichedSpan[] {
   const enrichedSpans: EnrichedSpan[] = [];
 
+  const experimentMetadataFlattened = flattenJsonToPathArrays(
+    dri.dataset_run_metadata,
+  );
+  const experimentItemMetadataFlattened = flattenJsonToPathArrays(
+    dri.dataset_item_metadata,
+  );
+
   // Enrich root span
   enrichedSpans.push({
     ...rootSpan,
@@ -324,15 +332,15 @@ export function enrichSpansWithExperiment(
     session_id: traceProperties.sessionId,
     experiment_id: dri.dataset_run_id,
     experiment_name: dri.dataset_run_name,
-    experiment_metadata_names: Object.keys(dri.dataset_run_metadata),
-    experiment_metadata_values: Object.values(dri.dataset_run_metadata),
+    experiment_metadata_names: experimentMetadataFlattened.names,
+    experiment_metadata_values: experimentMetadataFlattened.values,
     experiment_description: dri.dataset_run_description,
     experiment_dataset_id: dri.dataset_id,
     experiment_item_id: dri.dataset_item_id,
     experiment_item_root_span_id: rootSpan.span_id,
     experiment_item_expected_output: dri.dataset_item_expected_output,
-    experiment_item_metadata_names: Object.keys(dri.dataset_item_metadata),
-    experiment_item_metadata_values: Object.values(dri.dataset_item_metadata),
+    experiment_item_metadata_names: experimentItemMetadataFlattened.names,
+    experiment_item_metadata_values: experimentItemMetadataFlattened.values,
   });
 
   // Enrich child spans
@@ -343,15 +351,15 @@ export function enrichSpansWithExperiment(
       session_id: traceProperties.sessionId,
       experiment_id: dri.dataset_run_id,
       experiment_name: dri.dataset_run_name,
-      experiment_metadata_names: Object.keys(dri.dataset_run_metadata),
-      experiment_metadata_values: Object.values(dri.dataset_run_metadata),
+      experiment_metadata_names: experimentMetadataFlattened.names,
+      experiment_metadata_values: experimentMetadataFlattened.values,
       experiment_description: dri.dataset_run_description,
       experiment_dataset_id: dri.dataset_id,
       experiment_item_id: dri.dataset_item_id,
       experiment_item_root_span_id: rootSpan.span_id,
       experiment_item_expected_output: dri.dataset_item_expected_output,
-      experiment_item_metadata_names: Object.keys(dri.dataset_item_metadata),
-      experiment_item_metadata_values: Object.values(dri.dataset_item_metadata),
+      experiment_item_metadata_names: experimentItemMetadataFlattened.names,
+      experiment_item_metadata_values: experimentItemMetadataFlattened.values,
     });
   }
 
