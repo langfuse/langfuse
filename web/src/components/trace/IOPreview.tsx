@@ -97,45 +97,47 @@ export const IOPreview: React.FC<{
       outputClean,
     );
 
-    // extract all unique tools from messages and assign them sequential numbers
+    // extract all unique tools from messages (no numbering yet)
     const toolsMap = new Map<
       string,
       { name: string; description?: string; parameters?: Record<string, any> }
     >();
-    const toolNameToDefinitionNumber = new Map<string, number>();
-    let toolDefinitionCounter = 0;
 
     for (const message of messages) {
       if (message.tools && Array.isArray(message.tools)) {
         for (const tool of message.tools) {
           if (!toolsMap.has(tool.name)) {
             toolsMap.set(tool.name, tool);
-            toolDefinitionCounter++;
-            toolNameToDefinitionNumber.set(tool.name, toolDefinitionCounter);
           }
         }
       }
     }
-    const uniqueTools = Array.from(toolsMap.values());
 
-    // sequential numbering for tool call invocations
+    // count tool call invocations and tool calls
+    // Only number tool calls from OUTPUT messages (current invocation), not input (history)
+    const inputMessageCount = inResult.success ? inResult.data.length : 0;
     let toolCallCounter = 0;
     const messageToToolCallNumbers = new Map<number, number[]>();
     const toolCallCounts = new Map<string, number>();
 
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
+      const isOutputMessage = i >= inputMessageCount; // Only output messages get numbered
+
       if (message.tool_calls && Array.isArray(message.tool_calls)) {
         const messageToolNumbers: number[] = [];
 
         for (const toolCall of message.tool_calls) {
           if (toolCall.name && typeof toolCall.name === "string") {
-            toolCallCounter++;
-            messageToolNumbers.push(toolCallCounter);
             toolCallCounts.set(
               toolCall.name,
               (toolCallCounts.get(toolCall.name) || 0) + 1,
             );
+
+            if (isOutputMessage) {
+              toolCallCounter++;
+              messageToolNumbers.push(toolCallCounter);
+            }
           }
         }
 
@@ -145,12 +147,28 @@ export const IOPreview: React.FC<{
       }
     }
 
+    // sort tools by display order (called first, then by call count)
+    const sortedTools = Array.from(toolsMap.values()).sort((a, b) => {
+      const callCountA = toolCallCounts.get(a.name) || 0;
+      const callCountB = toolCallCounts.get(b.name) || 0;
+      // Sort by called status (called first), then by call count descending
+      if (callCountA > 0 && callCountB === 0) return -1;
+      if (callCountA === 0 && callCountB > 0) return 1;
+      return callCountB - callCountA;
+    });
+
+    // assign definition numbers based on sorted display order
+    const toolNameToDefinitionNumber = new Map<string, number>();
+    sortedTools.forEach((tool, index) => {
+      toolNameToDefinitionNumber.set(tool.name, index + 1);
+    });
+
     return {
       canDisplayAsChat:
         (inResult.success || outResult.success) && messages.length > 0,
       allMessages: messages,
       additionalInput: extractAdditionalInput(input),
-      allTools: uniqueTools,
+      allTools: sortedTools,
       toolCallCounts,
       messageToToolCallNumbers,
       toolNameToDefinitionNumber,
@@ -181,14 +199,7 @@ export const IOPreview: React.FC<{
         <div className="mb-4 border-b border-border pb-4">
           <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
           <ToolCallDefinitionCard
-            tools={allTools.sort((a, b) => {
-              const callCountA = toolCallCounts.get(a.name) || 0;
-              const callCountB = toolCallCounts.get(b.name) || 0;
-              // Sort by called status (called first), then by call count descending
-              if (callCountA > 0 && callCountB === 0) return -1;
-              if (callCountA === 0 && callCountB > 0) return 1;
-              return callCountB - callCountA;
-            })}
+            tools={allTools}
             toolCallCounts={toolCallCounts}
             toolNameToDefinitionNumber={toolNameToDefinitionNumber}
           />

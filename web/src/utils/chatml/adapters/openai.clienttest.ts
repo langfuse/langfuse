@@ -223,6 +223,57 @@ describe("OpenAI Adapter", () => {
       );
     });
 
+    it("should handle request format with multiple tools and multiple messages", () => {
+      const input = {
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "tool_a",
+              description: "First tool",
+              parameters: {
+                type: "object",
+                properties: { param1: { type: "string" } },
+                required: ["param1"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "tool_b",
+              description: "Second tool",
+              parameters: {
+                type: "object",
+                properties: { param2: { type: "string" } },
+                required: ["param2"],
+              },
+            },
+          },
+        ],
+        messages: [
+          { role: "system", content: "You are a helpful assistant" },
+          { role: "user", content: "test query" },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "openai" });
+      expect(result.success).toBe(true);
+
+      // Tools should be attached to ALL messages
+      expect(result.data).toHaveLength(2);
+      expect(result.data?.[0].tools).toHaveLength(2);
+      expect(result.data?.[1].tools).toHaveLength(2);
+
+      // Check tool definitions are properly flattened
+      expect(result.data?.[0].tools?.[0].name).toBe("tool_a");
+      expect(result.data?.[0].tools?.[0].description).toBe("First tool");
+      expect(result.data?.[0].tools?.[0].parameters).toBeDefined();
+
+      expect(result.data?.[0].tools?.[1].name).toBe("tool_b");
+      expect(result.data?.[0].tools?.[1].description).toBe("Second tool");
+    });
+
     it("should handle response format with tool calls", () => {
       const output = {
         role: "assistant",
