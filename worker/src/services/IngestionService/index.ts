@@ -102,7 +102,7 @@ export type EventInput = {
 
   // Model
   modelName?: string;
-  modelParameters?: string;
+  modelParameters?: string | Record<string, unknown>;
 
   // Usage & Cost
   providedUsageDetails?: Record<string, number>;
@@ -336,7 +336,11 @@ export class IngestionService {
       // Model
       // model_id: eventData.modelId,
       provided_model_name: eventData.modelName,
-      model_parameters: eventData.modelParameters,
+      model_parameters: eventData.modelParameters
+        ? typeof eventData.modelParameters === "string"
+          ? JSON.parse(eventData.modelParameters)
+          : eventData.modelParameters
+        : {},
 
       // Usage & Cost
       // provided_usage_details: eventData.providedUsageDetails ?? {},
