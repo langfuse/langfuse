@@ -98,7 +98,8 @@ describe("Microsoft Agent Framework Adapter", () => {
       expect(result.data?.[0].content).toBe(
         "What's the weather like in Portland?",
       );
-      expect(result.data?.[0].parts).toBeUndefined();
+      // parts should be removed during normalization (not in ChatML type)
+      expect((result.data?.[0] as any).parts).toBeUndefined();
     });
 
     it("should extract tool call responses from parts array", () => {
