@@ -1159,7 +1159,6 @@ export function PrettyJsonView(props: {
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>
-              {props.controlButtons}
               {shouldUseTableView && (
                 <Button
                   variant="ghost"
@@ -1192,6 +1191,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
+              {props.controlButtons}
             </>
           }
         />

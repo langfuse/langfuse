@@ -317,6 +317,7 @@ export function MarkdownView({
   audio,
   media,
   className,
+  controlButtons,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
@@ -324,6 +325,7 @@ export function MarkdownView({
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
+  controlButtons?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -351,6 +353,7 @@ export function MarkdownView({
           title={title}
           handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
+          controlButtons={controlButtons}
         />
       ) : null}
       <div

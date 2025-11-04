@@ -81,6 +81,7 @@ export function MarkdownJsonView({
   customCodeHeaderClassName,
   audio,
   media,
+  controlButtons,
 }: {
   content?: unknown;
   title?: string;
@@ -88,6 +89,7 @@ export function MarkdownJsonView({
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
+  controlButtons?: React.ReactNode;
 }) {
   const stringOrValidatedMarkdown = useMemo(
     () => StringOrMarkdownSchema.safeParse(content),
@@ -112,6 +114,7 @@ export function MarkdownJsonView({
           customCodeHeaderClassName={customCodeHeaderClassName}
           audio={audio}
           media={media}
+          controlButtons={controlButtons}
         />
       ) : (
         <PrettyJsonView
@@ -120,6 +123,7 @@ export function MarkdownJsonView({
           className={className}
           media={media}
           currentView="pretty"
+          controlButtons={controlButtons}
         />
       )}
     </>
