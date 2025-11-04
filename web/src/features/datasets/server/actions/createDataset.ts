@@ -89,7 +89,7 @@ export const upsertDataset = async ({
 
         if (!validationResult.isValid) {
           throw new InvalidRequestError(
-            `Schema validation failed for ${validationResult.errors.length} item(s). Details: ${JSON.stringify(validationResult.errors)}`,
+            `Schema validation failed for ${validationResult.errors.length === 10 ? "more than 10" : validationResult.errors.length} item(s). Details: ${JSON.stringify(validationResult.errors)}`,
           );
         }
       }
