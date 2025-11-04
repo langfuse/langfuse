@@ -224,6 +224,7 @@ export default function ScoresAnalyticsPage() {
       toTimestamp: absoluteTimeRange?.to!,
       interval,
       objectType: urlState.objectType,
+      matchedOnly: false, // Not used anymore - tabs control display
     },
     {
       enabled: shouldFetchAnalytics,

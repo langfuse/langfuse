@@ -8,7 +8,6 @@ import {
 } from "@/src/components/ui/chart";
 import {
   getSingleScoreChartConfig,
-  getSingleScoreColor,
   getTwoScoreChartConfig,
   getTwoScoreColors,
 } from "@/src/features/scores/lib/color-scales";
@@ -71,6 +70,22 @@ export function ScoreTimeSeriesNumericChart({
     return (
       <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
         No time series data available
+      </div>
+    );
+  }
+
+  // Check if all values are null (no data in the selected time range)
+  const hasAnyData = chartData.some((item) => {
+    if (isComparisonMode) {
+      return item[score1Name] !== null || item[score2Name!] !== null;
+    }
+    return item[score1Name] !== null;
+  });
+
+  if (!hasAnyData) {
+    return (
+      <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+        No data points available for the selected time range
       </div>
     );
   }
