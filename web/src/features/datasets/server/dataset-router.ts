@@ -55,6 +55,7 @@ import {
 import {
   validateAllDatasetItems,
   validateDatasetItemField,
+  validateDatasetItemData,
   DatasetJSONSchema,
 } from "@langfuse/shared/src/server";
 
@@ -127,37 +128,46 @@ const normalizeForUpdate = (
 ) => (value === undefined ? undefined : value === null ? Prisma.DbNull : value);
 
 /**
- * Validates dataset item field and throws TRPCError if invalid
- * For CREATE operations, set normalizeUndefined=true to treat undefined as null
+ * Validates dataset item data (both input and expectedOutput) and throws TRPCError if invalid
+ * Uses shared validation service for consistency between tRPC and Public API
+ *
+ * @param normalizeUndefinedToNull - Set to true for CREATE operations where undefined becomes null in DB
  */
-const validateDatasetItemFieldAndThrowIfInvalid = (params: {
-  schema: Record<string, unknown> | null | undefined;
-  data: unknown;
-  field: "input" | "expectedOutput";
-  itemId: string;
-  validateUndefinedAsNull?: boolean;
+const validateAndThrowIfInvalid = (params: {
+  input: unknown;
+  expectedOutput: unknown;
+  inputSchema: Record<string, unknown> | null | undefined;
+  expectedOutputSchema: Record<string, unknown> | null | undefined;
+  normalizeUndefinedToNull?: boolean;
 }) => {
-  if (!params.schema) return; // No schema = no validation
-
-  // Normalize undefined/Prisma.DbNull to null for CREATE operations
-  const valueToValidate =
-    params.validateUndefinedAsNull &&
-    (params.data === undefined || params.data === Prisma.DbNull)
-      ? null
-      : params.data;
-
-  const result = validateDatasetItemField({
-    data: valueToValidate,
-    schema: params.schema,
-    itemId: params.itemId,
-    field: params.field,
+  const result = validateDatasetItemData({
+    input: params.input,
+    expectedOutput: params.expectedOutput,
+    inputSchema: params.inputSchema,
+    expectedOutputSchema: params.expectedOutputSchema,
+    normalizeUndefinedToNull: params.normalizeUndefinedToNull,
   });
 
   if (!result.isValid) {
+    const errorMessages: string[] = [];
+    if (result.inputErrors) {
+      errorMessages.push(
+        `Input validation failed: ${result.inputErrors.map((e) => e.message).join(", ")}`,
+      );
+    }
+    if (result.expectedOutputErrors) {
+      errorMessages.push(
+        `Expected output validation failed: ${result.expectedOutputErrors.map((e) => e.message).join(", ")}`,
+      );
+    }
+
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `${params.field === "input" ? "Input" : "Expected output"} validation failed`,
-      cause: result.errors,
+      message: errorMessages.join("; "),
+      cause: {
+        inputErrors: result.inputErrors,
+        expectedOutputErrors: result.expectedOutputErrors,
+      },
     });
   }
 };
@@ -832,41 +842,32 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      // Parse and validate input if provided
-      let parsedInput: Prisma.InputJsonObject | null | undefined = undefined;
-      if (input.input !== undefined) {
-        parsedInput =
-          input.input === ""
+      // Parse input and expected output
+      const parsedInput: Prisma.InputJsonObject | null | undefined =
+        input.input !== undefined
+          ? input.input === ""
             ? null
-            : (JSON.parse(input.input) as Prisma.InputJsonObject);
+            : (JSON.parse(input.input) as Prisma.InputJsonObject)
+          : undefined;
 
-        validateDatasetItemFieldAndThrowIfInvalid({
-          schema: dataset.inputSchema as Record<string, unknown> | null,
-          data: parsedInput,
-          field: "input",
-          itemId: input.datasetItemId,
-        });
-      }
-
-      // Parse and validate expected output if provided
-      let parsedExpectedOutput: Prisma.InputJsonObject | null | undefined =
-        undefined;
-      if (input.expectedOutput !== undefined) {
-        parsedExpectedOutput =
-          input.expectedOutput === ""
+      const parsedExpectedOutput: Prisma.InputJsonObject | null | undefined =
+        input.expectedOutput !== undefined
+          ? input.expectedOutput === ""
             ? null
-            : (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject);
+            : (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
+          : undefined;
 
-        validateDatasetItemFieldAndThrowIfInvalid({
-          schema: dataset.expectedOutputSchema as Record<
-            string,
-            unknown
-          > | null,
-          data: parsedExpectedOutput,
-          field: "expectedOutput",
-          itemId: input.datasetItemId,
-        });
-      }
+      // Validate both fields together (only if they're being updated)
+      validateAndThrowIfInvalid({
+        input: parsedInput,
+        expectedOutput: parsedExpectedOutput,
+        inputSchema: dataset.inputSchema as Record<string, unknown> | null,
+        expectedOutputSchema: dataset.expectedOutputSchema as Record<
+          string,
+          unknown
+        > | null,
+        normalizeUndefinedToNull: false, // For UPDATE, undefined means "don't update"
+      });
 
       const datasetItem = await ctx.prisma.datasetItem.update({
         where: {
@@ -1260,21 +1261,16 @@ export const datasetRouter = createTRPCRouter({
       const parsedInput = formatDatasetItemData(input.input);
       const parsedExpectedOutput = formatDatasetItemData(input.expectedOutput);
 
-      // Validate input and expected output against schemas
-      validateDatasetItemFieldAndThrowIfInvalid({
-        schema: dataset.inputSchema as Record<string, unknown> | null,
-        data: parsedInput,
-        field: "input",
-        itemId: "temp",
-        validateUndefinedAsNull: true, // For CREATE, undefined becomes null in DB
-      });
-
-      validateDatasetItemFieldAndThrowIfInvalid({
-        schema: dataset.expectedOutputSchema as Record<string, unknown> | null,
-        data: parsedExpectedOutput,
-        field: "expectedOutput",
-        itemId: "temp",
-        validateUndefinedAsNull: true, // For CREATE, undefined becomes null in DB
+      // Validate both input and expected output against schemas
+      validateAndThrowIfInvalid({
+        input: parsedInput,
+        expectedOutput: parsedExpectedOutput,
+        inputSchema: dataset.inputSchema as Record<string, unknown> | null,
+        expectedOutputSchema: dataset.expectedOutputSchema as Record<
+          string,
+          unknown
+        > | null,
+        normalizeUndefinedToNull: true, // For CREATE, undefined becomes null in DB
       });
 
       const datasetItem = await ctx.prisma.datasetItem.create({

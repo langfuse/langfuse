@@ -4,6 +4,7 @@ import {
   type Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { validateAllDatasetItems } from "@langfuse/shared/src/server";
 
 type DatasetJson =
   | Prisma.InputJsonObject
@@ -41,6 +42,58 @@ export const upsertDataset = async ({
     throw new InvalidRequestError(
       "Dataset name not valid. " + validation.error.message,
     );
+  }
+
+  // Check if dataset exists (for UPDATE path)
+  const existingDataset = await prisma.dataset.findUnique({
+    where: {
+      projectId_name: {
+        projectId,
+        name: input.name,
+      },
+    },
+    select: {
+      id: true,
+      inputSchema: true,
+      expectedOutputSchema: true,
+    },
+  });
+
+  // If updating and schemas are being set, validate all existing items
+  if (existingDataset) {
+    const isSettingInputSchema = input.inputSchema !== undefined;
+    const isSettingExpectedOutputSchema =
+      input.expectedOutputSchema !== undefined;
+
+    if (isSettingInputSchema || isSettingExpectedOutputSchema) {
+      // Determine final schemas after update
+      const finalInputSchema = isSettingInputSchema
+        ? input.inputSchema
+        : existingDataset.inputSchema;
+      const finalExpectedOutputSchema = isSettingExpectedOutputSchema
+        ? input.expectedOutputSchema
+        : existingDataset.expectedOutputSchema;
+
+      // Validate if any schema is being set (not null)
+      if (finalInputSchema !== null || finalExpectedOutputSchema !== null) {
+        const validationResult = await validateAllDatasetItems({
+          datasetId: existingDataset.id,
+          projectId,
+          inputSchema: finalInputSchema as Record<string, unknown> | null,
+          expectedOutputSchema: finalExpectedOutputSchema as Record<
+            string,
+            unknown
+          > | null,
+          prisma,
+        });
+
+        if (!validationResult.isValid) {
+          throw new InvalidRequestError(
+            `Schema validation failed for ${validationResult.errors.length} item(s). Details: ${JSON.stringify(validationResult.errors)}`,
+          );
+        }
+      }
+    }
   }
 
   return await prisma.dataset.upsert({

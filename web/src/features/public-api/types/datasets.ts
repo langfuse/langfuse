@@ -23,6 +23,8 @@ const APIDataset = z
     name: z.string(),
     description: z.string().nullable(),
     metadata: z.any(),
+    inputSchema: z.any().nullable(),
+    expectedOutputSchema: z.any().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
@@ -115,6 +117,8 @@ export const PostDatasetsV2Body = z.object({
   name: z.string(),
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
+  inputSchema: jsonSchema.nullish(),
+  expectedOutputSchema: jsonSchema.nullish(),
 });
 export const PostDatasetsV2Response = APIDataset.strict();
 
@@ -238,6 +242,8 @@ export const PostDatasetsV1Body = z.object({
   name: z.string(),
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
+  inputSchema: jsonSchema.nullish(),
+  expectedOutputSchema: jsonSchema.nullish(),
 });
 export const PostDatasetsV1Response = APIDataset.extend({
   items: z.array(APIDatasetItem),

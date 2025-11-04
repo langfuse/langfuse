@@ -220,3 +220,75 @@ export function validateDatasetItemsBatch(params: {
     errors,
   };
 }
+
+export type ValidateItemResult =
+  | { isValid: true }
+  | {
+      isValid: false;
+      inputErrors?: FieldValidationError[];
+      expectedOutputErrors?: FieldValidationError[];
+    };
+
+/**
+ * Core validation logic - validates dataset item data
+ * Works with already-parsed JSON (not strings)
+ * Used by both tRPC and Public API
+ *
+ * @param normalizeUndefinedToNull - Set to true for CREATE operations where undefined becomes null in DB
+ */
+export function validateDatasetItemData(params: {
+  input: unknown;
+  expectedOutput: unknown;
+  inputSchema: Record<string, unknown> | null | undefined;
+  expectedOutputSchema: Record<string, unknown> | null | undefined;
+  normalizeUndefinedToNull?: boolean;
+}): ValidateItemResult {
+  const errors: {
+    inputErrors?: FieldValidationError[];
+    expectedOutputErrors?: FieldValidationError[];
+  } = {};
+
+  // Validate input if schema exists
+  if (params.inputSchema) {
+    const valueToValidate = params.normalizeUndefinedToNull
+      ? params.input === undefined || params.input === null
+        ? null
+        : params.input
+      : params.input;
+
+    const result = validateDatasetItemField({
+      data: valueToValidate,
+      schema: params.inputSchema,
+      itemId: "validation",
+      field: "input",
+    });
+
+    if (!result.isValid) {
+      errors.inputErrors = result.errors;
+    }
+  }
+
+  // Validate expected output if schema exists
+  if (params.expectedOutputSchema) {
+    const valueToValidate = params.normalizeUndefinedToNull
+      ? params.expectedOutput === undefined || params.expectedOutput === null
+        ? null
+        : params.expectedOutput
+      : params.expectedOutput;
+
+    const result = validateDatasetItemField({
+      data: valueToValidate,
+      schema: params.expectedOutputSchema,
+      itemId: "validation",
+      field: "expectedOutput",
+    });
+
+    if (!result.isValid) {
+      errors.expectedOutputErrors = result.errors;
+    }
+  }
+
+  const isValid = !errors.inputErrors && !errors.expectedOutputErrors;
+
+  return isValid ? { isValid: true } : { isValid: false, ...errors };
+}
