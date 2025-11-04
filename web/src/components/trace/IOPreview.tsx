@@ -26,6 +26,7 @@ import {
   extractAdditionalInput,
 } from "@/src/utils/chatml";
 import { ToolCallsPill } from "@/src/components/trace/ToolCallsPill";
+import { Wrench, ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -295,6 +296,28 @@ export const IOPreview: React.FC<{
   );
 };
 
+// create message title with tool icon when tool_calls exist
+const getMessageTitle = (
+  message: z.infer<typeof ChatMlMessageSchema>,
+): React.ReactNode => {
+  const baseTitle = message.name ?? message.role;
+  const hasToolCalls =
+    message.tool_calls &&
+    Array.isArray(message.tool_calls) &&
+    message.tool_calls.length > 0;
+
+  if (hasToolCalls) {
+    return (
+      <span className="flex items-center gap-1.5">
+        {baseTitle}
+        <Wrench className="h-3 w-3" />
+      </span>
+    );
+  }
+
+  return baseTitle;
+};
+
 export const OpenAiMessageView: React.FC<{
   messages: z.infer<typeof ChatMlArraySchema>;
   title?: string;
@@ -319,12 +342,36 @@ export const OpenAiMessageView: React.FC<{
     collapseLongHistory && messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
 
+  // stores which messages should show table view (json) instead of pretty view
+  const [showTableView, setShowTableView] = useState<Set<number>>(new Set());
+
+  const toggleTableView = (index: number) => {
+    setShowTableView((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
   const shouldRenderContent = (message: ChatMlMessageSchema) => {
     return message.content != null || !!message.audio;
   };
 
-  const shouldRenderJson = (message: ChatMlMessageSchema) => {
-    return !!message.json;
+  // TODO: removed for now, we never show additional JSON alongside the ChatML content
+  // because we now have a switch to display it. We re-add this depending on user feedback.
+  // const shouldRenderJson = (message: ChatMlMessageSchema) => {
+  //   return !!message.json;
+  // };
+  const hasAdditionalData = (message: ChatMlMessageSchema) => {
+    // if anything more than role & content exists, we show the button
+    const messageKeys = Object.keys(message).filter(
+      (key) => key !== "role" && key !== "content",
+    );
+    return messageKeys.length > 0;
   };
 
   const isPlaceholderMessage = (message: ChatMlMessageSchema) => {
@@ -336,7 +383,8 @@ export const OpenAiMessageView: React.FC<{
       messages.filter(
         (message) =>
           shouldRenderContent(message) ||
-          shouldRenderJson(message) ||
+          // shouldRenderJson(message) ||
+          hasAdditionalData(message) ||
           isPlaceholderMessage(message),
       ),
     [messages],
@@ -385,66 +433,86 @@ export const OpenAiMessageView: React.FC<{
                   </>
                 ) : (
                   <>
-                    {shouldRenderContent(message) && (
-                      <>
-                        <div
-                          style={{
-                            display: shouldRenderMarkdown ? "block" : "none",
-                          }}
-                        >
-                          <MarkdownJsonView
-                            title={message.name ?? message.role}
-                            content={message.content || '""'}
-                            className={cn(
-                              !!message.json &&
-                                !isPlaceholderMessage(message) &&
-                                "rounded-b-none",
-                            )}
-                            customCodeHeaderClassName={cn(
-                              message.role === "assistant" && "bg-secondary",
-                              message.role === "system" &&
-                                "bg-primary-foreground",
-                            )}
-                            audio={message.audio}
-                          />
-                        </div>
-                        <div
-                          style={{
-                            display: shouldRenderMarkdown ? "none" : "block",
-                          }}
-                        >
-                          <PrettyJsonView
-                            title={message.name ?? message.role}
-                            json={message.content}
-                            projectIdForPromptButtons={
-                              projectIdForPromptButtons
-                            }
-                            className={cn(
-                              !!message.json &&
-                                !isPlaceholderMessage(message) &&
-                                "rounded-b-none",
-                            )}
-                            currentView={currentView}
-                          />
-                        </div>
-                      </>
-                    )}
-                    {shouldRenderJson(message) &&
-                      !isPlaceholderMessage(message) && (
-                        <PrettyJsonView
-                          title={
-                            message.content
-                              ? undefined
-                              : (message.name ?? message.role)
-                          }
-                          json={message.json}
-                          projectIdForPromptButtons={projectIdForPromptButtons}
-                          className={cn(
-                            !!message.content && "rounded-t-none border-t-0",
-                          )}
-                          currentView={shouldRenderMarkdown ? "pretty" : "json"}
-                        />
+                    {shouldRenderContent(message) &&
+                      !showTableView.has(index) && (
+                        <>
+                          <div
+                            style={{
+                              display: shouldRenderMarkdown ? "block" : "none",
+                            }}
+                          >
+                            <MarkdownJsonView
+                              title={getMessageTitle(message)}
+                              content={message.content || '""'}
+                              customCodeHeaderClassName={cn(
+                                message.role === "assistant" && "bg-secondary",
+                                message.role === "system" &&
+                                  "bg-primary-foreground",
+                              )}
+                              audio={message.audio}
+                              controlButtons={
+                                hasAdditionalData(message) ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    onClick={() => toggleTableView(index)}
+                                    title="Show full message data"
+                                    className="-mr-2 hover:bg-border"
+                                  >
+                                    <ListChevronsUpDown className="h-3 w-3" />
+                                  </Button>
+                                ) : undefined
+                              }
+                            />
+                          </div>
+                          <div
+                            style={{
+                              display: shouldRenderMarkdown ? "none" : "block",
+                            }}
+                          >
+                            <PrettyJsonView
+                              title={getMessageTitle(message)}
+                              json={message.content}
+                              projectIdForPromptButtons={
+                                projectIdForPromptButtons
+                              }
+                              currentView={currentView}
+                              controlButtons={
+                                hasAdditionalData(message) ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    onClick={() => toggleTableView(index)}
+                                    title="Show full message data"
+                                    className="-mr-2 hover:bg-border"
+                                  >
+                                    <ListChevronsUpDown className="h-3 w-3" />
+                                  </Button>
+                                ) : undefined
+                              }
+                            />
+                          </div>
+                        </>
                       )}
+                    {showTableView.has(index) && (
+                      <PrettyJsonView
+                        title={getMessageTitle(message)}
+                        json={message}
+                        projectIdForPromptButtons={projectIdForPromptButtons}
+                        currentView="pretty"
+                        controlButtons={
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => toggleTableView(index)}
+                            title="Show formatted view"
+                            className="-mr-2 hover:bg-border"
+                          >
+                            <ListChevronsDownUp className="h-3 w-3 text-primary" />
+                          </Button>
+                        }
+                      />
+                    )}
                   </>
                 )}
                 {isCollapsed !== null && index === 0 ? (
