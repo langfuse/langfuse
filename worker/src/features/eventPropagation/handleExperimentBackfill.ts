@@ -307,6 +307,29 @@ export function findAllChildren(
 }
 
 /**
+ * Convert a SpanRecord to EnrichedSpan format with empty experiment fields.
+ * Used for spans that are not part of any dataset run item but should still be included in events.
+ */
+function convertToEnrichedSpanWithoutExperiment(
+  span: SpanRecord,
+): EnrichedSpan {
+  return {
+    ...span,
+    experiment_id: "",
+    experiment_name: "",
+    experiment_metadata_names: [],
+    experiment_metadata_values: [],
+    experiment_description: "",
+    experiment_dataset_id: "",
+    experiment_item_id: "",
+    experiment_item_root_span_id: "",
+    experiment_item_expected_output: "",
+    experiment_item_metadata_names: [],
+    experiment_item_metadata_values: [],
+  };
+}
+
+/**
  * Enrich spans with experiment properties from dataset run item.
  * Also propagates trace-level properties (userId, sessionId) to all child spans.
  */
@@ -666,6 +689,7 @@ async function processExperimentBackfill(
 
     // Process each dataset run item
     const allEnrichedSpans: EnrichedSpan[] = [];
+    const processedSpanIds = new Set<string>();
 
     for (const dri of driChunk) {
       // Find the root span (either observation or trace)
@@ -697,6 +721,19 @@ async function processExperimentBackfill(
       );
 
       allEnrichedSpans.push(...enrichedSpans);
+
+      // Track which spans have been processed
+      processedSpanIds.add(rootSpan.span_id);
+      for (const child of childSpans) {
+        processedSpanIds.add(child.span_id);
+      }
+    }
+
+    // Add all remaining spans that weren't enriched (e.g., trace-derived spans that weren't roots)
+    for (const span of allSpans) {
+      if (!processedSpanIds.has(span.span_id)) {
+        allEnrichedSpans.push(convertToEnrichedSpanWithoutExperiment(span));
+      }
     }
 
     // Write enriched spans to events table
