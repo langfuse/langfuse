@@ -14,6 +14,8 @@ type UpsertDatasetInput = {
   name: string;
   description?: string;
   metadata?: DatasetJson;
+  inputSchema?: DatasetJson;
+  expectedOutputSchema?: DatasetJson;
 };
 
 type UpdateDatasetInput = {
@@ -23,6 +25,8 @@ type UpdateDatasetInput = {
   metadata?: DatasetJson;
   remoteExperimentUrl?: string | null;
   remoteExperimentPayload?: DatasetJson;
+  inputSchema?: DatasetJson;
+  expectedOutputSchema?: DatasetJson;
 };
 
 export const upsertDataset = async ({
@@ -50,11 +54,15 @@ export const upsertDataset = async ({
       name: input.name,
       description: input.description ?? undefined,
       metadata: input.metadata ?? undefined,
+      inputSchema: input.inputSchema ?? undefined,
+      expectedOutputSchema: input.expectedOutputSchema ?? undefined,
       projectId,
     },
     update: {
       description: input.description ?? undefined,
       metadata: input.metadata ?? undefined,
+      inputSchema: input.inputSchema ?? undefined,
+      expectedOutputSchema: input.expectedOutputSchema ?? undefined,
     },
   });
 };
@@ -88,6 +96,8 @@ export const updateDataset = async ({
       metadata: input.metadata ?? undefined,
       remoteExperimentUrl: input.remoteExperimentUrl,
       remoteExperimentPayload: input.remoteExperimentPayload ?? undefined,
+      inputSchema: input.inputSchema ?? undefined,
+      expectedOutputSchema: input.expectedOutputSchema ?? undefined,
     },
   });
 };
