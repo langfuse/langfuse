@@ -302,6 +302,8 @@ const generateDatasetQuery = ({
         d.project_id,
         d.updated_at,
         d.created_at,
+        d.input_schema,
+        d.expected_output_schema,
         2 as sort_priority, -- Individual datasets second
         'dataset'::text as row_type  -- Mark as individual dataset
       FROM filtered_datasets d 
@@ -319,6 +321,8 @@ const generateDatasetQuery = ({
         d.project_id,
         d.updated_at,
         d.created_at,
+        d.input_schema,
+        d.expected_output_schema,
         1 as sort_priority, -- Folders first
         'folder'::text as row_type, -- Mark as folder representative
         ROW_NUMBER() OVER (
@@ -330,11 +334,11 @@ const generateDatasetQuery = ({
     ),
     combined AS (
       SELECT
-        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type
+        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type, input_schema, expected_output_schema
       FROM individual_datasets_in_folder
       UNION ALL
       SELECT
-        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type
+        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type, input_schema, expected_output_schema
       FROM subfolder_representatives WHERE rn = 1
     )
     SELECT
@@ -343,7 +347,7 @@ const generateDatasetQuery = ({
     ${orderAndLimit}
     `;
   } else {
-    const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at`;
+    const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at, input_schema, expected_output_schema`;
 
     // When we're at the root level, show all individual datasets that don't have folders
     // and one representative per folder for datasets that do have folders
@@ -351,7 +355,7 @@ const generateDatasetQuery = ({
     WITH ${datasetsCTE},
     individual_datasets AS (
       /* Individual datasets without folders */
-      SELECT d.id, d.name, d.description, d.metadata, d.project_id, d.updated_at, d.created_at, 'dataset'::text as row_type
+      SELECT d.id, d.name, d.description, d.metadata, d.project_id, d.updated_at, d.created_at, d.input_schema, d.expected_output_schema, 'dataset'::text as row_type
       FROM filtered_datasets d
       WHERE d.name NOT LIKE '%/%'
     ),
@@ -365,6 +369,8 @@ const generateDatasetQuery = ({
         d.project_id,
         d.updated_at,
         d.created_at,
+        d.input_schema,
+        d.expected_output_schema,
         'folder'::text as row_type, -- Mark as folder representative
         ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(d.name, '/', 1) ORDER BY LENGTH(d.name) ASC, d.updated_at DESC) AS rn
       FROM filtered_datasets d

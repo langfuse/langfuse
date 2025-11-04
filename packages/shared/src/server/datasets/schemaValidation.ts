@@ -105,7 +105,7 @@ export async function validateAllDatasetItems(params: {
   const { datasetId, projectId, inputSchema, expectedOutputSchema, prisma } =
     params;
 
-  const BATCH_SIZE = 5_000;
+  const BATCH_SIZE = 1_000;
   const MAX_ERRORS = 10;
 
   let offset = 0;
