@@ -85,12 +85,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "level",
     type: "stringOptions",
     internal: "e.level",
-    options: [
-      { value: "DEBUG" },
-      { value: "DEFAULT" },
-      { value: "WARNING" },
-      { value: "ERROR" },
-    ] as { value: ObservationLevelType }[],
+    options: [],
   },
   {
     name: "Status Message",
@@ -235,20 +230,6 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "metadata",
     type: "stringObject",
     internal: "e.metadata",
-  },
-  {
-    name: "Source",
-    id: "source",
-    type: "string",
-    internal: "e.source",
-    nullable: true,
-  },
-  {
-    name: "Service Name",
-    id: "serviceName",
-    type: "string",
-    internal: "e.service_name",
-    nullable: true,
   },
   {
     name: "Service Version",

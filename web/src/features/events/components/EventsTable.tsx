@@ -121,11 +121,6 @@ export type EventsTableRow = {
   output?: string;
   metadata?: unknown;
 
-  // Instrumentation
-  source?: string;
-  serviceName?: string;
-  serviceVersion?: string;
-
   // Trace fields
   traceTags?: string[];
 
@@ -261,60 +256,17 @@ export default function ObservationsEventsTable({
     const scoresNumeric = filterOptions.data?.scores_avg || [];
 
     return {
-      environment:
-        filterOptions.data?.environment?.map((e) => ({
-          value: e.value,
-          count: e.count !== undefined ? Number(e.count) : undefined,
-        })) || [],
-      name:
-        filterOptions.data?.name?.map((n) => ({
-          value: n.value,
-          count: n.count !== undefined ? Number(n.count) : undefined,
-        })) || [],
-      type:
-        filterOptions.data?.type?.map((t) => ({
-          value: t.value,
-          count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
-      level:
-        filterOptions.data?.level?.map((l) => ({
-          value: l.value,
-          count: l.count !== undefined ? Number(l.count) : undefined,
-        })) || [],
-      providedModelName:
-        filterOptions.data?.providedModelName?.map((m) => ({
-          value: m.value,
-          count: m.count !== undefined ? Number(m.count) : undefined,
-        })) || [],
-      modelId:
-        filterOptions.data?.modelId?.map((mid) => ({
-          value: mid.value,
-          count: mid.count !== undefined ? Number(mid.count) : undefined,
-        })) || [],
-      promptName:
-        filterOptions.data?.promptName?.map((pn) => ({
-          value: pn.value,
-          count: pn.count !== undefined ? Number(pn.count) : undefined,
-        })) || [],
-      traceTags:
-        filterOptions.data?.traceTags?.map((t) => ({
-          value: t.value,
-        })) || [],
-      userId:
-        filterOptions.data?.userId?.map((u) => ({
-          value: u.value,
-          count: u.count !== undefined ? Number(u.count) : undefined,
-        })) || [],
-      sessionId:
-        filterOptions.data?.sessionId?.map((s) => ({
-          value: s.value,
-          count: s.count !== undefined ? Number(s.count) : undefined,
-        })) || [],
-      version:
-        filterOptions.data?.version?.map((v) => ({
-          value: v.value,
-          count: v.count !== undefined ? Number(v.count) : undefined,
-        })) || [],
+      environment: filterOptions.data?.environment ?? [],
+      name: filterOptions.data?.name ?? [],
+      type: filterOptions.data?.type ?? [],
+      level: filterOptions.data?.level ?? [],
+      providedModelName: filterOptions.data?.providedModelName ?? [],
+      modelId: filterOptions.data?.modelId ?? [],
+      promptName: filterOptions.data?.promptName ?? [],
+      traceTags: filterOptions.data?.traceTags ?? [],
+      userId: filterOptions.data?.userId ?? [],
+      sessionId: filterOptions.data?.sessionId ?? [],
+      version: filterOptions.data?.version ?? [],
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -847,22 +799,6 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
     },
-    {
-      accessorKey: "source",
-      id: "source",
-      header: getEventsColumnName("source"),
-      size: 150,
-      enableHiding: true,
-      defaultHidden: true,
-    },
-    {
-      accessorKey: "serviceName",
-      id: "serviceName",
-      header: getEventsColumnName("serviceName"),
-      size: 150,
-      enableHiding: true,
-      defaultHidden: true,
-    },
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -970,9 +906,6 @@ export default function ObservationsEventsTable({
             userId: undefined, // TODO: map from observation data
             sessionId: undefined, // TODO: map from observation data
             completionStartTime: observation.completionStartTime ?? undefined,
-            source: undefined, // TODO: map from observation data
-            serviceName: undefined, // TODO: map from observation data
-            serviceVersion: undefined,
           };
         })
       : [];
