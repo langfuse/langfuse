@@ -72,6 +72,7 @@ const pathsWithoutNavigation: string[] = [
 const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",
+  "/auth/sso-initiate",
   "/auth/error",
   "/auth/hf-spaces",
 ];
