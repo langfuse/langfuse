@@ -30,7 +30,7 @@ export function MarkdownJsonViewHeader({
   const [isCopied, setIsCopied] = useState(false);
 
   return (
-    <div className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize">
+    <div className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors group-hover:bg-muted/80">
       {title}
       <div className="mr-1 flex min-w-0 flex-shrink flex-row items-center gap-1">
         {controlButtons}

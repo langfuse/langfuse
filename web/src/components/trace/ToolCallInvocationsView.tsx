@@ -39,10 +39,16 @@ export function ToolCallInvocationsView({
         return (
           <div
             key={`${toolCall.id}-${index}`}
-            className="w-full overflow-hidden rounded-sm border"
+            className={cn(
+              "w-full border-t px-1 py-2",
+              (message.role === "assistant" ||
+                message.name === "Output" ||
+                message.name === "Model") &&
+                "bg-accent-light-green",
+            )}
           >
             {/* Card header */}
-            <div className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-1.5">
+            <div className="flex w-full items-center justify-between gap-2 py-1">
               {/* Left: Tool icon + number + name */}
               <div className="flex items-center gap-2">
                 <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
@@ -63,7 +69,7 @@ export function ToolCallInvocationsView({
             </div>
 
             {/* Arguments view */}
-            <div className="border-t border-border bg-background px-4 py-3">
+            <div className="py-2">
               <div className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Arguments
               </div>

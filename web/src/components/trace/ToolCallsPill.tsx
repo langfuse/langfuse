@@ -56,7 +56,7 @@ export function ToolCallsPill({
           >
             {/* Card header */}
             <div
-              className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-1.5 hover:bg-muted/50"
+              className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-1.5 hover:bg-muted/20"
               onClick={() => {
                 setExpandedIndex(isExpanded ? null : index);
               }}
@@ -79,7 +79,7 @@ export function ToolCallsPill({
                   className={cn(
                     "text-xs font-medium",
                     isCalled &&
-                      "border-transparent bg-light-green text-dark-green",
+                      "border-transparent bg-light-green text-dark-green hover:bg-light-green",
                   )}
                 >
                   {statusText}

@@ -1176,7 +1176,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
-              {!isPrettyView && (
+              {!shouldUseTableView && !isMarkdownMode && (
                 <Button
                   variant="ghost"
                   size="icon-xs"

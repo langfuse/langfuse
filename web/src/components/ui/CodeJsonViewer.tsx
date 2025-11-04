@@ -111,6 +111,7 @@ export function JSONView(props: {
             src={parsedJson}
             theme="github"
             dark={resolvedTheme === "dark"}
+            collapsed={isCollapsed ? 1 : false}
             collapseObjectsAfterLength={isCollapsed ? 0 : 20}
             collapseStringsAfterLength={collapseStringsAfterLength}
             collapseStringMode="word"
