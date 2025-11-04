@@ -398,6 +398,10 @@ export const OpenAiMessageView: React.FC<{
     return messageKeys.length > 0;
   };
 
+  const hasPassthroughJson = (message: ChatMlMessageSchema) => {
+    return message.json != null;
+  };
+
   const isPlaceholderMessage = (message: ChatMlMessageSchema) => {
     return message.type === "placeholder";
   };
@@ -501,14 +505,14 @@ export const OpenAiMessageView: React.FC<{
                                   )}
                                   audio={message.audio}
                                   controlButtons={
-                                    hasAdditionalData(message) ? (
+                                    hasPassthroughJson(message) ? (
                                       <Button
                                         variant="ghost"
                                         size="icon-xs"
                                         onClick={() =>
                                           toggleTableView(originalIndex)
                                         }
-                                        title="Show full message data"
+                                        title="Show passthrough JSON data"
                                         className="-mr-2 hover:bg-border"
                                       >
                                         <ListChevronsUpDown className="h-3 w-3" />
@@ -544,14 +548,14 @@ export const OpenAiMessageView: React.FC<{
                                   }
                                   currentView={currentView}
                                   controlButtons={
-                                    hasAdditionalData(message) ? (
+                                    hasPassthroughJson(message) ? (
                                       <Button
                                         variant="ghost"
                                         size="icon-xs"
                                         onClick={() =>
                                           toggleTableView(originalIndex)
                                         }
-                                        title="Show full message data"
+                                        title="Show passthrough JSON data"
                                         className="-mr-2 hover:bg-border"
                                       >
                                         <ListChevronsUpDown className="h-3 w-3" />
@@ -575,10 +579,10 @@ export const OpenAiMessageView: React.FC<{
                             </>
                           )}
                         {isShowingTable ? (
-                          // User clicked toggle - show full JSON
+                          // User clicked toggle - show passthrough JSON
                           <PrettyJsonView
                             title={getMessageTitle(message)}
-                            json={message}
+                            json={message.json}
                             projectIdForPromptButtons={
                               projectIdForPromptButtons
                             }
@@ -613,15 +617,19 @@ export const OpenAiMessageView: React.FC<{
                                 void copyTextToClipboard(rawText);
                               }}
                               controlButtons={
-                                <Button
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  onClick={() => toggleTableView(originalIndex)}
-                                  title="Show full message data"
-                                  className="-mr-2 hover:bg-border"
-                                >
-                                  <ListChevronsUpDown className="h-3 w-3" />
-                                </Button>
+                                hasPassthroughJson(message) ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    onClick={() =>
+                                      toggleTableView(originalIndex)
+                                    }
+                                    title="Show passthrough JSON data"
+                                    className="-mr-2 hover:bg-border"
+                                  >
+                                    <ListChevronsUpDown className="h-3 w-3" />
+                                  </Button>
+                                ) : undefined
                               }
                             />
                             <ToolCallInvocationsView
