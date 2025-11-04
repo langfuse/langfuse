@@ -41,8 +41,6 @@ const OBSERVATION_EVENTS_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
   completionStartTime: "completionStartTime",
   promptId: "promptId",
   promptVersion: "promptVersion",
-  source: "source",
-  serviceName: "serviceName",
 };
 
 /**
@@ -109,7 +107,7 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("metadata"),
     },
     {
-      type: "string" as const,
+      type: "categorical" as const,
       column: "version",
       label: getEventsColumnName("version"),
     },
@@ -119,24 +117,14 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("statusMessage"),
     },
     {
-      type: "string" as const,
+      type: "categorical" as const,
       column: "userId",
       label: getEventsColumnName("userId"),
     },
     {
-      type: "string" as const,
+      type: "categorical" as const,
       column: "sessionId",
       label: getEventsColumnName("sessionId"),
-    },
-    {
-      type: "string" as const,
-      column: "source",
-      label: getEventsColumnName("source"),
-    },
-    {
-      type: "string" as const,
-      column: "serviceName",
-      label: getEventsColumnName("serviceName"),
     },
     {
       type: "numeric" as const,

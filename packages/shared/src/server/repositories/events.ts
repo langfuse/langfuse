@@ -45,6 +45,7 @@ import { convertObservation } from "./observations_converters";
 import {
   EventsQueryBuilder,
   CTEQueryBuilder,
+  EventsObservationAggregationQueryBuilder,
 } from "../queries/clickhouse-sql/event-query-builder";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
@@ -792,4 +793,433 @@ export const getTracesCountFromEventsTableForPublicApi = async (
     select: "count",
   });
   return Number(countResult[0].count);
+};
+
+/**
+ * Get grouped provided model names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByModel = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.provided_model_name",
+    selectExpression: "e.provided_model_name as name, count() as count",
+  })
+    .whereRaw("e.type = 'GENERATION'")
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ name: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res.map((r) => ({ model: r.name, count: r.count }));
+};
+
+/**
+ * Get grouped model IDs from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByModelId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.model_id",
+    selectExpression: "e.model_id as modelId, count() as count",
+  })
+    .whereRaw("e.type = 'GENERATION'")
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ modelId: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res.map((r) => ({ modelId: r.modelId, count: r.count }));
+};
+
+/**
+ * Get grouped observation names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.name",
+    selectExpression: "e.name as name, count() as count",
+  })
+    .whereRaw("e.type = 'GENERATION'")
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ name: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped prompt names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByPromptName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.prompt_id",
+    selectExpression: "e.prompt_id as id, count() as count",
+  })
+    .whereRaw("e.type = 'GENERATION'")
+    .whereRaw("e.prompt_id IS NOT NULL")
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ id: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  const promptsWithCounts = res
+    .filter((r) => Boolean(r.id))
+    .map((r) => ({ id: r.id, count: r.count }));
+
+  if (promptsWithCounts.length === 0) return [];
+
+  const promptsFromDb = await prisma.prompt.findMany({
+    where: {
+      id: {
+        in: promptsWithCounts.map((p) => p.id),
+      },
+      projectId,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  // Create a map of id to count for easy lookup
+  const countMap = new Map(promptsWithCounts.map((p) => [p.id, p.count]));
+
+  return promptsFromDb.map((p) => ({
+    promptName: p.name,
+    count: countMap.get(p.id) ?? 0,
+  }));
+};
+
+/**
+ * Get grouped observation types from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByType = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.type",
+    selectExpression: "e.type as type, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ type: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped user IDs from events table (joined with traces)
+ * Used for filter options
+ */
+export const getEventsGroupedByUserId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "t.user_id",
+    selectExpression: "t.user_id as userId, count() as count",
+  })
+    .leftJoin(
+      "traces t",
+      "ON t.id = e.trace_id AND t.project_id = e.project_id",
+    )
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ userId: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped versions from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByVersion = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.version",
+    selectExpression: "e.version as version, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ version: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped session IDs from events table (joined with traces)
+ * Used for filter options
+ */
+export const getEventsGroupedBySessionId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "t.session_id",
+    selectExpression: "t.session_id as sessionId, count() as count",
+  })
+    .leftJoin(
+      "traces t",
+      "ON t.id = e.trace_id AND t.project_id = e.project_id",
+    )
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ sessionId: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped levels from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByLevel = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.level",
+    selectExpression: "e.level as level, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ level: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped environments from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByEnvironment = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
+  const queryBuilder = new EventsObservationAggregationQueryBuilder({
+    projectId,
+    groupByColumn: "e.environment",
+    selectExpression: "e.environment as environment, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ environment: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
 };

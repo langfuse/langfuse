@@ -1,7 +1,7 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { traceRouter } from "./routers/traces";
 import { generationsRouter } from "./routers/generations";
-import { eventsRouter } from "./routers/events";
+import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { scoresRouter } from "./routers/scores";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
 import { projectsRouter } from "@/src/features/projects/server/projectsRouter";

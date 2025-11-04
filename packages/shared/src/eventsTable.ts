@@ -229,24 +229,10 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Input Truncated",
-    id: "inputTruncated",
-    type: "string",
-    internal: "e.input_truncated",
-    nullable: true,
-  },
-  {
     name: "Output",
     id: "output",
     type: "string",
     internal: "e.output",
-    nullable: true,
-  },
-  {
-    name: "Output Truncated",
-    id: "outputTruncated",
-    type: "string",
-    internal: "e.output_truncated",
     nullable: true,
   },
   {
@@ -341,56 +327,3 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
 ];
-
-// Options for filter dropdowns - to be populated at runtime from database
-export type EventsTableOptions = {
-  name: Array<SingleValueOption>;
-  type: Array<SingleValueOption>;
-  environment: Array<SingleValueOption>;
-  providedModelName: Array<SingleValueOption>;
-  modelId: Array<SingleValueOption>;
-  promptName: Array<SingleValueOption>;
-  traceName: Array<SingleValueOption>;
-  traceTags: Array<SingleValueOption>;
-  scores_avg: Array<string>;
-  score_categories: Array<MultiValueOption>;
-};
-
-// Helper function to inject runtime options into column definitions
-export function eventsTableColsWithOptions(
-  options?: EventsTableOptions,
-): ColumnDefinition[] {
-  return eventsTableCols.map((col) => {
-    if (col.id === "name") {
-      return formatColumnOptions(col, options?.name ?? []);
-    }
-    if (col.id === "type") {
-      return formatColumnOptions(col, options?.type ?? []);
-    }
-    if (col.id === "environment") {
-      return formatColumnOptions(col, options?.environment ?? []);
-    }
-    if (col.id === "providedModelName") {
-      return formatColumnOptions(col, options?.providedModelName ?? []);
-    }
-    if (col.id === "modelId") {
-      return formatColumnOptions(col, options?.modelId ?? []);
-    }
-    if (col.id === "promptName") {
-      return formatColumnOptions(col, options?.promptName ?? []);
-    }
-    if (col.id === "traceName") {
-      return formatColumnOptions(col, options?.traceName ?? []);
-    }
-    if (col.id === "traceTags") {
-      return formatColumnOptions(col, options?.traceTags ?? []);
-    }
-    if (col.id === "scores_avg") {
-      return formatColumnOptions(col, options?.scores_avg ?? []);
-    }
-    if (col.id === "score_categories") {
-      return formatColumnOptions(col, options?.score_categories ?? []);
-    }
-    return col;
-  });
-}

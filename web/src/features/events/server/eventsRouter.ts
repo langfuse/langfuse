@@ -5,12 +5,12 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod, timeFilter } from "@langfuse/shared";
-import { EventsTableOptions } from "./utils/EventsTableOptions";
+import { EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventCount,
   getEventFilterOptions,
-} from "@/src/features/events/server/eventsService";
+} from "./eventsService";
 
 const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,

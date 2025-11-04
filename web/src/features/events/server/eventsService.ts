@@ -3,16 +3,19 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
-  getObservationsGroupedByModel,
-  getObservationsGroupedByModelId,
-  getObservationsGroupedByName,
-  getObservationsGroupedByPromptName,
+  getEventsGroupedByModel,
+  getEventsGroupedByModelId,
+  getEventsGroupedByName,
+  getEventsGroupedByPromptName,
+  getEventsGroupedByType,
+  getEventsGroupedByUserId,
+  getEventsGroupedByVersion,
+  getEventsGroupedBySessionId,
+  getEventsGroupedByLevel,
+  getEventsGroupedByEnvironment,
   getNumericScoresGroupedByName,
-  getTracesGroupedByName,
   getTracesGroupedByTags,
-  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
-import { type EventsTableOptions } from "@langfuse/shared";
 import { type timeFilter } from "@langfuse/shared";
 
 type TimeFilter = z.infer<typeof timeFilter>;
@@ -85,7 +88,7 @@ export async function getEventCount(params: GetObservationsCountParams) {
  */
 export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
-): Promise<EventsTableOptions> {
+) {
   const { projectId, startTimeFilter } = params;
 
   // Map startTimeFilter to Timestamp column for trace queries
@@ -98,17 +101,6 @@ export async function getEventFilterOptions(
           type: "datetime" as const,
         }))
       : [];
-
-  const getClickhouseTraceName = async (): Promise<
-    Array<{ traceName: string }>
-  > => {
-    const traces = await getTracesGroupedByName(
-      projectId,
-      tracesTableUiColumnDefinitions,
-      traceTimestampFilters,
-    );
-    return traces.map((i) => ({ traceName: i.name }));
-  };
 
   const getClickhouseTraceTags = async (): Promise<Array<{ tag: string }>> => {
     const traces = await getTracesGroupedByTags({
@@ -124,74 +116,91 @@ export async function getEventFilterOptions(
     providedModelName,
     name,
     promptNames,
-    traceNames,
     traceTags,
     modelId,
+    types,
+    userIds,
+    versions,
+    sessionIds,
+    levels,
+    environments,
   ] = await Promise.all([
-    // numeric scores
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
-    // categorical scores
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
-    // provided model name (maps to "model" in observations)
-    getObservationsGroupedByModel(projectId, startTimeFilter ?? []),
-    // observation name
-    getObservationsGroupedByName(projectId, startTimeFilter ?? []),
-    // prompt name
-    getObservationsGroupedByPromptName(projectId, startTimeFilter ?? []),
-    // trace name
-    getClickhouseTraceName(),
-    // trace tags
+    getEventsGroupedByModel(projectId, startTimeFilter ?? []),
+    getEventsGroupedByName(projectId, startTimeFilter ?? []),
+    getEventsGroupedByPromptName(projectId, startTimeFilter ?? []),
     getClickhouseTraceTags(),
-    // modelId
-    getObservationsGroupedByModelId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByModelId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByType(projectId, startTimeFilter ?? []),
+    getEventsGroupedByUserId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByVersion(projectId, startTimeFilter ?? []),
+    getEventsGroupedBySessionId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByLevel(projectId, startTimeFilter ?? []),
+    getEventsGroupedByEnvironment(projectId, startTimeFilter ?? []),
   ]);
 
-  // Return EventsTableOptions compatible response
-  const res: EventsTableOptions = {
+  return {
     providedModelName: providedModelName
       .filter((i) => i.model !== null)
-      .map((i) => ({ value: i.model as string })),
+      .map((i) => ({ value: i.model as string, count: i.count })),
     modelId: modelId
       .filter((i) => i.modelId !== null)
       .map((i) => ({
         value: i.modelId as string,
+        count: i.count,
       })),
     name: name
       .filter((i) => i.name !== null)
-      .map((i) => ({ value: i.name as string })),
-    traceName: traceNames
-      .filter((i) => i.traceName !== null)
-      .map((i) => ({
-        value: i.traceName as string,
-      })),
+      .map((i) => ({ value: i.name as string, count: i.count })),
     scores_avg: numericScoreNames.map((score) => score.name),
     score_categories: categoricalScoreNames,
     promptName: promptNames
       .filter((i) => i.promptName !== null)
       .map((i) => ({
         value: i.promptName as string,
+        count: i.count,
       })),
     traceTags: traceTags
       .filter((i) => i.tag !== null)
       .map((i) => ({
         value: i.tag as string,
       })),
-    type: [
-      "GENERATION",
-      "SPAN",
-      "EVENT",
-      "AGENT",
-      "TOOL",
-      "CHAIN",
-      "RETRIEVER",
-      "EVALUATOR",
-      "EMBEDDING",
-      "GUARDRAIL",
-    ].map((i) => ({
-      value: i,
-    })),
-    environment: [], // Environment is fetched separately via api.projects.environmentFilterOptions
+    type: types
+      .filter((i) => i.type !== null)
+      .map((i) => ({
+        value: i.type as string,
+        count: i.count,
+      })),
+    userId: userIds
+      .filter((i) => i.userId !== null)
+      .map((i) => ({
+        value: i.userId as string,
+        count: i.count,
+      })),
+    version: versions
+      .filter((i) => i.version !== null)
+      .map((i) => ({
+        value: i.version as string,
+        count: i.count,
+      })),
+    sessionId: sessionIds
+      .filter((i) => i.sessionId !== null)
+      .map((i) => ({
+        value: i.sessionId as string,
+        count: i.count,
+      })),
+    level: levels
+      .filter((i) => i.level !== null)
+      .map((i) => ({
+        value: i.level as string,
+        count: i.count,
+      })),
+    environment: environments
+      .filter((i) => i.environment !== null)
+      .map((i) => ({
+        value: i.environment as string,
+        count: i.count,
+      })),
   };
-
-  return res;
 }

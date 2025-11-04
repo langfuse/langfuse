@@ -117,9 +117,8 @@ export type EventsTableRow = {
   latency?: number;
   timeToFirstToken?: number;
 
-  // I/O - served directly from truncated columns
-  inputTruncated?: string;
-  outputTruncated?: string;
+  input?: string;
+  output?: string;
   metadata?: unknown;
 
   // Instrumentation
@@ -278,7 +277,10 @@ export default function ObservationsEventsTable({
 
     return {
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        filterOptions.data?.environment?.map((e) => ({
+          value: e.value,
+          count: e.count !== undefined ? Number(e.count) : undefined,
+        })) || [],
       name:
         filterOptions.data?.name?.map((n) => ({
           value: n.value,
@@ -289,7 +291,11 @@ export default function ObservationsEventsTable({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
         })) || [],
-      level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
+      level:
+        filterOptions.data?.level?.map((l) => ({
+          value: l.value,
+          count: l.count !== undefined ? Number(l.count) : undefined,
+        })) || [],
       providedModelName:
         filterOptions.data?.providedModelName?.map((m) => ({
           value: m.value,
@@ -308,7 +314,6 @@ export default function ObservationsEventsTable({
       traceTags:
         filterOptions.data?.traceTags?.map((t) => ({
           value: t.value,
-          count: t.count !== undefined ? Number(t.count) : undefined,
         })) || [],
       latency: [],
       timeToFirstToken: [],
@@ -506,12 +511,12 @@ export default function ObservationsEventsTable({
       },
     },
     {
-      accessorKey: "inputTruncated",
-      header: getEventsColumnName("inputTruncated"),
-      id: "inputTruncated",
+      accessorKey: "input",
+      header: getEventsColumnName("input"),
+      id: "input",
       size: 300,
       cell: ({ row }) => {
-        const value: string | undefined = row.getValue("inputTruncated");
+        const value: string | undefined = row.getValue("input");
         return value ? (
           <div
             className={cn(
@@ -526,12 +531,12 @@ export default function ObservationsEventsTable({
       enableHiding: true,
     },
     {
-      accessorKey: "outputTruncated",
-      id: "outputTruncated",
-      header: getEventsColumnName("outputTruncated"),
+      accessorKey: "output",
+      id: "output",
+      header: getEventsColumnName("output"),
       size: 300,
       cell: ({ row }) => {
-        const value: string | undefined = row.getValue("outputTruncated");
+        const value: string | undefined = row.getValue("output");
         return value ? (
           <div
             className={cn(
@@ -968,12 +973,12 @@ export default function ObservationsEventsTable({
             usageDetails: observation.usageDetails ?? {},
             costDetails: observation.costDetails ?? {},
             environment: observation.environment ?? undefined,
-            inputTruncated: observation.input
+            input: observation.input
               ? typeof observation.input === "string"
                 ? observation.input
                 : JSON.stringify(observation.input)
               : undefined,
-            outputTruncated: observation.output
+            output: observation.output
               ? typeof observation.output === "string"
                 ? observation.output
                 : JSON.stringify(observation.output)

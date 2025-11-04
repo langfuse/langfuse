@@ -814,3 +814,84 @@ export class CTEQueryBuilder<
     return parts.join("\n");
   }
 }
+
+/**
+ * Query builder for observation-level aggregation queries on events table.
+ * Similar to EventsAggregationQueryBuilder but for grouping by observation columns.
+ * Used for filter options queries.
+ *
+ * @example
+ * const builder = new EventsObservationAggregationQueryBuilder({
+ *   projectId: "abc123",
+ *   groupByColumn: "e.provided_model_name",
+ *   selectExpression: "e.provided_model_name as name"
+ * })
+ *   .whereRaw("e.type = 'GENERATION'")
+ *   .orderBy("ORDER BY count() DESC")
+ *   .limit(1000, 0);
+ */
+export class EventsObservationAggregationQueryBuilder extends AbstractCTEQueryBuilder {
+  private projectId: string;
+  private groupByColumn: string;
+  private selectExpression: string;
+
+  constructor(options: {
+    projectId: string;
+    groupByColumn: string;
+    selectExpression: string;
+  }) {
+    super();
+    this.projectId = options.projectId;
+    this.groupByColumn = options.groupByColumn;
+    this.selectExpression = options.selectExpression;
+    this.params.projectId = options.projectId;
+  }
+
+  /**
+   * Build the final query
+   */
+  protected buildQuery(): string {
+    const parts: string[] = [];
+
+    // CTEs
+    const cteSection = this.buildCTESection();
+    if (cteSection) {
+      parts.push(cteSection);
+    }
+
+    // SELECT
+    parts.push(`SELECT ${this.selectExpression}`);
+
+    // FROM
+    parts.push("FROM events e");
+
+    // JOINs
+    const joinSection = this.buildJoinSection();
+    if (joinSection) {
+      parts.push(joinSection);
+    }
+
+    // WHERE - project_id filter added automatically
+    const allWhereClauses = [
+      "e.project_id = {projectId: String}",
+      ...this.whereClauses,
+    ];
+    parts.push(`WHERE ${allWhereClauses.join("\n  AND ")}`);
+
+    // GROUP BY
+    parts.push(`GROUP BY ${this.groupByColumn}`);
+
+    // ORDER BY
+    if (this.orderByClause) {
+      parts.push(this.orderByClause);
+    }
+
+    // LIMIT
+    const limitSection = this.buildLimitSection();
+    if (limitSection) {
+      parts.push(limitSection);
+    }
+
+    return parts.join("\n");
+  }
+}
