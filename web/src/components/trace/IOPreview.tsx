@@ -326,7 +326,7 @@ export const IOPreview: React.FC<{
 const getMessageTitle = (
   message: z.infer<typeof ChatMlMessageSchema>,
 ): string => {
-  return message.name ?? message.role;
+  return message.name ?? message.role ?? "";
 };
 
 export const OpenAiMessageView: React.FC<{
