@@ -9,7 +9,7 @@ import {
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
 
-export default function ObservationsNew() {
+export default function Events() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 

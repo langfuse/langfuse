@@ -852,7 +852,6 @@ export const getEventsGroupedByModelId = async (
     groupByColumn: "e.model_id",
     selectExpression: "e.model_id as modelId, count() as count",
   })
-    .whereRaw("e.type = 'GENERATION'")
     .where(appliedEventsFilter)
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
@@ -891,7 +890,6 @@ export const getEventsGroupedByName = async (
     groupByColumn: "e.name",
     selectExpression: "e.name as name, count() as count",
   })
-    .whereRaw("e.type = 'GENERATION'")
     .where(appliedEventsFilter)
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
@@ -927,18 +925,18 @@ export const getEventsGroupedByPromptName = async (
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "e.prompt_id",
-    selectExpression: "e.prompt_id as id, count() as count",
+    groupByColumn: "e.prompt_name",
+    selectExpression: "e.prompt_name as promptName, count() as count",
   })
     .whereRaw("e.type = 'GENERATION'")
-    .whereRaw("e.prompt_id IS NOT NULL")
+    .whereRaw("e.prompt_name IS NOT NULL AND e.prompt_name != ''")
     .where(appliedEventsFilter)
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const res = await queryClickhouse<{ id: string; count: number }>({
+  const res = await queryClickhouse<{ promptName: string; count: number }>({
     query,
     params,
     tags: {
@@ -949,32 +947,7 @@ export const getEventsGroupedByPromptName = async (
     },
   });
 
-  const promptsWithCounts = res
-    .filter((r) => Boolean(r.id))
-    .map((r) => ({ id: r.id, count: r.count }));
-
-  if (promptsWithCounts.length === 0) return [];
-
-  const promptsFromDb = await prisma.prompt.findMany({
-    where: {
-      id: {
-        in: promptsWithCounts.map((p) => p.id),
-      },
-      projectId,
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  });
-
-  // Create a map of id to count for easy lookup
-  const countMap = new Map(promptsWithCounts.map((p) => [p.id, p.count]));
-
-  return promptsFromDb.map((p) => ({
-    promptName: p.name,
-    count: countMap.get(p.id) ?? 0,
-  }));
+  return res.filter((r) => Boolean(r.promptName));
 };
 
 /**
@@ -1033,13 +1006,9 @@ export const getEventsGroupedByUserId = async (
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "t.user_id",
-    selectExpression: "t.user_id as userId, count() as count",
+    groupByColumn: "e.user_id",
+    selectExpression: "e.user_id as userId, count() as count",
   })
-    .leftJoin(
-      "traces t",
-      "ON t.id = e.trace_id AND t.project_id = e.project_id",
-    )
     .where(appliedEventsFilter)
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
@@ -1117,13 +1086,9 @@ export const getEventsGroupedBySessionId = async (
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
-    groupByColumn: "t.session_id",
-    selectExpression: "t.session_id as sessionId, count() as count",
+    groupByColumn: "e.session_id",
+    selectExpression: "e.session_id as sessionId, count() as count",
   })
-    .leftJoin(
-      "traces t",
-      "ON t.id = e.trace_id AND t.project_id = e.project_id",
-    )
     .where(appliedEventsFilter)
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);

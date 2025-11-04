@@ -10,13 +10,10 @@ import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
-  observationEventsFilterConfig,
-  OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY,
   getEventsColumnName,
+  observationEventsFilterConfig,
 } from "../config/filter-config";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ObservationLevelType,
@@ -44,7 +41,7 @@ import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
-import { type RowSelectionState } from "@tanstack/react-table";
+import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -62,6 +59,7 @@ import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 
 export type EventsTableRow = {
   // Identity fields
@@ -297,15 +295,9 @@ export default function ObservationsEventsTable({
 
   const filterState = queryFilter.filterState.concat(dateRangeFilter);
 
-  const backendFilterState = transformFiltersForBackend(
-    filterState,
-    OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY,
-    observationEventsFilterConfig.columnDefinitions,
-  );
-
   const getCountPayload = {
     projectId,
-    filter: backendFilterState,
+    filter: filterState,
     searchQuery,
     searchType,
     page: 1,
@@ -396,7 +388,7 @@ export default function ObservationsEventsTable({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: backendFilterState,
+        filter: filterState,
         orderBy: orderByState,
       },
     });
@@ -512,7 +504,7 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
-      cell({ row }) {
+      cell: ({ row }) => {
         const value: ObservationLevelType | undefined = row.getValue("level");
         return value ? (
           <span
@@ -592,7 +584,7 @@ export default function ObservationsEventsTable({
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
-          cell: ({ row }) => {
+          cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("cost") as {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -611,7 +603,7 @@ export default function ObservationsEventsTable({
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
-          cell: ({ row }) => {
+          cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("cost") as {
               inputCost: number | undefined;
               outputCost: number | undefined;
@@ -662,7 +654,7 @@ export default function ObservationsEventsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }) => {
+          cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const latency: number | undefined = row.getValue("latency");
             const usage = row.getValue("usage") as {
               inputUsage: number;
@@ -690,7 +682,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting: true,
-          cell: ({ row }) => {
+          cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
               outputUsage: number;
@@ -707,7 +699,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting: true,
-          cell: ({ row }) => {
+          cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
               outputUsage: number;
@@ -724,7 +716,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting: true,
-          cell: ({ row }) => {
+          cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
               outputUsage: number;
@@ -840,7 +832,7 @@ export default function ObservationsEventsTable({
     },
     {
       accessorKey: "scores",
-      header: getEventsColumnName("scores"),
+      header: "Scores",
       id: "scores",
       enableHiding: true,
       defaultHidden: true,
@@ -1060,7 +1052,7 @@ export default function ObservationsEventsTable({
             <BatchExportTableButton
               {...{
                 projectId,
-                filterState: backendFilterState,
+                filterState,
                 orderByState,
                 searchQuery,
                 searchType,
