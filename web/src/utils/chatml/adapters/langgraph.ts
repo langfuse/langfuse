@@ -196,9 +196,6 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   return normalized;
 }
 
-/**
- * Filter out tool definitions and normalize remaining messages
- */
 function filterAndNormalizeMessages(data: unknown[]): unknown[] {
   return data
     .filter((msg) => !isLangGraphToolDefinition(msg))

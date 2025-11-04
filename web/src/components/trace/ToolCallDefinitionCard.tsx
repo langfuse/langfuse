@@ -12,19 +12,19 @@ interface ToolDefinition {
   parameters?: Record<string, any>;
 }
 
-interface ToolCallsPillProps {
+interface ToolCallDefinitionCardProps {
   tools: ToolDefinition[];
   toolCallCounts: Map<string, number>;
   toolNameToDefinitionNumber?: Map<string, number>;
   className?: string;
 }
 
-export function ToolCallsPill({
+export function ToolCallDefinitionCard({
   tools,
   toolCallCounts,
   toolNameToDefinitionNumber,
   className,
-}: ToolCallsPillProps) {
+}: ToolCallDefinitionCardProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [currentView, setCurrentView] = useLocalStorage<"formatted" | "json">(
     "toolCallPillViewPreference",

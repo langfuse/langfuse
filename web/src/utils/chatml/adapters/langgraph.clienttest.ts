@@ -193,7 +193,6 @@ describe("LangGraph Adapter", () => {
   });
 
   it("should not mutate original object during normalization", () => {
-    // Bug: Adapter was mutating original data, breaking JSON view
     const additionalKwargs = {
       tool_calls: [{ id: "call_123", function: { name: "Web-Search" } }],
     };
