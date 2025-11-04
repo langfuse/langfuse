@@ -49,10 +49,19 @@ else
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   fi
 
+  # Prepare a temp directory with cluster name substituted (supports names with dashes)
+  TMP_DIR=$(mktemp -d)
+  SRC_DIR="clickhouse/migrations/clustered"
+  for f in "$SRC_DIR"/*.sql; do
+    # Replace literal placeholder with quoted cluster name to satisfy ClickHouse grammar
+    sed -e "s|ON CLUSTER \\\${CLICKHOUSE_CLUSTER_NAME}|ON CLUSTER '$CLICKHOUSE_CLUSTER_NAME'|g" "$f" > "$TMP_DIR/$(basename "$f")"
+  done
   # If SKIP_CONFIRM is set, automatically answer the confirmation prompt. Otherwise run interactively.
   if [ "$SKIP_CONFIRM" = "1" ] || [ "$SKIP_CONFIRM" = "true" ]; then
-    printf 'y\n' | migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" down
+    printf 'y\n' | migrate -source file://"$TMP_DIR" -database "$DATABASE_URL" down
   else
-    migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" down
+    migrate -source file://"$TMP_DIR" -database "$DATABASE_URL" down
   fi
+  # Cleanup
+  rm -rf "$TMP_DIR"
 fi

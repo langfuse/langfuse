@@ -1,5 +1,5 @@
 -- Recreate materialized views derived from traces_null table
-CREATE MATERIALIZED VIEW IF NOT EXISTS traces_all_amt_mv ON CLUSTER default TO traces_all_amt AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS traces_all_amt_mv ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} TO traces_all_amt AS
 SELECT
     -- Identifiers
     tn.project_id                                                                              as project_id,
@@ -37,7 +37,7 @@ SELECT
 FROM traces_null tn
 GROUP BY project_id, id;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS traces_7d_amt_mv ON CLUSTER default TO traces_7d_amt AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS traces_7d_amt_mv ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} TO traces_7d_amt AS
 SELECT
     -- Identifiers
     tn.project_id                                                                              as project_id,
@@ -75,7 +75,7 @@ SELECT
 FROM traces_null tn
 GROUP BY project_id, id;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS traces_30d_amt_mv ON CLUSTER default TO traces_30d_amt AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS traces_30d_amt_mv ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} TO traces_30d_amt AS
 SELECT
     -- Identifiers
     tn.project_id                                                                              as project_id,

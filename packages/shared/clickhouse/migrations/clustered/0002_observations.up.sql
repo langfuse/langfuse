@@ -1,4 +1,4 @@
-CREATE TABLE observations ON CLUSTER default (
+CREATE TABLE observations ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} (
     `id` String,
     `trace_id` String,
     `project_id` String,

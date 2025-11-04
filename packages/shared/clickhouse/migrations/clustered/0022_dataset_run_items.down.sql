@@ -1,1 +1,1 @@
-DROP TABLE dataset_run_items ON CLUSTER default;
+DROP TABLE dataset_run_items ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME};

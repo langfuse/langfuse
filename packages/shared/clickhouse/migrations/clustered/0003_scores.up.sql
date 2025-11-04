@@ -1,4 +1,4 @@
-CREATE TABLE scores ON CLUSTER default (
+CREATE TABLE scores ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} (
     `id` String,
     `timestamp` DateTime64(3),
     `project_id` String,
