@@ -319,7 +319,7 @@ export const handleEventPropagationJob = async (
           obs.completion_start_time,
           obs.prompt_id,
           obs.prompt_name,
-          CAST(obs.prompt_version, 'Nullable(String)') AS prompt_version,
+          obs.prompt_version,
           obs.internal_model_id AS model_id,
           obs.provided_model_name,
           obs.model_parameters,

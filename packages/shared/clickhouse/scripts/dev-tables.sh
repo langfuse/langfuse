@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS events
       -- Prompt
       prompt_id String,
       prompt_name String,
-      prompt_version String,
+      prompt_version Nullable(UInt16),
 
       -- Model
       model_id String,

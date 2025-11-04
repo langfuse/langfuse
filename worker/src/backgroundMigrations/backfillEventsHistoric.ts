@@ -311,7 +311,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           o.completion_start_time,
           o.prompt_id,
           o.prompt_name,
-          CAST(o.prompt_version, 'Nullable(String)') AS prompt_version,
+          o.prompt_version,
           o.internal_model_id AS model_id,
           o.provided_model_name,
           o.model_parameters,

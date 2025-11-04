@@ -21,9 +21,9 @@ export const eventPropagationProcessor: Processor = async (job) => {
         try {
           // TODO: Reactivate
           // Step 1: Execute the main partition processing
-          // await handleEventPropagationJob(job);
+          await handleEventPropagationJob(job);
           // Step 2: Execute experiment backfill with 5-minute throttle
-          // await runExperimentBackfill();
+          await runExperimentBackfill();
         } catch (error) {
           logger.error("Error executing EventPropagationJob", error);
           throw error;
