@@ -507,19 +507,32 @@ export default function SignIn({
     typeof router.query.error === "string"
       ? decodeURIComponent(router.query.error)
       : null;
-  const nextAuthErrorDescription = signInErrors.find(
-    (e) => e.code === nextAuthError,
-  )?.description;
+  const nextAuthErrorDescription =
+    typeof router.query.error_description === "string"
+      ? decodeURIComponent(router.query.error_description)
+      : null;
+
+  // Use error_description from IdP if available, otherwise use mapped error or error code
+  const errorMessage = nextAuthErrorDescription
+    ? nextAuthErrorDescription
+    : (signInErrors.find((e) => e.code === nextAuthError)?.description ??
+      nextAuthError);
+
   useEffect(() => {
     // log unexpected sign in errors to Sentry
-    if (nextAuthError && !nextAuthErrorDescription) {
+    // An error is unexpected if it's not in our mapped errors and has no IdP error_description
+    if (
+      nextAuthError &&
+      !nextAuthErrorDescription &&
+      !signInErrors.find((e) => e.code === nextAuthError)
+    ) {
       captureException(new Error(`Sign in error: ${nextAuthError}`));
     }
   }, [nextAuthError, nextAuthErrorDescription]);
 
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
-  >(nextAuthErrorDescription ?? nextAuthError);
+  >(errorMessage);
   // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
   // Skip this flow when no SSO is configured - show password field immediately
   const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
