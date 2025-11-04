@@ -221,21 +221,6 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  const environmentFilterOptions =
-    api.projects.environmentFilterOptions.useQuery(
-      {
-        projectId,
-        fromTimestamp: dateRange?.from,
-      },
-      {
-        trpc: { context: { skipBatch: true } },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
-    );
-
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
   const startTimeFilters = oldFilterState.filter(
@@ -315,6 +300,21 @@ export default function ObservationsEventsTable({
         filterOptions.data?.traceTags?.map((t) => ({
           value: t.value,
         })) || [],
+      userId:
+        filterOptions.data?.userId?.map((u) => ({
+          value: u.value,
+          count: u.count !== undefined ? Number(u.count) : undefined,
+        })) || [],
+      sessionId:
+        filterOptions.data?.sessionId?.map((s) => ({
+          value: s.value,
+          count: s.count !== undefined ? Number(s.count) : undefined,
+        })) || [],
+      version:
+        filterOptions.data?.version?.map((v) => ({
+          value: v.value,
+          count: v.count !== undefined ? Number(v.count) : undefined,
+        })) || [],
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -327,7 +327,7 @@ export default function ObservationsEventsTable({
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
     };
-  }, [environmentFilterOptions.data, filterOptions.data]);
+  }, [filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
@@ -793,23 +793,6 @@ export default function ObservationsEventsTable({
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("endTime");
         return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
-      accessorKey: "id",
-      id: "id",
-      header: getEventsColumnName("id"),
-      size: 100,
-      defaultHidden: true,
-      enableSorting: true,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const observationId = row.getValue("id");
-        const traceId = row.getValue("traceId");
-        return typeof observationId === "string" &&
-          typeof traceId === "string" ? (
-          <TableIdOrName value={observationId} />
-        ) : null;
       },
     },
     {

@@ -1,6 +1,6 @@
 import React from "react";
 import { useRouter } from "next/router";
-import ObservationsEventsTable from "@/src/features/events/components/ObservationsEventsTable";
+import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";

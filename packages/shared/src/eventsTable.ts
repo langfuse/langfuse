@@ -1,10 +1,5 @@
-import { ObservationLevelType, ObservationType } from "./domain/observations";
-import {
-  type SingleValueOption,
-  type ColumnDefinition,
-  MultiValueOption,
-} from "./tableDefinitions";
-import { formatColumnOptions } from "./tableDefinitions/typeHelpers";
+import { ObservationLevelType } from "./domain/observations";
+import { type ColumnDefinition } from "./tableDefinitions";
 
 // Column definitions for the ClickHouse events table
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns

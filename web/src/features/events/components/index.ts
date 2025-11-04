@@ -1,1 +1,1 @@
-export { default as ObservationsEventsTable } from "./ObservationsEventsTable";
+export { default as ObservationsEventsTable } from "./EventsTable";
