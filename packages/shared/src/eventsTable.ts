@@ -1,4 +1,3 @@
-import { ObservationLevelType } from "./domain/observations";
 import { type ColumnDefinition } from "./tableDefinitions";
 
 // Column definitions for the ClickHouse events table
