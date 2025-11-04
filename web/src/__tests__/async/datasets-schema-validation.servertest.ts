@@ -455,7 +455,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
     it("should block UPSERT if existing items fail validation", async () => {
       // Create dataset without schema
-      const dataset = await makeZodVerifiedAPICall(
+      await makeZodVerifiedAPICall(
         PostDatasetsV2Response,
         "POST",
         "/api/public/v2/datasets",
