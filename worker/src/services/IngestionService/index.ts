@@ -43,6 +43,7 @@ import {
   EventRecordInsertType,
   hasNoJobConfigsCache,
   traceException,
+  flattenJsonToPathArrays,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -53,7 +54,6 @@ import {
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
   overwriteObject,
-  flattenJsonToPathArrays,
 } from "./utils";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
