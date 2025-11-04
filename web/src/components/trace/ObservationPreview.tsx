@@ -420,6 +420,7 @@ export const ObservationPreview = ({
               <div>
                 <IOPreview
                   key={preloadedObservation.id + "-input"}
+                  observationName={preloadedObservation.name ?? undefined}
                   input={observationWithInputAndOutput.data?.input ?? undefined}
                   output={
                     observationWithInputAndOutput.data?.output ?? undefined

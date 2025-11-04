@@ -1,21 +1,32 @@
 // Mock the problematic @langfuse/shared import before importing our functions
-jest.mock("@langfuse/shared", () => ({
-  ChatMessageRole: {
-    System: "system",
-    Developer: "developer",
-    User: "user",
-    Assistant: "assistant",
-    Tool: "tool",
-    Model: "model",
-  },
-  ChatMessageType: {
-    PublicAPICreated: "public-api-created",
-    AssistantToolCall: "assistant-tool-call",
-    ToolResult: "tool-result",
-    Placeholder: "placeholder",
-    System: "system",
-  },
-}));
+jest.mock("@langfuse/shared", () => {
+  const { z } = require("zod/v4");
+  return {
+    ChatMessageRole: {
+      System: "system",
+      Developer: "developer",
+      User: "user",
+      Assistant: "assistant",
+      Tool: "tool",
+      Model: "model",
+    },
+    ChatMessageType: {
+      PublicAPICreated: "public-api-created",
+      AssistantToolCall: "assistant-tool-call",
+      ToolResult: "tool-result",
+      Placeholder: "placeholder",
+      System: "system",
+    },
+    OpenAIToolSchema: z.object({
+      type: z.literal("function"),
+      function: z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        parameters: z.any().optional(),
+      }),
+    }),
+  };
+});
 
 import { normalizeInput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
@@ -203,8 +214,8 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
-  it("should handle Gemini-style tool definitions embedded in messages", () => {
-    // Gemini format embeds tool definitions as messages with role="tool"
+  it("should handle Langchain Gemini-style tool definitions embedded in messages", () => {
+    // Langchain Gemini format embeds tool definitions as messages with role="tool"
     // This test verifies that:
     // 1. Tool definition messages are filtered out of the message list
     // 2. Tool definitions are extracted and available for the playground
@@ -212,9 +223,6 @@ describe("Playground Jump Full Pipeline", () => {
     const metadata = {
       ls_provider: "google_vertexai",
       ls_model_name: "gemini-2.5-flash",
-      ls_model_type: "chat",
-      ls_temperature: 0,
-      ls_max_tokens: 8192,
     };
 
     const input = [
@@ -223,7 +231,7 @@ describe("Playground Jump Full Pipeline", () => {
         content: "You are a helpful assistant with access to tools.",
       },
       {
-        role: "assistant",
+        role: "model",
         content: [
           {
             type: "text",
@@ -284,7 +292,7 @@ describe("Playground Jump Full Pipeline", () => {
       .map(convertChatMlToPlayground)
       .filter((msg) => msg !== null);
 
-    // Should have 3 real messages (system, assistant, user)
+    // Should have 3 real messages (system, model, user)
     // Tool definition messages should be filtered out by the converter
     expect(playgroundMessages.length).toBe(3);
 
@@ -295,7 +303,7 @@ describe("Playground Jump Full Pipeline", () => {
 
     // Verify message roles
     expect(regularMessages[0]?.role).toBe("system");
-    expect(regularMessages[1]?.role).toBe("assistant");
+    expect(regularMessages[1]?.role).toBe("model");
     expect(regularMessages[2]?.role).toBe("user");
 
     // All should have type public-api-created (regular messages)
@@ -303,8 +311,8 @@ describe("Playground Jump Full Pipeline", () => {
     expect(playgroundMessages[1]?.type).toBe("public-api-created");
     expect(playgroundMessages[2]?.type).toBe("public-api-created");
 
-    // IMPORTANT: Test that tools are extracted from the Gemini input format
-    // The parseTools function in JumpToPlaygroundButton.tsx needs to handle Gemini format
+    // IMPORTANT: Test that tools are extracted from the Langchain Gemini input format
+    // The parseTools function in JumpToPlaygroundButton.tsx needs to handle Langchain Gemini format
     // where tool definitions are embedded as messages with role="tool"
 
     // We need to test parseTools behavior directly
@@ -395,5 +403,117 @@ describe("Playground Jump Full Pipeline", () => {
       },
     });
     expect(tools[1].name).toBe("search_web");
+  });
+
+  it("should stringify array content in tool messages for playground (eg as from langgraph)", () => {
+    // CodeMirror expects string but got array in tool result content
+    const input = [
+      {
+        role: "tool",
+        content: [{ url: "https://example.com", title: "Example" }],
+        tool_call_id: "call_123",
+      },
+    ];
+
+    const inResult = normalizeInput(input, { framework: "langgraph" });
+    expect(inResult.success).toBe(true);
+
+    const playgroundMsg = convertChatMlToPlayground(inResult.data![0]);
+    expect(playgroundMsg?.type).toBe("tool-result");
+    // Array must be stringified, not left as object
+    if (playgroundMsg && "content" in playgroundMsg) {
+      expect(typeof playgroundMsg.content).toBe("string");
+      expect(playgroundMsg.content).toBe(
+        '[{"url":"https://example.com","title":"Example"}]',
+      );
+    }
+  });
+
+  it("should extract tools from Microsoft Agent Framework metadata", () => {
+    // Microsoft Agent Framework stores tools in metadata.attributes["gen_ai.tool.definitions"]
+    const input = [
+      {
+        role: "user",
+        parts: [
+          {
+            type: "text",
+            content: "What's the weather like in Portland?",
+          },
+        ],
+      },
+    ];
+
+    const metadata = {
+      attributes: {
+        "gen_ai.provider.name": "microsoft.agent_framework",
+        "gen_ai.operation.name": "invoke_agent",
+        "gen_ai.tool.definitions": [
+          {
+            type: "function",
+            function: {
+              name: "get_weather",
+              description: "Get the weather for a given location.",
+              parameters: {
+                properties: {
+                  location: {
+                    description: "The location to get the weather for.",
+                    title: "Location",
+                    type: "string",
+                  },
+                },
+                required: ["location"],
+                title: "get_weather_input",
+                type: "object",
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "get_time",
+              description: "Get the current time in a timezone.",
+              parameters: {
+                properties: {
+                  timezone: {
+                    description: "IANA timezone identifier",
+                    type: "string",
+                  },
+                },
+                required: ["timezone"],
+                type: "object",
+              },
+            },
+          },
+        ],
+      },
+      scope: {
+        name: "agent_framework",
+        version: "1.0.0b251007",
+      },
+    };
+
+    // Test extractTools with metadata parameter
+    const tools = extractTools(input, metadata);
+
+    expect(tools.length).toBe(2);
+    expect(tools[0]).toEqual({
+      id: expect.any(String),
+      name: "get_weather",
+      description: "Get the weather for a given location.",
+      parameters: {
+        properties: {
+          location: {
+            description: "The location to get the weather for.",
+            title: "Location",
+            type: "string",
+          },
+        },
+        required: ["location"],
+        title: "get_weather_input",
+        type: "object",
+      },
+    });
+    expect(tools[1].name).toBe("get_time");
+    expect(tools[1].description).toBe("Get the current time in a timezone.");
   });
 });

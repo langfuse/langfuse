@@ -9,38 +9,84 @@ jest.mock("@langfuse/shared", () => ({
   },
 }));
 
-import { normalizeInput } from "./index";
+import { normalizeInput, normalizeOutput } from "./index";
 import { openAIAdapter } from "./openai";
 
 describe("OpenAI Adapter", () => {
-  it("should detect OpenAI and reject LangGraph", () => {
-    expect(openAIAdapter.detect({ observationName: "OpenAI-generation" })).toBe(
-      true,
-    );
+  describe("detection", () => {
+    it("should detect OpenAI and reject LangGraph", () => {
+      expect(
+        openAIAdapter.detect({ observationName: "OpenAI-generation" }),
+      ).toBe(true);
 
-    expect(
-      openAIAdapter.detect({
-        metadata: { messages: [{ role: "user", content: "test" }] },
-      }),
-    ).toBe(true);
+      expect(
+        openAIAdapter.detect({
+          metadata: { messages: [{ role: "user", content: "test" }] },
+        }),
+      ).toBe(true);
 
-    expect(openAIAdapter.detect({ metadata: { framework: "langgraph" } })).toBe(
-      false,
-    );
+      expect(
+        openAIAdapter.detect({ metadata: { framework: "langgraph" } }),
+      ).toBe(false);
 
-    expect(
-      openAIAdapter.detect({
-        metadata: { langgraph_node: "agent", langgraph_step: 3 },
-      }),
-    ).toBe(false);
+      expect(
+        openAIAdapter.detect({
+          metadata: { langgraph_node: "agent", langgraph_step: 3 },
+        }),
+      ).toBe(false);
 
-    expect(
-      openAIAdapter.detect({
-        metadata: {
-          messages: [{ type: "human", content: "test" }],
+      expect(
+        openAIAdapter.detect({
+          metadata: {
+            messages: [{ type: "human", content: "test" }],
+          },
+        }),
+      ).toBe(false);
+    });
+
+    it("should detect Chat Completions API formats", () => {
+      // Request format with {tools, messages}
+      expect(
+        openAIAdapter.detect({
+          metadata: {
+            tools: [{ type: "function", function: { name: "test" } }],
+            messages: [{ role: "user", content: "test" }],
+          },
+        }),
+      ).toBe(true);
+
+      // Response format with nested tool_calls (via data field)
+      expect(
+        openAIAdapter.detect({
+          data: {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "call_123",
+                type: "function",
+                function: { name: "get_weather", arguments: "{}" },
+              },
+            ],
+          },
+        }),
+      ).toBe(true);
+    });
+
+    it("should reject Microsoft Agent format with top-level parts", () => {
+      // Microsoft Agent/Gemini use top-level parts, OpenAI uses parts inside content
+      const input = [
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Hello" }],
         },
-      }),
-    ).toBe(false);
+      ];
+
+      // Should reject when passed as metadata
+      expect(openAIAdapter.detect({ metadata: input })).toBe(false);
+
+      // Should also reject when passed as data
+      expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
+    });
   });
 
   it("should normalize tool_calls arguments to JSON strings", () => {
@@ -66,12 +112,11 @@ describe("OpenAI Adapter", () => {
     const result = normalizeInput(input, { framework: "openai" });
     expect(result.success).toBe(true);
 
-    // Verify arguments were stringified (ChatMlSchema nests in json.json due to content union quirk)
-    const toolCalls = result.data?.[0].json?.json?.tool_calls;
+    // Verify tool_calls were flattened to ChatML format and arguments were stringified
+    const toolCalls = result.data?.[0].tool_calls;
     expect(toolCalls).toBeDefined();
-    expect(toolCalls?.[0].function.arguments).toBe(
-      '{"city":"NYC","units":"celsius"}',
-    );
+    expect(toolCalls?.[0].name).toBe("get_weather");
+    expect(toolCalls?.[0].arguments).toBe('{"city":"NYC","units":"celsius"}');
   });
 
   it("should handle multimodal content (array of parts)", () => {
@@ -132,5 +177,74 @@ describe("OpenAI Adapter", () => {
     expect(result.data?.[0].content).toBe(
       '{"temperature":72,"conditions":"sunny"}',
     );
+  });
+
+  describe("Chat Completions API", () => {
+    it("should handle request format with tools and flatten tool_calls", () => {
+      const input = {
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "get_weather",
+              description: "Get weather",
+              parameters: { type: "object" },
+            },
+          },
+        ],
+        messages: [
+          {
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "call_abc",
+                type: "function",
+                function: {
+                  name: "get_weather",
+                  arguments: { location: "NYC" },
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, { framework: "openai" });
+      expect(result.success).toBe(true);
+
+      // Tools attached to messages
+      expect(result.data?.[0].tools).toHaveLength(1);
+      expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+
+      // Tool calls flattened
+      expect(result.data?.[0].tool_calls?.[0].name).toBe("get_weather");
+      expect(result.data?.[0].tool_calls?.[0].arguments).toBe(
+        '{"location":"NYC"}',
+      );
+    });
+
+    it("should handle response format with tool calls", () => {
+      const output = {
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_xyz",
+            type: "function",
+            function: {
+              name: "query_db",
+              arguments: { query: "test" },
+            },
+          },
+        ],
+      };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+      expect(result.success).toBe(true);
+
+      expect(result.data?.[0].tool_calls?.[0].name).toBe("query_db");
+      expect(result.data?.[0].tool_calls?.[0].arguments).toBe(
+        '{"query":"test"}',
+      );
+    });
   });
 });

@@ -11,7 +11,10 @@ import type {
 } from "@/src/components/schemas/ChatMlSchema";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import {
+  MarkdownJsonView,
+  MarkdownJsonViewHeader,
+} from "@/src/components/ui/MarkdownJsonView";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -25,6 +28,10 @@ import {
   cleanLegacyOutput,
   extractAdditionalInput,
 } from "@/src/utils/chatml";
+import { ToolCallDefinitionCard } from "@/src/components/trace/ToolCallDefinitionCard";
+import { ToolCallInvocationsView } from "@/src/components/trace/ToolCallInvocationsView";
+import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -71,7 +78,15 @@ export const IOPreview: React.FC<{
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  const { canDisplayAsChat, allMessages, additionalInput } = useMemo(() => {
+  const {
+    canDisplayAsChat,
+    allMessages,
+    additionalInput,
+    allTools,
+    toolCallCounts,
+    messageToToolCallNumbers,
+    toolNameToDefinitionNumber,
+  } = useMemo(() => {
     const ctx = { metadata, observationName: props.observationName };
     const inResult = normalizeInput(input, ctx);
     const outResult = normalizeOutput(output, ctx);
@@ -82,12 +97,63 @@ export const IOPreview: React.FC<{
       outputClean,
     );
 
+    // extract all unique tools from messages and assign them sequential numbers
+    const toolsMap = new Map<
+      string,
+      { name: string; description?: string; parameters?: Record<string, any> }
+    >();
+    const toolNameToDefinitionNumber = new Map<string, number>();
+    let toolDefinitionCounter = 0;
+
+    for (const message of messages) {
+      if (message.tools && Array.isArray(message.tools)) {
+        for (const tool of message.tools) {
+          if (!toolsMap.has(tool.name)) {
+            toolsMap.set(tool.name, tool);
+            toolDefinitionCounter++;
+            toolNameToDefinitionNumber.set(tool.name, toolDefinitionCounter);
+          }
+        }
+      }
+    }
+    const uniqueTools = Array.from(toolsMap.values());
+
+    // sequential numbering for tool call invocations
+    let toolCallCounter = 0;
+    const messageToToolCallNumbers = new Map<number, number[]>();
+    const toolCallCounts = new Map<string, number>();
+
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+      if (message.tool_calls && Array.isArray(message.tool_calls)) {
+        const messageToolNumbers: number[] = [];
+
+        for (const toolCall of message.tool_calls) {
+          if (toolCall.name && typeof toolCall.name === "string") {
+            toolCallCounter++;
+            messageToolNumbers.push(toolCallCounter);
+            toolCallCounts.set(
+              toolCall.name,
+              (toolCallCounts.get(toolCall.name) || 0) + 1,
+            );
+          }
+        }
+
+        if (messageToolNumbers.length > 0) {
+          messageToToolCallNumbers.set(i, messageToolNumbers);
+        }
+      }
+    }
+
     return {
-      // display as chat if normalization succeeded AND we have messages to show
       canDisplayAsChat:
         (inResult.success || outResult.success) && messages.length > 0,
       allMessages: messages,
       additionalInput: extractAdditionalInput(input),
+      allTools: uniqueTools,
+      toolCallCounts,
+      messageToToolCallNumbers,
+      toolNameToDefinitionNumber,
     };
   }, [input, output, metadata, props.observationName]);
 
@@ -110,6 +176,25 @@ export const IOPreview: React.FC<{
   // default I/O
   return (
     <>
+      {/* Show tools at the top if available */}
+      {allTools.length > 0 && (
+        <div className="mb-4 border-b border-border pb-4">
+          <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
+          <ToolCallDefinitionCard
+            tools={allTools.sort((a, b) => {
+              const callCountA = toolCallCounts.get(a.name) || 0;
+              const callCountB = toolCallCounts.get(b.name) || 0;
+              // Sort by called status (called first), then by call count descending
+              if (callCountA > 0 && callCountB === 0) return -1;
+              if (callCountA === 0 && callCountB > 0) return 1;
+              return callCountB - callCountA;
+            })}
+            toolCallCounts={toolCallCounts}
+            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+          />
+        </div>
+      )}
+
       {isPrettyViewAvailable && !currentView ? (
         <div className="flex w-full flex-row justify-start">
           <Tabs
@@ -151,6 +236,7 @@ export const IOPreview: React.FC<{
                 }
                 media={media ?? []}
                 currentView={selectedView}
+                messageToToolCallNumbers={messageToToolCallNumbers}
               />
             ) : (
               <>
@@ -236,6 +322,13 @@ export const IOPreview: React.FC<{
   );
 };
 
+// create message title
+const getMessageTitle = (
+  message: z.infer<typeof ChatMlMessageSchema>,
+): string => {
+  return message.name ?? message.role ?? "";
+};
+
 export const OpenAiMessageView: React.FC<{
   messages: z.infer<typeof ChatMlArraySchema>;
   title?: string;
@@ -245,6 +338,7 @@ export const OpenAiMessageView: React.FC<{
   additionalInput?: Record<string, unknown>;
   projectIdForPromptButtons?: string;
   currentView?: "pretty" | "json";
+  messageToToolCallNumbers?: Map<number, number[]>;
 }> = ({
   title,
   messages,
@@ -254,18 +348,43 @@ export const OpenAiMessageView: React.FC<{
   additionalInput,
   projectIdForPromptButtons,
   currentView = "json",
+  messageToToolCallNumbers,
 }) => {
   const COLLAPSE_THRESHOLD = 3;
-  const [isCollapsed, setCollapsed] = useState(
-    collapseLongHistory && messages.length > COLLAPSE_THRESHOLD ? true : null,
-  );
 
-  const shouldRenderContent = (message: ChatMlMessageSchema) => {
-    return message.content != null || !!message.audio;
+  // stores which messages should show table view (json) instead of pretty view
+  const [showTableView, setShowTableView] = useState<Set<number>>(new Set());
+
+  const toggleTableView = (index: number) => {
+    setShowTableView((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
   };
 
-  const shouldRenderJson = (message: ChatMlMessageSchema) => {
-    return !!message.json;
+  const shouldRenderContent = (message: ChatMlMessageSchema) => {
+    // Don't render if content is empty string or null/undefined in ChatML view
+    // happens e.g. if an LLM only uses a tool
+    const hasContent = message.content != null && message.content !== "";
+    return hasContent || !!message.audio;
+  };
+
+  // TODO: removed for now, we never show additional JSON alongside the ChatML content
+  // because we now have a switch to display it. We re-add this depending on user feedback.
+  // const shouldRenderJson = (message: ChatMlMessageSchema) => {
+  //   return !!message.json;
+  // };
+  const hasAdditionalData = (message: ChatMlMessageSchema) => {
+    // if anything more than role & content exists, we show the button
+    const messageKeys = Object.keys(message).filter(
+      (key) => key !== "role" && key !== "content",
+    );
+    return messageKeys.length > 0;
   };
 
   const isPlaceholderMessage = (message: ChatMlMessageSchema) => {
@@ -277,10 +396,19 @@ export const OpenAiMessageView: React.FC<{
       messages.filter(
         (message) =>
           shouldRenderContent(message) ||
-          shouldRenderJson(message) ||
+          // shouldRenderJson(message) ||
+          hasAdditionalData(message) ||
           isPlaceholderMessage(message),
       ),
     [messages],
+  );
+
+  // Initialize collapsed state based on filtered messages, we only want to show
+  // "Show X more..." if there actually are more messages to show
+  const [isCollapsed, setCollapsed] = useState(
+    collapseLongHistory && messagesToRender.length > COLLAPSE_THRESHOLD
+      ? true
+      : null,
   );
 
   return (
@@ -289,44 +417,27 @@ export const OpenAiMessageView: React.FC<{
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
           {messagesToRender
+            .map((message, originalIndex) => ({ message, originalIndex }))
             .filter(
-              (_, i) =>
+              ({ originalIndex }) =>
                 // show all if not collapsed or null; show first and last n if collapsed
                 !isCollapsed ||
-                i == 0 ||
-                i > messagesToRender.length - COLLAPSE_THRESHOLD,
+                originalIndex == 0 ||
+                originalIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
             )
-            .map((message, index) => (
-              <Fragment key={index}>
-                {isPlaceholderMessage(message) ? (
-                  <>
-                    <div
-                      style={{
-                        display: shouldRenderMarkdown ? "block" : "none",
-                      }}
-                    >
-                      <MarkdownJsonView
-                        title="Placeholder"
-                        content={message.name || "Unnamed placeholder"}
-                        customCodeHeaderClassName={cn("bg-primary-foreground")}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: shouldRenderMarkdown ? "none" : "block",
-                      }}
-                    >
-                      <PrettyJsonView
-                        title="Placeholder"
-                        json={message.name || "Unnamed placeholder"}
-                        projectIdForPromptButtons={projectIdForPromptButtons}
-                        currentView={currentView}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {shouldRenderContent(message) && (
+            .map(({ message, originalIndex }) => {
+              // Check if user toggled to table view
+              const isShowingTable = showTableView.has(originalIndex);
+              return (
+                <>
+                  <div
+                    key={originalIndex}
+                    className={cn(
+                      "transition-colors hover:bg-muted",
+                      !isShowingTable && "group",
+                    )}
+                  >
+                    {isPlaceholderMessage(message) ? (
                       <>
                         <div
                           style={{
@@ -334,19 +445,11 @@ export const OpenAiMessageView: React.FC<{
                           }}
                         >
                           <MarkdownJsonView
-                            title={message.name ?? message.role}
-                            content={message.content || '""'}
-                            className={cn(
-                              !!message.json &&
-                                !isPlaceholderMessage(message) &&
-                                "rounded-b-none",
-                            )}
+                            title="Placeholder"
+                            content={message.name || "Unnamed placeholder"}
                             customCodeHeaderClassName={cn(
-                              message.role === "assistant" && "bg-secondary",
-                              message.role === "system" &&
-                                "bg-primary-foreground",
+                              "bg-primary-foreground",
                             )}
-                            audio={message.audio}
                           />
                         </div>
                         <div
@@ -355,52 +458,187 @@ export const OpenAiMessageView: React.FC<{
                           }}
                         >
                           <PrettyJsonView
-                            title={message.name ?? message.role}
-                            json={message.content}
+                            title="Placeholder"
+                            json={message.name || "Unnamed placeholder"}
                             projectIdForPromptButtons={
                               projectIdForPromptButtons
                             }
-                            className={cn(
-                              !!message.json &&
-                                !isPlaceholderMessage(message) &&
-                                "rounded-b-none",
-                            )}
                             currentView={currentView}
                           />
                         </div>
                       </>
-                    )}
-                    {shouldRenderJson(message) &&
-                      !isPlaceholderMessage(message) && (
-                        <PrettyJsonView
-                          title={
-                            message.content
-                              ? undefined
-                              : (message.name ?? message.role)
-                          }
-                          json={message.json}
-                          projectIdForPromptButtons={projectIdForPromptButtons}
-                          className={cn(
-                            !!message.content && "rounded-t-none border-t-0",
+                    ) : (
+                      <>
+                        {shouldRenderContent(message) &&
+                          !showTableView.has(originalIndex) && (
+                            <>
+                              <div
+                                style={{
+                                  display: shouldRenderMarkdown
+                                    ? "block"
+                                    : "none",
+                                }}
+                              >
+                                <MarkdownJsonView
+                                  title={getMessageTitle(message)}
+                                  content={message.content || '""'}
+                                  customCodeHeaderClassName={cn(
+                                    message.role === "assistant" &&
+                                      "bg-secondary",
+                                    message.role === "system" &&
+                                      "bg-primary-foreground",
+                                  )}
+                                  audio={message.audio}
+                                  controlButtons={
+                                    hasAdditionalData(message) ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        onClick={() =>
+                                          toggleTableView(originalIndex)
+                                        }
+                                        title="Show full message data"
+                                        className="-mr-2 hover:bg-border"
+                                      >
+                                        <ListChevronsUpDown className="h-3 w-3" />
+                                      </Button>
+                                    ) : undefined
+                                  }
+                                />
+                                {message.tool_calls &&
+                                  Array.isArray(message.tool_calls) &&
+                                  message.tool_calls.length > 0 && (
+                                    <div className="mt-2">
+                                      <ToolCallInvocationsView
+                                        message={message}
+                                        toolCallNumbers={messageToToolCallNumbers?.get(
+                                          originalIndex,
+                                        )}
+                                      />
+                                    </div>
+                                  )}
+                              </div>
+                              <div
+                                style={{
+                                  display: shouldRenderMarkdown
+                                    ? "none"
+                                    : "block",
+                                }}
+                              >
+                                <PrettyJsonView
+                                  title={getMessageTitle(message)}
+                                  json={message.content}
+                                  projectIdForPromptButtons={
+                                    projectIdForPromptButtons
+                                  }
+                                  currentView={currentView}
+                                  controlButtons={
+                                    hasAdditionalData(message) ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        onClick={() =>
+                                          toggleTableView(originalIndex)
+                                        }
+                                        title="Show full message data"
+                                        className="-mr-2 hover:bg-border"
+                                      >
+                                        <ListChevronsUpDown className="h-3 w-3" />
+                                      </Button>
+                                    ) : undefined
+                                  }
+                                />
+                                {message.tool_calls &&
+                                  Array.isArray(message.tool_calls) &&
+                                  message.tool_calls.length > 0 && (
+                                    <div className="mt-2">
+                                      <ToolCallInvocationsView
+                                        message={message}
+                                        toolCallNumbers={messageToToolCallNumbers?.get(
+                                          originalIndex,
+                                        )}
+                                      />
+                                    </div>
+                                  )}
+                              </div>
+                            </>
                           )}
-                          currentView={shouldRenderMarkdown ? "pretty" : "json"}
-                        />
-                      )}
-                  </>
-                )}
-                {isCollapsed !== null && index === 0 ? (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setCollapsed((v) => !v)}
-                  >
-                    {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
-                      : "Hide history"}
-                  </Button>
-                ) : null}
-              </Fragment>
-            ))}
+                        {isShowingTable ? (
+                          // User clicked toggle - show full JSON
+                          <PrettyJsonView
+                            title={getMessageTitle(message)}
+                            json={message}
+                            projectIdForPromptButtons={
+                              projectIdForPromptButtons
+                            }
+                            currentView="pretty"
+                            controlButtons={
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                onClick={() => toggleTableView(originalIndex)}
+                                title="Show formatted view"
+                                className="-mr-2 hover:bg-border"
+                              >
+                                <ListChevronsDownUp className="h-3 w-3 text-primary" />
+                              </Button>
+                            }
+                          />
+                        ) : !shouldRenderContent(message) &&
+                          message.tool_calls &&
+                          Array.isArray(message.tool_calls) &&
+                          message.tool_calls.length > 0 ? (
+                          // No content but has tool_calls - show tool invocations
+                          <div>
+                            <MarkdownJsonViewHeader
+                              title={getMessageTitle(message)}
+                              handleOnValueChange={() => {}}
+                              handleOnCopy={() => {
+                                const rawText = JSON.stringify(
+                                  message,
+                                  null,
+                                  2,
+                                );
+                                void copyTextToClipboard(rawText);
+                              }}
+                              controlButtons={
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  onClick={() => toggleTableView(originalIndex)}
+                                  title="Show full message data"
+                                  className="-mr-2 hover:bg-border"
+                                >
+                                  <ListChevronsUpDown className="h-3 w-3" />
+                                </Button>
+                              }
+                            />
+                            <ToolCallInvocationsView
+                              message={message}
+                              toolCallNumbers={messageToToolCallNumbers?.get(
+                                originalIndex,
+                              )}
+                            />
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                  {isCollapsed !== null && originalIndex === 0 ? (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setCollapsed((v) => !v)}
+                      className="underline"
+                    >
+                      {isCollapsed
+                        ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
+                        : "Hide history"}
+                    </Button>
+                  ) : null}
+                </>
+              );
+            })}
         </div>
         {additionalInput && (
           <PrettyJsonView
