@@ -53,10 +53,10 @@ interface SpanRecord {
   model_id: string;
   provided_model_name: string;
   model_parameters: string;
-  provided_usage_details: string;
-  usage_details: string;
-  provided_cost_details: string;
-  cost_details: string;
+  provided_usage_details: Record<string, number> | null;
+  usage_details: Record<string, number> | null;
+  provided_cost_details: Record<string, number> | null;
+  cost_details: Record<string, number> | null;
   total_cost: number;
   metadata: Record<string, unknown>;
   user_id: string;
@@ -421,19 +421,11 @@ async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       modelName: span.provided_model_name || undefined,
       modelParameters: span.model_parameters || undefined,
 
-      // Usage & Cost - parse from JSON strings if present
-      providedUsageDetails: span.provided_usage_details
-        ? JSON.parse(span.provided_usage_details)
-        : undefined,
-      usageDetails: span.usage_details
-        ? JSON.parse(span.usage_details)
-        : undefined,
-      providedCostDetails: span.provided_cost_details
-        ? JSON.parse(span.provided_cost_details)
-        : undefined,
-      costDetails: span.cost_details
-        ? JSON.parse(span.cost_details)
-        : undefined,
+      // Usage & Cost
+      providedUsageDetails: span.provided_usage_details || undefined,
+      usageDetails: span.usage_details || undefined,
+      providedCostDetails: span.provided_cost_details || undefined,
+      costDetails: span.cost_details || undefined,
       totalCost: span.total_cost || undefined,
 
       // I/O
