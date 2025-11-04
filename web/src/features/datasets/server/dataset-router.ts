@@ -60,6 +60,7 @@ import {
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
+
   try {
     return !!data ? (JSON.parse(data) as Prisma.InputJsonObject) : undefined;
   } catch (e) {
@@ -67,6 +68,7 @@ const formatDatasetItemData = (data: string | null | undefined) => {
       "[trpc.datasets.formatDatasetItemData] failed to parse dataset item data",
       e,
     );
+
     return undefined;
   }
 };
@@ -128,18 +130,18 @@ const normalizeForUpdate = (
  * Validates dataset item field and throws TRPCError if invalid
  * For CREATE operations, set normalizeUndefined=true to treat undefined as null
  */
-const validateAndThrowIfInvalid = (params: {
+const validateDatasetItemFieldAndThrowIfInvalid = (params: {
   schema: Record<string, unknown> | null | undefined;
   data: unknown;
   field: "input" | "expectedOutput";
   itemId: string;
-  normalizeUndefined?: boolean;
+  validateUndefinedAsNull?: boolean;
 }) => {
   if (!params.schema) return; // No schema = no validation
 
   // Normalize undefined/Prisma.DbNull to null for CREATE operations
   const valueToValidate =
-    params.normalizeUndefined &&
+    params.validateUndefinedAsNull &&
     (params.data === undefined || params.data === Prisma.DbNull)
       ? null
       : params.data;
@@ -164,7 +166,7 @@ const validateAndThrowIfInvalid = (params: {
  * Validates bulk items and returns indices of invalid items with errors
  * For CREATE operations where partial success is acceptable
  */
-const validateBulkItems = (params: {
+const validateBulkDatasetItems = (params: {
   items: Array<{
     id: string;
     input: unknown;
@@ -838,7 +840,7 @@ export const datasetRouter = createTRPCRouter({
             ? null
             : (JSON.parse(input.input) as Prisma.InputJsonObject);
 
-        validateAndThrowIfInvalid({
+        validateDatasetItemFieldAndThrowIfInvalid({
           schema: dataset.inputSchema as Record<string, unknown> | null,
           data: parsedInput,
           field: "input",
@@ -855,7 +857,7 @@ export const datasetRouter = createTRPCRouter({
             ? null
             : (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject);
 
-        validateAndThrowIfInvalid({
+        validateDatasetItemFieldAndThrowIfInvalid({
           schema: dataset.expectedOutputSchema as Record<
             string,
             unknown
@@ -1186,6 +1188,8 @@ export const datasetRouter = createTRPCRouter({
           name: duplicateDatasetName(counter),
           description: dataset.description ?? undefined,
           metadata: dataset.metadata ?? undefined,
+          inputSchema: dataset.inputSchema ?? undefined,
+          expectedOutputSchema: dataset.expectedOutputSchema ?? undefined,
         },
         projectId: input.projectId,
       });
@@ -1257,20 +1261,20 @@ export const datasetRouter = createTRPCRouter({
       const parsedExpectedOutput = formatDatasetItemData(input.expectedOutput);
 
       // Validate input and expected output against schemas
-      validateAndThrowIfInvalid({
+      validateDatasetItemFieldAndThrowIfInvalid({
         schema: dataset.inputSchema as Record<string, unknown> | null,
         data: parsedInput,
         field: "input",
         itemId: "temp",
-        normalizeUndefined: true, // For CREATE, undefined becomes null in DB
+        validateUndefinedAsNull: true, // For CREATE, undefined becomes null in DB
       });
 
-      validateAndThrowIfInvalid({
+      validateDatasetItemFieldAndThrowIfInvalid({
         schema: dataset.expectedOutputSchema as Record<string, unknown> | null,
         data: parsedExpectedOutput,
         field: "expectedOutput",
         itemId: "temp",
-        normalizeUndefined: true, // For CREATE, undefined becomes null in DB
+        validateUndefinedAsNull: true, // For CREATE, undefined becomes null in DB
       });
 
       const datasetItem = await ctx.prisma.datasetItem.create({
@@ -1366,7 +1370,7 @@ export const datasetRouter = createTRPCRouter({
       }));
 
       // Validate all items and collect errors
-      const validationErrors = validateBulkItems({
+      const validationErrors = validateBulkDatasetItems({
         items: itemsWithIds,
         datasetSchemas: datasetSchemaMap,
       });

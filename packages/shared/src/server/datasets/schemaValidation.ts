@@ -2,13 +2,20 @@ import Ajv, { AnySchema } from "ajv";
 import addFormats from "ajv-formats";
 import type { PrismaClient } from "../../db";
 
-// JSON Schema Draft 2020-12
-const ajv = new Ajv({
-  strict: false,
-  allErrors: true, // Return all errors, not just first
-  verbose: true,
-});
-addFormats(ajv);
+/**
+ * Creates a fresh Ajv instance for validation
+ * Using a fresh instance for each validation prevents memory leaks from cached compiled schemas
+ */
+const createAjvInstance = () => {
+  const ajv = new Ajv({
+    strict: false,
+    allErrors: true, // Return all errors, not just first
+    verbose: true,
+  });
+  addFormats(ajv);
+
+  return ajv;
+};
 
 /**
  * Validates if a given object is a valid JSON Schema
@@ -16,6 +23,7 @@ addFormats(ajv);
  */
 export function isValidJSONSchema(schema: unknown) {
   try {
+    const ajv = createAjvInstance();
     // This will throw an error if the schema is invalid
     ajv.compile(schema as AnySchema);
 
@@ -52,6 +60,7 @@ export type FieldValidationResult =
 
 /**
  * Validates a single dataset item field against a JSON schema
+ * Creates a fresh Ajv instance for each validation to prevent memory leaks
  */
 export function validateDatasetItemField(params: {
   data: unknown;
@@ -60,6 +69,7 @@ export function validateDatasetItemField(params: {
   field: "input" | "expectedOutput";
 }): FieldValidationResult {
   const { data, schema } = params;
+  const ajv = createAjvInstance();
   const validate = ajv.compile(schema);
   const isValid = validate(data);
 
