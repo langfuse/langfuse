@@ -313,6 +313,7 @@ const parseOpenAIContentParts = (
 export function MarkdownView({
   markdown,
   title,
+  titleIcon,
   customCodeHeaderClassName,
   audio,
   media,
@@ -320,7 +321,8 @@ export function MarkdownView({
   controlButtons,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
-  title?: React.ReactNode;
+  title?: string;
+  titleIcon?: React.ReactNode;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
@@ -351,6 +353,7 @@ export function MarkdownView({
       {title ? (
         <MarkdownJsonViewHeader
           title={title}
+          titleIcon={titleIcon}
           handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
           controlButtons={controlButtons}
