@@ -90,6 +90,10 @@ export function validateDatasetItemField(params: {
 /**
  * Validates all dataset items against dataset schemas
  * Used when adding or updating schemas on an existing dataset
+ *
+ * Uses batched validation with early exit for memory efficiency and fast feedback:
+ * - Processes items in batches of 5000 to avoid memory issues
+ * - Stops after collecting 10 validation errors (enough for debugging)
  */
 export async function validateAllDatasetItems(params: {
   datasetId: string;
@@ -101,55 +105,83 @@ export async function validateAllDatasetItems(params: {
   const { datasetId, projectId, inputSchema, expectedOutputSchema, prisma } =
     params;
 
-  const items = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
-      projectId,
-      status: "ACTIVE",
-    },
-    select: {
-      id: true,
-      input: true,
-      expectedOutput: true,
-    },
-  });
+  const BATCH_SIZE = 5000;
+  const MAX_ERRORS = 10;
 
+  let offset = 0;
   const errors: ValidationError[] = [];
 
-  for (const item of items) {
-    // Validate input if schema exists (validate even if value is null)
-    if (inputSchema) {
-      const result = validateDatasetItemField({
-        data: item.input,
-        schema: inputSchema,
-        itemId: item.id,
-        field: "input",
-      });
-      if (!result.isValid) {
-        errors.push({
-          datasetItemId: item.id,
+  while (errors.length < MAX_ERRORS) {
+    // Fetch batch
+    const items = await prisma.datasetItem.findMany({
+      where: {
+        datasetId,
+        projectId,
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+        input: true,
+        expectedOutput: true,
+      },
+      skip: offset,
+      take: BATCH_SIZE,
+      orderBy: { id: "asc" }, // Consistent ordering for pagination
+    });
+
+    // No more items
+    if (items.length === 0) break;
+
+    // Validate batch
+    for (const item of items) {
+      // Validate input if schema exists (validate even if value is null)
+      if (inputSchema) {
+        const result = validateDatasetItemField({
+          data: item.input,
+          schema: inputSchema,
+          itemId: item.id,
           field: "input",
-          errors: result.errors,
         });
+        if (!result.isValid) {
+          errors.push({
+            datasetItemId: item.id,
+            field: "input",
+            errors: result.errors,
+          });
+          if (errors.length >= MAX_ERRORS) break;
+        }
       }
+
+      // Validate expected output if schema exists (validate even if value is null)
+      if (expectedOutputSchema && errors.length < MAX_ERRORS) {
+        const result = validateDatasetItemField({
+          data: item.expectedOutput,
+          schema: expectedOutputSchema,
+          itemId: item.id,
+          field: "expectedOutput",
+        });
+        if (!result.isValid) {
+          errors.push({
+            datasetItemId: item.id,
+            field: "expectedOutput",
+            errors: result.errors,
+          });
+          if (errors.length >= MAX_ERRORS) break;
+        }
+      }
+
+      // Early exit if we have enough errors
+      if (errors.length >= MAX_ERRORS) break;
     }
 
-    // Validate expected output if schema exists (validate even if value is null)
-    if (expectedOutputSchema) {
-      const result = validateDatasetItemField({
-        data: item.expectedOutput,
-        schema: expectedOutputSchema,
-        itemId: item.id,
-        field: "expectedOutput",
-      });
-      if (!result.isValid) {
-        errors.push({
-          datasetItemId: item.id,
-          field: "expectedOutput",
-          errors: result.errors,
-        });
-      }
-    }
+    // Move to next batch
+    offset += BATCH_SIZE;
+
+    // Last batch was incomplete - we've processed all items
+    if (items.length < BATCH_SIZE) break;
+
+    // Early exit if we have enough errors
+    if (errors.length >= MAX_ERRORS) break;
   }
 
   return {
