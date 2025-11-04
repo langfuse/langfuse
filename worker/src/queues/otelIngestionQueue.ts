@@ -224,13 +224,23 @@ export const otelIngestionQueueProcessor: Processor = async (
       hasExperimentEnvironment,
     );
 
+    const shouldForwardToEventsTable =
+      !useDirectEventWrite &&
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
+      env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
+      env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true";
+
     // Running everything concurrently might be detrimental to the event loop, but has probably
     // the highest possible throughput. Therefore, we start with a Promise.all.
     // If necessary, we may use a for each instead.
     await Promise.all(
       [
         // Process traces
-        processEventBatch(traces, auth, { delay: 0, source: "otel" }),
+        processEventBatch(traces, auth, {
+          delay: 0,
+          source: "otel",
+          forwardToEventsTable: shouldForwardToEventsTable,
+        }),
         // Process observations
         observations.map((observation) =>
           ingestionService.mergeAndWrite(
@@ -239,12 +249,7 @@ export const otelIngestionQueueProcessor: Processor = async (
             observation.body.id || "", // id is always defined for observations
             new Date(), // Use the current timestamp as event time
             [observation],
-            !useDirectEventWrite && // forwardToEventsTable: false for new SDKs, true for old SDKs
-              // Additional flags during the migration phase
-              env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-              env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED ===
-                "true" &&
-              env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true",
+            shouldForwardToEventsTable,
           ),
         ),
       ].flat(),
