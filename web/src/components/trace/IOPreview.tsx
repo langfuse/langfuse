@@ -28,7 +28,7 @@ import {
   cleanLegacyOutput,
   extractAdditionalInput,
 } from "@/src/utils/chatml";
-import { ToolCallsPill } from "@/src/components/trace/ToolCallsPill";
+import { ToolCallDefinitionCard } from "@/src/components/trace/ToolCallDefinitionCard";
 import { ToolCallInvocationsView } from "@/src/components/trace/ToolCallInvocationsView";
 import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -180,7 +180,7 @@ export const IOPreview: React.FC<{
       {allTools.length > 0 && (
         <div className="mb-4 border-b border-border pb-4">
           <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
-          <ToolCallsPill
+          <ToolCallDefinitionCard
             tools={allTools.sort((a, b) => {
               const callCountA = toolCallCounts.get(a.name) || 0;
               const callCountB = toolCallCounts.get(b.name) || 0;
