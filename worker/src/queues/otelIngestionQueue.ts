@@ -215,7 +215,10 @@ export const otelIngestionQueueProcessor: Processor = async (
       const body = o.body as { environment?: string };
       return body.environment === "sdk-experiment";
     });
-    const sdkInfo = getSdkInfoFromResourceSpans(parsedSpans[0]);
+    const sdkInfo =
+      parsedSpans.length > 0
+        ? getSdkInfoFromResourceSpans(parsedSpans[0])
+        : { scopeName: null, scopeVersion: null, telemetrySdkLanguage: null };
     const useDirectEventWrite = checkSdkVersionRequirements(
       sdkInfo,
       hasExperimentEnvironment,
