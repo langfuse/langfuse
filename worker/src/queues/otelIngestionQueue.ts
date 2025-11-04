@@ -66,7 +66,10 @@ function getSdkInfoFromResourceSpans(resourceSpans: ResourceSpan): SdkInfo {
  * - Python SDK: scope_version >= 3.9.0
  * - JS/JavaScript SDK: scope_version >= 4.4.0
  */
-function checkSdkVersionRequirements(sdkInfo: SdkInfo): boolean {
+function checkSdkVersionRequirements(
+  sdkInfo: SdkInfo,
+  isSdkExperimentBatch: boolean,
+): boolean {
   const { scopeName, scopeVersion, telemetrySdkLanguage } = sdkInfo;
 
   // Must be a Langfuse SDK
@@ -80,15 +83,16 @@ function checkSdkVersionRequirements(sdkInfo: SdkInfo): boolean {
 
   try {
     // Python SDK >= 3.9.0
-    if (telemetrySdkLanguage === "python") {
+    if (telemetrySdkLanguage === "python" && isSdkExperimentBatch) {
       const comparison = compareVersions(scopeVersion, "v3.9.0");
       return comparison === null; // null means current >= latest
     }
 
     // JS/JavaScript SDK >= 4.4.0
     if (
-      telemetrySdkLanguage === "js" ||
-      telemetrySdkLanguage === "javascript"
+      (telemetrySdkLanguage === "js" ||
+        telemetrySdkLanguage === "javascript") &&
+      isSdkExperimentBatch
     ) {
       const comparison = compareVersions(scopeVersion, "v4.4.0");
       return comparison === null; // null means current >= latest
@@ -206,17 +210,16 @@ export const otelIngestionQueueProcessor: Processor = async (
     // 2. All other observations will go through the dual write until we have SDKs in place that have old trace updates
     //    deprecated and new methods in place.
     // 3. Non-Langfuse SDK spans will go through the dual write until a yet to be determined cutoff date.
-    const sdkInfo = getSdkInfoFromResourceSpans(parsedSpans[0]);
-    const sdkMeetsRequirements = checkSdkVersionRequirements(sdkInfo);
-
     // Check if any observation has environment='sdk-experiment'
     const hasExperimentEnvironment = observations.some((o) => {
       const body = o.body as { environment?: string };
       return body.environment === "sdk-experiment";
     });
-
-    // Direct write if BOTH conditions are met: correct SDK version AND experiment environment
-    const useDirectWrite = sdkMeetsRequirements && hasExperimentEnvironment;
+    const sdkInfo = getSdkInfoFromResourceSpans(parsedSpans[0]);
+    const useDirectEventWrite = checkSdkVersionRequirements(
+      sdkInfo,
+      hasExperimentEnvironment,
+    );
 
     // Running everything concurrently might be detrimental to the event loop, but has probably
     // the highest possible throughput. Therefore, we start with a Promise.all.
@@ -233,7 +236,7 @@ export const otelIngestionQueueProcessor: Processor = async (
             observation.body.id || "", // id is always defined for observations
             new Date(), // Use the current timestamp as event time
             [observation],
-            !useDirectWrite && // forwardToEventsTable: false for new SDKs, true for old SDKs
+            !useDirectEventWrite && // forwardToEventsTable: false for new SDKs, true for old SDKs
               // Additional flags during the migration phase
               env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
               env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED ===
@@ -248,7 +251,7 @@ export const otelIngestionQueueProcessor: Processor = async (
     // run the dedicated processing for the otel spans and move them into the dedicated IngestionService processor.
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-      useDirectWrite
+      useDirectEventWrite
     ) {
       try {
         const events = processor.processToEvent(parsedSpans);
