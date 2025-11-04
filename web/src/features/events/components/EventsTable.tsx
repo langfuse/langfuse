@@ -60,6 +60,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 
 export type EventsTableRow = {
   // Identity fields
@@ -458,14 +459,11 @@ export default function ObservationsEventsTable({
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("input");
         return value ? (
-          <div
-            className={cn(
-              "overflow-hidden",
-              rowHeight === "s" ? "line-clamp-1" : "whitespace-pre-wrap",
-            )}
-          >
-            {value}
-          </div>
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={value}
+            singleLine={rowHeight === "s"}
+          />
         ) : null;
       },
       enableHiding: true,
@@ -478,14 +476,12 @@ export default function ObservationsEventsTable({
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("output");
         return value ? (
-          <div
-            className={cn(
-              "overflow-hidden bg-accent-light-green",
-              rowHeight === "s" ? "line-clamp-1" : "whitespace-pre-wrap",
-            )}
-          >
-            {value}
-          </div>
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={value}
+            className={cn("bg-accent-light-green")}
+            singleLine={rowHeight === "s"}
+          />
         ) : null;
       },
       enableHiding: true,
@@ -529,6 +525,16 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      cell: ({ row }) => {
+        const value: string | undefined = row.getValue("statusMessage");
+        return value ? (
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={value}
+            singleLine={rowHeight === "s"}
+          />
+        ) : undefined;
+      },
     },
     {
       accessorKey: "latency",
