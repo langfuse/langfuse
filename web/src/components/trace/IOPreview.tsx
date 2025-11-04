@@ -406,6 +406,17 @@ export const OpenAiMessageView: React.FC<{
     return message.type === "placeholder";
   };
 
+  const isOnlyJsonMessage = (message: ChatMlMessageSchema) => {
+    // Message parsed as ChatML but only has json field (non-ChatML object)
+    // Valid ChatML needs content OR tool_calls OR audio (role alone is insufficient)
+    const hasValidChatMlContent =
+      message.content != null ||
+      message.tool_calls != null ||
+      message.audio != null;
+
+    return !hasValidChatMlContent && message.json != null;
+  };
+
   const messagesToRender = useMemo(
     () =>
       messages.filter(
@@ -482,6 +493,14 @@ export const OpenAiMessageView: React.FC<{
                           />
                         </div>
                       </>
+                    ) : isOnlyJsonMessage(message) ? (
+                      // Non-ChatML object that parsed via passthrough - render as JSON
+                      <PrettyJsonView
+                        title={getMessageTitle(message) || "Output"}
+                        json={message.json}
+                        projectIdForPromptButtons={projectIdForPromptButtons}
+                        currentView={currentView}
+                      />
                     ) : (
                       <>
                         {shouldRenderContent(message) &&
