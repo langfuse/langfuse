@@ -173,8 +173,8 @@ const validateAndThrowIfInvalid = (params: {
 };
 
 /**
- * Validates bulk items and returns indices of invalid items with errors
- * For CREATE operations where partial success is acceptable
+ * Validates bulk items and returns validation errors
+ * For all-or-nothing CREATE operations - caller should block entire operation if any errors
  */
 const validateBulkDatasetItems = (params: {
   items: Array<{
@@ -1365,44 +1365,39 @@ export const datasetRouter = createTRPCRouter({
         status: DatasetStatus.ACTIVE,
       }));
 
-      // Validate all items and collect errors
+      // Validate all items - all-or-nothing
       const validationErrors = validateBulkDatasetItems({
         items: itemsWithIds,
         datasetSchemas: datasetSchemaMap,
       });
 
-      // Filter out items that failed validation (partial success)
-      const invalidItemIndices = new Set(
-        validationErrors.map((e) => e.itemIndex),
-      );
-      const validItems = itemsWithIds.filter(
-        (_, index) => !invalidItemIndices.has(index),
-      );
-
-      // Create only valid items
-      if (validItems.length > 0) {
-        await ctx.prisma.datasetItem.createMany({
-          data: validItems,
+      // If any validation errors, block entire operation
+      if (validationErrors.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Validation failed for ${validationErrors.length} item(s)`,
+          cause: validationErrors,
         });
-
-        await Promise.all(
-          validItems.map(async (item) =>
-            auditLog({
-              session: ctx.session,
-              resourceType: "datasetItem",
-              resourceId: item.id,
-              action: "create",
-              after: item,
-            }),
-          ),
-        );
       }
 
-      return {
-        created: validItems.length,
-        failed: validationErrors.length,
-        errors: validationErrors,
-      };
+      // All items valid - create all
+      await ctx.prisma.datasetItem.createMany({
+        data: itemsWithIds,
+      });
+
+      await Promise.all(
+        itemsWithIds.map(async (item) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "datasetItem",
+            resourceId: item.id,
+            action: "create",
+            after: item,
+          }),
+        ),
+      );
+
+      return;
     }),
   runItemsByItemId: protectedProjectProcedure
     .input(
