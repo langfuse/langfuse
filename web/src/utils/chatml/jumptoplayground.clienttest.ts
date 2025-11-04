@@ -429,6 +429,82 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
+  it("should stringify multimodal array content in tool results", () => {
+    // This format appears in some OpenAI traces where tool results have
+    // complex nested structures with type/text fields
+    const input = {
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_user_contact_information",
+            description: "Get user contact info",
+            parameters: {},
+          },
+        },
+      ],
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "call_user_info",
+              type: "function",
+              function: {
+                name: "get_user_contact_information",
+                arguments: {},
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "text",
+              text: {
+                userInformation: {
+                  firstName: "John",
+                  lastName: "Doe",
+                  email: "john@example.com",
+                },
+              },
+            },
+          ],
+          tool_call_id: "call_user_info",
+        },
+      ],
+    };
+
+    const ctx = { framework: "openai" };
+    const inResult = normalizeInput(input, ctx);
+    expect(inResult.success).toBe(true);
+
+    // Convert all messages to playground format
+    const playgroundMessages = inResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Find the tool result message
+    const toolResult = playgroundMessages.find(
+      (msg) => msg?.type === "tool-result",
+    );
+
+    expect(toolResult).toBeDefined();
+    if (toolResult && "content" in toolResult) {
+      // CRITICAL: Content must be stringified, not left as array/object
+      // Otherwise CodeMirror will throw "value must be typeof string but got object"
+      expect(typeof toolResult.content).toBe("string");
+
+      // Verify it's valid JSON string
+      const parsed = JSON.parse(toolResult.content);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed[0].type).toBe("text");
+      expect(parsed[0].text.userInformation.firstName).toBe("John");
+    }
+  });
+
   it("should extract tools from Microsoft Agent Framework metadata", () => {
     // Microsoft Agent Framework stores tools in metadata.attributes["gen_ai.tool.definitions"]
     const input = [
