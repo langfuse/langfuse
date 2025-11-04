@@ -17,6 +17,7 @@ import {
   TQueueJobTypes,
   traceException,
   compareVersions,
+  ResourceSpan,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
@@ -25,45 +26,62 @@ import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { ForbiddenError } from "@langfuse/shared";
 
 /**
- * Check if an observation should write directly to events table.
- * Based on environment='sdk-experiment', scope_name, and scope_version requirements.
- *
- * Rules:
- * 1. Environment must be 'sdk-experiment'
- * 2. Scope name must contain 'langfuse' (case-insensitive)
- * 3. Version requirements (based on telemetry_sdk_language):
- *    - Python SDK: scope_version >= 3.9.0
- *    - JS/JavaScript SDK: scope_version >= 4.4.0
+ * SDK information extracted from OTEL resourceSpans.
  */
-function shouldWriteDirectlyToEvents(observation: any): boolean {
-  // Rule 1: Check environment is sdk-experiment
-  if (observation.body?.environment !== "sdk-experiment") {
-    return false;
-  }
+type SdkInfo = {
+  scopeName: string | null;
+  scopeVersion: string | null;
+  telemetrySdkLanguage: string | null;
+};
 
-  // Rule 2: Must be a Langfuse SDK (check scope_name contains 'langfuse')
-  const scopeName = observation.body?.metadata?.scope?.name;
+/**
+ * Extract SDK information from resourceSpans.
+ * Gets scope name/version and telemetry SDK language from the OTEL structure.
+ */
+function getSdkInfoFromResourceSpans(resourceSpans: ResourceSpan): SdkInfo {
+  try {
+    // Get the first scopeSpan (all spans in a batch share the same scope)
+    const firstScopeSpan = resourceSpans?.scopeSpans?.[0];
+    const scopeName = firstScopeSpan?.scope?.name ?? null;
+    const scopeVersion = firstScopeSpan?.scope?.version ?? null;
+
+    // Extract telemetry SDK language from resource attributes
+    const resourceAttributes = resourceSpans?.resource?.attributes ?? [];
+    const telemetrySdkLanguage =
+      resourceAttributes.find((attr) => attr.key === "telemetry.sdk.language")
+        ?.value?.stringValue ?? null;
+
+    return { scopeName, scopeVersion, telemetrySdkLanguage };
+  } catch (error) {
+    logger.warn("Failed to extract SDK info from resourceSpans", error);
+    return { scopeName: null, scopeVersion: null, telemetrySdkLanguage: null };
+  }
+}
+
+/**
+ * Check if SDK meets version requirements for direct event writes.
+ *
+ * Requirements:
+ * - Scope name must contain 'langfuse' (case-insensitive)
+ * - Python SDK: scope_version >= 3.9.0
+ * - JS/JavaScript SDK: scope_version >= 4.4.0
+ */
+function checkSdkVersionRequirements(sdkInfo: SdkInfo): boolean {
+  const { scopeName, scopeVersion, telemetrySdkLanguage } = sdkInfo;
+
+  // Must be a Langfuse SDK
   if (!scopeName || !String(scopeName).toLowerCase().includes("langfuse")) {
     return false;
   }
 
-  const scopeVersion = observation.body?.metadata?.scope?.version;
-  if (!scopeVersion) return false;
-
-  // Get telemetry SDK language from resourceAttributes
-  const telemetrySdkLanguage =
-    observation.body?.metadata?.resourceAttributes?.["telemetry.sdk.language"];
-  if (!telemetrySdkLanguage) return false;
-
-  // Ensure version has 'v' prefix for compareVersions
-  const version = String(scopeVersion);
-  const versionWithPrefix = version.startsWith("v") ? version : `v${version}`;
+  if (!scopeVersion || !telemetrySdkLanguage) {
+    return false;
+  }
 
   try {
-    // Rule 3: Check version based on telemetry SDK language
     // Python SDK >= 3.9.0
     if (telemetrySdkLanguage === "python") {
-      const comparison = compareVersions(versionWithPrefix, "v3.9.0");
+      const comparison = compareVersions(scopeVersion, "v3.9.0");
       return comparison === null; // null means current >= latest
     }
 
@@ -72,9 +90,11 @@ function shouldWriteDirectlyToEvents(observation: any): boolean {
       telemetrySdkLanguage === "js" ||
       telemetrySdkLanguage === "javascript"
     ) {
-      const comparison = compareVersions(versionWithPrefix, "v4.4.0");
+      const comparison = compareVersions(scopeVersion, "v4.4.0");
       return comparison === null; // null means current >= latest
     }
+
+    return false;
   } catch (error) {
     logger.warn(
       `Failed to parse SDK version ${scopeVersion} for language ${telemetrySdkLanguage}`,
@@ -82,8 +102,6 @@ function shouldWriteDirectlyToEvents(observation: any): boolean {
     );
     return false;
   }
-
-  return false;
 }
 
 export const otelIngestionQueueProcessor: Processor = async (
@@ -188,11 +206,17 @@ export const otelIngestionQueueProcessor: Processor = async (
     // 2. All other observations will go through the dual write until we have SDKs in place that have old trace updates
     //    deprecated and new methods in place.
     // 3. Non-Langfuse SDK spans will go through the dual write until a yet to be determined cutoff date.
+    const sdkInfo = getSdkInfoFromResourceSpans(parsedSpans[0]);
+    const sdkMeetsRequirements = checkSdkVersionRequirements(sdkInfo);
 
-    // Check if ANY observation qualifies for direct write - if so, ALL observations use the new flow
-    const useDirectWrite = observations.some((o) =>
-      shouldWriteDirectlyToEvents(o),
-    );
+    // Check if any observation has environment='sdk-experiment'
+    const hasExperimentEnvironment = observations.some((o) => {
+      const body = o.body as { environment?: string };
+      return body.environment === "sdk-experiment";
+    });
+
+    // Direct write if BOTH conditions are met: correct SDK version AND experiment environment
+    const useDirectWrite = sdkMeetsRequirements && hasExperimentEnvironment;
 
     // Running everything concurrently might be detrimental to the event loop, but has probably
     // the highest possible throughput. Therefore, we start with a Promise.all.

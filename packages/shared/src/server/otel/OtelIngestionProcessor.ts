@@ -66,7 +66,7 @@ interface CreateObservationEventParams {
   endTimeISO: string;
 }
 
-interface ResourceSpan {
+export interface ResourceSpan {
   resource?: {
     attributes?: Array<{ key: string; value: any }>;
   };
