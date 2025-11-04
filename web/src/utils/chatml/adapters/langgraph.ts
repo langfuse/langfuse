@@ -291,7 +291,11 @@ export const langgraphAdapter: ProviderAdapter = {
 
     // Check wrapped messages format
     if (LangGraphWrappedSchema.safeParse(ctx.metadata).success) {
-      const wrapped = ctx.metadata as { messages: unknown[] };
+      const wrapped = ctx.metadata as { messages: unknown[]; tools?: unknown };
+      // reject OpenAI Chat Completions format {tools: [...], messages: [...]}
+      if (Array.isArray(wrapped.tools)) {
+        return false;
+      }
       if (LangChainMessageSchema.safeParse(wrapped.messages).success)
         return true;
       if (LangGraphMessageSchema.safeParse(wrapped.messages).success)
@@ -304,7 +308,11 @@ export const langgraphAdapter: ProviderAdapter = {
 
     // Check wrapped messages format on data
     if (LangGraphWrappedSchema.safeParse(ctx.data).success) {
-      const wrapped = ctx.data as { messages: unknown[] };
+      const wrapped = ctx.data as { messages: unknown[]; tools?: unknown };
+      // reject OpenAI Chat Completions format {tools: [...], messages: [...]}
+      if (Array.isArray(wrapped.tools)) {
+        return false;
+      }
       if (LangChainMessageSchema.safeParse(wrapped.messages).success)
         return true;
       if (LangGraphMessageSchema.safeParse(wrapped.messages).success)
