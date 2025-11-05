@@ -298,171 +298,185 @@ export function StatisticsCard() {
           <div>
             <h4 className="mb-2 text-xs font-semibold">Comparison</h4>
             {dataType === "NUMERIC" ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <MetricCard
-                  label="Matched"
-                  value={
-                    showComparisonMetrics && statistics.comparison
-                      ? statistics.comparison.matchedCount.toLocaleString()
-                      : "--"
-                  }
-                  helpText="Number of observations with both scores"
-                  isContext
-                  isPlaceholder={!showComparisonMetrics}
-                />
-                <MetricCard
-                  label="Pearson r"
-                  value={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.pearsonCorrelation !== null
-                      ? statistics.comparison.pearsonCorrelation.toFixed(3)
-                      : showComparisonMetrics
-                        ? "N/A"
+              <div className="space-y-4">
+                {/* First row: Matched, Pearson, Spearman */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <MetricCard
+                    label="Matched"
+                    value={
+                      showComparisonMetrics && statistics.comparison
+                        ? statistics.comparison.matchedCount.toLocaleString()
                         : "--"
-                  }
-                  interpretation={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.pearsonCorrelation !== null
-                      ? interpretPearsonCorrelation(
-                          statistics.comparison.pearsonCorrelation,
-                        )
-                      : undefined
-                  }
-                  helpText="Linear correlation (-1 to 1)"
-                  isPlaceholder={!showComparisonMetrics}
-                />
-                <MetricCard
-                  label="Spearman ρ"
-                  value={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.spearmanCorrelation !== null
-                      ? statistics.comparison.spearmanCorrelation.toFixed(3)
-                      : showComparisonMetrics
-                        ? "N/A"
-                        : "--"
-                  }
-                  interpretation={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.spearmanCorrelation !== null
-                      ? interpretSpearmanCorrelation(
-                          statistics.comparison.spearmanCorrelation,
-                        )
-                      : undefined
-                  }
-                  helpText="Rank correlation (-1 to 1)"
-                  isPlaceholder={!showComparisonMetrics}
-                />
-                <MetricCard
-                  label="MAE"
-                  value={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.mae !== null
-                      ? statistics.comparison.mae.toFixed(3)
-                      : showComparisonMetrics
-                        ? "N/A"
-                        : "--"
-                  }
-                  interpretation={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.mae !== null
-                      ? interpretMAE(statistics.comparison.mae)
-                      : undefined
-                  }
-                  helpText="Mean Absolute Error"
-                  isPlaceholder={!showComparisonMetrics}
-                />
-                <MetricCard
-                  label="RMSE"
-                  value={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.rmse !== null
-                      ? statistics.comparison.rmse.toFixed(3)
-                      : showComparisonMetrics
-                        ? "N/A"
-                        : "--"
-                  }
-                  interpretation={
-                    showComparisonMetrics &&
-                    statistics.comparison &&
-                    statistics.comparison.rmse !== null
-                      ? interpretRMSE(statistics.comparison.rmse)
-                      : undefined
-                  }
-                  helpText="Root Mean Square Error"
-                  isPlaceholder={!showComparisonMetrics}
-                />
+                    }
+                    helpText="Number of observations with both scores"
+                    isContext
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                  <MetricCard
+                    label="Pearson r"
+                    value={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.pearsonCorrelation !== null
+                        ? statistics.comparison.pearsonCorrelation.toFixed(3)
+                        : showComparisonMetrics
+                          ? "N/A"
+                          : "--"
+                    }
+                    interpretation={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.pearsonCorrelation !== null
+                        ? interpretPearsonCorrelation(
+                            statistics.comparison.pearsonCorrelation,
+                          )
+                        : undefined
+                    }
+                    helpText="Linear correlation (-1 to 1)"
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                  <MetricCard
+                    label="Spearman ρ"
+                    value={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.spearmanCorrelation !== null
+                        ? statistics.comparison.spearmanCorrelation.toFixed(3)
+                        : showComparisonMetrics
+                          ? "N/A"
+                          : "--"
+                    }
+                    interpretation={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.spearmanCorrelation !== null
+                        ? interpretSpearmanCorrelation(
+                            statistics.comparison.spearmanCorrelation,
+                          )
+                        : undefined
+                    }
+                    helpText="Rank correlation (-1 to 1)"
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                </div>
+                {/* Second row: Empty, MAE, RMSE */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div />
+                  <MetricCard
+                    label="MAE"
+                    value={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.mae !== null
+                        ? statistics.comparison.mae.toFixed(3)
+                        : showComparisonMetrics
+                          ? "N/A"
+                          : "--"
+                    }
+                    interpretation={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.mae !== null
+                        ? interpretMAE(statistics.comparison.mae)
+                        : undefined
+                    }
+                    helpText="Mean Absolute Error"
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                  <MetricCard
+                    label="RMSE"
+                    value={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.rmse !== null
+                        ? statistics.comparison.rmse.toFixed(3)
+                        : showComparisonMetrics
+                          ? "N/A"
+                          : "--"
+                    }
+                    interpretation={
+                      showComparisonMetrics &&
+                      statistics.comparison &&
+                      statistics.comparison.rmse !== null
+                        ? interpretRMSE(statistics.comparison.rmse)
+                        : undefined
+                    }
+                    helpText="Root Mean Square Error"
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <MetricCard
-                  label="Matched"
-                  value={
-                    showComparisonMetrics && statistics.comparison
-                      ? statistics.comparison.matchedCount.toLocaleString()
-                      : "--"
-                  }
-                  helpText="Number of observations with both scores"
-                  isContext
-                  isPlaceholder={!showComparisonMetrics}
-                />
-                <MetricCard
-                  label="Cohen's κ"
-                  value={
-                    showComparisonMetrics && cohensKappa !== null
-                      ? cohensKappa.toFixed(3)
-                      : showComparisonMetrics
-                        ? "N/A"
+              <div className="space-y-4">
+                {/* First row: Matched, Agreement */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <MetricCard
+                    label="Matched"
+                    value={
+                      showComparisonMetrics && statistics.comparison
+                        ? statistics.comparison.matchedCount.toLocaleString()
                         : "--"
-                  }
-                  interpretation={
-                    showComparisonMetrics && cohensKappa !== null
-                      ? interpretCohensKappa(cohensKappa)
-                      : undefined
-                  }
-                  helpText="Inter-rater reliability (-1 to 1)"
-                  isPlaceholder={!showComparisonMetrics}
-                />
-                <MetricCard
-                  label="F1 Score"
-                  value={
-                    showComparisonMetrics && f1Score !== null
-                      ? f1Score.toFixed(3)
-                      : showComparisonMetrics
-                        ? "N/A"
-                        : "--"
-                  }
-                  interpretation={
-                    showComparisonMetrics && f1Score !== null
-                      ? interpretF1Score(f1Score)
-                      : undefined
-                  }
-                  helpText="Weighted F1 score (0 to 1)"
-                  isPlaceholder={!showComparisonMetrics}
-                />
-                <MetricCard
-                  label="Agreement"
-                  value={
-                    showComparisonMetrics && overallAgreement !== null
-                      ? `${(overallAgreement * 100).toFixed(1)}%`
-                      : showComparisonMetrics
-                        ? "N/A"
-                        : "--"
-                  }
-                  interpretation={
-                    showComparisonMetrics && overallAgreement !== null
-                      ? interpretOverallAgreement(overallAgreement)
-                      : undefined
-                  }
-                  helpText="Overall agreement percentage"
-                  isPlaceholder={!showComparisonMetrics}
-                />
+                    }
+                    helpText="Number of observations with both scores"
+                    isContext
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                  <MetricCard
+                    label="Agreement"
+                    value={
+                      showComparisonMetrics && overallAgreement !== null
+                        ? `${(overallAgreement * 100).toFixed(1)}%`
+                        : showComparisonMetrics
+                          ? "N/A"
+                          : "--"
+                    }
+                    interpretation={
+                      showComparisonMetrics && overallAgreement !== null
+                        ? interpretOverallAgreement(overallAgreement)
+                        : undefined
+                    }
+                    helpText="Overall agreement percentage"
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                </div>
+                {/* Second row: Empty, Cohen's κ, F1 Score */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div />
+                  <MetricCard
+                    label="Cohen's κ"
+                    value={
+                      showComparisonMetrics && cohensKappa !== null
+                        ? cohensKappa.toFixed(3)
+                        : showComparisonMetrics
+                          ? "N/A"
+                          : "--"
+                    }
+                    interpretation={
+                      showComparisonMetrics && cohensKappa !== null
+                        ? interpretCohensKappa(cohensKappa)
+                        : undefined
+                    }
+                    helpText="Inter-rater reliability (-1 to 1)"
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                  <MetricCard
+                    label="F1 Score"
+                    value={
+                      showComparisonMetrics && f1Score !== null
+                        ? f1Score.toFixed(3)
+                        : showComparisonMetrics
+                          ? "N/A"
+                          : "--"
+                    }
+                    interpretation={
+                      showComparisonMetrics && f1Score !== null
+                        ? interpretF1Score(f1Score)
+                        : undefined
+                    }
+                    helpText="Weighted F1 score (0 to 1)"
+                    isPlaceholder={!showComparisonMetrics}
+                  />
+                </div>
               </div>
             )}
           </div>

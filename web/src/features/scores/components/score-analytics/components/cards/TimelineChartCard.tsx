@@ -186,31 +186,64 @@ export function TimelineChartCard() {
   const hasData = chartData.length > 0;
   const showTabs = mode === "two";
 
+  // Helper function to truncate tab labels with max character limit
+  const truncateLabel = (label: string, maxLength: number = 15): string => {
+    if (label.length <= maxLength) return label;
+    return label.substring(0, maxLength - 1) + "…";
+  };
+
+  // Build full tab labels for title attribute (hover tooltip)
+  const score1FullLabel =
+    score1.name === score2?.name
+      ? `${score1.name} (${score1.source.toLowerCase()})`
+      : score1.name;
+
+  const score2FullLabel = score2
+    ? score2.name === score1.name
+      ? `${score2.name} (${score2.source.toLowerCase()})`
+      : score2.name
+    : "Score 2";
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Trend Over Time</CardTitle>
-            <CardDescription>{description}</CardDescription>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Trend Over Time</CardTitle>
+              <CardDescription>{description}</CardDescription>
+            </div>
+            {showTabs && (
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => setActiveTab(v as TimelineTab)}
+                className="hidden xl:block"
+              >
+                <TabsList className="grid w-[400px] grid-cols-4">
+                  <TabsTrigger value="score1" title={score1FullLabel}>
+                    {truncateLabel(score1FullLabel)}
+                  </TabsTrigger>
+                  <TabsTrigger value="score2" title={score2FullLabel}>
+                    {truncateLabel(score2FullLabel)}
+                  </TabsTrigger>
+                  <TabsTrigger value="all">all</TabsTrigger>
+                  <TabsTrigger value="matched">matched</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
           </div>
           {showTabs && (
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as TimelineTab)}
+              className="xl:hidden"
             >
-              <TabsList className="grid w-[400px] grid-cols-4">
-                <TabsTrigger value="score1">
-                  {score1.name === score2?.name
-                    ? `${score1.name} (${score1.source.toLowerCase()})`
-                    : score1.name}
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="score1" title={score1FullLabel}>
+                  {truncateLabel(score1FullLabel)}
                 </TabsTrigger>
-                <TabsTrigger value="score2">
-                  {score2
-                    ? score2.name === score1.name
-                      ? `${score2.name} (${score2.source.toLowerCase()})`
-                      : score2.name
-                    : "Score 2"}
+                <TabsTrigger value="score2" title={score2FullLabel}>
+                  {truncateLabel(score2FullLabel)}
                 </TabsTrigger>
                 <TabsTrigger value="all">all</TabsTrigger>
                 <TabsTrigger value="matched">matched</TabsTrigger>

@@ -16,12 +16,12 @@ import { HeatmapCard } from "./cards/HeatmapCard";
  * so this component only handles layout.
  *
  * Layout:
- * - Mobile (< lg): Stacked vertically (1 column)
- * - Desktop (>= lg): 2x2 grid (2 columns)
+ * - Mobile/Tablet (< xl): Stacked vertically (1 column)
+ * - Desktop (>= xl): 2x2 grid (2 columns)
  */
 export function ScoreAnalyticsDashboard() {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <StatisticsCard />
       <TimelineChartCard />
       <DistributionChartCard />
