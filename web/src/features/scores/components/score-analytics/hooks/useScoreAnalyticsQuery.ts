@@ -111,6 +111,8 @@ export interface TimeSeries {
     score2: Array<{ timestamp: Date; category: string; count: number }>;
     score1Matched: Array<{ timestamp: Date; category: string; count: number }>;
     score2Matched: Array<{ timestamp: Date; category: string; count: number }>;
+    all: Array<{ timestamp: Date; category: string; count: number }>; // Merged score1+score2 with namespaced categories
+    allMatched: Array<{ timestamp: Date; category: string; count: number }>; // Merged matched data with namespaced categories
   };
 }
 
@@ -368,6 +370,65 @@ export function useScoreAnalyticsQuery(
     }
 
     // ========================================================================
+    // 7. Build merged categorical time series with namespaced categories
+    // ========================================================================
+    // Helper function to namespace category names
+    const namespaceCategoricalTimeSeries = (
+      data: Array<{ timestamp: Date; category: string; count: number }>,
+      scorePrefix: string,
+    ): Array<{ timestamp: Date; category: string; count: number }> => {
+      return data.map((item) => ({
+        ...item,
+        category: `${scorePrefix}: ${item.category}`,
+      }));
+    };
+
+    // Build score name prefixes (include source if scores have same name but different sources)
+    const score1Prefix =
+      mode === "two" &&
+      score1.name === score2?.name &&
+      score1.source !== score2?.source
+        ? `${score1.name} (${score1.source})`
+        : score1.name;
+
+    const score2Prefix =
+      mode === "two" &&
+      score2 &&
+      score1.name === score2.name &&
+      score1.source !== score2.source
+        ? `${score2.name} (${score2.source})`
+        : (score2?.name ?? "");
+
+    // Merge categorical time series for "all" and "allMatched" tabs
+    const categoricalAll =
+      mode === "two"
+        ? [
+            ...namespaceCategoricalTimeSeries(
+              categoricalTimeSeries1,
+              score1Prefix,
+            ),
+            ...namespaceCategoricalTimeSeries(
+              categoricalTimeSeries2,
+              score2Prefix,
+            ),
+          ]
+        : categoricalTimeSeries1; // Single score mode: no namespacing needed
+
+    const categoricalAllMatched =
+      mode === "two"
+        ? [
+            ...namespaceCategoricalTimeSeries(
+              categoricalTimeSeries1Matched,
+              score1Prefix,
+            ),
+            ...namespaceCategoricalTimeSeries(
+              categoricalTimeSeries2Matched,
+              score2Prefix,
+            ),
+          ]
+        : categoricalTimeSeries1Matched; // Single score mode: no namespacing needed
+
+    // ========================================================================
     // Build structured return object
     // ========================================================================
     return {
@@ -426,6 +487,8 @@ export function useScoreAnalyticsQuery(
           score2: categoricalTimeSeries2,
           score1Matched: categoricalTimeSeries1Matched,
           score2Matched: categoricalTimeSeries2Matched,
+          all: categoricalAll,
+          allMatched: categoricalAllMatched,
         },
       },
       heatmap,

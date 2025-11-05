@@ -68,14 +68,14 @@ export function TimelineChartCard() {
     const { dataType } = metadata;
 
     if (dataType !== "NUMERIC") {
-      // Categorical logic (unchanged)
+      // Categorical logic: Use merged "all" and "allMatched" data with namespaced categories
       return activeTab === "score1"
         ? timeSeries.categorical.score1
         : activeTab === "score2"
           ? timeSeries.categorical.score2
           : activeTab === "all"
-            ? timeSeries.categorical.score1
-            : timeSeries.categorical.score1Matched;
+            ? timeSeries.categorical.all // Merged score1+score2 with namespaced categories
+            : timeSeries.categorical.allMatched; // Merged matched data with namespaced categories
     }
 
     // Numeric: Transform data based on active tab
