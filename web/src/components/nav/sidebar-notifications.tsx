@@ -48,6 +48,15 @@ const notifications: SidebarNotification[] = [
     createdAt: "2025-11-04",
   },
   {
+    id: "lw4-3",
+    title: "Launch Week 4: Day 3",
+    description:
+      "Available and used LLM tools are rendered in the UI for debugging. Log view & agent graphs GA.",
+    link: "https://langfuse.com/changelog/2025-11-05-langfuse-for-agents",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-05",
+  },
+  {
     id: "js-sdk-v4",
     title: "New JS/TS SDK v4",
     description:
