@@ -54,6 +54,10 @@ export const convertObservation = (
     );
   }
 
+  logger.info(
+    `Converting observation record ${JSON.stringify(record)} for project ${record.project_id}`,
+  );
+
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -72,8 +76,11 @@ export const convertObservation = (
     version: record.version ?? null,
     input: applyInputOutputRendering(record.input, renderingProps),
     output: applyInputOutputRendering(record.output, renderingProps),
+    // Necessary if we fill this from events as model_parameters will be an object
     modelParameters: record.model_parameters
-      ? (JSON.parse(record.model_parameters) ?? null)
+      ? ((typeof record.model_parameters === "string"
+          ? JSON.parse(record.model_parameters)
+          : record.model_parameters) ?? null)
       : null,
     completionStartTime: record.completion_start_time
       ? parseClickhouseUTCDateTimeFormat(record.completion_start_time)

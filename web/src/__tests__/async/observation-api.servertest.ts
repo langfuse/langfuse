@@ -169,7 +169,7 @@ describe("/api/public/observations API Endpoint", () => {
       });
 
       describe("GET /api/public/observations", () => {
-        it("should fetch all observations", async () => {
+        it.only("should fetch all observations", async () => {
           const traceId = uuidv4();
           const observationId = uuidv4();
 
