@@ -591,6 +591,7 @@ export default function ScoresAnalyticsPage() {
                         | "CATEGORICAL"
                         | "BOOLEAN"
                     }
+                    counts={analyticsData.counts}
                     statistics={analyticsData.statistics}
                     confusionMatrix={analyticsData.confusionMatrix}
                     hasTwoScores={true}

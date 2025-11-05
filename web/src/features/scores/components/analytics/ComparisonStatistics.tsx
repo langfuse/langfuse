@@ -24,6 +24,11 @@ interface ComparisonStatisticsProps {
   score1Name: string;
   score2Name: string | null;
   dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
+  counts: {
+    score1Total: number;
+    score2Total: number;
+    matchedCount: number;
+  };
   statistics: {
     matchedCount: number;
     mean1: number | null;
@@ -48,6 +53,7 @@ export function ComparisonStatistics({
   score1Name,
   score2Name,
   dataType,
+  counts,
   statistics,
   confusionMatrix,
   hasTwoScores,
@@ -83,9 +89,7 @@ export function ComparisonStatistics({
             <MetricCard
               label={`${score1Name} Total`}
               value={
-                statistics?.matchedCount !== undefined && !isPlaceholder
-                  ? statistics.matchedCount.toLocaleString()
-                  : "--"
+                !isPlaceholder ? counts.score1Total.toLocaleString() : "--"
               }
               helpText={`Total number of ${score1Name} scores`}
               isPlaceholder={isPlaceholder}
@@ -94,9 +98,7 @@ export function ComparisonStatistics({
             <MetricCard
               label={`${score2Name ?? "Score 2"} Total`}
               value={
-                statistics?.matchedCount !== undefined && !isPlaceholder
-                  ? statistics.matchedCount.toLocaleString()
-                  : "--"
+                !isPlaceholder ? counts.score2Total.toLocaleString() : "--"
               }
               helpText={`Total number of ${score2Name ?? "Score 2"} scores`}
               isPlaceholder={isPlaceholder}
@@ -105,9 +107,7 @@ export function ComparisonStatistics({
             <MetricCard
               label="Matched Pairs"
               value={
-                statistics?.matchedCount !== undefined && !isPlaceholder
-                  ? statistics.matchedCount.toLocaleString()
-                  : "--"
+                !isPlaceholder ? counts.matchedCount.toLocaleString() : "--"
               }
               helpText="Number of observations with both scores present"
               isPlaceholder={isPlaceholder}
