@@ -1,4 +1,4 @@
-import { ChatMlArraySchema } from "./types";
+import { SimpleChatMlArraySchema } from "./types";
 
 /**
  * Extracts a preview string from ChatML-formatted IO data.
@@ -22,7 +22,7 @@ export function getCompactRepresentationChatML(io: unknown): {
 
     // Case 1: Direct array
     if (Array.isArray(io)) {
-      const parsed = ChatMlArraySchema.safeParse(io);
+      const parsed = SimpleChatMlArraySchema.safeParse(io);
       if (parsed.success && parsed.data.length > 0) {
         const lastMessage = parsed.data[parsed.data.length - 1];
         return { success: true, data: lastMessage.content ?? null };
@@ -47,7 +47,7 @@ export function getCompactRepresentationChatML(io: unknown): {
       // Case 3: Object with 'messages' key
       if ("messages" in obj && Array.isArray(obj.messages)) {
         const messages = obj.messages;
-        const parsed = ChatMlArraySchema.safeParse(messages);
+        const parsed = SimpleChatMlArraySchema.safeParse(messages);
         if (parsed.success && parsed.data.length > 0) {
           const lastMessage = parsed.data[parsed.data.length - 1];
           return { success: true, data: lastMessage.content ?? null };
