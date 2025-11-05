@@ -135,7 +135,7 @@ export function DistributionChartCard() {
     );
   }
 
-  const { metadata } = data;
+  const { distribution, metadata } = data;
   const { mode, dataType } = metadata;
   const { score1, score2 } = params;
 
