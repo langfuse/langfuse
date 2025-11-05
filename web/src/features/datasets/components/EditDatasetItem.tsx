@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 import * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Form,
   FormControl,
@@ -15,6 +15,10 @@ import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type RouterOutput } from "@/src/utils/types";
+import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
+import { DatasetItemSchemaErrors } from "./DatasetItemSchemaErrors";
+import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
+import type { Prisma } from "@langfuse/shared";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -64,12 +68,21 @@ const formSchema = z.object({
   ),
 });
 
+type Dataset = {
+  id: string;
+  name: string;
+  inputSchema: Prisma.JsonValue | null;
+  expectedOutputSchema: Prisma.JsonValue | null;
+};
+
 export const EditDatasetItem = ({
   projectId,
   datasetItem,
+  dataset,
 }: {
   projectId: string;
   datasetItem: RouterOutput["datasets"]["itemById"];
+  dataset: Dataset | null;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -104,6 +117,30 @@ export const EditDatasetItem = ({
       metadata: "",
     },
   });
+
+  const inputValue = form.watch("input");
+  const expectedOutputValue = form.watch("expectedOutput");
+
+  // Track if fields have been touched or modified
+  const { touchedFields, dirtyFields } = form.formState;
+  const hasInteractedWithValidatedFields =
+    touchedFields.input ||
+    touchedFields.expectedOutput ||
+    dirtyFields.input ||
+    dirtyFields.expectedOutput;
+
+  // Create dataset array for validation hook
+  const datasets = useMemo(() => {
+    if (!dataset) return [];
+    return [dataset];
+  }, [dataset]);
+
+  // Validate against dataset schemas
+  const validation = useDatasetItemValidation(
+    inputValue,
+    expectedOutputValue,
+    datasets,
+  );
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
@@ -141,7 +178,11 @@ export const EditDatasetItem = ({
             <Button
               type="submit"
               loading={updateDatasetItemMutation.isPending}
-              disabled={!hasChanges || !hasAccess}
+              disabled={
+                !hasChanges ||
+                !hasAccess ||
+                (validation.hasSchemas && !validation.isValid)
+              }
               variant={hasChanges ? "default" : "ghost"}
             >
               {hasChanges ? "Save changes" : "Saved"}
@@ -155,7 +196,16 @@ export const EditDatasetItem = ({
                   name="input"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Input</FormLabel>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>Input</FormLabel>
+                        {dataset?.inputSchema && (
+                          <DatasetSchemaHoverCard
+                            schema={dataset.inputSchema}
+                            schemaType="input"
+                            showLabel
+                          />
+                        )}
+                      </div>
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
@@ -177,7 +227,16 @@ export const EditDatasetItem = ({
                   name="expectedOutput"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Expected output</FormLabel>
+                      <div className="flex items-center gap-2">
+                        <FormLabel>Expected output</FormLabel>
+                        {dataset?.expectedOutputSchema && (
+                          <DatasetSchemaHoverCard
+                            schema={dataset.expectedOutputSchema}
+                            schemaType="expectedOutput"
+                            showLabel
+                          />
+                        )}
+                      </div>
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
@@ -195,6 +254,14 @@ export const EditDatasetItem = ({
                   )}
                 />
               </div>
+
+              {/* Show validation errors only if fields have been touched */}
+              {validation.hasSchemas &&
+                !validation.isValid &&
+                hasInteractedWithValidatedFields && (
+                  <DatasetItemSchemaErrors errors={validation.errors} />
+                )}
+
               <FormField
                 control={form.control}
                 name="metadata"

@@ -420,6 +420,8 @@ export const datasetRouter = createTRPCRouter({
         select: {
           id: true,
           name: true,
+          inputSchema: true,
+          expectedOutputSchema: true,
         },
       });
     }),
