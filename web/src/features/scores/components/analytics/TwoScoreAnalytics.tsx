@@ -223,9 +223,10 @@ export function TwoScoreAnalytics({
   // Fill gaps in time series to ensure all intervals are displayed
   // For NUMERIC scores
   const rawTimeSeries = useMemo(() => {
-    let data = timeSeriesTab === "matched"
-      ? analytics.timeSeriesMatched
-      : analytics.timeSeries;
+    let data =
+      timeSeriesTab === "matched"
+        ? analytics.timeSeriesMatched
+        : analytics.timeSeries;
 
     // In single-score mode, backend returns empty data for score2
     // Duplicate score1 data to show both lines with identical values
@@ -238,7 +239,13 @@ export function TwoScoreAnalytics({
     }
 
     return data;
-  }, [timeSeriesTab, analytics.timeSeriesMatched, analytics.timeSeries, isSingleScore, isBothNumeric]);
+  }, [
+    timeSeriesTab,
+    analytics.timeSeriesMatched,
+    analytics.timeSeries,
+    isSingleScore,
+    isBothNumeric,
+  ]);
 
   console.log("rawTimeSeries", rawTimeSeries);
 

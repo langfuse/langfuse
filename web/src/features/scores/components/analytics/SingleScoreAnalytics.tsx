@@ -100,7 +100,14 @@ export function SingleScoreAnalytics({
     }
 
     return filledData;
-  }, [dataType, scoreName, analytics.timeSeriesCategorical1, fromDate, toDate, interval]);
+  }, [
+    dataType,
+    scoreName,
+    analytics.timeSeriesCategorical1,
+    fromDate,
+    toDate,
+    interval,
+  ]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
@@ -156,9 +163,6 @@ export function SingleScoreAnalytics({
     if (validValues.length === 0) return 0;
     return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
   }, [timeSeries]);
-
-  console.log("timeSeries", timeSeries);
-  console.log("categoricalTimeSeries", categoricalTimeSeries);
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
