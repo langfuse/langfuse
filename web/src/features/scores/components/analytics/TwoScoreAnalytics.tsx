@@ -222,10 +222,23 @@ export function TwoScoreAnalytics({
 
   // Fill gaps in time series to ensure all intervals are displayed
   // For NUMERIC scores
-  const rawTimeSeries =
-    timeSeriesTab === "matched"
+  const rawTimeSeries = useMemo(() => {
+    let data = timeSeriesTab === "matched"
       ? analytics.timeSeriesMatched
       : analytics.timeSeries;
+
+    // In single-score mode, backend returns empty data for score2
+    // Duplicate score1 data to show both lines with identical values
+    if (isSingleScore && isBothNumeric) {
+      data = data.map((item) => ({
+        ...item,
+        avg2: item.avg1, // Use score1 data for score2
+        count2: item.count1,
+      }));
+    }
+
+    return data;
+  }, [timeSeriesTab, analytics.timeSeriesMatched, analytics.timeSeries, isSingleScore, isBothNumeric]);
 
   console.log("rawTimeSeries", rawTimeSeries);
 
@@ -429,7 +442,19 @@ export function TwoScoreAnalytics({
   // Prepare time series data based on tab selection
   const timeSeriesData = useMemo(() => {
     if (timeSeriesTab === "score2") {
-      // Swap avg1 and avg2 when showing only score2
+      if (isSingleScore && isBothNumeric) {
+        // In single-score mode, score2 shows the same data as score1
+        // We've already duplicated avg1 to avg2 above, so just use timeSeries as-is
+        // But swap to show score2 in primary position
+        return timeSeries.map((item) => ({
+          ...item,
+          avg1: item.avg2,
+          avg2: item.avg1,
+          count1: item.count2,
+          count2: item.count1,
+        }));
+      }
+      // Normal mode: Swap avg1 and avg2 when showing only score2
       return timeSeries.map((item) => ({
         ...item,
         avg1: item.avg2,
@@ -437,7 +462,7 @@ export function TwoScoreAnalytics({
       }));
     }
     return timeSeries;
-  }, [timeSeries, timeSeriesTab]);
+  }, [timeSeries, timeSeriesTab, isSingleScore, isBothNumeric]);
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
