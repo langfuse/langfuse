@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useCallback } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -6,6 +6,9 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { useQueries } from "@tanstack/react-query";
 import { type JsonNested } from "@langfuse/shared";
 import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
+import { Download } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { downloadTraceAsJson as downloadTraceUtil } from "@/src/components/trace/lib/helpers";
 
 // for Json Expansion Context State (keeps expanded/collapsed state across traces)
 
@@ -85,11 +88,16 @@ export const TraceLogView = ({
   traceId,
   projectId,
   currentView,
+  trace,
 }: {
   observations: ObservationReturnTypeWithMetadata[];
   traceId: string;
   projectId: string;
   currentView: "pretty" | "json";
+  trace: {
+    id: string;
+    [key: string]: unknown;
+  };
 }) => {
   const [currentObservationId] = useQueryParam("observation", StringParam);
   const [selectedTab] = useQueryParam("view", StringParam);
@@ -196,7 +204,7 @@ export const TraceLogView = ({
           `[data-observation-id="${keyPathFormat}"]`,
         );
         if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       }
     }
@@ -214,6 +222,41 @@ export const TraceLogView = ({
     [expansionState.log, observationKeys],
   );
 
+  // download includes trace + observations with full I/O
+  const downloadLogAsJson = useCallback(() => {
+    const observationsWithFullData = observations.map((obs, index) => {
+      const obsWithIO = observationsWithIO[index]?.data;
+      return {
+        ...obs,
+        input: obsWithIO?.input,
+        output: obsWithIO?.output,
+        metadata: obsWithIO?.metadata,
+      };
+    });
+
+    downloadTraceUtil({
+      trace,
+      observations: observationsWithFullData,
+      filename: `trace-with-observations-${traceId}.json`,
+    });
+  }, [trace, observations, observationsWithIO, traceId]);
+
+  // Only render the actual log view when all data is loaded
+  // prevents partial rendering and improves performance
+  if (isLoading) {
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden pr-3">
+        <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+          <div className="rounded-md border p-4">
+            <div className="text-sm text-muted-foreground">
+              Loading {observations.length} observations...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden pr-3">
       <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
@@ -222,7 +265,7 @@ export const TraceLogView = ({
           title="Concatenated Observation Log"
           json={logData.data}
           currentView={currentView}
-          isLoading={isLoading}
+          isLoading={false}
           showNullValues={false}
           externalExpansionState={denormalizedState}
           onExternalExpansionChange={(expansion) =>
@@ -230,6 +273,17 @@ export const TraceLogView = ({
           }
           stickyTopLevelKey={true}
           showObservationTypeBadge={true}
+          controlButtons={
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={downloadLogAsJson}
+              title="Download trace log as JSON"
+              className="-mr-2"
+            >
+              <Download className="h-3 w-3" />
+            </Button>
+          }
         />
       </div>
     </div>
