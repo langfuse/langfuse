@@ -50,10 +50,11 @@ export function ScoreTimeSeriesBooleanChart({
       allCategories.add(item.category);
     });
 
-    // Detect if categories are prefixed (e.g., "correctness-True", "hallucination-False")
+    // Detect if categories are prefixed (e.g., "correctness-0", "hallucination-1")
     // This happens in "both" tab when comparing different scores
+    // Boolean values come from ClickHouse as "0" (false) and "1" (true), not "True"/"False"
     const categoryList = Array.from(allCategories).sort();
-    const isPrefixed = categoryList.some((cat) => cat.match(/-(?:True|False)$/i));
+    const isPrefixed = categoryList.some((cat) => cat.match(/-(?:0|1)$/));
 
     // Convert to chart data format
     // Sort by numeric timestamp BEFORE formatting to ensure chronological order
@@ -79,10 +80,11 @@ export function ScoreTimeSeriesBooleanChart({
         }
 
         // Non-prefixed mode: Standard True/False columns
+        // Boolean values are "0" (false) and "1" (true) from ClickHouse
         return {
           time_dimension: formattedTimestamp,
-          True: categoryMap.get("true") ?? categoryMap.get("True") ?? 0,
-          False: categoryMap.get("false") ?? categoryMap.get("False") ?? 0,
+          True: categoryMap.get("1") ?? 0, // "1" represents true
+          False: categoryMap.get("0") ?? 0, // "0" represents false
         };
       });
 
