@@ -36,6 +36,8 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import DOMPurify from "dompurify";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
+import { Button } from "@/src/components/ui/button";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -333,12 +335,21 @@ export function MarkdownView({
   const { resolvedTheme: theme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
 
+  const markdownContent =
+    typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
+
+  const {
+    shouldBeCollapsible,
+    isCollapsed,
+    toggleCollapsed,
+    truncatedContent,
+  } = useCollapsibleSystemPrompt({
+    role: title ?? "",
+    content: markdownContent,
+  });
+
   const handleOnCopy = () => {
-    const rawText =
-      typeof markdown === "string"
-        ? markdown
-        : parseOpenAIContentParts(markdown);
-    void copyTextToClipboard(rawText);
+    void copyTextToClipboard(markdownContent);
   };
 
   const handleOnValueChange = () => {
@@ -373,11 +384,27 @@ export function MarkdownView({
       >
         {typeof markdown === "string" ? (
           // plain string
-          <MarkdownRenderer
-            markdown={markdown}
-            theme={theme}
-            customCodeHeaderClassName={customCodeHeaderClassName}
-          />
+          <>
+            <MarkdownRenderer
+              markdown={
+                shouldBeCollapsible && isCollapsed ? truncatedContent : markdown
+              }
+              theme={theme}
+              customCodeHeaderClassName={customCodeHeaderClassName}
+            />
+            {shouldBeCollapsible && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={toggleCollapsed}
+                className="w-fit text-xs underline"
+              >
+                {isCollapsed
+                  ? "Expand system prompt"
+                  : "Collapse system prompt"}
+              </Button>
+            )}
+          </>
         ) : (
           // content parts (multi-modal)
           (markdown ?? []).map((content, index) =>
