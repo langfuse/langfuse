@@ -214,6 +214,22 @@ export const TraceLogView = ({
     [expansionState.log, observationKeys],
   );
 
+  // Only render the actual log view when all data is loaded
+  // prevents partial rendering and improves performance
+  if (isLoading) {
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden pr-3">
+        <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+          <div className="rounded-md border p-4">
+            <div className="text-sm text-muted-foreground">
+              Loading {observations.length} observations...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden pr-3">
       <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
@@ -222,7 +238,7 @@ export const TraceLogView = ({
           title="Concatenated Observation Log"
           json={logData.data}
           currentView={currentView}
-          isLoading={isLoading}
+          isLoading={false}
           showNullValues={false}
           externalExpansionState={denormalizedState}
           onExternalExpansionChange={(expansion) =>

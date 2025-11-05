@@ -18,7 +18,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { api } from "@/src/utils/api";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -46,6 +46,16 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import TagList from "@/src/features/tag/components/TagList";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
 
 export const TracePreview = ({
   trace,
@@ -116,13 +126,31 @@ export const TracePreview = ({
   );
 
   // For performance reasons, we preemptively disable the log view if there are too many observations.
-  const isLogViewDisabled = observations.length > 150;
+  const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
+  const LOG_VIEW_DISABLED_THRESHOLD = 350;
+  const isLogViewDisabled = observations.length > LOG_VIEW_DISABLED_THRESHOLD;
+  const requiresConfirmation =
+    observations.length > LOG_VIEW_CONFIRMATION_THRESHOLD && !isLogViewDisabled;
   const showLogViewTab = observations.length > 0;
+
+  const [hasLogViewConfirmed, setHasLogViewConfirmed] = useState(false);
+  const [showLogViewDialog, setShowLogViewDialog] = useState(false);
+
+  useEffect(() => {
+    setHasLogViewConfirmed(false);
+  }, [trace.id]);
+
   useEffect(() => {
     if ((isLogViewDisabled || !showLogViewTab) && selectedTab === "log") {
       setSelectedTab("preview");
     }
   }, [isLogViewDisabled, showLogViewTab, selectedTab, setSelectedTab]);
+
+  const handleConfirmLogView = () => {
+    setHasLogViewConfirmed(true);
+    setShowLogViewDialog(false);
+    setSelectedTab("log");
+  };
 
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
@@ -270,6 +298,15 @@ export const TracePreview = ({
           }
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onValueChange={(value) => {
+            // on tab click, is confirmation is needed?
+            if (
+              value === "log" &&
+              requiresConfirmation &&
+              !hasLogViewConfirmed
+            ) {
+              setShowLogViewDialog(true);
+              return;
+            }
             capture("trace_detail:view_mode_switch", { mode: value });
             setSelectedTab(value);
           }}
@@ -286,8 +323,10 @@ export const TracePreview = ({
                       </TooltipTrigger>
                       <TooltipContent className="text-xs">
                         {isLogViewDisabled
-                          ? `Log View is disabled for traces with more than 150 observations (this trace has ${observations.length})`
-                          : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
+                          ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
+                          : requiresConfirmation
+                            ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
+                            : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
                       </TooltipContent>
                     </Tooltip>
                   </TabsBarTrigger>
@@ -410,6 +449,27 @@ export const TracePreview = ({
           )}
         </TabsBar>
       </div>
+
+      {/* Confirmation dialog for log view with many observations */}
+      <AlertDialog open={showLogViewDialog} onOpenChange={setShowLogViewDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sluggish Performance Warning</AlertDialogTitle>
+            <AlertDialogDescription>
+              This trace has {observations.length} observations. The log view
+              may be slow to load and interact with. Do you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowLogViewDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLogView}>
+              Show Log View
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
