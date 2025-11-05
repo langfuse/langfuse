@@ -94,7 +94,7 @@ import {
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
-import { BaseError, getCompactRepresentation } from "@langfuse/shared";
+import { BaseError, resolveIOByMode } from "@langfuse/shared";
 
 setUpSuperjson();
 
@@ -400,16 +400,6 @@ const inputTraceSchema = z.object({
   mode: z.enum(["compact", "truncated", "full"]).default("full"),
 });
 
-const resolveIO = (io: unknown, mode: "compact" | "truncated" | "full") => {
-  if (mode === "compact") {
-    const compact = getCompactRepresentation(io);
-    if (compact.success) {
-      return compact.data;
-    }
-  }
-  return io;
-};
-
 const enforceTraceAccess = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   const actualInput = await opts.getRawInput();
@@ -451,8 +441,8 @@ const enforceTraceAccess = t.middleware(async (opts) => {
 
   const trace = {
     ...clickhouseTrace,
-    input: resolveIO(clickhouseTrace.input, mode),
-    output: resolveIO(clickhouseTrace.output, mode),
+    input: resolveIOByMode(clickhouseTrace.input, mode),
+    output: resolveIOByMode(clickhouseTrace.output, mode),
   };
 
   const sessionProject = ctx.session?.user?.organizations

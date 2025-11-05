@@ -1303,7 +1303,7 @@ const GenerationsDynamicCell = ({
       traceId,
       projectId,
       startTime,
-      truncated: true,
+      mode: "compact",
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",
