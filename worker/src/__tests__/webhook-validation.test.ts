@@ -55,6 +55,7 @@ describe("Webhook URL Validation", () => {
       await expect(
         validateWebhookURL("http://test.localhost/hook"),
       ).rejects.toThrow("Blocked hostname detected");
+      // Error message should not contain IP addresses
       await expect(
         validateWebhookURL("https://127.0.0.1/hook"),
       ).rejects.toThrow("Blocked IP address detected");
@@ -172,6 +173,31 @@ describe("Webhook URL Validation", () => {
           ip_ranges: [],
         }),
       ).resolves.not.toThrow();
+    });
+
+    it("should not leak IP addresses in error messages", async () => {
+      // Test with IP literal
+      try {
+        await validateWebhookURL("http://192.168.1.1/hook");
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const message = (error as Error).message;
+        // Error message should not contain the specific IP address
+        expect(message).toBe("Blocked IP address detected");
+        expect(message).not.toContain("192.168.1.1");
+      }
+
+      // Test with localhost IP
+      try {
+        await validateWebhookURL("http://127.0.0.1/hook");
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const message = (error as Error).message;
+        expect(message).toBe("Blocked IP address detected");
+        expect(message).not.toContain("127.0.0.1");
+      }
     });
   });
 });
