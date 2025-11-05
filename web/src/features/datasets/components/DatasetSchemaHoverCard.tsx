@@ -1,4 +1,4 @@
-import { LockIcon } from "lucide-react";
+import { ArrowUpRight, LockIcon } from "lucide-react";
 import {
   HoverCard,
   HoverCardContent,
@@ -39,7 +39,19 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
         </Button>
       </HoverCardTrigger>
       <HoverCardContent className="max-h-[500px] w-[400px] overflow-auto">
-        <HoverCardTitle>{title}</HoverCardTitle>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="pt-2 text-sm text-muted-foreground">
+          Learn more about{" "}
+          <a
+            href="https://json-schema.org/learn/miscellaneous-examples"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center underline hover:text-foreground"
+          >
+            JSON Schema
+            <ArrowUpRight className="ml-0.5 h-3 w-3" />
+          </a>
+        </p>
         <div className="mt-2">
           <CodeMirrorEditor
             mode="json"
