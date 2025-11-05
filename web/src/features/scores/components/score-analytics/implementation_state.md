@@ -142,10 +142,13 @@ Wrap data hook and expose via React Context.
 
 ---
 
-## 🚧 Phase 5: Build Card Components (IN PROGRESS)
+## ✅ Phase 5: Build Card Components (COMPLETE)
 
 ### Files Created:
-1. ✅ `/components/cards/StatisticsCard.tsx` (375+ lines) - COMPLETE
+1. ✅ `/components/cards/StatisticsCard.tsx` (413+ lines) - COMPLETE
+2. ✅ `/components/cards/TimelineChartCard.tsx` (182+ lines) - COMPLETE
+3. ✅ `/components/cards/DistributionChartCard.tsx` (182+ lines) - COMPLETE
+4. ✅ `/components/cards/HeatmapCard.tsx` (181+ lines) - COMPLETE
 
 ### Completed Tasks:
 - [x] **StatisticsCard.tsx** (~1.5 hours)
@@ -156,17 +159,39 @@ Wrap data hook and expose via React Context.
   - [x] TypeScript: ✅ No errors
   - [x] Linter: ✅ No errors
 
-### Pending Tasks:
-- [ ] `TimelineChartCard.tsx` (2 hours)
-- [ ] `DistributionChartCard.tsx` (2 hours)
-- [ ] `HeatmapCard.tsx` (2 hours)
+- [x] **TimelineChartCard.tsx** (~1.5 hours)
+  - [x] Consumes `useScoreAnalytics()` hook
+  - [x] Time series line/area charts
+  - [x] Tabs: All / Matched (two-score mode only)
+  - [x] Handles numeric vs categorical data
+  - [x] Shows loading/empty states
+  - [x] TypeScript: ✅ No errors (fixed type assertions)
+  - [x] Linter: ✅ No errors
+
+- [x] **DistributionChartCard.tsx** (~1.5 hours)
+  - [x] Consumes `useScoreAnalytics()` hook
+  - [x] Distribution histogram/bar charts
+  - [x] Tabs: Individual / Matched / Stacked
+  - [x] Handles numeric vs categorical vs boolean
+  - [x] Shows loading/empty states
+  - [x] TypeScript: ✅ No errors
+  - [x] Linter: ✅ No errors
+
+- [x] **HeatmapCard.tsx** (~1.5 hours)
+  - [x] Consumes `useScoreAnalytics()` hook
+  - [x] Heatmap for numeric scores (10x10 bins)
+  - [x] Confusion matrix for categorical/boolean
+  - [x] Placeholder in single-score mode
+  - [x] Shows loading/empty states
+  - [x] TypeScript: ✅ No errors
+  - [x] Linter: ✅ No errors
 
 ### Goal:
 Create smart cards that consume context and handle own rendering logic.
 
-**Progress**: 25% (1/4 cards complete)
-**Time Spent**: ~1.5 hours
-**Time Remaining**: ~6 hours
+**Progress**: 100% (4/4 cards complete)
+**Time Spent**: ~6 hours
+**Status**: ✅ Complete
 
 ---
 
@@ -232,50 +257,35 @@ Reduce page from 668 lines to ~200 lines.
 | 2. Transformers | ✅ Complete | 100% | 0 hours |
 | 3. Hook | ✅ Complete | 100% | 0 hours |
 | 4. Provider | ✅ Complete | 100% | 0 hours |
-| 5. Cards | 🚧 Next | 0% | 8 hours |
-| 6. Dashboard | ⏳ Todo | 0% | 2 hours |
+| 5. Cards | ✅ Complete | 100% | 0 hours |
+| 6. Dashboard | 🚧 Next | 0% | 2 hours |
 | 7. Page | ⏳ Todo | 0% | 3 hours |
 | 8. Testing | ⏳ Todo | 0% | 8 hours |
 | 9. Swap | ⏳ Todo | 0% | 1 hour |
 | 10. Cleanup | ⏳ Todo | 0% | 2 hours |
 
-**Total Progress**: ~40% (4/10 phases complete)
-**Time Remaining**: ~24 hours (~4 days)
+**Total Progress**: ~50% (5/10 phases complete)
+**Time Remaining**: ~16 hours (~2-3 days)
 
 ---
 
 ## Next Action
 
-Continue with **Phase 5: Build Card Components**
+Continue with **Phase 6: Build Dashboard Layout**
 
-Build 4 smart card components in `/components/cards/`:
+Build 2 layout components in `/components/`:
 
-1. **StatisticsCard.tsx** (~2 hours)
-   - Displays summary stats (mean, std, mode, correlation)
-   - Consumes `useScoreAnalytics()` hook
-   - Handles single vs two-score modes
-   - Shows loading/empty states
+1. **ScoreAnalyticsDashboard.tsx** (~1 hour)
+   - 2x2 responsive grid layout for cards
+   - Wraps 4 card components
+   - Simple, minimal layout logic
 
-2. **TimelineChartCard.tsx** (~2 hours)
-   - Time series chart (line/area)
-   - Supports tabs: All / Matched (for two-score mode)
-   - Handles numeric vs categorical data
-   - Auto-selects appropriate chart component
+2. **ScoreAnalyticsHeader.tsx** (~1 hour)
+   - Score selectors (score1, score2)
+   - Date range picker
+   - Time interval selector
+   - Filter controls
 
-3. **DistributionChartCard.tsx** (~2 hours)
-   - Distribution histogram/bar chart
-   - Supports tabs: Individual / Matched / Stacked
-   - Handles numeric vs categorical vs boolean
-   - Auto-selects appropriate chart component
+**Approach**: Build incrementally, test each component before moving to next
 
-4. **HeatmapCard.tsx** (~2 hours)
-   - Heatmap for score comparisons
-   - Numeric: 10x10 bins
-   - Categorical/Boolean: Confusion matrix
-   - Only shown in two-score mode
-
-**Approach**: Build incrementally, test each card before moving to next
-
-**Estimated Time**: 8 hours
-
-Reference detailed-plan.md for complete implementation examples.
+**Estimated Time**: 2 hours
