@@ -79,15 +79,35 @@ export function SingleScoreAnalytics({
   }, [analytics.timeSeries, fromDate, toDate, interval]);
 
   // For categorical/boolean scores, use categorical time series data
+  // For boolean scores, prefix categories with score name to ensure consistent rendering
   const categoricalTimeSeries = useMemo(() => {
     if (dataType === "NUMERIC") return [];
-    return fillCategoricalTimeSeriesGaps(
+
+    const filledData = fillCategoricalTimeSeriesGaps(
       analytics.timeSeriesCategorical1,
       fromDate,
       toDate,
       interval,
     );
-  }, [dataType, analytics.timeSeriesCategorical1, fromDate, toDate, interval]);
+
+    // For boolean scores, prefix categories with score name
+    // This ensures consistent rendering with the BooleanTimeSeriesChart
+    if (dataType === "BOOLEAN") {
+      return filledData.map((item) => ({
+        ...item,
+        category: `${scoreName}-${item.category}`,
+      }));
+    }
+
+    return filledData;
+  }, [
+    dataType,
+    scoreName,
+    analytics.timeSeriesCategorical1,
+    fromDate,
+    toDate,
+    interval,
+  ]);
 
   // Calculate statistics
   const statistics = useMemo(() => {

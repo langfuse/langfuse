@@ -132,6 +132,7 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.statistics).not.toBeNull();
       if (result.statistics) {
         expect(result.statistics.pearsonCorrelation).toBeDefined();
+        expect(result.statistics.spearmanCorrelation).toBeDefined();
       }
 
       expect(result.timeSeries).toBeDefined();
@@ -781,6 +782,7 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.statistics).not.toBeNull();
       if (result.statistics) {
         expect(result.statistics.pearsonCorrelation).toBeCloseTo(1.0, 2);
+        expect(result.statistics.spearmanCorrelation).toBeCloseTo(1.0, 2);
         expect(result.statistics.mae).toBeCloseTo(0, 2);
         expect(result.statistics.rmse).toBeCloseTo(0, 2);
       }
@@ -841,6 +843,7 @@ describe("Score Comparison Analytics tRPC", () => {
       if (result.statistics) {
         // Perfect linear correlation should be 1.0
         expect(result.statistics.pearsonCorrelation).toBeCloseTo(1.0, 2);
+        expect(result.statistics.spearmanCorrelation).toBeCloseTo(1.0, 2);
 
         // MAE for y=2x should be 0
         expect(result.statistics.mae).toBeGreaterThan(0);

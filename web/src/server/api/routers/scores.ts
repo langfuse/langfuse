@@ -745,6 +745,14 @@ export const scoresRouter = createTRPCRouter({
       // as well as individual-bound distributions. The frontend chooses which
       // to display based on the selected tab.
 
+      // Detect if comparing identical scores (same name, source, and dataType)
+      // When true, certain statistical calculations (like Spearman correlation)
+      // will be skipped since they're undefined for identical datasets
+      const isIdenticalScores =
+        score1.name === score2.name &&
+        score1.source === score2.source &&
+        score1.dataType === score2.dataType;
+
       /**
        * Normalize interval to single-unit for ClickHouse aggregation.
        *
@@ -1268,13 +1276,34 @@ export const scoresRouter = createTRPCRouter({
           stats AS (
             SELECT
               count() as matched_count,
-              avg(value1) as mean1,
+              ${
+                isNumeric
+                  ? `avg(value1) as mean1,
               avg(value2) as mean2,
               stddevPop(value1) as std1,
               stddevPop(value2) as std2,
               corr(value1, value2) as pearson_correlation,
+              -- Spearman correlation requires different samples with variance
+              -- Skip calculation if comparing identical scores or if no variance exists
+              ${
+                isIdenticalScores
+                  ? "NULL as spearman_correlation,"
+                  : `if(stddevPop(value1) > 0 AND stddevPop(value2) > 0,
+                 rankCorr(value1, value2),
+                 NULL) as spearman_correlation,`
+              }
               avg(abs(value1 - value2)) as mae,
-              sqrt(avg(pow(value1 - value2, 2))) as rmse
+              sqrt(avg(pow(value1 - value2, 2))) as rmse`
+                  : `-- Categorical/boolean scores: statistical metrics are not meaningful
+              NULL as mean1,
+              NULL as mean2,
+              NULL as std1,
+              NULL as std2,
+              NULL as pearson_correlation,
+              NULL as spearman_correlation,
+              NULL as mae,
+              NULL as rmse`
+              }
             FROM matched_scores
           ),
 
@@ -1369,7 +1398,7 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(String)) as col9,
           CAST(NULL AS Nullable(String)) as col10,
           CAST(NULL AS Nullable(Float64)) as col11,
-          CAST(NULL AS Nullable(Float64)) as col12
+          spearman_correlation as col12
         FROM stats
 
         UNION ALL
@@ -1769,6 +1798,7 @@ export const scoresRouter = createTRPCRouter({
               pearsonCorrelation: statsRow.col6 ?? null,
               mae: statsRow.col7 ?? null,
               rmse: statsRow.col8 ?? null,
+              spearmanCorrelation: statsRow.col12 ?? null,
             }
           : null,
         timeSeries: timeseriesRows.map((row) => ({

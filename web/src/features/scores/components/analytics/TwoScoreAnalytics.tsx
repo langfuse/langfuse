@@ -48,6 +48,14 @@ export function TwoScoreAnalytics({
   // Local state for per-chart tab selection
   const [distributionTab, setDistributionTab] = useState<ChartTab>("both");
   const [timeSeriesTab, setTimeSeriesTab] = useState<ChartTab>("both");
+
+  // Detect single-score mode (comparing same score to itself)
+  // Backend returns empty data for score2 in this case to save query costs
+  const isSingleScore =
+    score1.name === score2.name &&
+    score1.source === score2.source &&
+    score1.dataType === score2.dataType;
+
   // Detect cross-type comparison (treat as categorical)
   const isCrossType = score1.dataType !== score2.dataType;
   const isBothNumeric =
@@ -129,10 +137,16 @@ export function TwoScoreAnalytics({
         : analytics.distribution1;
   const rawDistribution2 =
     distributionTab === "matched"
-      ? analytics.distribution2Matched
+      ? isSingleScore
+        ? analytics.distribution1Matched // Use score1 matched data when comparing same score
+        : analytics.distribution2Matched
       : distributionTab === "score2"
-        ? analytics.distribution2Individual
-        : analytics.distribution2;
+        ? isSingleScore
+          ? analytics.distribution1Individual // Use score1 individual data when comparing same score
+          : analytics.distribution2Individual
+        : isSingleScore
+          ? analytics.distribution1 // Use score1 data when comparing same score
+          : analytics.distribution2;
 
   // Fill missing bins for categorical/boolean/cross-type data
   const distribution1 = useMemo(() => {
@@ -208,10 +222,30 @@ export function TwoScoreAnalytics({
 
   // Fill gaps in time series to ensure all intervals are displayed
   // For NUMERIC scores
-  const rawTimeSeries =
-    timeSeriesTab === "matched"
-      ? analytics.timeSeriesMatched
-      : analytics.timeSeries;
+  const rawTimeSeries = useMemo(() => {
+    let data =
+      timeSeriesTab === "matched"
+        ? analytics.timeSeriesMatched
+        : analytics.timeSeries;
+
+    // In single-score mode, backend returns empty data for score2
+    // Duplicate score1 data to show both lines with identical values
+    if (isSingleScore && isBothNumeric) {
+      data = data.map((item) => ({
+        ...item,
+        avg2: item.avg1, // Use score1 data for score2
+        count2: item.count1,
+      }));
+    }
+
+    return data;
+  }, [
+    timeSeriesTab,
+    analytics.timeSeriesMatched,
+    analytics.timeSeries,
+    isSingleScore,
+    isBothNumeric,
+  ]);
 
   console.log("rawTimeSeries", rawTimeSeries);
 
@@ -242,39 +276,79 @@ export function TwoScoreAnalytics({
         rawData = analytics.timeSeriesCategorical1;
         break;
       case "score2":
-        rawData = analytics.timeSeriesCategorical2;
+        // Use score1 data when comparing same score (backend returns empty for score2)
+        rawData = isSingleScore
+          ? analytics.timeSeriesCategorical1
+          : analytics.timeSeriesCategorical2;
         break;
       case "both":
         // Combine both scores' categorical data, prefixing categories to distinguish scores
-        rawData = [
-          ...analytics.timeSeriesCategorical1.map((d) => ({
-            ...d,
-            category: `${score1.name}-${d.category}`,
-          })),
-          ...analytics.timeSeriesCategorical2.map((d) => ({
-            ...d,
-            category: `${score2.name}-${d.category}`,
-          })),
-        ];
+        if (isSingleScore) {
+          // When comparing same score, duplicate score1 data with different prefixes
+          rawData = [
+            ...analytics.timeSeriesCategorical1.map((d) => ({
+              ...d,
+              category: `${score1.name}-${d.category}`,
+            })),
+            ...analytics.timeSeriesCategorical1.map((d) => ({
+              ...d,
+              category: `${score2.name}-${d.category}`,
+            })),
+          ];
+        } else {
+          rawData = [
+            ...analytics.timeSeriesCategorical1.map((d) => ({
+              ...d,
+              category: `${score1.name}-${d.category}`,
+            })),
+            ...analytics.timeSeriesCategorical2.map((d) => ({
+              ...d,
+              category: `${score2.name}-${d.category}`,
+            })),
+          ];
+        }
         break;
       case "matched":
         // Combine both matched scores' categorical data, prefixing categories
-        rawData = [
-          ...analytics.timeSeriesCategorical1Matched.map((d) => ({
-            ...d,
-            category: `${score1.name}-${d.category}`,
-          })),
-          ...analytics.timeSeriesCategorical2Matched.map((d) => ({
-            ...d,
-            category: `${score2.name}-${d.category}`,
-          })),
-        ];
+        if (isSingleScore) {
+          // When comparing same score, duplicate score1 matched data with different prefixes
+          rawData = [
+            ...analytics.timeSeriesCategorical1Matched.map((d) => ({
+              ...d,
+              category: `${score1.name}-${d.category}`,
+            })),
+            ...analytics.timeSeriesCategorical1Matched.map((d) => ({
+              ...d,
+              category: `${score2.name}-${d.category}`,
+            })),
+          ];
+        } else {
+          rawData = [
+            ...analytics.timeSeriesCategorical1Matched.map((d) => ({
+              ...d,
+              category: `${score1.name}-${d.category}`,
+            })),
+            ...analytics.timeSeriesCategorical2Matched.map((d) => ({
+              ...d,
+              category: `${score2.name}-${d.category}`,
+            })),
+          ];
+        }
         break;
     }
 
     // Apply gap filling to ensure all intervals are displayed with proper aggregation
     return fillCategoricalTimeSeriesGaps(rawData, fromDate, toDate, interval);
-  }, [timeSeriesTab, analytics, fromDate, toDate, interval, score1, score2]);
+  }, [
+    timeSeriesTab,
+    analytics,
+    fromDate,
+    toDate,
+    interval,
+    score1,
+    score2,
+    isSingleScore,
+  ]);
 
   // Calculate overall averages from time series
   const overallAverage1 = useMemo(() => {
@@ -375,7 +449,19 @@ export function TwoScoreAnalytics({
   // Prepare time series data based on tab selection
   const timeSeriesData = useMemo(() => {
     if (timeSeriesTab === "score2") {
-      // Swap avg1 and avg2 when showing only score2
+      if (isSingleScore && isBothNumeric) {
+        // In single-score mode, score2 shows the same data as score1
+        // We've already duplicated avg1 to avg2 above, so just use timeSeries as-is
+        // But swap to show score2 in primary position
+        return timeSeries.map((item) => ({
+          ...item,
+          avg1: item.avg2,
+          avg2: item.avg1,
+          count1: item.count2,
+          count2: item.count1,
+        }));
+      }
+      // Normal mode: Swap avg1 and avg2 when showing only score2
       return timeSeries.map((item) => ({
         ...item,
         avg1: item.avg2,
@@ -383,7 +469,7 @@ export function TwoScoreAnalytics({
       }));
     }
     return timeSeries;
-  }, [timeSeries, timeSeriesTab]);
+  }, [timeSeries, timeSeriesTab, isSingleScore, isBothNumeric]);
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
