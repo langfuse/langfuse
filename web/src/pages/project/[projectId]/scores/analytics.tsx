@@ -1,14 +1,14 @@
 import { useRouter } from "next/router";
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
 import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
-import { ScoreSelector } from "@/src/features/scores/components/analytics/ScoreSelector";
+import { ScoreCombobox } from "@/src/features/scores/components/analytics/ScoreCombobox";
 import { ObjectTypeFilter } from "@/src/features/scores/components/analytics/ObjectTypeFilter";
-import { type ScoreOption } from "@/src/features/scores/components/analytics/ScoreSelector";
+import { type ScoreOption } from "@/src/features/scores/components/analytics/ScoreCombobox";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
@@ -31,12 +31,20 @@ export default function ScoresAnalyticsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const {
-    state: urlState,
-    setScore1,
-    setScore2,
-    setObjectType,
-  } = useAnalyticsUrlState();
+  const urlStateHook = useAnalyticsUrlState();
+  const { state: urlState, setScore2, setObjectType } = urlStateHook;
+
+  // Wrapper that clears score2 when score1 is cleared (Requirement 3)
+  const setScore1 = useCallback(
+    (value: string | undefined) => {
+      urlStateHook.setScore1(value);
+
+      if (value === undefined && urlState.score2) {
+        urlStateHook.setScore2(undefined);
+      }
+    },
+    [urlStateHook, urlState.score2],
+  );
 
   const { timeRange, setTimeRange } = useDashboardDateRange();
 
@@ -404,20 +412,21 @@ export default function ScoresAnalyticsPage() {
         <div className="flex flex-col gap-1 border-b border-border p-2 lg:flex-row lg:items-center lg:gap-4">
           {/* Left: Score Selectors */}
           <div className="flex items-center gap-2">
-            <ScoreSelector
+            <ScoreCombobox
               value={urlState.score1}
               onChange={setScore1}
               options={scoreOptions}
               placeholder="First score"
-              className="h-8 w-[160px]"
+              className="h-8 w-[200px]"
             />
-            <ScoreSelector
+            <ScoreCombobox
               value={urlState.score2}
               onChange={setScore2}
               options={scoreOptions}
               placeholder="Second score"
               filterByDataType={compatibleScore2DataTypes}
-              className="h-8 w-[160px]"
+              disabled={!urlState.score1}
+              className="h-8 w-[200px]"
             />
           </div>
 
