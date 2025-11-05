@@ -204,7 +204,7 @@ export default function ScoresAnalyticsV2Page() {
         },
         tabsProps: {
           tabs: getScoresTabs(projectId),
-          activeTab: SCORES_TABS.ANALYTICS_V2,
+          activeTab: SCORES_TABS.ANALYTICS,
         },
       }}
     >
