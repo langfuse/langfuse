@@ -2,7 +2,7 @@ import { getCompactRepresentationChatML } from "./chatML/getCompactRepresentatio
 
 /**
  * Returns a compact representation of IO data for display in tables.
- * Strategy: Try ChatML extraction first, fall back to truncation.
+ * Strategy: Try ChatML extraction if possible.
  *
  * @param io - The input or output data to compact
  * @returns Compact representation or null if no data
