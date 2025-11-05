@@ -13,6 +13,8 @@ import { prisma } from "@langfuse/shared/src/db";
 
 const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
   "langfuse:event-propagation:experiment-backfill:last-run";
+const EXPERIMENT_BACKFILL_LOCK_KEY = "langfuse:experiment-backfill:lock";
+const LOCK_TTL_SECONDS = 300; // 5 minutes
 
 interface DatasetRunItem {
   id: string;
@@ -554,15 +556,65 @@ export async function initializeBackfillCutoff(): Promise<Date> {
 }
 
 /**
- * Check if the experiment backfill should run based on the throttle.
+ * Check if the experiment backfill should run based on the throttle and lock acquisition.
  * (Default every 5min).
  *
- * @returns true if backfill should run (>5min since last run), false otherwise
+ * First checks if enough time has passed since the last run.
+ * Then attempts to acquire a distributed lock to ensure only one worker runs the backfill.
+ *
+ * @returns true if backfill should run (time threshold passed AND lock acquired), false otherwise
  */
 export async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
+  // First check time-based throttle
   const now = new Date();
   const timeSinceLastRun = now.getTime() - lastRun.getTime();
-  return timeSinceLastRun >= env.LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS;
+
+  if (timeSinceLastRun < env.LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS) {
+    logger.debug(
+      "[EXPERIMENT BACKFILL] Skipping due to throttle (time threshold not met)",
+    );
+    return false;
+  }
+
+  // Time threshold passed, now try to acquire lock
+  if (!redis) {
+    logger.warn(
+      "[EXPERIMENT BACKFILL] Redis not available, skipping lock acquisition",
+    );
+    return true; // Allow processing if Redis is unavailable
+  }
+
+  try {
+    // Try to acquire lock using Redis SET NX (atomic test-and-set)
+    const result = await redis.set(
+      EXPERIMENT_BACKFILL_LOCK_KEY,
+      "true",
+      "EX",
+      LOCK_TTL_SECONDS,
+      "NX",
+    );
+
+    const acquired = result === "OK";
+
+    if (acquired) {
+      logger.info(
+        `[EXPERIMENT BACKFILL] Acquired backfill lock with TTL ${LOCK_TTL_SECONDS}s`,
+      );
+    } else {
+      logger.debug(
+        "[EXPERIMENT BACKFILL] Backfill is already locked by another worker",
+      );
+    }
+
+    return acquired;
+  } catch (error) {
+    logger.error(
+      "[EXPERIMENT BACKFILL] Failed to acquire backfill lock",
+      error,
+    );
+    // On error, allow processing to avoid blocking the system
+    return true;
+  }
 }
 
 /**
