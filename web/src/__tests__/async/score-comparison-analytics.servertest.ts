@@ -1018,12 +1018,13 @@ describe("Score Comparison Analytics tRPC", () => {
 
       expect(result.timeSeries.length).toBeGreaterThanOrEqual(2);
 
-      // Total count across time series should equal matched count
-      const totalTimeSeriesCount = result.timeSeries.reduce(
+      // Total count across MATCHED time series should equal matched count
+      // Note: timeSeries (ALL) includes unmatched scores, so we check timeSeriesMatched
+      const totalMatchedTimeSeriesCount = result.timeSeriesMatched.reduce(
         (sum, entry) => sum + entry.count,
         0,
       );
-      expect(totalTimeSeriesCount).toBe(result.counts.matchedCount);
+      expect(totalMatchedTimeSeriesCount).toBe(result.counts.matchedCount);
     });
 
     // Test 15: Aggregates time series by week and month
@@ -2624,7 +2625,156 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(day3Bucket?.count).toBe(1); // Unmatched score2 not included
     });
 
-    // Test 34: Time Series Matched - Single Score Mode
+    // Test 34: Time Series ALL vs MATCHED - Verify Different Data
+    // NOTE: This test uncovered a timezone issue where toStartOfDay() without explicit UTC
+    // would return epoch 0 for certain dates (DST-related). Fixed by adding 'UTC' parameter
+    // to toStartOfDay() in getClickHouseTimeBucketFunction().
+    it("should return different data for timeSeries (all) vs timeSeriesMatched", async () => {
+      const traces = [v4(), v4(), v4(), v4(), v4()];
+      await createTracesCh(
+        traces.map((id) => createTrace({ id, project_id: projectId })),
+      );
+
+      const day1 = new Date("2024-01-01T12:00:00Z");
+      const day2 = new Date("2024-01-02T12:00:00Z");
+      const day3 = new Date("2024-01-03T12:00:00Z");
+      const fromTimestamp = new Date("2024-01-01T00:00:00Z");
+      const toTimestamp = new Date("2024-01-04T00:00:00Z");
+
+      const scoreName1 = `test34-all-${v4()}`;
+      const scoreName2 = `test34-matched-${v4()}`;
+
+      const scores = [
+        // Day 1: 2 matched pairs
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traces[0],
+          observation_id: null,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 10,
+          timestamp: day1.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traces[0],
+          observation_id: null,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 20,
+          timestamp: day1.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traces[1],
+          observation_id: null,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 15,
+          timestamp: day1.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traces[1],
+          observation_id: null,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 25,
+          timestamp: day1.getTime(),
+        }),
+        // Day 2: 1 unmatched score1 only
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traces[2],
+          observation_id: null,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 30,
+          timestamp: day2.getTime(),
+        }),
+        // Day 3: 1 unmatched score2 only
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traces[3],
+          observation_id: null,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 40,
+          timestamp: day3.getTime(),
+        }),
+      ];
+
+      await createScoresCh(scores);
+
+      const result = await caller.scores.getScoreComparisonAnalytics({
+        projectId,
+        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
+        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // timeSeries (ALL) should have more observations than timeSeriesMatched
+      const totalAllCount = result.timeSeries.reduce(
+        (sum, entry) => sum + entry.count,
+        0,
+      );
+      const totalMatchedCount = result.timeSeriesMatched.reduce(
+        (sum, entry) => sum + entry.count,
+        0,
+      );
+
+      expect(totalAllCount).toBeGreaterThan(totalMatchedCount);
+      expect(totalAllCount).toBe(6); // 2 matched pairs + 1 unmatched score1 + 1 unmatched score2 = 6 total
+      expect(totalMatchedCount).toBe(2); // 2 matched pairs
+
+      // Verify timeSeries includes data for all three days
+      const day1All = result.timeSeries.find(
+        (ts) => new Date(ts.timestamp).getUTCDate() === 1,
+      );
+      const day2All = result.timeSeries.find(
+        (ts) => new Date(ts.timestamp).getUTCDate() === 2,
+      );
+      const day3All = result.timeSeries.find(
+        (ts) => new Date(ts.timestamp).getUTCDate() === 3,
+      );
+
+      expect(day1All).toBeDefined();
+      expect(day2All).toBeDefined();
+      expect(day3All).toBeDefined();
+
+      // Day 1: Both scores present (matched) - average of (10, 15) and (20, 25)
+      expect(day1All?.avg1).toBe(12.5); // (10 + 15) / 2
+      expect(day1All?.avg2).toBe(22.5); // (20 + 25) / 2
+
+      // Day 2: Only score1 present (avg2 should be null)
+      expect(day2All?.avg1).toBe(30);
+      expect(day2All?.avg2).toBeNull();
+
+      // Day 3: Only score2 present (avg1 should be null)
+      expect(day3All?.avg1).toBeNull();
+      expect(day3All?.avg2).toBe(40);
+
+      // Verify timeSeriesMatched only includes day 1 (matched pairs)
+      expect(result.timeSeriesMatched.length).toBe(1);
+      const day1Matched = result.timeSeriesMatched.find(
+        (ts) => new Date(ts.timestamp).getUTCDate() === 1,
+      );
+      expect(day1Matched).toBeDefined();
+      expect(day1Matched?.avg1).toBe(12.5); // (10 + 15) / 2
+      expect(day1Matched?.avg2).toBe(22.5); // (20 + 25) / 2
+      expect(day1Matched?.count).toBe(2); // 2 matched pairs
+    });
+
+    // Test 35: Time Series Matched - Single Score Mode
     it("should handle timeSeriesMatched in single-score mode", async () => {
       const traces = [v4(), v4(), v4(), v4()];
       await createTracesCh(
@@ -2690,7 +2840,7 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.timeSeriesMatched.length).toBeGreaterThanOrEqual(2);
     });
 
-    // Test 35: Time Series Matched - Timestamp Precision (Critical)
+    // Test 36: Time Series Matched - Timestamp Precision (Critical)
     it("should return timestamps in seconds not milliseconds in timeSeriesMatched", async () => {
       const traceId = v4();
       await createTracesCh([
@@ -2765,7 +2915,7 @@ describe("Score Comparison Analytics tRPC", () => {
       }
     });
 
-    // Test 36: Time Series Matched - Empty When No Matches
+    // Test 37: Time Series Matched - Empty When No Matches
     it("should return empty timeSeriesMatched when no scores match", async () => {
       const traces = [v4(), v4(), v4()];
       await createTracesCh(
@@ -2837,7 +2987,7 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.counts.matchedCount).toBe(0);
     });
 
-    // Test 37: Heatmap GlobalMin/GlobalMax - Correct Position
+    // Test 38: Heatmap GlobalMin/GlobalMax - Correct Position
     it("should include globalMin and globalMax in heatmap with correct values", async () => {
       const traces = [v4(), v4(), v4(), v4()];
       await createTracesCh(
@@ -2908,7 +3058,7 @@ describe("Score Comparison Analytics tRPC", () => {
       });
     });
 
-    // Test 38: Heatmap GlobalMin/GlobalMax - Single Score Scenario
+    // Test 39: Heatmap GlobalMin/GlobalMax - Single Score Scenario
     it("should have identical bounds in single-score mode for heatmap", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4()];
       await createTracesCh(
@@ -2967,7 +3117,7 @@ describe("Score Comparison Analytics tRPC", () => {
       }
     });
 
-    // Test 39: Heatmap GlobalMin/GlobalMax - Disjoint Ranges
+    // Test 40: Heatmap GlobalMin/GlobalMax - Disjoint Ranges
     it("should have global bounds spanning disjoint score ranges", async () => {
       const traces = [v4(), v4(), v4()];
       await createTracesCh(

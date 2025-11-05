@@ -933,7 +933,7 @@ export const scoresRouter = createTRPCRouter({
           case "hour":
             return `toStartOfHour(${timestampField})`;
           case "day":
-            return `toStartOfDay(${timestampField})`;
+            return `toStartOfDay(${timestampField}, 'UTC')`;
           case "month":
             return `toStartOfMonth(${timestampField})`;
           case "year":
@@ -1033,15 +1033,34 @@ export const scoresRouter = createTRPCRouter({
             GROUP BY ts
             ORDER BY ts
           )`
-        : `-- CTE 8: Time series (two scores - matched only)
+        : `-- CTE 8: Time series (two scores - ALL data, includes unmatched)
           timeseries AS (
+            WITH
+              score1_time_agg AS (
+                SELECT
+                  ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+                  avg(value) as avg1,
+                  count() as count1
+                FROM score1_filtered
+                WHERE value IS NOT NULL
+                GROUP BY ts
+              ),
+              score2_time_agg AS (
+                SELECT
+                  ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+                  avg(value) as avg2,
+                  count() as count2
+                FROM score2_filtered
+                WHERE value IS NOT NULL
+                GROUP BY ts
+              )
             SELECT
-              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
-              avg(value1) as avg1,
-              avg(value2) as avg2,
-              count() as count
-            FROM matched_scores
-            GROUP BY ts
+              COALESCE(s1.ts, s2.ts) as ts,
+              s1.avg1 as avg1,
+              s2.avg2 as avg2,
+              (COALESCE(s1.count1, 0) + COALESCE(s2.count2, 0)) as count
+            FROM score1_time_agg s1
+            FULL OUTER JOIN score2_time_agg s2 ON s1.ts = s2.ts
             ORDER BY ts
           )`;
 
@@ -1395,7 +1414,18 @@ export const scoresRouter = createTRPCRouter({
               : ""
           }
 
-          -- CTE 7: Statistics
+          -- CTE 7: Correlation safety check
+          -- Pre-compute whether it's safe to calculate correlations
+          -- Requires at least 2 data points and non-zero variance in both samples
+          correlation_check AS (
+            SELECT
+              count() >= 2
+                AND stddevPop(value1) > 0
+                AND stddevPop(value2) > 0 as is_safe
+            FROM matched_scores
+          ),
+
+          -- CTE 8: Statistics
           stats AS (
             SELECT
               count() as matched_count,
@@ -1405,18 +1435,28 @@ export const scoresRouter = createTRPCRouter({
               avg(value2) as mean2,
               stddevPop(value1) as std1,
               stddevPop(value2) as std2,
-              corr(value1, value2) as pearson_correlation,
-              -- Spearman correlation requires different samples with variance
-              -- Skip calculation if comparing identical scores or if no variance exists
+              avg(abs(value1 - value2)) as mae,
+              sqrt(avg(pow(value1 - value2, 2))) as rmse,
+              -- Conditional correlation: only execute subquery if safe
+              -- Uses short-circuit evaluation to prevent errors with insufficient data
               ${
                 isIdenticalScores
-                  ? "NULL as spearman_correlation,"
-                  : `if(stddevPop(value1) > 0 AND stddevPop(value2) > 0,
-                 rankCorr(value1, value2),
-                 NULL) as spearman_correlation,`
-              }
-              avg(abs(value1 - value2)) as mae,
-              sqrt(avg(pow(value1 - value2, 2))) as rmse`
+                  ? "NULL"
+                  : `if(
+                (SELECT is_safe FROM correlation_check),
+                (SELECT corr(value1, value2) FROM matched_scores),
+                NULL
+              )`
+              } as pearson_correlation,
+              ${
+                isIdenticalScores
+                  ? "NULL"
+                  : `if(
+                (SELECT is_safe FROM correlation_check),
+                (SELECT rankCorr(value1, value2) FROM matched_scores),
+                NULL
+              )`
+              } as spearman_correlation`
                   : `-- Categorical/boolean scores: statistical metrics are not meaningful
               NULL as mean1,
               NULL as mean2,
@@ -1529,8 +1569,8 @@ export const scoresRouter = createTRPCRouter({
         SELECT
           'timeseries' as result_type,
           CAST(toUnixTimestamp(ts) AS Float64) as col1,
-          avg1 as col2,
-          avg2 as col3,
+          CAST(avg1 AS Nullable(Float64)) as col2,
+          CAST(avg2 AS Nullable(Float64)) as col3,
           CAST(count AS Float64) as col4,
           CAST(NULL AS Nullable(Float64)) as col5,
           CAST(NULL AS Nullable(Float64)) as col6,
@@ -1834,6 +1874,11 @@ export const scoresRouter = createTRPCRouter({
           type: "analytics",
           kind: "comparison",
           projectId,
+        },
+        clickhouseSettings: {
+          // Enable short-circuit evaluation to prevent correlation errors
+          // This ensures if() conditions are evaluated before function calls
+          short_circuit_function_evaluation: "enable",
         },
       });
 
