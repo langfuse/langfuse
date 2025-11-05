@@ -51,7 +51,7 @@ const notifications: SidebarNotification[] = [
     id: "lw4-3",
     title: "Launch Week 4: Day 3",
     description:
-      "Avaliable and used LLM tools are rendered in the UI for debugging. Log view & agent graphs GA.",
+      "Available and used LLM tools are rendered in the UI for debugging. Log view & agent graphs GA.",
     link: "https://langfuse.com/changelog/2025-11-05-langfuse-for-agents",
     linkTitle: "Learn more",
     createdAt: "2025-11-05",
