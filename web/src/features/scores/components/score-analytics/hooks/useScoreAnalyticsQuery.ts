@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import type { IntervalConfig } from "@/src/utils/date-range-utils";
 import {
   fillTimeSeriesGaps,

@@ -32,6 +32,7 @@ export function TimelineChartCard() {
   const [activeTab, setActiveTab] = useState<TimelineTab>("all");
 
   // Calculate overall average for numeric data (for description)
+  // Note: useMemo must be called before any early returns (React hooks rule)
   const overallAverage = useMemo(() => {
     if (!data || data.metadata.dataType !== "NUMERIC") return null;
 
@@ -45,6 +46,42 @@ export function TimelineChartCard() {
 
     return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
   }, [data]);
+
+  // Build description
+  // Note: useMemo must be called before any early returns (React hooks rule)
+  const description = useMemo(() => {
+    if (!data) return "";
+
+    const { metadata, statistics } = data;
+    const { mode, dataType } = metadata;
+    const { interval } = params;
+    const parts: string[] = [];
+
+    // Interval description
+    parts.push(
+      `${dataType === "NUMERIC" ? "Average" : "Count"} by ${interval.count} ${interval.unit}${interval.count > 1 ? "s" : ""}`,
+    );
+
+    // Overall average for numeric
+    if (
+      dataType === "NUMERIC" &&
+      overallAverage !== null &&
+      overallAverage > 0
+    ) {
+      parts.push(`Overall avg: ${overallAverage.toFixed(3)}`);
+    }
+
+    // Matched count for two-score mode
+    if (mode === "two" && statistics.comparison) {
+      if (activeTab === "matched") {
+        parts.push(
+          `${statistics.comparison.matchedCount.toLocaleString()} matched`,
+        );
+      }
+    }
+
+    return parts.join(" | ");
+  }, [data, overallAverage, activeTab, params]);
 
   // Loading state
   if (isLoading) {
@@ -76,7 +113,7 @@ export function TimelineChartCard() {
     );
   }
 
-  const { timeSeries, metadata, statistics } = data;
+  const { timeSeries, metadata } = data;
   const { mode, dataType } = metadata;
   const { score1, score2, interval } = params;
 
@@ -101,36 +138,6 @@ export function TimelineChartCard() {
 
   const hasData = chartData.length > 0;
   const showTabs = mode === "two";
-
-  // Build description
-  const description = useMemo(() => {
-    const parts: string[] = [];
-
-    // Interval description
-    parts.push(
-      `${dataType === "NUMERIC" ? "Average" : "Count"} by ${interval.count} ${interval.unit}${interval.count > 1 ? "s" : ""}`,
-    );
-
-    // Overall average for numeric
-    if (
-      dataType === "NUMERIC" &&
-      overallAverage !== null &&
-      overallAverage > 0
-    ) {
-      parts.push(`Overall avg: ${overallAverage.toFixed(3)}`);
-    }
-
-    // Matched count for two-score mode
-    if (mode === "two" && statistics.comparison) {
-      if (activeTab === "matched") {
-        parts.push(
-          `${statistics.comparison.matchedCount.toLocaleString()} matched`,
-        );
-      }
-    }
-
-    return parts.join(" | ");
-  }, [dataType, interval, overallAverage, mode, statistics, activeTab]);
 
   return (
     <Card>

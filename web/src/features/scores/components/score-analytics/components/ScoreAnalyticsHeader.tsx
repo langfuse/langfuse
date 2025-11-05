@@ -3,10 +3,7 @@ import { ScoreCombobox } from "@/src/features/scores/components/analytics/ScoreC
 import { ObjectTypeFilter } from "@/src/features/scores/components/analytics/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
-import {
-  type ObjectType,
-  useAnalyticsUrlState,
-} from "@/src/features/scores/lib/analytics-url-state";
+import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
 import { type TimeRange } from "@/src/utils/date-range-utils";
 import { type ScoreOption } from "@/src/features/scores/components/analytics/ScoreCombobox";
 

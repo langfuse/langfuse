@@ -31,42 +31,20 @@ export function DistributionChartCard() {
   const { data, isLoading, params } = useScoreAnalytics();
   const [activeTab, setActiveTab] = useState<DistributionTab>("individual");
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Distribution</CardTitle>
-          <CardDescription>Loading chart...</CardDescription>
-        </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // No data state
-  if (!data) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Distribution</CardTitle>
-          <CardDescription>No data available</CardDescription>
-        </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-          Select a score to view distribution
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { distribution, metadata, statistics } = data;
-  const { mode, dataType } = metadata;
-  const { score1, score2 } = params;
-
   // Determine which distribution data to show based on tab
+  // Note: useMemo must be called before any early returns (React hooks rule)
   const { distribution1Data, distribution2Data, description } = useMemo(() => {
+    if (!data) {
+      return {
+        distribution1Data: [],
+        distribution2Data: undefined,
+        description: "",
+      };
+    }
+
+    const { distribution, metadata, statistics } = data;
+    const { mode, dataType } = metadata;
+    const { score1, score2 } = params;
     const isSingleScore = mode === "single";
     const isNumeric = dataType === "NUMERIC";
 
@@ -110,18 +88,59 @@ export function DistributionChartCard() {
           description: `${score1.name} vs ${score2?.name} - Stacked view`,
         };
     }
-  }, [mode, dataType, activeTab, distribution, statistics, score1, score2]);
-
-  const hasData = distribution1Data.length > 0;
-  const showTabs = mode === "two";
+  }, [data, activeTab, params]);
 
   // For stacked view in categorical mode, use stackedDistribution
-  const stackedDistributionData =
-    mode === "two" && dataType === "CATEGORICAL" && activeTab === "matched"
+  const stackedDistributionData = useMemo(() => {
+    if (!data) return undefined;
+    const { distribution, metadata } = data;
+    const { mode, dataType } = metadata;
+
+    return mode === "two" &&
+      dataType === "CATEGORICAL" &&
+      activeTab === "matched"
       ? distribution.stackedDistributionMatched
       : mode === "two" && dataType === "CATEGORICAL" && activeTab === "stacked"
         ? distribution.stackedDistribution
         : undefined;
+  }, [data, activeTab]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Distribution</CardTitle>
+          <CardDescription>Loading chart...</CardDescription>
+        </CardHeader>
+        <CardContent className="flex h-[300px] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No data state
+  if (!data) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Distribution</CardTitle>
+          <CardDescription>No data available</CardDescription>
+        </CardHeader>
+        <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+          Select a score to view distribution
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { metadata } = data;
+  const { mode, dataType } = metadata;
+  const { score1, score2 } = params;
+
+  const hasData = distribution1Data.length > 0;
+  const showTabs = mode === "two";
 
   return (
     <Card>

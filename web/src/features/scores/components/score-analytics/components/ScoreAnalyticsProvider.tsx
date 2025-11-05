@@ -2,7 +2,6 @@ import React, { createContext, useContext, useMemo } from "react";
 import {
   useScoreAnalyticsQuery,
   type ScoreAnalyticsQueryParams,
-  type ScoreAnalyticsData,
   type UseScoreAnalyticsQueryResult,
 } from "../hooks/useScoreAnalyticsQuery";
 import {

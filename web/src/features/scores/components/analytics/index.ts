@@ -29,3 +29,4 @@
 export { Heatmap, type HeatmapProps } from "./Heatmap";
 export { HeatmapCellComponent } from "./HeatmapCell";
 export { HeatmapLegend, type HeatmapLegendProps } from "./HeatmapLegend";
+export { HeatmapPlaceholder } from "./HeatmapPlaceholder";
