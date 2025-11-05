@@ -97,45 +97,47 @@ export const IOPreview: React.FC<{
       outputClean,
     );
 
-    // extract all unique tools from messages and assign them sequential numbers
+    // extract all unique tools from messages (no numbering yet)
     const toolsMap = new Map<
       string,
       { name: string; description?: string; parameters?: Record<string, any> }
     >();
-    const toolNameToDefinitionNumber = new Map<string, number>();
-    let toolDefinitionCounter = 0;
 
     for (const message of messages) {
       if (message.tools && Array.isArray(message.tools)) {
         for (const tool of message.tools) {
           if (!toolsMap.has(tool.name)) {
             toolsMap.set(tool.name, tool);
-            toolDefinitionCounter++;
-            toolNameToDefinitionNumber.set(tool.name, toolDefinitionCounter);
           }
         }
       }
     }
-    const uniqueTools = Array.from(toolsMap.values());
 
-    // sequential numbering for tool call invocations
+    // count tool call invocations and tool calls
+    // Only number tool calls from OUTPUT messages (current invocation), not input (history)
+    const inputMessageCount = inResult.success ? inResult.data.length : 0;
     let toolCallCounter = 0;
     const messageToToolCallNumbers = new Map<number, number[]>();
     const toolCallCounts = new Map<string, number>();
 
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
+      const isOutputMessage = i >= inputMessageCount; // Only output messages get numbered
+
       if (message.tool_calls && Array.isArray(message.tool_calls)) {
         const messageToolNumbers: number[] = [];
 
         for (const toolCall of message.tool_calls) {
           if (toolCall.name && typeof toolCall.name === "string") {
-            toolCallCounter++;
-            messageToolNumbers.push(toolCallCounter);
             toolCallCounts.set(
               toolCall.name,
               (toolCallCounts.get(toolCall.name) || 0) + 1,
             );
+
+            if (isOutputMessage) {
+              toolCallCounter++;
+              messageToolNumbers.push(toolCallCounter);
+            }
           }
         }
 
@@ -145,12 +147,28 @@ export const IOPreview: React.FC<{
       }
     }
 
+    // sort tools by display order (called first, then by call count)
+    const sortedTools = Array.from(toolsMap.values()).sort((a, b) => {
+      const callCountA = toolCallCounts.get(a.name) || 0;
+      const callCountB = toolCallCounts.get(b.name) || 0;
+      // Sort by called status (called first), then by call count descending
+      if (callCountA > 0 && callCountB === 0) return -1;
+      if (callCountA === 0 && callCountB > 0) return 1;
+      return callCountB - callCountA;
+    });
+
+    // assign definition numbers based on sorted display order
+    const toolNameToDefinitionNumber = new Map<string, number>();
+    sortedTools.forEach((tool, index) => {
+      toolNameToDefinitionNumber.set(tool.name, index + 1);
+    });
+
     return {
       canDisplayAsChat:
         (inResult.success || outResult.success) && messages.length > 0,
       allMessages: messages,
       additionalInput: extractAdditionalInput(input),
-      allTools: uniqueTools,
+      allTools: sortedTools,
       toolCallCounts,
       messageToToolCallNumbers,
       toolNameToDefinitionNumber,
@@ -181,14 +199,7 @@ export const IOPreview: React.FC<{
         <div className="mb-4 border-b border-border pb-4">
           <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
           <ToolCallDefinitionCard
-            tools={allTools.sort((a, b) => {
-              const callCountA = toolCallCounts.get(a.name) || 0;
-              const callCountB = toolCallCounts.get(b.name) || 0;
-              // Sort by called status (called first), then by call count descending
-              if (callCountA > 0 && callCountB === 0) return -1;
-              if (callCountA === 0 && callCountB > 0) return 1;
-              return callCountB - callCountA;
-            })}
+            tools={allTools}
             toolCallCounts={toolCallCounts}
             toolNameToDefinitionNumber={toolNameToDefinitionNumber}
           />
@@ -387,8 +398,23 @@ export const OpenAiMessageView: React.FC<{
     return messageKeys.length > 0;
   };
 
+  const hasPassthroughJson = (message: ChatMlMessageSchema) => {
+    return message.json != null;
+  };
+
   const isPlaceholderMessage = (message: ChatMlMessageSchema) => {
     return message.type === "placeholder";
+  };
+
+  const isOnlyJsonMessage = (message: ChatMlMessageSchema) => {
+    // Message parsed as ChatML but only has json field (non-ChatML object)
+    // Valid ChatML needs content OR tool_calls OR audio (role alone is insufficient)
+    const hasValidChatMlContent =
+      message.content != null ||
+      message.tool_calls != null ||
+      message.audio != null;
+
+    return !hasValidChatMlContent && message.json != null;
   };
 
   const messagesToRender = useMemo(
@@ -467,6 +493,14 @@ export const OpenAiMessageView: React.FC<{
                           />
                         </div>
                       </>
+                    ) : isOnlyJsonMessage(message) ? (
+                      // Non-ChatML object that parsed via passthrough - render as JSON
+                      <PrettyJsonView
+                        title={getMessageTitle(message) || "Output"}
+                        json={message.json}
+                        projectIdForPromptButtons={projectIdForPromptButtons}
+                        currentView={currentView}
+                      />
                     ) : (
                       <>
                         {shouldRenderContent(message) &&
@@ -490,14 +524,14 @@ export const OpenAiMessageView: React.FC<{
                                   )}
                                   audio={message.audio}
                                   controlButtons={
-                                    hasAdditionalData(message) ? (
+                                    hasPassthroughJson(message) ? (
                                       <Button
                                         variant="ghost"
                                         size="icon-xs"
                                         onClick={() =>
                                           toggleTableView(originalIndex)
                                         }
-                                        title="Show full message data"
+                                        title="Show passthrough JSON data"
                                         className="-mr-2 hover:bg-border"
                                       >
                                         <ListChevronsUpDown className="h-3 w-3" />
@@ -533,14 +567,14 @@ export const OpenAiMessageView: React.FC<{
                                   }
                                   currentView={currentView}
                                   controlButtons={
-                                    hasAdditionalData(message) ? (
+                                    hasPassthroughJson(message) ? (
                                       <Button
                                         variant="ghost"
                                         size="icon-xs"
                                         onClick={() =>
                                           toggleTableView(originalIndex)
                                         }
-                                        title="Show full message data"
+                                        title="Show passthrough JSON data"
                                         className="-mr-2 hover:bg-border"
                                       >
                                         <ListChevronsUpDown className="h-3 w-3" />
@@ -564,10 +598,10 @@ export const OpenAiMessageView: React.FC<{
                             </>
                           )}
                         {isShowingTable ? (
-                          // User clicked toggle - show full JSON
+                          // User clicked toggle - show passthrough JSON
                           <PrettyJsonView
                             title={getMessageTitle(message)}
-                            json={message}
+                            json={message.json}
                             projectIdForPromptButtons={
                               projectIdForPromptButtons
                             }
@@ -602,15 +636,19 @@ export const OpenAiMessageView: React.FC<{
                                 void copyTextToClipboard(rawText);
                               }}
                               controlButtons={
-                                <Button
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  onClick={() => toggleTableView(originalIndex)}
-                                  title="Show full message data"
-                                  className="-mr-2 hover:bg-border"
-                                >
-                                  <ListChevronsUpDown className="h-3 w-3" />
-                                </Button>
+                                hasPassthroughJson(message) ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    onClick={() =>
+                                      toggleTableView(originalIndex)
+                                    }
+                                    title="Show passthrough JSON data"
+                                    className="-mr-2 hover:bg-border"
+                                  >
+                                    <ListChevronsUpDown className="h-3 w-3" />
+                                  </Button>
+                                ) : undefined
                               }
                             />
                             <ToolCallInvocationsView

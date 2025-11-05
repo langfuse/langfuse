@@ -6,6 +6,17 @@ import {
   type PlaceholderMessage,
 } from "@langfuse/shared";
 
+// convert content to string format expected by playground
+function contentToString(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (content === null || content === undefined) {
+    return "";
+  }
+  return JSON.stringify(content);
+}
+
 export function convertChatMlToPlayground(
   msg: ChatMlMessageSchema,
 ): ChatMessage | PlaceholderMessage | null {
@@ -61,7 +72,7 @@ export function convertChatMlToPlayground(
 
     return {
       role: ChatMessageRole.Assistant,
-      content: (msg.content as string) || "",
+      content: contentToString(msg.content),
       type: ChatMessageType.AssistantToolCall,
       toolCalls,
     };
@@ -74,23 +85,16 @@ export function convertChatMlToPlayground(
   if (toolCallId) {
     return {
       role: ChatMessageRole.Tool,
-      content: (msg.content as string) || "",
+      content: contentToString(msg.content),
       type: ChatMessageType.ToolResult,
       toolCallId: toolCallId as string,
     };
   }
 
   // Handle regular messages
-  const content =
-    typeof msg.content === "string"
-      ? msg.content
-      : msg.content === null || msg.content === undefined
-        ? ""
-        : JSON.stringify(msg.content);
-
   return {
     role: (msg.role as ChatMessageRole) || ChatMessageRole.Assistant,
-    content,
+    content: contentToString(msg.content),
     type: ChatMessageType.PublicAPICreated,
   };
 }
