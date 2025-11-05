@@ -57,6 +57,9 @@ import {
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
 
+const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
+const LOG_VIEW_DISABLED_THRESHOLD = 350;
+
 export const TracePreview = ({
   trace,
   observations,
@@ -126,8 +129,6 @@ export const TracePreview = ({
   );
 
   // For performance reasons, we preemptively disable the log view if there are too many observations.
-  const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
-  const LOG_VIEW_DISABLED_THRESHOLD = 350;
   const isLogViewDisabled = observations.length > LOG_VIEW_DISABLED_THRESHOLD;
   const requiresConfirmation =
     observations.length > LOG_VIEW_CONFIRMATION_THRESHOLD && !isLogViewDisabled;
@@ -429,6 +430,7 @@ export const TracePreview = ({
               traceId={trace.id}
               projectId={trace.projectId}
               currentView={currentView}
+              trace={trace}
             />
           </TabsBarContent>
           {showScoresTab && (
