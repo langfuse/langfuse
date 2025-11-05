@@ -13,6 +13,7 @@ import {
   fillTimeSeriesGaps,
   type IntervalConfig,
 } from "@/src/utils/date-range-utils";
+import { fillCategoricalTimeSeriesGaps } from "@/src/utils/fill-time-series-gaps";
 
 interface SingleScoreAnalyticsProps {
   scoreId: string;
@@ -76,6 +77,17 @@ export function SingleScoreAnalytics({
   const timeSeries = useMemo(() => {
     return fillTimeSeriesGaps(analytics.timeSeries, fromDate, toDate, interval);
   }, [analytics.timeSeries, fromDate, toDate, interval]);
+
+  // For categorical/boolean scores, use categorical time series data
+  const categoricalTimeSeries = useMemo(() => {
+    if (dataType === "NUMERIC") return [];
+    return fillCategoricalTimeSeriesGaps(
+      analytics.timeSeriesCategorical1,
+      fromDate,
+      toDate,
+      interval,
+    );
+  }, [dataType, analytics.timeSeriesCategorical1, fromDate, toDate, interval]);
 
   // Calculate statistics
   const statistics = useMemo(() => {
@@ -171,35 +183,55 @@ export function SingleScoreAnalytics({
         </CardContent>
       </Card>
 
-      {/* Time Series Card (Numeric only) */}
-      {dataType === "NUMERIC" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Trend Over Time</CardTitle>
-            <CardDescription>
-              Average by {interval.count} {interval.unit}
-              {interval.count > 1 && "s"}
-              {overallAverage > 0 && (
-                <> | Overall avg: {overallAverage.toFixed(3)}</>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            {timeSeries.length > 0 ? (
+      {/* Time Series Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Trend Over Time</CardTitle>
+          <CardDescription>
+            {dataType === "NUMERIC" ? (
+              <>
+                Average by {interval.count} {interval.unit}
+                {interval.count > 1 && "s"}
+                {overallAverage > 0 && (
+                  <> | Overall avg: {overallAverage.toFixed(3)}</>
+                )}
+              </>
+            ) : (
+              <>
+                Count by {interval.count} {interval.unit}
+                {interval.count > 1 && "s"}
+              </>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          {dataType === "NUMERIC" ? (
+            timeSeries.length > 0 ? (
               <ScoreTimeSeriesChart
                 data={timeSeries}
-                scoreName={`${scoreName} (${source})`}
+                dataType={dataType}
+                score1Name={`${scoreName} (${source})`}
                 interval={interval}
-                overallAverage={overallAverage}
               />
             ) : (
               <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
                 No time series data available for the selected time range
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            )
+          ) : categoricalTimeSeries.length > 0 ? (
+            <ScoreTimeSeriesChart
+              data={categoricalTimeSeries}
+              dataType={dataType}
+              score1Name={`${scoreName} (${source})`}
+              interval={interval}
+            />
+          ) : (
+            <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+              No time series data available for the selected time range
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

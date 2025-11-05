@@ -224,6 +224,7 @@ export default function ScoresAnalyticsPage() {
       toTimestamp: absoluteTimeRange?.to!,
       interval,
       objectType: urlState.objectType,
+      matchedOnly: false, // Not used anymore - tabs control display
     },
     {
       enabled: shouldFetchAnalytics,
@@ -461,6 +462,8 @@ export default function ScoresAnalyticsPage() {
                   analytics={analyticsData}
                   interval={interval}
                   nBins={10}
+                  fromDate={absoluteTimeRange!.from}
+                  toDate={absoluteTimeRange!.to}
                 />
 
                 {/* 2x2 Grid Layout for Heatmap and Stats */}

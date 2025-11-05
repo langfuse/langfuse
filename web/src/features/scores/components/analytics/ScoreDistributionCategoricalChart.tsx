@@ -37,10 +37,39 @@ export function ScoreDistributionCategoricalChart({
     stackedDistribution && stackedDistribution.length > 0,
   );
 
+  // Calculate all possible stack keys from actual data
+  // This ensures we include ALL categories present in the data, including those
+  // not in score2Categories (e.g., "0" or other values) and __unmatched__
+  const allStackKeys = useMemo(() => {
+    if (!hasStackedData || !stackedDistribution || !score2Categories) {
+      return [];
+    }
+
+    // Extract all unique score2 stack values from the actual data
+    const stacksFromData = new Set<string>();
+    stackedDistribution.forEach((item) => {
+      stacksFromData.add(item.score2Stack);
+    });
+
+    // Separate regular categories from __unmatched__
+    // This ensures __unmatched__ is always last for consistent color assignment
+    const regularStacks = Array.from(
+      new Set([...Array.from(stacksFromData), ...score2Categories]),
+    )
+      .filter((key) => key !== "__unmatched__")
+      .sort();
+
+    // Add __unmatched__ at the end if it exists in the actual data
+    // Don't add it based on score2Categories since that never includes __unmatched__
+    const hasUnmatched = stacksFromData.has("__unmatched__");
+
+    return hasUnmatched ? [...regularStacks, "__unmatched__"] : regularStacks;
+  }, [hasStackedData, stackedDistribution, score2Categories]);
+
   // Transform data for Recharts
   const chartData = useMemo(() => {
     // If we have stacked distribution data (two-score comparison)
-    if (hasStackedData && stackedDistribution) {
+    if (hasStackedData && stackedDistribution && score2Categories) {
       const grouped = new Map<string, Record<string, number>>();
 
       stackedDistribution.forEach((item) => {
@@ -50,12 +79,19 @@ export function ScoreDistributionCategoricalChart({
         grouped.get(item.score1Category)![item.score2Stack] = item.count;
       });
 
+      // Normalize: ensure every category has all stack keys, even if count is 0
       return Array.from(grouped.entries())
         .sort()
-        .map(([category, stacks]) => ({
-          name: category,
-          ...stacks,
-        }));
+        .map(([category, stacks]) => {
+          const normalizedStacks: Record<string, number> = {};
+          allStackKeys.forEach((stackKey) => {
+            normalizedStacks[stackKey] = stacks[stackKey] ?? 0;
+          });
+          return {
+            name: category,
+            ...normalizedStacks,
+          };
+        });
     }
 
     // Single score: simple bar chart
@@ -66,15 +102,21 @@ export function ScoreDistributionCategoricalChart({
         pv: item.count,
       };
     });
-  }, [distribution1, categories, hasStackedData, stackedDistribution]);
+  }, [
+    distribution1,
+    categories,
+    hasStackedData,
+    stackedDistribution,
+    score2Categories,
+    allStackKeys,
+  ]);
 
   const hasManyCategories = chartData.length > 10;
 
   // Configure chart colors and config
   const config: ChartConfig = useMemo(() => {
-    if (hasStackedData && score2Categories) {
-      // Stacked mode: create config for all score2 categories + unmatched
-      const stackKeys = [...score2Categories, "__unmatched__"];
+    if (hasStackedData && allStackKeys.length > 0) {
+      // Stacked mode: create config for all stack keys including __unmatched__
       const chartColors = [
         "hsl(var(--chart-1))",
         "hsl(var(--chart-2))",
@@ -84,7 +126,7 @@ export function ScoreDistributionCategoricalChart({
       ];
 
       const stackConfig: ChartConfig = {};
-      stackKeys.forEach((key, index) => {
+      allStackKeys.forEach((key, index) => {
         stackConfig[key] = {
           label: key === "__unmatched__" ? "Unmatched" : key,
           theme: {
@@ -112,13 +154,7 @@ export function ScoreDistributionCategoricalChart({
         },
       },
     };
-  }, [hasStackedData, score2Categories, score1Name]);
-
-  // Get stack keys for stacked mode
-  const stackKeys = useMemo(() => {
-    if (!hasStackedData || !score2Categories) return [];
-    return [...score2Categories, "__unmatched__"];
-  }, [hasStackedData, score2Categories]);
+  }, [hasStackedData, allStackKeys, score1Name]);
 
   return (
     <ChartContainer
@@ -153,7 +189,7 @@ export function ScoreDistributionCategoricalChart({
         />
 
         {hasStackedData &&
-          stackKeys.map((stackKey) => (
+          allStackKeys.map((stackKey) => (
             <Bar
               key={stackKey}
               dataKey={stackKey}
