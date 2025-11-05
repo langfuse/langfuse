@@ -86,25 +86,39 @@ export async function getDatasetRunItemsSinceLastRun(
   upperBound: Date,
 ): Promise<DatasetRunItem[]> {
   const query = `
+    WITH prefiltered_events as (
+      select distinct project_id, trace_id
+      from events
+      where start_time > {lastRun: DateTime64(3)} - interval 1 day
+      and project_id in (
+        select distinct project_id
+        from dataset_run_items_rmt
+        where created_at > {lastRun: DateTime64(3)}
+      )
+    )
+
     SELECT
-      id,
-      project_id,
-      trace_id,
-      observation_id,
-      dataset_run_id,
-      dataset_run_name,
-      dataset_run_description,
-      dataset_run_metadata,
-      dataset_id,
-      dataset_item_id,
-      dataset_item_expected_output,
-      dataset_item_metadata,
-      created_at
-    FROM dataset_run_items_rmt
-    WHERE created_at > {lastRun: DateTime64(3)}
-      AND created_at <= {upperBound: DateTime64(3)}
-    ORDER BY created_at DESC
-    LIMIT 1 BY project_id, trace_id, coalesce(observation_id, '')
+      dri.id,
+      dri.project_id,
+      dri.trace_id,
+      dri.observation_id,
+      dri.dataset_run_id,
+      dri.dataset_run_name,
+      dri.dataset_run_description,
+      dri.dataset_run_metadata,
+      dri.dataset_id,
+      dri.dataset_item_id,
+      dri.dataset_item_expected_output,
+      dri.dataset_item_metadata,
+      dri.created_at
+    FROM dataset_run_items_rmt AS dri
+    LEFT ANTI JOIN prefiltered_events AS pe
+    ON dri.project_id = pe.project_id
+      AND dri.trace_id = pe.trace_id
+    WHERE dri.created_at > {lastRun: DateTime64(3)}
+      AND dri.created_at <= {upperBound: DateTime64(3)}
+    ORDER BY dri.created_at DESC
+    LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
   `;
 
   const rows = await queryClickhouse<DatasetRunItem>({

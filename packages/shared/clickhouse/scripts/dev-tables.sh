@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS events
 
       -- TODO Metadata: Decide for approach
       -- -- Approach 1: Use plain JSON type with default config
-      metadata JSON(max_dynamic_paths=1024, max_dynamic_types=32),
+      metadata JSON,
       -- -- Approach 2: Uses ideas from https://www.uber.com/en-DE/blog/logging/
       -- --             but uses Dynamic type to make this a single list
       metadata_names Array(String),
@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS events
       -- -- metadata_bool_names Array(String),
       -- -- metadata_bool_values Array(UInt8),
       -- -- Approach 4: Apply German strings here, where we store a prefix and for longer values a pointer.
+      -- TODO CHANGE MATERIALIZATION (e.g. rename metadata_prefixes to metadata_values)
       metadata_keys Array(String) MATERIALIZED metadata_names,
       metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_values),
       metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_values),
@@ -232,7 +233,7 @@ CREATE TABLE IF NOT EXISTS events
 
       -- Generic props
       blob_storage_file_path String,
-      event_raw String,
+      -- event_raw String,
       event_bytes UInt64,
       created_at DateTime64(6) DEFAULT now(),
       updated_at DateTime64(6) DEFAULT now(),
@@ -266,8 +267,12 @@ CREATE TABLE IF NOT EXISTS events
   SETTINGS
     index_granularity = 8192,
     index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
-    min_rows_for_wide_part = 0,
-    min_bytes_for_wide_part = 0;
+    enable_block_number_column = 1,
+    enable_block_offset_column = 1
+    -- Try without, but re-enable if recent row performance is bad
+    -- min_rows_for_wide_part = 0,
+    -- min_bytes_for_wide_part = 0
+  ;
 
 EOF
 
@@ -288,7 +293,7 @@ clickhouse client \
                       output, metadata, metadata_names, metadata_values,
                       -- metadata_string_names, metadata_string_values, metadata_number_names, metadata_number_values, metadata_bool_names, metadata_bool_values,
                       source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
-                      telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_raw, event_bytes,
+                      telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
   SELECT project_id,
          trace_id,
@@ -336,7 +341,6 @@ clickhouse client \
          NULL                                                                          AS telemetry_sdk_name,
          NULL                                                                          AS telemetry_sdk_version,
          ''                                                                            AS blob_storage_file_path,
-         ''                                                                            AS event_raw,
          0                                                                             AS event_bytes,
          created_at,
          updated_at,

@@ -656,7 +656,6 @@ export const eventRecordBaseSchema = z.object({
 
   // Generic props
   blob_storage_file_path: z.string(),
-  event_raw: z.string(),
   event_bytes: z.number(),
   is_deleted: z.number(),
 });
