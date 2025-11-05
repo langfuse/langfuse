@@ -196,7 +196,7 @@ export const TraceLogView = ({
           `[data-observation-id="${keyPathFormat}"]`,
         );
         if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       }
     }

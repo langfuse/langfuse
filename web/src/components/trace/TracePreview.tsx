@@ -282,7 +282,7 @@ export const TracePreview = ({
                   <TabsBarTrigger value="log" disabled={isLogViewDisabled}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span>Log View (Beta)</span>
+                        <span>Log View</span>
                       </TooltipTrigger>
                       <TooltipContent className="text-xs">
                         {isLogViewDisabled
