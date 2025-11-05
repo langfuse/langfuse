@@ -397,10 +397,11 @@ const inputTraceSchema = z.object({
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
   truncated: z.boolean().default(false),
+  mode: z.enum(["compact", "truncated", "full"]).default("full"),
 });
 
-const resolveIO = (io: unknown, truncated: boolean) => {
-  if (truncated) {
+const resolveIO = (io: unknown, mode: "compact" | "truncated" | "full") => {
+  if (mode === "compact") {
     const compact = getCompactRepresentation(io);
     if (compact.success) {
       return compact.data;
@@ -426,6 +427,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
   const fromTimestamp = result.data.fromTimestamp;
+  const mode = result.data.mode;
 
   const clickhouseTrace = await getTraceById({
     traceId,
@@ -433,7 +435,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
     renderingProps: {
-      truncated: false, // IOTC: do not truncate IO in CH, parse for preview at application level instead
+      truncated: mode === "truncated",
       shouldJsonParse: false, // we do not want to parse the input/output for tRPC
     },
     clickhouseFeatureTag: "tracing-trpc",
@@ -449,8 +451,8 @@ const enforceTraceAccess = t.middleware(async (opts) => {
 
   const trace = {
     ...clickhouseTrace,
-    input: resolveIO(clickhouseTrace.input, result.data.truncated),
-    output: resolveIO(clickhouseTrace.output, result.data.truncated),
+    input: resolveIO(clickhouseTrace.input, mode),
+    output: resolveIO(clickhouseTrace.output, mode),
   };
 
   const sessionProject = ctx.session?.user?.organizations

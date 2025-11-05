@@ -1294,7 +1294,7 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, timestamp, truncated: true },
+    { traceId, projectId, timestamp, mode: "compact" },
     {
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
