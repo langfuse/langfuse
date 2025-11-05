@@ -1018,6 +1018,98 @@ export const scoresRouter = createTRPCRouter({
             ORDER BY ts
           )`;
 
+      // Build categorical/boolean time series CTEs
+      // These show counts per category over time (not averages)
+      const timeseriesCategorical1CTE = isSingleScore
+        ? `-- CTE 16: Categorical time series for score1 (single score mode)
+          timeseries_categorical1 AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+              COALESCE(string_value, toString(value)) as category,
+              count() as count
+            FROM score1_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`
+        : `-- CTE 16: Categorical time series for score1 (two score mode)
+          timeseries_categorical1 AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+              COALESCE(string_value, toString(value)) as category,
+              count() as count
+            FROM score1_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
+
+      const timeseriesCategorical2CTE = isSingleScore
+        ? `-- CTE 17: Categorical time series for score2 (not needed in single score mode)
+          timeseries_categorical2 AS (
+            SELECT
+              CAST(NULL AS Nullable(DateTime)) as ts,
+              CAST(NULL AS Nullable(String)) as category,
+              CAST(NULL AS Nullable(UInt64)) as count
+            WHERE 1 = 0
+          )`
+        : `-- CTE 17: Categorical time series for score2 (two score mode)
+          timeseries_categorical2 AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+              COALESCE(string_value, toString(value)) as category,
+              count() as count
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
+
+      const timeseriesCategorical1MatchedCTE = isSingleScore
+        ? `-- CTE 18: Categorical time series for score1 (single score, matched only)
+          timeseries_categorical1_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              COALESCE(string_value1, toString(value1)) as category,
+              count() as count
+            FROM matched_scores
+            WHERE string_value1 IS NOT NULL OR value1 IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`
+        : `-- CTE 18: Categorical time series for score1 (two scores, matched only)
+          timeseries_categorical1_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              COALESCE(string_value1, toString(value1)) as category,
+              count() as count
+            FROM matched_scores
+            WHERE string_value1 IS NOT NULL OR value1 IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
+
+      const timeseriesCategorical2MatchedCTE = isSingleScore
+        ? `-- CTE 19: Categorical time series for score2 (not needed in single score mode)
+          timeseries_categorical2_matched AS (
+            SELECT
+              CAST(NULL AS Nullable(DateTime)) as ts,
+              CAST(NULL AS Nullable(String)) as category,
+              CAST(NULL AS Nullable(UInt64)) as count
+            WHERE 1 = 0
+          )`
+        : `-- CTE 19: Categorical time series for score2 (two scores, matched only)
+          timeseries_categorical2_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              COALESCE(string_value2, toString(value2)) as category,
+              count() as count
+            FROM matched_scores
+            WHERE string_value2 IS NOT NULL OR value2 IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
+
       // Construct comprehensive UNION ALL query
       const query = `
         WITH
@@ -1155,6 +1247,19 @@ export const scoresRouter = createTRPCRouter({
             FROM score2_filtered
             WHERE string_value IS NOT NULL OR value IS NOT NULL
             ORDER BY category
+          ),
+
+          -- CTE 6d: Stacked distribution (matched only - no __unmatched__)
+          stacked_distribution_matched AS (
+            SELECT
+              COALESCE(string_value1, toString(value1)) as score1_category,
+              COALESCE(string_value2, toString(value2)) as score2_stack,
+              count() as count
+            FROM matched_scores
+            WHERE (string_value1 IS NOT NULL OR value1 IS NOT NULL)
+              AND (string_value2 IS NOT NULL OR value2 IS NOT NULL)
+            GROUP BY score1_category, score2_stack
+            ORDER BY score1_category, score2_stack
           ),`
               : ""
           }
@@ -1187,7 +1292,15 @@ export const scoresRouter = createTRPCRouter({
 
           ${distribution2IndividualCTE},
 
-          ${timeseriesMatchedCTE}
+          ${timeseriesMatchedCTE},
+
+          ${timeseriesCategorical1CTE},
+
+          ${timeseriesCategorical2CTE},
+
+          ${timeseriesCategorical1MatchedCTE},
+
+          ${timeseriesCategorical2MatchedCTE}
 
         -- Return multiple result sets via UNION ALL
         SELECT
@@ -1350,7 +1463,25 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(String)) as col10,
           CAST(NULL AS Nullable(Float64)) as col11,
           CAST(NULL AS Nullable(Float64)) as col12
-        FROM score2_categories`
+        FROM score2_categories
+
+        UNION ALL
+
+        SELECT
+          'stacked_matched' as result_type,
+          CAST(count AS Float64) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          score1_category as col9,
+          score2_stack as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM stacked_distribution_matched`
             : ""
         }
 
@@ -1443,6 +1574,78 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(Float64)) as col11,
           CAST(NULL AS Nullable(Float64)) as col12
         FROM timeseries_matched
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical1' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical1
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical2' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical2
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical1_matched' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical1_matched
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical2_matched' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical2_matched
       `;
 
       // Execute query
@@ -1499,6 +1702,9 @@ export const scoresRouter = createTRPCRouter({
         (r) => r.result_type === "distribution2",
       );
       const stackedRows = results.filter((r) => r.result_type === "stacked");
+      const stackedMatchedRows = results.filter(
+        (r) => r.result_type === "stacked_matched",
+      );
       const score2CategoriesRows = results.filter(
         (r) => r.result_type === "score2_categories",
       );
@@ -1516,6 +1722,18 @@ export const scoresRouter = createTRPCRouter({
       );
       const timeseriesMatchedRows = results.filter(
         (r) => r.result_type === "timeseries_matched",
+      );
+      const timeseriesCategorical1Rows = results.filter(
+        (r) => r.result_type === "timeseries_categorical1",
+      );
+      const timeseriesCategorical2Rows = results.filter(
+        (r) => r.result_type === "timeseries_categorical2",
+      );
+      const timeseriesCategorical1MatchedRows = results.filter(
+        (r) => r.result_type === "timeseries_categorical1_matched",
+      );
+      const timeseriesCategorical2MatchedRows = results.filter(
+        (r) => r.result_type === "timeseries_categorical2_matched",
       );
 
       // Build structured response
@@ -1572,6 +1790,11 @@ export const scoresRouter = createTRPCRouter({
           score2Stack: row.col10 ?? "",
           count: row.col1 ?? 0,
         })),
+        stackedDistributionMatched: stackedMatchedRows.map((row) => ({
+          score1Category: row.col9 ?? "",
+          score2Stack: row.col10 ?? "",
+          count: row.col1 ?? 0,
+        })),
         score2Categories: score2CategoriesRows
           .map((row) => row.col9 ?? "")
           .filter((c) => c !== ""),
@@ -1599,6 +1822,31 @@ export const scoresRouter = createTRPCRouter({
           binIndex: row.col1 ?? 0,
           count: row.col2 ?? 0,
         })),
+        // Categorical/boolean time series (counts per category over time)
+        timeSeriesCategorical1: timeseriesCategorical1Rows.map((row) => ({
+          timestamp: new Date((row.col1 ?? 0) * 1000),
+          category: row.col9 ?? "",
+          count: row.col4 ?? 0,
+        })),
+        timeSeriesCategorical2: timeseriesCategorical2Rows.map((row) => ({
+          timestamp: new Date((row.col1 ?? 0) * 1000),
+          category: row.col9 ?? "",
+          count: row.col4 ?? 0,
+        })),
+        timeSeriesCategorical1Matched: timeseriesCategorical1MatchedRows.map(
+          (row) => ({
+            timestamp: new Date((row.col1 ?? 0) * 1000),
+            category: row.col9 ?? "",
+            count: row.col4 ?? 0,
+          }),
+        ),
+        timeSeriesCategorical2Matched: timeseriesCategorical2MatchedRows.map(
+          (row) => ({
+            timestamp: new Date((row.col1 ?? 0) * 1000),
+            category: row.col9 ?? "",
+            count: row.col4 ?? 0,
+          }),
+        ),
       };
     }),
 });

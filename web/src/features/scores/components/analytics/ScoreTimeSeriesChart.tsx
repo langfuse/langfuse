@@ -3,13 +3,23 @@ import { ScoreTimeSeriesNumericChart } from "./ScoreTimeSeriesNumericChart";
 import { ScoreTimeSeriesBooleanChart } from "./ScoreTimeSeriesBooleanChart";
 import { ScoreTimeSeriesCategoricalChart } from "./ScoreTimeSeriesCategoricalChart";
 
+// Numeric data shape
+type NumericTimeSeriesData = Array<{
+  timestamp: Date;
+  avg1: number | null;
+  avg2: number | null;
+  count: number;
+}>;
+
+// Categorical/Boolean data shape
+type CategoricalTimeSeriesData = Array<{
+  timestamp: Date;
+  category: string;
+  count: number;
+}>;
+
 export interface ScoreTimeSeriesChartProps {
-  data: Array<{
-    timestamp: Date;
-    avg1: number | null;
-    avg2: number | null;
-    count: number;
-  }>;
+  data: NumericTimeSeriesData | CategoricalTimeSeriesData;
   dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
   score1Name: string;
   score2Name?: string;
@@ -20,8 +30,8 @@ export interface ScoreTimeSeriesChartProps {
  * Score time series chart router component
  * Routes to the appropriate chart component based on data type:
  * - NUMERIC → ScoreTimeSeriesNumericChart (line charts)
- * - BOOLEAN → ScoreTimeSeriesBooleanChart (stacked bars - Phase 2)
- * - CATEGORICAL → ScoreTimeSeriesCategoricalChart (stacked bars - Phase 2)
+ * - BOOLEAN → ScoreTimeSeriesBooleanChart (line charts with True/False)
+ * - CATEGORICAL → ScoreTimeSeriesCategoricalChart (line charts with categories)
  */
 export function ScoreTimeSeriesChart({
   data,
@@ -30,19 +40,33 @@ export function ScoreTimeSeriesChart({
   score2Name,
   interval,
 }: ScoreTimeSeriesChartProps) {
-  const commonProps = {
-    data,
-    score1Name,
-    score2Name,
-    interval,
-  };
-
   switch (dataType) {
     case "NUMERIC":
-      return <ScoreTimeSeriesNumericChart {...commonProps} />;
+      return (
+        <ScoreTimeSeriesNumericChart
+          data={data as NumericTimeSeriesData}
+          score1Name={score1Name}
+          score2Name={score2Name}
+          interval={interval}
+        />
+      );
     case "BOOLEAN":
-      return <ScoreTimeSeriesBooleanChart {...commonProps} />;
+      return (
+        <ScoreTimeSeriesBooleanChart
+          data={data as CategoricalTimeSeriesData}
+          score1Name={score1Name}
+          score2Name={score2Name}
+          interval={interval}
+        />
+      );
     case "CATEGORICAL":
-      return <ScoreTimeSeriesCategoricalChart {...commonProps} />;
+      return (
+        <ScoreTimeSeriesCategoricalChart
+          data={data as CategoricalTimeSeriesData}
+          score1Name={score1Name}
+          score2Name={score2Name}
+          interval={interval}
+        />
+      );
   }
 }

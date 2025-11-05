@@ -99,8 +99,10 @@ export function ScoreTimeSeriesNumericChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          minTickGap={30}
-          interval="preserveStartEnd"
+          interval={0}
+          angle={-45}
+          textAnchor="end"
+          height={80}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
@@ -145,7 +147,7 @@ export function ScoreTimeSeriesNumericChart({
  * For fine-grained intervals (second, minute, hour): shows full datetime
  * For coarse intervals (day, month, year): shows date only
  */
-function formatTimestamp(date: Date, interval: IntervalConfig): string {
+export function formatTimestamp(date: Date, interval: IntervalConfig): string {
   const { unit } = interval;
 
   // Fine-grained intervals: show date and time

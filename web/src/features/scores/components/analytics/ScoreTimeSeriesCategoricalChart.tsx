@@ -1,10 +1,18 @@
+import { useMemo } from "react";
+import { Line, LineChart, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/src/components/ui/chart";
 import { type IntervalConfig } from "@/src/utils/date-range-utils";
+import { formatTimestamp } from "./ScoreTimeSeriesNumericChart";
 
 export interface CategoricalTimeSeriesChartProps {
   data: Array<{
     timestamp: Date;
-    avg1: number | null;
-    avg2: number | null;
+    category: string;
     count: number;
   }>;
   score1Name: string;
@@ -14,24 +22,155 @@ export interface CategoricalTimeSeriesChartProps {
 
 /**
  * Categorical time series chart component
- * Placeholder for Phase 2 implementation
- * Will render stacked bar charts for categorical score time series
+ * Renders line charts showing counts for each category over time
+ * One line per category with dynamic colors
  */
 export function ScoreTimeSeriesCategoricalChart({
-  data: _data,
+  data,
   score1Name: _score1Name,
   score2Name: _score2Name,
-  interval: _interval,
+  interval,
 }: CategoricalTimeSeriesChartProps) {
-  return (
-    <div className="flex h-[200px] items-center justify-center text-center text-sm text-muted-foreground">
-      <div className="max-w-md">
-        <p className="font-medium">Categorical time series coming in Phase 2</p>
-        <p className="mt-2">
-          Time series visualization for categorical scores will be implemented
-          in the next phase with stacked bar charts.
-        </p>
+  // Transform categorical data into pivot format for Recharts
+  const { chartData, categories } = useMemo(() => {
+    // Group by timestamp and collect all categories
+    const groupedByTimestamp = new Map<number, Map<string, number>>();
+    const allCategories = new Set<string>();
+
+    data.forEach((item) => {
+      const timestampKey = item.timestamp.getTime();
+      if (!groupedByTimestamp.has(timestampKey)) {
+        groupedByTimestamp.set(timestampKey, new Map());
+      }
+      const categoryMap = groupedByTimestamp.get(timestampKey)!;
+      categoryMap.set(item.category, item.count);
+      allCategories.add(item.category);
+    });
+
+    // Convert to chart data format
+    // Sort by numeric timestamp BEFORE formatting to ensure chronological order
+    const formattedData = Array.from(groupedByTimestamp.entries())
+      .sort(([tsA], [tsB]) => tsA - tsB)
+      .map(([timestamp, categoryMap]) => {
+        const formattedTimestamp = formatTimestamp(
+          new Date(timestamp),
+          interval,
+        );
+
+        const dataPoint: Record<string, string | number> = {
+          time_dimension: formattedTimestamp,
+        };
+
+        // Add each category as a separate column
+        allCategories.forEach((category) => {
+          dataPoint[category] = categoryMap.get(category) ?? 0;
+        });
+
+        return dataPoint;
+      });
+
+    return {
+      chartData: formattedData,
+      categories: Array.from(allCategories).sort(),
+    };
+  }, [data, interval]);
+
+  // Create chart config with colors for each category
+  const config: ChartConfig = useMemo(() => {
+    const cfg: ChartConfig = {};
+    const chartColors = [
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+    ];
+
+    categories.forEach((category, index) => {
+      const colorIndex = index % chartColors.length;
+      cfg[category] = {
+        label: category,
+        theme: {
+          light: chartColors[colorIndex],
+          dark: chartColors[colorIndex],
+        },
+      };
+    });
+
+    return cfg;
+  }, [categories]);
+
+  if (chartData.length === 0 || categories.length === 0) {
+    return (
+      <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+        No time series data available
       </div>
-    </div>
+    );
+  }
+
+  // Check if all values are zero (no data in the selected time range)
+  const hasAnyData = chartData.some((item) =>
+    categories.some((category) => (item[category] as number) > 0),
+  );
+
+  if (!hasAnyData) {
+    return (
+      <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+        No data points available for the selected time range
+      </div>
+    );
+  }
+
+  return (
+    <ChartContainer config={config}>
+      <LineChart accessibilityLayer data={chartData}>
+        <XAxis
+          dataKey="time_dimension"
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+          interval={0}
+          angle={-45}
+          textAnchor="end"
+          height={80}
+        />
+        <YAxis
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+          label={{ value: "Count", angle: -90, position: "insideLeft" }}
+        />
+        {categories.map((category, index) => {
+          const chartColors = [
+            "hsl(var(--chart-1))",
+            "hsl(var(--chart-2))",
+            "hsl(var(--chart-3))",
+            "hsl(var(--chart-4))",
+            "hsl(var(--chart-5))",
+          ];
+          const colorIndex = index % chartColors.length;
+
+          return (
+            <Line
+              key={category}
+              type="monotone"
+              dataKey={category}
+              stroke={chartColors[colorIndex]}
+              strokeWidth={2}
+              dot={true}
+              activeDot={{ r: 6, strokeWidth: 0 }}
+              connectNulls
+            />
+          );
+        })}
+        <ChartTooltip
+          content={<ChartTooltipContent />}
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
+      </LineChart>
+    </ChartContainer>
   );
 }

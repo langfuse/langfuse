@@ -14,6 +14,7 @@ import {
   fillTimeSeriesGaps,
   type IntervalConfig,
 } from "@/src/utils/date-range-utils";
+import { fillCategoricalTimeSeriesGaps } from "@/src/utils/fill-time-series-gaps";
 
 interface TwoScoreAnalyticsProps {
   score1: {
@@ -206,6 +207,7 @@ export function TwoScoreAnalytics({
   const matchedCount = analytics.counts.matchedCount;
 
   // Fill gaps in time series to ensure all intervals are displayed
+  // For NUMERIC scores
   const rawTimeSeries =
     timeSeriesTab === "matched"
       ? analytics.timeSeriesMatched
@@ -230,6 +232,49 @@ export function TwoScoreAnalytics({
     console.log("filledTimeSeries", filledTimeSeries);
     return filledTimeSeries;
   }, [rawTimeSeries, fromDate, toDate, interval]);
+
+  // For CATEGORICAL/BOOLEAN scores - select appropriate data based on tab and apply gap-filling
+  const categoricalTimeSeriesData = useMemo(() => {
+    let rawData: typeof analytics.timeSeriesCategorical1 = [];
+
+    switch (timeSeriesTab) {
+      case "score1":
+        rawData = analytics.timeSeriesCategorical1;
+        break;
+      case "score2":
+        rawData = analytics.timeSeriesCategorical2;
+        break;
+      case "both":
+        // Combine both scores' categorical data, prefixing categories to distinguish scores
+        rawData = [
+          ...analytics.timeSeriesCategorical1.map((d) => ({
+            ...d,
+            category: `${score1.name}-${d.category}`,
+          })),
+          ...analytics.timeSeriesCategorical2.map((d) => ({
+            ...d,
+            category: `${score2.name}-${d.category}`,
+          })),
+        ];
+        break;
+      case "matched":
+        // Combine both matched scores' categorical data, prefixing categories
+        rawData = [
+          ...analytics.timeSeriesCategorical1Matched.map((d) => ({
+            ...d,
+            category: `${score1.name}-${d.category}`,
+          })),
+          ...analytics.timeSeriesCategorical2Matched.map((d) => ({
+            ...d,
+            category: `${score2.name}-${d.category}`,
+          })),
+        ];
+        break;
+    }
+
+    // Apply gap filling to ensure all intervals are displayed with proper aggregation
+    return fillCategoricalTimeSeriesGaps(rawData, fromDate, toDate, interval);
+  }, [timeSeriesTab, analytics, fromDate, toDate, interval, score1, score2]);
 
   // Calculate overall averages from time series
   const overallAverage1 = useMemo(() => {
@@ -409,7 +454,9 @@ export function TwoScoreAnalytics({
                 categories={categories}
                 stackedDistribution={
                   distDisplayData.showScore1 && distDisplayData.showScore2
-                    ? analytics.stackedDistribution
+                    ? distributionTab === "matched"
+                      ? analytics.stackedDistributionMatched
+                      : analytics.stackedDistribution
                     : undefined
                 }
                 score2Categories={
@@ -427,49 +474,58 @@ export function TwoScoreAnalytics({
         </CardContent>
       </Card>
 
-      {/* Time Series Card (Numeric only in Phase 1) */}
-      {isBothNumeric && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>Scores Over Time</CardTitle>
-                <CardDescription>
-                  Average by {interval.count} {interval.unit}
-                  {interval.count > 1 && "s"}
-                  {overallAverage1 > 0 && (
-                    <>
-                      {" "}
-                      | {score1.name} avg: {overallAverage1.toFixed(3)}
-                    </>
-                  )}
-                  {overallAverage2 > 0 && (
-                    <>
-                      {" "}
-                      | {score2.name} avg: {overallAverage2.toFixed(3)}
-                    </>
-                  )}
-                  {tsDisplayData.isMatched && " | Matched scores only"}
-                </CardDescription>
-              </div>
-              <Tabs
-                value={timeSeriesTab}
-                onValueChange={(value) => {
-                  console.log("timeSeriesTab.onValueChange", value);
-                  setTimeSeriesTab(value as ChartTab);
-                }}
-              >
-                <TabsList>
-                  <TabsTrigger value="score1">{score1.name}</TabsTrigger>
-                  <TabsTrigger value="score2">{score2.name}</TabsTrigger>
-                  <TabsTrigger value="both">Both</TabsTrigger>
-                  <TabsTrigger value="matched">Matched</TabsTrigger>
-                </TabsList>
-              </Tabs>
+      {/* Time Series Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Scores Over Time</CardTitle>
+              <CardDescription>
+                {isBothNumeric ? (
+                  <>
+                    Average by {interval.count} {interval.unit}
+                    {interval.count > 1 && "s"}
+                    {overallAverage1 > 0 && (
+                      <>
+                        {" "}
+                        | {score1.name} avg: {overallAverage1.toFixed(3)}
+                      </>
+                    )}
+                    {overallAverage2 > 0 && (
+                      <>
+                        {" "}
+                        | {score2.name} avg: {overallAverage2.toFixed(3)}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    Count by {interval.count} {interval.unit}
+                    {interval.count > 1 && "s"}
+                  </>
+                )}
+                {tsDisplayData.isMatched && " | Matched scores only"}
+              </CardDescription>
             </div>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            {timeSeriesData.length > 0 ? (
+            <Tabs
+              value={timeSeriesTab}
+              onValueChange={(value) => {
+                console.log("timeSeriesTab.onValueChange", value);
+                setTimeSeriesTab(value as ChartTab);
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value="score1">{score1.name}</TabsTrigger>
+                <TabsTrigger value="score2">{score2.name}</TabsTrigger>
+                <TabsTrigger value="both">Both</TabsTrigger>
+                <TabsTrigger value="matched">Matched</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          {isBothNumeric ? (
+            timeSeriesData.length > 0 ? (
               <ScoreTimeSeriesChart
                 data={timeSeriesData}
                 dataType="NUMERIC"
@@ -491,10 +547,32 @@ export function TwoScoreAnalytics({
               <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
                 No time series data available for the selected time range
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            )
+          ) : categoricalTimeSeriesData.length > 0 ? (
+            <ScoreTimeSeriesChart
+              data={categoricalTimeSeriesData}
+              dataType={score1.dataType}
+              score1Name={
+                timeSeriesTab === "score2"
+                  ? score2DisplayName
+                  : score1DisplayName
+              }
+              score2Name={
+                tsDisplayData.showScore1 && tsDisplayData.showScore2
+                  ? timeSeriesTab === "score2"
+                    ? score1DisplayName
+                    : score2DisplayName
+                  : undefined
+              }
+              interval={interval}
+            />
+          ) : (
+            <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+              No time series data available for the selected time range
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
