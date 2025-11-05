@@ -33,12 +33,12 @@ export function ScoreTimeSeriesBooleanChart({
   score2Name: _score2Name,
   interval,
 }: BooleanTimeSeriesChartProps) {
-  const isComparisonMode = Boolean(_score2Name);
-
   // Transform categorical data into pivot format for Recharts
-  const chartData = useMemo(() => {
-    // Group by timestamp
+  // Detect if categories are prefixed (e.g., "correctness-True") vs plain (e.g., "True")
+  const { chartData, categories, isPrefixedMode } = useMemo(() => {
+    // Group by timestamp and collect all categories
     const groupedByTimestamp = new Map<number, Map<string, number>>();
+    const allCategories = new Set<string>();
 
     data.forEach((item) => {
       const timestampKey = item.timestamp.getTime();
@@ -47,59 +47,102 @@ export function ScoreTimeSeriesBooleanChart({
       }
       const categoryMap = groupedByTimestamp.get(timestampKey)!;
       categoryMap.set(item.category, item.count);
+      allCategories.add(item.category);
     });
+
+    // Detect if categories are prefixed (e.g., "correctness-True", "hallucination-False")
+    // This happens in "both" tab when comparing different scores
+    const categoryList = Array.from(allCategories).sort();
+    const isPrefixed = categoryList.some((cat) => cat.match(/-(?:True|False)$/i));
 
     // Convert to chart data format
     // Sort by numeric timestamp BEFORE formatting to ensure chronological order
-    return Array.from(groupedByTimestamp.entries())
+    const formattedData = Array.from(groupedByTimestamp.entries())
       .sort(([tsA], [tsB]) => tsA - tsB)
-      .map(([timestamp, categories]) => {
+      .map(([timestamp, categoryMap]) => {
         const formattedTimestamp = formatTimestamp(
           new Date(timestamp),
           interval,
         );
 
-        if (isComparisonMode) {
-          // For comparison mode, we won't have score-specific data in this component
-          // The parent will call this component separately for each score
-          return {
+        if (isPrefixed) {
+          // Prefixed mode: Create columns for each prefixed category
+          const dataPoint: Record<string, string | number> = {
             time_dimension: formattedTimestamp,
-            True: categories.get("true") ?? categories.get("True") ?? 0,
-            False: categories.get("false") ?? categories.get("False") ?? 0,
           };
+
+          categoryList.forEach((category) => {
+            dataPoint[category] = categoryMap.get(category) ?? 0;
+          });
+
+          return dataPoint;
         }
 
+        // Non-prefixed mode: Standard True/False columns
         return {
           time_dimension: formattedTimestamp,
-          True: categories.get("true") ?? categories.get("True") ?? 0,
-          False: categories.get("false") ?? categories.get("False") ?? 0,
+          True: categoryMap.get("true") ?? categoryMap.get("True") ?? 0,
+          False: categoryMap.get("false") ?? categoryMap.get("False") ?? 0,
         };
       });
-  }, [data, interval, isComparisonMode]);
+
+    return {
+      chartData: formattedData,
+      categories: categoryList,
+      isPrefixedMode: isPrefixed,
+    };
+  }, [data, interval]);
 
   // Get colors - use score-specific colors in comparison mode
   const colors = getTwoScoreColors();
 
-  // Create chart config for True/False lines
-  // Use score-specific colors to match numeric chart
-  const config: ChartConfig = {
-    True: {
-      label: "True",
-      theme: {
-        light: colors.score1,
-        dark: colors.score1,
-      },
-    },
-    False: {
-      label: "False",
-      theme: {
-        light: colors.score2,
-        dark: colors.score2,
-      },
-    },
-  };
+  // Create chart config based on mode
+  const config: ChartConfig = useMemo(() => {
+    if (!isPrefixedMode) {
+      // Legacy mode: True/False only with score1/score2 colors
+      return {
+        True: {
+          label: "True",
+          theme: {
+            light: colors.score1,
+            dark: colors.score1,
+          },
+        },
+        False: {
+          label: "False",
+          theme: {
+            light: colors.score2,
+            dark: colors.score2,
+          },
+        },
+      };
+    }
 
-  if (chartData.length === 0) {
+    // Prefixed mode: Use chart colors like categorical chart
+    const cfg: ChartConfig = {};
+    const chartColors = [
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+    ];
+
+    categories.forEach((category, index) => {
+      const colorIndex = index % chartColors.length;
+      cfg[category] = {
+        label: category,
+        theme: {
+          light: chartColors[colorIndex],
+          dark: chartColors[colorIndex],
+        },
+      };
+    });
+
+    return cfg;
+  }, [isPrefixedMode, categories, colors]);
+
+  if (chartData.length === 0 || categories.length === 0) {
     return (
       <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
         No time series data available
@@ -108,7 +151,14 @@ export function ScoreTimeSeriesBooleanChart({
   }
 
   // Check if all values are zero (no data in the selected time range)
-  const hasAnyData = chartData.some((item) => item.True > 0 || item.False > 0);
+  const hasAnyData = chartData.some((item) => {
+    if (isPrefixedMode) {
+      // Check all category columns in prefixed mode
+      return categories.some((category) => (item[category] as number) > 0);
+    }
+    // Check True/False columns in non-prefixed mode
+    return (item.True as number) > 0 || (item.False as number) > 0;
+  });
 
   if (!hasAnyData) {
     return (
@@ -139,24 +189,54 @@ export function ScoreTimeSeriesBooleanChart({
           axisLine={false}
           label={{ value: "Count", angle: -90, position: "insideLeft" }}
         />
-        <Line
-          type="monotone"
-          dataKey="True"
-          stroke={colors.score1}
-          strokeWidth={2}
-          dot={true}
-          activeDot={{ r: 6, strokeWidth: 0 }}
-          connectNulls
-        />
-        <Line
-          type="monotone"
-          dataKey="False"
-          stroke={colors.score2}
-          strokeWidth={2}
-          dot={true}
-          activeDot={{ r: 6, strokeWidth: 0 }}
-          connectNulls
-        />
+        {isPrefixedMode ? (
+          // Prefixed mode: Render dynamic lines for each category
+          categories.map((category, index) => {
+            const chartColors = [
+              "hsl(var(--chart-1))",
+              "hsl(var(--chart-2))",
+              "hsl(var(--chart-3))",
+              "hsl(var(--chart-4))",
+              "hsl(var(--chart-5))",
+            ];
+            const colorIndex = index % chartColors.length;
+
+            return (
+              <Line
+                key={category}
+                type="monotone"
+                dataKey={category}
+                stroke={chartColors[colorIndex]}
+                strokeWidth={2}
+                dot={true}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                connectNulls
+              />
+            );
+          })
+        ) : (
+          // Non-prefixed mode: Render standard True/False lines
+          <>
+            <Line
+              type="monotone"
+              dataKey="True"
+              stroke={colors.score1}
+              strokeWidth={2}
+              dot={true}
+              activeDot={{ r: 6, strokeWidth: 0 }}
+              connectNulls
+            />
+            <Line
+              type="monotone"
+              dataKey="False"
+              stroke={colors.score2}
+              strokeWidth={2}
+              dot={true}
+              activeDot={{ r: 6, strokeWidth: 0 }}
+              connectNulls
+            />
+          </>
+        )}
         <ChartTooltip
           content={<ChartTooltipContent />}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
