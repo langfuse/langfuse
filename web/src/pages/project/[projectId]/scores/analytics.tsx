@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
@@ -14,6 +14,7 @@ import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
+  getOptimalInterval,
 } from "@/src/utils/date-range-utils";
 import { BarChart3, Loader2 } from "lucide-react";
 import { api } from "@/src/utils/api";
@@ -21,6 +22,8 @@ import {
   Heatmap,
   HeatmapLegend,
 } from "@/src/features/scores/components/analytics";
+import { SingleScoreAnalytics } from "@/src/features/scores/components/analytics/SingleScoreAnalytics";
+import { TwoScoreAnalytics } from "@/src/features/scores/components/analytics/TwoScoreAnalytics";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
@@ -99,6 +102,52 @@ export default function ScoresAnalyticsPage() {
     return selected?.dataType;
   }, [urlState.score1, scoreOptions]);
 
+  // Determine which score types are compatible with score1
+  // For NUMERIC: only NUMERIC is allowed (no cross-type)
+  // For BOOLEAN/CATEGORICAL: allow BOOLEAN, CATEGORICAL, or NUMERIC (cross-type as categorical)
+  const compatibleScore2DataTypes = useMemo(() => {
+    if (!score1DataType) return undefined;
+
+    if (score1DataType === "NUMERIC") {
+      return ["NUMERIC"]; // Numeric only compares with numeric
+    } else {
+      // Boolean and Categorical can compare with each other and with numeric (treated as categorical)
+      return ["BOOLEAN", "CATEGORICAL", "NUMERIC"];
+    }
+  }, [score1DataType]);
+
+  // Clear score2 when score1's dataType changes and score2 is no longer compatible
+  const prevScore1DataTypeRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // Skip on initial render
+    if (prevScore1DataTypeRef.current === undefined) {
+      prevScore1DataTypeRef.current = score1DataType;
+      return;
+    }
+
+    // If dataType has changed and there's a score2 selected, check if it's still compatible
+    if (prevScore1DataTypeRef.current !== score1DataType && urlState.score2) {
+      const score2Option = scoreOptions.find(
+        (opt) => opt.value === urlState.score2,
+      );
+      const isCompatible = compatibleScore2DataTypes?.includes(
+        score2Option?.dataType ?? "",
+      );
+
+      if (!isCompatible) {
+        setScore2(undefined);
+      }
+    }
+
+    prevScore1DataTypeRef.current = score1DataType;
+  }, [
+    score1DataType,
+    urlState.score2,
+    setScore2,
+    compatibleScore2DataTypes,
+    scoreOptions,
+  ]);
+
   // Parse score identifiers (format: "name-dataType-source")
   const parsedScore1 = useMemo(() => {
     if (!urlState.score1) return null;
@@ -128,14 +177,20 @@ export default function ScoresAnalyticsPage() {
     [timeRange],
   );
 
-  // Fetch comparison analytics when two scores are selected
-  const shouldFetchComparison = !!(
+  // Fetch analytics when at least one score is selected
+  // For single score: pass same score as both score1 and score2
+  const shouldFetchAnalytics = !!(
     parsedScore1 &&
-    parsedScore2 &&
     projectId &&
     absoluteTimeRange?.from &&
     absoluteTimeRange?.to
   );
+
+  // Calculate optimal interval based on time range
+  const interval = useMemo(() => {
+    if (!absoluteTimeRange) return { count: 1, unit: "day" as const };
+    return getOptimalInterval(absoluteTimeRange.from, absoluteTimeRange.to);
+  }, [absoluteTimeRange]);
 
   // TODO: REMOVE BEFORE MERGING - Debug logging
   useEffect(() => {
@@ -145,7 +200,7 @@ export default function ScoresAnalyticsPage() {
       projectId,
       timeRange,
       absoluteTimeRange,
-      shouldFetchComparison,
+      shouldFetchAnalytics,
     });
   }, [
     parsedScore1,
@@ -153,7 +208,7 @@ export default function ScoresAnalyticsPage() {
     projectId,
     timeRange,
     absoluteTimeRange,
-    shouldFetchComparison,
+    shouldFetchAnalytics,
   ]);
 
   const {
@@ -164,27 +219,28 @@ export default function ScoresAnalyticsPage() {
     {
       projectId,
       score1: parsedScore1!,
-      score2: parsedScore2!,
+      score2: parsedScore2 ?? parsedScore1!, // Use same score if only one selected
       fromTimestamp: absoluteTimeRange?.from!,
       toTimestamp: absoluteTimeRange?.to!,
+      interval,
+      objectType: urlState.objectType,
+      matchedOnly: false, // Not used anymore - tabs control display
     },
     {
-      enabled: shouldFetchComparison,
+      enabled: shouldFetchAnalytics,
     },
   );
 
-  // TODO: REMOVE BEFORE MERGING - Debug analytics query result
-  useEffect(() => {
-    if (shouldFetchComparison) {
-      console.log("[Score Analytics] Query state:", {
-        isLoading: analyticsLoading,
-        hasData: !!analyticsData,
-        hasError: !!analyticsError,
-        error: analyticsError,
-        data: analyticsData,
-      });
-    }
-  }, [shouldFetchComparison, analyticsLoading, analyticsData, analyticsError]);
+  // Debug logging for query state
+  if (typeof window !== "undefined" && shouldFetchAnalytics) {
+    console.log("[Score Analytics] Query state:", {
+      isLoading: analyticsLoading,
+      hasData: !!analyticsData,
+      hasError: !!analyticsError,
+      error: analyticsError,
+      dataKeys: analyticsData ? Object.keys(analyticsData) : [],
+    });
+  }
 
   // Preprocess heatmap data
   const heatmapData = useMemo(() => {
@@ -236,6 +292,23 @@ export default function ScoresAnalyticsPage() {
   const hasNoSelection = !urlState.score1;
   const hasTwoScores = !!(urlState.score1 && urlState.score2);
 
+  // Debug logging (inline to avoid hooks issues)
+  if (typeof window !== "undefined") {
+    // Only log in browser, not during SSR
+    const debugInfo = {
+      hasTwoScores,
+      parsedScore1: !!parsedScore1,
+      parsedScore2: !!parsedScore2,
+      analyticsData: !!analyticsData,
+      analyticsLoading,
+      analyticsError: !!analyticsError,
+      willRenderSingleScore: !hasTwoScores && !!parsedScore1 && !!analyticsData,
+      willRenderTwoScores:
+        hasTwoScores && !!parsedScore1 && !!parsedScore2 && !!analyticsData,
+    };
+    console.log("[Score Analytics] Rendering conditions:", debugInfo);
+  }
+
   return (
     <Page
       headerProps={{
@@ -269,7 +342,7 @@ export default function ScoresAnalyticsPage() {
               onChange={setScore2}
               options={scoreOptions}
               placeholder="Second score"
-              filterByDataType={score1DataType}
+              filterByDataType={compatibleScore2DataTypes}
               className="h-8 w-[160px]"
             />
           </div>
@@ -333,19 +406,6 @@ export default function ScoresAnalyticsPage() {
               </p>
             </div>
           </div>
-        ) : !hasTwoScores ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
-            <BarChart3 className="h-12 w-12 text-muted-foreground" />
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">Single Score Analytics</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Single score analytics coming soon (LF-1919)
-              </p>
-              <p className="mt-4 text-xs text-muted-foreground">
-                Select a second score to view comparison heatmaps
-              </p>
-            </div>
-          </div>
         ) : analyticsLoading ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
             <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
@@ -365,203 +425,245 @@ export default function ScoresAnalyticsPage() {
           </div>
         ) : analyticsData ? (
           <div className="max-h-full space-y-6 overflow-y-scroll p-4 pt-6">
-            {/* 2x2 Grid Layout */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {/* Row 1, Col 1: Distribution Placeholder */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Score Distribution</CardTitle>
-                  <CardDescription>
-                    Distribution of selected scores (coming soon)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                  Histogram visualization coming soon
-                </CardContent>
-              </Card>
+            {!hasTwoScores && parsedScore1 ? (
+              // Single score analytics
+              <SingleScoreAnalytics
+                scoreId={urlState.score1!}
+                scoreName={parsedScore1.name}
+                dataType={
+                  parsedScore1.dataType as "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
+                }
+                source={parsedScore1.source}
+                analytics={analyticsData}
+                interval={interval}
+                nBins={10}
+                fromDate={absoluteTimeRange!.from}
+                toDate={absoluteTimeRange!.to}
+              />
+            ) : hasTwoScores && parsedScore1 && parsedScore2 ? (
+              // Two score comparison
+              <>
+                {/* Distribution and Time Series Charts */}
+                <TwoScoreAnalytics
+                  score1={{
+                    ...parsedScore1,
+                    dataType: parsedScore1.dataType as
+                      | "NUMERIC"
+                      | "CATEGORICAL"
+                      | "BOOLEAN",
+                  }}
+                  score2={{
+                    ...parsedScore2,
+                    dataType: parsedScore2.dataType as
+                      | "NUMERIC"
+                      | "CATEGORICAL"
+                      | "BOOLEAN",
+                  }}
+                  analytics={analyticsData}
+                  interval={interval}
+                  nBins={10}
+                  fromDate={absoluteTimeRange!.from}
+                  toDate={absoluteTimeRange!.to}
+                />
 
-              {/* Row 1, Col 2: Score Over Time Placeholder */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scores Over Time</CardTitle>
-                  <CardDescription>
-                    Time series of selected scores (coming soon)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                  Time series chart coming soon
-                </CardContent>
-              </Card>
-
-              {/* Row 2, Col 1: Heatmap / Confusion Matrix */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>
-                    {parsedScore1.dataType === "NUMERIC"
-                      ? "Score Comparison Heatmap"
-                      : "Confusion Matrix"}
-                  </CardTitle>
-                  <CardDescription>
-                    {parsedScore1.dataType === "NUMERIC"
-                      ? "Distribution of matched score pairs showing correlation patterns"
-                      : "Agreement matrix between categorical scores"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center gap-4">
-                  {heatmapData && heatmapData.cells.length > 0 ? (
-                    <>
-                      <Heatmap
-                        data={heatmapData.cells}
-                        rows={
-                          parsedScore1.dataType === "NUMERIC"
-                            ? 10
-                            : (heatmapData.rows ?? 0)
-                        }
-                        cols={
-                          parsedScore1.dataType === "NUMERIC"
-                            ? 10
-                            : (heatmapData.cols ?? 0)
-                        }
-                        rowLabels={heatmapData.rowLabels}
-                        colLabels={heatmapData.colLabels}
-                        xAxisLabel={`${parsedScore2.name} (${parsedScore2.source})`}
-                        yAxisLabel={`${parsedScore1.name} (${parsedScore1.source})`}
-                        renderTooltip={(cell) => (
-                          <div className="space-y-1">
-                            <p className="font-semibold">Count: {cell.value}</p>
-                            {parsedScore1.dataType === "NUMERIC" ? (
-                              <>
-                                <p className="text-xs">
-                                  {parsedScore1.name}:{" "}
-                                  {(
-                                    cell.metadata?.yRange as [number, number]
-                                  )?.[0]?.toFixed(2)}{" "}
-                                  -{" "}
-                                  {(
-                                    cell.metadata?.yRange as [number, number]
-                                  )?.[1]?.toFixed(2)}
+                {/* 2x2 Grid Layout for Heatmap and Stats */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {/* Row 2, Col 1: Heatmap / Confusion Matrix */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>
+                        {parsedScore1.dataType === "NUMERIC"
+                          ? "Score Comparison Heatmap"
+                          : "Confusion Matrix"}
+                      </CardTitle>
+                      <CardDescription>
+                        {parsedScore1.dataType === "NUMERIC"
+                          ? "Distribution of matched score pairs showing correlation patterns"
+                          : "Agreement matrix between categorical scores"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col items-center gap-4">
+                      {heatmapData && heatmapData.cells.length > 0 ? (
+                        <>
+                          <Heatmap
+                            data={heatmapData.cells}
+                            rows={
+                              parsedScore1.dataType === "NUMERIC"
+                                ? 10
+                                : "rows" in heatmapData
+                                  ? (heatmapData.rows as number)
+                                  : 0
+                            }
+                            cols={
+                              parsedScore1.dataType === "NUMERIC"
+                                ? 10
+                                : "cols" in heatmapData
+                                  ? (heatmapData.cols as number)
+                                  : 0
+                            }
+                            rowLabels={heatmapData.rowLabels}
+                            colLabels={heatmapData.colLabels}
+                            xAxisLabel={`${parsedScore2.name} (${parsedScore2.source})`}
+                            yAxisLabel={`${parsedScore1.name} (${parsedScore1.source})`}
+                            renderTooltip={(cell) => (
+                              <div className="space-y-1">
+                                <p className="font-semibold">
+                                  Count: {cell.value}
                                 </p>
+                                {parsedScore1.dataType === "NUMERIC" ? (
+                                  <>
+                                    <p className="text-xs">
+                                      {parsedScore1.name}:{" "}
+                                      {(
+                                        cell.metadata?.yRange as [
+                                          number,
+                                          number,
+                                        ]
+                                      )?.[0]?.toFixed(2)}{" "}
+                                      -{" "}
+                                      {(
+                                        cell.metadata?.yRange as [
+                                          number,
+                                          number,
+                                        ]
+                                      )?.[1]?.toFixed(2)}
+                                    </p>
+                                    <p className="text-xs">
+                                      {parsedScore2.name}:{" "}
+                                      {(
+                                        cell.metadata?.xRange as [
+                                          number,
+                                          number,
+                                        ]
+                                      )?.[0]?.toFixed(2)}{" "}
+                                      -{" "}
+                                      {(
+                                        cell.metadata?.xRange as [
+                                          number,
+                                          number,
+                                        ]
+                                      )?.[1]?.toFixed(2)}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <p className="text-xs">
+                                    {cell.metadata?.rowCategory as string} →{" "}
+                                    {cell.metadata?.colCategory as string}
+                                  </p>
+                                )}
                                 <p className="text-xs">
-                                  {parsedScore2.name}:{" "}
                                   {(
-                                    cell.metadata?.xRange as [number, number]
-                                  )?.[0]?.toFixed(2)}{" "}
-                                  -{" "}
-                                  {(
-                                    cell.metadata?.xRange as [number, number]
-                                  )?.[1]?.toFixed(2)}
+                                    (cell.metadata?.percentage as number) ?? 0
+                                  ).toFixed(1)}
+                                  % of matched pairs
                                 </p>
-                              </>
-                            ) : (
-                              <p className="text-xs">
-                                {cell.metadata?.rowCategory as string} →{" "}
-                                {cell.metadata?.colCategory as string}
-                              </p>
+                              </div>
                             )}
-                            <p className="text-xs">
-                              {(
-                                (cell.metadata?.percentage as number) ?? 0
-                              ).toFixed(1)}
-                              % of matched pairs
+                          />
+                          <HeatmapLegend
+                            min={0}
+                            max={Math.max(
+                              ...heatmapData.cells.map((c) => c.value),
+                            )}
+                            variant="accent"
+                            title="Count"
+                            orientation="horizontal"
+                            steps={10}
+                          />
+                        </>
+                      ) : (
+                        <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+                          No matched score pairs found for the selected time
+                          range
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Row 2, Col 2: Summary Statistics */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Summary Statistics</CardTitle>
+                      <CardDescription>
+                        {parsedScore1.dataType === "NUMERIC"
+                          ? "Correlation and error metrics for matched score pairs"
+                          : "Summary metrics for matched score pairs"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {parsedScore1.dataType === "NUMERIC" &&
+                      analyticsData.statistics ? (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Pearson Correlation
+                            </p>
+                            <p className="text-2xl font-semibold">
+                              {analyticsData.statistics.pearsonCorrelation?.toFixed(
+                                3,
+                              ) ?? "N/A"}
                             </p>
                           </div>
-                        )}
-                      />
-                      <HeatmapLegend
-                        min={0}
-                        max={Math.max(...heatmapData.cells.map((c) => c.value))}
-                        variant="accent"
-                        title="Count"
-                        orientation="horizontal"
-                        steps={10}
-                      />
-                    </>
-                  ) : (
-                    <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                      No matched score pairs found for the selected time range
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Row 2, Col 2: Summary Statistics */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Summary Statistics</CardTitle>
-                  <CardDescription>
-                    {parsedScore1.dataType === "NUMERIC"
-                      ? "Correlation and error metrics for matched score pairs"
-                      : "Summary metrics for matched score pairs"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {parsedScore1.dataType === "NUMERIC" &&
-                  analyticsData.statistics ? (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Pearson Correlation
-                        </p>
-                        <p className="text-2xl font-semibold">
-                          {analyticsData.statistics.pearsonCorrelation?.toFixed(
-                            3,
-                          ) ?? "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Mean Absolute Error
-                        </p>
-                        <p className="text-2xl font-semibold">
-                          {analyticsData.statistics.mae?.toFixed(3) ?? "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">RMSE</p>
-                        <p className="text-2xl font-semibold">
-                          {analyticsData.statistics.rmse?.toFixed(3) ?? "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Matched Pairs
-                        </p>
-                        <p className="text-2xl font-semibold">
-                          {analyticsData.statistics.matchedCount.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Score 1 Total
-                        </p>
-                        <p className="text-2xl font-semibold">
-                          {analyticsData.counts.score1Total.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Score 2 Total
-                        </p>
-                        <p className="text-2xl font-semibold">
-                          {analyticsData.counts.score2Total.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Matched Pairs
-                        </p>
-                        <p className="text-2xl font-semibold">
-                          {analyticsData.counts.matchedCount.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Mean Absolute Error
+                            </p>
+                            <p className="text-2xl font-semibold">
+                              {analyticsData.statistics.mae?.toFixed(3) ??
+                                "N/A"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              RMSE
+                            </p>
+                            <p className="text-2xl font-semibold">
+                              {analyticsData.statistics.rmse?.toFixed(3) ??
+                                "N/A"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Matched Pairs
+                            </p>
+                            <p className="text-2xl font-semibold">
+                              {analyticsData.statistics.matchedCount.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Score 1 Total
+                            </p>
+                            <p className="text-2xl font-semibold">
+                              {analyticsData.counts.score1Total.toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Score 2 Total
+                            </p>
+                            <p className="text-2xl font-semibold">
+                              {analyticsData.counts.score2Total.toLocaleString()}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Matched Pairs
+                            </p>
+                            <p className="text-2xl font-semibold">
+                              {analyticsData.counts.matchedCount.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            ) : null}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">

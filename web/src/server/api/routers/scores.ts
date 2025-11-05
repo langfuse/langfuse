@@ -6,6 +6,7 @@ import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateSco
 import {
   getDateFromOption,
   SelectedTimeOptionSchema,
+  type IntervalConfig,
 } from "@/src/utils/date-range-utils";
 import {
   createTRPCRouter,
@@ -672,9 +673,59 @@ export const scoresRouter = createTRPCRouter({
         }),
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
-        interval: z.enum(["hour", "day", "week", "month"]).default("day"),
+        interval: z
+          .object({
+            count: z.number().int().positive(),
+            unit: z.enum(["second", "minute", "hour", "day", "month", "year"]),
+          })
+          .refine(
+            (val) => {
+              // Validate against allowed intervals
+              const allowed = [
+                // Seconds
+                { count: 1, unit: "second" },
+                { count: 5, unit: "second" },
+                { count: 10, unit: "second" },
+                { count: 30, unit: "second" },
+                // Minutes
+                { count: 1, unit: "minute" },
+                { count: 5, unit: "minute" },
+                { count: 10, unit: "minute" },
+                { count: 30, unit: "minute" },
+                // Hours
+                { count: 1, unit: "hour" },
+                { count: 3, unit: "hour" },
+                { count: 6, unit: "hour" },
+                { count: 12, unit: "hour" },
+                // Days
+                { count: 1, unit: "day" },
+                { count: 2, unit: "day" },
+                { count: 5, unit: "day" },
+                { count: 7, unit: "day" },
+                { count: 14, unit: "day" },
+                // Months
+                { count: 1, unit: "month" },
+                { count: 3, unit: "month" },
+                { count: 6, unit: "month" },
+                // Years
+                { count: 1, unit: "year" },
+              ];
+              return allowed.some(
+                (a) => a.count === val.count && a.unit === val.unit,
+              );
+            },
+            {
+              message:
+                "Invalid interval. Must be one of the allowed interval combinations.",
+            },
+          )
+          .default({ count: 1, unit: "day" }),
         nBins: z.number().int().min(5).max(50).default(10),
         maxMatchedScoresLimit: z.number().int().default(100000),
+        objectType: z
+          .enum(["all", "trace", "session", "observation", "run"])
+          .default("all"),
+        matchedOnly: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
@@ -687,16 +738,377 @@ export const scoresRouter = createTRPCRouter({
         interval,
         nBins,
         maxMatchedScoresLimit,
+        objectType,
       } = input;
 
-      // Convert interval to ClickHouse INTERVAL syntax
-      const intervalMap: Record<string, string> = {
-        hour: "INTERVAL 1 HOUR",
-        day: "INTERVAL 1 DAY",
-        week: "INTERVAL 1 WEEK",
-        month: "INTERVAL 1 MONTH",
+      // Note: The backend always returns both matched and unmatched datasets,
+      // as well as individual-bound distributions. The frontend chooses which
+      // to display based on the selected tab.
+
+      /**
+       * Normalize interval to single-unit for ClickHouse aggregation.
+       *
+       * IMPORTANT: ClickHouse's toStartOfInterval with multi-unit intervals (e.g., INTERVAL 2 DAY)
+       * aligns to Unix epoch (Jan 1, 1970), which causes unintuitive bucketing. For example,
+       * with 7-day intervals, buckets start on Thursdays instead of Mondays.
+       *
+       * WORKAROUND: We always query ClickHouse with SINGLE-UNIT intervals (1 second, 1 minute,
+       * 1 hour, 1 day, 1 month, 1 year) which use calendar-aligned functions. The frontend
+       * then aggregates these single-unit buckets into the requested multi-unit buckets,
+       * working backwards from toTimestamp to ensure "today's" data appears in the rightmost bucket.
+       *
+       * This approach ensures consistent, calendar-aligned behavior across all time ranges.
+       *
+       * @param interval - The requested interval (may be multi-unit like {count: 2, unit: "day"})
+       * @returns Normalized single-unit interval for ClickHouse (e.g., {count: 1, unit: "day"})
+       */
+      const normalizeIntervalForClickHouse = (
+        interval: IntervalConfig,
+      ): IntervalConfig => {
+        // Special case: 7-day intervals become ISO 8601 weeks (Monday-aligned)
+        if (interval.count === 7 && interval.unit === "day") {
+          return { count: 7, unit: "day" }; // Will use toStartOfWeek
+        }
+
+        // All other intervals: normalize to single-unit
+        return { count: 1, unit: interval.unit };
       };
-      const clickhouseInterval = intervalMap[interval];
+
+      /**
+       * Returns the appropriate ClickHouse time bucketing function for SINGLE-UNIT intervals.
+       * Uses calendar-aligned functions to ensure "today's" data appears in today's bucket.
+       *
+       * @param timestampField - The timestamp field name to bucket (e.g., "timestamp", "timestamp1")
+       * @param normalizedInterval - Single-unit interval (or 7-day for weeks)
+       * @returns ClickHouse SQL function call as string
+       */
+      const getClickHouseTimeBucketFunction = (
+        timestampField: string,
+        normalizedInterval: IntervalConfig,
+      ): string => {
+        const { count, unit } = normalizedInterval;
+
+        // Special case: 7-day intervals align to ISO 8601 week (Monday start)
+        if (count === 7 && unit === "day") {
+          return `toStartOfWeek(${timestampField}, 1)`; // mode 1 = Monday
+        }
+
+        // All other cases are single-unit intervals with calendar alignment
+        switch (unit) {
+          case "second":
+            return `toStartOfSecond(${timestampField})`;
+          case "minute":
+            return `toStartOfMinute(${timestampField})`;
+          case "hour":
+            return `toStartOfHour(${timestampField})`;
+          case "day":
+            return `toStartOfDay(${timestampField})`;
+          case "month":
+            return `toStartOfMonth(${timestampField})`;
+          case "year":
+            return `toStartOfYear(${timestampField})`;
+        }
+      };
+
+      // Normalize the interval for ClickHouse (always single-unit except 7-day weeks)
+      const normalizedInterval = normalizeIntervalForClickHouse(interval);
+
+      // Build object type filter based on selection
+      const objectTypeFilter =
+        objectType === "all"
+          ? ""
+          : objectType === "trace"
+            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND run_id IS NULL"
+            : objectType === "observation"
+              ? "AND observation_id IS NOT NULL"
+              : objectType === "session"
+                ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND run_id IS NULL"
+                : objectType === "run"
+                  ? "AND run_id IS NOT NULL"
+                  : "";
+
+      // Determine if this is a single-score or two-score query
+      const isSingleScore =
+        score1.name === score2.name && score1.source === score2.source;
+
+      // Determine if we're dealing with numeric or categorical/boolean data
+      // Cross-type comparisons: treat as categorical if either score is non-numeric
+      const isCrossType =
+        score1.dataType !== score2.dataType &&
+        (score1.dataType !== "NUMERIC" || score2.dataType !== "NUMERIC");
+
+      const isNumeric =
+        score1.dataType === "NUMERIC" && score2.dataType === "NUMERIC";
+      const isCategoricalComparison =
+        !isNumeric && // Any non-numeric comparison
+        (score1.dataType === "CATEGORICAL" ||
+          score2.dataType === "CATEGORICAL" ||
+          isCrossType);
+
+      // Build distribution CTEs conditionally based on data type
+      const distribution1CTE = isNumeric
+        ? `-- CTE 9: Distribution for score1 (numeric, using global bounds)
+          distribution1 AS (
+            SELECT
+              floor((s.value - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score1_filtered s
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 9: Distribution for score1 (categorical/boolean or cross-type)
+          distribution1 AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value, toString(value))) - 1) as bin_index,
+              count() as count
+            FROM score1_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY COALESCE(string_value, toString(value))
+          )`;
+
+      const distribution2CTE = isNumeric
+        ? `-- CTE 10: Distribution for score2 (numeric, using global bounds)
+          distribution2 AS (
+            SELECT
+              floor((s.value - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score2_filtered s
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 10: Distribution for score2 (categorical/boolean or cross-type)
+          distribution2 AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value, toString(value))) - 1) as bin_index,
+              count() as count
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY COALESCE(string_value, toString(value))
+          )`;
+
+      // Build time series CTE conditionally based on single vs two-score
+      const timeseriesCTE = isSingleScore
+        ? `-- CTE 8: Time series (single score)
+          timeseries AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+              avg(value) as avg1,
+              CAST(NULL AS Nullable(Float64)) as avg2,
+              count() as count
+            FROM score1_filtered
+            WHERE value IS NOT NULL
+            GROUP BY ts
+            ORDER BY ts
+          )`
+        : `-- CTE 8: Time series (two scores - matched only)
+          timeseries AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              avg(value1) as avg1,
+              avg(value2) as avg2,
+              count() as count
+            FROM matched_scores
+            GROUP BY ts
+            ORDER BY ts
+          )`;
+
+      // Build matched-only CTEs for distributions and single-score time series
+      const distribution1MatchedCTE = isNumeric
+        ? `-- CTE 11: Distribution for score1 (numeric, matched only)
+          distribution1_matched AS (
+            SELECT
+              floor((m.value1 - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM matched_scores m
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 11: Distribution for score1 (categorical/boolean or cross-type, matched only)
+          distribution1_matched AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value1, toString(value1))) - 1) as bin_index,
+              count() as count
+            FROM matched_scores
+            WHERE string_value1 IS NOT NULL OR value1 IS NOT NULL
+            GROUP BY COALESCE(string_value1, toString(value1))
+          )`;
+
+      const distribution2MatchedCTE = isNumeric
+        ? `-- CTE 12: Distribution for score2 (numeric, matched only)
+          distribution2_matched AS (
+            SELECT
+              floor((m.value2 - b.global_min) /
+                    ((b.global_max - b.global_min + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM matched_scores m
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 12: Distribution for score2 (categorical/boolean or cross-type, matched only)
+          distribution2_matched AS (
+            SELECT
+              (ROW_NUMBER() OVER (ORDER BY COALESCE(string_value2, toString(value2))) - 1) as bin_index,
+              count() as count
+            FROM matched_scores
+            WHERE string_value2 IS NOT NULL OR value2 IS NOT NULL
+            GROUP BY COALESCE(string_value2, toString(value2))
+          )`;
+
+      // Build individual-bound distributions for single-score display
+      const distribution1IndividualCTE = isNumeric
+        ? `-- CTE 13: Distribution for score1 (numeric, using individual bounds for single-score view)
+          distribution1_individual AS (
+            SELECT
+              floor((s.value - b.min1) /
+                    ((b.max1 - b.min1 + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score1_filtered s
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 13: Distribution for score1 (categorical/boolean, same as distribution1)
+          distribution1_individual AS (
+            SELECT bin_index, count
+            FROM distribution1
+          )`;
+
+      const distribution2IndividualCTE = isNumeric
+        ? `-- CTE 14: Distribution for score2 (numeric, using individual bounds for single-score view)
+          distribution2_individual AS (
+            SELECT
+              floor((s.value - b.min2) /
+                    ((b.max2 - b.min2 + 0.0001) / {nBins: UInt8})) as bin_index,
+              count() as count
+            FROM score2_filtered s
+            CROSS JOIN bounds b
+            GROUP BY bin_index
+          )`
+        : `-- CTE 14: Distribution for score2 (categorical/boolean, same as distribution2)
+          distribution2_individual AS (
+            SELECT bin_index, count
+            FROM distribution2
+          )`;
+
+      // Build matched-only time series for single-score mode
+      const timeseriesMatchedCTE = isSingleScore
+        ? `-- CTE 15: Time series (single score, matched only)
+          timeseries_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              avg(value1) as avg1,
+              CAST(NULL AS Nullable(Float64)) as avg2,
+              count() as count
+            FROM matched_scores
+            WHERE value1 IS NOT NULL
+            GROUP BY ts
+            ORDER BY ts
+          )`
+        : `-- CTE 15: Time series (two scores, matched only - re-query matched_scores)
+          timeseries_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              avg(value1) as avg1,
+              avg(value2) as avg2,
+              count() as count
+            FROM matched_scores
+            GROUP BY ts
+            ORDER BY ts
+          )`;
+
+      // Build categorical/boolean time series CTEs
+      // These show counts per category over time (not averages)
+      const timeseriesCategorical1CTE = isSingleScore
+        ? `-- CTE 16: Categorical time series for score1 (single score mode)
+          timeseries_categorical1 AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+              COALESCE(string_value, toString(value)) as category,
+              count() as count
+            FROM score1_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`
+        : `-- CTE 16: Categorical time series for score1 (two score mode)
+          timeseries_categorical1 AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+              COALESCE(string_value, toString(value)) as category,
+              count() as count
+            FROM score1_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
+
+      const timeseriesCategorical2CTE = isSingleScore
+        ? `-- CTE 17: Categorical time series for score2 (not needed in single score mode)
+          timeseries_categorical2 AS (
+            SELECT
+              CAST(NULL AS Nullable(DateTime)) as ts,
+              CAST(NULL AS Nullable(String)) as category,
+              CAST(NULL AS Nullable(UInt64)) as count
+            WHERE 1 = 0
+          )`
+        : `-- CTE 17: Categorical time series for score2 (two score mode)
+          timeseries_categorical2 AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp", normalizedInterval)} as ts,
+              COALESCE(string_value, toString(value)) as category,
+              count() as count
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
+
+      const timeseriesCategorical1MatchedCTE = isSingleScore
+        ? `-- CTE 18: Categorical time series for score1 (single score, matched only)
+          timeseries_categorical1_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              COALESCE(string_value1, toString(value1)) as category,
+              count() as count
+            FROM matched_scores
+            WHERE string_value1 IS NOT NULL OR value1 IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`
+        : `-- CTE 18: Categorical time series for score1 (two scores, matched only)
+          timeseries_categorical1_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              COALESCE(string_value1, toString(value1)) as category,
+              count() as count
+            FROM matched_scores
+            WHERE string_value1 IS NOT NULL OR value1 IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
+
+      const timeseriesCategorical2MatchedCTE = isSingleScore
+        ? `-- CTE 19: Categorical time series for score2 (not needed in single score mode)
+          timeseries_categorical2_matched AS (
+            SELECT
+              CAST(NULL AS Nullable(DateTime)) as ts,
+              CAST(NULL AS Nullable(String)) as category,
+              CAST(NULL AS Nullable(UInt64)) as count
+            WHERE 1 = 0
+          )`
+        : `-- CTE 19: Categorical time series for score2 (two scores, matched only)
+          timeseries_categorical2_matched AS (
+            SELECT
+              ${getClickHouseTimeBucketFunction("timestamp1", normalizedInterval)} as ts,
+              COALESCE(string_value2, toString(value2)) as category,
+              count() as count
+            FROM matched_scores
+            WHERE string_value2 IS NOT NULL OR value2 IS NOT NULL
+            GROUP BY ts, category
+            ORDER BY ts, category
+          )`;
 
       // Construct comprehensive UNION ALL query
       const query = `
@@ -715,6 +1127,7 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
+              ${objectTypeFilter}
           ),
 
           -- CTE 2: Filter score 2
@@ -731,6 +1144,7 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
+              ${objectTypeFilter}
           ),
 
           -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)
@@ -756,37 +1170,99 @@ export const scoresRouter = createTRPCRouter({
             LIMIT {maxMatchedScoresLimit: UInt32}
           ),
 
-          -- CTE 4: Bounds (for numeric heatmap binning)
+          -- CTE 4: Bounds (for numeric heatmap and distribution binning)
+          -- Calculate global bounds across ALL scores (not just matched) for consistent binning
           bounds AS (
             SELECT
-              min(value1) as min1,
-              max(value1) as max1,
-              min(value2) as min2,
-              max(value2) as max2
-            FROM matched_scores
+              least(
+                (SELECT min(value) FROM score1_filtered),
+                (SELECT min(value) FROM score2_filtered)
+              ) as global_min,
+              greatest(
+                (SELECT max(value) FROM score1_filtered),
+                (SELECT max(value) FROM score2_filtered)
+              ) as global_max,
+              -- Keep individual bounds for reference (used in response)
+              (SELECT min(value) FROM score1_filtered) as min1,
+              (SELECT max(value) FROM score1_filtered) as max1,
+              (SELECT min(value) FROM score2_filtered) as min2,
+              (SELECT max(value) FROM score2_filtered) as max2
           ),
 
-          -- CTE 5: Heatmap (numeric only, 10x10 grid)
+          -- CTE 5: Heatmap (numeric only, NxN grid using independent bounds per score)
           heatmap AS (
             SELECT
               floor((m.value1 - b.min1) / ((b.max1 - b.min1 + 0.0001) / {nBins: UInt8})) as bin_x,
               floor((m.value2 - b.min2) / ((b.max2 - b.min2 + 0.0001) / {nBins: UInt8})) as bin_y,
               count() as count,
+              b.global_min, b.global_max,
               b.min1, b.max1, b.min2, b.max2
             FROM matched_scores m
             CROSS JOIN bounds b
-            GROUP BY bin_x, bin_y, b.min1, b.max1, b.min2, b.max2
+            GROUP BY bin_x, bin_y, b.global_min, b.global_max, b.min1, b.max1, b.min2, b.max2
           ),
 
-          -- CTE 6: Confusion matrix (categorical/boolean only)
+          -- CTE 6: Confusion matrix (categorical/boolean and cross-type)
           confusion AS (
             SELECT
-              string_value1 as row_category,
-              string_value2 as col_category,
+              COALESCE(string_value1, toString(value1)) as row_category,
+              COALESCE(string_value2, toString(value2)) as col_category,
               count() as count
             FROM matched_scores
-            GROUP BY string_value1, string_value2
+            GROUP BY row_category, col_category
           ),
+
+          ${
+            isCategoricalComparison
+              ? `-- CTE 6a: LEFT JOIN score1 with score2 for stacked distribution
+          score1_with_score2 AS (
+            SELECT
+              -- Use string_value for categorical/boolean, convert value to string for numeric
+              COALESCE(s1.string_value, toString(s1.value)) as score1_category,
+              COALESCE(s2.string_value, toString(s2.value)) as score2_category
+            FROM score1_filtered s1
+            LEFT JOIN score2_filtered s2
+              ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
+              AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
+              AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
+              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
+            LIMIT {maxMatchedScoresLimit: UInt32}
+          ),
+
+          -- CTE 6b: Stacked distribution (score1 categories with score2 breakdowns)
+          stacked_distribution AS (
+            SELECT
+              score1_category,
+              coalesce(score2_category, '__unmatched__') as score2_stack,
+              count() as count
+            FROM score1_with_score2
+            WHERE score1_category IS NOT NULL
+            GROUP BY score1_category, score2_stack
+            ORDER BY score1_category, score2_stack
+          ),
+
+          -- CTE 6c: All score2 categories for legend
+          score2_categories AS (
+            SELECT DISTINCT COALESCE(string_value, toString(value)) as category
+            FROM score2_filtered
+            WHERE string_value IS NOT NULL OR value IS NOT NULL
+            ORDER BY category
+          ),
+
+          -- CTE 6d: Stacked distribution (matched only - no __unmatched__)
+          stacked_distribution_matched AS (
+            SELECT
+              COALESCE(string_value1, toString(value1)) as score1_category,
+              COALESCE(string_value2, toString(value2)) as score2_stack,
+              count() as count
+            FROM matched_scores
+            WHERE (string_value1 IS NOT NULL OR value1 IS NOT NULL)
+              AND (string_value2 IS NOT NULL OR value2 IS NOT NULL)
+            GROUP BY score1_category, score2_stack
+            ORDER BY score1_category, score2_stack
+          ),`
+              : ""
+          }
 
           -- CTE 7: Statistics
           stats AS (
@@ -802,37 +1278,29 @@ export const scoresRouter = createTRPCRouter({
             FROM matched_scores
           ),
 
-          -- CTE 8: Time series
-          timeseries AS (
-            SELECT
-              toStartOfInterval(timestamp1, ${clickhouseInterval}) as ts,
-              avg(value1) as avg1,
-              avg(value2) as avg2,
-              count() as count
-            FROM matched_scores
-            GROUP BY ts
-            ORDER BY ts
-          ),
+          ${timeseriesCTE},
 
-          -- CTE 9: Distribution for score1
-          distribution1 AS (
-            SELECT
-              floor((value - (SELECT min(value) FROM score1_filtered)) /
-                    (((SELECT max(value) FROM score1_filtered) - (SELECT min(value) FROM score1_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
-              count() as count
-            FROM score1_filtered
-            GROUP BY bin_index
-          ),
+          ${distribution1CTE},
 
-          -- CTE 10: Distribution for score2
-          distribution2 AS (
-            SELECT
-              floor((value - (SELECT min(value) FROM score2_filtered)) /
-                    (((SELECT max(value) FROM score2_filtered) - (SELECT min(value) FROM score2_filtered) + 0.0001) / {nBins: UInt8})) as bin_index,
-              count() as count
-            FROM score2_filtered
-            GROUP BY bin_index
-          )
+          ${distribution2CTE},
+
+          ${distribution1MatchedCTE},
+
+          ${distribution2MatchedCTE},
+
+          ${distribution1IndividualCTE},
+
+          ${distribution2IndividualCTE},
+
+          ${timeseriesMatchedCTE},
+
+          ${timeseriesCategorical1CTE},
+
+          ${timeseriesCategorical2CTE},
+
+          ${timeseriesCategorical1MatchedCTE},
+
+          ${timeseriesCategorical2MatchedCTE}
 
         -- Return multiple result sets via UNION ALL
         SELECT
@@ -846,7 +1314,9 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(Float64)) as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           CAST(NULL AS Nullable(String)) as col9,
-          CAST(NULL AS Nullable(String)) as col10
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
 
         UNION ALL
 
@@ -855,13 +1325,15 @@ export const scoresRouter = createTRPCRouter({
           CAST(bin_x AS Float64) as col1,
           CAST(bin_y AS Float64) as col2,
           CAST(count AS Float64) as col3,
-          min1 as col4,
+          min1 as col4,          -- Individual bounds for score1
           max1 as col5,
-          min2 as col6,
+          min2 as col6,          -- Individual bounds for score2
           max2 as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           CAST(NULL AS Nullable(String)) as col9,
-          CAST(NULL AS Nullable(String)) as col10
+          CAST(NULL AS Nullable(String)) as col10,
+          global_min as col11,   -- Global bounds for comparison
+          global_max as col12
         FROM heatmap
 
         UNION ALL
@@ -877,7 +1349,9 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(Float64)) as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           row_category as col9,
-          col_category as col10
+          col_category as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
         FROM confusion
 
         UNION ALL
@@ -893,7 +1367,9 @@ export const scoresRouter = createTRPCRouter({
           mae as col7,
           rmse as col8,
           CAST(NULL AS Nullable(String)) as col9,
-          CAST(NULL AS Nullable(String)) as col10
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
         FROM stats
 
         UNION ALL
@@ -909,7 +1385,9 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(Float64)) as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           CAST(NULL AS Nullable(String)) as col9,
-          CAST(NULL AS Nullable(String)) as col10
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
         FROM timeseries
 
         UNION ALL
@@ -925,7 +1403,9 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(Float64)) as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           CAST(NULL AS Nullable(String)) as col9,
-          CAST(NULL AS Nullable(String)) as col10
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
         FROM distribution1
 
         UNION ALL
@@ -941,8 +1421,231 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(Float64)) as col7,
           CAST(NULL AS Nullable(Float64)) as col8,
           CAST(NULL AS Nullable(String)) as col9,
-          CAST(NULL AS Nullable(String)) as col10
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
         FROM distribution2
+
+        ${
+          isCategoricalComparison
+            ? `
+        UNION ALL
+
+        SELECT
+          'stacked' as result_type,
+          CAST(count AS Float64) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          score1_category as col9,
+          score2_stack as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM stacked_distribution
+
+        UNION ALL
+
+        SELECT
+          'score2_categories' as result_type,
+          CAST(NULL AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM score2_categories
+
+        UNION ALL
+
+        SELECT
+          'stacked_matched' as result_type,
+          CAST(count AS Float64) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          score1_category as col9,
+          score2_stack as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM stacked_distribution_matched`
+            : ""
+        }
+
+        UNION ALL
+
+        SELECT
+          'distribution1_matched' as result_type,
+          CAST(bin_index AS Float64) as col1,
+          CAST(count AS Float64) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM distribution1_matched
+
+        UNION ALL
+
+        SELECT
+          'distribution2_matched' as result_type,
+          CAST(bin_index AS Float64) as col1,
+          CAST(count AS Float64) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM distribution2_matched
+
+        UNION ALL
+
+        SELECT
+          'distribution1_individual' as result_type,
+          CAST(bin_index AS Float64) as col1,
+          CAST(count AS Float64) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM distribution1_individual
+
+        UNION ALL
+
+        SELECT
+          'distribution2_individual' as result_type,
+          CAST(bin_index AS Float64) as col1,
+          CAST(count AS Float64) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(NULL AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM distribution2_individual
+
+        UNION ALL
+
+        SELECT
+          'timeseries_matched' as result_type,
+          CAST(toUnixTimestamp(ts) AS Float64) as col1,
+          CAST(avg1 AS Nullable(Float64)) as col2,
+          CAST(avg2 AS Nullable(Float64)) as col3,
+          CAST(count AS Float64) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          CAST(NULL AS Nullable(String)) as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_matched
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical1' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical1
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical2' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical2
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical1_matched' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical1_matched
+
+        UNION ALL
+
+        SELECT
+          'timeseries_categorical2_matched' as result_type,
+          CAST(toUnixTimestamp(ts) AS Nullable(Float64)) as col1,
+          CAST(NULL AS Nullable(Float64)) as col2,
+          CAST(NULL AS Nullable(Float64)) as col3,
+          CAST(count AS Nullable(Float64)) as col4,
+          CAST(NULL AS Nullable(Float64)) as col5,
+          CAST(NULL AS Nullable(Float64)) as col6,
+          CAST(NULL AS Nullable(Float64)) as col7,
+          CAST(NULL AS Nullable(Float64)) as col8,
+          category as col9,
+          CAST(NULL AS Nullable(String)) as col10,
+          CAST(NULL AS Nullable(Float64)) as col11,
+          CAST(NULL AS Nullable(Float64)) as col12
+        FROM timeseries_categorical2_matched
       `;
 
       // Execute query
@@ -958,6 +1661,8 @@ export const scoresRouter = createTRPCRouter({
         col8: number | null;
         col9: string | null;
         col10: string | null;
+        col11: number | null;
+        col12: number | null;
       }>({
         query,
         params: {
@@ -996,6 +1701,40 @@ export const scoresRouter = createTRPCRouter({
       const dist2Rows = results.filter(
         (r) => r.result_type === "distribution2",
       );
+      const stackedRows = results.filter((r) => r.result_type === "stacked");
+      const stackedMatchedRows = results.filter(
+        (r) => r.result_type === "stacked_matched",
+      );
+      const score2CategoriesRows = results.filter(
+        (r) => r.result_type === "score2_categories",
+      );
+      const dist1MatchedRows = results.filter(
+        (r) => r.result_type === "distribution1_matched",
+      );
+      const dist2MatchedRows = results.filter(
+        (r) => r.result_type === "distribution2_matched",
+      );
+      const dist1IndividualRows = results.filter(
+        (r) => r.result_type === "distribution1_individual",
+      );
+      const dist2IndividualRows = results.filter(
+        (r) => r.result_type === "distribution2_individual",
+      );
+      const timeseriesMatchedRows = results.filter(
+        (r) => r.result_type === "timeseries_matched",
+      );
+      const timeseriesCategorical1Rows = results.filter(
+        (r) => r.result_type === "timeseries_categorical1",
+      );
+      const timeseriesCategorical2Rows = results.filter(
+        (r) => r.result_type === "timeseries_categorical2",
+      );
+      const timeseriesCategorical1MatchedRows = results.filter(
+        (r) => r.result_type === "timeseries_categorical1_matched",
+      );
+      const timeseriesCategorical2MatchedRows = results.filter(
+        (r) => r.result_type === "timeseries_categorical2_matched",
+      );
 
       // Build structured response
       return {
@@ -1012,6 +1751,8 @@ export const scoresRouter = createTRPCRouter({
           max1: row.col5 ?? 0,
           min2: row.col6 ?? 0,
           max2: row.col7 ?? 0,
+          globalMin: row.col11 ?? 0,
+          globalMax: row.col12 ?? 0,
         })),
         confusionMatrix: confusionRows.map((row) => ({
           rowCategory: row.col9 ?? "",
@@ -1044,6 +1785,68 @@ export const scoresRouter = createTRPCRouter({
           binIndex: row.col1 ?? 0,
           count: row.col2 ?? 0,
         })),
+        stackedDistribution: stackedRows.map((row) => ({
+          score1Category: row.col9 ?? "",
+          score2Stack: row.col10 ?? "",
+          count: row.col1 ?? 0,
+        })),
+        stackedDistributionMatched: stackedMatchedRows.map((row) => ({
+          score1Category: row.col9 ?? "",
+          score2Stack: row.col10 ?? "",
+          count: row.col1 ?? 0,
+        })),
+        score2Categories: score2CategoriesRows
+          .map((row) => row.col9 ?? "")
+          .filter((c) => c !== ""),
+        // Matched-only datasets for toggle
+        timeSeriesMatched: timeseriesMatchedRows.map((row) => ({
+          timestamp: new Date((row.col1 ?? 0) * 1000),
+          avg1: row.col2 ?? null,
+          avg2: row.col3 ?? null,
+          count: row.col4 ?? 0,
+        })),
+        distribution1Matched: dist1MatchedRows.map((row) => ({
+          binIndex: row.col1 ?? 0,
+          count: row.col2 ?? 0,
+        })),
+        distribution2Matched: dist2MatchedRows.map((row) => ({
+          binIndex: row.col1 ?? 0,
+          count: row.col2 ?? 0,
+        })),
+        // Individual-bound distributions for single-score display
+        distribution1Individual: dist1IndividualRows.map((row) => ({
+          binIndex: row.col1 ?? 0,
+          count: row.col2 ?? 0,
+        })),
+        distribution2Individual: dist2IndividualRows.map((row) => ({
+          binIndex: row.col1 ?? 0,
+          count: row.col2 ?? 0,
+        })),
+        // Categorical/boolean time series (counts per category over time)
+        timeSeriesCategorical1: timeseriesCategorical1Rows.map((row) => ({
+          timestamp: new Date((row.col1 ?? 0) * 1000),
+          category: row.col9 ?? "",
+          count: row.col4 ?? 0,
+        })),
+        timeSeriesCategorical2: timeseriesCategorical2Rows.map((row) => ({
+          timestamp: new Date((row.col1 ?? 0) * 1000),
+          category: row.col9 ?? "",
+          count: row.col4 ?? 0,
+        })),
+        timeSeriesCategorical1Matched: timeseriesCategorical1MatchedRows.map(
+          (row) => ({
+            timestamp: new Date((row.col1 ?? 0) * 1000),
+            category: row.col9 ?? "",
+            count: row.col4 ?? 0,
+          }),
+        ),
+        timeSeriesCategorical2Matched: timeseriesCategorical2MatchedRows.map(
+          (row) => ({
+            timestamp: new Date((row.col1 ?? 0) * 1000),
+            category: row.col9 ?? "",
+            count: row.col4 ?? 0,
+          }),
+        ),
       };
     }),
 });
