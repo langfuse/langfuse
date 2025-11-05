@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionChart } from "@/src/features/scores/components/analytics/ScoreDistributionChart";
 
-type DistributionTab = "individual" | "matched" | "stacked";
+type DistributionTab = "score1" | "score2" | "all" | "matched";
 
 /**
  * DistributionChartCard - Smart card component for displaying score distributions
@@ -29,7 +29,7 @@ type DistributionTab = "individual" | "matched" | "stacked";
  */
 export function DistributionChartCard() {
   const { data, isLoading, params } = useScoreAnalytics();
-  const [activeTab, setActiveTab] = useState<DistributionTab>("individual");
+  const [activeTab, setActiveTab] = useState<DistributionTab>("all");
 
   // Determine which distribution data to show based on tab
   // Note: useMemo must be called before any early returns (React hooks rule)
@@ -67,7 +67,19 @@ export function DistributionChartCard() {
 
     // Two score mode - handle tabs
     switch (activeTab) {
-      case "individual":
+      case "score1":
+        return {
+          distribution1Data: distribution.score1Individual,
+          distribution2Data: undefined,
+          description: `${score1.name} - ${statistics.score1.total.toLocaleString()} observations`,
+        };
+      case "score2":
+        return {
+          distribution1Data: distribution.score2Individual,
+          distribution2Data: undefined,
+          description: `${score2?.name ?? "Score 2"} - ${statistics.score2?.total.toLocaleString()} observations`,
+        };
+      case "all":
         return {
           distribution1Data: distribution.score1Individual,
           distribution2Data: distribution.score2Individual,
@@ -79,18 +91,10 @@ export function DistributionChartCard() {
           distribution2Data: distribution.score2Matched,
           description: `${score1.name} vs ${score2?.name} - ${statistics.comparison?.matchedCount.toLocaleString()} matched`,
         };
-      case "stacked":
-        // Stacked view uses stackedDistribution data
-        // For now, show individual as fallback (stacked requires special handling)
-        return {
-          distribution1Data: distribution.score1Individual,
-          distribution2Data: distribution.score2Individual,
-          description: `${score1.name} vs ${score2?.name} - Stacked view`,
-        };
     }
   }, [data, activeTab, params]);
 
-  // For stacked view in categorical mode, use stackedDistribution
+  // For matched view in categorical mode, use stackedDistribution
   const stackedDistributionData = useMemo(() => {
     if (!data) return undefined;
     const { distribution, metadata } = data;
@@ -100,9 +104,7 @@ export function DistributionChartCard() {
       dataType === "CATEGORICAL" &&
       activeTab === "matched"
       ? distribution.stackedDistributionMatched
-      : mode === "two" && dataType === "CATEGORICAL" && activeTab === "stacked"
-        ? distribution.stackedDistribution
-        : undefined;
+      : undefined;
   }, [data, activeTab]);
 
   // Loading state
@@ -155,12 +157,21 @@ export function DistributionChartCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
             >
-              <TabsList className="grid w-[300px] grid-cols-3">
-                <TabsTrigger value="individual">Individual</TabsTrigger>
-                <TabsTrigger value="matched">Matched</TabsTrigger>
-                {dataType === "CATEGORICAL" && (
-                  <TabsTrigger value="stacked">Stacked</TabsTrigger>
-                )}
+              <TabsList className="grid w-[400px] grid-cols-4">
+                <TabsTrigger value="score1">
+                  {score1.name === score2?.name
+                    ? `${score1.name} (${score1.source.toLowerCase()})`
+                    : score1.name}
+                </TabsTrigger>
+                <TabsTrigger value="score2">
+                  {score2
+                    ? score2.name === score1.name
+                      ? `${score2.name} (${score2.source.toLowerCase()})`
+                      : score2.name
+                    : "Score 2"}
+                </TabsTrigger>
+                <TabsTrigger value="all">all</TabsTrigger>
+                <TabsTrigger value="matched">matched</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
@@ -170,10 +181,26 @@ export function DistributionChartCard() {
         {hasData ? (
           <ScoreDistributionChart
             distribution1={distribution1Data}
-            distribution2={mode === "two" ? distribution2Data : undefined}
+            distribution2={
+              activeTab === "score1" || activeTab === "score2"
+                ? undefined
+                : distribution2Data
+            }
             dataType={dataType}
-            score1Name={score1.name}
-            score2Name={mode === "two" && score2 ? score2.name : undefined}
+            score1Name={
+              activeTab === "score2" && score2
+                ? score2.name
+                : activeTab === "score1"
+                  ? score1.name
+                  : score1.name
+            }
+            score2Name={
+              activeTab === "score1" || activeTab === "score2"
+                ? undefined
+                : mode === "two" && score2
+                  ? score2.name
+                  : undefined
+            }
             binLabels={distribution.binLabels}
             categories={distribution.categories}
             stackedDistribution={stackedDistributionData}

@@ -311,6 +311,23 @@ export function useScoreAnalyticsQuery(
       interval,
     );
 
+    // If same score selected twice, populate avg2 with avg1 data
+    // This ensures UI can show both lines (identical but overlapping) in two-score mode
+    // Backend optimizes by setting avg2=null when scores are identical
+    if (isSameScore && mode === "two") {
+      numericTimeSeries.forEach((item) => {
+        if (item.avg2 === null && item.avg1 !== null) {
+          item.avg2 = item.avg1;
+        }
+      });
+
+      numericTimeSeriesMatched.forEach((item) => {
+        if (item.avg2 === null && item.avg1 !== null) {
+          item.avg2 = item.avg1;
+        }
+      });
+    }
+
     const categoricalTimeSeries1 = fillCategoricalTimeSeriesGaps(
       apiData.timeSeriesCategorical1,
       fromTimestamp,
@@ -338,6 +355,17 @@ export function useScoreAnalyticsQuery(
       toTimestamp,
       interval,
     );
+
+    // If same score selected twice, populate categorical2 with categorical1 data
+    // This ensures UI can show data in "Score 2" tab when comparing a score to itself
+    // Backend optimizes by returning empty categorical2 when scores are identical
+    if (isSameScore && mode === "two") {
+      categoricalTimeSeries2.length = 0;
+      categoricalTimeSeries2.push(...categoricalTimeSeries1);
+
+      categoricalTimeSeries2Matched.length = 0;
+      categoricalTimeSeries2Matched.push(...categoricalTimeSeries1Matched);
+    }
 
     // ========================================================================
     // Build structured return object

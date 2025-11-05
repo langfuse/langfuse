@@ -11,14 +11,14 @@ import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreTimeSeriesChart } from "@/src/features/scores/components/analytics/ScoreTimeSeriesChart";
 
-type TimelineTab = "all" | "matched";
+type TimelineTab = "score1" | "score2" | "all" | "matched";
 
 /**
  * TimelineChartCard - Smart card component for displaying score trends over time
  *
  * Consumes ScoreAnalyticsProvider context and displays:
  * - Time series line/area charts
- * - Tabs: All / Matched (two-score mode only)
+ * - Tabs: Score 1 / Score 2 / All / Matched (two-score mode only)
  * - Auto-selects appropriate chart based on data type
  *
  * Handles:
@@ -46,6 +46,72 @@ export function TimelineChartCard() {
 
     return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
   }, [data]);
+
+  // Determine which data to show based on active tab
+  // Note: useMemo must be called before any early returns (React hooks rule)
+  const chartData = useMemo<
+    | Array<{
+        timestamp: Date;
+        avg1: number | null;
+        avg2: number | null;
+        count: number;
+      }>
+    | Array<{
+        timestamp: Date;
+        category: string;
+        count: number;
+      }>
+  >(() => {
+    if (!data) return [];
+
+    const { timeSeries, metadata } = data;
+    const { dataType } = metadata;
+
+    if (dataType !== "NUMERIC") {
+      // Categorical logic (unchanged)
+      return activeTab === "score1"
+        ? timeSeries.categorical.score1
+        : activeTab === "score2"
+          ? timeSeries.categorical.score2
+          : activeTab === "all"
+            ? timeSeries.categorical.score1
+            : timeSeries.categorical.score1Matched;
+    }
+
+    // Numeric: Transform data based on active tab
+    const sourceData =
+      activeTab === "matched"
+        ? timeSeries.numeric.matched
+        : timeSeries.numeric.all;
+
+    if (activeTab === "score1") {
+      // Return only score1 data (avg1)
+      return sourceData.map((item) => ({
+        timestamp: item.timestamp,
+        avg1: item.avg1 as number | null,
+        avg2: null as number | null, // Explicitly null to show single line
+        count: item.count as number,
+      }));
+    }
+
+    if (activeTab === "score2") {
+      // Return only score2 data, but map avg2 → avg1 for chart rendering
+      return sourceData.map((item) => ({
+        timestamp: item.timestamp,
+        avg1: item.avg2 as number | null, // Map score2 data to avg1 field
+        avg2: null as number | null, // Explicitly null to show single line
+        count: item.count as number,
+      }));
+    }
+
+    // "all" or "matched" tabs: return both scores
+    return sourceData as Array<{
+      timestamp: Date;
+      avg1: number | null;
+      avg2: number | null;
+      count: number;
+    }>;
+  }, [data, activeTab]);
 
   // Build description
   // Note: useMemo must be called before any early returns (React hooks rule)
@@ -113,28 +179,9 @@ export function TimelineChartCard() {
     );
   }
 
-  const { timeSeries, metadata } = data;
+  const { metadata } = data;
   const { mode, dataType } = metadata;
   const { score1, score2, interval } = params;
-
-  // Determine which data to show based on active tab
-  const chartData =
-    dataType === "NUMERIC"
-      ? ((activeTab === "all"
-          ? timeSeries.numeric.all
-          : timeSeries.numeric.matched) as Array<{
-          timestamp: Date;
-          avg1: number | null;
-          avg2: number | null;
-          count: number;
-        }>)
-      : ((activeTab === "all"
-          ? timeSeries.categorical.score1
-          : timeSeries.categorical.score1Matched) as Array<{
-          timestamp: Date;
-          category: string;
-          count: number;
-        }>);
 
   const hasData = chartData.length > 0;
   const showTabs = mode === "two";
@@ -152,9 +199,21 @@ export function TimelineChartCard() {
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as TimelineTab)}
             >
-              <TabsList className="grid w-[200px] grid-cols-2">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="matched">Matched</TabsTrigger>
+              <TabsList className="grid w-[400px] grid-cols-4">
+                <TabsTrigger value="score1">
+                  {score1.name === score2?.name
+                    ? `${score1.name} (${score1.source.toLowerCase()})`
+                    : score1.name}
+                </TabsTrigger>
+                <TabsTrigger value="score2">
+                  {score2
+                    ? score2.name === score1.name
+                      ? `${score2.name} (${score2.source.toLowerCase()})`
+                      : score2.name
+                    : "Score 2"}
+                </TabsTrigger>
+                <TabsTrigger value="all">all</TabsTrigger>
+                <TabsTrigger value="matched">matched</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
@@ -165,11 +224,19 @@ export function TimelineChartCard() {
           <ScoreTimeSeriesChart
             data={chartData}
             dataType={dataType}
-            score1Name={`${score1.name} (${score1.source})`}
+            score1Name={
+              activeTab === "score1"
+                ? `${score1.name} (${score1.source})`
+                : activeTab === "score2" && score2
+                  ? `${score2.name} (${score2.source})`
+                  : `${score1.name} (${score1.source})`
+            }
             score2Name={
-              mode === "two" && score2
-                ? `${score2.name} (${score2.source})`
-                : undefined
+              activeTab === "score1" || activeTab === "score2"
+                ? undefined
+                : mode === "two" && score2
+                  ? `${score2.name} (${score2.source})`
+                  : undefined
             }
             interval={interval}
           />

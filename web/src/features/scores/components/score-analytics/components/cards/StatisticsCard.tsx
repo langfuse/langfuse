@@ -70,7 +70,7 @@ export function StatisticsCard() {
 
   // Extract data from context
   const { statistics, metadata } = data;
-  const { mode, dataType } = metadata;
+  const { dataType } = metadata;
   const { score1, score2 } = params;
 
   // Determine what to show
