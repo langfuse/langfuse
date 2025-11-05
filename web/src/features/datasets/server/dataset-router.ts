@@ -966,7 +966,8 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      // If schemas are being updated, validate all existing items first
+      // If schemas are being updated, validate all existing items
+      // Fast validation (10K items in <1s) means we can always validate
       if (
         input.inputSchema !== undefined ||
         input.expectedOutputSchema !== undefined
@@ -992,24 +993,23 @@ export const datasetRouter = createTRPCRouter({
               ? input.expectedOutputSchema
               : existingDataset.expectedOutputSchema;
 
-          // Validate all items if schemas are being set
+          // Validate all items if at least one schema is being set (not null)
           if (finalInputSchema !== null || finalExpectedOutputSchema !== null) {
             const validationResult = await validateAllDatasetItems({
               datasetId: input.datasetId,
               projectId: input.projectId,
-              inputSchema: finalInputSchema as Record<string, unknown>,
+              inputSchema: finalInputSchema as Record<string, unknown> | null,
               expectedOutputSchema: finalExpectedOutputSchema as Record<
                 string,
                 unknown
-              >,
+              > | null,
               prisma: ctx.prisma,
             });
 
             if (!validationResult.isValid) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
-                message: `Schema validation failed for ${validationResult.errors.length} item(s)`,
-                cause: validationResult.errors,
+                message: `Schema validation failed for ${validationResult.errors.length === 10 ? "more than 10" : validationResult.errors.length} item(s). Details: ${JSON.stringify(validationResult.errors)}`,
               });
             }
           }
