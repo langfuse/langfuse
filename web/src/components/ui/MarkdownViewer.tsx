@@ -16,6 +16,7 @@ import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
@@ -34,6 +35,9 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import DOMPurify from "dompurify";
+import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
+import { Button } from "@/src/components/ui/button";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -139,6 +143,16 @@ function MarkdownRenderer({
               );
             },
             a({ children, href }) {
+              // Handle mention links
+              if (href?.startsWith(MENTION_USER_PREFIX)) {
+                const userId = href.replace(MENTION_USER_PREFIX, "");
+                const displayName = String(children);
+                return (
+                  <MentionBadge userId={userId} displayName={displayName} />
+                );
+              }
+
+              // Handle regular links
               const safeHref = getSafeUrl(href);
               if (safeHref) {
                 return (
@@ -301,26 +315,41 @@ const parseOpenAIContentParts = (
 export function MarkdownView({
   markdown,
   title,
+  titleIcon,
   customCodeHeaderClassName,
   audio,
   media,
+  className,
+  controlButtons,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
+  titleIcon?: React.ReactNode;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
+  className?: string;
+  controlButtons?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
 
+  const markdownContent =
+    typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
+
+  const {
+    shouldBeCollapsible,
+    isCollapsed,
+    toggleCollapsed,
+    truncatedContent,
+  } = useCollapsibleSystemPrompt({
+    role: title ?? "",
+    content: markdownContent,
+  });
+
   const handleOnCopy = () => {
-    const rawText =
-      typeof markdown === "string"
-        ? markdown
-        : parseOpenAIContentParts(markdown);
-    void copyTextToClipboard(rawText);
+    void copyTextToClipboard(markdownContent);
   };
 
   const handleOnValueChange = () => {
@@ -335,28 +364,47 @@ export function MarkdownView({
       {title ? (
         <MarkdownJsonViewHeader
           title={title}
+          titleIcon={titleIcon}
           handleOnValueChange={handleOnValueChange}
           handleOnCopy={handleOnCopy}
+          controlButtons={controlButtons}
         />
       ) : null}
       <div
         className={cn(
-          "grid grid-flow-row gap-2 rounded-sm border p-3",
-          title === "assistant" || title === "Output"
-            ? "bg-accent-light-green dark:border-accent-dark-green"
+          "grid grid-flow-row gap-2 border-t px-1 py-3",
+          title === "assistant" || title === "Output" || title === "Model"
+            ? "bg-accent-light-green"
             : "",
           title === "system" || title === "Input"
             ? "bg-primary-foreground"
             : "",
+          className,
         )}
       >
         {typeof markdown === "string" ? (
           // plain string
-          <MarkdownRenderer
-            markdown={markdown}
-            theme={theme}
-            customCodeHeaderClassName={customCodeHeaderClassName}
-          />
+          <>
+            <MarkdownRenderer
+              markdown={
+                shouldBeCollapsible && isCollapsed ? truncatedContent : markdown
+              }
+              theme={theme}
+              customCodeHeaderClassName={customCodeHeaderClassName}
+            />
+            {shouldBeCollapsible && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={toggleCollapsed}
+                className="w-fit text-xs underline"
+              >
+                {isCollapsed
+                  ? "Expand system prompt"
+                  : "Collapse system prompt"}
+              </Button>
+            )}
+          </>
         ) : (
           // content parts (multi-modal)
           (markdown ?? []).map((content, index) =>

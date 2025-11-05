@@ -7,4 +7,4 @@ export const inviteMembersRoute = (orgId: string) =>
   `/organization/${orgId}/setup?orgstep=invite-members`;
 
 export const setupTracingRoute = (projectId: string) =>
-  `/project/${projectId}/setup`;
+  `/project/${projectId}/traces/setup`;

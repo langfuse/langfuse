@@ -12,12 +12,10 @@ import { authorizeRequestOrThrow } from "./authorizeRequest";
 import { validateChatCompletionBody } from "./validateChatCompletionBody";
 
 import { prisma } from "@langfuse/shared/src/db";
-import { decrypt } from "@langfuse/shared/encryption";
 import {
   LLMApiKeySchema,
   logger,
   fetchLLMCompletion,
-  decryptAndParseExtraHeaders,
 } from "@langfuse/shared/src/server";
 
 export default async function chatCompletionHandler(req: NextRequest) {
@@ -48,14 +46,11 @@ export default async function chatCompletionHandler(req: NextRequest) {
     }
 
     const fetchLLMCompletionParams = {
+      llmConnection: parsedKey.data,
       messages,
       modelParams,
       structuredOutputSchema,
       callbacks: [new PosthogCallbackHandler("playground", body, userId)],
-      apiKey: decrypt(parsedKey.data.secretKey),
-      extraHeaders: decryptAndParseExtraHeaders(parsedKey.data.extraHeaders),
-      baseURL: parsedKey.data.baseURL || undefined,
-      config: parsedKey.data.config,
     };
 
     if (structuredOutputSchema) {
@@ -64,7 +59,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
         streaming: false,
         structuredOutputSchema,
       });
-      return NextResponse.json(result.completion);
+      return NextResponse.json(result);
     }
 
     // If messages contain tool results, we include tools in the request
@@ -105,18 +100,18 @@ export default async function chatCompletionHandler(req: NextRequest) {
         streaming: false,
         tools: tools ?? [],
       });
-      return NextResponse.json(result.completion);
+      return NextResponse.json(result);
     }
 
     if (streaming) {
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         ...fetchLLMCompletionParams,
         streaming,
       });
 
       return new StreamingTextResponse(completion);
     } else {
-      const { completion } = await fetchLLMCompletion({
+      const completion = await fetchLLMCompletion({
         ...fetchLLMCompletionParams,
         streaming,
       });

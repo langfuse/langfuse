@@ -1,0 +1,1475 @@
+{
+  "trace": {
+    "id": "e1fde3efec57ce8a69bafd3fb928a7eb",
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "name": "LangGraph",
+    "timestamp": "2025-08-22T09:38:56.228Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": true,
+    "input": "\"{\\\"messages\\\":[{\\\"content\\\":\\\"Search the web for 'example' and summarize.\\\",\\\"additional_kwargs\\\":{},\\\"response_metadata\\\":{},\\\"type\\\":\\\"human\\\",\\\"name\\\":null,\\\"id\\\":null,\\\"example\\\":false}]}\"",
+    "output": "\"{\\\"messages\\\":[{\\\"content\\\":\\\"Search the web for 'example' and summarize.\\\",\\\"additional_kwargs\\\":{},\\\"response_metadata\\\":{},\\\"type\\\":\\\"human\\\",\\\"name\\\":null,\\\"id\\\":\\\"4f5904a4-473c-443c-af46-68765777a2f0\\\",\\\"example\\\":false},{\\\"content\\\":\\\"\\\",\\\"additional_kwargs\\\":{\\\"tool_calls\\\":[{\\\"id\\\":\\\"call_1oGK863sxQHlPreFhDdEs3yl\\\",\\\"function\\\":{\\\"arguments\\\":\\\"{\\\\\\\"query\\\\\\\":\\\\\\\"example\\\\\\\"}\\\",\\\"name\\\":\\\"Web-Search\\\"},\\\"type\\\":\\\"function\\\"}],\\\"refusal\\\":null},\\\"response_metadata\\\":{\\\"token_usage\\\":{\\\"completion_tokens\\\":15,\\\"prompt_tokens\\\":60,\\\"total_tokens\\\":75,\\\"completion_tokens_details\\\":{\\\"accepted_prediction_tokens\\\":0,\\\"audio_tokens\\\":0,\\\"reasoning_tokens\\\":0,\\\"rejected_prediction_tokens\\\":0},\\\"prompt_tokens_details\\\":{\\\"audio_tokens\\\":0,\\\"cached_tokens\\\":0}},\\\"model_name\\\":\\\"gpt-4o-2024-08-06\\\",\\\"system_fingerprint\\\":\\\"fp_46bff0e0c8\\\",\\\"id\\\":\\\"chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f\\\",\\\"service_tier\\\":\\\"default\\\",\\\"finish_reason\\\":\\\"tool_calls\\\",\\\"logprobs\\\":null},\\\"type\\\":\\\"ai\\\",\\\"name\\\":null,\\\"id\\\":\\\"run--06f4147e-6dc2-4078-a368-096c05261f12-0\\\",\\\"example\\\":false,\\\"tool_calls\\\":[{\\\"name\\\":\\\"Web-Search\\\",\\\"args\\\":{\\\"query\\\":\\\"example\\\"},\\\"id\\\":\\\"call_1oGK863sxQHlPreFhDdEs3yl\\\",\\\"type\\\":\\\"tool_call\\\"}],\\\"invalid_tool_calls\\\":[],\\\"usage_metadata\\\":{\\\"input_tokens\\\":60,\\\"output_tokens\\\":15,\\\"total_tokens\\\":75,\\\"input_token_details\\\":{\\\"audio\\\":0,\\\"cache_read\\\":0},\\\"output_token_details\\\":{\\\"audio\\\":0,\\\"reasoning\\\":0}}},{\\\"content\\\":\\\"[{\\\\\\\"url\\\\\\\": \\\\\\\"https://example.com\\\\\\\", \\\\\\\"title\\\\\\\": \\\\\\\"Example Result\\\\\\\", \\\\\\\"q\\\\\\\": \\\\\\\"example\\\\\\\"}]\\\",\\\"additional_kwargs\\\":{},\\\"response_metadata\\\":{},\\\"type\\\":\\\"tool\\\",\\\"name\\\":\\\"Web-Search\\\",\\\"id\\\":\\\"85ffdeba-3d69-4851-bd78-993403a10fd6\\\",\\\"tool_call_id\\\":\\\"call_1oGK863sxQHlPreFhDdEs3yl\\\",\\\"artifact\\\":null,\\\"status\\\":\\\"success\\\"},{\\\"content\\\":\\\"The search for \\\\\\\"example\\\\\\\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.\\\",\\\"additional_kwargs\\\":{\\\"refusal\\\":null},\\\"response_metadata\\\":{\\\"token_usage\\\":{\\\"completion_tokens\\\":51,\\\"prompt_tokens\\\":108,\\\"total_tokens\\\":159,\\\"completion_tokens_details\\\":{\\\"accepted_prediction_tokens\\\":0,\\\"audio_tokens\\\":0,\\\"reasoning_tokens\\\":0,\\\"rejected_prediction_tokens\\\":0},\\\"prompt_tokens_details\\\":{\\\"audio_tokens\\\":0,\\\"cached_tokens\\\":0}},\\\"model_name\\\":\\\"gpt-4o-2024-08-06\\\",\\\"system_fingerprint\\\":\\\"fp_46bff0e0c8\\\",\\\"id\\\":\\\"chatcmpl-C7IWXZL0b6BLNuyEMr369PF4PEpSs\\\",\\\"service_tier\\\":\\\"default\\\",\\\"finish_reason\\\":\\\"stop\\\",\\\"logprobs\\\":null},\\\"type\\\":\\\"ai\\\",\\\"name\\\":null,\\\"id\\\":\\\"run--a6270d77-8cd6-4c1b-a80b-c1da054d9f9a-0\\\",\\\"example\\\":false,\\\"tool_calls\\\":[],\\\"invalid_tool_calls\\\":[],\\\"usage_metadata\\\":{\\\"input_tokens\\\":108,\\\"output_tokens\\\":51,\\\"total_tokens\\\":159,\\\"input_token_details\\\":{\\\"audio\\\":0,\\\"cache_read\\\":0},\\\"output_token_details\\\":{\\\"audio\\\":0,\\\"reasoning\\\":0}}}]}\"",
+    "metadata": "{\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.36.0\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.3.0\",\"attributes\":{\"public_key\":\"ABCDEFG\"}}}",
+    "createdAt": "2025-08-22T09:38:56.228Z",
+    "updatedAt": "2025-08-22T09:39:11.980Z",
+    "scores": [
+      {
+        "id": "1c2fb813-8481-4843-bcf8-cfb54b46da44",
+        "timestamp": "2025-08-22T09:39:39.219Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "hallucination",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation accurately describes 'example.com' as a placeholder site, aligning with established knowledge and verifiable data.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-08-22T09:39:40.000Z",
+        "updatedAt": "2025-08-22T09:39:39.293Z",
+        "queueId": null,
+        "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0.1,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      },
+      {
+        "id": "da70b4e9-bfcd-4086-9704-6cdb017302b9",
+        "timestamp": "2025-08-22T09:39:38.838Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "toxicity",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation does not contain any harmful, offensive, or disrespectful language; it simply provides a summary of a web search without negativity or aggression.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-08-22T09:39:39.000Z",
+        "updatedAt": "2025-08-22T09:39:38.898Z",
+        "queueId": null,
+        "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      }
+    ],
+    "latency": 2.61
+  },
+  "observations": [
+    {
+      "id": "3b239b11cbb2ac0b",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "b024c7ee7680b708",
+      "startTime": "2025-08-22T09:38:57.088Z",
+      "endTime": "2025-08-22T09:38:58.835Z",
+      "name": "agent",
+      "metadata": {
+        "tags": ["graph:step:3", "langgraph", "demo", "langfuse"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 3,
+        "langgraph_node": "agent",
+        "langgraph_triggers": ["branch:to:agent"],
+        "langgraph_path": ["__pregel_pull", "agent"],
+        "langgraph_checkpoint_ns": "agent:695fb20e-d55e-ccb4-5384-070711a6cdf8",
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:11.673Z",
+      "updatedAt": "2025-08-22T09:39:11.950Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1747,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "messages": [
+          {
+            "content": "Search the web for 'example' and summarize.",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "human",
+            "name": null,
+            "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+            "example": false
+          },
+          {
+            "content": "",
+            "additional_kwargs": {
+              "tool_calls": [
+                {
+                  "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                  "function": {
+                    "arguments": {
+                      "query": "example"
+                    },
+                    "name": "Web-Search"
+                  },
+                  "type": "function"
+                }
+              ],
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "tool_calls": [
+              {
+                "name": "Web-Search",
+                "args": {
+                  "query": "example"
+                },
+                "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                "type": "tool_call"
+              }
+            ],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "content": [
+              {
+                "url": "https://example.com",
+                "title": "Example Result",
+                "q": "example"
+              }
+            ],
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "tool",
+            "name": "Web-Search",
+            "id": "85ffdeba-3d69-4851-bd78-993403a10fd6",
+            "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+            "artifact": null,
+            "status": "success"
+          }
+        ]
+      },
+      "output": {
+        "messages": [
+          {
+            "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+            "additional_kwargs": {
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 51,
+                "prompt_tokens": 108,
+                "total_tokens": 159,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWXZL0b6BLNuyEMr369PF4PEpSs",
+              "service_tier": "default",
+              "finish_reason": "stop",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--a6270d77-8cd6-4c1b-a80b-c1da054d9f9a-0",
+            "example": false,
+            "tool_calls": [],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 108,
+              "output_tokens": 51,
+              "total_tokens": 159,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "4f6535aaebcda355",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "98d3e02591797c04",
+      "startTime": "2025-08-22T09:38:56.232Z",
+      "endTime": "2025-08-22T09:38:57.080Z",
+      "name": "ChatOpenAI",
+      "metadata": {
+        "tags": ["seq:step:1", "demo", "langfuse", "langgraph"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 1,
+        "langgraph_node": "agent",
+        "langgraph_triggers": ["branch:to:agent"],
+        "langgraph_path": ["__pregel_pull", "agent"],
+        "langgraph_checkpoint_ns": "agent:d507d231-6dad-b926-076f-0644c0a0134e",
+        "checkpoint_ns": "agent:d507d231-6dad-b926-076f-0644c0a0134e",
+        "ls_provider": "openai",
+        "ls_model_name": "gpt-4o",
+        "ls_model_type": "chat",
+        "ls_temperature": 0,
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "temperature": 0
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:11.641Z",
+      "updatedAt": "2025-08-22T09:39:11.937Z",
+      "usageDetails": {
+        "input": 60,
+        "output": 15,
+        "total": 75,
+        "input_audio": 0,
+        "input_cache_read": 0,
+        "output_audio": 0,
+        "output_reasoning": 0
+      },
+      "costDetails": {
+        "input": 0.00006,
+        "output": 0.000015,
+        "total": 0.000075
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o-2024-08-06",
+      "internalModelId": "b33c06da-9490-4bbd-a2dd-878222948539",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 848,
+      "timeToFirstToken": null,
+      "inputCost": 0.00006,
+      "outputCost": 0.000015,
+      "totalCost": 0.000075,
+      "inputUsage": 60,
+      "outputUsage": 15,
+      "totalUsage": 75,
+      "input": [
+        {
+          "role": "user",
+          "content": "Be helpful!"
+        },
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize."
+        },
+        {
+          "role": "tool",
+          "content": {
+            "type": "function",
+            "function": {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": ["query"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "role": "assistant",
+        "content": "",
+        "additional_kwargs": {
+          "tool_calls": [
+            {
+              "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+              "function": {
+                "arguments": {
+                  "query": "example"
+                },
+                "name": "Web-Search"
+              },
+              "type": "function"
+            }
+          ],
+          "refusal": null
+        }
+      }
+    },
+    {
+      "id": "5ba09605e0929d78",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "3b239b11cbb2ac0b",
+      "startTime": "2025-08-22T09:38:57.089Z",
+      "endTime": "2025-08-22T09:38:58.832Z",
+      "name": "ChatOpenAI",
+      "metadata": {
+        "tags": ["seq:step:1", "demo", "langfuse", "langgraph"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 3,
+        "langgraph_node": "agent",
+        "langgraph_triggers": ["branch:to:agent"],
+        "langgraph_path": ["__pregel_pull", "agent"],
+        "langgraph_checkpoint_ns": "agent:695fb20e-d55e-ccb4-5384-070711a6cdf8",
+        "checkpoint_ns": "agent:695fb20e-d55e-ccb4-5384-070711a6cdf8",
+        "ls_provider": "openai",
+        "ls_model_name": "gpt-4o",
+        "ls_model_type": "chat",
+        "ls_temperature": 0,
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "temperature": 0
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:11.173Z",
+      "updatedAt": "2025-08-22T09:39:11.492Z",
+      "usageDetails": {
+        "input": 108,
+        "output": 51,
+        "total": 159,
+        "input_audio": 0,
+        "input_cache_read": 0,
+        "output_audio": 0,
+        "output_reasoning": 0
+      },
+      "costDetails": {
+        "input": 0.000108,
+        "output": 0.000051,
+        "total": 0.000159
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o-2024-08-06",
+      "internalModelId": "b33c06da-9490-4bbd-a2dd-878222948539",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1743,
+      "timeToFirstToken": null,
+      "inputCost": 0.000108,
+      "outputCost": 0.000051,
+      "totalCost": 0.000159,
+      "inputUsage": 108,
+      "outputUsage": 51,
+      "totalUsage": 159,
+      "input": [
+        {
+          "role": "user",
+          "content": "Be helpful!"
+        },
+        {
+          "role": "user",
+          "content": "Search the web for 'example' and summarize."
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "additional_kwargs": {
+            "tool_calls": [
+              {
+                "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                "function": {
+                  "arguments": {
+                    "query": "example"
+                  },
+                  "name": "Web-Search"
+                },
+                "type": "function"
+              }
+            ],
+            "refusal": null
+          }
+        },
+        {
+          "role": "tool",
+          "content": [
+            {
+              "url": "https://example.com",
+              "title": "Example Result",
+              "q": "example"
+            }
+          ],
+          "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl"
+        },
+        {
+          "role": "tool",
+          "content": {
+            "type": "function",
+            "function": {
+              "name": "Web-Search",
+              "description": "Dummy web search tool.",
+              "parameters": {
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  }
+                },
+                "required": ["query"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "role": "assistant",
+        "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+        "additional_kwargs": {
+          "refusal": null
+        }
+      }
+    },
+    {
+      "id": "21441266a9f21251",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "c8a18a38a3a115cb",
+      "startTime": "2025-08-22T09:38:57.085Z",
+      "endTime": "2025-08-22T09:38:57.086Z",
+      "name": "Web-Search",
+      "metadata": {
+        "tags": ["seq:step:1", "langgraph", "demo", "langfuse"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 2,
+        "langgraph_node": "tools",
+        "langgraph_triggers": ["branch:to:tools"],
+        "langgraph_path": ["__pregel_pull", "tools"],
+        "langgraph_checkpoint_ns": "tools:a8b0eaec-b747-6d2a-2f81-4b6ac7e07fc1",
+        "checkpoint_ns": "tools:a8b0eaec-b747-6d2a-2f81-4b6ac7e07fc1",
+        "inputs": {
+          "query": "example"
+        },
+        "color": "green",
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:11.221Z",
+      "updatedAt": "2025-08-22T09:39:11.351Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": "{'query': 'example'}",
+      "output": {
+        "content": [
+          {
+            "url": "https://example.com",
+            "title": "Example Result",
+            "q": "example"
+          }
+        ],
+        "additional_kwargs": {},
+        "response_metadata": {},
+        "type": "tool",
+        "name": "Web-Search",
+        "id": null,
+        "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+        "artifact": null,
+        "status": "success"
+      }
+    },
+    {
+      "id": "c8a18a38a3a115cb",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "b024c7ee7680b708",
+      "startTime": "2025-08-22T09:38:57.083Z",
+      "endTime": "2025-08-22T09:38:57.086Z",
+      "name": "tools",
+      "metadata": {
+        "tags": ["graph:step:2", "langgraph", "demo", "langfuse"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 2,
+        "langgraph_node": "tools",
+        "langgraph_triggers": ["branch:to:tools"],
+        "langgraph_path": ["__pregel_pull", "tools"],
+        "langgraph_checkpoint_ns": "tools:a8b0eaec-b747-6d2a-2f81-4b6ac7e07fc1",
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:10.453Z",
+      "updatedAt": "2025-08-22T09:39:10.625Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 3,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "messages": [
+          {
+            "content": "Search the web for 'example' and summarize.",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "human",
+            "name": null,
+            "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+            "example": false
+          },
+          {
+            "content": "",
+            "additional_kwargs": {
+              "tool_calls": [
+                {
+                  "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                  "function": {
+                    "arguments": {
+                      "query": "example"
+                    },
+                    "name": "Web-Search"
+                  },
+                  "type": "function"
+                }
+              ],
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "tool_calls": [
+              {
+                "name": "Web-Search",
+                "args": {
+                  "query": "example"
+                },
+                "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                "type": "tool_call"
+              }
+            ],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "messages": [
+          {
+            "content": [
+              {
+                "url": "https://example.com",
+                "title": "Example Result",
+                "q": "example"
+              }
+            ],
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "tool",
+            "name": "Web-Search",
+            "id": null,
+            "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+            "artifact": null,
+            "status": "success"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e638064431445dce",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "3b239b11cbb2ac0b",
+      "startTime": "2025-08-22T09:38:58.834Z",
+      "endTime": "2025-08-22T09:38:58.834Z",
+      "name": "should_continue",
+      "metadata": {
+        "tags": ["seq:step:3", "langgraph", "demo", "langfuse"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 3,
+        "langgraph_node": "agent",
+        "langgraph_triggers": ["branch:to:agent"],
+        "langgraph_path": ["__pregel_pull", "agent"],
+        "langgraph_checkpoint_ns": "agent:695fb20e-d55e-ccb4-5384-070711a6cdf8",
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:09.989Z",
+      "updatedAt": "2025-08-22T09:39:10.308Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 0,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "messages": [
+          {
+            "content": "Search the web for 'example' and summarize.",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "human",
+            "name": null,
+            "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+            "example": false
+          },
+          {
+            "content": "",
+            "additional_kwargs": {
+              "tool_calls": [
+                {
+                  "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                  "function": {
+                    "arguments": {
+                      "query": "example"
+                    },
+                    "name": "Web-Search"
+                  },
+                  "type": "function"
+                }
+              ],
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "tool_calls": [
+              {
+                "name": "Web-Search",
+                "args": {
+                  "query": "example"
+                },
+                "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                "type": "tool_call"
+              }
+            ],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "content": [
+              {
+                "url": "https://example.com",
+                "title": "Example Result",
+                "q": "example"
+              }
+            ],
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "tool",
+            "name": "Web-Search",
+            "id": "85ffdeba-3d69-4851-bd78-993403a10fd6",
+            "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+            "artifact": null,
+            "status": "success"
+          },
+          {
+            "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+            "additional_kwargs": {
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 51,
+                "prompt_tokens": 108,
+                "total_tokens": 159,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWXZL0b6BLNuyEMr369PF4PEpSs",
+              "service_tier": "default",
+              "finish_reason": "stop",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--a6270d77-8cd6-4c1b-a80b-c1da054d9f9a-0",
+            "example": false,
+            "tool_calls": [],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 108,
+              "output_tokens": 51,
+              "total_tokens": 159,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          }
+        ]
+      },
+      "output": "end"
+    },
+    {
+      "id": "98d3e02591797c04",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "b024c7ee7680b708",
+      "startTime": "2025-08-22T09:38:56.231Z",
+      "endTime": "2025-08-22T09:38:57.082Z",
+      "name": "agent",
+      "metadata": {
+        "tags": ["graph:step:1", "langgraph", "demo", "langfuse"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 1,
+        "langgraph_node": "agent",
+        "langgraph_triggers": ["branch:to:agent"],
+        "langgraph_path": ["__pregel_pull", "agent"],
+        "langgraph_checkpoint_ns": "agent:d507d231-6dad-b926-076f-0644c0a0134e",
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:09.952Z",
+      "updatedAt": "2025-08-22T09:39:10.192Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 851,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "messages": [
+          {
+            "content": "Search the web for 'example' and summarize.",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "human",
+            "name": null,
+            "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+            "example": false
+          }
+        ]
+      },
+      "output": {
+        "messages": [
+          {
+            "content": "",
+            "additional_kwargs": {
+              "tool_calls": [
+                {
+                  "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                  "function": {
+                    "arguments": {
+                      "query": "example"
+                    },
+                    "name": "Web-Search"
+                  },
+                  "type": "function"
+                }
+              ],
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "tool_calls": [
+              {
+                "name": "Web-Search",
+                "args": {
+                  "query": "example"
+                },
+                "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                "type": "tool_call"
+              }
+            ],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "b024c7ee7680b708",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-08-22T09:38:56.228Z",
+      "endTime": "2025-08-22T09:38:58.838Z",
+      "name": "LangGraph",
+      "metadata": {
+        "tags": ["langgraph", "demo", "langfuse"],
+        "thread_id": "demo-thread-1",
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:09.403Z",
+      "updatedAt": "2025-08-22T09:39:09.818Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2610,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "messages": [
+          {
+            "content": "Search the web for 'example' and summarize.",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "human",
+            "name": null,
+            "id": null,
+            "example": false
+          }
+        ]
+      },
+      "output": {
+        "messages": [
+          {
+            "content": "Search the web for 'example' and summarize.",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "human",
+            "name": null,
+            "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+            "example": false
+          },
+          {
+            "content": "",
+            "additional_kwargs": {
+              "tool_calls": [
+                {
+                  "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                  "function": {
+                    "arguments": {
+                      "query": "example"
+                    },
+                    "name": "Web-Search"
+                  },
+                  "type": "function"
+                }
+              ],
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "tool_calls": [
+              {
+                "name": "Web-Search",
+                "args": {
+                  "query": "example"
+                },
+                "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                "type": "tool_call"
+              }
+            ],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "content": [
+              {
+                "url": "https://example.com",
+                "title": "Example Result",
+                "q": "example"
+              }
+            ],
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "tool",
+            "name": "Web-Search",
+            "id": "85ffdeba-3d69-4851-bd78-993403a10fd6",
+            "tool_call_id": "call_1oGK863sxQHlPreFhDdEs3yl",
+            "artifact": null,
+            "status": "success"
+          },
+          {
+            "content": "The search for \"example\" primarily leads to the website [example.com](https://example.com), which is often used as a placeholder or demonstration site in various contexts. It serves as a generic example for illustrating how a website might look or function.",
+            "additional_kwargs": {
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 51,
+                "prompt_tokens": 108,
+                "total_tokens": 159,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWXZL0b6BLNuyEMr369PF4PEpSs",
+              "service_tier": "default",
+              "finish_reason": "stop",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--a6270d77-8cd6-4c1b-a80b-c1da054d9f9a-0",
+            "example": false,
+            "tool_calls": [],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 108,
+              "output_tokens": 51,
+              "total_tokens": 159,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "c7fbfdc6ab70ca4d",
+      "traceId": "e1fde3efec57ce8a69bafd3fb928a7eb",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "98d3e02591797c04",
+      "startTime": "2025-08-22T09:38:57.081Z",
+      "endTime": "2025-08-22T09:38:57.081Z",
+      "name": "should_continue",
+      "metadata": {
+        "tags": ["seq:step:3", "langgraph", "demo", "langfuse"],
+        "thread_id": "demo-thread-1",
+        "langgraph_step": 1,
+        "langgraph_node": "agent",
+        "langgraph_triggers": ["branch:to:agent"],
+        "langgraph_path": ["__pregel_pull", "agent"],
+        "langgraph_checkpoint_ns": "agent:d507d231-6dad-b926-076f-0644c0a0134e",
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.0",
+          "attributes": {
+            "public_key": "KJGLKJGLJG"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-22T09:39:09.393Z",
+      "updatedAt": "2025-08-22T09:39:09.617Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 0,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "messages": [
+          {
+            "content": "Search the web for 'example' and summarize.",
+            "additional_kwargs": {},
+            "response_metadata": {},
+            "type": "human",
+            "name": null,
+            "id": "4f5904a4-473c-443c-af46-68765777a2f0",
+            "example": false
+          },
+          {
+            "content": "",
+            "additional_kwargs": {
+              "tool_calls": [
+                {
+                  "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                  "function": {
+                    "arguments": {
+                      "query": "example"
+                    },
+                    "name": "Web-Search"
+                  },
+                  "type": "function"
+                }
+              ],
+              "refusal": null
+            },
+            "response_metadata": {
+              "token_usage": {
+                "completion_tokens": 15,
+                "prompt_tokens": 60,
+                "total_tokens": 75,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "model_name": "gpt-4o-2024-08-06",
+              "system_fingerprint": "fp_46bff0e0c8",
+              "id": "chatcmpl-C7IWW4ZyFcMMUH5I00yulLd1Cuz2f",
+              "service_tier": "default",
+              "finish_reason": "tool_calls",
+              "logprobs": null
+            },
+            "type": "ai",
+            "name": null,
+            "id": "run--06f4147e-6dc2-4078-a368-096c05261f12-0",
+            "example": false,
+            "tool_calls": [
+              {
+                "name": "Web-Search",
+                "args": {
+                  "query": "example"
+                },
+                "id": "call_1oGK863sxQHlPreFhDdEs3yl",
+                "type": "tool_call"
+              }
+            ],
+            "invalid_tool_calls": [],
+            "usage_metadata": {
+              "input_tokens": 60,
+              "output_tokens": 15,
+              "total_tokens": 75,
+              "input_token_details": {
+                "audio": 0,
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "audio": 0,
+                "reasoning": 0
+              }
+            }
+          }
+        ]
+      },
+      "output": "continue"
+    }
+  ]
+}

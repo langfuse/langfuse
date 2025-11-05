@@ -1,6 +1,7 @@
 import {
   CommentObjectType,
   CreateCommentData,
+  paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
@@ -17,7 +18,7 @@ const APIComment = z
     updatedAt: z.coerce.date(),
     objectType: z.enum(CommentObjectType),
     objectId: z.string(),
-    content: z.string().min(1).max(3000),
+    content: z.string().min(1).max(5000),
     authorUserId: z.string().nullish(),
   })
   .strict();
@@ -27,6 +28,7 @@ const APIComment = z
  */
 
 // POST /comments
+// Note: Public API does not process mentions
 export const PostCommentsV1Body = CreateCommentData.extend({
   authorUserId: z.string().nullish(),
 }).strict();
@@ -54,6 +56,7 @@ export const GetCommentsV1Query = z
 export const GetCommentsV1Response = z
   .object({
     data: z.array(APIComment),
+    meta: paginationMetaResponseZod,
   })
   .strict();
 

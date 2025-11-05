@@ -48,13 +48,15 @@ export type ScoreTargetSession = z.infer<typeof ScoreTargetSession>;
 export type ScoreTarget = z.infer<typeof ScoreTarget>;
 
 const CreateAnnotationScoreBase = z.object({
+  id: z.string().optional(),
   name: StringNoHTMLNonEmpty,
   projectId: z.string(),
   environment: z.string().default("default"),
   scoreTarget: ScoreTarget,
-  configId: z.string().optional(),
+  configId: z.string(),
   comment: StringNoHTML.nullish(),
   queueId: z.string().nullish(),
+  timestamp: z.date().optional(), // Required for ClickHouse deduplication
 });
 
 const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
@@ -71,6 +73,10 @@ export const CreateAnnotationScoreData = z.discriminatedUnion("dataType", [
   CreateAnnotationScoreBase.merge(BooleanData),
 ]);
 
+export type CreateAnnotationScoreData = z.infer<
+  typeof CreateAnnotationScoreData
+>;
+
 /**
  * UpdateAnnotationScoreData is only used for annotation scores updated via the UI
  * For langfuse score types please refer to `web/src/features/public-api/types/scores.ts`
@@ -80,6 +86,10 @@ export const UpdateAnnotationScoreData = z.discriminatedUnion("dataType", [
   UpdateAnnotationScoreBase.merge(CategoricalData),
   UpdateAnnotationScoreBase.merge(BooleanData),
 ]);
+
+export type UpdateAnnotationScoreData = z.infer<
+  typeof UpdateAnnotationScoreData
+>;
 
 // annotation queues
 

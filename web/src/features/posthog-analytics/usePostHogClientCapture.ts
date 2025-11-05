@@ -28,6 +28,8 @@ const events = {
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
+    "view_mode_switch",
+    "tree_panel_toggle",
   ],
   generations: ["export"],
   saved_views: [
@@ -97,7 +99,11 @@ const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
-  integrations: ["posthog_form_submitted", "blob_storage_form_submitted"],
+  integrations: [
+    "posthog_form_submitted",
+    "blob_storage_form_submitted",
+    "mixpanel_form_submitted",
+  ],
   sign_in: ["cloud_region_switch", "button_click"],
   auth: ["reset_password_email_requested", "update_password_form_submit"],
   playground: [
@@ -189,6 +195,7 @@ const events = {
   navigate_detail_pages: ["button_click_prev_or_next"],
   support_chat: ["initiated", "opened", "message_sent"], // also used on landing page for consistency
   cmd_k_menu: ["opened", "search_entered", "navigated"],
+  spend_alert: ["created", "updated", "deleted"],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

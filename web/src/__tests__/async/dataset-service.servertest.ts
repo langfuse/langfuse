@@ -321,6 +321,7 @@ describe("Fetch datasets for UI presentation", () => {
         id: undefined,
         comment: undefined,
         hasMetadata: undefined,
+        timestamp: undefined,
       },
       [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
         id: score3.id,
@@ -329,6 +330,7 @@ describe("Fetch datasets for UI presentation", () => {
         average: 1,
         comment: "some other comment for non run related score",
         hasMetadata: true,
+        timestamp: expect.any(Date),
       },
     };
 
@@ -492,6 +494,7 @@ describe("Fetch datasets for UI presentation", () => {
         comment: "comment",
         // createScore adds metadata to the score
         hasMetadata: true,
+        timestamp: expect.any(Date),
       },
     };
 
@@ -1273,6 +1276,7 @@ describe("Fetch datasets for UI presentation", () => {
         values: expect.arrayContaining([100.5]),
         average: 100.5,
         comment: "comment",
+        timestamp: expect.any(Date),
         // createScore adds metadata to the score
         hasMetadata: true,
       },
@@ -1379,16 +1383,45 @@ describe("Fetch datasets for UI presentation", () => {
         await createTracesCh(traces);
 
         // Create observations for some traces (mix of trace-level and observation-level linkage)
+        const parentObsId = v4();
+        const childObs1Id = v4();
+        const childObs2Id = v4();
+
         const observations = [
-          // First two traces have observations (observation-level linkage)
+          // First trace: parent observation with 2 children
           createObservation({
+            id: parentObsId,
             trace_id: traceIds[0],
             project_id: projectId,
             type: "GENERATION",
-            name: "generation-1",
+            name: "parent-generation",
+            parent_observation_id: null,
             start_time: new Date().getTime() - 3500,
             end_time: new Date().getTime() - 2500,
             metadata: { model: "gpt-4" },
+            cost_details: { total: 0 }, // Parent has no direct cost
+          }),
+          createObservation({
+            id: childObs1Id,
+            trace_id: traceIds[0],
+            project_id: projectId,
+            type: "GENERATION",
+            name: "child-generation-1",
+            parent_observation_id: parentObsId,
+            start_time: new Date().getTime() - 3400,
+            end_time: new Date().getTime() - 3000,
+            cost_details: { total: 0.005 }, // Child 1 cost
+          }),
+          createObservation({
+            id: childObs2Id,
+            trace_id: traceIds[0],
+            project_id: projectId,
+            type: "GENERATION",
+            name: "child-generation-2",
+            parent_observation_id: parentObsId,
+            start_time: new Date().getTime() - 3000,
+            end_time: new Date().getTime() - 2600,
+            cost_details: { total: 0.008765 }, // Child 2 cost (total = 0.013765)
           }),
           createObservation({
             trace_id: traceIds[1],
@@ -1422,7 +1455,7 @@ describe("Fetch datasets for UI presentation", () => {
             dataset_run_id: run1Id,
             dataset_item_id: itemIds[0],
             trace_id: traceIds[0],
-            observation_id: observations[0].id, // Observation-level linkage
+            observation_id: parentObsId, // Link to parent observation (has children)
             project_id: projectId,
             dataset_id: datasetId,
             dataset_run_name: "run-1",
@@ -1624,6 +1657,10 @@ describe("Fetch datasets for UI presentation", () => {
         expect(item0Run1?.observation?.latency).toBeDefined();
         expect(typeof item0Run1?.observation?.latency).toBe("number");
         expect(item0Run1?.observation?.calculatedTotalCost).toBeDefined();
+        // Should calculate recursive cost (parent + 2 children: 0 + 0.005 + 0.008765 = 0.013765)
+        expect(
+          item0Run1?.observation?.calculatedTotalCost?.toNumber(),
+        ).toBeCloseTo(0.013765, 6);
 
         // Should have trace data
         expect(item0Run1?.trace).toBeDefined();

@@ -16,6 +16,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useProjectSettingsPages } from "@/src/pages/project/[projectId]/settings";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
+import { useAccountSettingsPages } from "@/src/pages/account/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
@@ -30,6 +31,7 @@ export function CommandMenu({
   const { allProjectItems } = useNavigationItems();
   const settingsPages = useProjectSettingsPages();
   const orgSettingsPages = useOrganizationSettingsPages();
+  const accountSettingsPages = useAccountSettingsPages();
   const { organization, project } = useQueryProjectOrOrganization();
 
   const projectSettingsItems = settingsPages
@@ -47,6 +49,12 @@ export function CommandMenu({
       url: `/organization/${organization?.id}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
       keywords: page.cmdKKeywords || [],
     }));
+
+  const accountSettingsItems = accountSettingsPages.map((page) => ({
+    title: `Account Settings > ${page.title}`,
+    url: `/account/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
+    keywords: page.cmdKKeywords || [],
+  }));
 
   const capture = usePostHogClientCapture();
 
@@ -256,6 +264,31 @@ export function CommandMenu({
                     router.push(item.url);
                     capture("cmd_k_menu:navigated", {
                       type: "organization_settings",
+                      title: item.title,
+                      url: item.url,
+                    });
+                    setOpen(false);
+                  }}
+                >
+                  {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+        {accountSettingsItems.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Account Settings">
+              {accountSettingsItems.map((item) => (
+                <CommandItem
+                  key={item.url}
+                  value={item.title}
+                  keywords={item.keywords}
+                  onSelect={() => {
+                    router.push(item.url);
+                    capture("cmd_k_menu:navigated", {
+                      type: "account_settings",
                       title: item.title,
                       url: item.url,
                     });

@@ -3,6 +3,12 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -32,9 +38,11 @@ export type PageHeaderProps = {
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
   help?: { description: string; href?: string; className?: string };
+  titleTooltip?: string;
   itemType?: LangfuseItemType;
   container?: boolean;
   tabsProps?: PageTabsProps;
+  className?: string;
 };
 
 const PageHeader = ({
@@ -44,12 +52,20 @@ const PageHeader = ({
   actionButtonsRight,
   breadcrumb,
   help,
+  titleTooltip,
   tabsProps,
   container = false,
+  className,
 }: PageHeaderProps) => {
   const router = useRouter();
   return (
-    <div className="sticky top-0 z-30 w-full border-b bg-background shadow-sm">
+    <div
+      className={cn([
+        "sticky top-banner-offset z-30 w-full border-b bg-background shadow-sm",
+        className,
+      ])}
+      id="page-header"
+    >
       <div className="flex flex-col justify-center">
         {/* Top Row */}
         <div className="border-b">
@@ -85,23 +101,51 @@ const PageHeader = ({
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   <h2 className="line-clamp-1 text-lg font-semibold leading-7">
-                    <span
-                      className="break-words"
-                      title={title}
-                      data-testid="page-header-title"
-                    >
-                      {title}
-                      {help && (
-                        <span className="whitespace-nowrap">
-                          &nbsp;
-                          <DocPopup
-                            description={help.description}
-                            href={help.href}
-                            className={help.className}
-                          />
-                        </span>
-                      )}
-                    </span>
+                    {titleTooltip ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="cursor-help break-words"
+                              data-testid="page-header-title"
+                            >
+                              {title}
+                              {help && (
+                                <span className="whitespace-nowrap">
+                                  &nbsp;
+                                  <DocPopup
+                                    description={help.description}
+                                    href={help.href}
+                                    className={help.className}
+                                  />
+                                </span>
+                              )}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs">
+                            {titleTooltip}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span
+                        className="break-words"
+                        title={title}
+                        data-testid="page-header-title"
+                      >
+                        {title}
+                        {help && (
+                          <span className="whitespace-nowrap">
+                            &nbsp;
+                            <DocPopup
+                              description={help.description}
+                              href={help.href}
+                              className={help.className}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </h2>
                 </div>
               </div>

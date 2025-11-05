@@ -18,12 +18,15 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
+import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
   DataRetentionQueue,
   MeteringDataPostgresExportQueue,
   PostHogIntegrationQueue,
+  MixpanelIntegrationQueue,
   QueueName,
   logger,
   BlobStorageIntegrationQueue,
@@ -31,6 +34,8 @@ import {
   IngestionQueue,
   OtelIngestionQueue,
   TraceUpsertQueue,
+  CloudFreeTierUsageThresholdQueue,
+  EventPropagationQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -44,6 +49,10 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import {
+  mixpanelIntegrationProcessingProcessor,
+  mixpanelIntegrationProcessor,
+} from "./queues/mixpanelIntegrationQueue";
 import {
   blobStorageIntegrationProcessingProcessor,
   blobStorageIntegrationProcessor,
@@ -61,6 +70,8 @@ import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
 import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
+import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
+import { notificationQueueProcessor } from "./queues/notificationQueue";
 
 const app = express();
 
@@ -300,6 +311,49 @@ if (
   );
 }
 
+// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+if (
+  env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
+  env.STRIPE_SECRET_KEY
+) {
+  WorkerManager.register(
+    QueueName.CloudSpendAlertQueue,
+    cloudSpendAlertQueueProcessor,
+    {
+      concurrency: 20,
+      limiter: {
+        // Process at most 600 jobs per minute / 10 jobs per second for Stripe API rate limits
+        // - stripe allows 100 ops / sec but we want to use a lower limit to account for 3 environments and other calls
+        // - See: https://docs.stripe.com/rate-limits
+        max: 900,
+        duration: 60_000,
+      },
+    },
+  );
+}
+
+// Free Tier Usage Threshold Queue: Only enable in cloud environment
+if (
+  env.QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED === "true" &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  env.STRIPE_SECRET_KEY
+) {
+  // Instantiate the queue to trigger scheduled jobs
+  CloudFreeTierUsageThresholdQueue.getInstance();
+  WorkerManager.register(
+    QueueName.CloudFreeTierUsageThresholdQueue,
+    cloudFreeTierUsageThresholdQueueProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most `max` jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
+    },
+  );
+}
+
 if (env.QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.ExperimentCreate,
@@ -329,6 +383,32 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       concurrency: 1,
       limiter: {
         // Process at most one PostHog job globally per 10s.
+        max: 1,
+        duration: 10_000,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  MixpanelIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationQueue,
+    mixpanelIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationProcessingQueue,
+    mixpanelIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most one Mixpanel job globally per 10s.
         max: 1,
         duration: 10_000,
       },
@@ -405,6 +485,32 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
     entityChangeQueueProcessor,
     {
       concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
+}
+
+if (
+  env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
+  env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+) {
+  // Instantiate the queue to trigger scheduled jobs
+  EventPropagationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.EventPropagationQueue,
+    eventPropagationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.NotificationQueue,
+    notificationQueueProcessor,
+    {
+      concurrency: 5, // Process up to 5 notification jobs concurrently
     },
   );
 }

@@ -3,6 +3,8 @@ import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
+import AuthentikProvider from "next-auth/providers/authentik";
+import OneLoginProvider from "next-auth/providers/onelogin";
 import CognitoProvider from "next-auth/providers/cognito";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -174,6 +176,18 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     });
   else if (provider.authProvider === "okta")
     return OktaProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "authentik")
+    return AuthentikProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "onelogin")
+    return OneLoginProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),

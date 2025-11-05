@@ -30,7 +30,7 @@ import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
   getUserProjectRoles,
   getUserProjectRolesCount,
-} from "@/src/features/rbac/utils/userProjectRole";
+} from "@langfuse/shared/src/server";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -303,6 +303,8 @@ export const membersRouter = createTRPCRouter({
           inviterName: ctx.session.user.name!,
           to: input.email,
           orgName: org.name,
+          orgId: input.orgId,
+          userExists: true,
           env: env,
         });
       } else {
@@ -336,6 +338,8 @@ export const membersRouter = createTRPCRouter({
             inviterName: ctx.session.user.name!,
             to: input.email,
             orgName: org.name,
+            orgId: input.orgId,
+            userExists: false,
             env: env,
           });
 
