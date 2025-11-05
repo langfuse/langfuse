@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useCallback } from "react";
+import { Bar, BarChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 import { getSingleScoreColor } from "@/src/features/scores/lib/color-scales";
 
 interface CategoricalChartProps {
@@ -158,6 +159,45 @@ export function ScoreDistributionCategoricalChart({
     };
   }, [hasStackedData, allStackKeys, score1Name]);
 
+  // Visibility state for interactive legend (stacked mode only)
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Create visibility state object for legend
+  const visibilityState = useMemo(() => {
+    if (!hasStackedData) return {};
+    const state: Record<string, boolean> = {};
+    allStackKeys.forEach((key) => {
+      state[key] = !hiddenKeys.has(key);
+    });
+    return state;
+  }, [hiddenKeys, hasStackedData, allStackKeys]);
+
+  // Toggle handler with safety check (prevent hiding all items)
+  const handleVisibilityToggle = useCallback(
+    (key: string, visible: boolean) => {
+      // Prevent hiding the last visible item
+      if (!visible) {
+        const visibleCount = allStackKeys.filter(
+          (k) => !hiddenKeys.has(k),
+        ).length;
+        if (visibleCount <= 1) {
+          return;
+        }
+      }
+
+      setHiddenKeys((prev) => {
+        const next = new Set(prev);
+        if (visible) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [hiddenKeys, allStackKeys],
+  );
+
   return (
     <ChartContainer
       config={config}
@@ -191,21 +231,38 @@ export function ScoreDistributionCategoricalChart({
         />
 
         {hasStackedData &&
-          allStackKeys.map((stackKey) => (
-            <Bar
-              key={stackKey}
-              dataKey={stackKey}
-              stackId="stack"
-              fill={config[stackKey]?.theme?.light ?? "hsl(var(--chart-1))"}
-              radius={[0, 0, 0, 0]}
-            />
-          ))}
+          allStackKeys.map((stackKey) => {
+            // Skip hidden stack segments
+            if (hiddenKeys.has(stackKey)) return null;
+
+            return (
+              <Bar
+                key={stackKey}
+                dataKey={stackKey}
+                stackId="stack"
+                fill={config[stackKey]?.theme?.light ?? "hsl(var(--chart-1))"}
+                radius={[0, 0, 0, 0]}
+              />
+            );
+          })}
         {!hasStackedData && (
           <Bar
             key="pv"
             dataKey="pv"
             fill="hsl(var(--chart-3))"
             radius={[4, 4, 0, 0]}
+          />
+        )}
+
+        {hasStackedData && (
+          <Legend
+            content={
+              <ScoreChartLegendContent
+                interactive={true}
+                visibilityState={visibilityState}
+                onVisibilityChange={handleVisibilityToggle}
+              />
+            }
           />
         )}
       </BarChart>

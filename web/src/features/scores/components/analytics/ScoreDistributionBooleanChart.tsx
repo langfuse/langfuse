@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useCallback } from "react";
+import { Bar, BarChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 import {
   getSingleScoreColor,
   getTwoScoreColors,
@@ -89,6 +90,39 @@ export function ScoreDistributionBooleanChart({
         },
       };
 
+  // Visibility state for interactive legend (comparison mode only)
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Create visibility state object for legend
+  const visibilityState = useMemo(() => {
+    if (!isComparisonMode) return {};
+    const state: Record<string, boolean> = {};
+    state["pv"] = !hiddenKeys.has("pv");
+    state["uv"] = !hiddenKeys.has("uv");
+    return state;
+  }, [hiddenKeys, isComparisonMode]);
+
+  // Toggle handler with safety check (prevent hiding all items)
+  const handleVisibilityToggle = useCallback(
+    (key: string, visible: boolean) => {
+      if (!visible && hiddenKeys.size >= 1) {
+        // Keep at least one visible
+        return;
+      }
+
+      setHiddenKeys((prev) => {
+        const next = new Set(prev);
+        if (visible) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [hiddenKeys],
+  );
+
   return (
     <ChartContainer
       config={config}
@@ -113,9 +147,22 @@ export function ScoreDistributionBooleanChart({
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
-        <Bar dataKey="pv" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
-        {isComparisonMode && (
+        {!hiddenKeys.has("pv") && (
+          <Bar dataKey="pv" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
+        )}
+        {isComparisonMode && !hiddenKeys.has("uv") && (
           <Bar dataKey="uv" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+        )}
+        {isComparisonMode && (
+          <Legend
+            content={
+              <ScoreChartLegendContent
+                interactive={true}
+                visibilityState={visibilityState}
+                onVisibilityChange={handleVisibilityToggle}
+              />
+            }
+          />
         )}
       </BarChart>
     </ChartContainer>

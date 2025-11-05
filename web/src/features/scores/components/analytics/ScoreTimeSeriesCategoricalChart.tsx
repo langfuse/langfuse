@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { Line, LineChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useCallback } from "react";
+import { Line, LineChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 import { type IntervalConfig } from "@/src/utils/date-range-utils";
 import { formatTimestamp } from "./ScoreTimeSeriesNumericChart";
 
@@ -100,6 +101,44 @@ export function ScoreTimeSeriesCategoricalChart({
     return cfg;
   }, [categories]);
 
+  // Visibility state for interactive legend
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Create visibility state object for legend
+  const visibilityState = useMemo(() => {
+    const state: Record<string, boolean> = {};
+    categories.forEach((category) => {
+      state[category] = !hiddenKeys.has(category);
+    });
+    return state;
+  }, [hiddenKeys, categories]);
+
+  // Toggle handler with safety check (prevent hiding all items)
+  const handleVisibilityToggle = useCallback(
+    (key: string, visible: boolean) => {
+      // Prevent hiding the last visible item
+      if (!visible) {
+        const visibleCount = categories.filter(
+          (c) => !hiddenKeys.has(c),
+        ).length;
+        if (visibleCount <= 1) {
+          return;
+        }
+      }
+
+      setHiddenKeys((prev) => {
+        const next = new Set(prev);
+        if (visible) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [hiddenKeys, categories],
+  );
+
   if (chartData.length === 0 || categories.length === 0) {
     return (
       <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
@@ -143,6 +182,9 @@ export function ScoreTimeSeriesCategoricalChart({
           label={{ value: "Count", angle: -90, position: "insideLeft" }}
         />
         {categories.map((category, index) => {
+          // Skip hidden categories
+          if (hiddenKeys.has(category)) return null;
+
           const chartColors = [
             "hsl(var(--chart-1))",
             "hsl(var(--chart-2))",
@@ -169,6 +211,15 @@ export function ScoreTimeSeriesCategoricalChart({
           content={<ChartTooltipContent />}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={true}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
         />
       </LineChart>
     </ChartContainer>
