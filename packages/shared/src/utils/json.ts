@@ -26,6 +26,9 @@ function tryParsePythonDict(str: string): unknown {
       .replace(/\bTrue\b/g, "true")
       .replace(/\bFalse\b/g, "false")
       .replace(/\bNone\b/g, "null")
+      // NOTE: this converts all ' indiscriminately and might break some JSONs with escaped '
+      // not that bad, because we only call this function, after JSON.parse has already failed
+      // therefore, the failure case is the default already.
       .replace(/'/g, '"');
 
     return JSON.parse(jsonStr);
