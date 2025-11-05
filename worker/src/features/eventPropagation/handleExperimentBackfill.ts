@@ -43,6 +43,7 @@ interface SpanRecord {
   type: string;
   environment: string;
   version: string;
+  release: string;
   input: string;
   output: string;
   // Add other fields as needed from observations/traces
@@ -61,6 +62,9 @@ interface SpanRecord {
   cost_details: Record<string, number> | null;
   total_cost: number;
   metadata: Record<string, unknown>;
+  tags: Array<string>;
+  bookmarked: boolean;
+  public: boolean;
   user_id: string;
   session_id: string;
 }
@@ -169,6 +173,7 @@ export async function getRelevantObservations(
       o.type,
       coalesce(o.environment, '') AS environment,
       coalesce(o.version, '') AS version,
+      '' as release,
       coalesce(o.input, '') AS input,
       coalesce(o.output, '') AS output,
       o.level AS level,
@@ -186,6 +191,9 @@ export async function getRelevantObservations(
       o.cost_details AS cost_details,
       coalesce(o.total_cost, 0) AS total_cost,
       o.metadata,
+      [] as tags,
+      false AS bookmarked,
+      false AS public,
       '' AS user_id,
       '' AS session_id
     FROM observations o
@@ -234,6 +242,7 @@ export async function getRelevantTraces(
       'SPAN' AS type,
       coalesce(t.environment, '') AS environment,
       coalesce(t.version, '') AS version,
+      coalesce(t.release, '') AS release,
       coalesce(t.input, '') AS input,
       coalesce(t.output, '') AS output,
       '' AS level,
@@ -251,6 +260,9 @@ export async function getRelevantTraces(
       map() AS cost_details,
       0 AS total_cost,
       t.metadata,
+      t.tags,
+      t.bookmarked,
+      t.public,
       coalesce(t.user_id, '') AS user_id,
       coalesce(t.session_id, '') AS session_id
     FROM traces t
