@@ -23,7 +23,7 @@ import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString } from "./utils";
+import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -66,7 +66,7 @@ interface CreateObservationEventParams {
   endTimeISO: string;
 }
 
-interface ResourceSpan {
+export interface ResourceSpan {
   resource?: {
     attributes?: Array<{ key: string; value: any }>;
   };
@@ -266,6 +266,9 @@ export class OtelIngestionProcessor {
                   },
                 );
 
+                const experimentFields =
+                  this.extractExperimentFields(spanAttributes);
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -354,6 +357,9 @@ export class OtelIngestionProcessor {
                   // Source data
                   // eventRaw: stringifiedSpan,
                   eventBytes,
+
+                  // Experiment fields
+                  ...experimentFields,
                 });
               }
             }
@@ -884,7 +890,6 @@ export class OtelIngestionProcessor {
         null,
       usageDetails: this.extractUsageDetails(
         attributes,
-        isLangfuseSDKSpans,
         instrumentationScopeName,
       ) as any,
       costDetails: this.extractCostDetails(
@@ -966,6 +971,8 @@ export class OtelIngestionProcessor {
       `ai.telemetry.metadata.sessionId`,
       `ai.telemetry.metadata.userId`,
       `ai.telemetry.metadata.tags`,
+      // LlamaIndex
+      `tag.tags`,
     ].some((traceAttribute) => Boolean(attributes[traceAttribute]));
 
     const attributeKeys = Object.keys(attributes);
@@ -1728,10 +1735,9 @@ export class OtelIngestionProcessor {
 
   private extractUsageDetails(
     attributes: Record<string, unknown>,
-    isLangfuseSDKSpan: boolean,
     instrumentationScopeName: string,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS]) {
       try {
         return JSON.parse(
           attributes[
@@ -1954,7 +1960,8 @@ export class OtelIngestionProcessor {
       attributes[
         `${LangfuseOtelSpanAttributes.TRACE_METADATA}.langfuse_tags`
       ] ||
-      attributes["ai.telemetry.metadata.tags"];
+      attributes["ai.telemetry.metadata.tags"] ||
+      attributes["tag.tags"];
 
     if (tagsValue === undefined || tagsValue === null) {
       return [];
@@ -1984,6 +1991,106 @@ export class OtelIngestionProcessor {
     }
 
     return [];
+  }
+
+  /**
+   * Extracts experiment-related fields from span attributes.
+   * Returns undefined for fields that are not present.
+   */
+  private extractExperimentFields(attributes: Record<string, unknown>): {
+    experimentId?: string;
+    experimentName?: string;
+    experimentDescription?: string;
+    experimentDatasetId?: string;
+    experimentItemId?: string;
+    experimentItemRootSpanId?: string;
+    experimentItemExpectedOutput?: string;
+    experimentMetadataNames?: string[];
+    experimentMetadataValues?: Array<string | null | undefined>;
+    experimentItemMetadataNames?: string[];
+    experimentItemMetadataValues?: Array<string | null | undefined>;
+  } {
+    const experimentId = attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ID];
+    const experimentName =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_NAME];
+    const experimentDescription =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_DESCRIPTION];
+    const experimentDatasetId =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_DATASET_ID];
+    const experimentItemId =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_ID];
+    const experimentItemRootSpanId =
+      attributes[
+        LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_ROOT_OBSERVATION_ID
+      ];
+    const experimentItemExpectedOutput =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_EXPECTED_OUTPUT];
+
+    // Extract experiment metadata
+    const experimentMetadataStr =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_METADATA];
+    let experimentMetadata: Record<string, unknown> = {};
+    if (experimentMetadataStr && typeof experimentMetadataStr === "string") {
+      try {
+        experimentMetadata = JSON.parse(experimentMetadataStr);
+      } catch (e) {
+        // If parsing fails, treat as empty
+      }
+    }
+    const experimentMetadataFlattened =
+      flattenJsonToPathArrays(experimentMetadata);
+
+    // Extract experiment item metadata
+    const experimentItemMetadataStr =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA];
+    let experimentItemMetadata: Record<string, unknown> = {};
+    if (
+      experimentItemMetadataStr &&
+      typeof experimentItemMetadataStr === "string"
+    ) {
+      try {
+        experimentItemMetadata = JSON.parse(experimentItemMetadataStr);
+      } catch (e) {
+        // If parsing fails, treat as empty
+      }
+    }
+    const experimentItemMetadataFlattened = flattenJsonToPathArrays(
+      experimentItemMetadata,
+    );
+
+    return {
+      experimentId: experimentId ? String(experimentId) : undefined,
+      experimentName: experimentName ? String(experimentName) : undefined,
+      experimentDescription: experimentDescription
+        ? String(experimentDescription)
+        : undefined,
+      experimentDatasetId: experimentDatasetId
+        ? String(experimentDatasetId)
+        : undefined,
+      experimentItemId: experimentItemId ? String(experimentItemId) : undefined,
+      experimentItemRootSpanId: experimentItemRootSpanId
+        ? String(experimentItemRootSpanId)
+        : undefined,
+      experimentItemExpectedOutput: experimentItemExpectedOutput
+        ? String(experimentItemExpectedOutput)
+        : undefined,
+      experimentMetadataNames:
+        experimentMetadataFlattened.names.length > 0
+          ? experimentMetadataFlattened.names
+          : undefined,
+      experimentMetadataValues:
+        experimentMetadataFlattened.values.length > 0
+          ? experimentMetadataFlattened.values
+          : undefined,
+      experimentItemMetadataNames:
+        experimentItemMetadataFlattened.names.length > 0
+          ? experimentItemMetadataFlattened.names
+          : undefined,
+      experimentItemMetadataValues:
+        experimentItemMetadataFlattened.values.length > 0
+          ? experimentItemMetadataFlattened.values
+          : undefined,
+    };
   }
 
   private parseLangfusePromptFromAISDK(

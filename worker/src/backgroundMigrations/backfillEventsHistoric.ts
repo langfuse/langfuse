@@ -196,6 +196,8 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
             if(length(t.tags) > 0, map('trace_tags', toJSONString(t.tags)), map())
           ) AS metadata,
           t.event_ts,
+          t.public,
+          t.bookmarked,
           0 AS is_deleted
         FROM traces t
         WHERE t._partition_id = '${partition}'
@@ -255,6 +257,8 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           version,
           user_id,
           session_id,
+          public,
+          bookmarked,
           level,
           status_message,
           completion_start_time,
@@ -283,7 +287,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           telemetry_sdk_name,
           telemetry_sdk_version,
           blob_storage_file_path,
-          event_raw,
           event_bytes,
           created_at,
           updated_at,
@@ -306,12 +309,14 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           coalesce(o.version, '') AS version,
           coalesce(t.user_id, '') AS user_id,
           coalesce(t.session_id, '') AS session_id,
+          coalesce(t.public, false) AS public,
+          coalesce(t.bookmarked AND (o.parent_observation_id IS NULL OR o.parent_observation_id = ''), false) AS bookmarked,
           o.level,
           coalesce(o.status_message, '') AS status_message,
           o.completion_start_time,
           o.prompt_id,
           o.prompt_name,
-          CAST(o.prompt_version, 'Nullable(String)') AS prompt_version,
+          o.prompt_version,
           o.internal_model_id AS model_id,
           o.provided_model_name,
           o.model_parameters,
@@ -334,7 +339,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           NULL AS telemetry_sdk_name,
           NULL AS telemetry_sdk_version,
           '' AS blob_storage_file_path,
-          '' AS event_raw,
           byteSize(*) AS event_bytes,
           o.created_at,
           o.updated_at,
@@ -465,6 +469,8 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           session_id String,
           metadata Map(LowCardinality(String), String),
           event_ts DateTime64(3),
+          public Bool DEFAULT false,
+          bookmarked Bool DEFAULT false,
           is_deleted UInt8 DEFAULT 0
         ) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
         ORDER BY (project_id, trace_id)

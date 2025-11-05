@@ -143,19 +143,22 @@ CREATE TABLE IF NOT EXISTS events
       user_id String,
       session_id String,
 
+      bookmarked Bool DEFAULT false,
+      public Bool DEFAULT false,
+
       level LowCardinality(String),
       status_message String, -- Threat '' and null the same for search
       completion_start_time Nullable(DateTime64(6)),
 
       -- Prompt
-      prompt_id Nullable(String),
-      prompt_name Nullable(String),
-      prompt_version Nullable(String),
+      prompt_id String,
+      prompt_name String,
+      prompt_version Nullable(UInt16),
 
       -- Model
-      model_id Nullable(String),
-      provided_model_name Nullable(String),
-      model_parameters Nullable(String),
+      model_id String,
+      provided_model_name String,
+      model_parameters JSON,
 
       -- Usage
       provided_usage_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
@@ -184,7 +187,7 @@ CREATE TABLE IF NOT EXISTS events
 
       -- TODO Metadata: Decide for approach
       -- -- Approach 1: Use plain JSON type with default config
-      metadata JSON(max_dynamic_paths=1024, max_dynamic_types=32),
+      metadata JSON,
       -- -- Approach 2: Uses ideas from https://www.uber.com/en-DE/blog/logging/
       -- --             but uses Dynamic type to make this a single list
       metadata_names Array(String),
@@ -199,6 +202,7 @@ CREATE TABLE IF NOT EXISTS events
       -- -- metadata_bool_names Array(String),
       -- -- metadata_bool_values Array(UInt8),
       -- -- Approach 4: Apply German strings here, where we store a prefix and for longer values a pointer.
+      -- TODO CHANGE MATERIALIZATION (e.g. rename metadata_prefixes to metadata_values)
       metadata_keys Array(String) MATERIALIZED metadata_names,
       metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_values),
       metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_values),
@@ -206,6 +210,19 @@ CREATE TABLE IF NOT EXISTS events
         arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values)),
         arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values))
       ),
+
+      -- Experiment properties
+      experiment_id String,
+      experiment_name String,
+      experiment_metadata_names Array(String),
+      experiment_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
+      experiment_description String,
+      experiment_dataset_id String,
+      experiment_item_id String,
+      experiment_item_expected_output String,
+      experiment_item_metadata_names Array(String),
+      experiment_item_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
+      experiment_item_root_span_id String,
 
       -- Source metadata (Instrumentation)
       source LowCardinality(String),
@@ -219,7 +236,7 @@ CREATE TABLE IF NOT EXISTS events
 
       -- Generic props
       blob_storage_file_path String,
-      event_raw String,
+      -- event_raw String,
       event_bytes UInt64,
       created_at DateTime64(6) DEFAULT now(),
       updated_at DateTime64(6) DEFAULT now(),
@@ -253,8 +270,12 @@ CREATE TABLE IF NOT EXISTS events
   SETTINGS
     index_granularity = 8192,
     index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
-    min_rows_for_wide_part = 0,
-    min_bytes_for_wide_part = 0;
+    enable_block_number_column = 1,
+    enable_block_offset_column = 1
+    -- Try without, but re-enable if recent row performance is bad
+    -- min_rows_for_wide_part = 0,
+    -- min_bytes_for_wide_part = 0
+  ;
 
 EOF
 
@@ -269,52 +290,48 @@ clickhouse client \
   --multiquery <<EOF
   TRUNCATE events;
   INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
-                      environment, version, user_id, session_id, level, status_message, completion_start_time, prompt_id,
+                      environment, version, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details, total_cost, input,
                       output, metadata, metadata_names, metadata_values,
                       -- metadata_string_names, metadata_string_values, metadata_number_names, metadata_number_values, metadata_bool_names, metadata_bool_values,
                       source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
-                      telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_raw, event_bytes,
+                      telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_bytes,
                       created_at, updated_at, event_ts, is_deleted)
-  SELECT project_id,
-         trace_id,
-         id                                                                            AS span_id,
-         parent_observation_id                                                         AS parent_span_id,
-         start_time,
-         end_time,
-         name,
-         type,
-         environment,
-         version,
-         concat('u_', floor(randUniform(1, 100)))                                      AS user_id,
-         concat('s_', floor(randUniform(1, 100)))                                      AS session_id,
-         level,
-         ifNull(status_message, '')                                                    AS status_message,
-         completion_start_time,
-         prompt_id,
-         prompt_name,
-         CAST(prompt_version, 'Nullable(String)'),
-         internal_model_id                                                             AS model_id,
-         provided_model_name,
-         model_parameters,
-         provided_usage_details,
-         usage_details,
-         provided_cost_details,
-         cost_details,
-         ifNull(total_cost, 0)                                                         AS total_cost,
-         ifNull(input, '')                                                             AS input,
-         ifNull(output, '')                                                            AS output,
-         CAST(metadata, 'JSON'),
-         mapKeys(metadata)                                                             AS \`metadata.names\`,
-         mapValues(metadata)                                                           AS \`metadata.values\`,
-         -- mapKeys(metadata)                                                             AS metadata_string_names,
-         -- mapValues(metadata)                                                           AS metadata_string_values,
-         -- []                                                                            AS metadata_number_names,
-         -- []                                                                            AS metadata_number_values,
-         -- []                                                                            AS metadata_bool_names,
-         -- []                                                                            AS metadata_bool_values,
-         multiIf(mapContains(metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+  SELECT o.project_id,
+         o.trace_id,
+         o.id                                                                            AS span_id,
+         o.parent_observation_id                                                         AS parent_span_id,
+         o.start_time,
+         o.end_time,
+         o.name,
+         o.type,
+         o.environment,
+         o.version,
+         t.user_id                                                                      AS user_id,
+         t.session_id                                                                   AS session_id,
+         t.public                                                                      AS public,
+         t.bookmarked AND (o.parent_observation_id IS NULL OR o.parent_observation_id == '') AS bookmarked,
+         o.level,
+         ifNull(o.status_message, '')                                                   AS status_message,
+         o.completion_start_time,
+         o.prompt_id,
+         o.prompt_name,
+         CAST(o.prompt_version, 'Nullable(String)'),
+         o.internal_model_id                                                             AS model_id,
+         o.provided_model_name,
+         o.model_parameters,
+         o.provided_usage_details,
+         o.usage_details,
+         o.provided_cost_details,
+         o.cost_details,
+         ifNull(o.total_cost, 0)                                                         AS total_cost,
+         ifNull(o.input, '')                                                             AS input,
+         ifNull(o.output, '')                                                            AS output,
+         CAST(o.metadata, 'JSON'),
+         mapKeys(o.metadata)                                                             AS \`metadata.names\`,
+         mapValues(o.metadata)                                                           AS \`metadata.values\`,
+         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
          NULL                                                                          AS service_name,
          NULL                                                                          AS service_version,
          NULL                                                                          AS scope_name,
@@ -323,14 +340,14 @@ clickhouse client \
          NULL                                                                          AS telemetry_sdk_name,
          NULL                                                                          AS telemetry_sdk_version,
          ''                                                                            AS blob_storage_file_path,
-         ''                                                                            AS event_raw,
          0                                                                             AS event_bytes,
-         created_at,
-         updated_at,
-         event_ts,
-         is_deleted
-  FROM observations
-  WHERE (is_deleted = 0);
+         o.created_at,
+         o.updated_at,
+         o.event_ts,
+         o.is_deleted
+  FROM observations o
+  LEFT JOIN traces t ON o.trace_id = t.id
+  WHERE (o.is_deleted = 0);
 EOF
 
 echo "Development tables created successfully (or already exist)."

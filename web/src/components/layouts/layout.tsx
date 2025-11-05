@@ -72,6 +72,7 @@ const pathsWithoutNavigation: string[] = [
 const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",
+  "/auth/sso-initiate",
   "/auth/error",
   "/auth/hf-spaces",
 ];
@@ -306,11 +307,13 @@ export default function Layout(props: PropsWithChildren) {
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <SidebarProvider>
-        <main className="h-dvh w-full bg-primary-foreground p-3 px-4 py-4 sm:px-6 lg:px-8">
-          {props.children}
-        </main>
-      </SidebarProvider>
+      <div className="bg-primary-foreground">
+        <SidebarProvider>
+          <main className="min-h-dvh w-full p-3 px-4 py-4 sm:px-6 lg:px-8">
+            {props.children}
+          </main>
+        </SidebarProvider>
+      </div>
     );
   return (
     <>

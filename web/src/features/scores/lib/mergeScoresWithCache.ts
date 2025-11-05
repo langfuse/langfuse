@@ -164,6 +164,7 @@ export function mergeAnnotationScoresWithCache(
         traceId: cached.traceId ?? null,
         observationId: cached.observationId ?? null,
         sessionId: cached.sessionId ?? null,
+        timestamp: cached.timestamp ?? null,
       });
     }
   });

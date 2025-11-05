@@ -1919,4 +1919,80 @@ describe("batch export test suite", () => {
     const traceIds = rows.map((row) => row.traceId).sort();
     expect(traceIds).toEqual([traces[0].id, traces[1].id].sort());
   });
+
+  it("should apply Trace ID filter when exporting traces (bug fix test)", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create multiple traces
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: "target-trace-id-123",
+        name: "target-trace",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: "other-trace-id-456",
+        name: "other-trace",
+        timestamp: new Date("2024-01-02").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: "another-trace-id-789",
+        name: "another-trace",
+        timestamp: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Export traces with Trace ID filter (using both uiTableName and uiTableId)
+    const streamById = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "Trace ID", // This should work but currently gets ignored
+          value: ["target-trace-id-123"],
+        },
+      ],
+    });
+
+    const rowsById: any[] = [];
+    for await (const chunk of streamById) {
+      rowsById.push(chunk);
+    }
+
+    // Should return only the filtered trace
+    expect(rowsById).toHaveLength(1);
+    expect(rowsById[0].id).toBe("target-trace-id-123");
+    expect(rowsById[0].name).toBe("target-trace");
+
+    // Also test with the column ID variant
+    const streamByIdVariant = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "traceId", // Using uiTableId variant
+          value: ["other-trace-id-456"],
+        },
+      ],
+    });
+
+    const rowsByIdVariant: any[] = [];
+    for await (const chunk of streamByIdVariant) {
+      rowsByIdVariant.push(chunk);
+    }
+
+    // Should return only the filtered trace
+    expect(rowsByIdVariant).toHaveLength(1);
+    expect(rowsByIdVariant[0].id).toBe("other-trace-id-456");
+    expect(rowsByIdVariant[0].name).toBe("other-trace");
+  });
 });
