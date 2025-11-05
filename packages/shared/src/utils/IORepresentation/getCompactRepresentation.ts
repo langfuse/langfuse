@@ -5,11 +5,13 @@ import { getCompactRepresentationChatML } from "./chatML/getCompactRepresentatio
  * Strategy: Try ChatML extraction first, fall back to truncation.
  *
  * @param io - The input or output data to compact
- * @param maxChars - Maximum characters to return when truncating (default: 1000)
  * @returns Compact representation or null if no data
  */
-export function getCompactRepresentation(io: unknown, maxChars: number = 1000) {
-  if (io === undefined || io === null) return null;
+export function getCompactRepresentation(io: unknown): {
+  success: boolean;
+  data: string | any[] | Record<string, any> | null;
+} {
+  if (io === undefined || io === null) return { success: false, data: null };
 
   // Parse stringified JSON if needed
   let parsedIO = io;
@@ -24,15 +26,8 @@ export function getCompactRepresentation(io: unknown, maxChars: number = 1000) {
   // Try ChatML compact representation extraction first
   const chatMLCompact = getCompactRepresentationChatML(parsedIO);
   if (chatMLCompact.success) {
-    return chatMLCompact.data;
+    return { success: true, data: chatMLCompact.data };
   }
 
-  // Fallback: truncate original input
-  try {
-    const ioStr = typeof io === "string" ? io : JSON.stringify(io);
-    return ioStr.substring(0, maxChars);
-  } catch (error) {
-    // If stringification fails, return original input
-    return io;
-  }
+  return { success: false, data: null };
 }

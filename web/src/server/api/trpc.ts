@@ -399,6 +399,16 @@ const inputTraceSchema = z.object({
   truncated: z.boolean().default(false),
 });
 
+const resolveIO = (io: unknown, truncated: boolean) => {
+  if (truncated) {
+    const compact = getCompactRepresentation(io);
+    if (compact.success) {
+      return compact.data;
+    }
+  }
+  return io;
+};
+
 const enforceTraceAccess = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   const actualInput = await opts.getRawInput();
@@ -439,12 +449,8 @@ const enforceTraceAccess = t.middleware(async (opts) => {
 
   const trace = {
     ...clickhouseTrace,
-    input: result.data.truncated
-      ? getCompactRepresentation(clickhouseTrace.input)
-      : clickhouseTrace.input,
-    output: result.data.truncated
-      ? getCompactRepresentation(clickhouseTrace.output)
-      : clickhouseTrace.output,
+    input: resolveIO(clickhouseTrace.input, result.data.truncated),
+    output: resolveIO(clickhouseTrace.output, result.data.truncated),
   };
 
   const sessionProject = ctx.session?.user?.organizations
