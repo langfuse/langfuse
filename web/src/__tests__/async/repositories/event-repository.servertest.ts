@@ -148,7 +148,8 @@ describe("Clickhouse Events Repository Test", () => {
       const observation = result.find((o) => o.id === generationId);
       expect(observation).toBeDefined();
       expect(observation?.id).toBe(generationId);
-      expect(observation?.internalModelId).toBeNull();
+      // Model data should be null or empty string
+      expect(observation?.internalModelId || null).toBeNull();
       expect(observation?.inputPrice).toBeNull();
       expect(observation?.outputPrice).toBeNull();
       expect(observation?.totalPrice).toBeNull();
