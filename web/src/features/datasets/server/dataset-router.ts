@@ -57,6 +57,7 @@ import {
   validateDatasetItemField,
   validateDatasetItemData,
   DatasetJSONSchema,
+  type DatasetMutationResult,
 } from "@langfuse/shared/src/server";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
@@ -919,33 +920,55 @@ export const datasetRouter = createTRPCRouter({
         expectedOutputSchema: DatasetJSONSchema.nullish(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<DatasetMutationResult> => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
 
-      const dataset = await upsertDataset({
-        input: {
-          name: input.name,
-          description: input.description ?? undefined,
-          metadata: resolveMetadata(input.metadata),
-          inputSchema: input.inputSchema ?? undefined,
-          expectedOutputSchema: input.expectedOutputSchema ?? undefined,
-        },
-        projectId: input.projectId,
-      });
+      try {
+        const dataset = await upsertDataset({
+          input: {
+            name: input.name,
+            description: input.description ?? undefined,
+            metadata: resolveMetadata(input.metadata),
+            inputSchema: input.inputSchema,
+            expectedOutputSchema: input.expectedOutputSchema,
+          },
+          projectId: input.projectId,
+        });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "dataset",
-        resourceId: dataset.id,
-        action: "create",
-        after: dataset,
-      });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "dataset",
+          resourceId: dataset.id,
+          action: "create",
+          after: dataset,
+        });
 
-      return dataset;
+        return { success: true, dataset };
+      } catch (error) {
+        // Check if this is a validation error from upsertDataset
+        if (
+          error instanceof Error &&
+          error.message.includes("Schema validation failed")
+        ) {
+          // Parse validation errors from message
+          const match = error.message.match(/Details: (\[.*\])$/);
+          if (match) {
+            try {
+              const validationErrors = JSON.parse(match[1]);
+              return { success: false, validationErrors };
+            } catch (e) {
+              // Failed to parse, rethrow original error
+              throw error;
+            }
+          }
+        }
+        // Re-throw non-validation errors
+        throw error;
+      }
     }),
   updateDataset: protectedProjectProcedure
     .input(
@@ -959,7 +982,7 @@ export const datasetRouter = createTRPCRouter({
         expectedOutputSchema: DatasetJSONSchema.nullish(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<DatasetMutationResult> => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -1007,10 +1030,11 @@ export const datasetRouter = createTRPCRouter({
             });
 
             if (!validationResult.isValid) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: `Schema validation failed for ${validationResult.errors.length === 10 ? "more than 10" : validationResult.errors.length} item(s). Details: ${JSON.stringify(validationResult.errors)}`,
-              });
+              // Return validation errors instead of throwing
+              return {
+                success: false,
+                validationErrors: validationResult.errors,
+              };
             }
           }
         }
@@ -1022,8 +1046,8 @@ export const datasetRouter = createTRPCRouter({
           name: input.name ?? undefined,
           description: input.description ?? undefined,
           metadata: resolveMetadata(input.metadata),
-          inputSchema: input.inputSchema ?? undefined,
-          expectedOutputSchema: input.expectedOutputSchema ?? undefined,
+          inputSchema: input.inputSchema,
+          expectedOutputSchema: input.expectedOutputSchema,
         },
         projectId: input.projectId,
       });
@@ -1036,7 +1060,7 @@ export const datasetRouter = createTRPCRouter({
         after: dataset,
       });
 
-      return dataset;
+      return { success: true, dataset };
     }),
   deleteDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
@@ -1195,8 +1219,8 @@ export const datasetRouter = createTRPCRouter({
           name: duplicateDatasetName(counter),
           description: dataset.description ?? undefined,
           metadata: dataset.metadata ?? undefined,
-          inputSchema: dataset.inputSchema ?? undefined,
-          expectedOutputSchema: dataset.expectedOutputSchema ?? undefined,
+          inputSchema: dataset.inputSchema,
+          expectedOutputSchema: dataset.expectedOutputSchema,
         },
         projectId: input.projectId,
       });

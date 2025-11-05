@@ -10,36 +10,19 @@ import { Switch } from "@/src/components/ui/switch";
 import { JSONSchemaEditor } from "@/src/components/JSONSchemaEditor";
 
 type DatasetSchemaInputProps = {
-  /**
-   * Label for the form field
-   */
   label: string;
-  /**
-   * Optional description shown below the label
-   */
   description?: string;
-  /**
-   * Current schema value (JSON string)
-   */
   value: string;
-  /**
-   * Callback when schema changes
-   */
+  initialValue?: string;
   onChange: (value: string) => void;
-  /**
-   * Whether the input is disabled
-   */
   disabled?: boolean;
 };
 
-/**
- * Dataset-specific JSON Schema input with enable/disable toggle
- * Wraps the reusable JSONSchemaEditor component
- */
 export const DatasetSchemaInput: React.FC<DatasetSchemaInputProps> = ({
   label,
   description,
   value,
+  initialValue,
   onChange,
   disabled = false,
 }) => {
@@ -54,15 +37,17 @@ export const DatasetSchemaInput: React.FC<DatasetSchemaInputProps> = ({
     } else if (value === "") {
       // Set default empty schema when enabling
       onChange(
-        JSON.stringify(
-          {
-            type: "object",
-            properties: {},
-            required: [],
-          },
-          null,
-          2,
-        ),
+        initialValue ||
+          JSON.stringify(
+            {
+              type: "object",
+              properties: {},
+              required: [],
+              additionalProperties: false,
+            },
+            null,
+            2,
+          ),
       );
     }
   };

@@ -1,6 +1,8 @@
 import { z } from "zod/v4";
 import { jsonSchemaNullable } from "../../utils/zod";
 import { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
+import type { Dataset } from "@prisma/client";
+import type { ValidationError } from "./schemaValidation";
 
 /**
  * Schema for validating JSON Schema objects
@@ -14,3 +16,17 @@ export const DatasetJSONSchema = z
   });
 
 export type DatasetJSONSchema = z.infer<typeof DatasetJSONSchema>;
+
+/**
+ * Result type for dataset mutations that may fail validation
+ * Using discriminated union for type-safe error handling
+ */
+export type DatasetMutationResult =
+  | {
+      success: true;
+      dataset: Dataset;
+    }
+  | {
+      success: false;
+      validationErrors: ValidationError[];
+    };

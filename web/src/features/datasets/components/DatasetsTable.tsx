@@ -243,6 +243,10 @@ export function DatasetsTable(props: { projectId: string }) {
                   datasetName={row.original.folderPath}
                   datasetDescription={row.getValue("description") ?? undefined}
                   datasetMetadata={row.getValue("metadata") ?? undefined}
+                  datasetInputSchema={row.original.inputSchema ?? undefined}
+                  datasetExpectedOutputSchema={
+                    row.original.expectedOutputSchema ?? undefined
+                  }
                 />
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

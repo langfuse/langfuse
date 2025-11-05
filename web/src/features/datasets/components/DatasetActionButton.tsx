@@ -39,6 +39,8 @@ interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
   datasetName: string;
   datasetDescription?: string;
   datasetMetadata?: Prisma.JsonValue;
+  datasetInputSchema?: Prisma.JsonValue;
+  datasetExpectedOutputSchema?: Prisma.JsonValue;
   icon?: boolean;
 }
 
@@ -179,6 +181,8 @@ export const DatasetActionButton = forwardRef<
             datasetName={props.datasetName}
             datasetDescription={props.datasetDescription}
             datasetMetadata={props.datasetMetadata}
+            datasetInputSchema={props.datasetInputSchema}
+            datasetExpectedOutputSchema={props.datasetExpectedOutputSchema}
           />
         )}
       </DialogContent>
