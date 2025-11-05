@@ -9,7 +9,10 @@ import {
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import { convertClickhouseTracesListToDomain } from "./traces_converters";
+import {
+  convertClickhouseToDomain,
+  convertClickhouseTracesListToDomain,
+} from "./traces_converters";
 import {
   DateTimeFilter,
   FilterList,
@@ -35,8 +38,8 @@ import {
 } from "../tableMappings/mapEventsTable";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
-import { queryClickhouse } from "./clickhouse";
-import { ObservationRecordReadType } from "./definitions";
+import { commandClickhouse, queryClickhouse } from "./clickhouse";
+import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
 import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
@@ -447,6 +450,125 @@ const getObservationByIdFromEventsTableInternal = async ({
   });
 };
 
+/**
+ * Get a trace by ID from the events table.
+ * Compatible with getTraceById but queries the events table instead.
+ */
+export const getTraceByIdFromEventsTable = async ({
+  traceId,
+  projectId,
+  timestamp,
+  fromTimestamp,
+  renderingProps = DEFAULT_RENDERING_PROPS,
+  clickhouseFeatureTag = "tracing",
+  preferredClickhouseService,
+}: {
+  traceId: string;
+  projectId: string;
+  timestamp?: Date;
+  fromTimestamp?: Date;
+  renderingProps?: RenderingProps;
+  clickhouseFeatureTag?: string;
+  preferredClickhouseService?: PreferredClickhouseService;
+}) => {
+  // Build traces CTE using eventsTracesAggregation
+  const tracesBuilder = eventsTracesAggregation({
+    projectId,
+    traceIds: [traceId],
+    startTimeFrom: fromTimestamp
+      ? convertDateToClickhouseDateTime(fromTimestamp)
+      : null,
+  });
+
+  // Build the final query
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTEFromBuilder("traces", tracesBuilder)
+    .from("traces", "t")
+    .selectColumns(
+      "t.id",
+      "t.name",
+      "t.user_id",
+      "t.metadata",
+      "t.release",
+      "t.version",
+      "t.project_id",
+      "t.environment",
+      "t.public",
+      "t.bookmarked",
+      "t.tags",
+      "t.session_id",
+      "t.timestamp",
+      "t.created_at",
+      "t.updated_at",
+    )
+    .select("0 as is_deleted");
+
+  if (timestamp) {
+    queryBuilder.whereRaw(
+      `toDate(t.timestamp) = toDate({timestamp: DateTime64(3)})`,
+      {
+        timestamp: convertDateToClickhouseDateTime(timestamp),
+      },
+    );
+  }
+
+  // Handle input/output with truncation
+  if (renderingProps.truncated) {
+    queryBuilder
+      .select(
+        `leftUTF8(t.input_truncated, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`,
+      )
+      .select(
+        `leftUTF8(t.output_truncated, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output`,
+      );
+  } else {
+    queryBuilder.selectColumns("t.input", "t.output");
+  }
+
+  queryBuilder.orderBy("ORDER BY t.timestamp DESC").limit(1);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const records = await measureAndReturn({
+    operationName: "getTraceByIdFromEventsTable",
+    projectId,
+    input: {
+      params,
+      tags: {
+        feature: clickhouseFeatureTag,
+        type: "trace",
+        kind: "byId",
+        projectId,
+        operation_name: "getTraceByIdFromEventsTable",
+      },
+    },
+    fn: async (input) => {
+      return queryClickhouse<TraceRecordReadType>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService,
+      });
+    },
+  });
+
+  const res = records.map((record) =>
+    convertClickhouseToDomain(record, renderingProps),
+  );
+
+  res.forEach((trace) => {
+    recordDistribution(
+      "langfuse.query_by_id_age",
+      new Date().getTime() - trace.timestamp.getTime(),
+      {
+        table: "events",
+      },
+    );
+  });
+
+  return res.shift();
+};
+
 type PublicApiObservationsQuery = {
   projectId: string;
   page: number;
@@ -792,4 +914,56 @@ export const getTracesCountFromEventsTableForPublicApi = async (
     select: "count",
   });
   return Number(countResult[0].count);
+};
+
+const updateableEventKeys = ["bookmarked", "public"] as const;
+
+type UpdateableEventFields = {
+  // eslint-disable-next-line no-unused-vars
+  [K in (typeof updateableEventKeys)[number]]?: boolean;
+};
+
+/**
+ * Update events in ClickHouse based on selector and updates provided.
+ * Selector can filter by spanIds, traceIds, and rootOnly flag.
+ * Both spanIds / traceIds are used only when defined and non-empty.
+ * E.g. `{ traceIds: [...] }` will only filter by traceIds, while
+ * `{ spanIds: [...], traceIds: [...] }` will filter by both.
+ */
+export const updateEvents = async (
+  projectId: string,
+  selector: { spanIds?: string[]; traceIds?: string[]; rootOnly?: boolean },
+  updates: UpdateableEventFields,
+): Promise<void> => {
+  const setClauses: string[] = [];
+  for (const key of updateableEventKeys) {
+    if (updates[key] !== undefined) {
+      setClauses.push(`${key} = {${key}: Bool}`);
+    }
+  }
+  if (setClauses.length === 0) {
+    // Nothing to update
+    return;
+  }
+  const query = `
+  	UPDATE events SET ${setClauses.join(", ")}
+    WHERE project_id = {projectId: String}
+    ${selector.spanIds ? "AND span_id IN ({spanIds: Array(String)})" : ""}
+		${selector.traceIds ? "AND trace_id IN ({traceIds: Array(String)})" : ""}
+		${selector.rootOnly === true ? "AND parent_span_id = ''" : ""}
+	`;
+  return await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      spanIds: selector.spanIds ?? [],
+      traceIds: selector.traceIds ?? [],
+      ...updates,
+    },
+    tags: {
+      type: "event",
+      kind: "update",
+      projectId,
+    },
+  });
 };

@@ -609,6 +609,10 @@ export const eventRecordBaseSchema = z.object({
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
 
+  // User updatable flags
+  bookmarked: z.boolean().optional(),
+  public: z.boolean().optional(),
+
   level: z.string(),
   status_message: z.string().nullish(),
 
