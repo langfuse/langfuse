@@ -24,6 +24,7 @@ import {
 } from "@/src/features/scores/components/analytics";
 import { SingleScoreAnalytics } from "@/src/features/scores/components/analytics/SingleScoreAnalytics";
 import { TwoScoreAnalytics } from "@/src/features/scores/components/analytics/TwoScoreAnalytics";
+import { ComparisonStatistics } from "@/src/features/scores/components/analytics/ComparisonStatistics";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
@@ -580,87 +581,20 @@ export default function ScoresAnalyticsPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Row 2, Col 2: Summary Statistics */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Summary Statistics</CardTitle>
-                      <CardDescription>
-                        {parsedScore1.dataType === "NUMERIC"
-                          ? "Correlation and error metrics for matched score pairs"
-                          : "Summary metrics for matched score pairs"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {parsedScore1.dataType === "NUMERIC" &&
-                      analyticsData.statistics ? (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              Pearson Correlation
-                            </p>
-                            <p className="text-2xl font-semibold">
-                              {analyticsData.statistics.pearsonCorrelation?.toFixed(
-                                3,
-                              ) ?? "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              Mean Absolute Error
-                            </p>
-                            <p className="text-2xl font-semibold">
-                              {analyticsData.statistics.mae?.toFixed(3) ??
-                                "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              RMSE
-                            </p>
-                            <p className="text-2xl font-semibold">
-                              {analyticsData.statistics.rmse?.toFixed(3) ??
-                                "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              Matched Pairs
-                            </p>
-                            <p className="text-2xl font-semibold">
-                              {analyticsData.statistics.matchedCount.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              Score 1 Total
-                            </p>
-                            <p className="text-2xl font-semibold">
-                              {analyticsData.counts.score1Total.toLocaleString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              Score 2 Total
-                            </p>
-                            <p className="text-2xl font-semibold">
-                              {analyticsData.counts.score2Total.toLocaleString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">
-                              Matched Pairs
-                            </p>
-                            <p className="text-2xl font-semibold">
-                              {analyticsData.counts.matchedCount.toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                  {/* Row 2, Col 2: Comparison Statistics */}
+                  <ComparisonStatistics
+                    score1Name={parsedScore1.name}
+                    score2Name={parsedScore2?.name ?? null}
+                    dataType={
+                      parsedScore1.dataType as
+                        | "NUMERIC"
+                        | "CATEGORICAL"
+                        | "BOOLEAN"
+                    }
+                    statistics={analyticsData.statistics}
+                    confusionMatrix={analyticsData.confusionMatrix}
+                    hasTwoScores={true}
+                  />
                 </div>
               </>
             ) : null}

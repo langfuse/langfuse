@@ -1273,6 +1273,7 @@ export const scoresRouter = createTRPCRouter({
               stddevPop(value1) as std1,
               stddevPop(value2) as std2,
               corr(value1, value2) as pearson_correlation,
+              rankCorr(value1, value2) as spearman_correlation,
               avg(abs(value1 - value2)) as mae,
               sqrt(avg(pow(value1 - value2, 2))) as rmse
             FROM matched_scores
@@ -1369,7 +1370,7 @@ export const scoresRouter = createTRPCRouter({
           CAST(NULL AS Nullable(String)) as col9,
           CAST(NULL AS Nullable(String)) as col10,
           CAST(NULL AS Nullable(Float64)) as col11,
-          CAST(NULL AS Nullable(Float64)) as col12
+          spearman_correlation as col12
         FROM stats
 
         UNION ALL
@@ -1769,6 +1770,7 @@ export const scoresRouter = createTRPCRouter({
               pearsonCorrelation: statsRow.col6 ?? null,
               mae: statsRow.col7 ?? null,
               rmse: statsRow.col8 ?? null,
+              spearmanCorrelation: statsRow.col12 ?? null,
             }
           : null,
         timeSeries: timeseriesRows.map((row) => ({
