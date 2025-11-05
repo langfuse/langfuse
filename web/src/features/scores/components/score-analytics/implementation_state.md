@@ -195,14 +195,38 @@ Create smart cards that consume context and handle own rendering logic.
 
 ---
 
-## ⏳ Phase 6: Build Dashboard Layout (TODO)
+## ✅ Phase 6: Build Dashboard Layout (COMPLETE)
 
-### Pending Tasks:
-- [ ] `ScoreAnalyticsDashboard.tsx`
-- [ ] `ScoreAnalyticsHeader.tsx`
+### Files Created:
+1. ✅ `/components/ScoreAnalyticsDashboard.tsx` (30 lines) - COMPLETE
+2. ✅ `/components/ScoreAnalyticsHeader.tsx` (105 lines) - COMPLETE
+
+### Completed Tasks:
+- [x] **ScoreAnalyticsDashboard.tsx** (~30 min)
+  - [x] Simple 2x2 responsive grid layout
+  - [x] Imports and renders all 4 card components
+  - [x] Mobile: 1 column stack
+  - [x] Desktop: 2 columns
+  - [x] TypeScript: ✅ No errors
+  - [x] Linter: ✅ No errors
+
+- [x] **ScoreAnalyticsHeader.tsx** (~1 hour)
+  - [x] Score 1 selector (required)
+  - [x] Score 2 selector (optional, auto-disabled if no score1)
+  - [x] Object type filter (all/trace/session/observation/run)
+  - [x] Time range picker
+  - [x] Uses useAnalyticsUrlState hook for URL sync
+  - [x] Auto-clears score2 when score1 cleared
+  - [x] Responsive layout (stacked mobile, flex desktop)
+  - [x] TypeScript: ✅ No errors
+  - [x] Linter: ✅ No errors
 
 ### Goal:
 Create layout components for 2x2 grid and header controls.
+
+**Progress**: 100% (2/2 components complete)
+**Time Spent**: ~1.5 hours
+**Status**: ✅ Complete
 
 ---
 
@@ -258,34 +282,42 @@ Reduce page from 668 lines to ~200 lines.
 | 3. Hook | ✅ Complete | 100% | 0 hours |
 | 4. Provider | ✅ Complete | 100% | 0 hours |
 | 5. Cards | ✅ Complete | 100% | 0 hours |
-| 6. Dashboard | 🚧 Next | 0% | 2 hours |
-| 7. Page | ⏳ Todo | 0% | 3 hours |
+| 6. Dashboard | ✅ Complete | 100% | 0 hours |
+| 7. Page | 🚧 Next | 0% | 3 hours |
 | 8. Testing | ⏳ Todo | 0% | 8 hours |
 | 9. Swap | ⏳ Todo | 0% | 1 hour |
 | 10. Cleanup | ⏳ Todo | 0% | 2 hours |
 
-**Total Progress**: ~50% (5/10 phases complete)
-**Time Remaining**: ~16 hours (~2-3 days)
+**Total Progress**: ~60% (6/10 phases complete)
+**Time Remaining**: ~14 hours (~2 days)
 
 ---
 
 ## Next Action
 
-Continue with **Phase 6: Build Dashboard Layout**
+Continue with **Phase 7: Wire New Page**
 
-Build 2 layout components in `/components/`:
+Wire `analytics-v2.tsx` to use the new components:
 
-1. **ScoreAnalyticsDashboard.tsx** (~1 hour)
-   - 2x2 responsive grid layout for cards
-   - Wraps 4 card components
-   - Simple, minimal layout logic
+1. **Replace skeleton with real components**
+   - Import ScoreAnalyticsProvider
+   - Import ScoreAnalyticsHeader
+   - Import ScoreAnalyticsDashboard
+   - Remove placeholder cards
 
-2. **ScoreAnalyticsHeader.tsx** (~1 hour)
-   - Score selectors (score1, score2)
-   - Date range picker
-   - Time interval selector
-   - Filter controls
+2. **Setup data flow**
+   - Fetch scores with getScoreIdentifiers
+   - Parse selected scores
+   - Calculate compatible score2 data types
+   - Calculate absolute time range and interval
+   - Wrap dashboard in Provider
 
-**Approach**: Build incrementally, test each component before moving to next
+3. **Add empty/loading/error states**
+   - No scores available
+   - No selection made
+   - Loading analytics data
+   - Error loading data
 
-**Estimated Time**: 2 hours
+**Goal**: Reduce page from 180 lines (skeleton) to ~250 lines (fully wired)
+
+**Estimated Time**: 3 hours
