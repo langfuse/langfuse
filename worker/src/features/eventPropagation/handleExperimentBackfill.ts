@@ -189,7 +189,7 @@ export async function getRelevantObservations(
     FROM observations o
     WHERE o.project_id IN {projectIds: Array(String)}
       AND o.trace_id IN {traceIds: Array(String)}
-      AND o.start_time >= {minTime: DateTime64(3)}
+      AND o.start_time >= {minTime: DateTime64(3)} - interval 4 hour
     ORDER BY o.event_ts DESC
     LIMIT 1 BY o.project_id, o.id
   `;
@@ -254,7 +254,7 @@ export async function getRelevantTraces(
     FROM traces t
     WHERE t.project_id IN {projectIds: Array(String)}
       AND t.id IN {traceIds: Array(String)}
-      AND t.timestamp >= {minTime: DateTime64(3)}
+      AND t.timestamp >= {minTime: DateTime64(3)} - interval 4 hour
     ORDER BY t.event_ts DESC
     LIMIT 1 BY t.project_id, t.id
   `;
