@@ -278,6 +278,89 @@ export default function ScoresAnalyticsPage() {
     return null;
   }, [analyticsData, parsedScore1]);
 
+  // Calculate mode metrics for categorical/boolean scores
+  const modeMetrics = useMemo(() => {
+    if (!analyticsData || !parsedScore1) return null;
+
+    const isNumeric = parsedScore1.dataType === "NUMERIC";
+    if (isNumeric) return null; // Mode only for categorical/boolean
+
+    // Check if both scores are the same (name + source)
+    const isSameScore =
+      parsedScore1 &&
+      parsedScore2 &&
+      parsedScore1.name === parsedScore2.name &&
+      parsedScore1.source === parsedScore2.source;
+
+    // Helper function to calculate mode from distribution and time series
+    const calculateModeFromData = (
+      distribution: Array<{ binIndex: number; count: number }>,
+      timeSeries: Array<{ category: string; count: number }>,
+      totalCount: number,
+    ) => {
+      if (distribution.length === 0 || timeSeries.length === 0) return null;
+
+      // Extract unique categories from time series and sort alphabetically
+      // This matches the ORDER BY in the ClickHouse query
+      const uniqueCategories = Array.from(
+        new Set(timeSeries.map((item) => item.category)),
+      ).sort();
+
+      // Create binIndex → category name mapping
+      const binIndexToCategory = new Map(
+        uniqueCategories.map((cat, idx) => [idx, cat]),
+      );
+
+      // Find bin with max count (mode)
+      const maxCount = Math.max(...distribution.map((d) => d.count));
+      const modeItem = distribution.find((d) => d.count === maxCount);
+
+      if (!modeItem) return null;
+
+      const categoryName = binIndexToCategory.get(modeItem.binIndex);
+      if (!categoryName) return null;
+
+      const modePercentage = (modeItem.count / totalCount) * 100;
+
+      return {
+        mode: {
+          category: categoryName,
+          count: modeItem.count,
+        },
+        modePercentage,
+      };
+    };
+
+    // Calculate for Score 1
+    const score1Metrics = calculateModeFromData(
+      analyticsData.distribution1,
+      analyticsData.timeSeriesCategorical1,
+      analyticsData.counts.score1Total,
+    );
+
+    // Calculate for Score 2
+    // If same score is selected twice, reuse Score 1 data
+    // (backend skips duplicate query, so distribution2/timeSeries2 may be empty)
+    const score2Metrics = isSameScore
+      ? calculateModeFromData(
+          analyticsData.distribution1, // Use Score 1 data
+          analyticsData.timeSeriesCategorical1, // Use Score 1 data
+          analyticsData.counts.score2Total, // Use Score 2 total (may equal Score 1 total)
+        )
+      : calculateModeFromData(
+          analyticsData.distribution2,
+          analyticsData.timeSeriesCategorical2,
+          analyticsData.counts.score2Total,
+        );
+
+    return {
+      score1Mode: score1Metrics?.mode ?? null,
+      score1ModePercentage: score1Metrics?.modePercentage ?? null,
+      score2Mode: score2Metrics?.mode ?? null,
+      score2ModePercentage: score2Metrics?.modePercentage ?? null,
+    };
+  }, [analyticsData, parsedScore1, parsedScore2]);
+
   const hasError = !!scoresError;
   const hasNoScores = !scoresLoading && !hasError && scoreOptions.length === 0;
   const hasNoSelection = !urlState.score1;
@@ -433,7 +516,9 @@ export default function ScoresAnalyticsPage() {
                   {/* Statistics Card */}
                   <ComparisonStatistics
                     score1Name={parsedScore1.name}
+                    score1Source={parsedScore1.source}
                     score2Name={parsedScore2?.name ?? null}
+                    score2Source={parsedScore2?.source ?? null}
                     dataType={
                       parsedScore1.dataType as
                         | "NUMERIC"
@@ -444,6 +529,14 @@ export default function ScoresAnalyticsPage() {
                     statistics={analyticsData.statistics}
                     confusionMatrix={analyticsData.confusionMatrix}
                     hasTwoScores={hasTwoScores}
+                    score1Mode={modeMetrics?.score1Mode ?? null}
+                    score1ModePercentage={
+                      modeMetrics?.score1ModePercentage ?? null
+                    }
+                    score2Mode={modeMetrics?.score2Mode ?? null}
+                    score2ModePercentage={
+                      modeMetrics?.score2ModePercentage ?? null
+                    }
                   />
 
                   {/* Timeline Card */}
