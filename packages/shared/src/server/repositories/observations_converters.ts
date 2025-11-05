@@ -54,10 +54,6 @@ export const convertObservation = (
     );
   }
 
-  logger.info(
-    `Converting observation record ${JSON.stringify(record)} for project ${record.project_id}`,
-  );
-
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
