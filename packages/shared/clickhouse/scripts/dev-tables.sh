@@ -298,6 +298,8 @@ clickhouse client \
          o.type,
          o.environment,
          o.version,
+         t.release as release,
+         t.tags as tags,
          t.user_id                                                                      AS user_id,
          t.session_id                                                                   AS session_id,
          t.public                                                                      AS public,
