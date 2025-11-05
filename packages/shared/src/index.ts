@@ -79,3 +79,6 @@ export * from "./interfaces/search";
 
 // domain
 export * from "./domain";
+
+// chatML
+export * from "./utils/chatML/types";
