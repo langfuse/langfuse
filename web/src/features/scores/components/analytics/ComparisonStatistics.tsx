@@ -69,103 +69,154 @@ export function ComparisonStatistics({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Comparison Statistics</CardTitle>
+        <CardTitle>Statistics</CardTitle>
         <CardDescription>
           {hasTwoScores
-            ? dataType === "NUMERIC"
-              ? `Correlation and error metrics for ${score1Name} vs ${score2Name}`
-              : `Agreement metrics for ${score1Name} vs ${score2Name}`
-            : "Select a second score to view comparison statistics"}
+            ? `${score1Name} vs ${score2Name}`
+            : "Select a second score for comparison analysis"}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {dataType === "NUMERIC" ? (
-          // Numeric score metrics
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Section 1: Data Context - Always first */}
+        <div className="mb-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <MetricCard
-              label="Pearson Correlation"
+              label={`${score1Name} Total`}
               value={
-                statistics?.pearsonCorrelation?.toFixed(3) ??
-                (isPlaceholder ? "--" : "N/A")
+                statistics?.matchedCount !== undefined && !isPlaceholder
+                  ? statistics.matchedCount.toLocaleString()
+                  : "--"
               }
-              interpretation={
-                statistics?.pearsonCorrelation !== null &&
-                statistics?.pearsonCorrelation !== undefined
-                  ? interpretPearsonCorrelation(statistics.pearsonCorrelation)
-                  : undefined
-              }
-              helpText="Measures linear relationship strength between scores. Range: -1 (perfect negative) to +1 (perfect positive)"
+              helpText={`Total number of ${score1Name} scores`}
               isPlaceholder={isPlaceholder}
+              isContext
             />
             <MetricCard
-              label="Spearman Correlation"
+              label={`${score2Name ?? "Score 2"} Total`}
               value={
-                statistics?.spearmanCorrelation?.toFixed(3) ??
-                (isPlaceholder ? "--" : "N/A")
+                statistics?.matchedCount !== undefined && !isPlaceholder
+                  ? statistics.matchedCount.toLocaleString()
+                  : "--"
               }
-              interpretation={
-                statistics?.spearmanCorrelation !== null &&
-                statistics?.spearmanCorrelation !== undefined
-                  ? interpretSpearmanCorrelation(statistics.spearmanCorrelation)
-                  : undefined
-              }
-              helpText="Measures monotonic relationship strength (rank-based). Less sensitive to outliers than Pearson"
+              helpText={`Total number of ${score2Name ?? "Score 2"} scores`}
               isPlaceholder={isPlaceholder}
+              isContext
             />
             <MetricCard
-              label="Mean Absolute Error"
+              label="Matched Pairs"
               value={
-                statistics?.mae?.toFixed(3) ?? (isPlaceholder ? "--" : "N/A")
+                statistics?.matchedCount !== undefined && !isPlaceholder
+                  ? statistics.matchedCount.toLocaleString()
+                  : "--"
               }
-              interpretation={
-                statistics?.mae !== null && statistics?.mae !== undefined
-                  ? interpretMAE(statistics.mae)
-                  : undefined
-              }
-              helpText="Average absolute difference between score pairs. Lower is better"
+              helpText="Number of observations with both scores present"
               isPlaceholder={isPlaceholder}
-            />
-            <MetricCard
-              label="RMSE"
-              value={
-                statistics?.rmse?.toFixed(3) ?? (isPlaceholder ? "--" : "N/A")
-              }
-              interpretation={
-                statistics?.rmse !== null && statistics?.rmse !== undefined
-                  ? interpretRMSE(statistics.rmse)
-                  : undefined
-              }
-              helpText="Root mean squared error. Penalizes large errors more than MAE"
-              isPlaceholder={isPlaceholder}
-            />
-            <MetricCard
-              label={`${score1Name} Mean ± Std`}
-              value={
-                statistics?.mean1 !== null && statistics?.mean1 !== undefined
-                  ? `${statistics.mean1.toFixed(2)} ± ${(statistics.std1 ?? 0).toFixed(2)}`
-                  : isPlaceholder
-                    ? "--"
-                    : "N/A"
-              }
-              helpText={`Average and standard deviation for ${score1Name}`}
-              isPlaceholder={isPlaceholder}
-            />
-            <MetricCard
-              label={`${score2Name ?? "Score 2"} Mean ± Std`}
-              value={
-                statistics?.mean2 !== null && statistics?.mean2 !== undefined
-                  ? `${statistics.mean2.toFixed(2)} ± ${(statistics.std2 ?? 0).toFixed(2)}`
-                  : isPlaceholder
-                    ? "--"
-                    : "N/A"
-              }
-              helpText={`Average and standard deviation for ${score2Name ?? "Score 2"}`}
-              isPlaceholder={isPlaceholder}
+              isContext
             />
           </div>
+        </div>
+
+        {/* Section 2: Statistical Analysis */}
+        {dataType === "NUMERIC" ? (
+          // Numeric score metrics - organized by type
+          <div className="space-y-4">
+            {/* Correlation Metrics */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <MetricCard
+                label="Pearson Correlation"
+                value={
+                  statistics?.pearsonCorrelation?.toFixed(3) ??
+                  (isPlaceholder ? "--" : "N/A")
+                }
+                interpretation={
+                  statistics?.pearsonCorrelation !== null &&
+                  statistics?.pearsonCorrelation !== undefined
+                    ? interpretPearsonCorrelation(statistics.pearsonCorrelation)
+                    : undefined
+                }
+                helpText="Measures linear relationship strength between scores. Range: -1 (perfect negative) to +1 (perfect positive)"
+                isPlaceholder={isPlaceholder}
+              />
+              <MetricCard
+                label="Spearman Correlation"
+                value={
+                  statistics?.spearmanCorrelation?.toFixed(3) ??
+                  (isPlaceholder ? "--" : "N/A")
+                }
+                interpretation={
+                  statistics?.spearmanCorrelation !== null &&
+                  statistics?.spearmanCorrelation !== undefined
+                    ? interpretSpearmanCorrelation(
+                        statistics.spearmanCorrelation,
+                      )
+                    : undefined
+                }
+                helpText="Measures monotonic relationship strength (rank-based). Less sensitive to outliers than Pearson"
+                isPlaceholder={isPlaceholder}
+              />
+            </div>
+
+            {/* Error Metrics */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <MetricCard
+                label="Mean Absolute Error"
+                value={
+                  statistics?.mae?.toFixed(3) ?? (isPlaceholder ? "--" : "N/A")
+                }
+                interpretation={
+                  statistics?.mae !== null && statistics?.mae !== undefined
+                    ? interpretMAE(statistics.mae)
+                    : undefined
+                }
+                helpText="Average absolute difference between score pairs. Lower is better"
+                isPlaceholder={isPlaceholder}
+              />
+              <MetricCard
+                label="RMSE"
+                value={
+                  statistics?.rmse?.toFixed(3) ?? (isPlaceholder ? "--" : "N/A")
+                }
+                interpretation={
+                  statistics?.rmse !== null && statistics?.rmse !== undefined
+                    ? interpretRMSE(statistics.rmse)
+                    : undefined
+                }
+                helpText="Root mean squared error. Penalizes large errors more than MAE"
+                isPlaceholder={isPlaceholder}
+              />
+            </div>
+
+            {/* Descriptive Statistics */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <MetricCard
+                label={`${score1Name} Mean ± Std`}
+                value={
+                  statistics?.mean1 !== null && statistics?.mean1 !== undefined
+                    ? `${statistics.mean1.toFixed(2)} ± ${(statistics.std1 ?? 0).toFixed(2)}`
+                    : isPlaceholder
+                      ? "--"
+                      : "N/A"
+                }
+                helpText={`Average and standard deviation for ${score1Name}`}
+                isPlaceholder={isPlaceholder}
+              />
+              <MetricCard
+                label={`${score2Name ?? "Score 2"} Mean ± Std`}
+                value={
+                  statistics?.mean2 !== null && statistics?.mean2 !== undefined
+                    ? `${statistics.mean2.toFixed(2)} ± ${(statistics.std2 ?? 0).toFixed(2)}`
+                    : isPlaceholder
+                      ? "--"
+                      : "N/A"
+                }
+                helpText={`Average and standard deviation for ${score2Name ?? "Score 2"}`}
+                isPlaceholder={isPlaceholder}
+              />
+            </div>
+          </div>
         ) : (
-          // Categorical/Boolean score metrics
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          // Categorical/Boolean score metrics - agreement metrics only
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <MetricCard
               label="Cohen's Kappa"
               value={cohensKappa?.toFixed(3) ?? (isPlaceholder ? "--" : "N/A")}
@@ -201,36 +252,6 @@ export function ComparisonStatistics({
                   : undefined
               }
               helpText="Percentage of cases where both scores agree"
-              isPlaceholder={isPlaceholder}
-            />
-            <MetricCard
-              label={`${score1Name} Total`}
-              value={
-                statistics?.matchedCount !== undefined && !isPlaceholder
-                  ? statistics.matchedCount.toLocaleString()
-                  : "--"
-              }
-              helpText={`Total number of ${score1Name} scores`}
-              isPlaceholder={isPlaceholder}
-            />
-            <MetricCard
-              label={`${score2Name ?? "Score 2"} Total`}
-              value={
-                statistics?.matchedCount !== undefined && !isPlaceholder
-                  ? statistics.matchedCount.toLocaleString()
-                  : "--"
-              }
-              helpText={`Total number of ${score2Name ?? "Score 2"} scores`}
-              isPlaceholder={isPlaceholder}
-            />
-            <MetricCard
-              label="Matched Pairs"
-              value={
-                statistics?.matchedCount !== undefined && !isPlaceholder
-                  ? statistics.matchedCount.toLocaleString()
-                  : "--"
-              }
-              helpText="Number of observations with both scores present"
               isPlaceholder={isPlaceholder}
             />
           </div>

@@ -745,6 +745,14 @@ export const scoresRouter = createTRPCRouter({
       // as well as individual-bound distributions. The frontend chooses which
       // to display based on the selected tab.
 
+      // Detect if comparing identical scores (same name, source, and dataType)
+      // When true, certain statistical calculations (like Spearman correlation)
+      // will be skipped since they're undefined for identical datasets
+      const isIdenticalScores =
+        score1.name === score2.name &&
+        score1.source === score2.source &&
+        score1.dataType === score2.dataType;
+
       /**
        * Normalize interval to single-unit for ClickHouse aggregation.
        *
@@ -1273,7 +1281,15 @@ export const scoresRouter = createTRPCRouter({
               stddevPop(value1) as std1,
               stddevPop(value2) as std2,
               corr(value1, value2) as pearson_correlation,
-              rankCorr(value1, value2) as spearman_correlation,
+              -- Spearman correlation requires different samples with variance
+              -- Skip calculation if comparing identical scores or if no variance exists
+              ${
+                isIdenticalScores
+                  ? "NULL as spearman_correlation,"
+                  : `if(stddevPop(value1) > 0 AND stddevPop(value2) > 0,
+                 rankCorr(value1, value2),
+                 NULL) as spearman_correlation,`
+              }
               avg(abs(value1 - value2)) as mae,
               sqrt(avg(pow(value1 - value2, 2))) as rmse
             FROM matched_scores

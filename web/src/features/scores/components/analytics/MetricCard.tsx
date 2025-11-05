@@ -14,6 +14,7 @@ interface MetricCardProps {
   interpretation?: InterpretationResult;
   helpText?: string;
   isPlaceholder?: boolean;
+  isContext?: boolean; // Data context metrics (counts) vs analysis metrics (statistics)
 }
 
 /**
@@ -27,7 +28,10 @@ export function MetricCard({
   interpretation,
   helpText,
   isPlaceholder = false,
+  isContext = false,
 }: MetricCardProps) {
+  // Handle N/A values - check if value is string "N/A"
+  const isNA = value === "N/A";
   const displayValue = isPlaceholder ? "--" : value;
 
   // Map interpretation color to badge variant
@@ -70,9 +74,22 @@ export function MetricCard({
 
       {/* Value with interpretation badge */}
       <div className="flex items-baseline gap-2">
-        <p className="text-2xl font-semibold">{displayValue}</p>
+        {isNA ? (
+          // Muted styling for N/A values - use em dash and reduced opacity
+          <span className="text-base text-muted-foreground/50">—</span>
+        ) : (
+          // Normal styling for actual values
+          <p
+            className={
+              isContext ? "text-2xl font-semibold" : "text-2xl font-semibold"
+            }
+          >
+            {displayValue}
+          </p>
+        )}
         {interpretation &&
           !isPlaceholder &&
+          !isNA &&
           interpretation.strength !== "N/A" && (
             <TooltipProvider>
               <Tooltip>
