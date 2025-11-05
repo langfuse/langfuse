@@ -80,5 +80,5 @@ export * from "./interfaces/search";
 // domain
 export * from "./domain";
 
-// chatML
-export * from "./utils/chatML/types";
+// io representation
+export * from "./utils/IORepresentation";

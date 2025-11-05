@@ -94,7 +94,7 @@ import {
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
-import { BaseError } from "@langfuse/shared";
+import { BaseError, getCompactRepresentation } from "@langfuse/shared";
 
 setUpSuperjson();
 
@@ -417,25 +417,35 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const timestamp = result.data.timestamp;
   const fromTimestamp = result.data.fromTimestamp;
 
-  const trace = await getTraceById({
+  const clickhouseTrace = await getTraceById({
     traceId,
     projectId,
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
     renderingProps: {
-      truncated: result.data.truncated,
+      truncated: false, // IOTC: do not truncate IO in CH, parse for preview at application level instead
       shouldJsonParse: false, // we do not want to parse the input/output for tRPC
     },
     clickhouseFeatureTag: "tracing-trpc",
   });
 
-  if (!trace) {
+  if (!clickhouseTrace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Trace not found",
     });
   }
+
+  const trace = {
+    ...clickhouseTrace,
+    input: result.data.truncated
+      ? getCompactRepresentation(clickhouseTrace.input)
+      : clickhouseTrace.input,
+    output: result.data.truncated
+      ? getCompactRepresentation(clickhouseTrace.output)
+      : clickhouseTrace.output,
+  };
 
   const sessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
@@ -477,7 +487,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
         projectRole:
           ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
       },
-      trace: trace, // pass the trace to the next middleware so we do not need to fetch it again
+      trace, // pass the trace to the next middleware so we do not need to fetch it again
     },
   });
 });
