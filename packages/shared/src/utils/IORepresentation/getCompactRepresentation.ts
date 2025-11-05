@@ -19,11 +19,11 @@ export function getCompactRepresentation(io: unknown): {
     try {
       parsedIO = JSON.parse(io);
     } catch {
-      // Not valid JSON - will truncate the string as-is
+      // Continue with original input
     }
   }
 
-  // Try ChatML compact representation extraction first
+  // Try ChatML compact representation extraction
   const chatMLCompact = getCompactRepresentationChatML(parsedIO);
   if (chatMLCompact.success) {
     return { success: true, data: chatMLCompact.data };
