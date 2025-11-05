@@ -18,24 +18,14 @@ import {
 } from "@/src/utils/date-range-utils";
 import { BarChart3, Loader2 } from "lucide-react";
 import { api } from "@/src/utils/api";
-import {
-  Heatmap,
-  HeatmapLegend,
-} from "@/src/features/scores/components/analytics";
 import { SingleScoreAnalytics } from "@/src/features/scores/components/analytics/SingleScoreAnalytics";
 import { TwoScoreAnalytics } from "@/src/features/scores/components/analytics/TwoScoreAnalytics";
 import { ComparisonStatistics } from "@/src/features/scores/components/analytics/ComparisonStatistics";
+import { HeatmapCard } from "@/src/features/scores/components/analytics/HeatmapCard";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
 } from "@/src/features/scores/lib/heatmap-utils";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 
 export default function ScoresAnalyticsPage() {
   const router = useRouter();
@@ -288,6 +278,89 @@ export default function ScoresAnalyticsPage() {
     return null;
   }, [analyticsData, parsedScore1]);
 
+  // Calculate mode metrics for categorical/boolean scores
+  const modeMetrics = useMemo(() => {
+    if (!analyticsData || !parsedScore1) return null;
+
+    const isNumeric = parsedScore1.dataType === "NUMERIC";
+    if (isNumeric) return null; // Mode only for categorical/boolean
+
+    // Check if both scores are the same (name + source)
+    const isSameScore =
+      parsedScore1 &&
+      parsedScore2 &&
+      parsedScore1.name === parsedScore2.name &&
+      parsedScore1.source === parsedScore2.source;
+
+    // Helper function to calculate mode from distribution and time series
+    const calculateModeFromData = (
+      distribution: Array<{ binIndex: number; count: number }>,
+      timeSeries: Array<{ category: string; count: number }>,
+      totalCount: number,
+    ) => {
+      if (distribution.length === 0 || timeSeries.length === 0) return null;
+
+      // Extract unique categories from time series and sort alphabetically
+      // This matches the ORDER BY in the ClickHouse query
+      const uniqueCategories = Array.from(
+        new Set(timeSeries.map((item) => item.category)),
+      ).sort();
+
+      // Create binIndex → category name mapping
+      const binIndexToCategory = new Map(
+        uniqueCategories.map((cat, idx) => [idx, cat]),
+      );
+
+      // Find bin with max count (mode)
+      const maxCount = Math.max(...distribution.map((d) => d.count));
+      const modeItem = distribution.find((d) => d.count === maxCount);
+
+      if (!modeItem) return null;
+
+      const categoryName = binIndexToCategory.get(modeItem.binIndex);
+      if (!categoryName) return null;
+
+      const modePercentage = (modeItem.count / totalCount) * 100;
+
+      return {
+        mode: {
+          category: categoryName,
+          count: modeItem.count,
+        },
+        modePercentage,
+      };
+    };
+
+    // Calculate for Score 1
+    const score1Metrics = calculateModeFromData(
+      analyticsData.distribution1,
+      analyticsData.timeSeriesCategorical1,
+      analyticsData.counts.score1Total,
+    );
+
+    // Calculate for Score 2
+    // If same score is selected twice, reuse Score 1 data
+    // (backend skips duplicate query, so distribution2/timeSeries2 may be empty)
+    const score2Metrics = isSameScore
+      ? calculateModeFromData(
+          analyticsData.distribution1, // Use Score 1 data
+          analyticsData.timeSeriesCategorical1, // Use Score 1 data
+          analyticsData.counts.score2Total, // Use Score 2 total (may equal Score 1 total)
+        )
+      : calculateModeFromData(
+          analyticsData.distribution2,
+          analyticsData.timeSeriesCategorical2,
+          analyticsData.counts.score2Total,
+        );
+
+    return {
+      score1Mode: score1Metrics?.mode ?? null,
+      score1ModePercentage: score1Metrics?.modePercentage ?? null,
+      score2Mode: score2Metrics?.mode ?? null,
+      score2ModePercentage: score2Metrics?.modePercentage ?? null,
+    };
+  }, [analyticsData, parsedScore1, parsedScore2]);
+
   const hasError = !!scoresError;
   const hasNoScores = !scoresLoading && !hasError && scoreOptions.length === 0;
   const hasNoSelection = !urlState.score1;
@@ -390,21 +463,31 @@ export default function ScoresAnalyticsPage() {
             </div>
           </div>
         ) : hasNoSelection ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
-            <BarChart3 className="h-12 w-12 text-muted-foreground" />
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">Select a Score</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Choose at least one score from the dropdowns above to view
-                analytics.
+          <div className="flex flex-col items-center justify-center gap-6 rounded-lg border bg-muted/20 p-12">
+            <BarChart3 className="h-16 w-16 text-muted-foreground" />
+            <div className="max-w-2xl text-center">
+              <h3 className="text-2xl font-semibold">Select a Score</h3>
+              <p className="mt-3 text-base text-muted-foreground">
+                Choose one or two scores from the dropdowns above to view
+                analytics
               </p>
-              <p className="mt-4 text-sm text-muted-foreground">
-                <strong>Single score:</strong> View distribution and trends over
-                time
-                <br />
-                <strong>Two scores:</strong> Compare scores with heatmaps and
-                statistical analysis
-              </p>
+              <div className="mt-6 space-y-3 text-sm text-muted-foreground">
+                <div className="rounded-lg bg-background/50 p-4">
+                  <p className="mb-1 font-semibold text-foreground">
+                    Single score selected:
+                  </p>
+                  <p>View distribution and trends over time</p>
+                </div>
+                <div className="rounded-lg bg-background/50 p-4">
+                  <p className="mb-1 font-semibold text-foreground">
+                    Two scores selected:
+                  </p>
+                  <p>
+                    Compare scores with heatmaps, correlation analysis, and
+                    statistical metrics
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         ) : analyticsLoading ? (
@@ -426,165 +509,16 @@ export default function ScoresAnalyticsPage() {
           </div>
         ) : analyticsData ? (
           <div className="max-h-full space-y-6 overflow-y-scroll p-4 pt-6">
-            {!hasTwoScores && parsedScore1 ? (
-              // Single score analytics
-              <SingleScoreAnalytics
-                scoreId={urlState.score1!}
-                scoreName={parsedScore1.name}
-                dataType={
-                  parsedScore1.dataType as "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
-                }
-                source={parsedScore1.source}
-                analytics={analyticsData}
-                interval={interval}
-                nBins={10}
-                fromDate={absoluteTimeRange!.from}
-                toDate={absoluteTimeRange!.to}
-              />
-            ) : hasTwoScores && parsedScore1 && parsedScore2 ? (
-              // Two score comparison
+            {parsedScore1 ? (
               <>
-                {/* Distribution and Time Series Charts */}
-                <TwoScoreAnalytics
-                  score1={{
-                    ...parsedScore1,
-                    dataType: parsedScore1.dataType as
-                      | "NUMERIC"
-                      | "CATEGORICAL"
-                      | "BOOLEAN",
-                  }}
-                  score2={{
-                    ...parsedScore2,
-                    dataType: parsedScore2.dataType as
-                      | "NUMERIC"
-                      | "CATEGORICAL"
-                      | "BOOLEAN",
-                  }}
-                  analytics={analyticsData}
-                  interval={interval}
-                  nBins={10}
-                  fromDate={absoluteTimeRange!.from}
-                  toDate={absoluteTimeRange!.to}
-                />
-
-                {/* 2x2 Grid Layout for Heatmap and Stats */}
+                {/* Row 1: Statistics + Timeline */}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  {/* Row 2, Col 1: Heatmap / Confusion Matrix */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>
-                        {parsedScore1.dataType === "NUMERIC"
-                          ? "Score Comparison Heatmap"
-                          : "Confusion Matrix"}
-                      </CardTitle>
-                      <CardDescription>
-                        {parsedScore1.dataType === "NUMERIC"
-                          ? "Distribution of matched score pairs showing correlation patterns"
-                          : "Agreement matrix between categorical scores"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col items-center gap-4">
-                      {heatmapData && heatmapData.cells.length > 0 ? (
-                        <>
-                          <Heatmap
-                            data={heatmapData.cells}
-                            rows={
-                              parsedScore1.dataType === "NUMERIC"
-                                ? 10
-                                : "rows" in heatmapData
-                                  ? (heatmapData.rows as number)
-                                  : 0
-                            }
-                            cols={
-                              parsedScore1.dataType === "NUMERIC"
-                                ? 10
-                                : "cols" in heatmapData
-                                  ? (heatmapData.cols as number)
-                                  : 0
-                            }
-                            rowLabels={heatmapData.rowLabels}
-                            colLabels={heatmapData.colLabels}
-                            xAxisLabel={`${parsedScore2.name} (${parsedScore2.source})`}
-                            yAxisLabel={`${parsedScore1.name} (${parsedScore1.source})`}
-                            renderTooltip={(cell) => (
-                              <div className="space-y-1">
-                                <p className="font-semibold">
-                                  Count: {cell.value}
-                                </p>
-                                {parsedScore1.dataType === "NUMERIC" ? (
-                                  <>
-                                    <p className="text-xs">
-                                      {parsedScore1.name}:{" "}
-                                      {(
-                                        cell.metadata?.yRange as [
-                                          number,
-                                          number,
-                                        ]
-                                      )?.[0]?.toFixed(2)}{" "}
-                                      -{" "}
-                                      {(
-                                        cell.metadata?.yRange as [
-                                          number,
-                                          number,
-                                        ]
-                                      )?.[1]?.toFixed(2)}
-                                    </p>
-                                    <p className="text-xs">
-                                      {parsedScore2.name}:{" "}
-                                      {(
-                                        cell.metadata?.xRange as [
-                                          number,
-                                          number,
-                                        ]
-                                      )?.[0]?.toFixed(2)}{" "}
-                                      -{" "}
-                                      {(
-                                        cell.metadata?.xRange as [
-                                          number,
-                                          number,
-                                        ]
-                                      )?.[1]?.toFixed(2)}
-                                    </p>
-                                  </>
-                                ) : (
-                                  <p className="text-xs">
-                                    {cell.metadata?.rowCategory as string} →{" "}
-                                    {cell.metadata?.colCategory as string}
-                                  </p>
-                                )}
-                                <p className="text-xs">
-                                  {(
-                                    (cell.metadata?.percentage as number) ?? 0
-                                  ).toFixed(1)}
-                                  % of matched pairs
-                                </p>
-                              </div>
-                            )}
-                          />
-                          <HeatmapLegend
-                            min={0}
-                            max={Math.max(
-                              ...heatmapData.cells.map((c) => c.value),
-                            )}
-                            variant="accent"
-                            title="Count"
-                            orientation="horizontal"
-                            steps={10}
-                          />
-                        </>
-                      ) : (
-                        <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-                          No matched score pairs found for the selected time
-                          range
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Row 2, Col 2: Comparison Statistics */}
+                  {/* Statistics Card */}
                   <ComparisonStatistics
                     score1Name={parsedScore1.name}
+                    score1Source={parsedScore1.source}
                     score2Name={parsedScore2?.name ?? null}
+                    score2Source={parsedScore2?.source ?? null}
                     dataType={
                       parsedScore1.dataType as
                         | "NUMERIC"
@@ -594,7 +528,122 @@ export default function ScoresAnalyticsPage() {
                     counts={analyticsData.counts}
                     statistics={analyticsData.statistics}
                     confusionMatrix={analyticsData.confusionMatrix}
-                    hasTwoScores={true}
+                    hasTwoScores={hasTwoScores}
+                    score1Mode={modeMetrics?.score1Mode ?? null}
+                    score1ModePercentage={
+                      modeMetrics?.score1ModePercentage ?? null
+                    }
+                    score2Mode={modeMetrics?.score2Mode ?? null}
+                    score2ModePercentage={
+                      modeMetrics?.score2ModePercentage ?? null
+                    }
+                  />
+
+                  {/* Timeline Card */}
+                  {hasTwoScores && parsedScore2 ? (
+                    <TwoScoreAnalytics
+                      score1={{
+                        ...parsedScore1,
+                        dataType: parsedScore1.dataType as
+                          | "NUMERIC"
+                          | "CATEGORICAL"
+                          | "BOOLEAN",
+                      }}
+                      score2={{
+                        ...parsedScore2,
+                        dataType: parsedScore2.dataType as
+                          | "NUMERIC"
+                          | "CATEGORICAL"
+                          | "BOOLEAN",
+                      }}
+                      analytics={analyticsData}
+                      interval={interval}
+                      nBins={10}
+                      fromDate={absoluteTimeRange!.from}
+                      toDate={absoluteTimeRange!.to}
+                      cardToRender="timeline"
+                    />
+                  ) : (
+                    <SingleScoreAnalytics
+                      scoreId={urlState.score1!}
+                      scoreName={parsedScore1.name}
+                      dataType={
+                        parsedScore1.dataType as
+                          | "NUMERIC"
+                          | "CATEGORICAL"
+                          | "BOOLEAN"
+                      }
+                      source={parsedScore1.source}
+                      analytics={analyticsData}
+                      interval={interval}
+                      nBins={10}
+                      fromDate={absoluteTimeRange!.from}
+                      toDate={absoluteTimeRange!.to}
+                      cardToRender="timeline"
+                    />
+                  )}
+                </div>
+
+                {/* Row 2: Distribution + Heatmap */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {/* Distribution Card */}
+                  {hasTwoScores && parsedScore2 ? (
+                    <TwoScoreAnalytics
+                      score1={{
+                        ...parsedScore1,
+                        dataType: parsedScore1.dataType as
+                          | "NUMERIC"
+                          | "CATEGORICAL"
+                          | "BOOLEAN",
+                      }}
+                      score2={{
+                        ...parsedScore2,
+                        dataType: parsedScore2.dataType as
+                          | "NUMERIC"
+                          | "CATEGORICAL"
+                          | "BOOLEAN",
+                      }}
+                      analytics={analyticsData}
+                      interval={interval}
+                      nBins={10}
+                      fromDate={absoluteTimeRange!.from}
+                      toDate={absoluteTimeRange!.to}
+                      cardToRender="distribution"
+                    />
+                  ) : (
+                    <SingleScoreAnalytics
+                      scoreId={urlState.score1!}
+                      scoreName={parsedScore1.name}
+                      dataType={
+                        parsedScore1.dataType as
+                          | "NUMERIC"
+                          | "CATEGORICAL"
+                          | "BOOLEAN"
+                      }
+                      source={parsedScore1.source}
+                      analytics={analyticsData}
+                      interval={interval}
+                      nBins={10}
+                      fromDate={absoluteTimeRange!.from}
+                      toDate={absoluteTimeRange!.to}
+                      cardToRender="distribution"
+                    />
+                  )}
+
+                  {/* Heatmap Card */}
+                  <HeatmapCard
+                    hasTwoScores={hasTwoScores}
+                    dataType={
+                      parsedScore1.dataType as
+                        | "NUMERIC"
+                        | "CATEGORICAL"
+                        | "BOOLEAN"
+                    }
+                    heatmapData={heatmapData}
+                    score1Name={parsedScore1.name}
+                    score2Name={parsedScore2?.name ?? null}
+                    score1Source={parsedScore1.source}
+                    score2Source={parsedScore2?.source ?? null}
                   />
                 </div>
               </>

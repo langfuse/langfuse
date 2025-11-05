@@ -25,6 +25,7 @@ interface SingleScoreAnalyticsProps {
   nBins: number;
   fromDate: Date;
   toDate: Date;
+  cardToRender?: "distribution" | "timeline" | "both";
 }
 
 export function SingleScoreAnalytics({
@@ -36,6 +37,7 @@ export function SingleScoreAnalytics({
   nBins,
   fromDate,
   toDate,
+  cardToRender = "both",
 }: SingleScoreAnalyticsProps) {
   // Extract categories for categorical/boolean scores
   const categories = useMemo(() => {
@@ -164,83 +166,72 @@ export function SingleScoreAnalytics({
     return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
   }, [timeSeries]);
 
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* Distribution Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Distribution</CardTitle>
-          <CardDescription>
-            {totalCount.toLocaleString()} observations
-            {dataType === "NUMERIC" && statistics.average !== null && (
-              <> | Average: {statistics.average.toFixed(3)}</>
-            )}
-            {(dataType === "CATEGORICAL" || dataType === "BOOLEAN") &&
-              categories &&
-              statistics.mode !== null && (
-                <>
-                  {" "}
-                  | Most frequent: {categories[statistics.mode]} (
-                  {statistics.modeCount.toLocaleString()})
-                </>
-              )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[300px]">
-          {distribution.length > 0 ? (
-            <ScoreDistributionChart
-              distribution1={distribution}
-              dataType={dataType}
-              score1Name={scoreName}
-              binLabels={binLabels}
-              categories={categories}
-            />
-          ) : (
-            <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
-              No distribution data available for the selected time range
-            </div>
+  // Distribution Card
+  const distributionCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Distribution</CardTitle>
+        <CardDescription>
+          {totalCount.toLocaleString()} observations
+          {dataType === "NUMERIC" && statistics.average !== null && (
+            <> | Average: {statistics.average.toFixed(3)}</>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Time Series Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Trend Over Time</CardTitle>
-          <CardDescription>
-            {dataType === "NUMERIC" ? (
+          {(dataType === "CATEGORICAL" || dataType === "BOOLEAN") &&
+            categories &&
+            statistics.mode !== null && (
               <>
-                Average by {interval.count} {interval.unit}
-                {interval.count > 1 && "s"}
-                {overallAverage > 0 && (
-                  <> | Overall avg: {overallAverage.toFixed(3)}</>
-                )}
-              </>
-            ) : (
-              <>
-                Count by {interval.count} {interval.unit}
-                {interval.count > 1 && "s"}
+                {" "}
+                | Most frequent: {categories[statistics.mode]} (
+                {statistics.modeCount.toLocaleString()})
               </>
             )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[300px]">
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="h-[300px]">
+        {distribution.length > 0 ? (
+          <ScoreDistributionChart
+            distribution1={distribution}
+            dataType={dataType}
+            score1Name={scoreName}
+            binLabels={binLabels}
+            categories={categories}
+          />
+        ) : (
+          <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+            No distribution data available for the selected time range
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // Time Series Card
+  const timelineCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Trend Over Time</CardTitle>
+        <CardDescription>
           {dataType === "NUMERIC" ? (
-            timeSeries.length > 0 ? (
-              <ScoreTimeSeriesChart
-                data={timeSeries}
-                dataType={dataType}
-                score1Name={`${scoreName} (${source})`}
-                interval={interval}
-              />
-            ) : (
-              <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
-                No time series data available for the selected time range
-              </div>
-            )
-          ) : categoricalTimeSeries.length > 0 ? (
+            <>
+              Average by {interval.count} {interval.unit}
+              {interval.count > 1 && "s"}
+              {overallAverage > 0 && (
+                <> | Overall avg: {overallAverage.toFixed(3)}</>
+              )}
+            </>
+          ) : (
+            <>
+              Count by {interval.count} {interval.unit}
+              {interval.count > 1 && "s"}
+            </>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="h-[300px]">
+        {dataType === "NUMERIC" ? (
+          timeSeries.length > 0 ? (
             <ScoreTimeSeriesChart
-              data={categoricalTimeSeries}
+              data={timeSeries}
               dataType={dataType}
               score1Name={`${scoreName} (${source})`}
               interval={interval}
@@ -249,9 +240,35 @@ export function SingleScoreAnalytics({
             <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
               No time series data available for the selected time range
             </div>
-          )}
-        </CardContent>
-      </Card>
+          )
+        ) : categoricalTimeSeries.length > 0 ? (
+          <ScoreTimeSeriesChart
+            data={categoricalTimeSeries}
+            dataType={dataType}
+            score1Name={`${scoreName} (${source})`}
+            interval={interval}
+          />
+        ) : (
+          <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+            No time series data available for the selected time range
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // Return based on cardToRender prop
+  if (cardToRender === "distribution") {
+    return distributionCard;
+  } else if (cardToRender === "timeline") {
+    return timelineCard;
+  }
+
+  // Default: render both cards in grid
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {distributionCard}
+      {timelineCard}
     </div>
   );
 }

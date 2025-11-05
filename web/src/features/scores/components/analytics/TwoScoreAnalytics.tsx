@@ -32,6 +32,7 @@ interface TwoScoreAnalyticsProps {
   nBins: number;
   fromDate: Date;
   toDate: Date;
+  cardToRender?: "distribution" | "timeline" | "both";
 }
 
 type ChartTab = "score1" | "score2" | "both" | "matched";
@@ -44,6 +45,7 @@ export function TwoScoreAnalytics({
   nBins,
   fromDate,
   toDate,
+  cardToRender = "both",
 }: TwoScoreAnalyticsProps) {
   // Local state for per-chart tab selection
   const [distributionTab, setDistributionTab] = useState<ChartTab>("both");
@@ -234,7 +236,6 @@ export function TwoScoreAnalytics({
       data = data.map((item) => ({
         ...item,
         avg2: item.avg1, // Use score1 data for score2
-        count2: item.count1,
       }));
     }
 
@@ -457,8 +458,6 @@ export function TwoScoreAnalytics({
           ...item,
           avg1: item.avg2,
           avg2: item.avg1,
-          count1: item.count2,
-          count2: item.count1,
         }));
       }
       // Normal mode: Swap avg1 and avg2 when showing only score2
@@ -471,173 +470,151 @@ export function TwoScoreAnalytics({
     return timeSeries;
   }, [timeSeries, timeSeriesTab, isSingleScore, isBothNumeric]);
 
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* Distribution Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>Distribution Comparison</CardTitle>
-              <CardDescription>
-                {score1.name} ({distDisplayData.count1.toLocaleString()}) vs{" "}
-                {score2.name} ({distDisplayData.count2.toLocaleString()})
-                {distDisplayData.isMatched && " - Matched scores only"}
-              </CardDescription>
-            </div>
-            <Tabs
-              value={distributionTab}
-              onValueChange={(value) => setDistributionTab(value as ChartTab)}
-            >
-              <TabsList>
-                <TabsTrigger value="score1">{score1.name}</TabsTrigger>
-                <TabsTrigger value="score2">{score2.name}</TabsTrigger>
-                <TabsTrigger value="both">Both</TabsTrigger>
-                <TabsTrigger value="matched">Matched</TabsTrigger>
-              </TabsList>
-            </Tabs>
+  // Distribution Card
+  const distributionCard = (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Distribution Comparison</CardTitle>
+            <CardDescription>
+              {score1.name} ({distDisplayData.count1.toLocaleString()}) vs{" "}
+              {score2.name} ({distDisplayData.count2.toLocaleString()})
+              {distDisplayData.isMatched && " - Matched scores only"}
+            </CardDescription>
           </div>
-        </CardHeader>
-        <CardContent className="h-[300px]">
-          {distribution1.length > 0 ? (
-            !categories && score1.dataType === "CATEGORICAL" ? (
-              <div className="flex h-[200px] items-center justify-center text-center text-sm text-muted-foreground">
-                <div className="max-w-md">
-                  <p className="font-medium">
-                    Cannot display categorical comparison
-                  </p>
-                  <p className="mt-2">
-                    Categorical score comparison requires overlapping data to
-                    determine category names. No matching traces/observations
-                    found between these two scores.
-                  </p>
-                </div>
+          <Tabs
+            value={distributionTab}
+            onValueChange={(value) => setDistributionTab(value as ChartTab)}
+          >
+            <TabsList>
+              <TabsTrigger value="score1">{score1.name}</TabsTrigger>
+              <TabsTrigger value="score2">{score2.name}</TabsTrigger>
+              <TabsTrigger value="both">Both</TabsTrigger>
+              <TabsTrigger value="matched">Matched</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      </CardHeader>
+      <CardContent className="h-[300px]">
+        {distribution1.length > 0 ? (
+          !categories && score1.dataType === "CATEGORICAL" ? (
+            <div className="flex h-[200px] items-center justify-center text-center text-sm text-muted-foreground">
+              <div className="max-w-md">
+                <p className="font-medium">
+                  Cannot display categorical comparison
+                </p>
+                <p className="mt-2">
+                  Categorical score comparison requires overlapping data to
+                  determine category names. No matching traces/observations
+                  found between these two scores.
+                </p>
               </div>
-            ) : (
-              <ScoreDistributionChart
-                distribution1={
-                  distributionTab === "score2" ? distribution2 : distribution1
-                }
-                distribution2={
-                  distDisplayData.showScore1 && distDisplayData.showScore2
-                    ? distribution2
-                    : undefined
-                }
-                dataType={isBothNumeric ? "NUMERIC" : score1.dataType}
-                score1Name={
-                  distributionTab === "score2"
-                    ? score2DisplayName
-                    : score1DisplayName
-                }
-                score2Name={
-                  distDisplayData.showScore1 && distDisplayData.showScore2
-                    ? distributionTab === "score2"
-                      ? score1DisplayName
-                      : score2DisplayName
-                    : undefined
-                }
-                binLabels={binLabels}
-                categories={categories}
-                stackedDistribution={
-                  distDisplayData.showScore1 && distDisplayData.showScore2
-                    ? distributionTab === "matched"
-                      ? analytics.stackedDistributionMatched
-                      : analytics.stackedDistribution
-                    : undefined
-                }
-                score2Categories={
-                  distDisplayData.showScore1 && distDisplayData.showScore2
-                    ? analytics.score2Categories
-                    : undefined
-                }
-              />
-            )
+            </div>
           ) : (
-            <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
-              No distribution data available for the selected time range
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Time Series Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>Scores Over Time</CardTitle>
-              <CardDescription>
-                {isBothNumeric ? (
-                  <>
-                    Average by {interval.count} {interval.unit}
-                    {interval.count > 1 && "s"}
-                    {overallAverage1 > 0 && (
-                      <>
-                        {" "}
-                        | {score1.name} avg: {overallAverage1.toFixed(3)}
-                      </>
-                    )}
-                    {overallAverage2 > 0 && (
-                      <>
-                        {" "}
-                        | {score2.name} avg: {overallAverage2.toFixed(3)}
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    Count by {interval.count} {interval.unit}
-                    {interval.count > 1 && "s"}
-                  </>
-                )}
-                {tsDisplayData.isMatched && " | Matched scores only"}
-              </CardDescription>
-            </div>
-            <Tabs
-              value={timeSeriesTab}
-              onValueChange={(value) => {
-                console.log("timeSeriesTab.onValueChange", value);
-                setTimeSeriesTab(value as ChartTab);
-              }}
-            >
-              <TabsList>
-                <TabsTrigger value="score1">{score1.name}</TabsTrigger>
-                <TabsTrigger value="score2">{score2.name}</TabsTrigger>
-                <TabsTrigger value="both">Both</TabsTrigger>
-                <TabsTrigger value="matched">Matched</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <ScoreDistributionChart
+              distribution1={
+                distributionTab === "score2" ? distribution2 : distribution1
+              }
+              distribution2={
+                distDisplayData.showScore1 && distDisplayData.showScore2
+                  ? distribution2
+                  : undefined
+              }
+              dataType={isBothNumeric ? "NUMERIC" : score1.dataType}
+              score1Name={
+                distributionTab === "score2"
+                  ? score2DisplayName
+                  : score1DisplayName
+              }
+              score2Name={
+                distDisplayData.showScore1 && distDisplayData.showScore2
+                  ? distributionTab === "score2"
+                    ? score1DisplayName
+                    : score2DisplayName
+                  : undefined
+              }
+              binLabels={binLabels}
+              categories={categories}
+              stackedDistribution={
+                distDisplayData.showScore1 && distDisplayData.showScore2
+                  ? distributionTab === "matched"
+                    ? analytics.stackedDistributionMatched
+                    : analytics.stackedDistribution
+                  : undefined
+              }
+              score2Categories={
+                distDisplayData.showScore1 && distDisplayData.showScore2
+                  ? analytics.score2Categories
+                  : undefined
+              }
+            />
+          )
+        ) : (
+          <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+            No distribution data available for the selected time range
           </div>
-        </CardHeader>
-        <CardContent className="h-[300px]">
-          {isBothNumeric ? (
-            timeSeriesData.length > 0 ? (
-              <ScoreTimeSeriesChart
-                data={timeSeriesData}
-                dataType="NUMERIC"
-                score1Name={
-                  timeSeriesTab === "score2"
-                    ? score2DisplayName
-                    : score1DisplayName
-                }
-                score2Name={
-                  tsDisplayData.showScore1 && tsDisplayData.showScore2
-                    ? timeSeriesTab === "score2"
-                      ? score1DisplayName
-                      : score2DisplayName
-                    : undefined
-                }
-                interval={interval}
-              />
-            ) : (
-              <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
-                No time series data available for the selected time range
-              </div>
-            )
-          ) : categoricalTimeSeriesData.length > 0 ? (
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // Time Series Card
+  const timelineCard = (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Scores Over Time</CardTitle>
+            <CardDescription>
+              {isBothNumeric ? (
+                <>
+                  Average by {interval.count} {interval.unit}
+                  {interval.count > 1 && "s"}
+                  {overallAverage1 > 0 && (
+                    <>
+                      {" "}
+                      | {score1.name} avg: {overallAverage1.toFixed(3)}
+                    </>
+                  )}
+                  {overallAverage2 > 0 && (
+                    <>
+                      {" "}
+                      | {score2.name} avg: {overallAverage2.toFixed(3)}
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  Count by {interval.count} {interval.unit}
+                  {interval.count > 1 && "s"}
+                </>
+              )}
+              {tsDisplayData.isMatched && " | Matched scores only"}
+            </CardDescription>
+          </div>
+          <Tabs
+            value={timeSeriesTab}
+            onValueChange={(value) => {
+              console.log("timeSeriesTab.onValueChange", value);
+              setTimeSeriesTab(value as ChartTab);
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="score1">{score1.name}</TabsTrigger>
+              <TabsTrigger value="score2">{score2.name}</TabsTrigger>
+              <TabsTrigger value="both">Both</TabsTrigger>
+              <TabsTrigger value="matched">Matched</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      </CardHeader>
+      <CardContent className="h-[300px]">
+        {isBothNumeric ? (
+          timeSeriesData.length > 0 ? (
             <ScoreTimeSeriesChart
-              data={categoricalTimeSeriesData}
-              dataType={score1.dataType}
+              data={timeSeriesData}
+              dataType="NUMERIC"
               score1Name={
                 timeSeriesTab === "score2"
                   ? score2DisplayName
@@ -656,9 +633,44 @@ export function TwoScoreAnalytics({
             <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
               No time series data available for the selected time range
             </div>
-          )}
-        </CardContent>
-      </Card>
+          )
+        ) : categoricalTimeSeriesData.length > 0 ? (
+          <ScoreTimeSeriesChart
+            data={categoricalTimeSeriesData}
+            dataType={score1.dataType}
+            score1Name={
+              timeSeriesTab === "score2" ? score2DisplayName : score1DisplayName
+            }
+            score2Name={
+              tsDisplayData.showScore1 && tsDisplayData.showScore2
+                ? timeSeriesTab === "score2"
+                  ? score1DisplayName
+                  : score2DisplayName
+                : undefined
+            }
+            interval={interval}
+          />
+        ) : (
+          <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+            No time series data available for the selected time range
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // Return based on cardToRender prop
+  if (cardToRender === "distribution") {
+    return distributionCard;
+  } else if (cardToRender === "timeline") {
+    return timelineCard;
+  }
+
+  // Default: render both cards in grid
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {distributionCard}
+      {timelineCard}
     </div>
   );
 }
