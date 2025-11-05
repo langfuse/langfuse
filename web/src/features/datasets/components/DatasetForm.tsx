@@ -121,12 +121,14 @@ export const DatasetForm = (props: DatasetFormProps) => {
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
 
-  const inputSchemaString = props.datasetInputSchema
-    ? JSON.stringify(props.datasetInputSchema, null, 2)
-    : "";
-  const expectedOutputSchemaString = props.datasetExpectedOutputSchema
-    ? JSON.stringify(props.datasetExpectedOutputSchema, null, 2)
-    : "";
+  const inputSchemaString =
+    props.mode === "update" && props.datasetInputSchema
+      ? JSON.stringify(props.datasetInputSchema, null, 2)
+      : "";
+  const expectedOutputSchemaString =
+    props.mode === "update" && props.datasetExpectedOutputSchema
+      ? JSON.stringify(props.datasetExpectedOutputSchema, null, 2)
+      : "";
 
   const form = useForm({
     resolver: zodResolver(formSchema),
