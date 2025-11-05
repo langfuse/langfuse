@@ -142,17 +142,31 @@ Wrap data hook and expose via React Context.
 
 ---
 
-## ⏳ Phase 5: Build Card Components (TODO)
+## 🚧 Phase 5: Build Card Components (IN PROGRESS)
+
+### Files Created:
+1. ✅ `/components/cards/StatisticsCard.tsx` (375+ lines) - COMPLETE
+
+### Completed Tasks:
+- [x] **StatisticsCard.tsx** (~1.5 hours)
+  - [x] Consumes `useScoreAnalytics()` hook
+  - [x] Displays summary stats (mean, std, mode, correlation)
+  - [x] Handles single vs two-score modes
+  - [x] Shows loading/empty states
+  - [x] TypeScript: ✅ No errors
+  - [x] Linter: ✅ No errors
 
 ### Pending Tasks:
-- [ ] `StatisticsCard.tsx` (2 hours)
-- [ ] `DistributionChartCard.tsx` (2 hours)
 - [ ] `TimelineChartCard.tsx` (2 hours)
-- [ ] `HeatmapCard.tsx` (1 hour)
-- [ ] Integration tests (1 hour)
+- [ ] `DistributionChartCard.tsx` (2 hours)
+- [ ] `HeatmapCard.tsx` (2 hours)
 
 ### Goal:
 Create smart cards that consume context and handle own rendering logic.
+
+**Progress**: 25% (1/4 cards complete)
+**Time Spent**: ~1.5 hours
+**Time Remaining**: ~6 hours
 
 ---
 
