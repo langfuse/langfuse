@@ -139,10 +139,12 @@ CREATE TABLE IF NOT EXISTS events
       type LowCardinality(String),
       environment LowCardinality(String) DEFAULT 'default',
       version String,
+      release String,
 
       user_id String,
       session_id String,
 
+      tags Array(String),
       bookmarked Bool DEFAULT false,
       public Bool DEFAULT false,
 
@@ -177,7 +179,7 @@ CREATE TABLE IF NOT EXISTS events
         output Decimal(18,12),
         total Decimal(18,12),
       ),
-      total_cost Decimal(18,12), -- 0 if not provided
+      total_cost Decimal(18, 12) ALIAS cost_details.total,
 
       -- I/O
       input String CODEC(ZSTD(3)),
@@ -185,30 +187,17 @@ CREATE TABLE IF NOT EXISTS events
       output String CODEC(ZSTD(3)),
       output_truncated String MATERIALIZED leftUTF8(output, 1024),
 
-      -- TODO Metadata: Decide for approach
-      -- -- Approach 1: Use plain JSON type with default config
+      -- Metadata
+      -- Keep raw JSON to benefit from future ClickHouse improvements.
+      -- For now, store things as "German Strings" with fast prefix matches based on https://www.uber.com/en-DE/blog/logging/.
       metadata JSON,
-      -- -- Approach 2: Uses ideas from https://www.uber.com/en-DE/blog/logging/
-      -- --             but uses Dynamic type to make this a single list
       metadata_names Array(String),
-      metadata_values Array(Dynamic(max_types=32)),
-      -- -- Approach 3: 1:1 copy of https://www.uber.com/en-DE/blog/logging/
-      -- --             May require further high-level types and lots of thought during
-      -- --             write and query-time.
-      -- -- metadata_string_names Array(String),
-      -- -- metadata_string_values Array(String),
-      -- -- metadata_number_names Array(String),
-      -- -- metadata_number_values Array(Float64),
-      -- -- metadata_bool_names Array(String),
-      -- -- metadata_bool_values Array(UInt8),
-      -- -- Approach 4: Apply German strings here, where we store a prefix and for longer values a pointer.
-      -- TODO CHANGE MATERIALIZATION (e.g. rename metadata_prefixes to metadata_values)
-      metadata_keys Array(String) MATERIALIZED metadata_names,
-      metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_values),
-      metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_values),
+      metadata_raw_values Array(String), -- should not be used on retrieval, only for materializing other columns
+      metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_raw_values),
+      metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_raw_values),
       metadata_long_values Map(UInt32, String) MATERIALIZED mapFromArrays(
-        arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values)),
-        arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_values))
+        arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values)),
+        arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values))
       ),
 
       -- Experiment properties
@@ -236,7 +225,6 @@ CREATE TABLE IF NOT EXISTS events
 
       -- Generic props
       blob_storage_file_path String,
-      -- event_raw String,
       event_bytes UInt64,
       created_at DateTime64(6) DEFAULT now(),
       updated_at DateTime64(6) DEFAULT now(),
@@ -293,7 +281,7 @@ clickhouse client \
                       environment, version, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details, total_cost, input,
-                      output, metadata, metadata_names, metadata_values,
+                      output, metadata, metadata_names, metadata_raw_values,
                       -- metadata_string_names, metadata_string_values, metadata_number_names, metadata_number_values, metadata_bool_names, metadata_bool_values,
                       source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
                       telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_bytes,
@@ -329,8 +317,8 @@ clickhouse client \
          ifNull(o.input, '')                                                             AS input,
          ifNull(o.output, '')                                                            AS output,
          CAST(o.metadata, 'JSON'),
-         mapKeys(o.metadata)                                                             AS \`metadata.names\`,
-         mapValues(o.metadata)                                                           AS \`metadata.values\`,
+         mapKeys(o.metadata)                                                             AS metadata_names,
+         mapValues(o.metadata)                                                           AS metadata_raw_values,
          multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
          NULL                                                                          AS service_name,
          NULL                                                                          AS service_version,

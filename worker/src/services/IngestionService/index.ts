@@ -288,15 +288,6 @@ export class IngestionService {
     const metadataNames = flattened.names;
     const metadataValues = flattened.values;
 
-    // Flatten to typed arrays
-    // const typed = this.flattenJsonToTypedPathArrays(metadata);
-    // const metadataStringNames = typed.stringNames;
-    // const metadataStringValues = typed.stringValues;
-    // const metadataNumberNames = typed.numberNames;
-    // const metadataNumberValues = typed.numberValues;
-    // const metadataBoolNames = typed.boolNames;
-    // const metadataBoolValues = typed.boolValues;
-
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
       id: eventData.spanId,
@@ -353,16 +344,10 @@ export class IngestionService {
       input: eventData.input,
       output: eventData.output,
 
-      // Metadata (multiple approaches)
+      // Metadata
       metadata,
       metadata_names: metadataNames,
-      metadata_values: metadataValues,
-      // metadata_string_names: metadataStringNames,
-      // metadata_string_values: metadataStringValues,
-      // metadata_number_names: metadataNumberNames,
-      // metadata_number_values: metadataNumberValues,
-      // metadata_bool_names: metadataBoolNames,
-      // metadata_bool_values: metadataBoolValues,
+      metadata_raw_values: metadataValues,
 
       // Source/instrumentation metadata
       source: eventData.source,
