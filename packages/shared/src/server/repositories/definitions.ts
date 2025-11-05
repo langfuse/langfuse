@@ -646,13 +646,13 @@ export const eventRecordBaseSchema = z.object({
   experiment_id: z.string().nullish(),
   experiment_name: z.string().nullish(),
   experiment_metadata_names: z.array(z.string()).default([]),
-  experiment_metadata_values: z.array(z.string()).default([]),
+  experiment_metadata_values: z.array(z.string().nullish()).default([]),
   experiment_description: z.string().nullish(),
   experiment_dataset_id: z.string().nullish(),
   experiment_item_id: z.string().nullish(),
   experiment_item_expected_output: z.string().nullish(),
   experiment_item_metadata_names: z.array(z.string()).default([]),
-  experiment_item_metadata_values: z.array(z.string()).default([]),
+  experiment_item_metadata_values: z.array(z.string().nullish()).default([]),
   experiment_item_root_span_id: z.string().nullish(),
 
   // Source metadata (Instrumentation)
@@ -687,7 +687,7 @@ export const eventRecordReadSchema = eventRecordBaseSchema.extend({
 export type EventRecordReadType = z.infer<typeof eventRecordReadSchema>;
 
 export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
-  metadata_raw_values: z.array(z.string()).default([]),
+  metadata_raw_values: z.array(z.string().nullish()).default([]),
   start_time: z.number(),
   end_time: z.number().nullish(),
   completion_start_time: z.number().nullish(),

@@ -184,8 +184,10 @@ CREATE TABLE IF NOT EXISTS events
       -- I/O
       input String CODEC(ZSTD(3)),
       input_truncated String MATERIALIZED leftUTF8(input, 1024),
+      input_length UInt64 MATERIALIZED lengthUTF8(input),
       output String CODEC(ZSTD(3)),
       output_truncated String MATERIALIZED leftUTF8(output, 1024),
+      output_length UInt64 MATERIALIZED lengthUTF8(output),
 
       -- Metadata
       -- Keep raw JSON to benefit from future ClickHouse improvements.
