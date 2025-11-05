@@ -86,8 +86,13 @@ export type EventInput = {
   type?: string;
   environment?: string;
   version?: string;
+  release?: string;
   endTimeISO: string;
   completionStartTime?: string;
+
+  tags?: string[];
+  bookmarked?: boolean;
+  public?: boolean;
 
   // User/session
   userId?: string;
@@ -109,7 +114,6 @@ export type EventInput = {
   usageDetails?: Record<string, number>;
   providedCostDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
-  totalCost?: number;
 
   // I/O
   input?: string;
@@ -303,6 +307,11 @@ export class IngestionService {
       type: eventData.type ?? "SPAN",
       environment: eventData.environment ?? "default",
       version: eventData.version,
+      release: eventData.release,
+
+      tags: eventData.tags ?? [],
+      bookmarked: eventData.bookmarked ?? false,
+      public: eventData.public ?? false,
 
       // User/session
       user_id: eventData.userId,
@@ -334,11 +343,10 @@ export class IngestionService {
         : {},
 
       // Usage & Cost
-      // provided_usage_details: eventData.providedUsageDetails ?? {},
-      // usage_details: eventData.usageDetails ?? {},
-      // provided_cost_details: eventData.providedCostDetails ?? {},
-      // cost_details: eventData.costDetails ?? {},
-      // total_cost: eventData.totalCost,
+      provided_usage_details: eventData.providedUsageDetails ?? {},
+      usage_details: eventData.usageDetails ?? {},
+      provided_cost_details: eventData.providedCostDetails ?? {},
+      cost_details: eventData.costDetails ?? {},
 
       // I/O
       input: eventData.input,

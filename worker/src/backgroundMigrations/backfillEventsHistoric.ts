@@ -9,6 +9,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { parseArgs } from "node:util";
 
+// TODO: This is WIP and should not be used for actual backfills.
+
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "d8cf9f5e-747e-4ffe-8156-dec0eaebce9d";
 
