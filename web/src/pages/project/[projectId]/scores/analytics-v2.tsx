@@ -14,7 +14,10 @@ import {
 } from "@/src/utils/date-range-utils";
 import { BarChart3, Loader2 } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { ScoreAnalyticsProvider } from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsProvider";
+import {
+  ScoreAnalyticsProvider,
+  type DataType,
+} from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsProvider";
 import { ScoreAnalyticsHeader } from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsHeader";
 import { ScoreAnalyticsDashboard } from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsDashboard";
 
@@ -121,23 +124,23 @@ export default function ScoresAnalyticsV2Page() {
 
   // Parse score identifiers (format: "name-dataType-source")
   const parsedScore1 = useMemo(() => {
-    if (!urlState.score1) return null;
+    if (!urlState.score1) return undefined;
     const selected = scoreOptions.find((opt) => opt.value === urlState.score1);
-    if (!selected) return null;
+    if (!selected) return undefined;
     return {
       name: selected.name,
-      dataType: selected.dataType,
+      dataType: selected.dataType as DataType,
       source: selected.source,
     };
   }, [urlState.score1, scoreOptions]);
 
   const parsedScore2 = useMemo(() => {
-    if (!urlState.score2) return null;
+    if (!urlState.score2) return undefined;
     const selected = scoreOptions.find((opt) => opt.value === urlState.score2);
-    if (!selected) return null;
+    if (!selected) return undefined;
     return {
       name: selected.name,
-      dataType: selected.dataType,
+      dataType: selected.dataType as DataType,
       source: selected.source,
     };
   }, [urlState.score2, scoreOptions]);
@@ -162,7 +165,7 @@ export default function ScoresAnalyticsV2Page() {
       !absoluteTimeRange?.from ||
       !absoluteTimeRange?.to
     ) {
-      return null;
+      return undefined;
     }
 
     return {
