@@ -8,7 +8,6 @@ import {
 } from "@/src/components/ui/chart";
 import { type IntervalConfig } from "@/src/utils/date-range-utils";
 import { formatTimestamp } from "./ScoreTimeSeriesNumericChart";
-import { getTwoScoreColors } from "@/src/features/scores/lib/color-scales";
 
 export interface BooleanTimeSeriesChartProps {
   data: Array<{
@@ -50,11 +49,12 @@ export function ScoreTimeSeriesBooleanChart({
       allCategories.add(item.category);
     });
 
-    // Detect if categories are prefixed (e.g., "correctness-0", "hallucination-1")
+    // Detect if categories are prefixed (e.g., "correctness-True", "hallucination-False")
     // This happens in "both" tab when comparing different scores
-    // Boolean values come from ClickHouse as "0" (false) and "1" (true), not "True"/"False"
     const categoryList = Array.from(allCategories).sort();
-    const isPrefixed = categoryList.some((cat) => cat.match(/-(?:0|1)$/));
+    const isPrefixed = categoryList.some((cat) =>
+      cat.match(/-(?:True|False)$/i),
+    );
 
     // Convert to chart data format
     // Sort by numeric timestamp BEFORE formatting to ensure chronological order
@@ -80,11 +80,10 @@ export function ScoreTimeSeriesBooleanChart({
         }
 
         // Non-prefixed mode: Standard True/False columns
-        // Boolean values are "0" (false) and "1" (true) from ClickHouse
         return {
           time_dimension: formattedTimestamp,
-          True: categoryMap.get("1") ?? 0, // "1" represents true
-          False: categoryMap.get("0") ?? 0, // "0" represents false
+          True: categoryMap.get("true") ?? categoryMap.get("True") ?? 0,
+          False: categoryMap.get("false") ?? categoryMap.get("False") ?? 0,
         };
       });
 
@@ -95,26 +94,35 @@ export function ScoreTimeSeriesBooleanChart({
     };
   }, [data, interval]);
 
-  // Get colors - use score-specific colors in comparison mode
-  const colors = getTwoScoreColors();
+  // Chart colors - use consistent chart-1 through chart-5 colors
+  const chartColors = useMemo(
+    () => [
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+    ],
+    [],
+  );
 
   // Create chart config based on mode
   const config: ChartConfig = useMemo(() => {
     if (!isPrefixedMode) {
-      // Legacy mode: True/False only with score1/score2 colors
+      // Non-prefixed mode: True/False with chart-1 and chart-2
       return {
         True: {
           label: "True",
           theme: {
-            light: colors.score1,
-            dark: colors.score1,
+            light: chartColors[0], // chart-1
+            dark: chartColors[0],
           },
         },
         False: {
           label: "False",
           theme: {
-            light: colors.score2,
-            dark: colors.score2,
+            light: chartColors[1], // chart-2
+            dark: chartColors[1],
           },
         },
       };
@@ -122,13 +130,6 @@ export function ScoreTimeSeriesBooleanChart({
 
     // Prefixed mode: Use chart colors like categorical chart
     const cfg: ChartConfig = {};
-    const chartColors = [
-      "hsl(var(--chart-1))",
-      "hsl(var(--chart-2))",
-      "hsl(var(--chart-3))",
-      "hsl(var(--chart-4))",
-      "hsl(var(--chart-5))",
-    ];
 
     categories.forEach((category, index) => {
       const colorIndex = index % chartColors.length;
@@ -142,7 +143,7 @@ export function ScoreTimeSeriesBooleanChart({
     });
 
     return cfg;
-  }, [isPrefixedMode, categories, colors]);
+  }, [isPrefixedMode, categories, chartColors]);
 
   if (chartData.length === 0 || categories.length === 0) {
     return (
@@ -169,6 +170,11 @@ export function ScoreTimeSeriesBooleanChart({
       </div>
     );
   }
+
+  console.log("chartData", chartData);
+  console.log("categories", categories);
+  console.log("isPrefixedMode", isPrefixedMode);
+  console.log("config", config);
 
   return (
     <ChartContainer config={config}>
@@ -222,7 +228,7 @@ export function ScoreTimeSeriesBooleanChart({
             <Line
               type="monotone"
               dataKey="True"
-              stroke={colors.score1}
+              stroke={chartColors[0]} // chart-1
               strokeWidth={2}
               dot={true}
               activeDot={{ r: 6, strokeWidth: 0 }}
@@ -231,7 +237,7 @@ export function ScoreTimeSeriesBooleanChart({
             <Line
               type="monotone"
               dataKey="False"
-              stroke={colors.score2}
+              stroke={chartColors[1]} // chart-2
               strokeWidth={2}
               dot={true}
               activeDot={{ r: 6, strokeWidth: 0 }}
