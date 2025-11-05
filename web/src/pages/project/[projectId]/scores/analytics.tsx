@@ -39,11 +39,12 @@ export default function ScoresAnalyticsPage() {
     (value: string | undefined) => {
       urlStateHook.setScore1(value);
 
-      if (value === undefined && urlState.score2) {
+      // Always clear score2 when clearing score1
+      if (value === undefined) {
         urlStateHook.setScore2(undefined);
       }
     },
-    [urlStateHook, urlState.score2],
+    [urlStateHook],
   );
 
   const { timeRange, setTimeRange } = useDashboardDateRange();
@@ -102,20 +103,15 @@ export default function ScoresAnalyticsPage() {
   }, [urlState.score1, scoreOptions]);
 
   // Determine which score types are compatible with score1
-  // For NUMERIC: only NUMERIC is allowed (no cross-type)
-  // For BOOLEAN/CATEGORICAL: allow BOOLEAN, CATEGORICAL, or NUMERIC (cross-type as categorical)
+  // Same-type pairing only: NUMERIC with NUMERIC, BOOLEAN with BOOLEAN, CATEGORICAL with CATEGORICAL
   const compatibleScore2DataTypes = useMemo(() => {
     if (!score1DataType) return undefined;
 
-    if (score1DataType === "NUMERIC") {
-      return ["NUMERIC"]; // Numeric only compares with numeric
-    } else {
-      // Boolean and Categorical can compare with each other and with numeric (treated as categorical)
-      return ["BOOLEAN", "CATEGORICAL", "NUMERIC"];
-    }
+    // Only allow same-type pairing
+    return [score1DataType];
   }, [score1DataType]);
 
-  // Clear score2 when score1's dataType changes and score2 is no longer compatible
+  // Clear score2 when score1's dataType changes
   const prevScore1DataTypeRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     // Skip on initial render
@@ -124,18 +120,9 @@ export default function ScoresAnalyticsPage() {
       return;
     }
 
-    // If dataType has changed and there's a score2 selected, check if it's still compatible
+    // If dataType has changed and there's a score2 selected, clear it
     if (prevScore1DataTypeRef.current !== score1DataType && urlState.score2) {
-      const score2Option = scoreOptions.find(
-        (opt) => opt.value === urlState.score2,
-      );
-      const isCompatible = compatibleScore2DataTypes?.includes(
-        score2Option?.dataType ?? "",
-      );
-
-      if (!isCompatible) {
-        setScore2(undefined);
-      }
+      setScore2(undefined);
     }
 
     prevScore1DataTypeRef.current = score1DataType;
