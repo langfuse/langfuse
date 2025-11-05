@@ -40,24 +40,26 @@ export function ScoreDistributionNumericChart({
       ? new Map(distribution2.map((d) => [d.binIndex, d.count]))
       : null;
 
-    return distribution1.map((item) => {
-      const label = binLabels[item.binIndex] ?? `Bin ${item.binIndex}`;
+    return [...distribution1]
+      .sort((a, b) => a.binIndex - b.binIndex)
+      .map((item) => {
+        const label = binLabels[item.binIndex] ?? `Bin ${item.binIndex}`;
 
-      if (isComparisonMode && dist2Map) {
-        // Two score mode: use simple keys to avoid CSS variable name issues
-        return {
-          dimension: label,
-          pv: item.count,
-          uv: dist2Map.get(item.binIndex) ?? 0,
-        };
-      } else {
-        // Single score mode - also use 'pv' for consistency with Bar dataKey
-        return {
-          dimension: label,
-          pv: item.count,
-        };
-      }
-    });
+        if (isComparisonMode && dist2Map) {
+          // Two score mode: use simple keys to avoid CSS variable name issues
+          return {
+            dimension: label,
+            pv: item.count,
+            uv: dist2Map.get(item.binIndex) ?? 0,
+          };
+        } else {
+          // Single score mode - also use 'pv' for consistency with Bar dataKey
+          return {
+            dimension: label,
+            pv: item.count,
+          };
+        }
+      });
   }, [distribution1, distribution2, binLabels, isComparisonMode]);
 
   // Configure colors and chart config

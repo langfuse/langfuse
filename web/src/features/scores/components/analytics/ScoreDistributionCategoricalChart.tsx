@@ -95,13 +95,15 @@ export function ScoreDistributionCategoricalChart({
     }
 
     // Single score: simple bar chart
-    return distribution1.map((item) => {
-      const label = categories[item.binIndex] ?? `Category ${item.binIndex}`;
-      return {
-        name: label,
-        pv: item.count,
-      };
-    });
+    return [...distribution1]
+      .sort((a, b) => a.binIndex - b.binIndex)
+      .map((item) => {
+        const label = categories[item.binIndex] ?? `Category ${item.binIndex}`;
+        return {
+          name: label,
+          pv: item.count,
+        };
+      });
   }, [
     distribution1,
     categories,

@@ -40,22 +40,24 @@ export function ScoreDistributionBooleanChart({
       ? new Map(distribution2.map((d) => [d.binIndex, d.count]))
       : null;
 
-    return distribution1.map((item) => {
-      const label = categories[item.binIndex] ?? `Value ${item.binIndex}`;
+    return [...distribution1]
+      .sort((a, b) => a.binIndex - b.binIndex)
+      .map((item) => {
+        const label = categories[item.binIndex] ?? `Value ${item.binIndex}`;
 
-      if (isComparisonMode && dist2Map) {
-        return {
-          name: label,
-          pv: item.count,
-          uv: dist2Map.get(item.binIndex) ?? 0,
-        };
-      } else {
-        return {
-          name: label,
-          pv: item.count,
-        };
-      }
-    });
+        if (isComparisonMode && dist2Map) {
+          return {
+            name: label,
+            pv: item.count,
+            uv: dist2Map.get(item.binIndex) ?? 0,
+          };
+        } else {
+          return {
+            name: label,
+            pv: item.count,
+          };
+        }
+      });
   }, [distribution1, distribution2, categories, isComparisonMode]);
 
   // Configure chart colors
