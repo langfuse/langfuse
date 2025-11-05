@@ -1276,7 +1276,9 @@ export const scoresRouter = createTRPCRouter({
           stats AS (
             SELECT
               count() as matched_count,
-              avg(value1) as mean1,
+              ${
+                isNumeric
+                  ? `avg(value1) as mean1,
               avg(value2) as mean2,
               stddevPop(value1) as std1,
               stddevPop(value2) as std2,
@@ -1291,7 +1293,17 @@ export const scoresRouter = createTRPCRouter({
                  NULL) as spearman_correlation,`
               }
               avg(abs(value1 - value2)) as mae,
-              sqrt(avg(pow(value1 - value2, 2))) as rmse
+              sqrt(avg(pow(value1 - value2, 2))) as rmse`
+                  : `-- Categorical/boolean scores: statistical metrics are not meaningful
+              NULL as mean1,
+              NULL as mean2,
+              NULL as std1,
+              NULL as std2,
+              NULL as pearson_correlation,
+              NULL as spearman_correlation,
+              NULL as mae,
+              NULL as rmse`
+              }
             FROM matched_scores
           ),
 
