@@ -890,7 +890,6 @@ export class OtelIngestionProcessor {
         null,
       usageDetails: this.extractUsageDetails(
         attributes,
-        isLangfuseSDKSpans,
         instrumentationScopeName,
       ) as any,
       costDetails: this.extractCostDetails(
@@ -1736,10 +1735,9 @@ export class OtelIngestionProcessor {
 
   private extractUsageDetails(
     attributes: Record<string, unknown>,
-    isLangfuseSDKSpan: boolean,
     instrumentationScopeName: string,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_USAGE_DETAILS]) {
       try {
         return JSON.parse(
           attributes[

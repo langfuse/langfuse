@@ -52,6 +52,7 @@ const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
   LLMAdapter.Anthropic,
 ];
 

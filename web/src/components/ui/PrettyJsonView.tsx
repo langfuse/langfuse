@@ -695,6 +695,7 @@ function JsonPrettyTable({
 export function PrettyJsonView(props: {
   json?: unknown;
   title?: string;
+  titleIcon?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
@@ -1154,12 +1155,12 @@ export function PrettyJsonView(props: {
       {props.title ? (
         <MarkdownJsonViewHeader
           title={props.title}
+          titleIcon={props.titleIcon}
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>
-              {props.controlButtons}
               {shouldUseTableView && (
                 <Button
                   variant="ghost"
@@ -1177,7 +1178,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
-              {!isPrettyView && (
+              {!shouldUseTableView && !isMarkdownMode && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -1192,6 +1193,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
+              {props.controlButtons}
             </>
           }
         />

@@ -78,4 +78,23 @@ describe("Generic Adapter", () => {
     expect(inResult.success).toBe(false);
     expect(allMessages).toHaveLength(0);
   });
+
+  it("should extract content from Microsoft Agent parts with content field", () => {
+    const input = [
+      {
+        role: "user",
+        parts: [
+          // space behind hello - unsure if it should be added regardless
+          { type: "text", content: "Hello " },
+          { type: "text", content: "World" },
+        ],
+      },
+    ];
+
+    const preprocessed = genericAdapter.preprocess(input, "input", {});
+    expect(Array.isArray(preprocessed)).toBe(true);
+    const messages = preprocessed as any[];
+    expect(messages[0].content).toBe("Hello World");
+    expect(messages[0].parts).toBeUndefined();
+  });
 });
