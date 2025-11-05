@@ -7,11 +7,9 @@ import {
 } from "@/src/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
-import {
-  Heatmap,
-  HeatmapLegend,
-  HeatmapPlaceholder,
-} from "@/src/features/scores/components/analytics";
+import { Heatmap } from "../charts/Heatmap";
+import { HeatmapLegend } from "../charts/HeatmapLegend";
+import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
 
 /**
  * HeatmapCard - Smart card component for displaying score comparison heatmaps

@@ -9,7 +9,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
-import { ScoreDistributionChart } from "@/src/features/scores/components/analytics/ScoreDistributionChart";
+import { ScoreDistributionChart } from "../charts/ScoreDistributionChart";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 

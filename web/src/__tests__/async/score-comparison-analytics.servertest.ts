@@ -12,7 +12,6 @@ import {
   createObservation,
   createObservationsCh,
   createSessionScore,
-  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 

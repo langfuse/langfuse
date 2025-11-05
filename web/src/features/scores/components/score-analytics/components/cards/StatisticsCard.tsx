@@ -7,7 +7,7 @@ import {
 } from "@/src/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
-import { MetricCard } from "@/src/features/scores/components/analytics/MetricCard";
+import { MetricCard } from "../charts/MetricCard";
 import {
   calculateCohensKappa,
   calculateWeightedF1Score,

@@ -9,7 +9,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
-import { ScoreTimeSeriesChart } from "@/src/features/scores/components/analytics/ScoreTimeSeriesChart";
+import { ScoreTimeSeriesChart } from "../charts/ScoreTimeSeriesChart";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";
 

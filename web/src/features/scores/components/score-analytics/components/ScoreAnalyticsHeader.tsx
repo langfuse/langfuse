@@ -1,11 +1,11 @@
 import { useCallback } from "react";
-import { ScoreCombobox } from "@/src/features/scores/components/analytics/ScoreCombobox";
-import { ObjectTypeFilter } from "@/src/features/scores/components/analytics/ObjectTypeFilter";
+import { ScoreCombobox } from "./charts/ScoreCombobox";
+import { ObjectTypeFilter } from "./charts/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
 import { type TimeRange } from "@/src/utils/date-range-utils";
-import { type ScoreOption } from "@/src/features/scores/components/analytics/ScoreCombobox";
+import { type ScoreOption } from "./charts/ScoreCombobox";
 
 export interface ScoreAnalyticsHeaderProps {
   scoreOptions: ScoreOption[];
