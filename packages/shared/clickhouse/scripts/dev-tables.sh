@@ -280,7 +280,7 @@ clickhouse client \
   --multiquery <<EOF
   TRUNCATE events;
   INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
-                      environment, version, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
+                      environment, version, release, tags, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details, input,
                       output, metadata, metadata_names, metadata_raw_values,
