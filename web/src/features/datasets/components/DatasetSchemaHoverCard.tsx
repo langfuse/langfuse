@@ -1,13 +1,16 @@
-import { ArrowUpRight, LockIcon } from "lucide-react";
+import { ArrowUpRight, LockIcon, Copy, Check } from "lucide-react";
 import {
   HoverCard,
   HoverCardContent,
-  HoverCardTitle,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import type { Prisma } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
+import { Separator } from "@/src/components/ui/separator";
+import { useMemo, useState } from "react";
+import { generateSchemaExample } from "../lib/generateSchemaExample";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type DatasetSchemaHoverCardProps = {
   schema: Prisma.JsonValue;
@@ -25,6 +28,21 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
 
   const schemaString = JSON.stringify(schema, null, 2);
 
+  // Generate example object from schema
+  const exampleObject = useMemo(() => generateSchemaExample(schema), [schema]);
+
+  // State for copy button feedback
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyExample = async () => {
+    if (!exampleObject) return;
+
+    await copyTextToClipboard(exampleObject);
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
@@ -38,7 +56,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
           {showLabel && <span>Schema enforced</span>}
         </Button>
       </HoverCardTrigger>
-      <HoverCardContent className="max-h-[500px] w-[400px] overflow-auto">
+      <HoverCardContent className="max-h-[600px] w-[400px] overflow-auto">
         <p className="text-sm font-medium">{title}</p>
         <p className="pt-2 text-sm text-muted-foreground">
           Learn more about{" "}
@@ -58,10 +76,40 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
             value={schemaString}
             onChange={() => {}} // Read-only
             minHeight="none"
-            className="max-h-[400px] overflow-y-auto"
+            className="max-h-[250px] overflow-y-auto"
             editable={false}
           />
         </div>
+
+        {exampleObject && (
+          <>
+            <Separator className="my-4" />
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Example Object</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyExample}
+                className="h-7 px-2"
+              >
+                {copied ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+            <div className="mt-2">
+              <CodeMirrorEditor
+                mode="json"
+                value={exampleObject}
+                minHeight="none"
+                className="max-h-[250px] overflow-y-auto"
+                editable={false}
+              />
+            </div>
+          </>
+        )}
       </HoverCardContent>
     </HoverCard>
   );

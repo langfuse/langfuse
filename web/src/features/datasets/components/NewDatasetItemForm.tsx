@@ -11,15 +11,15 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
-import { DatasetItemAIGenerateButton } from "./DatasetItemAIGenerateButton";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
+import { generateSchemaExample } from "../lib/generateSchemaExample";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -162,15 +162,53 @@ export const NewDatasetItemForm = (props: {
   const hasInputSchema = selectedDatasets.some((d) => d.inputSchema);
   const hasOutputSchema = selectedDatasets.some((d) => d.expectedOutputSchema);
 
-  // For AI generation, only show button when single dataset is selected
-  const singleDatasetId =
-    selectedDatasets.length === 1 ? selectedDatasets[0]?.id : null;
-
   // Filter validation errors by field
   const inputErrors = validation.errors.filter((e) => e.field === "input");
   const expectedOutputErrors = validation.errors.filter(
     (e) => e.field === "expectedOutput",
   );
+
+  // Generate placeholders from schema when dataset is selected
+  useEffect(() => {
+    // Only generate if form has no initial values
+    if (hasInitialValues) return;
+
+    // Only generate if single dataset selected
+    if (selectedDatasets.length !== 1) return;
+
+    const dataset = selectedDatasets[0];
+    if (!dataset) return;
+
+    // Generate input placeholder if schema exists and field is empty
+    if (dataset.inputSchema && !inputValue) {
+      const placeholder = generateSchemaExample(dataset.inputSchema);
+      if (placeholder) {
+        form.setValue("input", placeholder, {
+          shouldValidate: false,
+          shouldDirty: false,
+          shouldTouch: false,
+        });
+      }
+    }
+
+    // Generate expectedOutput placeholder if schema exists and field is empty
+    if (dataset.expectedOutputSchema && !expectedOutputValue) {
+      const placeholder = generateSchemaExample(dataset.expectedOutputSchema);
+      if (placeholder) {
+        form.setValue("expectedOutput", placeholder, {
+          shouldValidate: false,
+          shouldDirty: false,
+          shouldTouch: false,
+        });
+      }
+    }
+  }, [
+    selectedDatasets,
+    hasInitialValues,
+    inputValue,
+    expectedOutputValue,
+    form,
+  ]);
 
   const utils = api.useUtils();
   const createManyDatasetItemsMutation =
@@ -338,21 +376,6 @@ export const NewDatasetItemForm = (props: {
                               showLabel
                             />
                           ))[0]}
-                      {singleDatasetId && (
-                        <DatasetItemAIGenerateButton
-                          fieldType="input"
-                          currentValue={inputValue}
-                          otherFieldValue={expectedOutputValue}
-                          datasetId={singleDatasetId}
-                          projectId={props.projectId}
-                          onAccept={(value) =>
-                            form.setValue("input", value, {
-                              shouldValidate: true,
-                              shouldDirty: true,
-                            })
-                          }
-                        />
-                      )}
                     </div>
                     <FormControl>
                       <CodeMirrorEditor
@@ -395,21 +418,6 @@ export const NewDatasetItemForm = (props: {
                               showLabel
                             />
                           ))[0]}
-                      {singleDatasetId && (
-                        <DatasetItemAIGenerateButton
-                          fieldType="expectedOutput"
-                          currentValue={expectedOutputValue}
-                          otherFieldValue={inputValue}
-                          datasetId={singleDatasetId}
-                          projectId={props.projectId}
-                          onAccept={(value) =>
-                            form.setValue("expectedOutput", value, {
-                              shouldValidate: true,
-                              shouldDirty: true,
-                            })
-                          }
-                        />
-                      )}
                     </div>
                     <FormControl>
                       <CodeMirrorEditor

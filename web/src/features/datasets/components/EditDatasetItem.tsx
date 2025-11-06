@@ -18,7 +18,6 @@ import { type RouterOutput } from "@/src/utils/types";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { Prisma } from "@langfuse/shared";
-import { DatasetItemAIGenerateButton } from "./DatasetItemAIGenerateButton";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 
 const formSchema = z.object({
@@ -210,23 +209,6 @@ export const EditDatasetItem = ({
                             showLabel
                           />
                         )}
-                        {dataset && (
-                          <DatasetItemAIGenerateButton
-                            fieldType="input"
-                            currentValue={inputValue}
-                            otherFieldValue={expectedOutputValue}
-                            datasetId={dataset.id}
-                            projectId={projectId}
-                            isPolishing={true}
-                            onAccept={(value) => {
-                              form.setValue("input", value, {
-                                shouldValidate: true,
-                                shouldDirty: true,
-                              });
-                              setHasChanges(true);
-                            }}
-                          />
-                        )}
                       </div>
                       <FormControl>
                         <CodeMirrorEditor
@@ -264,23 +246,6 @@ export const EditDatasetItem = ({
                             schema={dataset.expectedOutputSchema}
                             schemaType="expectedOutput"
                             showLabel
-                          />
-                        )}
-                        {dataset && (
-                          <DatasetItemAIGenerateButton
-                            fieldType="expectedOutput"
-                            currentValue={expectedOutputValue}
-                            otherFieldValue={inputValue}
-                            datasetId={dataset.id}
-                            projectId={projectId}
-                            isPolishing={true}
-                            onAccept={(value) => {
-                              form.setValue("expectedOutput", value, {
-                                shouldValidate: true,
-                                shouldDirty: true,
-                              });
-                              setHasChanges(true);
-                            }}
                           />
                         )}
                       </div>
