@@ -62,24 +62,21 @@ export function ScoreDistributionNumericChart({
 
   // Configure chart config
   const config: ChartConfig = useMemo(() => {
-    if (isComparisonMode && score2Name) {
-      return {
-        pv: {
-          label: score1Name,
-          color: colors.score1,
-        },
-        uv: {
-          label: score2Name,
-          color: colors.score2,
-        },
-      };
-    }
-    return {
+    const cfg: ChartConfig = {
       pv: {
         label: score1Name,
         color: colors.score1,
       },
     };
+
+    if (isComparisonMode && score2Name) {
+      cfg.uv = {
+        label: score2Name,
+        color: colors.score2,
+      };
+    }
+
+    return cfg;
   }, [isComparisonMode, score1Name, score2Name, colors]);
 
   const hasManyBins = chartData.length > 10;

@@ -64,28 +64,25 @@ export function ScoreDistributionBooleanChart({
     const firstColor =
       colors["True"] || colors["False"] || Object.values(colors)[0];
 
-    if (isComparisonMode && score2Name) {
-      return {
-        pv: {
-          label: score1Name,
-          color: firstColor,
-        },
-        uv: {
-          label: score2Name,
-          color:
-            colors["__score2_True"] ||
-            colors["__score2_False"] ||
-            Object.values(colors)[1] ||
-            firstColor,
-        },
-      };
-    }
-    return {
+    const cfg: ChartConfig = {
       pv: {
         label: score1Name,
         color: firstColor,
       },
     };
+
+    if (isComparisonMode && score2Name) {
+      cfg.uv = {
+        label: score2Name,
+        color:
+          colors["__score2_True"] ||
+          colors["__score2_False"] ||
+          Object.values(colors)[1] ||
+          firstColor,
+      };
+    }
+
+    return cfg;
   }, [isComparisonMode, score1Name, score2Name, colors]);
 
   return (
