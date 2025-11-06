@@ -1178,11 +1178,11 @@ describe("Webhook Integration Tests", () => {
 
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toBeDefined();
-      
+
       // Verify error message doesn't leak internal IP information
       expect(execution?.error).toContain("Webhook redirect not allowed");
       expect(execution?.error).not.toContain("internal.private.network");
-      
+
       // Verify no requests were received at the redirect target
       const requests = webhookServer.getReceivedRequests();
       const redirectTargetRequests = requests.filter((r) =>
