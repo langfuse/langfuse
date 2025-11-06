@@ -1,5 +1,4 @@
-import { v4 as uuidv4, v4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
+import { v4 } from "uuid";
 import { createEvent, createTraceScore } from "@langfuse/shared/src/server";
 import { createEventsCh, createScoresCh } from "@langfuse/shared/src/server";
 import {
@@ -23,7 +22,7 @@ describe("Events Service", () => {
       // Create events
       const events = [];
       for (let i = 0; i < 5; i++) {
-        const eventId = uuidv4();
+        const eventId = v4();
         events.push(
           createEvent({
             span_id: eventId,
@@ -134,10 +133,13 @@ describe("Events Service", () => {
       const timestamp = new Date("2024-01-01T00:00:00.000Z");
       const projectId = v4();
 
+      const ids: string[] = [];
+
       // Create multiple events
       const events = [];
       for (let i = 0; i < 10; i++) {
         const eventId = v4();
+        ids.push(eventId);
         events.push(
           createEvent({
             span_id: eventId,
@@ -177,14 +179,11 @@ describe("Events Service", () => {
       expect(page1.observations).toBeDefined();
       expect(page2.observations).toBeDefined();
 
-      // Pages should not have overlapping IDs
-      const page1Ids = new Set(page1.observations.map((o) => o.id));
-
-      page2.observations.forEach((obs) => {
-        if (page1Ids.has(obs.id)) {
-          // This is acceptable if there aren't enough unique observations
-        }
-      });
+      expect(page1.observations.map((o) => o.id)).not.toEqual(
+        page2.observations.map((o) => o.id),
+      );
+      expect(page1.observations.map((o) => o.id)).toEqual(ids.slice(0, 5));
+      expect(page2.observations.map((o) => o.id)).toEqual(ids.slice(5, 10));
     });
   });
 
@@ -198,7 +197,7 @@ describe("Events Service", () => {
       const eventCount = 7;
       const events = [];
       for (let i = 0; i < eventCount; i++) {
-        const eventId = uuidv4();
+        const eventId = v4();
         events.push(
           createEvent({
             span_id: eventId,
@@ -222,240 +221,143 @@ describe("Events Service", () => {
         orderBy: null,
       });
 
-      expect(result.totalCount).toBeGreaterThanOrEqual(eventCount);
+      expect(result.totalCount).toBe(eventCount);
     });
 
     it.each([
       [
-        "type filter",
-        [
-          {
-            column: "Type",
-            operator: "any of",
-            value: ["GENERATION"],
-            type: "stringOptions",
-          },
-        ],
+        "GENERATION",
+        {
+          column: "Type",
+          operator: "any of",
+          value: ["GENERATION"],
+          type: "stringOptions",
+        },
       ],
       [
-        "date range filter",
-        [
-          {
-            column: "Start Time",
-            operator: ">",
-            value: new Date("2024-01-01T00:00:00.000Z"),
-            type: "datetime",
-          },
-        ],
+        "test-event",
+        {
+          column: "Name",
+          operator: "any of",
+          value: ["test-event"],
+          type: "stringOptions",
+        },
       ],
       [
-        "multiple filters",
-        [
-          {
-            column: "Type",
-            operator: "any of",
-            value: ["GENERATION"],
-            type: "stringOptions",
-          },
-          {
-            column: "Start Time",
-            operator: ">",
-            value: new Date("2024-01-01T00:00:00.000Z"),
-            type: "datetime",
-          },
-        ],
+        "DEFAULT",
+        {
+          column: "Level",
+          operator: "any of",
+          value: ["DEFAULT"],
+          type: "stringOptions",
+        },
       ],
-    ])("should return count with %s", async (description, filters) => {
-      const projectId = v4();
-      const result = await getEventCount({
-        projectId,
-        filter: filters,
-        searchType: [],
-        orderBy: null,
-      });
+    ])(
+      "should count events filtered by %s = %s",
+      async (filterValue, filterState) => {
+        const traceId = v4();
+        const eventId = v4();
+        const projectId = v4();
+        const timestamp = new Date("2024-01-01T00:00:00.000Z");
 
-      expect(result.totalCount).toBeDefined();
-      expect(typeof result.totalCount).toBe("number");
-      expect(result.totalCount).toBeGreaterThanOrEqual(0);
-    });
+        const event = createEvent({
+          span_id: eventId,
+          id: eventId,
+          trace_id: traceId,
+          type: filterValue as ObservationType,
+          name: filterValue === "test-event" ? "test-event" : "other-name",
+          level: filterValue === "DEFAULT" ? "DEFAULT" : "ERROR",
+          start_time: timestamp.getTime() * 1000,
+          project_id: projectId,
+        });
 
-    it("should handle empty search query in count", async () => {
-      const projectId = v4();
-      const result = await getEventCount({
-        projectId,
-        filter: [],
-        searchQuery: undefined,
-        searchType: [],
-        orderBy: null,
-      });
+        await createEventsCh([event]);
+        await waitForClickHouse();
 
-      expect(result.totalCount).toBeDefined();
-      expect(typeof result.totalCount).toBe("number");
-      expect(result.totalCount).toBeGreaterThanOrEqual(0);
-    });
+        const result = await getEventCount({
+          projectId,
+          filter: [filterState],
+          searchType: [],
+          orderBy: null,
+        });
+
+        expect(result.totalCount).toBeDefined();
+        expect(typeof result.totalCount).toBe("number");
+        expect(result.totalCount).toBe(1);
+      },
+    );
   });
 
   describe("getEventFilterOptions", () => {
-    it("should return all filter option categories", async () => {
+    it("should return correct filter options for various event types", async () => {
       const projectId = v4();
-      const result = await getEventFilterOptions({
-        projectId,
-      });
+      const traceId = v4();
+      const timestamp = new Date("2024-01-01T00:00:00.000Z");
+      const promptId = v4();
+      const promptName = `test-prompt-${v4()}`;
+      const modelId = v4();
 
-      expect(result).toBeDefined();
-      expect(result.providedModelName).toBeDefined();
-      expect(result.modelId).toBeDefined();
-      expect(result.name).toBeDefined();
-      expect(result.scores_avg).toBeDefined();
-      expect(result.score_categories).toBeDefined();
-      expect(result.promptName).toBeDefined();
-      expect(result.traceTags).toBeDefined();
-      expect(result.type).toBeDefined();
-      expect(result.userId).toBeDefined();
-      expect(result.version).toBeDefined();
-      expect(result.sessionId).toBeDefined();
-      expect(result.level).toBeDefined();
-      expect(result.environment).toBeDefined();
-
-      // Check all are arrays
-      expect(Array.isArray(result.providedModelName)).toBe(true);
-      expect(Array.isArray(result.modelId)).toBe(true);
-      expect(Array.isArray(result.name)).toBe(true);
-      expect(Array.isArray(result.scores_avg)).toBe(true);
-      expect(Array.isArray(result.score_categories)).toBe(true);
-      expect(Array.isArray(result.promptName)).toBe(true);
-      expect(Array.isArray(result.traceTags)).toBe(true);
-      expect(Array.isArray(result.type)).toBe(true);
-      expect(Array.isArray(result.userId)).toBe(true);
-      expect(Array.isArray(result.version)).toBe(true);
-      expect(Array.isArray(result.sessionId)).toBe(true);
-      expect(Array.isArray(result.level)).toBe(true);
-      expect(Array.isArray(result.environment)).toBe(true);
-    });
-
-    it("should filter options by time range", async () => {
-      const projectId = v4();
-      const startTimeFilter = [
-        {
-          column: "Start Time" as const,
-          operator: ">" as const,
-          value: new Date("2024-01-01T00:00:00.000Z"),
-          type: "datetime" as const,
-        },
+      // Create diverse events with different properties
+      const events = [
+        // Event with model information
+        createEvent({
+          span_id: v4(),
+          id: v4(),
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-with-model",
+          start_time: timestamp.getTime() * 1000,
+          project_id: projectId,
+          provided_model_name: "gpt-4",
+          model_id: modelId,
+          user_id: "user-123",
+          session_id: v4(),
+          version: "v1.0",
+          environment: "production",
+          level: "DEFAULT",
+        }),
+        // Event with prompt information
+        createEvent({
+          span_id: v4(),
+          id: v4(),
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-with-prompt",
+          start_time: (timestamp.getTime() + 1000) * 1000,
+          project_id: projectId,
+          prompt_id: promptId,
+          prompt_name: promptName,
+          level: "WARNING",
+        }),
+        // SPAN type event
+        createEvent({
+          span_id: v4(),
+          id: v4(),
+          trace_id: traceId,
+          type: "SPAN",
+          name: "span-event",
+          start_time: (timestamp.getTime() + 2000) * 1000,
+          project_id: projectId,
+          environment: "staging",
+        }),
+        // EVENT type event
+        createEvent({
+          span_id: v4(),
+          id: v4(),
+          trace_id: traceId,
+          type: "EVENT",
+          name: "custom-event",
+          start_time: (timestamp.getTime() + 3000) * 1000,
+          project_id: projectId,
+          level: "ERROR",
+        }),
       ];
 
-      const result = await getEventFilterOptions({
-        projectId,
-        startTimeFilter,
-      });
+      const eventId = events[0].span_id;
 
-      expect(result).toBeDefined();
-      expect(Array.isArray(result.name)).toBe(true);
-      expect(Array.isArray(result.type)).toBe(true);
-    });
+      await createEventsCh(events);
 
-    it("should return options with correct structure", async () => {
-      const traceId = v4();
-      const projectId = v4();
-      const timestamp = new Date("2024-01-01T00:00:00.000Z");
-
-      // Create event
-      const eventId = v4();
-      const event = createEvent({
-        span_id: eventId,
-        id: eventId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "test-event-options",
-        start_time: timestamp.getTime() * 1000, // Microseconds
-        project_id: projectId,
-        provided_model_name: "gpt-4",
-      });
-
-      await createEventsCh([event]);
-      await waitForClickHouse();
-
-      const result = await getEventFilterOptions({
-        projectId,
-      });
-
-      // Check structure of options with values
-      if (result.providedModelName.length > 0) {
-        expect(result.providedModelName[0]).toHaveProperty("value");
-        expect(result.providedModelName[0]).toHaveProperty("count");
-        expect(typeof result.providedModelName[0].value).toBe("string");
-        expect(typeof result.providedModelName[0].count).toBe("number");
-      }
-
-      if (result.type.length > 0) {
-        expect(result.type[0]).toHaveProperty("value");
-        expect(result.type[0]).toHaveProperty("count");
-      }
-
-      if (result.traceTags.length > 0) {
-        expect(result.traceTags[0]).toHaveProperty("value");
-      }
-    });
-
-    it("should populate prompt names when prompts are used", async () => {
-      const traceId = v4();
-      const projectId = v4();
-      const promptId = v4();
-      const promptName = `test-prompt-${uuidv4()}`;
-      const timestamp = new Date("2024-01-01T00:00:00.000Z");
-
-      // Create event with prompt information
-      const eventId = v4();
-      const event = createEvent({
-        span_id: eventId,
-        id: eventId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "test-event-prompt",
-        start_time: timestamp.getTime() * 1000, // Microseconds
-        project_id: projectId,
-        prompt_id: promptId,
-        prompt_name: promptName,
-      });
-
-      await createEventsCh([event]);
-      await waitForClickHouse();
-
-      const result = await getEventFilterOptions({
-        projectId,
-      });
-
-      expect(result.promptName).toBeDefined();
-      expect(Array.isArray(result.promptName)).toBe(true);
-
-      // Note: Due to ClickHouse timing, the newly created prompt may not appear immediately
-      // This test validates the structure and that the function works correctly
-      if (result.promptName.length > 0) {
-        expect(result.promptName[0]).toHaveProperty("value");
-        expect(result.promptName[0]).toHaveProperty("count");
-      }
-    });
-
-    it("should populate numeric and categorical scores", async () => {
-      const traceId = v4();
-      const projectId = v4();
-      const timestamp = new Date("2024-01-01T00:00:00.000Z");
-
-      // Create event
-      const eventId = v4();
-      const event = createEvent({
-        span_id: eventId,
-        id: eventId,
-        trace_id: traceId,
-        type: "GENERATION",
-        name: "test-event-scores",
-        start_time: timestamp.getTime() * 1000, // Microseconds
-        project_id: projectId,
-      });
-
-      await createEventsCh([event]);
-
-      // Create numeric score
+      // Create scores for filter options
       const numericScore = createTraceScore({
         id: v4(),
         timestamp: timestamp.getTime(),
@@ -467,7 +369,6 @@ describe("Events Service", () => {
         observation_id: eventId,
       });
 
-      // Create categorical score
       const categoricalScore = createTraceScore({
         id: v4(),
         timestamp: timestamp.getTime(),
@@ -482,22 +383,70 @@ describe("Events Service", () => {
       await createScoresCh([numericScore, categoricalScore]);
       await waitForClickHouse();
 
+      // Test without time filter
       const result = await getEventFilterOptions({
         projectId,
       });
 
-      expect(result.scores_avg).toBeDefined();
+      // Verify all filter option categories exist and are arrays
+      expect(result).toBeDefined();
+      expect(Array.isArray(result.providedModelName)).toBe(true);
+      expect(Array.isArray(result.modelId)).toBe(true);
+      expect(Array.isArray(result.name)).toBe(true);
       expect(Array.isArray(result.scores_avg)).toBe(true);
-
-      expect(result.score_categories).toBeDefined();
       expect(Array.isArray(result.score_categories)).toBe(true);
-    });
+      expect(Array.isArray(result.promptName)).toBe(true);
+      expect(Array.isArray(result.traceTags)).toBe(true);
+      expect(Array.isArray(result.type)).toBe(true);
+      expect(Array.isArray(result.userId)).toBe(true);
+      expect(Array.isArray(result.version)).toBe(true);
+      expect(Array.isArray(result.sessionId)).toBe(true);
+      expect(Array.isArray(result.level)).toBe(true);
+      expect(Array.isArray(result.environment)).toBe(true);
 
-    it.each([
-      ["empty startTimeFilter", undefined],
-      [
-        "with startTimeFilter",
-        [
+      // Verify populated options have correct values
+      const modelNameOption = result.providedModelName.find(
+        (opt) => opt.value === "gpt-4",
+      );
+      expect(modelNameOption).toBeDefined();
+      expect(modelNameOption?.count).toBeGreaterThanOrEqual(1);
+
+      const modelIdOption = result.modelId.find((opt) => opt.value === modelId);
+      expect(modelIdOption).toBeDefined();
+      expect(modelIdOption?.count).toBeGreaterThanOrEqual(1);
+
+      const nameOptions = result.name.map((opt) => opt.value);
+      expect(nameOptions).toContain("event-with-model");
+      expect(nameOptions).toContain("event-with-prompt");
+      expect(nameOptions).toContain("span-event");
+      expect(nameOptions).toContain("custom-event");
+
+      const typeOptions = result.type.map((opt) => opt.value);
+      expect(typeOptions).toContain("GENERATION");
+      expect(typeOptions).toContain("SPAN");
+      expect(typeOptions).toContain("EVENT");
+
+      const levelOptions = result.level.map((opt) => opt.value);
+      expect(levelOptions).toContain("DEFAULT");
+      expect(levelOptions).toContain("WARNING");
+      expect(levelOptions).toContain("ERROR");
+
+      const environmentOptions = result.environment.map((opt) => opt.value);
+      expect(environmentOptions).toContain("production");
+      expect(environmentOptions).toContain("staging");
+
+      const promptNameOption = result.promptName.find(
+        (opt) => opt.value === promptName,
+      );
+      expect(promptNameOption).toBeDefined();
+
+      expect(result.scores_avg).toContain("accuracy");
+      expect(Array.isArray(result.score_categories)).toBe(true);
+
+      // Test with time filter
+      const resultWithTimeFilter = await getEventFilterOptions({
+        projectId,
+        startTimeFilter: [
           {
             column: "Start Time" as const,
             operator: ">" as const,
@@ -505,18 +454,11 @@ describe("Events Service", () => {
             type: "datetime" as const,
           },
         ],
-      ],
-    ])("should handle %s", async (description, startTimeFilter) => {
-      const projectId = v4();
-      const result = await getEventFilterOptions({
-        projectId,
-        startTimeFilter,
       });
 
-      expect(result).toBeDefined();
-      expect(result.name).toBeDefined();
-      expect(result.type).toBeDefined();
-      expect(result.providedModelName).toBeDefined();
+      expect(resultWithTimeFilter).toBeDefined();
+      expect(Array.isArray(resultWithTimeFilter.name)).toBe(true);
+      expect(Array.isArray(resultWithTimeFilter.type)).toBe(true);
     });
   });
 
