@@ -6,11 +6,12 @@ import addFormats from "ajv-formats";
  */
 export const createAjvInstance = () => {
   const ajv = new Ajv({
-    strict: false,
-    allErrors: true, // Return all errors, not just first
-    verbose: true,
+    strict: true,
+    allErrors: false, // Return all errors, not just first
+    code: { optimize: true }, // Enable code optimization to improve performance and reduce DoS risk
+    validateFormats: false, // Prevent ReDoS via format validators
   });
-  addFormats(ajv);
+  addFormats(ajv); // Formats added but not validated
 
   return ajv;
 };
@@ -22,6 +23,9 @@ export const createAjvInstance = () => {
  */
 export function isValidJSONSchema(schema: unknown): boolean {
   try {
+    const stringified = JSON.stringify(schema);
+    if (stringified.length > 1_000) return false; // Schema too large
+
     const ajv = createAjvInstance();
     // This will throw an error if the schema is invalid
     ajv.compile(schema as AnySchema);
