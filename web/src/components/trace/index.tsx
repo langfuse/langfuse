@@ -32,7 +32,10 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
+import {
+  buildTraceUiData,
+  downloadTraceAsJson as downloadTraceUtil,
+} from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -260,24 +263,11 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const downloadTraceAsJson = useCallback(() => {
-    const exportData = {
+  const handleDownloadTrace = useCallback(() => {
+    downloadTraceUtil({
       trace: props.trace,
       observations: props.observations,
-    };
-
-    const jsonString = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `trace-${props.trace.id}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
+    });
     capture("trace_detail:download_button_click");
   }, [props.trace, props.observations, capture]);
 
@@ -505,7 +495,7 @@ export function Trace(props: {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={downloadTraceAsJson}
+                        onClick={handleDownloadTrace}
                         title="Download trace as JSON"
                       >
                         <Download className="h-4 w-4" />
@@ -745,7 +735,7 @@ export function Trace(props: {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={downloadTraceAsJson}
+                            onClick={handleDownloadTrace}
                             title="Download trace as JSON"
                           >
                             <Download className="h-4 w-4" />

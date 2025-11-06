@@ -10,8 +10,13 @@ import {
   createTracesCh,
   createTraceScore,
   createScoresCh,
+  getTraceById,
+  createEventsCh,
+  createEvent,
+  getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { env } from "@/src/env.mjs";
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -379,6 +384,133 @@ describe("traces trpc", () => {
       );
       // Should include all possible values from config, not just the actual score value
       expect(sentimentScore?.values).toHaveLength(4);
+    });
+  });
+
+  describe("traces flags", () => {
+    const useEventsTable = env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true";
+    it("should bookmark a trace", async () => {
+      // Create a trace that is not bookmarked
+      const trace = createTrace({
+        project_id: projectId,
+        bookmarked: false,
+      });
+
+      await createTracesCh([trace]);
+
+      if (useEventsTable) {
+        await createEventsCh([
+          createEvent({
+            id: trace.id,
+            span_id: trace.id,
+            trace_id: trace.id,
+            project_id: trace.project_id,
+            parent_span_id: null,
+            bookmarked: false,
+          }),
+        ]);
+      }
+
+      const cleanTrace = await getTraceById({
+        traceId: trace.id,
+        projectId,
+        clickhouseFeatureTag: "tracing-test",
+      });
+
+      expect(cleanTrace).toBeDefined();
+      expect(cleanTrace?.bookmarked).toBe(false);
+
+      // Bookmark the trace
+      const result = await caller.traces.bookmark({
+        projectId,
+        traceId: trace.id,
+        bookmarked: true,
+      });
+
+      expect(result).toBeDefined();
+      expect(result?.id).toEqual(trace.id);
+      expect(result?.bookmarked).toBe(true);
+
+      // Verify the trace is bookmarked in the database
+      const updatedTrace = await getTraceById({
+        traceId: trace.id,
+        projectId,
+        clickhouseFeatureTag: "tracing-test",
+      });
+
+      expect(updatedTrace).toBeDefined();
+      expect(updatedTrace?.bookmarked).toBe(true);
+
+      if (useEventsTable) {
+        const eventTrace = await getTraceByIdFromEventsTable({
+          projectId,
+          traceId: trace.id,
+        });
+        expect(eventTrace).toBeDefined();
+        expect(eventTrace?.bookmarked).toBe(true);
+      }
+    });
+
+    it("should make a trace public", async () => {
+      // Create a trace that is not bookmarked
+      const trace = createTrace({
+        project_id: projectId,
+        public: false,
+      });
+
+      await createTracesCh([trace]);
+
+      if (useEventsTable) {
+        await createEventsCh([
+          createEvent({
+            id: trace.id,
+            span_id: trace.id,
+            trace_id: trace.id,
+            project_id: trace.project_id,
+            parent_span_id: null,
+            public: false,
+          }),
+        ]);
+      }
+
+      const cleanTrace = await getTraceById({
+        traceId: trace.id,
+        projectId,
+        clickhouseFeatureTag: "tracing-test",
+      });
+
+      expect(cleanTrace).toBeDefined();
+      expect(cleanTrace?.public).toBe(false);
+
+      // Bookmark the trace
+      const result = await caller.traces.publish({
+        projectId,
+        traceId: trace.id,
+        public: true,
+      });
+
+      expect(result).toBeDefined();
+      expect(result?.id).toEqual(trace.id);
+      expect(result?.public).toBe(true);
+
+      // Verify the trace is public in the database
+      const updatedTrace = await getTraceById({
+        traceId: trace.id,
+        projectId,
+        clickhouseFeatureTag: "tracing-test",
+      });
+
+      expect(updatedTrace).toBeDefined();
+      expect(updatedTrace?.public).toBe(true);
+
+      if (useEventsTable) {
+        const eventTrace = await getTraceByIdFromEventsTable({
+          projectId,
+          traceId: trace.id,
+        });
+        expect(eventTrace).toBeDefined();
+        expect(eventTrace?.public).toBe(true);
+      }
     });
   });
 });

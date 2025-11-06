@@ -3,12 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/src/components/ui/button";
-import {
-  Image as ImageIcon,
-  ImageOff,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
+import { ImageOff, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { captureException } from "@sentry/nextjs";
@@ -132,26 +127,24 @@ export const ResizableImage = ({
               </Button>
             </>
           ) : (
-            <div className="grid h-14 w-full grid-cols-[auto,1fr] items-center gap-2 rounded border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground/60">
+            <div className="flex w-full items-center gap-2 rounded border border-dashed bg-muted/30 p-2 text-xs text-muted-foreground/60">
               <Button
                 title="Render image"
                 type="button"
-                size="icon"
-                variant="ghost"
+                size="sm"
+                variant="secondary"
                 onClick={() => setIsImageVisible(!isImageVisible)}
               >
-                <ImageIcon className="h-4 w-4" />
+                Load Image
               </Button>
-              <div className="flex items-center overflow-hidden">
+              <div className="flex min-w-0 flex-1 items-center overflow-hidden">
                 <Link
                   href={src}
                   title={src}
-                  className="overflow-hidden underline"
+                  className="truncate underline"
                   target="_blank"
                 >
-                  <div className="h-8 overflow-hidden overflow-ellipsis">
-                    {src}
-                  </div>
+                  {src}
                 </Link>
               </div>
             </div>
