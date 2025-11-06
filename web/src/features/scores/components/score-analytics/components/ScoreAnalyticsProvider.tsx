@@ -7,7 +7,6 @@ import {
 import {
   getSingleScoreColor,
   getTwoScoreColors,
-  SCORE_BASE_COLORS,
   getScoreCategoryColors,
   getScoreBooleanColors,
   getScoreNumericColor,
@@ -189,11 +188,10 @@ export function ScoreAnalyticsProvider({
     return mappings;
   }, [queryResult.data, params]);
 
-  // Helper function to get base color for a score
+  // Helper function to get color for a score
+  // Returns darkest color from monochrome scale for consistency
   const getColorForScore = useCallback((scoreNumber: 1 | 2): string => {
-    return scoreNumber === 1
-      ? SCORE_BASE_COLORS.score1
-      : SCORE_BASE_COLORS.score2;
+    return getScoreNumericColor(scoreNumber);
   }, []);
 
   // Build context value
