@@ -114,6 +114,7 @@ function isValidCssVariableName({
 // These are the important styles to make sticky column pinning work!
 const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
+  isRowSelected?: boolean,
 ): CSSProperties => {
   const isPinned = column.getIsPinned();
 
@@ -123,7 +124,11 @@ const getCommonPinningStyles = <TData,>(
     position: isPinned ? "sticky" : "relative",
     width: column.getSize(),
     zIndex: isPinned ? 10 : 0,
-    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+    backgroundColor: isPinned
+      ? isRowSelected
+        ? "hsl(var(--muted))"
+        : "hsl(var(--background))"
+      : undefined,
   };
 };
 
@@ -506,6 +511,7 @@ function TableRowComponent<TData>({
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         selectedRowId && selectedRowId === row.id ? "bg-accent" : undefined,
+        row.getIsSelected() && "bg-muted",
         getRowClassName?.(row.original),
       )}
     >
@@ -552,7 +558,7 @@ function TableBodyComponent<TData>({
                 )}
                 style={{
                   width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  ...getCommonPinningStyles(cell.column),
+                  ...getCommonPinningStyles(cell.column, row.getIsSelected()),
                 }}
               >
                 <div className={cn("flex items-center", rowheighttw)}>
