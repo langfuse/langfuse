@@ -147,11 +147,19 @@ export function ScoreDistributionBooleanChart({
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
-        {!hiddenKeys.has("pv") && (
-          <Bar dataKey="pv" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
-        )}
-        {isComparisonMode && !hiddenKeys.has("uv") && (
-          <Bar dataKey="uv" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+        <Bar
+          dataKey="pv"
+          fill="hsl(var(--chart-3))"
+          fillOpacity={hiddenKeys.has("pv") ? 0 : 1}
+          radius={[4, 4, 0, 0]}
+        />
+        {isComparisonMode && (
+          <Bar
+            dataKey="uv"
+            fill="hsl(var(--chart-2))"
+            fillOpacity={hiddenKeys.has("uv") ? 0 : 1}
+            radius={[4, 4, 0, 0]}
+          />
         )}
         {isComparisonMode && (
           <Legend

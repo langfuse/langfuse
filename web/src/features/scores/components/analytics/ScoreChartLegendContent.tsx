@@ -201,7 +201,7 @@ export const ScoreChartLegendContent = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          "flex min-h-[48px] items-center gap-2",
+          "flex min-h-[48px] items-center justify-center gap-2",
           verticalAlign === "top" ? "pb-3" : "pt-3",
           className,
         )}

@@ -232,8 +232,7 @@ export function ScoreDistributionCategoricalChart({
 
         {hasStackedData &&
           allStackKeys.map((stackKey) => {
-            // Skip hidden stack segments
-            if (hiddenKeys.has(stackKey)) return null;
+            const isHidden = hiddenKeys.has(stackKey);
 
             return (
               <Bar
@@ -241,6 +240,7 @@ export function ScoreDistributionCategoricalChart({
                 dataKey={stackKey}
                 stackId="stack"
                 fill={config[stackKey]?.theme?.light ?? "hsl(var(--chart-1))"}
+                fillOpacity={isHidden ? 0 : 1}
                 radius={[0, 0, 0, 0]}
               />
             );

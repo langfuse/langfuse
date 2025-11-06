@@ -146,25 +146,29 @@ export function ScoreTimeSeriesNumericChart({
           tickLine={false}
           axisLine={false}
         />
-        {!hiddenKeys.has(score1Name) && (
-          <Line
-            type="monotone"
-            dataKey={score1Name}
-            stroke={colors.score1}
-            strokeWidth={2}
-            dot={true}
-            activeDot={{ r: 6, strokeWidth: 0 }}
-            connectNulls
-          />
-        )}
-        {isComparisonMode && score2Name && !hiddenKeys.has(score2Name) && (
+        <Line
+          type="monotone"
+          dataKey={score1Name}
+          stroke={colors.score1}
+          strokeWidth={2}
+          strokeOpacity={hiddenKeys.has(score1Name) ? 0 : 1}
+          dot={!hiddenKeys.has(score1Name)}
+          activeDot={
+            !hiddenKeys.has(score1Name) ? { r: 6, strokeWidth: 0 } : false
+          }
+          connectNulls
+        />
+        {isComparisonMode && score2Name && (
           <Line
             type="monotone"
             dataKey={score2Name}
             stroke={colors.score2}
             strokeWidth={2}
-            dot={true}
-            activeDot={{ r: 6, strokeWidth: 0 }}
+            strokeOpacity={hiddenKeys.has(score2Name) ? 0 : 1}
+            dot={!hiddenKeys.has(score2Name)}
+            activeDot={
+              !hiddenKeys.has(score2Name) ? { r: 6, strokeWidth: 0 } : false
+            }
             connectNulls
           />
         )}

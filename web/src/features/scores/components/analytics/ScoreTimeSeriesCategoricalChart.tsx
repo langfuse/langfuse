@@ -182,9 +182,6 @@ export function ScoreTimeSeriesCategoricalChart({
           label={{ value: "Count", angle: -90, position: "insideLeft" }}
         />
         {categories.map((category, index) => {
-          // Skip hidden categories
-          if (hiddenKeys.has(category)) return null;
-
           const chartColors = [
             "hsl(var(--chart-1))",
             "hsl(var(--chart-2))",
@@ -193,6 +190,7 @@ export function ScoreTimeSeriesCategoricalChart({
             "hsl(var(--chart-5))",
           ];
           const colorIndex = index % chartColors.length;
+          const isHidden = hiddenKeys.has(category);
 
           return (
             <Line
@@ -201,8 +199,9 @@ export function ScoreTimeSeriesCategoricalChart({
               dataKey={category}
               stroke={chartColors[colorIndex]}
               strokeWidth={2}
-              dot={true}
-              activeDot={{ r: 6, strokeWidth: 0 }}
+              strokeOpacity={isHidden ? 0 : 1}
+              dot={!isHidden}
+              activeDot={!isHidden ? { r: 6, strokeWidth: 0 } : false}
               connectNulls
             />
           );
