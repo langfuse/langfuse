@@ -3,7 +3,6 @@ import {
   ChatMessageRole,
   ChatMessageType,
   compileChatMessages,
-  datasetItemMatchesVariable,
   extractPlaceholderNames,
   extractVariables,
   MessagePlaceholderValues,
@@ -26,26 +25,6 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import z from "zod/v4";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-
-const isValidPrismaJsonObject = (
-  input: Prisma.JsonValue,
-): input is Prisma.JsonObject =>
-  typeof input === "object" &&
-  input !== null &&
-  input !== undefined &&
-  !Array.isArray(input);
-
-export const validateDatasetItem = (
-  itemInput: Prisma.JsonValue,
-  variables: string[],
-): itemInput is Prisma.JsonObject => {
-  if (!isValidPrismaJsonObject(itemInput)) {
-    return false;
-  }
-  return variables.some((variable) =>
-    datasetItemMatchesVariable(itemInput, variable),
-  );
-};
 
 export const parseDatasetItemInput = (
   itemInput: Prisma.JsonObject,

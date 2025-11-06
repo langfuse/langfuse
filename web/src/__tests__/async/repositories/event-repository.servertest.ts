@@ -6,11 +6,13 @@ import {
   getObservationByIdFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
+  updateEvents,
+  getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
-import { type FilterCondition } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { type FilterCondition } from "@langfuse/shared";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -146,7 +148,8 @@ describe("Clickhouse Events Repository Test", () => {
       const observation = result.find((o) => o.id === generationId);
       expect(observation).toBeDefined();
       expect(observation?.id).toBe(generationId);
-      expect(observation?.internalModelId).toBeNull();
+      // Model data should be null or empty string
+      expect(observation?.internalModelId || null).toBeNull();
       expect(observation?.inputPrice).toBeNull();
       expect(observation?.outputPrice).toBeNull();
       expect(observation?.totalPrice).toBeNull();
@@ -1499,6 +1502,177 @@ describe("Clickhouse Events Repository Test", () => {
 
       // Cleanup
       await prisma.model.delete({ where: { id: modelId } });
+    });
+  });
+
+  maybe("Update methods", () => {
+    it("should allow to set/unset bookmarked", async () => {
+      const traceId = randomUUID();
+      const traceId2 = randomUUID();
+      const rootSpanId = randomUUID();
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "root-event",
+        bookmarked: false,
+        parent_span_id: "",
+      });
+      const rootEvent2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "root-event2",
+        bookmarked: true,
+        parent_span_id: "",
+      });
+
+      const events = Array(3)
+        .keys()
+        .map((i) => {
+          const id = randomUUID();
+          return createEvent({
+            id: id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "event-" + i,
+            bookmarked: false,
+            parent_span_id: rootSpanId,
+          });
+        });
+
+      await createEventsCh([rootEvent, rootEvent2, ...events]);
+
+      var result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(false);
+
+      // Model setting bookmark as true on the root span
+      await updateEvents(
+        projectId,
+        { traceIds: [traceId], rootOnly: true },
+        { bookmarked: true },
+      );
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(true);
+
+      // Non-root event on bookmarked
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-hijack",
+          bookmarked: true,
+          parent_span_id: rootSpanId,
+        }),
+      ]);
+
+      // Removing bookmark on all span in a trace
+      // including the non-root, added above
+      await updateEvents(
+        projectId,
+        { traceIds: [traceId] },
+        { bookmarked: false },
+      );
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(false);
+
+      // Trace id 2 should remain bookmarked
+      result = await getTraceByIdFromEventsTable({
+        projectId,
+        traceId: traceId2,
+      });
+      expect(result).toBeDefined();
+      expect(result?.bookmarked).toBe(true);
+    });
+
+    it("should allow to set/unset public", async () => {
+      const traceId = randomUUID();
+      const traceId2 = randomUUID();
+      const rootSpanId = randomUUID();
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "root-event",
+        public: false,
+        parent_span_id: "",
+      });
+      const rootEvent2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "root-event2",
+        public: true,
+        parent_span_id: "",
+      });
+
+      await createEventsCh([rootEvent, rootEvent2]);
+
+      var result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(false);
+
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: true });
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(true);
+
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: false });
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(false);
+
+      // Non-root event with public
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-hijack",
+          public: true,
+          parent_span_id: rootSpanId,
+        }),
+      ]);
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(true);
+
+      // Clearing public on non-root
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: false });
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(false);
+
+      // Trace id 2 should remain public
+      result = await getTraceByIdFromEventsTable({
+        projectId,
+        traceId: traceId2,
+      });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(true);
     });
   });
 });

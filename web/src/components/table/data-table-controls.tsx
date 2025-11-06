@@ -135,7 +135,7 @@ export function DataTableControls({
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="flex h-full flex-col overflow-auto">
+      <div className="flex h-full flex-col overflow-auto pb-10">
         <div className="mb-2 flex h-10 shrink-0 items-center justify-between border-b px-3">
           <span className="text-sm font-medium">Filters</span>
           {filterWithAI && isLangfuseCloud && (

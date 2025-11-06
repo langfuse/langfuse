@@ -41,6 +41,7 @@ import {
   tracesTableUiColumnDefinitions,
   getTracesGroupedByUsers,
   getTracesGroupedBySessionId,
+  updateEvents,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -49,6 +50,7 @@ import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
+import { env } from "@/src/env.mjs";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -412,7 +414,19 @@ export const traceRouter = createTRPCRouter({
         if (clickhouseTrace) {
           trace = clickhouseTrace;
           clickhouseTrace.bookmarked = input.bookmarked;
-          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+          const promises = [
+            upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+          ];
+          if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+            promises.push(
+              updateEvents(
+                input.projectId,
+                { traceIds: [clickhouseTrace.id], rootOnly: true },
+                { bookmarked: input.bookmarked },
+              ),
+            );
+          }
+          await Promise.all(promises);
         } else {
           logger.error(
             `Trace not found in Clickhouse: ${input.traceId}. Skipping bookmark.`,
@@ -465,7 +479,19 @@ export const traceRouter = createTRPCRouter({
           });
         }
         clickhouseTrace.public = input.public;
-        await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        const promises = [
+          upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+        ];
+        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+          promises.push(
+            updateEvents(
+              input.projectId,
+              { traceIds: [clickhouseTrace.id] },
+              { public: input.public },
+            ),
+          );
+        }
+        await Promise.all(promises);
         return clickhouseTrace;
       } catch (error) {
         logger.error("Failed to call traces.publish", error);

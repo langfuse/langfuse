@@ -24,7 +24,6 @@ export {
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
-  createTracesUiColumnDefinitions,
   deriveFilters,
   type ApiColumnMapping,
 } from "./public-api-filter-builder";

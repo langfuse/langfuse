@@ -1,5 +1,4 @@
 import * as React from "react";
-import { cn } from "@/src/utils/tailwind";
 import {
   type ScoreSourceType,
   type AggregatedScoreData,
@@ -18,6 +17,8 @@ import {
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 
 const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
   if (aggregate.type === "NUMERIC") {
@@ -45,42 +46,32 @@ const ScoreDetailRow = ({
   </div>
 );
 
-const ScoreRowContent = ({
-  name,
+const ScoreValueSection = ({
   aggregate,
+  diff,
 }: {
-  name: string;
   aggregate: AggregatedScoreData | null;
+  diff?: BaselineDiff;
 }) => {
   return (
-    <div
-      className={cn(
-        "flex w-full items-center justify-between gap-2",
-        aggregate && "cursor-pointer",
-      )}
-    >
-      <span
-        className={cn(
-          "min-w-16 flex-1 truncate",
-          aggregate ? "font-medium" : "text-muted-foreground",
-        )}
-      >
-        {name}
-      </span>
-      <div className="flex flex-shrink-0 items-center gap-1">
-        {aggregate ? (
+    <div className="flex flex-shrink-0 items-center gap-1">
+      {aggregate ? (
+        <>
           <span className="line-clamp-1 font-medium">
             {resolveScoreValue(aggregate)}
           </span>
-        ) : (
-          <span className="text-sm text-muted-foreground">-</span>
-        )}
-        <div className="flex h-3 w-3 items-center justify-center">
-          {aggregate?.comment && (
-            <MessageCircleMore size={12} className="text-muted-foreground" />
+          {diff && (
+            <DiffLabel diff={diff} formatValue={(value) => value.toFixed(2)} />
           )}
+        </>
+      ) : (
+        <span className="text-sm text-muted-foreground">-</span>
+      )}
+      {aggregate?.comment && (
+        <div className="flex h-3 w-3 items-center justify-center">
+          <MessageCircleMore size={12} className="text-muted-foreground" />
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -90,11 +81,13 @@ export const ScoreRow = ({
   name,
   source,
   aggregate,
+  diff,
 }: {
   projectId: string;
   name: string;
   source: ScoreSourceType;
   aggregate: AggregatedScoreData | null;
+  diff?: BaselineDiff;
 }) => {
   const [isHovered, setIsHovered] = React.useState(false);
 
@@ -116,22 +109,32 @@ export const ScoreRow = ({
   );
 
   if (!aggregate) {
-    return <ScoreRowContent name={name} aggregate={aggregate} />;
+    return (
+      <div className="flex h-6 w-full items-center gap-2">
+        <span className="w-32 flex-shrink-0 truncate text-muted-foreground">
+          {name}
+        </span>
+        <ScoreValueSection aggregate={aggregate} diff={diff} />
+      </div>
+    );
   }
 
   return (
     <HoverCard openDelay={700} closeDelay={100} onOpenChange={setIsHovered}>
-      <HoverCardTrigger asChild>
-        <div className="group/io-cell relative h-full w-full">
-          <ScoreRowContent name={name} aggregate={aggregate} />
-        </div>
-      </HoverCardTrigger>
+      <div className="flex h-6 w-full items-center gap-2">
+        <span className="w-32 flex-shrink-0 truncate font-medium">{name}</span>
+        <HoverCardTrigger asChild>
+          <div className="cursor-pointer">
+            <ScoreValueSection aggregate={aggregate} diff={diff} />
+          </div>
+        </HoverCardTrigger>
+      </div>
       <HoverCardContent
-        className="max-h-[40vh] w-[300px] overflow-y-auto"
+        className="max-h-[40vh] w-[300px] cursor-pointer overflow-y-auto"
         side="top"
         align="start"
       >
-        <div className="space-y-3">
+        <div className="cursor-pointer space-y-3">
           <h4 className="text-sm font-medium">{name}</h4>
 
           <div className="space-y-2 text-xs">
@@ -145,18 +148,16 @@ export const ScoreRow = ({
               <ScoreDetailRow
                 label="Comment"
                 value={
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="line-clamp-2 cursor-help">
-                        {aggregate.comment}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-sm">
-                      <p className="whitespace-pre-wrap text-xs">
-                        {aggregate.comment}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <span
+                    title={aggregate.comment}
+                    className="line-clamp-[10] max-h-[240px] overflow-hidden break-words"
+                    style={{
+                      textAlign: "justify",
+                      textAlignLast: "right",
+                    }}
+                  >
+                    {aggregate.comment}
+                  </span>
                 }
               />
             )}
