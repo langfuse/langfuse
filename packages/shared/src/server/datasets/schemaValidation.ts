@@ -69,7 +69,6 @@ export async function validateAllDatasetItems(params: {
       where: {
         datasetId,
         projectId,
-        status: "ACTIVE",
       },
       select: {
         id: true,
