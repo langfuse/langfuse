@@ -14,6 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 
 /**
  * MultiWindowPlayground Component
@@ -49,6 +50,7 @@ export default function MultiWindowPlayground({
 }: MultiWindowPlaygroundProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevWindowCountRef = useRef(windowState.windowIds.length);
+  const isMobile = useIsMobile();
 
   /**
    * Calculate responsive window width based on screen size and window count
@@ -124,7 +126,7 @@ export default function MultiWindowPlayground({
                 onRemove={onRemoveWindow}
                 onCopy={handleCopyWindow}
                 canRemove={windowState.windowIds.length > 1}
-                isMobile={!isFirstWindow}
+                isMobile={isMobile}
               />
             </PlaygroundProvider>
           </div>
