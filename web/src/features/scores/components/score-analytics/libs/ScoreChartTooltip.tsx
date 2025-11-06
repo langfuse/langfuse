@@ -77,8 +77,11 @@ export function ScoreChartTooltip({
   if (labelFormatter) {
     // Use custom label formatter if provided
     formattedLabel = labelFormatter(label ?? "");
+  } else if (typeof label === "string") {
+    // Label is already formatted (from chart data transformation)
+    formattedLabel = label;
   } else if (interval && timeRange && label) {
-    // Format timestamp using interval-aware formatting
+    // Format timestamp using interval-aware formatting (for numeric timestamps)
     const timestamp =
       typeof label === "number" ? new Date(label) : new Date(label);
     formattedLabel = formatChartTooltipTimestamp(
