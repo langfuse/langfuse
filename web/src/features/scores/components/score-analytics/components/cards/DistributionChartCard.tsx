@@ -213,9 +213,9 @@ export function DistributionChartCard() {
   const showTabs = mode === "two";
 
   // Helper function to truncate tab labels with max character limit
-  const truncateLabel = (label: string, maxLength: number = 15): string => {
+  const truncateLabel = (label: string, maxLength: number = 16): string => {
     if (label.length <= maxLength) return label;
-    return label.substring(0, maxLength - 1) + "…";
+    return label.substring(0, 13) + "...";
   };
 
   // Build full tab labels for title attribute (hover tooltip)

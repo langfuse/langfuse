@@ -1,5 +1,7 @@
 import { getHeatmapCellColor } from "@/src/features/scores/lib/color-scales";
 import { cn } from "@/src/utils/tailwind";
+import { useState } from "react";
+import chroma from "chroma-js";
 
 export interface HeatmapLegendProps {
   min: number;
@@ -11,6 +13,20 @@ export interface HeatmapLegendProps {
   steps?: number;
 }
 
+/**
+ * Check if a color is light/white (similar to empty cells)
+ * @param color - Hex color string
+ * @returns true if color is light (lightness > 85%)
+ */
+function isLightColor(color: string): boolean {
+  try {
+    const lightness = chroma(color).get("hsl.l");
+    return lightness > 0.85; // 85% threshold
+  } catch {
+    return false;
+  }
+}
+
 export function HeatmapLegend({
   min,
   max,
@@ -20,6 +36,8 @@ export function HeatmapLegend({
   orientation = "horizontal",
   steps = 5,
 }: HeatmapLegendProps) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
   // Generate colors using the same function as the heatmap cells
   const colors = Array.from({ length: steps }, (_, i) => {
     const value = min + ((max - min) * i) / (steps - 1);
@@ -46,11 +64,19 @@ export function HeatmapLegend({
             .reverse()
             .map((color, idx) => {
               const labelIdx = steps - 1 - idx;
+              const isHovered = hoveredIdx === idx;
+              const isLight = isLightColor(color);
               return (
                 <div key={idx} className="flex items-center gap-2">
                   <div
-                    className="h-4 w-6 rounded border border-border"
+                    className={cn(
+                      "h-3.5 w-3.5 rounded border border-border transition-all duration-150",
+                      isHovered && isLight && "brightness-95",
+                      isHovered && !isLight && "brightness-75 saturate-[3]",
+                    )}
                     style={{ backgroundColor: color }}
+                    onMouseEnter={() => setHoveredIdx(idx)}
+                    onMouseLeave={() => setHoveredIdx(null)}
                   />
                   <span className="text-xs text-muted-foreground">
                     {labels[labelIdx]}
@@ -68,13 +94,23 @@ export function HeatmapLegend({
     <div className={cn("flex items-center gap-2", className)}>
       <span className="text-xs text-muted-foreground">{min}</span>
       <div className="flex items-center gap-0.5">
-        {colors.map((color, idx) => (
-          <div
-            key={idx}
-            className="h-4 w-4 rounded-sm border-[0.5px] border-border/30"
-            style={{ backgroundColor: color }}
-          />
-        ))}
+        {colors.map((color, idx) => {
+          const isHovered = hoveredIdx === idx;
+          const isLight = isLightColor(color);
+          return (
+            <div
+              key={idx}
+              className={cn(
+                "h-3.5 w-3.5 rounded-sm border-[0.5px] border-border/30 transition-all duration-150",
+                isHovered && isLight && "brightness-95",
+                isHovered && !isLight && "brightness-75 saturate-[3]",
+              )}
+              style={{ backgroundColor: color }}
+              onMouseEnter={() => setHoveredIdx(idx)}
+              onMouseLeave={() => setHoveredIdx(null)}
+            />
+          );
+        })}
       </div>
       <span className="text-xs text-muted-foreground">{max}</span>
     </div>

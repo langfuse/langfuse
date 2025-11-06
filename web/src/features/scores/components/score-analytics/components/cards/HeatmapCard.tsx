@@ -164,7 +164,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>Loading heatmap...</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-1 flex-col items-center justify-center pl-0">
+        <CardContent className="flex flex-1 flex-col items-center justify-center pl-1">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -228,7 +228,7 @@ export function HeatmapCard() {
       : heatmap && "rows" in heatmap
         ? heatmap.rows
         : 10;
-  const calculatedCellHeight = Math.floor(230 / numRows);
+  const calculatedCellHeight = Math.floor(200 / numRows);
 
   return (
     <Card>

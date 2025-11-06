@@ -5,9 +5,17 @@ import {
 import { type TimeseriesChartProps } from "@/src/features/scores/types";
 
 function ChartWrapper(props: { title: string; children: React.ReactNode }) {
+  // Truncate title if longer than 16 characters
+  const truncateLabel = (label: string, maxLength: number = 16): string => {
+    if (label.length <= maxLength) return label;
+    return label.substring(0, 13) + "...";
+  };
+
   return (
     <div className="mb-2 flex max-h-full min-h-0 min-w-0 max-w-full flex-none flex-col overflow-hidden">
-      <div className="shrink-0 text-sm font-medium">{props.title}</div>
+      <div className="shrink-0 text-sm font-medium" title={props.title}>
+        {truncateLabel(props.title)}
+      </div>
       {props.children}
     </div>
   );

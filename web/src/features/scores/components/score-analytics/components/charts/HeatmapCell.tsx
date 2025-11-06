@@ -35,7 +35,7 @@ function EmptyCell({ cellClassName }: { cellClassName?: string }) {
   return (
     <div
       className={cn(
-        "rounded border transition-all duration-150",
+        "h-full w-full rounded-sm border transition-all duration-150",
         "hover:brightness-95",
         cellClassName,
       )}
@@ -73,7 +73,7 @@ function CellWithData({
     : getContrastColor(cellColor);
 
   const sharedClassName = cn(
-    "w-full rounded border-[0.5px]",
+    "h-full w-full rounded-sm border-[0.5px]",
     "flex items-center justify-center",
     "text-xs font-medium",
     "transition-all duration-150",
