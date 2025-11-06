@@ -10,6 +10,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreTimeSeriesChart } from "../charts/ScoreTimeSeriesChart";
+import {
+  getScoreCategoryColors,
+  getScoreBooleanColors,
+} from "@/src/features/scores/lib/color-scales";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";
 
@@ -28,7 +32,8 @@ type TimelineTab = "score1" | "score2" | "all" | "matched";
  * - Numeric vs categorical data types
  */
 export function TimelineChartCard() {
-  const { data, isLoading, params } = useScoreAnalytics();
+  const { data, isLoading, params, colorMappings, getColorForScore } =
+    useScoreAnalytics();
   const [activeTab, setActiveTab] = useState<TimelineTab>("all");
 
   // Calculate overall average for numeric data (for description)
@@ -112,6 +117,54 @@ export function TimelineChartCard() {
       count: number;
     }>;
   }, [data, activeTab]);
+
+  // Derive colors based on active tab and data type
+  // Note: useMemo must be called before any early returns (React hooks rule)
+  const chartColors = useMemo(() => {
+    if (!data) return colorMappings;
+
+    const { dataType } = data.metadata;
+
+    // Numeric charts
+    if (dataType === "NUMERIC") {
+      if (activeTab === "score1") {
+        // Visual slot 1, but score1's color
+        return { score1: getColorForScore(1) };
+      }
+      if (activeTab === "score2") {
+        // Visual slot 1, but score2's color (this is the key!)
+        return { score1: getColorForScore(2) };
+      }
+      // "all" or "matched" tabs
+      return {
+        score1: getColorForScore(1),
+        score2: getColorForScore(2),
+      };
+    }
+
+    // Categorical/Boolean charts on individual tabs - regenerate colors for that specific score
+    if (dataType === "CATEGORICAL" || dataType === "BOOLEAN") {
+      if (activeTab === "score1" && data.distribution.categories) {
+        // Regenerate colors for score1 only to avoid collision with score2
+        const categoryColors =
+          dataType === "CATEGORICAL"
+            ? getScoreCategoryColors(1, data.distribution.categories)
+            : getScoreBooleanColors(1);
+        return categoryColors;
+      }
+      if (activeTab === "score2" && data.distribution.score2Categories) {
+        // Regenerate colors for score2 only to avoid collision with score1
+        const categoryColors =
+          dataType === "CATEGORICAL"
+            ? getScoreCategoryColors(2, data.distribution.score2Categories)
+            : getScoreBooleanColors(2);
+        return categoryColors;
+      }
+    }
+
+    // "all" or "matched" tabs - return full colorMappings with namespaced keys
+    return colorMappings;
+  }, [activeTab, data, colorMappings, getColorForScore]);
 
   // Build description
   // Note: useMemo must be called before any early returns (React hooks rule)
@@ -272,6 +325,7 @@ export function TimelineChartCard() {
                   : undefined
             }
             interval={interval}
+            colors={chartColors}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

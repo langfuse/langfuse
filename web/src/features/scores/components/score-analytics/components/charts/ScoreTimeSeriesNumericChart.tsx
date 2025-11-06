@@ -6,11 +6,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
-import {
-  getSingleScoreChartConfig,
-  getTwoScoreChartConfig,
-  getTwoScoreColors,
-} from "@/src/features/scores/lib/color-scales";
 import { type IntervalConfig } from "@/src/utils/date-range-utils";
 
 export interface NumericTimeSeriesChartProps {
@@ -23,6 +18,7 @@ export interface NumericTimeSeriesChartProps {
   score1Name: string;
   score2Name?: string;
   interval: IntervalConfig;
+  colors: { score1: string; score2?: string };
 }
 
 /**
@@ -36,6 +32,7 @@ export function ScoreTimeSeriesNumericChart({
   score1Name,
   score2Name,
   interval,
+  colors,
 }: NumericTimeSeriesChartProps) {
   const isComparisonMode = Boolean(score2Name);
 
@@ -60,11 +57,26 @@ export function ScoreTimeSeriesNumericChart({
     });
   }, [data, score1Name, score2Name, interval, isComparisonMode]);
 
-  const config: ChartConfig = isComparisonMode
-    ? getTwoScoreChartConfig(score1Name, score2Name!)
-    : getSingleScoreChartConfig(score1Name);
-
-  const colors = getTwoScoreColors();
+  const config: ChartConfig = useMemo(() => {
+    if (isComparisonMode && score2Name) {
+      return {
+        [score1Name]: {
+          label: score1Name,
+          color: colors.score1,
+        },
+        [score2Name]: {
+          label: score2Name,
+          color: colors.score2,
+        },
+      };
+    }
+    return {
+      [score1Name]: {
+        label: score1Name,
+        color: colors.score1,
+      },
+    };
+  }, [score1Name, score2Name, isComparisonMode, colors]);
 
   if (chartData.length === 0) {
     return (
@@ -119,7 +131,7 @@ export function ScoreTimeSeriesNumericChart({
           activeDot={{ r: 6, strokeWidth: 0 }}
           connectNulls
         />
-        {isComparisonMode && (
+        {isComparisonMode && score2Name && (
           <Line
             type="monotone"
             dataKey={score2Name}

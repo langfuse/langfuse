@@ -1,8 +1,5 @@
 import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
-import {
-  getContrastColor,
-  getHoverColor,
-} from "@/src/features/scores/lib/color-scales";
+import { getContrastColor } from "@/src/features/scores/lib/color-scales";
 import {
   Tooltip,
   TooltipContent,
@@ -13,22 +10,22 @@ import { useState } from "react";
 
 interface HeatmapCellProps {
   cell?: HeatmapCell;
+  color?: string; // Color for the cell (computed by parent)
   onHover?: (cell: HeatmapCell | null) => void;
   onClick?: (cell: HeatmapCell) => void;
   renderTooltip?: (cell: HeatmapCell) => React.ReactNode;
   cellClassName?: string;
   showValues?: boolean;
-  emptyColor?: string; // Color to use for empty cells (defaults to lightest color in scale)
 }
 
 export function HeatmapCellComponent({
   cell,
+  color,
   onHover,
   onClick,
   renderTooltip,
   cellClassName,
   showValues = true,
-  emptyColor = "oklch(95% 0.02 240)", // Lightest color by default
 }: HeatmapCellProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -37,32 +34,48 @@ export function HeatmapCellComponent({
     return (
       <div
         className={cn(
-          "aspect-square rounded border-[0.5px] border-border/30",
+          "aspect-square rounded border-[0.5px] transition-all duration-150",
+          "hover:brightness-95",
           cellClassName,
         )}
-        style={{ backgroundColor: emptyColor }}
+        style={{
+          backgroundColor: "hsl(var(--background))",
+          borderColor: "hsl(var(--border) / 0.34)",
+        }}
         aria-hidden="true"
       />
     );
   }
 
-  const textColor = getContrastColor(cell.color);
+  // Determine if cell is empty (value = 0)
+  const isEmpty = cell.value === 0;
   const hasInteraction = onClick !== undefined;
-  const displayColor = isHovered ? getHoverColor(cell.color) : cell.color;
+
+  // Use color from parent, fallback to transparent for empty cells
+  const cellColor = color || "transparent";
+  const textColor = isEmpty
+    ? "hsl(var(--muted-foreground))"
+    : getContrastColor(cellColor);
 
   const sharedClassName = cn(
-    "aspect-square w-full rounded border-[0.5px] border-border/30",
+    "aspect-square w-full rounded border-[0.5px]",
     "flex items-center justify-center",
     "text-xs font-medium",
     "transition-all duration-150",
     "whitespace-pre-line text-center leading-tight",
     hasInteraction && "cursor-pointer",
     !hasInteraction && "cursor-default",
+    // Apply CSS filters based on hover state and whether cell is empty
+    isEmpty && isHovered && "brightness-95",
+    !isEmpty && isHovered && "brightness-75 saturate-[3]",
     cellClassName,
   );
 
   const sharedStyle = {
-    backgroundColor: displayColor,
+    backgroundColor: isEmpty ? "hsl(var(--background))" : cellColor,
+    borderColor: isEmpty
+      ? "hsl(var(--border) / 0.34)" // Transparent border for empty cells
+      : cellColor, // Border matches fill for filled cells
     color: textColor === "white" ? "white" : "black",
   };
 

@@ -18,6 +18,7 @@ export interface CategoricalTimeSeriesChartProps {
   score1Name: string;
   score2Name?: string;
   interval: IntervalConfig;
+  colors: Record<string, string>;
 }
 
 /**
@@ -30,6 +31,7 @@ export function ScoreTimeSeriesCategoricalChart({
   score1Name: _score1Name,
   score2Name: _score2Name,
   interval,
+  colors,
 }: CategoricalTimeSeriesChartProps) {
   // Transform categorical data into pivot format for Recharts
   const { chartData, categories } = useMemo(() => {
@@ -78,27 +80,16 @@ export function ScoreTimeSeriesCategoricalChart({
   // Create chart config with colors for each category
   const config: ChartConfig = useMemo(() => {
     const cfg: ChartConfig = {};
-    const chartColors = [
-      "hsl(var(--chart-1))",
-      "hsl(var(--chart-2))",
-      "hsl(var(--chart-3))",
-      "hsl(var(--chart-4))",
-      "hsl(var(--chart-5))",
-    ];
 
-    categories.forEach((category, index) => {
-      const colorIndex = index % chartColors.length;
+    categories.forEach((category) => {
       cfg[category] = {
         label: category,
-        theme: {
-          light: chartColors[colorIndex],
-          dark: chartColors[colorIndex],
-        },
+        color: colors[category] || Object.values(colors)[0],
       };
     });
 
     return cfg;
-  }, [categories]);
+  }, [categories, colors]);
 
   if (chartData.length === 0 || categories.length === 0) {
     return (
@@ -142,29 +133,18 @@ export function ScoreTimeSeriesCategoricalChart({
           axisLine={false}
           label={{ value: "Count", angle: -90, position: "insideLeft" }}
         />
-        {categories.map((category, index) => {
-          const chartColors = [
-            "hsl(var(--chart-1))",
-            "hsl(var(--chart-2))",
-            "hsl(var(--chart-3))",
-            "hsl(var(--chart-4))",
-            "hsl(var(--chart-5))",
-          ];
-          const colorIndex = index % chartColors.length;
-
-          return (
-            <Line
-              key={category}
-              type="monotone"
-              dataKey={category}
-              stroke={chartColors[colorIndex]}
-              strokeWidth={2}
-              dot={true}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-              connectNulls
-            />
-          );
-        })}
+        {categories.map((category) => (
+          <Line
+            key={category}
+            type="monotone"
+            dataKey={category}
+            stroke={config[category]?.color}
+            strokeWidth={2}
+            dot={true}
+            activeDot={{ r: 6, strokeWidth: 0 }}
+            connectNulls
+          />
+        ))}
         <ChartTooltip
           content={<ChartTooltipContent />}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}

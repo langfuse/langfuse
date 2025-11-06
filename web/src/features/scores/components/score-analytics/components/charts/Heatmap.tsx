@@ -24,9 +24,11 @@ export interface HeatmapProps {
   height?: number | string;
   className?: string;
 
+  // Colors
+  getColor: (cell: HeatmapCell) => string; // Function to compute cell color
+
   // Display options
   showValues?: boolean; // Whether to show numbers in cells (default: true)
-  emptyColor?: string; // Color for empty cells (default: lightest color)
 
   // Tooltip
   renderTooltip?: (cell: HeatmapCell) => React.ReactNode;
@@ -51,8 +53,8 @@ export function Heatmap({
   width = "100%",
   height,
   className,
+  getColor,
   showValues = true,
-  emptyColor,
   renderTooltip,
   onCellClick,
   onCellHover,
@@ -126,12 +128,12 @@ export function Heatmap({
                 <HeatmapCellComponent
                   key={idx}
                   cell={cell}
+                  color={cell ? getColor(cell) : undefined}
                   onHover={onCellHover}
                   onClick={onCellClick}
                   renderTooltip={renderTooltip}
                   cellClassName={cellClassName}
                   showValues={showValues}
-                  emptyColor={emptyColor}
                 />
               );
             })}

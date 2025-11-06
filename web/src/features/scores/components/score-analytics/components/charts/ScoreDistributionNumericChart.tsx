@@ -6,10 +6,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
-import {
-  getSingleScoreChartConfig,
-  getTwoScoreColors,
-} from "@/src/features/scores/lib/color-scales";
 
 interface NumericChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -17,6 +13,7 @@ interface NumericChartProps {
   binLabels: string[];
   score1Name: string;
   score2Name?: string;
+  colors: { score1: string; score2?: string };
 }
 
 /**
@@ -31,6 +28,7 @@ export function ScoreDistributionNumericChart({
   binLabels,
   score1Name,
   score2Name,
+  colors,
 }: NumericChartProps) {
   const isComparisonMode = Boolean(distribution2 && score2Name);
 
@@ -62,26 +60,24 @@ export function ScoreDistributionNumericChart({
       });
   }, [distribution1, distribution2, binLabels, isComparisonMode]);
 
-  // Configure colors and chart config
-  const colors = getTwoScoreColors();
-  const config: ChartConfig = isComparisonMode
-    ? {
-        pv: {
-          label: score1Name,
-          theme: {
-            light: colors.score1,
-            dark: colors.score1,
-          },
-        },
-        uv: {
-          label: score2Name,
-          theme: {
-            light: colors.score2,
-            dark: colors.score2,
-          },
-        },
-      }
-    : getSingleScoreChartConfig("pv");
+  // Configure chart config
+  const config: ChartConfig = useMemo(() => {
+    const cfg: ChartConfig = {
+      pv: {
+        label: score1Name,
+        color: colors.score1,
+      },
+    };
+
+    if (isComparisonMode && score2Name) {
+      cfg.uv = {
+        label: score2Name,
+        color: colors.score2,
+      };
+    }
+
+    return cfg;
+  }, [isComparisonMode, score1Name, score2Name, colors]);
 
   const hasManyBins = chartData.length > 10;
 
@@ -118,10 +114,10 @@ export function ScoreDistributionNumericChart({
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
 
-        <Bar dataKey="pv" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="pv" fill={colors.score1} radius={[4, 4, 0, 0]} />
 
         {isComparisonMode && (
-          <Bar dataKey="uv" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="uv" fill={colors.score2} radius={[4, 4, 0, 0]} />
         )}
       </BarChart>
     </ChartContainer>

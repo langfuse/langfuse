@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext, useMemo, useCallback } from "react";
 import {
   useScoreAnalyticsQuery,
   type ScoreAnalyticsQueryParams,
@@ -7,6 +7,8 @@ import {
 import {
   getSingleScoreColor,
   getTwoScoreColors,
+  getScoreNumericColor,
+  buildColorMappings,
 } from "@/src/features/scores/lib/color-scales";
 
 // Re-export types for convenience
@@ -57,6 +59,8 @@ export interface ScoreAnalyticsContextValue
   extends UseScoreAnalyticsQueryResult {
   colors: ScoreColors;
   params: ScoreAnalyticsQueryParams;
+  colorMappings: Record<string, string>;
+  getColorForScore: (scoreNumber: 1 | 2) => string;
 }
 
 const ScoreAnalyticsContext = createContext<
@@ -99,14 +103,39 @@ export function ScoreAnalyticsProvider({
     return getScoreColors(queryResult.data?.metadata.mode);
   }, [queryResult.data?.metadata.mode]);
 
+  // Compute comprehensive color mappings for all categories/values
+  const colorMappings = useMemo(() => {
+    const data = queryResult.data;
+    if (!data) return {};
+
+    return buildColorMappings({
+      dataType: data.metadata.dataType,
+      mode: data.metadata.mode,
+      score1Name: params.score1.name,
+      score2Name: params.score2?.name,
+      score1Source: params.score1.source,
+      score2Source: params.score2?.source,
+      categories: data.distribution.categories,
+      score2Categories: data.distribution.score2Categories,
+    });
+  }, [queryResult.data, params]);
+
+  // Helper function to get color for a score
+  // Returns darkest color from monochrome scale for consistency
+  const getColorForScore = useCallback((scoreNumber: 1 | 2): string => {
+    return getScoreNumericColor(scoreNumber);
+  }, []);
+
   // Build context value
   const contextValue: ScoreAnalyticsContextValue = useMemo(
     () => ({
       ...queryResult,
       colors,
       params,
+      colorMappings,
+      getColorForScore,
     }),
-    [queryResult, colors, params],
+    [queryResult, colors, params, colorMappings, getColorForScore],
   );
 
   return (

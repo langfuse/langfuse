@@ -24,6 +24,7 @@ export interface ScoreTimeSeriesChartProps {
   score1Name: string;
   score2Name?: string;
   interval: IntervalConfig;
+  colors: Record<string, string> | { score1: string; score2?: string };
 }
 
 /**
@@ -39,6 +40,7 @@ export function ScoreTimeSeriesChart({
   score1Name,
   score2Name,
   interval,
+  colors,
 }: ScoreTimeSeriesChartProps) {
   switch (dataType) {
     case "NUMERIC":
@@ -48,6 +50,7 @@ export function ScoreTimeSeriesChart({
           score1Name={score1Name}
           score2Name={score2Name}
           interval={interval}
+          colors={colors as { score1: string; score2?: string }}
         />
       );
     case "BOOLEAN":
@@ -57,6 +60,7 @@ export function ScoreTimeSeriesChart({
           score1Name={score1Name}
           score2Name={score2Name}
           interval={interval}
+          colors={colors as Record<string, string>}
         />
       );
     case "CATEGORICAL":
@@ -66,6 +70,7 @@ export function ScoreTimeSeriesChart({
           score1Name={score1Name}
           score2Name={score2Name}
           interval={interval}
+          colors={colors as Record<string, string>}
         />
       );
   }

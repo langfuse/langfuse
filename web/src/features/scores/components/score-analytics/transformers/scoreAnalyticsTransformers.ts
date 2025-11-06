@@ -239,7 +239,6 @@ export function transformHeatmapData(params: {
     return generateNumericHeatmapData({
       data: transformedData,
       nBins: 10,
-      colorVariant: "accent",
       showCounts: true,
       showPercentages: false,
     });
@@ -253,8 +252,6 @@ export function transformHeatmapData(params: {
 
     return generateConfusionMatrixData({
       data: transformedData,
-      colorVariant: "accent",
-      highlightDiagonal: true,
       showCounts: true,
       showPercentages: true,
     });
