@@ -1505,4 +1505,97 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     expect(nonExistent.status).toBe(404);
   }, 90000);
+
+  it("should create and fetch a dataset with slashes in the name", async () => {
+    const datasetName = `folder/subfolder/dataset-${v4()}`;
+
+    // Create dataset with slashes in name
+    const createRes = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+        description: "Dataset in folder structure",
+        metadata: { folder: true },
+      },
+      auth,
+    );
+
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.name).toBe(datasetName);
+    expect(createRes.body.name).toContain("/");
+
+    // Fetch dataset using encoded name
+    const getRes = await makeZodVerifiedAPICall(
+      GetDatasetV2Response,
+      "GET",
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.name).toBe(datasetName);
+    expect(getRes.body.description).toBe("Dataset in folder structure");
+
+    // Create dataset item
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: datasetName,
+        input: { value: "test-value" },
+      },
+      auth,
+    );
+
+    // Create a dataset run with slashes in name
+    const runName = `run/nested/test-${v4()}`;
+    await makeAPICall(
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: datasetItem.body.id,
+        traceId: traceId,
+      },
+      auth,
+    );
+
+    // Fetch runs using encoded names
+    const runsRes = await makeZodVerifiedAPICall(
+      GetDatasetRunsV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetName)}/runs`,
+      undefined,
+      auth,
+    );
+
+    expect(runsRes.status).toBe(200);
+
+    // Fetch specific run using encoded names
+    const runRes = await makeZodVerifiedAPICall(
+      GetDatasetRunV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(datasetName)}/runs/${encodeURIComponent(runName)}`,
+      undefined,
+      auth,
+    );
+
+    expect(runRes.status).toBe(200);
+    expect(runRes.body.name).toBe(runName);
+    expect(runRes.body.datasetName).toBe(datasetName);
+
+    // Delete run using encoded names
+    const deleteRes = await makeAPICall(
+      "DELETE",
+      `/api/public/datasets/${encodeURIComponent(datasetName)}/runs/${encodeURIComponent(runName)}`,
+      undefined,
+      auth,
+    );
+
+    expect(deleteRes.status).toBe(200);
+  }, 90000);
 });

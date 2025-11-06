@@ -32,6 +32,7 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
       observations={trace.data.observations}
       selectedTab={selectedTab}
       setSelectedTab={setSelectedTab}
+      context="peek"
     />
   );
 };

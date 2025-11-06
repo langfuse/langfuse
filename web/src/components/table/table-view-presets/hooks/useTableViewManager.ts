@@ -7,7 +7,7 @@ import {
   type ColumnDefinition,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
 import { StringParam, withDefault } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -34,10 +34,7 @@ interface UseTableStateProps {
     columns?: LangfuseColumnDef<any, any>[];
     filterColumnDefinition?: ColumnDefinition[];
   };
-}
-
-function isFunction(fn: unknown): fn is (...args: unknown[]) => void {
-  return typeof fn === "function";
+  currentFilterState?: FilterState;
 }
 
 /**
@@ -48,12 +45,14 @@ export function useTableViewManager({
   tableName,
   stateUpdaters,
   validationContext = {},
+  currentFilterState,
 }: UseTableStateProps) {
   const router = useRouter();
   const { viewId } = router.query;
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const capture = usePostHogClientCapture();
+  const pendingFiltersRef = useRef<FilterState | null>(null);
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
     `${tableName}-${projectId}-viewId`,
@@ -67,13 +66,19 @@ export function useTableViewManager({
   // Keep track of the viewId in session storage and in the query params
   const handleSetViewId = useCallback(
     (viewId: string | null) => {
+      if (viewId === null) {
+        // When clearing, remove from URL first to prevent sync loop
+        const url = new URL(window.location.href);
+        url.searchParams.delete("viewId");
+        window.history.replaceState({}, "", url.toString());
+      }
       setStoredViewId(viewId);
       setSelectedViewId(viewId);
     },
     [setStoredViewId, setSelectedViewId],
   );
 
-  // Extract updater functions
+  // Extract updater functions and store in refs to avoid stale closures
   const {
     setOrderBy,
     setFilters,
@@ -81,6 +86,17 @@ export function useTableViewManager({
     setColumnVisibility,
     setSearchQuery,
   } = stateUpdaters;
+
+  // Use refs to always get latest function references to avoid stale closures in applyViewState
+  // for restoring view state from the saved views
+  const setFiltersRef = useRef(setFilters);
+  const setOrderByRef = useRef(setOrderBy);
+  const setSearchQueryRef = useRef(setSearchQuery);
+
+  // Update refs immediately on every render
+  setFiltersRef.current = setFilters;
+  setOrderByRef.current = setOrderBy;
+  setSearchQueryRef.current = setSearchQuery;
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -148,12 +164,22 @@ export function useTableViewManager({
         );
       }
 
-      if (isFunction(setOrderBy)) setOrderBy(validOrderBy);
-      if (isFunction(setFilters)) setFilters(validFilters);
+      if (setOrderByRef.current) setOrderByRef.current(validOrderBy);
 
-      // Handle search query
-      if (viewData.searchQuery !== undefined && isFunction(setSearchQuery)) {
-        setSearchQuery(viewData.searchQuery);
+      const filtersAlreadyApplied = isEqual(currentFilterState, validFilters);
+
+      if (setFiltersRef.current) {
+        setFiltersRef.current(validFilters);
+        // Track expected filters to observe when state actually updates (for useEffect below)
+        // If filters are already applied, don't set pending ref (will unlock immediately)
+        if (!filtersAlreadyApplied) {
+          pendingFiltersRef.current = validFilters;
+        }
+      }
+
+      // Handle search query (only set if non-empty to avoid use-query-params batching conflicts)
+      if (viewData.searchQuery && setSearchQueryRef.current) {
+        setSearchQueryRef.current(viewData.searchQuery);
       }
 
       // Apply column order and visibility without validation since UI will handle gracefully
@@ -161,16 +187,20 @@ export function useTableViewManager({
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
 
-      // unlock table
-      setIsLoading(false);
+      // If filters were already applied, unlock table immediately
+      if (filtersAlreadyApplied) {
+        setIsLoading(false);
+      }
+
+      // NOTE: Table remains locked until useEffect observer detects filter state propagation
+      // This is relevant for the saved views. Because the URL lazy updates and we don't want to wait
+      // for a page reload
     },
     [
-      setOrderBy,
-      setFilters,
       setColumnOrder,
       setColumnVisibility,
-      setSearchQuery,
       validationContext,
+      currentFilterState,
     ],
   );
 
@@ -184,10 +214,8 @@ export function useTableViewManager({
         name: viewData.name,
       });
 
-      // Apply view state
       applyViewState(viewData);
       setIsInitialized(true);
-      setIsLoading(false);
     }
   }, [
     viewData,
@@ -218,6 +246,18 @@ export function useTableViewManager({
       setIsLoading(false);
     }
   }, [isInitialized, isViewLoading, viewId]);
+
+  // Observe when filter state propagates from saved view
+  // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion
+  useEffect(() => {
+    if (pendingFiltersRef.current && currentFilterState) {
+      if (isEqual(currentFilterState, pendingFiltersRef.current)) {
+        // Filter state has synchronized - safe to unlock table
+        pendingFiltersRef.current = null;
+        setIsLoading(false);
+      }
+    }
+  }, [currentFilterState]);
 
   return {
     isLoading,

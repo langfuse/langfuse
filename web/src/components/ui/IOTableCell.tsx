@@ -11,6 +11,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 const IOTableCellContent = ({
   data,
@@ -35,15 +36,18 @@ const IOTableCellContent = ({
         className,
       )}
     >
-      {stringifiedJson}
+      {stringifiedJson
+        ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+        : stringifiedJson}
     </div>
   ) : shouldTruncate ? (
     <div className="ph-no-capture grid h-full grid-cols-1">
       <JSONView
-        json={
+        json={decodeUnicodeEscapesOnly(
           stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
-          `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`
-        }
+            `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
+          true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
+        )}
         className={cn("h-full w-full self-stretch rounded-sm", className)}
         codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
@@ -54,7 +58,9 @@ const IOTableCellContent = ({
     </div>
   ) : (
     <JSONView
-      json={data}
+      json={
+        stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
+      }
       className={cn(
         "ph-no-capture h-full w-full self-stretch rounded-sm",
         className,
@@ -93,7 +99,7 @@ export const IOTableCell = ({
   }
 
   return (
-    <HoverCard openDelay={300} closeDelay={100}>
+    <HoverCard openDelay={700} closeDelay={100}>
       <HoverCardTrigger asChild>
         <div className="group/io-cell relative h-full w-full">
           <IOTableCellContent

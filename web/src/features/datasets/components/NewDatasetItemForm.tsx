@@ -265,7 +265,7 @@ export const NewDatasetItemForm = (props: {
               )}
             />
           </div>
-          <div className="ph-no-capture min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}

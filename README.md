@@ -60,6 +60,8 @@
    <img alt="Issues closed" src="https://img.shields.io/github/issues-search?query=repo%3Alangfuse%2Flangfuse%20is%3Aclosed&label=issues%20closed&labelColor=%20%237d89b0&color=%20%235d6b98"></a>
    <a href="https://github.com/langfuse/langfuse/discussions/" target="_blank">
    <img alt="Discussion posts" src="https://img.shields.io/github/discussions/langfuse/langfuse?labelColor=%20%239b8afb&color=%20%237a5af8"></a>
+   <a href="https://deepwiki.com/langfuse/langfuse" target="_blank">
+   <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg"></a>
 </p>
 
 <p align="center">
@@ -189,8 +191,8 @@ pip install langfuse openai
 ```bash filename=".env"
 LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EU region
-# LANGFUSE_HOST="https://us.cloud.langfuse.com" # 🇺🇸 US region
+LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 EU region
+# LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 US region
 ```
 
 ```python /@observe()/ /from langfuse.openai import openai/ filename="main.py"

@@ -27,9 +27,13 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError(result.errorMessage);
       }
 
+      // Create comment with content as-is (no mention processing)
       const comment = await prisma.comment.create({
         data: {
-          ...body,
+          content: body.content,
+          objectId: body.objectId,
+          objectType: body.objectType,
+          authorUserId: body.authorUserId,
           id: v4(),
           projectId: auth.scope.projectId,
         },
@@ -66,7 +70,24 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
-      return { data: comments };
+      const totalItems = await prisma.comment.count({
+        where: {
+          projectId: auth.scope.projectId,
+          objectType: objectType ?? undefined,
+          objectId: objectId ?? undefined,
+          authorUserId: authorUserId ?? undefined,
+        },
+      });
+
+      return {
+        data: comments,
+        meta: {
+          page: query.page,
+          limit: query.limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / query.limit),
+        },
+      };
     },
   }),
 });

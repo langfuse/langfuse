@@ -84,6 +84,13 @@
     --color-3: oklch(69.6% 0.165 251);
     --color-4: oklch(80.2% 0.134 225);
     --color-5: oklch(90.7% 0.231 133);
+
+    /* Banner height system for fixed/sticky positioning
+       Banner components dynamically update --banner-height via JS */
+    --banner-height: 0px;
+    --banner-offset: calc(
+      env(safe-area-inset-top, 0px) + var(--banner-height, 0px)
+    );
   }
 
   .dark {
@@ -237,4 +244,18 @@
       background-position: 200%;
     }
   }
+}
+
+/* 
+ * Fix for Vaul drawer blocking text selection
+ * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
+ * We override this for drawers that set blockTextSelection={false}
+ * See: node_modules/vaul/dist/index.js line 84
+ */
+[data-vaul-drawer][data-allow-text-selection="true"],
+[data-vaul-drawer][data-allow-text-selection="true"] * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
 }

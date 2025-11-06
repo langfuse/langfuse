@@ -23,6 +23,8 @@ import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
+import AuthentikProvider from "next-auth/providers/authentik";
+import OneLoginProvider from "next-auth/providers/onelogin";
 import EmailProvider from "next-auth/providers/email";
 import { randomInt } from "crypto";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -30,6 +32,7 @@ import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import WorkOSProvider from "next-auth/providers/workos";
+import WordPressProvider from "next-auth/providers/wordpress";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -46,6 +49,7 @@ import {
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
+  resolveProjectRole,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -55,7 +59,6 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { resolveProjectRole } from "@/src/features/rbac/utils/userProjectRole";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -241,6 +244,44 @@ if (
   );
 
 if (
+  env.AUTH_AUTHENTIK_CLIENT_ID &&
+  env.AUTH_AUTHENTIK_CLIENT_SECRET &&
+  env.AUTH_AUTHENTIK_ISSUER
+)
+  staticProviders.push(
+    AuthentikProvider({
+      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+      issuer: env.AUTH_AUTHENTIK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_AUTHENTIK_CHECKS,
+    }),
+  );
+
+if (
+  env.AUTH_ONELOGIN_CLIENT_ID &&
+  env.AUTH_ONELOGIN_CLIENT_SECRET &&
+  env.AUTH_ONELOGIN_ISSUER
+)
+  staticProviders.push(
+    OneLoginProvider({
+      clientId: env.AUTH_ONELOGIN_CLIENT_ID,
+      clientSecret: env.AUTH_ONELOGIN_CLIENT_SECRET,
+      issuer: env.AUTH_ONELOGIN_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_ONELOGIN_CHECKS,
+    }),
+  );
+
+if (
   env.AUTH_AUTH0_CLIENT_ID &&
   env.AUTH_AUTH0_CLIENT_SECRET &&
   env.AUTH_AUTH0_ISSUER
@@ -389,6 +430,20 @@ if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
     }),
   );
 
+if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
+  staticProviders.push(
+    WordPressProvider({
+      clientId: env.AUTH_WORDPRESS_CLIENT_ID,
+      clientSecret: env.AUTH_WORDPRESS_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_WORDPRESS_CHECKS,
+    }),
+  );
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
@@ -425,13 +480,15 @@ const extendedPrismaAdapter: Adapter = {
     // (refresh_expires_in and not-before-policy in).
     // So, we need to remove this data from the payload before linking an account.
     // https://github.com/nextauthjs/next-auth/issues/7655
-    if (data.provider === "keycloak") {
+    if (data.provider.endsWith("keycloak")) {
+      // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
       delete data["refresh_expires_in"];
       delete data["not-before-policy"];
     }
 
     // WorkOS returns profile data that doesn't match the schema
-    if (data.provider === "workos") {
+    if (data.provider.endsWith("workos")) {
+      // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
       delete data["profile"];
     }
 
@@ -683,7 +740,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             console.log(
               "Custom SSO provider enforced for domain, user signed in with other provider",
             );
-            throw new Error(`You must sign in via SSO for this domain.`);
+            throw new Error(
+              `You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.`,
+            );
           }
 
           // EE: Check that provider is only used for the associated domain

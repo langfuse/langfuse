@@ -144,6 +144,7 @@ types:
     enum:
       - TRACE
       - OBSERVATION
+      - SESSION
 
   AnnotationQueue:
     properties:

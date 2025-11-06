@@ -4,6 +4,7 @@ import {
   BlobStorageFileLogInsertType,
   getCurrentSpan,
   ObservationRecordInsertType,
+  ObservationBatchStagingRecordInsertType,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -17,7 +18,6 @@ import {
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { instrumentAsync } from "@langfuse/shared/src/server";
-import { SpanKind } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 
 export class ClickhouseWriter {
@@ -43,6 +43,7 @@ export class ClickhouseWriter {
       [TableName.TracesNull]: [],
       [TableName.Scores]: [],
       [TableName.Observations]: [],
+      [TableName.ObservationsBatchStaging]: [],
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
       [TableName.Events]: [],
@@ -102,7 +103,6 @@ export class ClickhouseWriter {
     return instrumentAsync(
       {
         name: "write-to-clickhouse",
-        spanKind: SpanKind.CONSUMER,
       },
       async () => {
         recordIncrement("langfuse.queue.clickhouse_writer.request");
@@ -111,6 +111,7 @@ export class ClickhouseWriter {
           this.flush(TableName.TracesNull, fullQueue),
           this.flush(TableName.Scores, fullQueue),
           this.flush(TableName.Observations, fullQueue),
+          this.flush(TableName.ObservationsBatchStaging, fullQueue),
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
           this.flush(TableName.Events, fullQueue),
@@ -496,6 +497,7 @@ export enum TableName {
   TracesNull = "traces_null", // eslint-disable-line no-unused-vars
   Scores = "scores", // eslint-disable-line no-unused-vars
   Observations = "observations", // eslint-disable-line no-unused-vars
+  ObservationsBatchStaging = "observations_batch_staging", // eslint-disable-line no-unused-vars
   BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
   DatasetRunItems = "dataset_run_items_rmt", // eslint-disable-line no-unused-vars
   Events = "events", // eslint-disable-line no-unused-vars
@@ -505,17 +507,19 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
   ? ScoreRecordInsertType
   : T extends TableName.Observations
     ? ObservationRecordInsertType
-    : T extends TableName.Traces
-      ? TraceRecordInsertType
-      : T extends TableName.TracesNull
-        ? TraceNullRecordInsertType
-        : T extends TableName.BlobStorageFileLog
-          ? BlobStorageFileLogInsertType
-          : T extends TableName.DatasetRunItems
-            ? DatasetRunItemRecordInsertType
-            : T extends TableName.Events
-              ? EventRecordInsertType
-              : never;
+    : T extends TableName.ObservationsBatchStaging
+      ? ObservationBatchStagingRecordInsertType
+      : T extends TableName.Traces
+        ? TraceRecordInsertType
+        : T extends TableName.TracesNull
+          ? TraceNullRecordInsertType
+          : T extends TableName.BlobStorageFileLog
+            ? BlobStorageFileLogInsertType
+            : T extends TableName.DatasetRunItems
+              ? DatasetRunItemRecordInsertType
+              : T extends TableName.Events
+                ? EventRecordInsertType
+                : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];

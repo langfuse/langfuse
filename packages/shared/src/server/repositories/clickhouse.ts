@@ -239,6 +239,7 @@ export async function* queryClickhouseStream<T>(opts: {
             log_comment: JSON.stringify(opts.tags ?? {}),
           },
         });
+
         // same logic as for prisma. we want to see queries in development
         if (env.NODE_ENV === "development") {
           logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
@@ -356,6 +357,8 @@ export async function queryClickhouse<T>(opts: {
             format: "JSONEachRow",
             query_params: opts.params,
             clickhouse_settings: {
+              asterisk_include_alias_columns: 1,
+              asterisk_include_materialized_columns: 1,
               ...opts.clickhouseSettings,
               log_comment: JSON.stringify(opts.tags ?? {}),
             },
@@ -433,6 +436,7 @@ export async function commandClickhouse(opts: {
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
+  clickhouseSettings?: ClickHouseSettings;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -447,6 +451,7 @@ export async function commandClickhouse(opts: {
         query: opts.query,
         query_params: opts.params,
         clickhouse_settings: {
+          ...opts.clickhouseSettings,
           log_comment: JSON.stringify(opts.tags ?? {}),
         },
       });

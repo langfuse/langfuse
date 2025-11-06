@@ -199,6 +199,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -220,6 +223,25 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+
+  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
+  LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(200),
+  LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS: z.coerce
+    .number()
+    .positive()
+    .default(5 * 60 * 1000), // 5 minutes
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -280,6 +302,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB: z
     .enum(["true", "false"])
     .default("false"),
 

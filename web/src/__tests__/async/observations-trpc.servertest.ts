@@ -32,6 +32,7 @@ describe("traces trpc", () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
           projects: [
             {
               id: projectId,
@@ -53,7 +54,7 @@ describe("traces trpc", () => {
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   describe("generations.all", () => {

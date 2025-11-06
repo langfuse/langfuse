@@ -10,6 +10,9 @@ import { useEffect } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
+import { api } from "@/src/utils/api";
+import { castToNumberMap } from "@/src/utils/map-utils";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 interface TraceAnnotationProcessorProps {
   item: AnnotationQueueItem & {
@@ -20,17 +23,52 @@ interface TraceAnnotationProcessorProps {
   view: "showTree" | "hideTree";
   configs: ScoreConfigDomain[];
   projectId: string;
-  onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, view, configs, projectId, onHasCommentDraftChange }) => {
+> = ({ item, data, view, configs, projectId }) => {
   const traceId = item.parentTraceId ?? item.objectId;
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
+  );
+
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId: projectId,
+      objectId: traceId,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      enabled: isAuthenticatedAndProjectMember,
+    },
+  );
+
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
+    {
+      projectId: projectId,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      enabled: isAuthenticatedAndProjectMember,
+    },
   );
 
   useEffect(() => {
@@ -62,18 +100,22 @@ export const TraceAnnotationProcessor: React.FC<
           <TracePreview
             key={data.id}
             trace={data}
-            scores={data.scores}
+            serverScores={data.scores}
             observations={data.observations}
             viewType="focused"
+            showCommentButton={true}
+            commentCounts={castToNumberMap(traceCommentCounts.data)}
           />
         ) : (
           <ObservationPreview
             observations={data.observations}
-            scores={data.scores}
+            serverScores={data.scores}
             projectId={item.projectId}
             currentObservationId={item.objectId}
             traceId={traceId}
             viewType="focused"
+            showCommentButton={true}
+            commentCounts={castToNumberMap(observationCommentCounts.data)}
           />
         )}
       </div>
@@ -102,7 +144,6 @@ export const TraceAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
-      onHasCommentDraftChange={onHasCommentDraftChange}
     />
   );
 
