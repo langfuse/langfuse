@@ -45,11 +45,14 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
+import { logger } from "../logger";
+import { LLMCompletionError } from "./errors";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
   LLMAdapter.Anthropic,
 ];
 
@@ -78,7 +81,6 @@ type LLMCompletionParams = {
   callbacks?: BaseCallbackHandler[];
   maxRetries?: number;
   traceSinkParams?: TraceSinkParams;
-  throwOnError?: boolean; // default is true
   shouldUseLangfuseAPIKey?: boolean;
 };
 
@@ -92,20 +94,14 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
   },
-): Promise<{
-  completion: IterableReadableStream<Uint8Array>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{
-  completion: string;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<string>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
@@ -113,32 +109,24 @@ export async function fetchLLMCompletion(
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
-): Promise<{
-  completion: Record<string, unknown>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
-    tools: LLMToolDefinition[];
     streaming: false;
+    tools: LLMToolDefinition[];
   },
-): Promise<{
-  completion: ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<ToolCallResponse>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
-): Promise<{
-  completion:
-    | string
-    | IterableReadableStream<Uint8Array>
-    | Record<string, unknown>
-    | ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}> {
+): Promise<
+  | string
+  | IterableReadableStream<Uint8Array>
+  | Record<string, unknown>
+  | ToolCallResponse
+> {
   const {
     messages,
     tools,
@@ -148,7 +136,6 @@ export async function fetchLLMCompletion(
     llmConnection,
     maxRetries,
     traceSinkParams,
-    throwOnError = true,
     shouldUseLangfuseAPIKey = false,
   } = params;
 
@@ -160,10 +147,23 @@ export async function fetchLLMCompletion(
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceSinkParams) {
-    const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
-    processTracedEvents = internalTracingHandler.processTracedEvents;
+    // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
+    // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
+    // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
+    if (!traceSinkParams.environment?.startsWith("langfuse")) {
+      logger.warn(
+        "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
+        {
+          environment: traceSinkParams.environment,
+          traceId: traceSinkParams.traceId,
+        },
+      );
+    } else {
+      const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
+      processTracedEvents = internalTracingHandler.processTracedEvents;
 
-    finalCallbacks.push(internalTracingHandler.handler);
+      finalCallbacks.push(internalTracingHandler.handler);
+    }
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
@@ -360,13 +360,13 @@ export async function fetchLLMCompletion(
   };
 
   try {
+    // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      return {
-        completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-          .withStructuredOutput(params.structuredOutputSchema)
-          .invoke(finalMessages, runConfig),
-        processTracedEvents,
-      };
+      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+        .withStructuredOutput(params.structuredOutputSchema)
+        .invoke(finalMessages, runConfig);
+
+      return structuredOutput;
     }
 
     if (tools && tools.length > 0) {
@@ -382,32 +382,68 @@ export async function fetchLLMCompletion(
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return {
-        completion: parsed.data,
-        processTracedEvents,
-      };
+      return parsed.data;
     }
 
-    if (streaming) {
-      return {
-        completion: await chatModel
-          .pipe(new BytesOutputParser())
-          .stream(finalMessages, runConfig),
-        processTracedEvents,
-      };
+    if (streaming)
+      return chatModel
+        .pipe(new BytesOutputParser())
+        .stream(finalMessages, runConfig);
+
+    const completion = await chatModel
+      .pipe(new StringOutputParser())
+      .invoke(finalMessages, runConfig);
+
+    return completion;
+  } catch (e) {
+    const responseStatusCode =
+      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+    const message = e instanceof Error ? e.message : String(e);
+
+    // Check for non-retryable error patterns in message
+    const nonRetryablePatterns = [
+      "Request timed out",
+      "is not valid JSON",
+      "Unterminated string in JSON at position",
+      "TypeError",
+    ];
+
+    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
+      message.includes(pattern),
+    );
+
+    // Determine retryability:
+    // - 429 (rate limit): retryable with custom delay
+    // - 5xx (server errors): retryable with custom delay
+    // - 4xx (client errors): not retryable
+    // - Non-retryable patterns: not retryable
+    let isRetryable = false;
+
+    if (
+      e instanceof Error &&
+      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
+    ) {
+      // Explicit 429 handling
+      isRetryable = true;
+    } else if (responseStatusCode >= 500) {
+      // 5xx errors are retryable (server issues)
+      isRetryable = true;
+    } else if (responseStatusCode === 429) {
+      // Rate limit is retryable
+      isRetryable = true;
     }
 
-    return {
-      completion: await chatModel
-        .pipe(new StringOutputParser())
-        .invoke(finalMessages, runConfig),
-      processTracedEvents,
-    };
-  } catch (error) {
-    if (throwOnError) {
-      throw error;
+    // Override if error message indicates non-retryable issue
+    if (hasNonRetryablePattern) {
+      isRetryable = false;
     }
 
-    return { completion: "", processTracedEvents };
+    throw new LLMCompletionError({
+      message,
+      responseStatusCode,
+      isRetryable,
+    });
+  } finally {
+    await processTracedEvents();
   }
 }

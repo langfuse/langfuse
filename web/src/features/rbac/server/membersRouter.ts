@@ -30,7 +30,7 @@ import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
   getUserProjectRoles,
   getUserProjectRolesCount,
-} from "@/src/features/rbac/utils/userProjectRole";
+} from "@langfuse/shared/src/server";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {

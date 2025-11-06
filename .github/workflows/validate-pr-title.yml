@@ -36,6 +36,7 @@ jobs:
             ci
             chore
             revert
+            security
           # Allow scopes (optional)
           requireScope: false
           # Allow any scope (not just the ones listed above)

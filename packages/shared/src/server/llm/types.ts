@@ -402,6 +402,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
+  "claude-haiku-4-5-20251001",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
@@ -421,13 +422,10 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-pro",
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-2.5-flash-lite",
   "gemini-2.0-flash",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-exp",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
@@ -438,12 +436,8 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-2.5-flash-lite",
   "gemini-2.0-flash",
-  "gemini-2.0-flash-lite-preview",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
@@ -495,6 +489,7 @@ export type LLMApiKey =
 
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
+  LLMJudge = "langfuse-llm-as-a-judge",
 }
 
 export type TraceSinkParams = {

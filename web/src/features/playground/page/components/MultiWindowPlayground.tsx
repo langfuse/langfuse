@@ -2,7 +2,7 @@ import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
-import { CopyPlus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { usePlaygroundContext } from "../context";
@@ -172,33 +172,45 @@ function PlaygroundWindowContent({
   }, [windowId, onCopy]);
 
   return (
-    <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm">
+    <div className="playground-window flex h-full min-w-0 flex-col rounded-lg border bg-background shadow-sm @container">
       {/* Window Header */}
       <div className="relative flex-shrink-0 border-b bg-muted/50 px-3 py-1">
-        <div className="flex items-center pr-24">
+        <div className="flex items-center pr-32 @xl:pr-96">
           <div className="flex items-center gap-2">
             <ModelParameters {...playgroundContext} layout="compact" />
           </div>
 
           <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
-            <TooltipProvider>
+            <TooltipProvider delayDuration={300}>
               <SaveToPromptButton />
 
               {/* Hide copy button on mobile */}
               {!isMobile && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      onClick={handleCopy}
-                      className="h-6 w-6 p-0 hover:bg-muted"
-                    >
-                      <CopyPlus size={14} />
-                      <span className="sr-only">Duplicate window</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Duplicate window</TooltipContent>
-                </Tooltip>
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        onClick={handleCopy}
+                        className="h-7 gap-1.5 px-2.5 text-xs @xl:hidden"
+                      >
+                        <Plus size={14} />
+                        <span className="sr-only">New split window</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">
+                      New split window
+                    </TooltipContent>
+                  </Tooltip>
+                  <Button
+                    variant="outline"
+                    onClick={handleCopy}
+                    className="hidden h-7 gap-1.5 px-2.5 text-xs @xl:flex"
+                  >
+                    <Plus size={14} />
+                    <span>New split window</span>
+                  </Button>
+                </>
               )}
               {canRemove && (
                 <Tooltip>
@@ -212,7 +224,9 @@ function PlaygroundWindowContent({
                       <span className="sr-only">Remove window</span>
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Remove window</TooltipContent>
+                  <TooltipContent className="text-xs">
+                    Remove window
+                  </TooltipContent>
                 </Tooltip>
               )}
             </TooltipProvider>

@@ -29,7 +29,10 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { convertObservation } from "./observations_converters";
+import {
+  convertObservation,
+  enrichObservationWithModelData,
+} from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -38,6 +41,7 @@ import {
 import { env } from "../../env";
 import { TracingSearchType } from "../../interfaces/search";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
 import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
@@ -583,13 +587,7 @@ export const getObservationsTableWithModelData = async (
       traceTags: trace?.tags ?? [],
       traceTimestamp: trace?.timestamp ?? null,
       userId: trace?.userId ?? null,
-      modelId: model?.id ?? null,
-      inputPrice:
-        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-      outputPrice:
-        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-      totalPrice:
-        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+      ...enrichObservationWithModelData(model),
     };
   });
 };
@@ -740,7 +738,7 @@ const getObservationsTableInternal = async <T>(
         data_type,
         comment
       FROM
-        scores final
+        scores FINAL
       WHERE ${appliedScoresFilter.query}
       GROUP BY
         trace_id,
@@ -1358,6 +1356,73 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
   }));
 };
 
+/**
+ * Tuple type for observation data from ClickHouse groupArray
+ */
+export type ObservationTuple = [
+  id: string,
+  parentObservationId: string | null,
+  totalCost: string,
+  inputCost: string,
+  outputCost: string,
+  latencyMs: number,
+];
+
+/**
+ * Get observations grouped by trace ID with cost and latency data
+ *
+ * This is a pure data-fetching function that returns observations organized by trace.
+ * For business logic like recursive cost calculations, use the utility functions
+ * in the utils layer.
+ */
+export const getObservationsGroupedByTraceId = async (
+  projectId: string,
+  traceIds: string[],
+  timestamp?: Date,
+): Promise<Map<string, ObservationTuple[]>> => {
+  if (traceIds.length === 0) return new Map();
+
+  const query = `
+    SELECT
+        trace_id,
+        groupArray((
+          id,
+          parent_observation_id,
+          cost_details['total'],
+          cost_details['input'],
+          cost_details['output'],
+          dateDiff('millisecond', start_time, end_time)
+        )) AS observations
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)})
+    ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
+    GROUP BY trace_id
+  `;
+
+  const groupedObservations = await queryClickhouse<{
+    trace_id: string;
+    observations: ObservationTuple[];
+  }>({
+    query,
+    params: {
+      projectId,
+      traceIds,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return new Map(groupedObservations.map((g) => [g.trace_id, g.observations]));
+};
+
 export const getObservationCountsByProjectInCreationInterval = async ({
   start,
   end,
@@ -1514,7 +1579,7 @@ export const getObservationsForBlobStorageExport = function (
   return records;
 };
 
-export const getGenerationsForPostHog = async function* (
+export const getGenerationsForAnalyticsIntegrations = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
@@ -1543,7 +1608,8 @@ export const getGenerationsForPostHog = async function* (
       t.user_id as trace_user_id,
       t.release as trace_release,
       t.tags as trace_tags,
-      t.metadata['$posthog_session_id'] as posthog_session_id
+      t.metadata['$posthog_session_id'] as posthog_session_id,
+      t.metadata['$mixpanel_session_id'] as mixpanel_session_id
     FROM observations o FINAL
     LEFT JOIN ${traceTable} t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE o.project_id = {projectId: String}
@@ -1585,6 +1651,9 @@ export const getGenerationsForPostHog = async function* (
       langfuse_trace_name: record.trace_name,
       langfuse_trace_id: record.trace_id,
       langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
+      langfuse_user_url: record.trace_user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.trace_user_id as string)}`
+        : undefined,
       langfuse_id: record.id,
       langfuse_cost_usd: record.total_cost,
       langfuse_input_units: record.input_tokens,
@@ -1602,17 +1671,9 @@ export const getGenerationsForPostHog = async function* (
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
-      $session_id: record.posthog_session_id ?? null,
-      ...(record.trace_user_id
-        ? {
-            $set: {
-              langfuse_user_url: `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.trace_user_id as string)}`,
-            },
-          }
-        : // Capture as anonymous PostHog event (cheaper/faster)
-          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
-          { $process_person_profile: false }),
-    };
+      posthog_session_id: record.posthog_session_id ?? null,
+      mixpanel_session_id: record.mixpanel_session_id ?? null,
+    } satisfies AnalyticsGenerationEvent;
   }
 };
 
@@ -1676,5 +1737,52 @@ export const getObservationCountsByProjectAndDay = async ({
     count: Number(row.count),
     projectId: row.project_id,
     date: row.date,
+  }));
+};
+
+/**
+ * Get total cost grouped by evaluator ID (job_configuration_id) for the last week.
+ *
+ * @param projectId - Project ID
+ * @param evaluatorIds - Array of evaluator IDs (job_configuration_id from metadata)
+ * @returns Array of { evaluatorId, totalCost } objects
+ */
+export const getCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+): Promise<Array<{ evaluatorId: string; totalCost: number }>> => {
+  if (evaluatorIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      metadata['job_configuration_id'] as evaluator_id,
+      sum(total_cost) as total_cost
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+      AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
+      AND start_time > today() - 7
+    GROUP BY metadata['job_configuration_id']
+  `;
+
+  const rows = await queryClickhouse<{
+    evaluator_id: string;
+    total_cost: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      evaluatorIds,
+    },
+    tags: {
+      feature: "evals",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    evaluatorId: row.evaluator_id,
+    totalCost: Number(row.total_cost),
   }));
 };

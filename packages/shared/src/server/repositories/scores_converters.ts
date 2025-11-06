@@ -11,6 +11,7 @@ export type ScoreAggregation = {
   source: string;
   data_type: string;
   comment: string | null;
+  timestamp: Date;
 };
 
 export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
@@ -33,6 +34,7 @@ export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
     dataType: row.data_type as ScoreDataType,
     stringValue: row.string_value ?? null,
     queueId: row.queue_id ?? null,
+    executionTraceId: row.execution_trace_id ?? null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -47,5 +49,6 @@ export const convertScoreAggregation = (row: ScoreAggregation) => {
     source: row.source as ScoreSourceType,
     dataType: row.data_type as ScoreDataType,
     comment: row.comment,
+    timestamp: row.timestamp,
   };
 };

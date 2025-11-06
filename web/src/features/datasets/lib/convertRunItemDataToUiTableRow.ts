@@ -4,6 +4,7 @@ import {
   type DatasetRunItemByItemRowData,
 } from "./types";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
+import { isPresent } from "@langfuse/shared";
 
 export const convertRunItemToItemsByItemUiTableRow = (
   item: EnrichedDatasetRunItem,
@@ -19,9 +20,9 @@ export const convertRunItemToItemsByItemUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: !!item.observation?.calculatedTotalCost
+    totalCost: isPresent(item.observation?.calculatedTotalCost)
       ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : !!item.trace?.totalCost
+      : isPresent(item.trace?.totalCost)
         ? usdFormatter(item.trace.totalCost)
         : undefined,
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
@@ -42,9 +43,9 @@ export const convertRunItemToItemsByRunUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: !!item.observation?.calculatedTotalCost
+    totalCost: isPresent(item.observation?.calculatedTotalCost)
       ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : !!item.trace?.totalCost
+      : isPresent(item.trace?.totalCost)
         ? usdFormatter(item.trace.totalCost)
         : undefined,
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,

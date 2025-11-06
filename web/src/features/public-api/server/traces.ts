@@ -1,26 +1,25 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
   TRACE_TO_OBSERVATIONS_INTERVAL,
-  DEFAULT_RENDERING_PROPS,
   orderByToClickhouseSql,
   type DateTimeFilter,
-  convertClickhouseToDomain,
+  convertClickhouseTracesListToDomain,
   type TraceRecordReadType,
   measureAndReturn,
-  FilterList,
+  deriveFilters,
+  createPublicApiTracesColumnMapping,
   tracesTableUiColumnDefinitions,
-  createFilterFromFilterState,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
-import { snakeCase } from "lodash";
 import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
 } from "@/src/features/public-api/types/traces";
+import { env } from "@/src/env.mjs";
 
 import type { FilterState } from "@langfuse/shared";
+import { snakeCase } from "lodash";
 
 export type TraceQueryType = {
   page: number;
@@ -38,36 +37,8 @@ export type TraceQueryType = {
   fromTimestamp?: string;
   toTimestamp?: string;
   fields?: TraceFieldGroup[];
+  useEventsTable?: boolean | null;
 };
-
-function deriveFilters(
-  props: TraceQueryType,
-  advancedFilters?: FilterState,
-): FilterList {
-  const filterList = new FilterList(
-    createFilterFromFilterState(
-      advancedFilters ?? [],
-      tracesTableUiColumnDefinitions,
-    ),
-  );
-
-  let simpleFilters = convertApiProvidedFilterToClickhouseFilter(
-    props,
-    filterParams,
-  );
-
-  // Advanced filter takes precedence. Remove all simple filters that are also in advanced filter
-  const advancedFilterColumns = new Set();
-  filterList.forEach((f) => advancedFilterColumns.add(f.field));
-  simpleFilters
-    .filter((sf) => {
-      return !advancedFilterColumns.has(sf.field);
-    })
-    .forEach((f) => filterList.push(f));
-
-  // Return merged filters
-  return filterList;
-}
 
 export const generateTracesForPublicApi = async ({
   props,
@@ -78,20 +49,37 @@ export const generateTracesForPublicApi = async ({
   advancedFilters?: FilterState;
   orderBy: OrderByState;
 }) => {
+  // ClickHouse query optimizations for List Traces API
+  const disableObservationsFinal =
+    env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL === "true";
+  const propagateObservationsTimeBounds =
+    env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS === "true";
+
   const requestedFields = props.fields ?? TRACE_FIELD_GROUPS;
   const includeIO = requestedFields.includes("io");
   const includeScores = requestedFields.includes("scores");
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
 
-  let filter = deriveFilters(props, advancedFilters);
+  let filter = deriveFilters(
+    props,
+    filterParams,
+    advancedFilters,
+    tracesTableUiColumnDefinitions,
+  );
   const appliedFilter = filter.apply();
 
-  const timeFilter = filter.find(
+  const fromTimeFilter = filter.find(
     (f) =>
       f.clickhouseTable === "traces" &&
       f.field.includes("timestamp") &&
       (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+  const toTimeFilter = filter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field.includes("timestamp") &&
+      (f.operator === "<=" || f.operator === "<"),
   ) as DateTimeFilter | undefined;
 
   // We need to drop the clickhousePrefix here to make the filter work for the observations and scores tables.
@@ -117,6 +105,9 @@ export const generateTracesForPublicApi = async ({
   const ctes = [];
 
   if (includeObservations || includeMetrics) {
+    // Conditionally add FINAL based on env var and whether metrics are requested
+    const shouldUseFinal = includeMetrics && !disableObservationsFinal;
+
     ctes.push(`
     observation_stats AS (
       SELECT
@@ -124,9 +115,11 @@ export const generateTracesForPublicApi = async ({
         project_id,
          ${includeMetrics ? "sum(total_cost) as total_cost, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds, " : ""}
         groupUniqArray(id) as observation_ids
-      FROM observations ${includeMetrics ? "FINAL" : ""}
+      FROM observations ${shouldUseFinal ? "FINAL" : ""}
       WHERE project_id = {projectId: String}
-      ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${fromTimeFilter ? `AND start_time >= {cteFromTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${toTimeFilter && propagateObservationsTimeBounds ? `AND start_time <= {cteToTimeFilter: DateTime64(3)} + ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${toTimeFilter && propagateObservationsTimeBounds ? `AND end_time <= {cteToTimeFilter: DateTime64(3)} + ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
     )`);
@@ -143,7 +136,7 @@ export const generateTracesForPublicApi = async ({
       WHERE project_id = {projectId: String}
       AND session_id IS NULL
       AND dataset_run_id IS NULL
-      ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
+      ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
     )`);
@@ -163,9 +156,18 @@ export const generateTracesForPublicApi = async ({
         ...(props.page !== undefined
           ? { offset: (props.page - 1) * props.limit }
           : {}),
-        ...(timeFilter
+        ...(fromTimeFilter
           ? {
-              cteTimeFilter: convertDateToClickhouseDateTime(timeFilter.value),
+              cteFromTimeFilter: convertDateToClickhouseDateTime(
+                fromTimeFilter.value,
+              ),
+            }
+          : {}),
+        ...(toTimeFilter && propagateObservationsTimeBounds
+          ? {
+              cteToTimeFilter: convertDateToClickhouseDateTime(
+                toTimeFilter.value,
+              ),
             }
           : {}),
       },
@@ -176,7 +178,7 @@ export const generateTracesForPublicApi = async ({
         projectId: props.projectId,
         operation_name: "getTracesForPublicApi",
       },
-      fromTimestamp: timeFilter?.value ?? undefined,
+      fromTimestamp: fromTimeFilter?.value ?? undefined,
       preferredClickhouseService: "ReadOnly",
     },
     fn: (input) => {
@@ -245,20 +247,10 @@ export const generateTracesForPublicApi = async ({
     },
   });
 
-  return result.map((trace) => {
-    return {
-      ...convertClickhouseToDomain(trace, DEFAULT_RENDERING_PROPS),
-      // Conditionally include additional fields based on request
-      // We need to return empty list on excluded scores / observations
-      // and -1 on excluded metrics to not break the SDK API clients
-      // that expect those fields if they have not been excluded via 'fields' property
-      // See LFE-6361
-      observations: includeObservations ? trace.observations : [],
-      scores: includeScores ? trace.scores : [],
-      totalCost: includeMetrics ? trace.totalCost : -1,
-      latency: includeMetrics ? trace.latency : -1,
-      htmlPath: trace.htmlPath,
-    };
+  return convertClickhouseTracesListToDomain(result, {
+    metrics: includeMetrics,
+    scores: includeScores,
+    observations: includeObservations,
   });
 };
 
@@ -269,7 +261,12 @@ export const getTracesCountForPublicApi = async ({
   props: TraceQueryType;
   advancedFilters?: FilterState;
 }) => {
-  let filter = deriveFilters(props, advancedFilters);
+  let filter = deriveFilters(
+    props,
+    filterParams,
+    advancedFilters,
+    tracesTableUiColumnDefinitions,
+  );
   const appliedFilter = filter.apply();
 
   const query = `
@@ -327,70 +324,5 @@ const orderByColumns = [
   queryPrefix: "t",
 }));
 
-const filterParams = [
-  {
-    id: "userId",
-    clickhouseSelect: "user_id",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "name",
-    clickhouseSelect: "name",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "tags",
-    clickhouseSelect: "tags",
-    filterType: "ArrayOptionsFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "sessionId",
-    clickhouseSelect: "session_id",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "version",
-    clickhouseSelect: "version",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "release",
-    clickhouseSelect: "release",
-    filterType: "StringFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "environment",
-    clickhouseSelect: "environment",
-    filterType: "StringOptionsFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "fromTimestamp",
-    clickhouseSelect: "timestamp",
-    operator: ">=" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-  {
-    id: "toTimestamp",
-    clickhouseSelect: "timestamp",
-    operator: "<" as const,
-    filterType: "DateTimeFilter",
-    clickhouseTable: "traces",
-    clickhousePrefix: "t",
-  },
-];
+// Use factory functions to create column mappings (eliminates duplication with events table)
+const filterParams = createPublicApiTracesColumnMapping("traces", "t");

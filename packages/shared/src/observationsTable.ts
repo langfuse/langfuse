@@ -46,6 +46,14 @@ export const observationsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 'o."environment"',
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Start Time",
     id: "startTime",
     type: "datetime",
@@ -219,6 +227,7 @@ export type ObservationOptions = {
   modelId: Array<SingleValueOption>;
   name: Array<SingleValueOption>;
   traceName: Array<SingleValueOption>;
+  environment: Array<SingleValueOption>;
   scores_avg: Array<string>;
   score_categories: Array<MultiValueOption>;
   promptName: Array<SingleValueOption>;
@@ -241,6 +250,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "traceName") {
       return formatColumnOptions(col, options?.traceName ?? []);
+    }
+    if (col.id === "environment") {
+      return formatColumnOptions(col, options?.environment ?? []);
     }
     if (col.id === "scores_avg") {
       return formatColumnOptions(col, options?.scores_avg ?? []);

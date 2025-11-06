@@ -3,7 +3,7 @@ import { DatasetCompareRunsTable } from "@/src/features/datasets/components/Data
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,14 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
+import {
+  ActiveCellProvider,
+  useActiveCell,
+} from "@/src/features/datasets/contexts/ActiveCellContext";
+import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
+import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
 
-export default function DatasetCompare() {
+function DatasetCompareInternal() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -27,6 +33,7 @@ export default function DatasetCompare() {
 
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [isAnnotationPanelOpen, setIsAnnotationPanelOpen] = useState(false);
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -44,6 +51,8 @@ export default function DatasetCompare() {
     setLocalRuns,
   } = useDatasetRunsCompare(projectId, datasetId);
 
+  const { activeCell, clearActiveCell } = useActiveCell();
+
   const handleExperimentSettled = async (data?: {
     success: boolean;
     datasetId: string;
@@ -54,7 +63,25 @@ export default function DatasetCompare() {
     await handleExperimentSettledBase(data);
   };
 
-  if (!runsData.data || !router.isReady || runs.length === 0) {
+  // Clear annotation state on URL change (filters, navigation, etc.)
+  useEffect(() => {
+    clearActiveCell();
+  }, [router.query, clearActiveCell]);
+
+  // Open panel when cell becomes active, close when cleared
+  useEffect(() => {
+    setIsAnnotationPanelOpen(!!activeCell);
+  }, [activeCell]);
+
+  // Clear active cell when panel manually closed
+  const handlePanelOpenChange = (open: boolean) => {
+    if (!open) {
+      clearActiveCell();
+    }
+    setIsAnnotationPanelOpen(open);
+  };
+
+  if (!runsData.data || runs.length === 0) {
     return <span>Loading...</span>;
   }
 
@@ -135,9 +162,23 @@ export default function DatasetCompare() {
                     setLocalRuns([]);
                   } else {
                     capture("dataset_run:compare_run_removed");
-                    setRunState({
-                      runs: runIds?.filter((id) => id !== changedValueId) ?? [],
-                    });
+                    const newRunIds =
+                      runIds?.filter((id) => id !== changedValueId) ?? [];
+
+                    // Clear baseline if the removed run was the baseline
+                    const baselineRunId = router.query.baseline as
+                      | string
+                      | undefined;
+                    if (baselineRunId === changedValueId) {
+                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                      const { baseline, ...restQuery } = router.query;
+                      void router.push({
+                        pathname: router.pathname,
+                        query: { ...restQuery, runs: newRunIds },
+                      });
+                    } else {
+                      setRunState({ runs: newRunIds });
+                    }
                     setLocalRuns([]);
                   }
                 }
@@ -147,13 +188,45 @@ export default function DatasetCompare() {
         ),
       }}
     >
-      <DatasetCompareRunsTable
-        key={runIds?.join(",") ?? "empty"}
-        projectId={projectId}
-        datasetId={datasetId}
-        runIds={runIds ?? []}
-        localExperiments={localRuns}
-      />
+      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="flex h-full flex-col overflow-hidden">
+          <DatasetCompareRunsTable
+            key={runIds?.join(",") ?? "empty"}
+            projectId={projectId}
+            datasetId={datasetId}
+            runIds={runIds ?? []}
+            localExperiments={localRuns}
+          />
+        </div>
+        <SidePanel
+          id="annotation-panel"
+          openState={{
+            open: isAnnotationPanelOpen,
+            onOpenChange: handlePanelOpenChange,
+          }}
+          mobileTitle="Annotate"
+        >
+          <SidePanelContent className="h-full">
+            {activeCell ? (
+              <AnnotationPanel projectId={projectId} />
+            ) : (
+              <div className="flex items-center justify-center p-4">
+                <span className="text-sm text-muted-foreground">
+                  Loading annotation data...
+                </span>
+              </div>
+            )}
+          </SidePanelContent>
+        </SidePanel>
+      </div>
     </Page>
+  );
+}
+
+export default function DatasetCompare() {
+  return (
+    <ActiveCellProvider>
+      <DatasetCompareInternal />
+    </ActiveCellProvider>
   );
 }

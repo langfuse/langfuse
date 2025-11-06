@@ -135,14 +135,15 @@ function isChatMLFormat(json: unknown): boolean {
   if (Array.isArray(json)) {
     const directArray = ChatMlArraySchema.safeParse(json);
     if (directArray.success) {
-      // had some false positives, so we really check for role/content to validate ChatML
-      const hasRoleOrContent = json.some(
+      // had some false positives, so we really check for role AND content to validate ChatML
+      const hasRoleAndContent = json.some(
         (item) =>
           typeof item === "object" &&
           item !== null &&
-          ("role" in item || "content" in item),
+          "role" in item &&
+          "content" in item,
       );
-      return hasRoleOrContent;
+      return hasRoleAndContent;
     }
   }
 
@@ -272,7 +273,7 @@ function findOptimalExpansionLevel(
     }
 
     // Get all children for next level
-    const childRows: JsonTableRow[] = [];
+    let childRows: JsonTableRow[] = [];
 
     for (const row of rows) {
       if (row.hasChildren && row.rawChildData) {
@@ -289,7 +290,8 @@ function findOptimalExpansionLevel(
         visitedData.add(row.rawChildData);
 
         const children = getRowChildren(row);
-        childRows.push(...children);
+        // Use concat instead of spread to avoid stack overflow with large arrays
+        childRows = childRows.concat(children);
       }
     }
 
@@ -693,6 +695,7 @@ function JsonPrettyTable({
 export function PrettyJsonView(props: {
   json?: unknown;
   title?: string;
+  titleIcon?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
@@ -1152,12 +1155,12 @@ export function PrettyJsonView(props: {
       {props.title ? (
         <MarkdownJsonViewHeader
           title={props.title}
+          titleIcon={props.titleIcon}
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>
-              {props.controlButtons}
               {shouldUseTableView && (
                 <Button
                   variant="ghost"
@@ -1175,7 +1178,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
-              {!isPrettyView && (
+              {!shouldUseTableView && !isMarkdownMode && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -1190,6 +1193,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
+              {props.controlButtons}
             </>
           }
         />

@@ -16,6 +16,7 @@ import { SetupDefaultEvalModelCard } from "@/src/features/evals/components/set-u
 import { useTemplateValidation } from "@/src/features/evals/hooks/useTemplateValidation";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { type EvalTemplate } from "@langfuse/shared";
 
 type SelectEvaluatorListProps = {
   projectId: string;
@@ -25,8 +26,15 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const router = useRouter();
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
 
+  const handleSelectEvaluator = (template: EvalTemplate) => {
+    router.push(`/project/${projectId}/evals/new?evaluator=${template.id}`);
+  };
+
   const { isSelectionValid, selectedTemplate, setSelectedTemplate } =
-    useTemplateValidation({ projectId });
+    useTemplateValidation({
+      projectId,
+      onValidSelection: handleSelectEvaluator,
+    });
 
   // Fetch templates
   const templates = api.evals.allTemplates.useQuery(
@@ -42,14 +50,6 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
 
   const handleOpenCreateEvaluator = () => {
     setIsCreateTemplateOpen(true);
-  };
-
-  const handleSelectEvaluator = () => {
-    if (selectedTemplate) {
-      router.push(
-        `/project/${projectId}/evals/new?evaluator=${selectedTemplate.id}`,
-      );
-    }
   };
 
   const handleTemplateSelect = (templateId: string) => {
@@ -96,15 +96,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
 
       <div className="mt-2 flex flex-row justify-end">
         <div className="flex justify-end gap-2">
-          <Button onClick={handleOpenCreateEvaluator} variant="outline">
+          <Button onClick={handleOpenCreateEvaluator}>
             <PlusIcon className="mr-2 h-4 w-4" />
             Create Custom Evaluator
-          </Button>
-          <Button
-            onClick={handleSelectEvaluator}
-            disabled={!selectedTemplate || !isSelectionValid}
-          >
-            Use Selected Evaluator
           </Button>
         </div>
       </div>

@@ -301,7 +301,7 @@ export const ModelUsageChart = ({
       formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Units by model",
+      tabTitle: "Usage by model",
       data: unitsByModel,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
@@ -309,7 +309,7 @@ export const ModelUsageChart = ({
       metricDescription: `Units`,
     },
     {
-      tabTitle: "Units by type",
+      tabTitle: "Usage by type",
       data: unitsByType,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
