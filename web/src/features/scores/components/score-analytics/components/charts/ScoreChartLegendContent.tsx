@@ -144,9 +144,26 @@ export const ScoreChartLegendContent = React.forwardRef<
       }
 
       const container = containerRef.current;
+      let isCalculating = false; // Prevent concurrent calculations
+      let lastWidth = 0;
+      let lastHeight = 0;
 
       const calculateLayout = () => {
-        if (!container) return;
+        if (!container || isCalculating) return;
+
+        // Skip if size hasn't changed significantly (prevent feedback loops)
+        const currentWidth = container.clientWidth;
+        const currentHeight = container.scrollHeight;
+        if (
+          Math.abs(currentWidth - lastWidth) < 10 &&
+          Math.abs(currentHeight - lastHeight) < 10
+        ) {
+          return;
+        }
+
+        isCalculating = true;
+        lastWidth = currentWidth;
+        lastHeight = currentHeight;
 
         // First, render all items to detect if overflow occurs
         const containerHeight = container.scrollHeight;
@@ -159,13 +176,23 @@ export const ScoreChartLegendContent = React.forwardRef<
         const hasOverflow = containerHeight > twoLines + 6;
 
         if (!hasOverflow) {
-          setNeedsPopover(false);
-          setMaxVisibleItems(null);
+          setNeedsPopover((prev) => {
+            if (prev !== false) return false;
+            return prev;
+          });
+          setMaxVisibleItems((prev) => {
+            if (prev !== null) return null;
+            return prev;
+          });
+          isCalculating = false;
           return;
         }
 
         // If overflow detected, calculate how many items fit WITH button space reserved
-        setNeedsPopover(true);
+        setNeedsPopover((prev) => {
+          if (prev !== true) return true;
+          return prev;
+        });
 
         const containerWidth = container.clientWidth;
         const gapX = 12; // gap-x-3 = 12px
@@ -178,7 +205,12 @@ export const ScoreChartLegendContent = React.forwardRef<
 
         if (items.length === 0) {
           // Fallback: use percentage-based estimate
-          setMaxVisibleItems(Math.max(6, Math.floor(payload.length * 0.7)));
+          const fallbackValue = Math.max(6, Math.floor(payload.length * 0.7));
+          setMaxVisibleItems((prev) => {
+            if (prev !== fallbackValue) return fallbackValue;
+            return prev;
+          });
+          isCalculating = false;
           return;
         }
 
@@ -221,24 +253,39 @@ export const ScoreChartLegendContent = React.forwardRef<
         const totalItemsThatFit = itemsFitInLine + itemsFitInLineTwo;
 
         // Subtract 1 for safety margin to prevent edge cases
-        setMaxVisibleItems(Math.max(5, totalItemsThatFit - 1));
+        const newMaxVisible = Math.max(5, totalItemsThatFit - 1);
+        setMaxVisibleItems((prev) => {
+          // Only update if changed significantly (prevent oscillation)
+          if (prev === null || Math.abs(prev - newMaxVisible) > 1) {
+            return newMaxVisible;
+          }
+          return prev;
+        });
+
+        isCalculating = false;
       };
 
-      // Initial calculation
-      calculateLayout();
+      // Initial calculation with small delay to ensure DOM is ready
+      const timeoutId = setTimeout(() => {
+        calculateLayout();
+      }, 0);
 
       // Use ResizeObserver for efficient resize tracking
       const resizeObserver = new ResizeObserver(() => {
-        calculateLayout();
+        // Debounce resize events
+        requestAnimationFrame(() => {
+          calculateLayout();
+        });
       });
 
       resizeObserver.observe(container);
 
       return () => {
+        clearTimeout(timeoutId);
         resizeObserver.disconnect();
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Empty deps - run only once, ResizeObserver handles updates
+    }, [payload, buttonWidth]); // Include dependencies to recalculate when they change
 
     const handleItemClick = (key: string) => {
       if (!interactive || !onVisibilityChange) return;
