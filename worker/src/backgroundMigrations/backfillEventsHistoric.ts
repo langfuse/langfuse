@@ -9,6 +9,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { parseArgs } from "node:util";
 
+// TODO: This is WIP and should not be used for actual backfills.
+
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "d8cf9f5e-747e-4ffe-8156-dec0eaebce9d";
 
@@ -272,12 +274,11 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           usage_details,
           provided_cost_details,
           cost_details,
-          total_cost,
           input,
           output,
-          -- metadata,
+          metadata,
           metadata_names,
-          metadata_values,
+          metadata_raw_values,
           source,
           service_name,
           service_version,
@@ -324,12 +325,11 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           o.usage_details,
           o.provided_cost_details,
           o.cost_details,
-          coalesce(o.total_cost, 0) AS total_cost,
           coalesce(o.input, '') AS input,
           coalesce(o.output, '') AS output,
-          -- CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
+          CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
           mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-          mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_values,
+          mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_raw_values,
           multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
           NULL AS service_name,
           NULL AS service_version,

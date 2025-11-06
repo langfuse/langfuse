@@ -50,7 +50,7 @@ const EVENTS_FIELDS = {
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
-  metadata: "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
+  metadata: "mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata",
 
   // Calculated fields
   latency:
@@ -156,7 +156,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   output_truncated:
     "argMaxIf(output_truncated, event_ts, parent_span_id = '') AS output_truncated",
   metadata:
-    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_values), event_ts, parent_span_id = '') AS metadata",
+    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_prefixes), event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
