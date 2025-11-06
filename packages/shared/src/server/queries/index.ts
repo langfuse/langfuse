@@ -29,6 +29,7 @@ export {
 } from "./public-api-filter-builder";
 export {
   CTEQueryBuilder,
+  EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
   type CTESchema,
   type CTEWithSchema,

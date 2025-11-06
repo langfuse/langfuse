@@ -127,8 +127,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Total Cost ($)",
     uiTableId: "totalCost",
     clickhouseTableName: "events",
-    clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
+    clickhouseSelect: "cost_details.total",
   },
   {
     uiTableName: "Level",
@@ -174,16 +173,14 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Total Tokens",
     uiTableId: "totalTokens",
     clickhouseTableName: "events",
-    clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
+    clickhouseSelect: "usage_details.total",
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Tokens",
     uiTableId: "tokens",
     clickhouseTableName: "events",
-    clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
+    clickhouseSelect: "usage_details.total",
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
@@ -222,12 +219,12 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
     clickhouseTableName: "events",
-    clickhouseSelect: "o.prompt_name",
+    clickhouseSelect: "e.prompt_name",
   },
   {
     uiTableName: "Prompt Version",
     uiTableId: "promptVersion",
     clickhouseTableName: "events",
-    clickhouseSelect: "o.prompt_version",
+    clickhouseSelect: "e.prompt_version",
   },
 ];
