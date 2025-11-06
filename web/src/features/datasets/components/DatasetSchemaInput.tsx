@@ -76,7 +76,6 @@ export const DatasetSchemaInput: React.FC<DatasetSchemaInputProps> = ({
             value={value}
             onChange={onChange}
             disabled={disabled}
-            minHeight={150}
             className="max-h-[25vh]"
           />
         </FormControl>

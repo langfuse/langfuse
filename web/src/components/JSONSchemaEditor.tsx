@@ -20,10 +20,6 @@ type JSONSchemaEditorProps = {
    */
   mode?: JSONSchemaEditorMode;
   /**
-   * Minimum height for the editor
-   */
-  minHeight?: number;
-  /**
    * Maximum height CSS class
    */
   className?: string;
@@ -46,7 +42,6 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
   value,
   onChange,
   mode = "json",
-  minHeight = 200,
   className = "max-h-[25vh]",
   disabled = false,
   showHelp = true,
@@ -88,9 +83,9 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
             value={value}
             onChange={onChange}
             mode="json"
-            minHeight={minHeight}
+            minHeight={200}
             className={className}
-            disabled={disabled}
+            editable={!disabled}
           />
           <Button
             type="button"
