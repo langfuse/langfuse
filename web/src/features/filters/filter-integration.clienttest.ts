@@ -12,7 +12,6 @@ import {
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-  type GenericFilterOptions,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
@@ -21,15 +20,10 @@ import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
 import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
 
-const mockOptions: GenericFilterOptions = {
-  period: ["triassic", "jurassic", "cretaceous"],
-  diet: ["carnivore", "herbivore", "omnivore"],
-};
-
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
   // encode filters to query string
-  const encoded = encodeFiltersGeneric(filters, mockOptions);
+  const encoded = encodeFiltersGeneric(filters);
 
   // mock browser URL API
   const params = new URLSearchParams();
@@ -41,7 +35,7 @@ function simulateUrlFlow(filters: FilterState): FilterState {
   const queryValue = readParams.get("filter") || "";
 
   // decode to filter state
-  return decodeFiltersGeneric(queryValue, mockOptions);
+  return decodeFiltersGeneric(queryValue);
 }
 
 describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
@@ -123,10 +117,7 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
     const legacyUrl =
       "filter=length;number;;%3E%3D;5,length;number;;%3C%3D;10,extinct;boolean;;%3D;true";
     const params = new URLSearchParams(legacyUrl);
-    const decoded = decodeFiltersGeneric(
-      params.get("filter") || "",
-      mockOptions,
-    );
+    const decoded = decodeFiltersGeneric(params.get("filter") || "");
 
     expect(decoded).toEqual([
       {
@@ -429,16 +420,8 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     expect(validated).toHaveLength(1);
     expect(validated[0]?.column).toBe("metadata"); // Normalized to lowercase ID
 
-    // 2. Encode: should find "metadata" in columnToQueryKey
-    const encoded = encodeFiltersGeneric(
-      validated,
-      {
-        metadata: "metadata",
-        name: "name",
-        userId: "userId",
-      },
-      {},
-    );
+    // 2. Encode
+    const encoded = encodeFiltersGeneric(validated);
 
     // Should successfully encode (not drop the filter!)
     expect(encoded).toBeTruthy();
@@ -447,15 +430,7 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     );
 
     // 3. Decode: should restore correctly
-    const decoded = decodeFiltersGeneric(
-      encoded,
-      {
-        metadata: "metadata",
-        name: "name",
-        userId: "userId",
-      },
-      {},
-    );
+    const decoded = decodeFiltersGeneric(encoded);
 
     expect(decoded).toHaveLength(1);
     expect(decoded[0]).toEqual({
@@ -528,13 +503,6 @@ describe("Config Validation of old saved views", () => {
   it("should validate traces config uses column IDs not display names", () => {
     // Validate all keys in columnToQueryKey exist as column IDs
     const columnIds = new Set(tracesTableCols.map((col) => col.id));
-    const invalidKeys = Object.keys(traceFilterConfig.columnToQueryKey).filter(
-      (key) => !columnIds.has(key),
-    );
-
-    expect(invalidKeys).toEqual([]);
-
-    // Validate all facet columns exist as column IDs
     const invalidFacets = traceFilterConfig.facets.filter(
       (facet) => !columnIds.has(facet.column),
     );
@@ -544,12 +512,6 @@ describe("Config Validation of old saved views", () => {
 
   it("should validate observations config uses column IDs not display names", () => {
     const columnIds = new Set(observationsTableCols.map((col) => col.id));
-    const invalidKeys = Object.keys(
-      observationFilterConfig.columnToQueryKey,
-    ).filter((key) => !columnIds.has(key));
-
-    expect(invalidKeys).toEqual([]);
-
     const invalidFacets = observationFilterConfig.facets.filter(
       (facet) => !columnIds.has(facet.column),
     );
@@ -567,9 +529,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     const normalized = decodeAndNormalizeFilters(
       urlFilter,
-      sessionFilterConfig.columnToQueryKey,
       sessionFilterConfig.columnDefinitions,
-      {},
     );
 
     const result = transformFiltersForBackend(normalized, {});
@@ -586,9 +546,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     const normalized = decodeAndNormalizeFilters(
       urlFilter,
-      { tags: "tags" },
       traceFilterConfig.columnDefinitions,
-      {},
     );
 
     const result = transformFiltersForBackend(normalized, {

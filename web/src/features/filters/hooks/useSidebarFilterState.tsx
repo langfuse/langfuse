@@ -10,7 +10,6 @@ import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-  type GenericFilterOptions,
 } from "../lib/filter-query-encoding";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -23,19 +22,14 @@ import type { FilterConfig } from "../lib/filter-config";
  *
  * @param filtersQuery - Encoded filter string from URL
  * @param columnDefinitions - Column definitions for validation and normalization
- * @param options - Available filter options
  * @returns Normalized and validated FilterState
  */
 export function decodeAndNormalizeFilters(
   filtersQuery: string,
   columnDefinitions: ColumnDefinition[],
-  options: GenericFilterOptions,
 ): FilterState {
   try {
-    const filters = decodeFiltersGeneric(filtersQuery, options, (column) => {
-      const columnDef = columnDefinitions.find((col) => col.id === column);
-      return columnDef?.type || "stringOptions";
-    });
+    const filters = decodeFiltersGeneric(filtersQuery);
 
     // Normalize display names to column IDs immediately after decoding
     // This prevents duplicates when old URLs use display names (e.g., "Environment")
@@ -87,7 +81,6 @@ function computeNumericRange(
 export interface BaseUIFilter {
   column: string;
   label: string;
-  shortKey: string | null;
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -274,19 +267,15 @@ export function useSidebarFilterState(
   );
 
   const filterState: FilterState = useMemo(() => {
-    return decodeAndNormalizeFilters(
-      filtersQuery,
-      config.columnDefinitions,
-      options,
-    );
-  }, [filtersQuery, config.columnDefinitions, options]);
+    return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
+  }, [filtersQuery, config.columnDefinitions]);
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
-      const encoded = encodeFiltersGeneric(newFilters, options);
+      const encoded = encodeFiltersGeneric(newFilters);
       setFiltersQuery(encoded || null);
     },
-    [options, setFiltersQuery],
+    [setFiltersQuery],
   );
 
   // track if defaults have been applied before, versioned to support future changes
@@ -705,10 +694,6 @@ export function useSidebarFilterState(
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
 
-    const getShortKey = (column: string): string | null => {
-      return column;
-    };
-
     return config.facets
       .map((facet): UIFilter | null => {
         if (facet.type === "numeric") {
@@ -726,7 +711,7 @@ export function useSidebarFilterState(
             type: "numeric",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: currentRange,
             min: facet.min,
             max: facet.max,
@@ -755,7 +740,7 @@ export function useSidebarFilterState(
             type: "string",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: currentValue,
             loading: false,
             expanded: expandedSet.has(facet.column),
@@ -805,7 +790,7 @@ export function useSidebarFilterState(
             type: "keyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
             availableValues:
@@ -890,7 +875,7 @@ export function useSidebarFilterState(
             type: "numericKeyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
             loading: false,
@@ -970,7 +955,7 @@ export function useSidebarFilterState(
             type: "stringKeyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
             loading: false,
@@ -1029,7 +1014,7 @@ export function useSidebarFilterState(
             type: "categorical",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: selectedOptions,
             options: availableOptions,
             counts: EMPTY_MAP,
@@ -1151,7 +1136,7 @@ export function useSidebarFilterState(
           type: "categorical",
           column: facet.column,
           label: facet.label,
-          shortKey: getShortKey(facet.column),
+
           value: selectedValues,
           options: availableValues,
           counts,

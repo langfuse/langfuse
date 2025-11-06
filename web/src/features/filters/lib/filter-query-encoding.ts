@@ -27,14 +27,11 @@ export function computeSelectedValues(
 
 /**
  * Encodes FilterState to the legacy semicolon-delimited format
- * Format: column;type;key;operator;value
+ * Format: columnId;type;key;operator;value
  * Multiple filters separated by commas
  * Array values joined with |
  */
-export function encodeFiltersGeneric(
-  filters: FilterState,
-  _options?: Partial<GenericFilterOptions>,
-): string {
+export function encodeFiltersGeneric(filters: FilterState): string {
   return (
     encodeDelimitedArray(
       filters
@@ -73,11 +70,7 @@ export function encodeFiltersGeneric(
  * Decodes the legacy semicolon-delimited format to FilterState
  * Format: column;type;key;operator;value
  */
-export function decodeFiltersGeneric(
-  query: string,
-  _options: Partial<GenericFilterOptions>,
-  _getType?: (column: string) => any,
-): FilterState {
+export function decodeFiltersGeneric(query: string): FilterState {
   if (!query.trim()) return [];
 
   const decoded = decodeDelimitedArray(query, ",");
