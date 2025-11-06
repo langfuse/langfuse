@@ -475,7 +475,17 @@ export function useScoreAnalyticsQuery(
         score2Matched: distribution2Matched,
         stackedDistribution: apiData.stackedDistribution,
         stackedDistributionMatched: apiData.stackedDistributionMatched,
-        score2Categories: apiData.score2Categories,
+        // For categorical/boolean scores, ensure score2Categories is populated
+        // API may return empty array [] when both scores have identical categories
+        // (e.g., boolean scores always have ["False", "True"])
+        // We need this populated so the UI can correctly display score2's categories
+        // when viewing the "score2" tab in the distribution card
+        score2Categories:
+          apiData.score2Categories && apiData.score2Categories.length > 0
+            ? apiData.score2Categories
+            : mode === "two" && categories
+              ? categories
+              : undefined,
       },
       timeSeries: {
         numeric: {
