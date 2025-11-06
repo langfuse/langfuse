@@ -149,17 +149,6 @@ export const ScoreChartLegendContent = React.forwardRef<
       const currentVisibility = visibilityState?.[key] ?? true;
       const newVisibility = !currentVisibility;
 
-      // Prevent hiding the last visible item
-      if (!newVisibility) {
-        const visibleCount = Object.values(visibilityState ?? {}).filter(
-          (v) => v,
-        ).length;
-        if (visibleCount <= 1) {
-          // Don't allow hiding the last item
-          return;
-        }
-      }
-
       onVisibilityChange(key, newVisibility);
     };
 
