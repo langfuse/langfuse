@@ -236,7 +236,7 @@ export function HeatmapCard() {
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
+      <CardContent className="flex flex-1 flex-col items-center gap-4 pl-2">
         {hasData ? (
           <>
             <Heatmap
@@ -278,10 +278,9 @@ export function HeatmapCard() {
             <HeatmapLegend
               min={0}
               max={maxValue}
-              variant="accent"
-              title="Count"
+              scoreNumber={1}
               orientation="horizontal"
-              steps={10}
+              steps={5}
             />
           </>
         ) : (
