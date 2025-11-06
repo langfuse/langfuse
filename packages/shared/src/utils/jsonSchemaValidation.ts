@@ -7,7 +7,7 @@ import addFormats from "ajv-formats";
 export const createAjvInstance = () => {
   const ajv = new Ajv({
     strict: true,
-    allErrors: false, // Return all errors, not just first
+    allErrors: false, // Return only the first error, not all
     code: { optimize: true }, // Enable code optimization to improve performance and reduce DoS risk
     validateFormats: false, // Prevent ReDoS via format validators
   });
