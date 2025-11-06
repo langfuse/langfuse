@@ -18,8 +18,12 @@ const maybe =
     ? describe
     : describe.skip;
 
-maybe("Events Service", () => {
-  describe("getEventList", () => {
+describe("Events Service", () => {
+  it("should kill redis connection", () => {
+    // we need at least one test case to avoid hanging
+    // redis connection when everything else is skipped.
+  });
+  maybe("getEventList", () => {
     it("should return paginated list of events", async () => {
       const projectId = v4();
       const traceId = v4();
@@ -193,7 +197,7 @@ maybe("Events Service", () => {
     });
   });
 
-  describe("getEventCount", () => {
+  maybe("getEventCount", () => {
     it("should return correct count of events", async () => {
       const traceId = v4();
       const projectId = v4();
@@ -294,7 +298,7 @@ maybe("Events Service", () => {
     );
   });
 
-  describe("getEventFilterOptions", () => {
+  maybe("getEventFilterOptions", () => {
     it("should return correct filter options for various event types", async () => {
       const projectId = v4();
       const traceId = v4();
@@ -468,7 +472,7 @@ maybe("Events Service", () => {
     });
   });
 
-  describe("Integration tests", () => {
+  maybe("Integration tests", () => {
     it("should have consistent count between getEventCount and getEventList", async () => {
       const traceId = v4();
       const projectId = v4();
