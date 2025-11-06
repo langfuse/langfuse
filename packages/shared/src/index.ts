@@ -8,6 +8,7 @@ export * from "./tableDefinitions";
 export * from "./types";
 export * from "./tableDefinitions/tracesTable";
 export * from "./observationsTable";
+export * from "./eventsTable";
 export * from "./utils/zod";
 export * from "./utils/json";
 export * from "./utils/stringChecks";
