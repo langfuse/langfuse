@@ -362,4 +362,6 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  useChart,
+  getPayloadConfigFromPayload,
 };
