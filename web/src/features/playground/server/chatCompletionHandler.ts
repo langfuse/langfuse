@@ -16,6 +16,7 @@ import {
   LLMApiKeySchema,
   logger,
   fetchLLMCompletion,
+  LLMAdapter,
 } from "@langfuse/shared/src/server";
 
 export default async function chatCompletionHandler(req: NextRequest) {
@@ -43,6 +44,17 @@ export default async function chatCompletionHandler(req: NextRequest) {
       throw new InternalServerError(
         `Could not parse API key for provider ${body.modelParams.provider}: ${parsedKey.error.message}`,
       );
+    }
+
+    if (modelParams.adapter === LLMAdapter.Anthropic) {
+      // If both temperature and top_p are provided, prefer top_p (unset temperature).
+      // If only one is provided, leave it as-is.
+      if (
+        modelParams.temperature !== undefined &&
+        modelParams.top_p !== undefined
+      ) {
+        modelParams.temperature = undefined;
+      }
     }
 
     const fetchLLMCompletionParams = {
