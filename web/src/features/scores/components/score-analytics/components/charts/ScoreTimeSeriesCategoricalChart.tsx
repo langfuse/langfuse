@@ -155,11 +155,8 @@ export function ScoreTimeSeriesCategoricalChart({
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
-          axisLine={false}
-          interval={0}
-          angle={-45}
-          textAnchor="end"
-          height={80}
+          axisLine={{ stroke: "hsl(var(--border) / 0.5)" }}
+          interval={1}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"

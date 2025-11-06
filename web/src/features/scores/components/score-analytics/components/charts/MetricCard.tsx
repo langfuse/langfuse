@@ -73,7 +73,7 @@ export function MetricCard({
       </div>
 
       {/* Value with interpretation badge */}
-      <div className="flex items-baseline gap-2">
+      <div className="flex items-center gap-2">
         {isNA ? (
           // Muted styling for N/A values - use em dash and reduced opacity
           <span className="text-sm text-muted-foreground/50">—</span>
@@ -94,7 +94,10 @@ export function MetricCard({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge variant={getBadgeVariant(interpretation.color)}>
+                  <Badge
+                    variant={getBadgeVariant(interpretation.color)}
+                    className="px-1.5 py-0 text-[10px] font-normal opacity-70"
+                  >
                     {interpretation.strength}
                   </Badge>
                 </TooltipTrigger>

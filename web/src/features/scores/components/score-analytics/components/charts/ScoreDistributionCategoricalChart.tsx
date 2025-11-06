@@ -18,6 +18,8 @@ interface CategoricalChartProps {
     count: number;
   }>;
   score2Categories?: string[];
+  score2Name?: string;
+  score2Source?: string;
   colors: Record<string, string>;
 }
 
@@ -33,6 +35,8 @@ export function ScoreDistributionCategoricalChart({
   score1Name,
   stackedDistribution,
   score2Categories,
+  score2Name,
+  score2Source,
   colors,
 }: CategoricalChartProps) {
   const hasStackedData = Boolean(
@@ -150,18 +154,37 @@ export function ScoreDistributionCategoricalChart({
       // Stacked mode: create config for all stack keys using color mappings
       const stackConfig: ChartConfig = {};
       allStackKeys.forEach((key) => {
-        stackConfig[key] = {
-          label: key === "__unmatched__" ? "Unmatched" : key,
-          color:
+        // Try namespaced key first (for when score1 and score2 have same category names)
+        // Format: "ScoreName (source): category"
+        let color: string | undefined;
+
+        if (key !== "__unmatched__" && score2Name && score2Source) {
+          const namespacedKey = `${score2Name} (${score2Source}): ${key}`;
+          color = colors[namespacedKey];
+        }
+
+        // Fallback to non-namespaced key
+        if (!color && key !== "__unmatched__") {
+          color = colors[key];
+        }
+
+        // Final fallback
+        if (!color) {
+          color =
             key === "__unmatched__"
               ? "hsl(var(--muted-foreground))"
-              : colors[key] || Object.values(colors)[0],
+              : Object.values(colors)[0];
+        }
+
+        stackConfig[key] = {
+          label: key === "__unmatched__" ? "Unmatched" : key,
+          color,
         };
       });
       return stackConfig;
     }
 
-    // Single score mode: use first category color or fallback
+    // Single score mode: use score name as label (category shown via custom tooltip)
     const firstColor = categories[0]
       ? colors[categories[0]]
       : Object.values(colors)[0];
@@ -171,7 +194,15 @@ export function ScoreDistributionCategoricalChart({
         color: firstColor,
       },
     };
-  }, [hasStackedData, allStackKeys, score1Name, colors, categories]);
+  }, [
+    hasStackedData,
+    allStackKeys,
+    score1Name,
+    score2Name,
+    score2Source,
+    colors,
+    categories,
+  ]);
 
   return (
     <ChartContainer
@@ -184,7 +215,7 @@ export function ScoreDistributionCategoricalChart({
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
-          axisLine={false}
+          axisLine={{ stroke: "hsl(var(--border) / 0.5)" }}
           interval={0}
         />
         <YAxis

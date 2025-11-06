@@ -4,6 +4,7 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { formatChartTooltipTimestamp } from "./chart-formatters";
+import { useChart } from "@/src/components/ui/chart";
 
 /**
  * Props for the ScoreChartTooltip component.
@@ -58,6 +59,8 @@ export function ScoreChartTooltip({
   valueFormatter = (value: number) => value.toString(),
   labelFormatter,
 }: ScoreChartTooltipProps) {
+  const { config } = useChart();
+
   if (!active || !payload || payload.length === 0) {
     return null;
   }
@@ -105,28 +108,35 @@ export function ScoreChartTooltip({
 
       {/* Data series with values */}
       <div className={cn("space-y-1 px-3 py-1.5")}>
-        {sortedPayload.map((entry, index) => (
-          <div
-            key={`${index}-${entry.name}`}
-            className="flex items-center gap-2"
-          >
-            {/* Color indicator */}
+        {sortedPayload.map((entry, index) => {
+          // Get series label from config using the Bar's dataKey
+          const seriesKey = entry.name || entry.dataKey || "";
+          const seriesLabel = config[seriesKey]?.label || seriesKey;
+
+          return (
             <div
-              className="h-3 w-3 flex-shrink-0 rounded-sm"
-              style={{ backgroundColor: entry.color ?? "hsl(var(--primary))" }}
-            />
+              key={`${index}-${entry.name}`}
+              className="flex items-center gap-2"
+            >
+              {/* Color indicator */}
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{
+                  backgroundColor: entry.color ?? "hsl(var(--primary))",
+                }}
+              />
 
-            {/* Series name */}
-            <span className="flex-1 text-sm text-muted-foreground">
-              {entry.name?.toString() ?? entry.dataKey ?? ""}
-            </span>
-
-            {/* Formatted value */}
-            <span className="text-sm font-medium text-foreground">
-              {valueFormatter(Number(entry.value ?? 0))}
-            </span>
-          </div>
-        ))}
+              {/* Series label from config */}
+              <span className="flex-1 text-sm text-muted-foreground">
+                {seriesLabel?.toString() ?? ""}
+              </span>
+              {/* Formatted value */}
+              <span className="text-sm font-medium text-foreground">
+                {valueFormatter(Number(entry.value ?? 0))}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

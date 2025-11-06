@@ -13,6 +13,115 @@ import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
 import { getHeatmapCellColor } from "@/src/features/scores/lib/color-scales";
 import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
 import { useCallback } from "react";
+import type { ScoreDataType } from "@langfuse/shared";
+
+interface HeatmapTooltipContentProps {
+  cell: HeatmapCell;
+  dataType: ScoreDataType;
+  score1: { name: string; source: string };
+  score2: { name: string; source: string } | undefined;
+  score1Color: string;
+  score2Color: string;
+  totalMatchedPairs: number;
+}
+
+/**
+ * HeatmapTooltipContent - Renders tooltip content for heatmap cells
+ *
+ * Displays different information based on data type:
+ * - Numeric: Shows bin ranges and value distributions
+ * - Categorical: Shows category pairs and agreement metrics
+ */
+function HeatmapTooltipContent({
+  cell,
+  dataType,
+  score1,
+  score2,
+  score1Color,
+  score2Color,
+  totalMatchedPairs,
+}: HeatmapTooltipContentProps) {
+  const percentage = (cell.metadata?.percentage as number) ?? 0;
+
+  return (
+    <div className="space-y-2">
+      {/* Header Section */}
+      <div className="border-b border-border pb-2">
+        <p className="text-sm font-medium text-muted-foreground">
+          {dataType === "NUMERIC"
+            ? `Bin ${cell.row}×${cell.col}`
+            : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
+        </p>
+      </div>
+
+      {/* Primary Metrics Section */}
+      <div className="space-y-1">
+        <p className="text-base font-semibold text-foreground">
+          {cell.value.toLocaleString()} observations
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {percentage.toFixed(1)}% of {totalMatchedPairs.toLocaleString()}{" "}
+          matched pairs
+        </p>
+      </div>
+
+      {/* Secondary Info Section */}
+      <div className="space-y-1 border-t border-border pt-2">
+        {dataType === "NUMERIC" ? (
+          <>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score1Color }}
+              />
+              <span className="flex-1 text-xs text-muted-foreground">
+                {score1.name} ({score1.source})
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {(cell.metadata?.yRange as [number, number])?.[0]?.toFixed(2)} -{" "}
+                {(cell.metadata?.yRange as [number, number])?.[1]?.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score2Color }}
+              />
+              <span className="flex-1 text-xs text-muted-foreground">
+                {score2?.name} ({score2?.source})
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {(cell.metadata?.xRange as [number, number])?.[0]?.toFixed(2)} -{" "}
+                {(cell.metadata?.xRange as [number, number])?.[1]?.toFixed(2)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score1Color }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {score1.name} ({score1.source})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score2Color }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {score2?.name} ({score2?.source})
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * HeatmapCard - Smart card component for displaying score comparison heatmaps
@@ -29,7 +138,7 @@ import { useCallback } from "react";
  * - Numeric vs categorical data types
  */
 export function HeatmapCard() {
-  const { data, isLoading, params } = useScoreAnalytics();
+  const { data, isLoading, params, getColorForScore } = useScoreAnalytics();
 
   // Compute max value for color scaling (must be before early returns)
   const maxValue =
@@ -55,7 +164,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>Loading heatmap...</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
+        <CardContent className="flex flex-1 flex-col items-center justify-center pl-1">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -70,24 +179,31 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
+        <CardContent className="flex flex-1 flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
           Select a score to view comparison
         </CardContent>
       </Card>
     );
   }
 
-  const { heatmap, metadata } = data;
+  const { heatmap, metadata, statistics } = data;
   const { mode, dataType } = metadata;
   const { score1, score2 } = params;
+
+  // Get total matched pairs for tooltip context
+  const totalMatchedPairs = statistics.comparison?.matchedCount ?? 0;
 
   const title =
     dataType === "NUMERIC" ? "Score Comparison Heatmap" : "Confusion Matrix";
 
   const description =
-    dataType === "NUMERIC"
-      ? "Distribution of matched score pairs showing correlation patterns"
-      : "Agreement matrix between categorical scores";
+    mode === "single"
+      ? dataType === "NUMERIC"
+        ? "Distribution of matched score pairs showing correlation patterns"
+        : "Agreement matrix between categorical scores"
+      : dataType === "NUMERIC"
+        ? `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`
+        : `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
 
   // Single score mode - show placeholder
   if (mode === "single") {
@@ -97,7 +213,7 @@ export function HeatmapCard() {
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[340px] flex-col items-center gap-4 pl-0">
+        <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
           <HeatmapPlaceholder />
         </CardContent>
       </Card>
@@ -107,84 +223,74 @@ export function HeatmapCard() {
   // Two score mode - show heatmap or empty state
   const hasData = heatmap && heatmap.cells.length > 0;
 
+  // Calculate dynamic cell height based on available space
+  // Magic number 230px represents approximate available height for grid
+  // (card height minus header, labels, legend, gaps)
+  const numRows =
+    dataType === "NUMERIC"
+      ? 10
+      : heatmap && "rows" in heatmap
+        ? heatmap.rows
+        : 10;
+  const calculatedCellHeight = Math.floor(200 / numRows);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex h-[340px] flex-col items-center gap-4 pl-0">
-        {hasData ? (
-          <>
-            <Heatmap
-              data={heatmap.cells}
-              rows={
-                dataType === "NUMERIC"
-                  ? 10
-                  : "rows" in heatmap
-                    ? (heatmap.rows as number)
-                    : 0
-              }
-              cols={
-                dataType === "NUMERIC"
-                  ? 10
-                  : "cols" in heatmap
-                    ? (heatmap.cols as number)
-                    : 0
-              }
-              rowLabels={heatmap.rowLabels}
-              colLabels={heatmap.colLabels}
-              xAxisLabel={`${score2?.name} (${score2?.source})`}
-              yAxisLabel={`${score1.name} (${score1.source})`}
-              getColor={getColor}
-              renderTooltip={(cell) => (
-                <div className="space-y-1">
-                  <p className="font-semibold">Count: {cell.value}</p>
-                  {dataType === "NUMERIC" ? (
-                    <>
-                      <p className="text-xs">
-                        {score1.name}:{" "}
-                        {(
-                          cell.metadata?.yRange as [number, number]
-                        )?.[0]?.toFixed(2)}{" "}
-                        -{" "}
-                        {(
-                          cell.metadata?.yRange as [number, number]
-                        )?.[1]?.toFixed(2)}
-                      </p>
-                      <p className="text-xs">
-                        {score2?.name}:{" "}
-                        {(
-                          cell.metadata?.xRange as [number, number]
-                        )?.[0]?.toFixed(2)}{" "}
-                        -{" "}
-                        {(
-                          cell.metadata?.xRange as [number, number]
-                        )?.[1]?.toFixed(2)}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs">
-                      {cell.metadata?.rowCategory as string} →{" "}
-                      {cell.metadata?.colCategory as string}
-                    </p>
-                  )}
-                  <p className="text-xs">
-                    {((cell.metadata?.percentage as number) ?? 0).toFixed(1)}%
-                    of matched pairs
-                  </p>
-                </div>
-              )}
-            />
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          {hasData && (
             <HeatmapLegend
               min={0}
               max={maxValue}
-              variant="accent"
-              title="Count"
+              scoreNumber={1}
               orientation="horizontal"
-              steps={10}
+              steps={5}
             />
-          </>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
+        {hasData ? (
+          <Heatmap
+            height="100%"
+            cellHeight={calculatedCellHeight}
+            data={heatmap.cells}
+            rows={
+              dataType === "NUMERIC"
+                ? 10
+                : "rows" in heatmap
+                  ? (heatmap.rows as number)
+                  : 0
+            }
+            cols={
+              dataType === "NUMERIC"
+                ? 10
+                : "cols" in heatmap
+                  ? (heatmap.cols as number)
+                  : 0
+            }
+            rowLabels={heatmap.rowLabels}
+            colLabels={heatmap.colLabels}
+            xAxisLabel={`${score2?.name} (${score2?.source})`}
+            yAxisLabel={`${score1.name} (${score1.source})`}
+            getColor={getColor}
+            showValues={false}
+            renderTooltip={(cell) => (
+              <HeatmapTooltipContent
+                cell={cell}
+                dataType={dataType}
+                score1={score1}
+                score2={score2}
+                score1Color={getColorForScore(1)}
+                score2Color={getColorForScore(2)}
+                totalMatchedPairs={totalMatchedPairs}
+              />
+            )}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No matched score pairs found for the selected time range

@@ -98,17 +98,18 @@ export function generateNumericHeatmapData({
     };
   });
 
-  // Generate labels
-  const rowLabels = Array.from({ length: nBins }, (_, i) => {
-    const start = min1 + i * binWidth1;
-    const end = min1 + (i + 1) * binWidth1;
-    return formatBinLabel(start, end);
+  // Generate division point labels (nBins + 1 points for nBins bins)
+  const range1 = max1 - min1;
+  const range2 = max2 - min2;
+
+  const rowLabels = Array.from({ length: nBins + 1 }, (_, i) => {
+    const divisionPoint = min1 + i * binWidth1;
+    return formatDivisionPoint(divisionPoint, range1);
   });
 
-  const colLabels = Array.from({ length: nBins }, (_, i) => {
-    const start = min2 + i * binWidth2;
-    const end = min2 + (i + 1) * binWidth2;
-    return formatBinLabel(start, end);
+  const colLabels = Array.from({ length: nBins + 1 }, (_, i) => {
+    const divisionPoint = min2 + i * binWidth2;
+    return formatDivisionPoint(divisionPoint, range2);
   });
 
   return { cells, rowLabels, colLabels, maxValue: maxCount };
@@ -217,25 +218,25 @@ export function generateConfusionMatrixData({
 }
 
 /**
- * Format a bin label for display
- * @param start - Start of the range
- * @param end - End of the range
- * @returns Formatted label string
+ * Format a single division point value
+ * @param value - The division point value
+ * @param range - The total range to determine precision
+ * @returns Formatted value string
  */
-function formatBinLabel(start: number, end: number): string {
-  // Determine precision based on range
-  const range = Math.abs(end - start);
+function formatDivisionPoint(value: number, range: number): string {
   let precision: number;
 
-  if (range >= 1) {
+  if (range >= 10) {
     precision = 1;
-  } else if (range >= 0.1) {
+  } else if (range >= 1) {
     precision = 2;
-  } else {
+  } else if (range >= 0.1) {
     precision = 3;
+  } else {
+    precision = 4;
   }
 
-  return `[${start.toFixed(precision)}, ${end.toFixed(precision)})`;
+  return value.toFixed(precision);
 }
 
 /**
