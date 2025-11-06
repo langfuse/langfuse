@@ -311,7 +311,7 @@ export function TimelineChartCard() {
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex h-[340px] flex-col pl-0">
+      <CardContent className="flex h-[340px] flex-col pl-1">
         {hasData ? (
           <ScoreTimeSeriesChart
             data={chartData}

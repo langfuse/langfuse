@@ -18,34 +18,49 @@ interface HeatmapCellProps {
   showValues?: boolean;
 }
 
-export function HeatmapCellComponent({
+interface CellWithDataProps {
+  cell: HeatmapCell;
+  color?: string;
+  onHover?: (cell: HeatmapCell | null) => void;
+  onClick?: (cell: HeatmapCell) => void;
+  renderTooltip?: (cell: HeatmapCell) => React.ReactNode;
+  cellClassName?: string;
+  showValues: boolean;
+}
+
+/**
+ * Empty cell component (no data)
+ */
+function EmptyCell({ cellClassName }: { cellClassName?: string }) {
+  return (
+    <div
+      className={cn(
+        "aspect-square rounded border-[0.5px] transition-all duration-150",
+        "hover:brightness-95",
+        cellClassName,
+      )}
+      style={{
+        backgroundColor: "hsl(var(--background))",
+        borderColor: "hsl(var(--border) / 0.34)",
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+/**
+ * Cell with data component
+ */
+function CellWithData({
   cell,
   color,
   onHover,
   onClick,
   renderTooltip,
   cellClassName,
-  showValues = true,
-}: HeatmapCellProps) {
+  showValues,
+}: CellWithDataProps) {
   const [isHovered, setIsHovered] = useState(false);
-
-  // Empty cell (no data)
-  if (!cell) {
-    return (
-      <div
-        className={cn(
-          "aspect-square rounded border-[0.5px] transition-all duration-150",
-          "hover:brightness-95",
-          cellClassName,
-        )}
-        style={{
-          backgroundColor: "hsl(var(--background))",
-          borderColor: "hsl(var(--border) / 0.34)",
-        }}
-        aria-hidden="true"
-      />
-    );
-  }
 
   // Determine if cell is empty (value = 0)
   const isEmpty = cell.value === 0;
@@ -133,4 +148,34 @@ export function HeatmapCellComponent({
   }
 
   return cellContent;
+}
+
+/**
+ * Public routing component that determines which cell type to render
+ */
+export function HeatmapCellComponent({
+  cell,
+  color,
+  onHover,
+  onClick,
+  renderTooltip,
+  cellClassName,
+  showValues = true,
+}: HeatmapCellProps) {
+  // Route to appropriate component based on whether cell has data
+  if (!cell) {
+    return <EmptyCell cellClassName={cellClassName} />;
+  }
+
+  return (
+    <CellWithData
+      cell={cell}
+      color={color}
+      onHover={onHover}
+      onClick={onClick}
+      renderTooltip={renderTooltip}
+      cellClassName={cellClassName}
+      showValues={showValues}
+    />
+  );
 }

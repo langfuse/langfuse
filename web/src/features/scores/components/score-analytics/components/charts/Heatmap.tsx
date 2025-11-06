@@ -74,12 +74,31 @@ export function Heatmap({
     return map;
   }, [data]);
 
+  // Detect division point mode (numeric heatmaps with nBins+1 labels)
+  const isDivisionPointMode =
+    rowLabels &&
+    rowLabels.length === rows + 1 &&
+    colLabels &&
+    colLabels.length === cols + 1;
+
+  // Calculate adaptive thinning for division point labels
+  // Show every nth label based on number of bins
+  const labelStep = useMemo(() => {
+    if (!isDivisionPointMode) return 1;
+
+    // Adaptive thinning based on number of bins
+    if (rows >= 20 || cols >= 20) return 4; // Show every 4th label for very dense grids
+    if (rows >= 15 || cols >= 15) return 3; // Show every 3rd label
+    if (rows >= 10 || cols >= 10) return 2; // Show every 2nd label
+    return 1; // Show all labels for smaller grids
+  }, [isDivisionPointMode, rows, cols]);
+
   // Calculate responsive cell size - width-biased for minimal vertical space
   const cellWidth = "minmax(32px, 1fr)"; // Can grow wide
   const cellHeight = "minmax(24px, 40px)"; // Capped at 40px tall
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={0}>
       <div
         className={cn("flex w-full flex-col gap-4", className)}
         style={{ width }}
@@ -99,17 +118,37 @@ export function Heatmap({
           {/* Row labels */}
           {rowLabels && rowLabels.length > 0 && (
             <div
-              className="grid gap-1 pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs"
-              style={{
-                gridTemplateRows: `repeat(${rows}, ${cellHeight})`,
-              }}
+              className={cn(
+                "pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs",
+                isDivisionPointMode
+                  ? "flex flex-col justify-between"
+                  : "grid gap-1",
+              )}
+              style={
+                isDivisionPointMode
+                  ? { height: "100%" }
+                  : { gridTemplateRows: `repeat(${rows}, ${cellHeight})` }
+              }
             >
               {rowLabels.map((label, idx) => {
-                const shouldTruncate = label.length > 3;
+                // Apply adaptive thinning for division points
+                const shouldShow =
+                  !isDivisionPointMode || idx % labelStep === 0;
+                if (!shouldShow) {
+                  return <div key={idx} className="h-0" />;
+                }
+
+                const shouldTruncate = !isDivisionPointMode && label.length > 3;
                 const truncated = shouldTruncate ? label.slice(0, 3) : label;
 
                 return (
-                  <div key={idx} className="flex items-center justify-end">
+                  <div
+                    key={idx}
+                    className={cn(
+                      "flex justify-end",
+                      isDivisionPointMode ? "items-start" : "items-center",
+                    )}
+                  >
                     {shouldTruncate ? (
                       <HoverCard>
                         <HoverCardTrigger asChild>
@@ -179,17 +218,35 @@ export function Heatmap({
             )}
 
             <div
-              className="grid w-full flex-1 gap-1 text-center text-[10px] text-muted-foreground sm:text-xs"
-              style={{
-                gridTemplateColumns: `repeat(${cols}, ${cellWidth})`,
-              }}
+              className={cn(
+                "w-full flex-1 text-center text-[10px] text-muted-foreground sm:text-xs",
+                isDivisionPointMode ? "flex justify-between" : "grid gap-1",
+              )}
+              style={
+                isDivisionPointMode
+                  ? undefined
+                  : { gridTemplateColumns: `repeat(${cols}, ${cellWidth})` }
+              }
             >
               {colLabels.map((label, idx) => {
-                const shouldTruncate = label.length > 3;
+                // Apply adaptive thinning for division points
+                const shouldShow =
+                  !isDivisionPointMode || idx % labelStep === 0;
+                if (!shouldShow) {
+                  return <div key={idx} className="w-0" />;
+                }
+
+                const shouldTruncate = !isDivisionPointMode && label.length > 3;
                 const truncated = shouldTruncate ? label.slice(0, 3) : label;
 
                 return (
-                  <div key={idx} className="flex items-center justify-center">
+                  <div
+                    key={idx}
+                    className={cn(
+                      "flex justify-center",
+                      isDivisionPointMode ? "items-start" : "items-center",
+                    )}
+                  >
                     {shouldTruncate ? (
                       <HoverCard>
                         <HoverCardTrigger asChild>
