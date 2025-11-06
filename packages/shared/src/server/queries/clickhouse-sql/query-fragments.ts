@@ -23,7 +23,7 @@ export const eventsTracesAggregation = (
 ): EventsAggregationQueryBuilder => {
   return (
     new EventsAggregationQueryBuilder({ projectId: params.projectId })
-      // we always use this as CTE, no need to be smart here. i
+      // we always use this as CTE, no need to be smart here.
       // ClickHouse will optimize unused columns away.
       .selectFieldSet("all")
       .withTraceIds(params.traceIds)

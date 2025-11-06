@@ -2,6 +2,7 @@ export type NormalizerContext = {
   metadata?: unknown;
   observationName?: string;
   framework?: string; // for explicit overrides
+  data?: unknown; // Optional: actual input/output content for structural detection
 };
 
 // Unified tool event representation across all providers
