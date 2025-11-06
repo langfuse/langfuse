@@ -226,9 +226,11 @@ async function executeWebhookAction({
           }
 
           // Handle redirect errors to prevent information leakage
+          // When redirect: "error" is set, fetch throws a TypeError for redirects
           if (
             error instanceof TypeError &&
-            error.message.toLowerCase().includes("redirect")
+            (error.message.toLowerCase().includes("redirect") ||
+              error.message.toLowerCase().includes("failed to fetch"))
           ) {
             logger.warn(
               `Webhook redirect detected for url ${webhookConfig.url} and project ${projectId}`,
