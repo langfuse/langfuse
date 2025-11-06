@@ -6,10 +6,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
-import {
-  getSingleScoreColor,
-  getTwoScoreColors,
-} from "@/src/features/scores/lib/color-scales";
 
 interface BooleanChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -17,6 +13,7 @@ interface BooleanChartProps {
   categories: string[]; // Should always be ["False", "True"]
   score1Name: string;
   score2Name?: string;
+  colors: Record<string, string>;
 }
 
 /**
@@ -31,6 +28,7 @@ export function ScoreDistributionBooleanChart({
   categories,
   score1Name,
   score2Name,
+  colors,
 }: BooleanChartProps) {
   const isComparisonMode = Boolean(distribution2 && score2Name);
 
@@ -60,34 +58,35 @@ export function ScoreDistributionBooleanChart({
       });
   }, [distribution1, distribution2, categories, isComparisonMode]);
 
-  // Configure chart colors
-  const colors = getTwoScoreColors();
-  const config: ChartConfig = isComparisonMode
-    ? {
+  // Build chart config - use average color from boolean values
+  const config: ChartConfig = useMemo(() => {
+    // For boolean charts, use the first color we can find (True or False)
+    const firstColor =
+      colors["True"] || colors["False"] || Object.values(colors)[0];
+
+    if (isComparisonMode && score2Name) {
+      return {
         pv: {
           label: score1Name,
-          theme: {
-            light: colors.score1,
-            dark: colors.score1,
-          },
+          color: firstColor,
         },
         uv: {
           label: score2Name,
-          theme: {
-            light: colors.score2,
-            dark: colors.score2,
-          },
-        },
-      }
-    : {
-        pv: {
-          label: score1Name,
-          theme: {
-            light: getSingleScoreColor(),
-            dark: getSingleScoreColor(),
-          },
+          color:
+            colors["__score2_True"] ||
+            colors["__score2_False"] ||
+            Object.values(colors)[1] ||
+            firstColor,
         },
       };
+    }
+    return {
+      pv: {
+        label: score1Name,
+        color: firstColor,
+      },
+    };
+  }, [isComparisonMode, score1Name, score2Name, colors]);
 
   return (
     <ChartContainer
@@ -113,9 +112,9 @@ export function ScoreDistributionBooleanChart({
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
-        <Bar dataKey="pv" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="pv" fill={config.pv.color} radius={[4, 4, 0, 0]} />
         {isComparisonMode && (
-          <Bar dataKey="uv" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="uv" fill={config.uv?.color} radius={[4, 4, 0, 0]} />
         )}
       </BarChart>
     </ChartContainer>

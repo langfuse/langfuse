@@ -28,7 +28,9 @@ type DistributionTab = "score1" | "score2" | "all" | "matched";
  * - Numeric vs categorical vs boolean data types
  */
 export function DistributionChartCard() {
-  const { data, isLoading, params } = useScoreAnalytics();
+  const { data, isLoading, params, colorMappings, getColorForScore } =
+    useScoreAnalytics();
+
   const [activeTab, setActiveTab] = useState<DistributionTab>("all");
 
   // Determine which distribution data to show based on tab
@@ -106,6 +108,34 @@ export function DistributionChartCard() {
       ? distribution.stackedDistributionMatched
       : undefined;
   }, [data, activeTab]);
+
+  // Derive colors based on active tab and data type
+  // Note: useMemo must be called before any early returns (React hooks rule)
+  const chartColors = useMemo(() => {
+    if (!data) return colorMappings;
+
+    const { dataType } = data.metadata;
+
+    // Numeric charts
+    if (dataType === "NUMERIC") {
+      if (activeTab === "score1") {
+        // Visual slot 1, but score1's color
+        return { score1: getColorForScore(1) };
+      }
+      if (activeTab === "score2") {
+        // Visual slot 1, but score2's color
+        return { score1: getColorForScore(2) };
+      }
+      // "all" or "matched" tabs
+      return {
+        score1: getColorForScore(1),
+        score2: getColorForScore(2),
+      };
+    }
+
+    // Categorical/Boolean charts - return full colorMappings
+    return colorMappings;
+  }, [activeTab, data, colorMappings, getColorForScore]);
 
   // Loading state
   if (isLoading) {
@@ -238,6 +268,7 @@ export function DistributionChartCard() {
             categories={distribution.categories}
             stackedDistribution={stackedDistributionData}
             score2Categories={distribution.score2Categories}
+            colors={chartColors}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

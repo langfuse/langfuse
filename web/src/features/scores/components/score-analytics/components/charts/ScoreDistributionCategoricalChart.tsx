@@ -6,7 +6,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
-import { getSingleScoreColor } from "@/src/features/scores/lib/color-scales";
 
 interface CategoricalChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -18,6 +17,7 @@ interface CategoricalChartProps {
     count: number;
   }>;
   score2Categories?: string[];
+  colors: Record<string, string>;
 }
 
 /**
@@ -32,6 +32,7 @@ export function ScoreDistributionCategoricalChart({
   score1Name,
   stackedDistribution,
   score2Categories,
+  colors,
 }: CategoricalChartProps) {
   const hasStackedData = Boolean(
     stackedDistribution && stackedDistribution.length > 0,
@@ -115,48 +116,34 @@ export function ScoreDistributionCategoricalChart({
 
   const hasManyCategories = chartData.length > 10;
 
-  // Configure chart colors and config
+  // Configure chart colors and config using provided colors
   const config: ChartConfig = useMemo(() => {
     if (hasStackedData && allStackKeys.length > 0) {
-      // Stacked mode: create config for all stack keys including __unmatched__
-      const chartColors = [
-        "hsl(var(--chart-1))",
-        "hsl(var(--chart-2))",
-        "hsl(var(--chart-3))",
-        "hsl(var(--chart-4))",
-        "hsl(var(--chart-5))",
-      ];
-
+      // Stacked mode: create config for all stack keys using color mappings
       const stackConfig: ChartConfig = {};
-      allStackKeys.forEach((key, index) => {
+      allStackKeys.forEach((key) => {
         stackConfig[key] = {
           label: key === "__unmatched__" ? "Unmatched" : key,
-          theme: {
-            light:
-              key === "__unmatched__"
-                ? "hsl(var(--muted-foreground))"
-                : chartColors[index % chartColors.length]!,
-            dark:
-              key === "__unmatched__"
-                ? "hsl(var(--muted-foreground))"
-                : chartColors[index % chartColors.length]!,
-          },
+          color:
+            key === "__unmatched__"
+              ? "hsl(var(--muted-foreground))"
+              : colors[key] || Object.values(colors)[0],
         };
       });
       return stackConfig;
     }
 
-    // Single score mode: simple config
+    // Single score mode: use first category color or fallback
+    const firstColor = categories[0]
+      ? colors[categories[0]]
+      : Object.values(colors)[0];
     return {
       pv: {
         label: score1Name,
-        theme: {
-          light: getSingleScoreColor(),
-          dark: getSingleScoreColor(),
-        },
+        color: firstColor,
       },
     };
-  }, [hasStackedData, allStackKeys, score1Name]);
+  }, [hasStackedData, allStackKeys, score1Name, colors, categories]);
 
   return (
     <ChartContainer
@@ -196,7 +183,7 @@ export function ScoreDistributionCategoricalChart({
               key={stackKey}
               dataKey={stackKey}
               stackId="stack"
-              fill={config[stackKey]?.theme?.light ?? "hsl(var(--chart-1))"}
+              fill={config[stackKey]?.color ?? "hsl(var(--chart-1))"}
               radius={[0, 0, 0, 0]}
             />
           ))}
@@ -204,7 +191,7 @@ export function ScoreDistributionCategoricalChart({
           <Bar
             key="pv"
             dataKey="pv"
-            fill="hsl(var(--chart-3))"
+            fill={config.pv.color}
             radius={[4, 4, 0, 0]}
           />
         )}

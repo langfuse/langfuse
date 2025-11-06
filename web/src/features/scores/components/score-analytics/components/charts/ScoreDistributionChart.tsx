@@ -19,6 +19,7 @@ export interface ScoreDistributionChartProps {
     count: number;
   }>;
   score2Categories?: string[];
+  colors: Record<string, string> | { score1: string; score2?: string };
 }
 
 /**
@@ -38,6 +39,7 @@ export function ScoreDistributionChart({
   categories,
   stackedDistribution,
   score2Categories,
+  colors,
 }: ScoreDistributionChartProps) {
   // Empty state check
   if (distribution1.length === 0) {
@@ -65,6 +67,7 @@ export function ScoreDistributionChart({
         binLabels={binLabels}
         score1Name={score1Name}
         score2Name={score2Name}
+        colors={colors as { score1: string; score2?: string }}
       />
     );
   }
@@ -85,6 +88,7 @@ export function ScoreDistributionChart({
         categories={categories}
         score1Name={score1Name}
         score2Name={score2Name}
+        colors={colors as Record<string, string>}
       />
     );
   }
@@ -105,6 +109,7 @@ export function ScoreDistributionChart({
       score1Name={score1Name}
       stackedDistribution={stackedDistribution}
       score2Categories={score2Categories}
+      colors={colors as Record<string, string>}
     />
   );
 }

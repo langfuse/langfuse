@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext, useMemo, useCallback } from "react";
 import {
   useScoreAnalyticsQuery,
   type ScoreAnalyticsQueryParams,
@@ -7,6 +7,10 @@ import {
 import {
   getSingleScoreColor,
   getTwoScoreColors,
+  SCORE_BASE_COLORS,
+  getScoreCategoryColors,
+  getScoreBooleanColors,
+  getScoreNumericColor,
 } from "@/src/features/scores/lib/color-scales";
 
 // Re-export types for convenience
@@ -57,6 +61,8 @@ export interface ScoreAnalyticsContextValue
   extends UseScoreAnalyticsQueryResult {
   colors: ScoreColors;
   params: ScoreAnalyticsQueryParams;
+  colorMappings: Record<string, string>;
+  getColorForScore: (scoreNumber: 1 | 2) => string;
 }
 
 const ScoreAnalyticsContext = createContext<
@@ -99,14 +105,107 @@ export function ScoreAnalyticsProvider({
     return getScoreColors(queryResult.data?.metadata.mode);
   }, [queryResult.data?.metadata.mode]);
 
+  // Compute comprehensive color mappings for all categories/values
+  const colorMappings = useMemo(() => {
+    const data = queryResult.data;
+    if (!data) return {};
+
+    const mappings: Record<string, string> = {};
+    const { dataType, mode } = data.metadata;
+
+    // Build score name prefixes (same logic as in useScoreAnalyticsQuery)
+    // Used for namespaced categories in "all" and "allMatched" tabs
+    const score1Prefix =
+      mode === "two" &&
+      params.score1.name === params.score2?.name &&
+      params.score1.source !== params.score2?.source
+        ? `${params.score1.name} (${params.score1.source})`
+        : params.score1.name;
+
+    const score2Prefix =
+      mode === "two" &&
+      params.score2 &&
+      params.score1.name === params.score2.name &&
+      params.score1.source !== params.score2.source
+        ? `${params.score2.name} (${params.score2.source})`
+        : (params.score2?.name ?? "");
+
+    // Score 1 color mappings
+    if (dataType === "CATEGORICAL" && data.distribution.categories) {
+      const categoryColors = getScoreCategoryColors(
+        1,
+        data.distribution.categories,
+      );
+      Object.assign(mappings, categoryColors);
+
+      // Add namespaced versions for "all" and "allMatched" tabs
+      if (mode === "two") {
+        data.distribution.categories.forEach((category) => {
+          mappings[`${score1Prefix}: ${category}`] = categoryColors[category];
+        });
+      }
+    } else if (dataType === "BOOLEAN" && data.distribution.categories) {
+      const booleanColors = getScoreBooleanColors(1);
+      Object.assign(mappings, booleanColors);
+
+      // Add namespaced versions for "all" and "allMatched" tabs
+      if (mode === "two") {
+        data.distribution.categories.forEach((category) => {
+          mappings[`${score1Prefix}: ${category}`] = booleanColors[category];
+        });
+      }
+    } else if (dataType === "NUMERIC") {
+      mappings["__score1_numeric__"] = getScoreNumericColor(1);
+    }
+
+    // Score 2 color mappings (if exists)
+    if (mode === "two") {
+      if (dataType === "CATEGORICAL" && data.distribution.score2Categories) {
+        const categoryColors = getScoreCategoryColors(
+          2,
+          data.distribution.score2Categories,
+        );
+        Object.assign(mappings, categoryColors);
+
+        // Add namespaced versions for "all" and "allMatched" tabs
+        data.distribution.score2Categories.forEach((category) => {
+          mappings[`${score2Prefix}: ${category}`] = categoryColors[category];
+        });
+      } else if (dataType === "BOOLEAN" && data.distribution.categories) {
+        const booleanColors = getScoreBooleanColors(2);
+        // Prefix with score2 to avoid collision with score1 boolean values
+        mappings["__score2_True"] = booleanColors.True;
+        mappings["__score2_False"] = booleanColors.False;
+
+        // Add namespaced versions for "all" and "allMatched" tabs
+        data.distribution.categories.forEach((category) => {
+          mappings[`${score2Prefix}: ${category}`] = booleanColors[category];
+        });
+      } else if (dataType === "NUMERIC") {
+        mappings["__score2_numeric__"] = getScoreNumericColor(2);
+      }
+    }
+
+    return mappings;
+  }, [queryResult.data, params]);
+
+  // Helper function to get base color for a score
+  const getColorForScore = useCallback((scoreNumber: 1 | 2): string => {
+    return scoreNumber === 1
+      ? SCORE_BASE_COLORS.score1
+      : SCORE_BASE_COLORS.score2;
+  }, []);
+
   // Build context value
   const contextValue: ScoreAnalyticsContextValue = useMemo(
     () => ({
       ...queryResult,
       colors,
       params,
+      colorMappings,
+      getColorForScore,
     }),
-    [queryResult, colors, params],
+    [queryResult, colors, params, colorMappings, getColorForScore],
   );
 
   return (

@@ -19,7 +19,6 @@ describe("Score Comparison Analytics tRPC", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   const session: Session = {
-    expires: "1",
     user: {
       id: "user-1",
       canCreateOrganizations: true,

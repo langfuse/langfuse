@@ -5,6 +5,8 @@
  * Aligned with dashboard chart colors from global.css
  */
 
+import chroma from "chroma-js";
+
 /**
  * OKLCH base colors from global.css
  * These are used for different charts when comparing multiple scores
@@ -255,4 +257,163 @@ export function getTwoScoreChartConfig(score1Key: string, score2Key: string) {
       },
     },
   };
+}
+
+/**
+ * =======================
+ * Monochrome Color Scales for Score Analytics
+ * =======================
+ * Using chroma-js for perceptually uniform gradients in OKLAB color space
+ * Each score gets its own base color, and all values/categories use shades of that color
+ */
+
+/**
+ * Base colors for score analytics
+ * Score 1: Blue (chart-3)
+ * Score 2: Yellow (chart-2)
+ * These are the single source of truth for score colors
+ */
+export const SCORE_BASE_COLORS = {
+  score1: "hsl(var(--chart-3))", // blue
+  score2: "hsl(var(--chart-2))", // yellow
+} as const;
+
+/**
+ * Extract HSL CSS variable and convert to hex for chroma-js
+ * Falls back to predefined hex values if CSS variable extraction fails
+ * @param cssVar - HSL CSS variable string (e.g., "hsl(var(--chart-3))")
+ * @returns Hex color string
+ */
+function extractHslToHex(cssVar: string): string {
+  // Fallback colors if CSS variable extraction fails
+  const fallbacks: Record<string, string> = {
+    "hsl(var(--chart-1))": "#f97316", // orange
+    "hsl(var(--chart-2))": "#eab308", // yellow
+    "hsl(var(--chart-3))": "#3b82f6", // blue
+    "hsl(var(--chart-4))": "#8b5cf6", // purple
+    "hsl(var(--chart-5))": "#ec4899", // pink
+  };
+
+  // Return fallback if available
+  if (cssVar in fallbacks) {
+    return fallbacks[cssVar];
+  }
+
+  // Try to extract from DOM if we're in browser environment
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    try {
+      const tempDiv = document.createElement("div");
+      tempDiv.style.color = cssVar;
+      document.body.appendChild(tempDiv);
+      const computed = window.getComputedStyle(tempDiv).color;
+      document.body.removeChild(tempDiv);
+
+      // Convert rgb/rgba to hex using chroma
+      if (computed && computed.startsWith("rgb")) {
+        return chroma(computed).hex();
+      }
+    } catch (e) {
+      // Fall through to default fallback
+    }
+  }
+
+  // Ultimate fallback - blue
+  return "#3b82f6";
+}
+
+/**
+ * Generate a monochrome color scale using chroma-js with OKLAB interpolation
+ * Creates perceptually uniform gradients from darker to lighter shades
+ * @param baseColor - CSS color string (e.g., "hsl(var(--chart-3))")
+ * @param steps - Number of color steps to generate
+ * @param minIntensity - Minimum intensity (0-1, where 0=white, 1=full color)
+ * @param maxIntensity - Maximum intensity (0-1, where 0=white, 1=full color)
+ * @returns Array of hex color strings
+ */
+export function getMonochromeScale(
+  baseColor: string,
+  steps: number,
+  minIntensity: number = 0.3,
+  maxIntensity: number = 0.9,
+): string[] {
+  const baseHex = extractHslToHex(baseColor);
+
+  // Create scale from lighter (white-ish) to darker (full color) using OKLAB
+  // OKLAB provides perceptually uniform interpolation
+  const scale = chroma
+    .scale([chroma(baseHex).brighten(2), baseHex])
+    .mode("oklab")
+    .colors(steps);
+
+  // Map intensities: higher values = darker colors
+  return scale.map((color, index) => {
+    const intensity =
+      maxIntensity - ((maxIntensity - minIntensity) * index) / (steps - 1);
+    return chroma.mix("white", color, intensity, "oklab").hex();
+  });
+}
+
+/**
+ * Get monochrome color mapping for categorical values
+ * All categories of the same score use shades of the same base color
+ * @param scoreNumber - Which score (1 or 2)
+ * @param categories - Array of category names
+ * @param options - Optional configuration
+ * @returns Record mapping category name to color
+ */
+export function getScoreCategoryColors(
+  scoreNumber: 1 | 2,
+  categories: string[],
+  options?: { reverse?: boolean },
+): Record<string, string> {
+  const baseColor =
+    scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
+
+  // Generate scale with even distribution across intensity range
+  const steps = Math.max(categories.length, 2);
+  const colors = getMonochromeScale(baseColor, steps, 0.3, 0.9);
+
+  // Reverse if requested (for different visual ordering)
+  const colorArray = options?.reverse ? [...colors].reverse() : colors;
+
+  // Map categories to colors
+  const mapping: Record<string, string> = {};
+  categories.forEach((category, index) => {
+    mapping[category] = colorArray[index] || colorArray[0];
+  });
+
+  return mapping;
+}
+
+/**
+ * Get monochrome color mapping for boolean values
+ * True = darker shade, False = lighter shade
+ * @param scoreNumber - Which score (1 or 2)
+ * @returns Record with 'True' and 'False' keys
+ */
+export function getScoreBooleanColors(
+  scoreNumber: 1 | 2,
+): Record<string, string> {
+  const baseColor =
+    scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
+
+  // Generate 2-step scale: darker for True (70%), lighter for False (30%)
+  const colors = getMonochromeScale(baseColor, 2, 0.3, 0.7);
+
+  return {
+    True: colors[0], // Darker
+    False: colors[1], // Lighter
+  };
+}
+
+/**
+ * Get single color for numeric scores
+ * Returns the base color at full intensity
+ * @param scoreNumber - Which score (1 or 2)
+ * @returns Hex color string
+ */
+export function getScoreNumericColor(scoreNumber: 1 | 2): string {
+  const baseColor =
+    scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
+  return extractHslToHex(baseColor);
 }
