@@ -19,6 +19,7 @@ import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { DatasetItemSchemaErrors } from "./DatasetItemSchemaErrors";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { Prisma } from "@langfuse/shared";
+import { DatasetItemAIGenerateButton } from "./DatasetItemAIGenerateButton";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -188,7 +189,7 @@ export const EditDatasetItem = ({
               {hasChanges ? "Save changes" : "Saved"}
             </Button>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="mt-4 flex-1 overflow-auto">
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
@@ -203,6 +204,23 @@ export const EditDatasetItem = ({
                             schema={dataset.inputSchema}
                             schemaType="input"
                             showLabel
+                          />
+                        )}
+                        {dataset && (
+                          <DatasetItemAIGenerateButton
+                            fieldType="input"
+                            currentValue={inputValue}
+                            otherFieldValue={expectedOutputValue}
+                            datasetId={dataset.id}
+                            projectId={projectId}
+                            isPolishing={true}
+                            onAccept={(value) => {
+                              form.setValue("input", value, {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                              });
+                              setHasChanges(true);
+                            }}
                           />
                         )}
                       </div>
@@ -234,6 +252,23 @@ export const EditDatasetItem = ({
                             schema={dataset.expectedOutputSchema}
                             schemaType="expectedOutput"
                             showLabel
+                          />
+                        )}
+                        {dataset && (
+                          <DatasetItemAIGenerateButton
+                            fieldType="expectedOutput"
+                            currentValue={expectedOutputValue}
+                            otherFieldValue={inputValue}
+                            datasetId={dataset.id}
+                            projectId={projectId}
+                            isPolishing={true}
+                            onAccept={(value) => {
+                              form.setValue("expectedOutput", value, {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                              });
+                              setHasChanges(true);
+                            }}
                           />
                         )}
                       </div>

@@ -19,6 +19,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { DatasetItemSchemaErrors } from "./DatasetItemSchemaErrors";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
+import { DatasetItemAIGenerateButton } from "./DatasetItemAIGenerateButton";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -158,6 +159,10 @@ export const NewDatasetItemForm = (props: {
   // Check if any selected dataset has schemas
   const hasInputSchema = selectedDatasets.some((d) => d.inputSchema);
   const hasOutputSchema = selectedDatasets.some((d) => d.expectedOutputSchema);
+
+  // For AI generation, only show button when single dataset is selected
+  const singleDatasetId =
+    selectedDatasets.length === 1 ? selectedDatasets[0]?.id : null;
 
   const utils = api.useUtils();
   const createManyDatasetItemsMutation =
@@ -316,6 +321,21 @@ export const NewDatasetItemForm = (props: {
                               showLabel
                             />
                           ))[0]}
+                      {singleDatasetId && (
+                        <DatasetItemAIGenerateButton
+                          fieldType="input"
+                          currentValue={inputValue}
+                          otherFieldValue={expectedOutputValue}
+                          datasetId={singleDatasetId}
+                          projectId={props.projectId}
+                          onAccept={(value) =>
+                            form.setValue("input", value, {
+                              shouldValidate: true,
+                              shouldDirty: true,
+                            })
+                          }
+                        />
+                      )}
                     </div>
                     <FormControl>
                       <CodeMirrorEditor
@@ -350,6 +370,21 @@ export const NewDatasetItemForm = (props: {
                               showLabel
                             />
                           ))[0]}
+                      {singleDatasetId && (
+                        <DatasetItemAIGenerateButton
+                          fieldType="expectedOutput"
+                          currentValue={expectedOutputValue}
+                          otherFieldValue={inputValue}
+                          datasetId={singleDatasetId}
+                          projectId={props.projectId}
+                          onAccept={(value) =>
+                            form.setValue("expectedOutput", value, {
+                              shouldValidate: true,
+                              shouldDirty: true,
+                            })
+                          }
+                        />
+                      )}
                     </div>
                     <FormControl>
                       <CodeMirrorEditor

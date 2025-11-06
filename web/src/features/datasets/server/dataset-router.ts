@@ -7,6 +7,9 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
+import { randomBytes } from "crypto";
+import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import {
   paginationZod,
   DatasetStatus,
@@ -45,7 +48,14 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
+  type ChatMessage,
+  ChatMessageType,
+  fetchLLMCompletion,
+  traceException,
+  type TraceSinkParams,
 } from "@langfuse/shared/src/server";
+import { getDefaultModelParams } from "@/src/features/natural-language-filters/server/utils";
+import { env } from "@/src/env.mjs";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -2123,5 +2133,220 @@ export const datasetRouter = createTRPCRouter({
       });
 
       return updatedDataset;
+    }),
+
+  generateSyntheticItemField: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        fieldType: z.enum(["input", "expectedOutput"]),
+        currentInput: z.string().optional(),
+        currentExpectedOutput: z.string().optional(),
+        isPolishing: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "datasets:CUD",
+        });
+
+        const project = await ctx.prisma.project.findUnique({
+          where: { id: input.projectId },
+          select: {
+            organization: {
+              select: { aiFeaturesEnabled: true },
+            },
+          },
+        });
+
+        if (!project?.organization.aiFeaturesEnabled) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "AI features are not enabled for this organization.",
+          });
+        }
+
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI features are not available in self-hosted deployments.",
+          });
+        }
+
+        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Bedrock environment variables not configured.",
+          });
+        }
+
+        if (!env.LANGFUSE_AI_FEATURES_PROJECT_ID) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Langfuse AI Features not configured.",
+          });
+        }
+
+        const dataset = await ctx.prisma.dataset.findUnique({
+          where: {
+            id_projectId: { id: input.datasetId, projectId: input.projectId },
+          },
+          select: {
+            name: true,
+            description: true,
+            metadata: true,
+            inputSchema: true,
+            expectedOutputSchema: true,
+          },
+        });
+
+        if (!dataset) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Dataset not found.",
+          });
+        }
+
+        // Fetch 2-3 example items
+        const exampleItems = await ctx.prisma.datasetItem.findMany({
+          where: { datasetId: input.datasetId },
+          select: { input: true, expectedOutput: true },
+          take: 3,
+          orderBy: { createdAt: "desc" },
+        });
+
+        // Build prompt
+        const isPolishing = input.isPolishing;
+        const fieldName =
+          input.fieldType === "input" ? "input" : "expected output";
+
+        const prompt = `You are helping a user ${isPolishing ? "improve and polish" : "generate"} the ${fieldName} field for a dataset item.
+
+Dataset Context:
+- Name: ${dataset.name}
+- Description: ${dataset.description || "N/A"}
+- Metadata: ${dataset.metadata ? JSON.stringify(dataset.metadata, null, 2) : "N/A"}
+
+${
+  exampleItems.length > 0
+    ? `Example items from this dataset:
+${exampleItems
+  .map(
+    (item, idx) => `
+Example ${idx + 1}:
+Input: ${JSON.stringify(item.input, null, 2)}
+Expected Output: ${JSON.stringify(item.expectedOutput, null, 2)}
+`,
+  )
+  .join("\n")}`
+    : ""
+}
+
+Current form state:
+- Input: ${input.currentInput || "(empty)"}
+- Expected Output: ${input.currentExpectedOutput || "(empty)"}
+
+Task: ${
+          isPolishing
+            ? `Polish and improve the existing ${fieldName} to make it more appropriate for this dataset. Fix formatting, ensure consistency with the dataset's purpose, and maintain the core intent.`
+            : `Generate a realistic and appropriate ${fieldName} value that fits this dataset's purpose.`
+        }${
+          input.fieldType === "expectedOutput" && input.currentInput
+            ? ` The expected output should be a reasonable response to the provided input.`
+            : ""
+        }
+
+Return the ${isPolishing ? "polished" : "generated"} ${fieldName} value as a JSON object.`;
+
+        // 7. Determine schema for structured output
+        const schema =
+          input.fieldType === "input"
+            ? dataset.inputSchema
+            : dataset.expectedOutputSchema;
+
+        const structuredOutputSchema = schema
+          ? (schema as Record<string, unknown>)
+          : undefined;
+
+        const modelParams = getDefaultModelParams();
+
+        const getEnvironment = (): string => {
+          switch (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+            case "US":
+            case "EU":
+            case "HIPAA":
+              return "prod";
+            case "STAGING":
+              return "staging";
+            default:
+              return "dev";
+          }
+        };
+
+        const traceSinkParams: TraceSinkParams = {
+          environment: getEnvironment(),
+          traceName: "dataset-item-generation",
+          traceId: randomBytes(16).toString("hex"),
+          targetProjectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
+          userId: ctx.session.user.id,
+          metadata: {
+            langfuse_user_id: ctx.session.user.id,
+            langfuse_project_id: ctx.session.projectId,
+            dataset_id: input.datasetId,
+            field_type: input.fieldType,
+            is_polishing: isPolishing,
+          },
+        };
+
+        const llmCompletion = await fetchLLMCompletion({
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+              type: ChatMessageType.PublicAPICreated,
+            } as ChatMessage,
+          ],
+          modelParams,
+          llmConnection: {
+            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+          },
+          streaming: false,
+          traceSinkParams,
+          shouldUseLangfuseAPIKey: true,
+          structuredOutputSchema,
+        }).catch((err) => {
+          console.error(err);
+
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Generation failed for the provided schema.",
+          });
+        });
+
+        return {
+          generatedValue:
+            typeof llmCompletion === "string"
+              ? llmCompletion
+              : JSON.stringify(llmCompletion, null, 2),
+        };
+      } catch (error) {
+        logger.error("Failed to generate dataset item field", error);
+        traceException(error);
+
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "The AI backend currently appears to be unavailable. Please try again later.",
+        });
+      }
     }),
 });
