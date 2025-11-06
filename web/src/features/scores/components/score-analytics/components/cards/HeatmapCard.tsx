@@ -55,7 +55,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>Loading heatmap...</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center">
+        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -70,7 +70,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
           Select a score to view comparison
         </CardContent>
       </Card>
@@ -97,7 +97,7 @@ export function HeatmapCard() {
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center gap-4">
+        <CardContent className="flex h-[340px] flex-col items-center gap-4 pl-0">
           <HeatmapPlaceholder />
         </CardContent>
       </Card>
@@ -113,7 +113,7 @@ export function HeatmapCard() {
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col items-center gap-4">
+      <CardContent className="flex h-[340px] flex-col items-center gap-4 pl-0">
         {hasData ? (
           <>
             <Heatmap
@@ -186,7 +186,7 @@ export function HeatmapCard() {
             />
           </>
         ) : (
-          <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No matched score pairs found for the selected time range
           </div>
         )}

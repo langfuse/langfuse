@@ -3,10 +3,15 @@ import { Line, LineChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
-import { type IntervalConfig } from "@/src/utils/date-range-utils";
+import {
+  type IntervalConfig,
+  type TimeRange,
+} from "@/src/utils/date-range-utils";
+import { compactNumberFormatter } from "@/src/utils/numbers";
+import { formatChartTimestamp } from "../../libs/chart-formatters";
+import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 
 export interface NumericTimeSeriesChartProps {
@@ -19,6 +24,7 @@ export interface NumericTimeSeriesChartProps {
   score1Name: string;
   score2Name?: string;
   interval: IntervalConfig;
+  timeRange: TimeRange;
   colors: { score1: string; score2?: string };
 }
 
@@ -33,6 +39,7 @@ export function ScoreTimeSeriesNumericChart({
   score1Name,
   score2Name,
   interval,
+  timeRange,
   colors,
 }: NumericTimeSeriesChartProps) {
   const isComparisonMode = Boolean(score2Name);
@@ -40,8 +47,12 @@ export function ScoreTimeSeriesNumericChart({
   // Transform data for Recharts
   const chartData = useMemo(() => {
     return data.map((item) => {
-      // Format timestamp based on interval
-      const timestamp = formatTimestamp(item.timestamp, interval);
+      // Format timestamp based on interval and time range
+      const timestamp = formatChartTimestamp(
+        item.timestamp,
+        interval,
+        timeRange,
+      );
 
       if (isComparisonMode) {
         return {
@@ -56,7 +67,7 @@ export function ScoreTimeSeriesNumericChart({
         [score1Name]: item.avg1,
       };
     });
-  }, [data, score1Name, score2Name, interval, isComparisonMode]);
+  }, [data, score1Name, score2Name, interval, timeRange, isComparisonMode]);
 
   // Visibility state for interactive legend (comparison mode only)
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
@@ -140,16 +151,14 @@ export function ScoreTimeSeriesNumericChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          interval={0}
-          angle={-45}
-          textAnchor="end"
-          height={80}
+          interval={1}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => compactNumberFormatter(value)}
         />
         <Line
           type="monotone"
@@ -178,9 +187,13 @@ export function ScoreTimeSeriesNumericChart({
           />
         )}
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={
+            <ScoreChartTooltip
+              interval={interval}
+              timeRange={timeRange}
+              valueFormatter={compactNumberFormatter}
+            />
+          }
         />
         <Legend
           content={
@@ -194,35 +207,4 @@ export function ScoreTimeSeriesNumericChart({
       </LineChart>
     </ChartContainer>
   );
-}
-
-/**
- * Format timestamp based on aggregation interval
- * Matches the dashboard pattern from BaseTimeSeriesChart.tsx
- *
- * For fine-grained intervals (second, minute, hour): shows full datetime
- * For coarse intervals (day, month, year): shows date only
- */
-export function formatTimestamp(date: Date, interval: IntervalConfig): string {
-  const { unit } = interval;
-
-  // Fine-grained intervals: show date and time
-  // Pattern matches dashboard's convertDate for "minute" and "hour" dateTrunc
-  if (unit === "second" || unit === "minute" || unit === "hour") {
-    return date.toLocaleTimeString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  // Coarse intervals: show date only
-  // Pattern matches dashboard's convertDate for "day", "week", "month" dateTrunc
-  return date.toLocaleDateString("en-US", {
-    year: "2-digit",
-    month: "numeric",
-    day: "numeric",
-  });
 }

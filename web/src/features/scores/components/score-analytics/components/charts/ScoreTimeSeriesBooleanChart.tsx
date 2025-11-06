@@ -3,11 +3,14 @@ import { Line, LineChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
-import { type IntervalConfig } from "@/src/utils/date-range-utils";
-import { formatTimestamp } from "./ScoreTimeSeriesNumericChart";
+import {
+  type IntervalConfig,
+  type TimeRange,
+} from "@/src/utils/date-range-utils";
+import { formatChartTimestamp } from "../../libs/chart-formatters";
+import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 
 export interface BooleanTimeSeriesChartProps {
@@ -19,6 +22,7 @@ export interface BooleanTimeSeriesChartProps {
   score1Name: string;
   score2Name?: string;
   interval: IntervalConfig;
+  timeRange: TimeRange;
   colors: Record<string, string>;
 }
 
@@ -33,6 +37,7 @@ export function ScoreTimeSeriesBooleanChart({
   score1Name: _score1Name,
   score2Name: _score2Name,
   interval,
+  timeRange,
   colors,
 }: BooleanTimeSeriesChartProps) {
   // Transform categorical data into pivot format for Recharts
@@ -56,9 +61,10 @@ export function ScoreTimeSeriesBooleanChart({
     const formattedData = Array.from(groupedByTimestamp.entries())
       .sort(([tsA], [tsB]) => tsA - tsB)
       .map(([timestamp, categoryMap]) => {
-        const formattedTimestamp = formatTimestamp(
+        const formattedTimestamp = formatChartTimestamp(
           new Date(timestamp),
           interval,
+          timeRange,
         );
 
         const dataPoint: Record<string, string | number> = {
@@ -77,7 +83,7 @@ export function ScoreTimeSeriesBooleanChart({
       chartData: formattedData,
       categories: Array.from(allCategories).sort(),
     };
-  }, [data, interval]);
+  }, [data, interval, timeRange]);
 
   // Visibility state for interactive legend
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
@@ -162,6 +168,7 @@ export function ScoreTimeSeriesBooleanChart({
           tickLine={false}
           axisLine={false}
           label={{ value: "Count", angle: -90, position: "insideLeft" }}
+          tickFormatter={(value) => value.toLocaleString()}
         />
         {categories.map((category) => {
           const isHidden = hiddenKeys.has(category);
@@ -180,9 +187,13 @@ export function ScoreTimeSeriesBooleanChart({
           );
         })}
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={
+            <ScoreChartTooltip
+              interval={interval}
+              timeRange={timeRange}
+              valueFormatter={(value) => value.toLocaleString()}
+            />
+          }
         />
         <Legend
           content={

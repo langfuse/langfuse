@@ -3,10 +3,10 @@ import { Bar, BarChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
+import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 
 interface BooleanChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -214,17 +214,22 @@ export function ScoreDistributionBooleanChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          interval={0}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => value.toLocaleString()}
         />
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={
+            <ScoreChartTooltip
+              valueFormatter={(value) => value.toLocaleString()}
+              labelFormatter={(label) => String(label)}
+            />
+          }
         />
         <Bar
           dataKey={dataKeys.score1Key}
