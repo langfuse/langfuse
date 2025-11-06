@@ -41,7 +41,7 @@ function EmptyCell({ cellClassName }: { cellClassName?: string }) {
       )}
       style={{
         backgroundColor: "hsl(var(--background))",
-        borderColor: "hsl(var(--border) / 0.34)",
+        borderColor: "hsl(var(--border) / 0.5)",
       }}
       aria-hidden="true"
     />

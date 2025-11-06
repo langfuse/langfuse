@@ -25,6 +25,7 @@ export interface HeatmapProps {
 
   // Styling
   cellClassName?: string;
+  cellHeight?: number; // Dynamic cell height in pixels
   width?: number | string;
   height?: number | string;
   className?: string;
@@ -55,6 +56,7 @@ export function Heatmap({
   xAxisLabel,
   yAxisLabel,
   cellClassName,
+  cellHeight: cellHeightProp,
   width = "100%",
   height,
   className,
@@ -95,7 +97,9 @@ export function Heatmap({
 
   // Calculate responsive cell size - width-biased for minimal vertical space
   const cellWidth = "minmax(32px, 1fr)"; // Can grow wide
-  const cellHeight = "minmax(24px, 40px)"; // Capped at 40px tall
+  const cellHeight = cellHeightProp
+    ? `${cellHeightProp}px`
+    : "minmax(24px, 40px)";
 
   return (
     <TooltipProvider delayDuration={0}>
