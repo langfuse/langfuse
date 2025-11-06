@@ -11,7 +11,6 @@ import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   type GenericFilterOptions,
-  type ColumnToQueryKeyMap,
 } from "../lib/filter-query-encoding";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -23,27 +22,20 @@ import type { FilterConfig } from "../lib/filter-config";
  * This prevents duplicates when old URLs use display names and new filters use column IDs.
  *
  * @param filtersQuery - Encoded filter string from URL
- * @param columnToQueryKey - Mapping of column IDs to query keys
  * @param columnDefinitions - Column definitions for validation and normalization
  * @param options - Available filter options
  * @returns Normalized and validated FilterState
  */
 export function decodeAndNormalizeFilters(
   filtersQuery: string,
-  columnToQueryKey: ColumnToQueryKeyMap,
   columnDefinitions: ColumnDefinition[],
   options: GenericFilterOptions,
 ): FilterState {
   try {
-    const filters = decodeFiltersGeneric(
-      filtersQuery,
-      columnToQueryKey,
-      options,
-      (column) => {
-        const columnDef = columnDefinitions.find((col) => col.id === column);
-        return columnDef?.type || "stringOptions";
-      },
-    );
+    const filters = decodeFiltersGeneric(filtersQuery, options, (column) => {
+      const columnDef = columnDefinitions.find((col) => col.id === column);
+      return columnDef?.type || "stringOptions";
+    });
 
     // Normalize display names to column IDs immediately after decoding
     // This prevents duplicates when old URLs use display names (e.g., "Environment")
@@ -284,27 +276,17 @@ export function useSidebarFilterState(
   const filterState: FilterState = useMemo(() => {
     return decodeAndNormalizeFilters(
       filtersQuery,
-      config.columnToQueryKey,
       config.columnDefinitions,
       options,
     );
-  }, [
-    filtersQuery,
-    config.columnToQueryKey,
-    config.columnDefinitions,
-    options,
-  ]);
+  }, [filtersQuery, config.columnDefinitions, options]);
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
-      const encoded = encodeFiltersGeneric(
-        newFilters,
-        config.columnToQueryKey,
-        options,
-      );
+      const encoded = encodeFiltersGeneric(newFilters, options);
       setFiltersQuery(encoded || null);
     },
-    [config.columnToQueryKey, options, setFiltersQuery],
+    [options, setFiltersQuery],
   );
 
   // track if defaults have been applied before, versioned to support future changes
@@ -724,7 +706,7 @@ export function useSidebarFilterState(
     const expandedSet = new Set(expandedState);
 
     const getShortKey = (column: string): string | null => {
-      return config.columnToQueryKey[column] ?? null;
+      return column;
     };
 
     return config.facets

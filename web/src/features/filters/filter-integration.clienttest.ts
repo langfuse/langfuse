@@ -12,7 +12,6 @@ import {
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-  type ColumnToQueryKeyMap,
   type GenericFilterOptions,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
@@ -22,17 +21,6 @@ import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
 import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
 
-const mockColumnMap: ColumnToQueryKeyMap = {
-  name: "name",
-  period: "period",
-  diet: "diet",
-  length: "length",
-  extinct: "extinct",
-  ratings: "ratings",
-  scoresNumeric: "scoresNumeric",
-  metadata: "metadata",
-};
-
 const mockOptions: GenericFilterOptions = {
   period: ["triassic", "jurassic", "cretaceous"],
   diet: ["carnivore", "herbivore", "omnivore"],
@@ -41,7 +29,7 @@ const mockOptions: GenericFilterOptions = {
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
   // encode filters to query string
-  const encoded = encodeFiltersGeneric(filters, mockColumnMap, mockOptions);
+  const encoded = encodeFiltersGeneric(filters, mockOptions);
 
   // mock browser URL API
   const params = new URLSearchParams();
@@ -53,7 +41,7 @@ function simulateUrlFlow(filters: FilterState): FilterState {
   const queryValue = readParams.get("filter") || "";
 
   // decode to filter state
-  return decodeFiltersGeneric(queryValue, mockColumnMap, mockOptions);
+  return decodeFiltersGeneric(queryValue, mockOptions);
 }
 
 describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
@@ -137,7 +125,6 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
     const params = new URLSearchParams(legacyUrl);
     const decoded = decodeFiltersGeneric(
       params.get("filter") || "",
-      mockColumnMap,
       mockOptions,
     );
 

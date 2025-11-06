@@ -4,20 +4,6 @@ import {
 } from "@/src/features/filters/lib/filter-query-encoding";
 import type { FilterState } from "@langfuse/shared";
 
-// Test-specific dinosaur-themed column mapping
-const TEST_COLUMN_TO_QUERY_KEY = {
-  species: "species",
-  diet: "diet",
-  period: "period",
-  habitat: "habitat",
-  extinct: "extinct",
-  length: "length",
-  name: "name",
-  ratings: "ratings",
-  scoresNumeric: "scoresNumeric",
-  metadata: "metadata",
-};
-
 const TEST_COLUMN_DEFS = [
   { id: "species", name: "species", type: "stringOptions" as const },
   { id: "diet", name: "diet", type: "stringOptions" as const },
@@ -35,25 +21,17 @@ const TEST_COLUMN_DEFS = [
   { id: "metadata", name: "metadata", type: "stringObject" as const },
 ];
 
-type FilterQueryOptions = Record<
-  keyof typeof TEST_COLUMN_TO_QUERY_KEY,
-  string[]
->;
+type FilterQueryOptions = Record<string, string[]>;
 
 // Wrapper functions for tests
 const encodeFilters = (filters: FilterState, options: FilterQueryOptions) =>
-  encodeFiltersGeneric(filters, TEST_COLUMN_TO_QUERY_KEY, options);
+  encodeFiltersGeneric(filters, options);
 
 const decodeFilters = (query: string, options: FilterQueryOptions) => {
-  return decodeFiltersGeneric(
-    query,
-    TEST_COLUMN_TO_QUERY_KEY,
-    options,
-    (column) => {
-      const columnDef = TEST_COLUMN_DEFS.find((col) => col.id === column);
-      return columnDef?.type || "stringOptions";
-    },
-  );
+  return decodeFiltersGeneric(query, options, (column) => {
+    const columnDef = TEST_COLUMN_DEFS.find((col) => col.id === column);
+    return columnDef?.type || "stringOptions";
+  });
 };
 
 describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
