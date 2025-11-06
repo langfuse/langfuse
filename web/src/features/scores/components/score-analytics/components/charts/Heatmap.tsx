@@ -198,7 +198,7 @@ export function Heatmap({
 
           {/* Grid */}
           <div
-            className="grid w-full flex-1 gap-1"
+            className="grid w-full flex-1 gap-0.5"
             style={{
               gridTemplateColumns: `repeat(${cols}, ${cellWidth})`,
               gridTemplateRows: `repeat(${rows}, ${cellHeight})`,
