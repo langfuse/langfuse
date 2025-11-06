@@ -94,7 +94,7 @@ import {
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
-import { BaseError, resolveIOByMode } from "@langfuse/shared";
+import { BaseError, parseIO } from "@langfuse/shared";
 
 setUpSuperjson();
 
@@ -397,7 +397,7 @@ const inputTraceSchema = z.object({
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
   truncated: z.boolean().default(false),
-  mode: z.enum(["compact", "truncated", "full"]).default("full"),
+  verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
 });
 
 const enforceTraceAccess = t.middleware(async (opts) => {
@@ -417,7 +417,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
   const fromTimestamp = result.data.fromTimestamp;
-  const mode = result.data.mode;
+  const verbosity = result.data.verbosity;
 
   const clickhouseTrace = await getTraceById({
     traceId,
@@ -425,7 +425,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
     renderingProps: {
-      truncated: mode === "truncated",
+      truncated: verbosity === "truncated",
       shouldJsonParse: false, // we do not want to parse the input/output for tRPC
     },
     clickhouseFeatureTag: "tracing-trpc",
@@ -441,8 +441,8 @@ const enforceTraceAccess = t.middleware(async (opts) => {
 
   const trace = {
     ...clickhouseTrace,
-    input: resolveIOByMode(clickhouseTrace.input, mode),
-    output: resolveIOByMode(clickhouseTrace.output, mode),
+    input: parseIO(clickhouseTrace.input, verbosity),
+    output: parseIO(clickhouseTrace.output, verbosity),
   };
 
   const sessionProject = ctx.session?.user?.organizations

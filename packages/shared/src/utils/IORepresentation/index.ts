@@ -1,2 +1,2 @@
-export * from "./resolveIOByMode";
+export * from "./parseIO";
 export * from "./chatML/types";

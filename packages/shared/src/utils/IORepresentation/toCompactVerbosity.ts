@@ -1,4 +1,4 @@
-import { getCompactRepresentationChatML } from "./chatML/getCompactRepresentationChatML";
+import { toCompactVerbosityChatML } from "./chatML/toCompactVerbosityChatML";
 
 /**
  * Returns a compact representation of IO data for display in tables.
@@ -7,7 +7,7 @@ import { getCompactRepresentationChatML } from "./chatML/getCompactRepresentatio
  * @param io - The input or output data to compact
  * @returns Compact representation or null if no data
  */
-export function getCompactRepresentation(io: unknown): {
+export function toCompactVerbosity(io: unknown): {
   success: boolean;
   data: string | null;
 } {
@@ -24,7 +24,7 @@ export function getCompactRepresentation(io: unknown): {
   }
 
   // Try ChatML compact representation extraction
-  const chatMLCompact = getCompactRepresentationChatML(parsedIO);
+  const chatMLCompact = toCompactVerbosityChatML(parsedIO);
   if (chatMLCompact.success) {
     return { success: true, data: chatMLCompact.data };
   }

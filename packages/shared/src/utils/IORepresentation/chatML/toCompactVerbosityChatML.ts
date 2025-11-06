@@ -13,7 +13,7 @@ import { SimpleChatMlArraySchema } from "./types";
  * @param io - The input or output data to extract compact representation from
  * @returns Compact string representation or null if no data
  */
-export function getCompactRepresentationChatML(io: unknown): {
+export function toCompactVerbosityChatML(io: unknown): {
   success: boolean;
   data: string | null;
 } {

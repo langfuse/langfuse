@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
-import { LangfuseNotFoundError, resolveIOByMode } from "@langfuse/shared";
+import { LangfuseNotFoundError, parseIO } from "@langfuse/shared";
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
@@ -18,7 +18,7 @@ export const observationsRouter = createTRPCRouter({
         traceId: z.string(), // required for protectedGetTraceProcedure
         projectId: z.string(), // required for protectedGetTraceProcedure
         startTime: z.date().nullish(),
-        mode: z.enum(["compact", "truncated", "full"]).default("full"),
+        verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
     )
     .query(async ({ input }) => {
@@ -29,7 +29,7 @@ export const observationsRouter = createTRPCRouter({
         traceId: input.traceId,
         startTime: input.startTime ?? undefined,
         renderingProps: {
-          truncated: input.mode === "truncated",
+          truncated: input.verbosity === "truncated",
           shouldJsonParse: false,
         },
       };
@@ -44,8 +44,8 @@ export const observationsRouter = createTRPCRouter({
       }
       return {
         ...obs,
-        input: resolveIOByMode(obs.input, input.mode) as string,
-        output: resolveIOByMode(obs.output, input.mode) as string,
+        input: parseIO(obs.input, input.verbosity) as string,
+        output: parseIO(obs.output, input.verbosity) as string,
         metadata: obs.metadata != null ? JSON.stringify(obs.metadata) : null,
         internalModel: obs?.internalModelId,
       };
