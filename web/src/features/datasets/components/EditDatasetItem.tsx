@@ -16,10 +16,10 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type RouterOutput } from "@/src/utils/types";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
-import { DatasetItemSchemaErrors } from "./DatasetItemSchemaErrors";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { Prisma } from "@langfuse/shared";
 import { DatasetItemAIGenerateButton } from "./DatasetItemAIGenerateButton";
+import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -124,11 +124,9 @@ export const EditDatasetItem = ({
 
   // Track if fields have been touched or modified
   const { touchedFields, dirtyFields } = form.formState;
-  const hasInteractedWithValidatedFields =
-    touchedFields.input ||
-    touchedFields.expectedOutput ||
-    dirtyFields.input ||
-    dirtyFields.expectedOutput;
+  const hasInteractedWithInput = touchedFields.input || dirtyFields.input;
+  const hasInteractedWithExpectedOutput =
+    touchedFields.expectedOutput || dirtyFields.expectedOutput;
 
   // Create dataset array for validation hook
   const datasets = useMemo(() => {
@@ -141,6 +139,12 @@ export const EditDatasetItem = ({
     inputValue,
     expectedOutputValue,
     datasets,
+  );
+
+  // Filter validation errors by field
+  const inputErrors = validation.errors.filter((e) => e.field === "input");
+  const expectedOutputErrors = validation.errors.filter(
+    (e) => e.field === "expectedOutput",
   );
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
@@ -237,6 +241,14 @@ export const EditDatasetItem = ({
                         />
                       </FormControl>
                       <FormMessage />
+                      {validation.hasSchemas &&
+                        inputErrors.length > 0 &&
+                        hasInteractedWithInput && (
+                          <DatasetItemFieldSchemaErrors
+                            errors={inputErrors}
+                            showDatasetName={false}
+                          />
+                        )}
                     </FormItem>
                   )}
                 />
@@ -285,17 +297,18 @@ export const EditDatasetItem = ({
                         />
                       </FormControl>
                       <FormMessage />
+                      {validation.hasSchemas &&
+                        expectedOutputErrors.length > 0 &&
+                        hasInteractedWithExpectedOutput && (
+                          <DatasetItemFieldSchemaErrors
+                            errors={expectedOutputErrors}
+                            showDatasetName={false}
+                          />
+                        )}
                     </FormItem>
                   )}
                 />
               </div>
-
-              {/* Show validation errors only if fields have been touched */}
-              {validation.hasSchemas &&
-                !validation.isValid &&
-                hasInteractedWithValidatedFields && (
-                  <DatasetItemSchemaErrors errors={validation.errors} />
-                )}
 
               <FormField
                 control={form.control}

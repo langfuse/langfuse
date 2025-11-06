@@ -17,9 +17,9 @@ import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
-import { DatasetItemSchemaErrors } from "./DatasetItemSchemaErrors";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import { DatasetItemAIGenerateButton } from "./DatasetItemAIGenerateButton";
+import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -131,13 +131,15 @@ export const NewDatasetItemForm = (props: {
   const inputValue = form.watch("input");
   const expectedOutputValue = form.watch("expectedOutput");
 
+  const hasInitialValues = Boolean(
+    props.input || props.output || props.metadata,
+  );
+
   // Track if fields have been touched or modified
   const { touchedFields, dirtyFields } = form.formState;
-  const hasInteractedWithValidatedFields =
-    touchedFields.input ||
-    touchedFields.expectedOutput ||
-    dirtyFields.input ||
-    dirtyFields.expectedOutput;
+  const hasInteractedWithInput = touchedFields.input || dirtyFields.input;
+  const hasInteractedWithExpectedOutput =
+    touchedFields.expectedOutput || dirtyFields.expectedOutput;
 
   const datasets = api.datasets.allDatasetMeta.useQuery({
     projectId: props.projectId,
@@ -163,6 +165,12 @@ export const NewDatasetItemForm = (props: {
   // For AI generation, only show button when single dataset is selected
   const singleDatasetId =
     selectedDatasets.length === 1 ? selectedDatasets[0]?.id : null;
+
+  // Filter validation errors by field
+  const inputErrors = validation.errors.filter((e) => e.field === "input");
+  const expectedOutputErrors = validation.errors.filter(
+    (e) => e.field === "expectedOutput",
+  );
 
   const utils = api.useUtils();
   const createManyDatasetItemsMutation =
@@ -192,9 +200,18 @@ export const NewDatasetItemForm = (props: {
           sourceObservationId: props.observationId,
         })),
       })
-      .then(() => {
-        props.onFormSuccess?.();
-        form.reset();
+      .then((result) => {
+        if (result.success) {
+          props.onFormSuccess?.();
+          form.reset();
+
+          return;
+        }
+
+        setFormError(
+          `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
+        );
+        console.error(result.validationErrors);
       })
       .catch((error) => {
         console.error(error);
@@ -349,6 +366,14 @@ export const NewDatasetItemForm = (props: {
                       />
                     </FormControl>
                     <FormMessage />
+                    {validation.hasSchemas &&
+                      inputErrors.length > 0 &&
+                      (hasInitialValues || hasInteractedWithInput) && (
+                        <DatasetItemFieldSchemaErrors
+                          errors={inputErrors}
+                          showDatasetName={selectedDatasets.length > 1}
+                        />
+                      )}
                   </FormItem>
                 )}
               />
@@ -398,17 +423,18 @@ export const NewDatasetItemForm = (props: {
                       />
                     </FormControl>
                     <FormMessage />
+                    {validation.hasSchemas &&
+                      expectedOutputErrors.length > 0 &&
+                      (hasInitialValues || hasInteractedWithExpectedOutput) && (
+                        <DatasetItemFieldSchemaErrors
+                          errors={expectedOutputErrors}
+                          showDatasetName={selectedDatasets.length > 1}
+                        />
+                      )}
                   </FormItem>
                 )}
               />
             </div>
-
-            {/* Show validation errors only if fields have been touched */}
-            {validation.hasSchemas &&
-              !validation.isValid &&
-              hasInteractedWithValidatedFields && (
-                <DatasetItemSchemaErrors errors={validation.errors} />
-              )}
 
             <FormField
               control={form.control}
