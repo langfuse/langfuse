@@ -69,8 +69,9 @@ export function Heatmap({
     return map;
   }, [data]);
 
-  // Calculate responsive cell size
-  const cellMinSize = "minmax(24px, 1fr)";
+  // Calculate responsive cell size - width-biased for minimal vertical space
+  const cellWidth = "minmax(32px, 1fr)"; // Can grow wide
+  const cellHeight = "minmax(24px, 40px)"; // Capped at 40px tall
 
   return (
     <TooltipProvider>
@@ -95,7 +96,7 @@ export function Heatmap({
             <div
               className="grid gap-1 pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs"
               style={{
-                gridTemplateRows: `repeat(${rows}, ${cellMinSize})`,
+                gridTemplateRows: `repeat(${rows}, ${cellHeight})`,
               }}
             >
               {rowLabels.map((label, idx) => (
@@ -110,11 +111,10 @@ export function Heatmap({
 
           {/* Grid */}
           <div
-            className="grid max-w-full flex-1 gap-1 overflow-x-auto"
+            className="grid w-full flex-1 gap-1"
             style={{
-              gridTemplateColumns: `repeat(${cols}, ${cellMinSize})`,
-              gridTemplateRows: `repeat(${rows}, ${cellMinSize})`,
-              maxWidth: "600px",
+              gridTemplateColumns: `repeat(${cols}, ${cellWidth})`,
+              gridTemplateRows: `repeat(${rows}, ${cellHeight})`,
               height: height || "auto",
             }}
             role="grid"
@@ -152,10 +152,9 @@ export function Heatmap({
             )}
 
             <div
-              className="grid flex-1 gap-1 text-center text-[10px] text-muted-foreground sm:text-xs"
+              className="grid w-full flex-1 gap-1 text-center text-[10px] text-muted-foreground sm:text-xs"
               style={{
-                gridTemplateColumns: `repeat(${cols}, ${cellMinSize})`,
-                maxWidth: "600px",
+                gridTemplateColumns: `repeat(${cols}, ${cellWidth})`,
               }}
             >
               {colLabels.map((label, idx) => (

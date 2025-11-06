@@ -137,6 +137,7 @@ export function HeatmapCard() {
               xAxisLabel={`${score2?.name} (${score2?.source})`}
               yAxisLabel={`${score1.name} (${score1.source})`}
               getColor={getColor}
+              showValues={false}
               renderTooltip={(cell) => (
                 <div className="space-y-1">
                   <p className="font-semibold">Count: {cell.value}</p>

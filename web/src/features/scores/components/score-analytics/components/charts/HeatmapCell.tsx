@@ -58,7 +58,7 @@ export function HeatmapCellComponent({
     : getContrastColor(cellColor);
 
   const sharedClassName = cn(
-    "aspect-square w-full rounded border-[0.5px]",
+    "w-full rounded border-[0.5px]",
     "flex items-center justify-center",
     "text-xs font-medium",
     "transition-all duration-150",
