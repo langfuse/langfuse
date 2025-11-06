@@ -310,11 +310,7 @@ export function DistributionChartCard() {
                   : undefined
             }
             binLabels={distribution.binLabels}
-            categories={
-              activeTab === "score2" && distribution.score2Categories
-                ? distribution.score2Categories
-                : distribution.categories
-            }
+            categories={distribution.categories}
             stackedDistribution={stackedDistributionData}
             score2Categories={distribution.score2Categories}
             colors={chartColors}
