@@ -213,9 +213,9 @@ export function DistributionChartCard() {
   const showTabs = mode === "two";
 
   // Helper function to truncate tab labels with max character limit
-  const truncateLabel = (label: string, maxLength: number = 16): string => {
+  const truncateLabel = (label: string, maxLength: number = 12): string => {
     if (label.length <= maxLength) return label;
-    return label.substring(0, 13) + "...";
+    return label.substring(0, 9) + "...";
   };
 
   // Build full tab labels for title attribute (hover tooltip)
@@ -310,7 +310,11 @@ export function DistributionChartCard() {
                   : undefined
             }
             binLabels={distribution.binLabels}
-            categories={distribution.categories}
+            categories={
+              activeTab === "score2" && distribution.score2Categories
+                ? distribution.score2Categories
+                : distribution.categories
+            }
             stackedDistribution={stackedDistributionData}
             score2Categories={distribution.score2Categories}
             colors={chartColors}
