@@ -184,13 +184,13 @@ export function ScoreDistributionCategoricalChart({
       return stackConfig;
     }
 
-    // Single score mode: use category name for pv label
+    // Single score mode: use score name as label (category shown via custom tooltip)
     const firstColor = categories[0]
       ? colors[categories[0]]
       : Object.values(colors)[0];
     return {
       pv: {
-        label: (payload: any) => payload?.name ?? score1Name,
+        label: score1Name,
         color: firstColor,
       },
     };

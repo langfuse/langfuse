@@ -359,7 +359,7 @@ export function interpretCohensKappa(
       description: "Fair agreement between scores",
     };
   }
-  if (kappa >= 0) {
+  if (kappa > 0) {
     return {
       strength: "Slight",
       color: "red",

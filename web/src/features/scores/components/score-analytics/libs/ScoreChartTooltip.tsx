@@ -105,28 +105,38 @@ export function ScoreChartTooltip({
 
       {/* Data series with values */}
       <div className={cn("space-y-1 px-3 py-1.5")}>
-        {sortedPayload.map((entry, index) => (
-          <div
-            key={`${index}-${entry.name}`}
-            className="flex items-center gap-2"
-          >
-            {/* Color indicator */}
+        {sortedPayload.map((entry, index) => {
+          return (
             <div
-              className="h-3 w-3 flex-shrink-0 rounded-sm"
-              style={{ backgroundColor: entry.color ?? "hsl(var(--primary))" }}
-            />
+              key={`${index}-${entry.name}`}
+              className="flex items-center gap-2"
+            >
+              {/* Color indicator */}
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{
+                  backgroundColor: entry.color ?? "hsl(var(--primary))",
+                }}
+              />
 
-            {/* Series name */}
-            <span className="flex-1 text-sm text-muted-foreground">
-              {entry.name?.toString() ?? entry.dataKey ?? ""}
-            </span>
-
-            {/* Formatted value */}
-            <span className="text-sm font-medium text-foreground">
-              {valueFormatter(Number(entry.value ?? 0))}
-            </span>
-          </div>
-        ))}
+              {/* Series name */}
+              <span className="flex-1 text-sm text-muted-foreground">
+                {sortedPayload.length === 1 && (
+                  // For non-stacked charts
+                  <>{entry.payload?.name ?? entry.dataKey ?? ""}</>
+                )}
+                {sortedPayload.length !== 1 && (
+                  // For stacked charts
+                  <>{entry.name?.toString() ?? entry.dataKey ?? ""}</>
+                )}
+              </span>
+              {/* Formatted value */}
+              <span className="text-sm font-medium text-foreground">
+                {valueFormatter(Number(entry.value ?? 0))}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
