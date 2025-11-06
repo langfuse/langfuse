@@ -26,6 +26,7 @@ import {
   DataRetentionQueue,
   MeteringDataPostgresExportQueue,
   PostHogIntegrationQueue,
+  MixpanelIntegrationQueue,
   QueueName,
   logger,
   BlobStorageIntegrationQueue,
@@ -49,6 +50,10 @@ import {
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
 import {
+  mixpanelIntegrationProcessingProcessor,
+  mixpanelIntegrationProcessor,
+} from "./queues/mixpanelIntegrationQueue";
+import {
   blobStorageIntegrationProcessingProcessor,
   blobStorageIntegrationProcessor,
 } from "./queues/blobStorageIntegrationQueue";
@@ -66,6 +71,7 @@ import { webhookProcessor } from "./queues/webhooks";
 import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
+import { notificationQueueProcessor } from "./queues/notificationQueue";
 
 const app = express();
 
@@ -384,6 +390,32 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
   );
 }
 
+if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  MixpanelIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationQueue,
+    mixpanelIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationProcessingQueue,
+    mixpanelIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most one Mixpanel job globally per 10s.
+        max: 1,
+        duration: 10_000,
+      },
+    },
+  );
+}
+
 if (env.QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED === "true") {
   // Instantiate the queue to trigger scheduled jobs
   BlobStorageIntegrationQueue.getInstance();
@@ -457,7 +489,10 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
   );
 }
 
-if (env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true") {
+if (
+  env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
+  env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+) {
   // Instantiate the queue to trigger scheduled jobs
   EventPropagationQueue.getInstance();
 
@@ -466,6 +501,16 @@ if (env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true") {
     eventPropagationProcessor,
     {
       concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.NotificationQueue,
+    notificationQueueProcessor,
+    {
+      concurrency: 5, // Process up to 5 notification jobs concurrently
     },
   );
 }

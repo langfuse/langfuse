@@ -2,7 +2,7 @@
  * Reusable ClickHouse query fragments and CTEs
  */
 
-import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories";
+import { EventsAggregationQueryBuilder } from "./event-query-builder";
 
 interface EventsTracesAggregationParams {
   projectId: string;
@@ -17,40 +17,19 @@ interface EventsTracesAggregationParams {
  *
  * Note: This is a temporary solution until we fully migrate to using only the events table.
  *       Some legacy fields are still included for compatibility and should be removed in the future.
- *
- * Parameters are not injected directly, but used to conditionally include parts of the query.
- * They still need to be passed to the query execution function.
  */
 export const eventsTracesAggregation = (
   params: EventsTracesAggregationParams,
-) => {
-  return `
-	  SELECT
-	      trace_id AS id,
-	      project_id,
-	      argMax(name, event_ts) AS name,
-	      min(start_time) as timestamp,
-	      argMax(environment, event_ts) AS environment,
-	      argMax(version, event_ts) AS version,
-	      argMax(session_id, event_ts) AS session_id,
-	      argMax(user_id, event_ts) AS user_id,
-	      argMax(input, event_ts) AS input,
-	      argMax(output, event_ts) AS output,
-	      argMax(metadata, event_ts) AS metadata,
-	      min(created_at) AS created_at,
-	      max(updated_at) AS updated_at,
-	      -- TODO remove legacy fields
-	      array() AS tags,
-	      false AS bookmarked,
-	      false AS public,
-	      '' AS release
-	  FROM events
-    WHERE project_id = {projectId: String}
-    ${params.traceIds ? `AND trace_id IN ({traceIds: Array(String)})` : ""}
-    ${params.startTimeFrom ? `AND start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-    GROUP BY trace_id, project_id
-    ORDER BY timestamp DESC
-  `.trim();
+): EventsAggregationQueryBuilder => {
+  return (
+    new EventsAggregationQueryBuilder({ projectId: params.projectId })
+      // we always use this as CTE, no need to be smart here.
+      // ClickHouse will optimize unused columns away.
+      .selectFieldSet("all")
+      .withTraceIds(params.traceIds)
+      .withStartTimeFrom(params.startTimeFrom)
+      .orderBy("ORDER BY timestamp DESC")
+  );
 };
 
 interface EventsScoresAggregationParams {
@@ -62,13 +41,20 @@ interface EventsScoresAggregationParams {
  * Scores CTE for events table queries.
  * Aggregates numeric and categorical scores for observations.
  *
- * Parameters are not injected directly, but used to conditionally include parts of the query.
- * They still need to be passed to the query execution function.
+ * Returns a query and params object that can be passed directly to withCTE.
  */
 export const eventsScoresAggregation = (
   params: EventsScoresAggregationParams,
-) => {
-  return `
+): { query: string; params: Record<string, any> } => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const query = `
     SELECT
       trace_id,
       observation_id,
@@ -109,4 +95,45 @@ export const eventsScoresAggregation = (
       trace_id,
       observation_id
   `.trim();
+
+  return { query, params: queryParams };
+};
+
+interface EventsTracesScoresAggregationParams {
+  projectId: string;
+  startTimeFrom?: string | null;
+}
+
+/**
+ * Scores CTE for trace-level queries.
+ * Aggregates scores that belong to traces (not observations).
+ *
+ * Returns a query and params object that can be passed directly to withCTE.
+ */
+export const eventsTracesScoresAggregation = (
+  params: EventsTracesScoresAggregationParams,
+): { query: string; params: Record<string, any> } => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const query = `
+    SELECT
+      trace_id,
+      project_id,
+      groupUniqArray(id) as score_ids
+    FROM scores
+    WHERE project_id = {projectId: String}
+      AND observation_id IS NULL
+      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+    GROUP BY
+      trace_id,
+      project_id
+  `.trim();
+
+  return { query, params: queryParams };
 };

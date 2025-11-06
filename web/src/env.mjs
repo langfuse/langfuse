@@ -107,6 +107,24 @@ export const env = createEnv({
     AUTH_OKTA_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_OKTA_CHECKS: zAuthChecks,
     AUTH_OKTA_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AUTHENTIK_CLIENT_ID: z.string().optional(),
+    AUTH_AUTHENTIK_CLIENT_SECRET: z.string().optional(),
+    AUTH_AUTHENTIK_ISSUER: z
+      .string()
+      .regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+        message:
+          "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
+      })
+      .optional(),
+    AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_AUTHENTIK_CHECKS: zAuthChecks,
+    AUTH_AUTHENTIK_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_ONELOGIN_CLIENT_ID: z.string().optional(),
+    AUTH_ONELOGIN_CLIENT_SECRET: z.string().optional(),
+    AUTH_ONELOGIN_ISSUER: z.string().optional(),
+    AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_ONELOGIN_CHECKS: zAuthChecks,
+    AUTH_ONELOGIN_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CLIENT_ID: z.string().optional(),
     AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTH0_ISSUER: z.string().url().optional(),
@@ -295,8 +313,25 @@ export const env = createEnv({
     LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
     LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
 
+    // API Performance Flags
+    // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
+    // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
+    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
+      .enum(["true", "false"])
+      .default("false"),
+    // Whether to propagate the toTimestamp restriction (including a server-side offset)
+    // onto the observations CTE in GET /api/public/traces. Can be used to improve performance
+    // for self-hosters that have a trace known trace duration of less than multiple hours.
+    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
+      .enum(["true", "false"])
+      .default("false"),
+
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
+      .enum(["true", "false"])
+      .default("false"),
+
+    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
       .enum(["true", "false"])
       .default("false"),
   },
@@ -412,6 +447,22 @@ export const env = createEnv({
       process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
     AUTH_OKTA_CLIENT_AUTH_METHOD: process.env.AUTH_OKTA_CLIENT_AUTH_METHOD,
     AUTH_OKTA_CHECKS: process.env.AUTH_OKTA_CHECKS,
+    AUTH_AUTHENTIK_CLIENT_ID: process.env.AUTH_AUTHENTIK_CLIENT_ID,
+    AUTH_AUTHENTIK_CLIENT_SECRET: process.env.AUTH_AUTHENTIK_CLIENT_SECRET,
+    AUTH_AUTHENTIK_ISSUER: process.env.AUTH_AUTHENTIK_ISSUER,
+    AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING,
+    AUTH_AUTHENTIK_CLIENT_AUTH_METHOD:
+      process.env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+    AUTH_AUTHENTIK_CHECKS: process.env.AUTH_AUTHENTIK_CHECKS,
+    AUTH_ONELOGIN_CLIENT_ID: process.env.AUTH_ONELOGIN_CLIENT_ID,
+    AUTH_ONELOGIN_CLIENT_SECRET: process.env.AUTH_ONELOGIN_CLIENT_SECRET,
+    AUTH_ONELOGIN_ISSUER: process.env.AUTH_ONELOGIN_ISSUER,
+    AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING,
+    AUTH_ONELOGIN_CLIENT_AUTH_METHOD:
+      process.env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+    AUTH_ONELOGIN_CHECKS: process.env.AUTH_ONELOGIN_CHECKS,
     AUTH_AUTH0_CLIENT_ID: process.env.AUTH_AUTH0_CLIENT_ID,
     AUTH_AUTH0_CLIENT_SECRET: process.env.AUTH_AUTH0_CLIENT_SECRET,
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
@@ -585,6 +636,12 @@ export const env = createEnv({
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
 
+    // Api Performance Flags
+    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS:
+      process.env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS,
+    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL:
+      process.env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL,
+
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:
       process.env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
@@ -595,6 +652,8 @@ export const env = createEnv({
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

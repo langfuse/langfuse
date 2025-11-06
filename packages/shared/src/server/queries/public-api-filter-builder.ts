@@ -24,6 +24,106 @@ export type ApiColumnMapping = {
 };
 
 /**
+ * Base column definition for traces table mappings
+ * Single source of truth for all trace column mappings
+ */
+const TRACES_COLUMN_DEFINITIONS = [
+  {
+    id: "timestamp",
+    name: "Timestamp",
+    column: "timestamp",
+    filterType: "DateTimeFilter",
+  },
+  {
+    id: "userId",
+    name: "User ID",
+    column: "user_id",
+    filterType: "StringFilter",
+  },
+  { id: "name", name: "Name", column: "name", filterType: "StringFilter" },
+  {
+    id: "environment",
+    name: "Environment",
+    column: "environment",
+    filterType: "StringOptionsFilter",
+  },
+  {
+    id: "metadata",
+    name: "Metadata",
+    column: "metadata",
+    filterType: "StringObjectFilter",
+  },
+  {
+    id: "sessionId",
+    name: "Session ID",
+    column: "session_id",
+    filterType: "StringFilter",
+  },
+  {
+    id: "version",
+    name: "Version",
+    column: "version",
+    filterType: "StringFilter",
+  },
+  {
+    id: "release",
+    name: "Release",
+    column: "release",
+    filterType: "StringFilter",
+  },
+  {
+    id: "tags",
+    name: "Tags",
+    column: "tags",
+    filterType: "ArrayOptionsFilter",
+  },
+] as const;
+
+/**
+ * Convenience function: Get just the simple filter mappings for public API
+ */
+export function createPublicApiTracesColumnMapping(
+  tableName: "traces" | "events",
+  tablePrefix: "t" | "e",
+): ApiColumnMapping[] {
+  const timestampColumn = "timestamp";
+  const simpleFilters: ApiColumnMapping[] = [];
+  for (const def of TRACES_COLUMN_DEFINITIONS) {
+    // For timestamp filters, create fromTimestamp and toTimestamp
+    if (def.id === "timestamp") {
+      simpleFilters.push(
+        {
+          id: "fromTimestamp",
+          clickhouseSelect: timestampColumn,
+          operator: ">=" as const,
+          filterType: def.filterType,
+          clickhouseTable: tableName,
+          clickhousePrefix: tablePrefix,
+        },
+        {
+          id: "toTimestamp",
+          clickhouseSelect: timestampColumn,
+          operator: "<" as const,
+          filterType: def.filterType,
+          clickhouseTable: tableName,
+          clickhousePrefix: tablePrefix,
+        },
+      );
+    } else {
+      // Regular column mapping for simple filters
+      simpleFilters.push({
+        id: def.id,
+        clickhouseSelect: def.column,
+        filterType: def.filterType,
+        clickhouseTable: tableName,
+        clickhousePrefix: tablePrefix,
+      });
+    }
+  }
+  return simpleFilters;
+}
+
+/**
  * Factory function to create public API column mappings for events/observations tables.
  * Eliminates duplication between events and observations filter mappings.
  */

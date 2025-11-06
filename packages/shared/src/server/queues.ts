@@ -15,6 +15,7 @@ export const IngestionEvent = z.object({
     eventBodyId: z.string(),
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
+    forwardToEventsTable: z.boolean().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -90,6 +91,9 @@ export const EvalExecutionEvent = z.object({
   delay: z.number().nullish(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
+  projectId: z.string(),
+});
+export const MixpanelIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
@@ -183,6 +187,16 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const NotificationEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("COMMENT_MENTION"),
+    commentId: z.string(),
+    projectId: z.string(),
+    mentionedUserIds: z.array(z.string()),
+  }),
+  // Future notification types can be added here
+]);
+
 export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
   action: EventActionSchema,
@@ -231,6 +245,9 @@ export type ExperimentCreateEventType = z.infer<
 export type PostHogIntegrationProcessingEventType = z.infer<
   typeof PostHogIntegrationProcessingEventSchema
 >;
+export type MixpanelIntegrationProcessingEventType = z.infer<
+  typeof MixpanelIntegrationProcessingEventSchema
+>;
 export type DataRetentionProcessingEventType = z.infer<
   typeof DataRetentionProcessingEventSchema
 >;
@@ -243,6 +260,7 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
 
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),
@@ -267,6 +285,8 @@ export enum QueueName {
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  MixpanelIntegrationQueue = "mixpanel-integration-queue",
+  MixpanelIntegrationProcessingQueue = "mixpanel-integration-processing-queue",
   BlobStorageIntegrationQueue = "blobstorage-integration-queue",
   BlobStorageIntegrationProcessingQueue = "blobstorage-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
@@ -281,6 +301,7 @@ export enum QueueName {
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
+  NotificationQueue = "notification-queue",
 }
 
 export enum QueueJobs {
@@ -299,6 +320,8 @@ export enum QueueJobs {
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  MixpanelIntegrationJob = "mixpanel-integration-job",
+  MixpanelIntegrationProcessingJob = "mixpanel-integration-processing-job",
   BlobStorageIntegrationJob = "blobstorage-integration-job",
   BlobStorageIntegrationProcessingJob = "blobstorage-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
@@ -313,6 +336,7 @@ export enum QueueJobs {
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
+  NotificationJob = "notification-job",
 }
 
 export type TQueueJobTypes = {
@@ -396,6 +420,12 @@ export type TQueueJobTypes = {
     payload: PostHogIntegrationProcessingEventType;
     name: QueueJobs.PostHogIntegrationProcessingJob;
   };
+  [QueueName.MixpanelIntegrationProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MixpanelIntegrationProcessingEventType;
+    name: QueueJobs.MixpanelIntegrationProcessingJob;
+  };
   [QueueName.DataRetentionProcessingQueue]: {
     timestamp: Date;
     id: string;
@@ -456,5 +486,11 @@ export type TQueueJobTypes = {
       partition?: string;
     };
     name: QueueJobs.EventPropagationJob;
+  };
+  [QueueName.NotificationQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: NotificationEventType;
+    name: QueueJobs.NotificationJob;
   };
 };

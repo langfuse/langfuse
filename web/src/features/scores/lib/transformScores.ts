@@ -79,6 +79,7 @@ function transformFlatScores(
         traceId: score.traceId ?? null,
         observationId: score.observationId ?? null,
         sessionId: score.sessionId ?? null,
+        timestamp: score.timestamp,
       };
     })
     .filter((score) => score !== null);
@@ -120,6 +121,7 @@ function transformAggregates(
       comment: aggregate.comment ?? null,
       value: null,
       stringValue: null,
+      timestamp: aggregate.timestamp ?? null,
     };
 
     if (aggregate.type === "NUMERIC") {

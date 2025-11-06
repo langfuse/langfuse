@@ -21,9 +21,12 @@ import {
   parseDatasetItemInput,
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
-  validateDatasetItem,
   type PromptExperimentConfig,
 } from "./utils";
+import {
+  validateDatasetItem,
+  normalizeDatasetItemInput,
+} from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
 
@@ -217,13 +220,18 @@ async function getItemsToProcess(
   // Filter and validate dataset items
   const validatedDatasetItems = datasetItems
     .filter(({ input }) => validateDatasetItem(input, config.allVariables))
-    .map((datasetItem) => ({
-      ...datasetItem,
-      input: parseDatasetItemInput(
-        datasetItem.input as Prisma.JsonObject,
+    .map((datasetItem) => {
+      // Normalize string inputs to object format for single-variable prompts
+      const normalizedInput = normalizeDatasetItemInput(
+        datasetItem.input,
         config.allVariables,
-      ),
-    }));
+      );
+
+      return {
+        ...datasetItem,
+        input: parseDatasetItemInput(normalizedInput, config.allVariables),
+      };
+    });
 
   if (!validatedDatasetItems.length) {
     logger.info(

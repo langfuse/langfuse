@@ -49,6 +49,7 @@ export const ObservationPreview = ({
   commentCounts,
   viewType = "detailed",
   isTimeline,
+  showCommentButton = false,
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
@@ -58,6 +59,7 @@ export const ObservationPreview = ({
   commentCounts?: Map<string, number>;
   viewType?: "focused" | "detailed";
   isTimeline?: boolean;
+  showCommentButton?: boolean;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -198,6 +200,14 @@ export const ObservationPreview = ({
                   count={commentCounts?.get(preloadedObservation.id)}
                 />
               </>
+            )}
+            {viewType === "focused" && showCommentButton && (
+              <CommentDrawerButton
+                projectId={preloadedObservation.projectId}
+                objectId={preloadedObservation.id}
+                objectType="OBSERVATION"
+                count={commentCounts?.get(preloadedObservation.id)}
+              />
             )}
           </div>
         </div>
@@ -410,6 +420,7 @@ export const ObservationPreview = ({
               <div>
                 <IOPreview
                   key={preloadedObservation.id + "-input"}
+                  observationName={preloadedObservation.name ?? undefined}
                   input={observationWithInputAndOutput.data?.input ?? undefined}
                   output={
                     observationWithInputAndOutput.data?.output ?? undefined

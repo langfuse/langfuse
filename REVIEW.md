@@ -9,10 +9,12 @@
 - ClickHouse migrations in the `packages/shared/clickhouse/migrations/unclustered` directory must not include `ON CLUSTER` statements and must not use `Replicated` merge tree table types.
 - Migrations in `packages/shared/clickhouse/migrations/clustered` should match their counterparts in `packages/shared/clickhouse/migrations/unclustered` aside from the restrictions listed above.
 - When adding new indexes on ClickHouse, ensure that there is a corresponding `MATERIALIZE INDEX` statement in the same migration. The materialization can use `SETTINGS mutations_sync = 2` if they operate on smaller tables, but may timeout otherwise.
+- All ClickHouse queries on project-scoped tables (traces, observations, scores, events, sessions, etc.) must include `WHERE project_id = {projectId: String}` filter to ensure proper tenant isolation and that queries only access data from the intended project.
 
 ### Postgres
 
 - Most `schema.prisma` changes should produce a change in `packages/shared/prisma/migrations`.
+- All Prisma queries on project-scoped tables must include `projectId` in the WHERE clause (e.g., `where: { id: traceId, projectId }`) to ensure proper tenant isolation and that queries only access data from the intended project.
 
 ### Environment Variables
 
@@ -35,3 +37,11 @@
 - Available Tailwind utilities:
   - `top-banner-offset` / `pt-banner-offset` - For sticky/fixed/absolute positioning and padding
   - `h-screen-with-banner` / `min-h-screen-with-banner` - For full-height containers accounting for banners
+
+## JavaScript / TypeScript Style
+
+- use concat instead of spread to avoid stack overflow with large arrays
+
+## Seeder
+
+- make sure that for new features with data model changes, the database seeder is adjusted.
