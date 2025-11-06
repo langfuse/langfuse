@@ -131,7 +131,7 @@ export const ScoreChartLegendContent = React.forwardRef<
     const [buttonWidth, setButtonWidth] = useState(140); // Estimated default width
     const [maxVisibleItems, setMaxVisibleItems] = useState<number | null>(null);
 
-    // Measure button width on mount and when popover state changes
+    // Measure button width on mount only (prevent circular re-renders)
     useLayoutEffect(() => {
       if (buttonRef.current) {
         const width = buttonRef.current.offsetWidth;
@@ -139,7 +139,7 @@ export const ScoreChartLegendContent = React.forwardRef<
           setButtonWidth(width);
         }
       }
-    }, [needsPopover, payload?.length]);
+    }, []); // Empty deps - run only once
 
     // Width-based overflow detection with ResizeObserver
     useLayoutEffect(() => {
@@ -243,7 +243,7 @@ export const ScoreChartLegendContent = React.forwardRef<
       return () => {
         resizeObserver.disconnect();
       };
-    }, [payload, buttonWidth]);
+    }, []); // Empty deps - run only once, ResizeObserver handles updates
 
     const handleItemClick = (key: string) => {
       if (!interactive || !onVisibilityChange) return;
