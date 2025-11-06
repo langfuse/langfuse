@@ -115,15 +115,36 @@ export function Heatmap({
 
   useLayoutEffect(() => {
     if (rowLabelsRef.current && rowLabels && rowLabels.length > 0) {
-      // Measure the actual width needed for the labels
-      const width = rowLabelsRef.current.scrollWidth;
-      console.log("[Heatmap] Measured row labels scrollWidth:", width);
+      const container = rowLabelsRef.current;
 
-      // Add some padding (8px for pr-1, plus extra buffer)
-      const totalWidth = width + 16;
+      console.log("[Heatmap] Container measurements:", {
+        clientWidth: container.clientWidth,
+        scrollWidth: container.scrollWidth,
+        offsetWidth: container.offsetWidth,
+      });
+
+      // Find the widest label by measuring each label element
+      const labelElements = container.querySelectorAll("span");
+      let maxLabelWidth = 0;
+
+      labelElements.forEach((element, idx) => {
+        const width = element.offsetWidth;
+        console.log(
+          `[Heatmap] Label ${idx} width:`,
+          width,
+          "text:",
+          element.textContent,
+        );
+        maxLabelWidth = Math.max(maxLabelWidth, width);
+      });
+
+      console.log("[Heatmap] Max label width found:", maxLabelWidth);
+
+      // Add padding (pr-1 is 4px on small screens, pr-2 is 8px on larger)
+      const totalWidth = maxLabelWidth + 8;
       console.log("[Heatmap] Total width with padding:", totalWidth);
 
-      const finalWidth = Math.max(60, Math.min(totalWidth, 120)); // Min 60px, max 120px
+      const finalWidth = Math.max(36, Math.min(totalWidth, 120)); // Min 36px, max 120px
       console.log("[Heatmap] Final constrained width:", finalWidth);
 
       setRowLabelsWidth(finalWidth);
@@ -138,7 +159,7 @@ export function Heatmap({
         role="img"
         aria-label={ariaLabel}
       >
-        <div className="flex flex-1 items-stretch justify-center gap-2 sm:gap-4">
+        <div className="flex flex-1 items-stretch justify-center gap-1 sm:gap-2">
           {/* Y-axis label (vertical) */}
           {yAxisLabel && (
             <div className="flex items-center justify-center">
