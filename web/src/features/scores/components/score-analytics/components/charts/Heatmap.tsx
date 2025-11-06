@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useLayoutEffect, useState, useRef } from "react";
 import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
 import { HeatmapCellComponent } from "./HeatmapCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -109,6 +109,20 @@ export function Heatmap({
     return 6; // Many columns, less space per label
   }, [cols]);
 
+  // Dynamic width calculation for y-axis labels
+  const rowLabelsRef = useRef<HTMLDivElement>(null);
+  const [rowLabelsWidth, setRowLabelsWidth] = useState(60);
+
+  useLayoutEffect(() => {
+    if (rowLabelsRef.current && rowLabels && rowLabels.length > 0) {
+      // Measure the actual width needed for the labels
+      const width = rowLabelsRef.current.scrollWidth;
+      // Add some padding (8px for pr-1, plus extra buffer)
+      const totalWidth = width + 16;
+      setRowLabelsWidth(Math.max(60, Math.min(totalWidth, 120))); // Min 60px, max 120px
+    }
+  }, [rowLabels, isDivisionPointMode]);
+
   return (
     <TooltipProvider delayDuration={0}>
       <div
@@ -135,17 +149,19 @@ export function Heatmap({
           {/* Row labels */}
           {rowLabels && rowLabels.length > 0 && (
             <div
+              ref={rowLabelsRef}
               className={cn(
-                "w-[60px] pr-1 text-right text-[10px] text-muted-foreground sm:w-[80px] sm:pr-2 sm:text-xs",
+                "pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs",
                 isDivisionPointMode
                   ? "flex flex-col justify-between self-stretch"
                   : "grid gap-1",
               )}
-              style={
-                isDivisionPointMode
-                  ? undefined
-                  : { gridTemplateRows: `repeat(${rows}, ${cellHeight})` }
-              }
+              style={{
+                width: `${rowLabelsWidth}px`,
+                ...(isDivisionPointMode
+                  ? {}
+                  : { gridTemplateRows: `repeat(${rows}, ${cellHeight})` }),
+              }}
             >
               {rowLabels.map((label, idx) => {
                 // Apply adaptive thinning for division points
@@ -235,7 +251,7 @@ export function Heatmap({
           <div className="flex items-start gap-2 sm:gap-4">
             {/* Spacer for row labels */}
             {rowLabels && rowLabels.length > 0 && (
-              <div className="w-[60px] sm:w-[80px]" />
+              <div style={{ width: `${rowLabelsWidth}px` }} />
             )}
 
             <div
