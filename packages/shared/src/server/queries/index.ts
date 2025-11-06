@@ -30,6 +30,7 @@ export {
 export {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
+  EventsAggregationQueryBuilder,
   type CTESchema,
   type CTEWithSchema,
 } from "./clickhouse-sql/event-query-builder";
