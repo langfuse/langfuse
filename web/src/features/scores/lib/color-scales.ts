@@ -450,12 +450,14 @@ export function getScoreBooleanColors(
 
 /**
  * Get single color for numeric scores
- * Returns the base color at full intensity
+ * Returns the darkest/most saturated color from the monochrome scale
+ * Uses 100% base color (0% white mix) for maximum saturation
  * @param scoreNumber - Which score (1 or 2)
  * @returns Hex color string
  */
 export function getScoreNumericColor(scoreNumber: 1 | 2): string {
   const baseColor =
     scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
-  return extractHslToHex(baseColor);
+  // Use darkest color from monochrome scale (100% base color)
+  return mixColorsInOklab(extractHslToHex(baseColor), "white", 1.0, 0.1, 1.0);
 }
