@@ -222,7 +222,8 @@ export function HeatmapCard() {
   // Calculate dynamic cell height based on available space
   // Magic number 248px represents approximate available height for grid
   // (card height minus header, labels, legend, gaps)
-  const numRows = dataType === "NUMERIC" ? 10 : (heatmap?.rows ?? 10);
+  const numRows =
+    dataType === "NUMERIC" ? 10 : "rows" in heatmap ? heatmap.rows : 10;
   const calculatedCellHeight = Math.floor(248 / numRows);
 
   return (
