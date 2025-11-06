@@ -233,48 +233,12 @@ export function HeatmapCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col items-center gap-4 pl-2">
-        {hasData ? (
-          <>
-            <Heatmap
-              height="100%"
-              cellHeight={calculatedCellHeight}
-              data={heatmap.cells}
-              rows={
-                dataType === "NUMERIC"
-                  ? 10
-                  : "rows" in heatmap
-                    ? (heatmap.rows as number)
-                    : 0
-              }
-              cols={
-                dataType === "NUMERIC"
-                  ? 10
-                  : "cols" in heatmap
-                    ? (heatmap.cols as number)
-                    : 0
-              }
-              rowLabels={heatmap.rowLabels}
-              colLabels={heatmap.colLabels}
-              xAxisLabel={`${score2?.name} (${score2?.source})`}
-              yAxisLabel={`${score1.name} (${score1.source})`}
-              getColor={getColor}
-              showValues={false}
-              renderTooltip={(cell) => (
-                <HeatmapTooltipContent
-                  cell={cell}
-                  dataType={dataType}
-                  score1={score1}
-                  score2={score2}
-                  score1Color={getColorForScore(1)}
-                  score2Color={getColorForScore(2)}
-                  totalMatchedPairs={totalMatchedPairs}
-                />
-              )}
-            />
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          {hasData && (
             <HeatmapLegend
               min={0}
               max={maxValue}
@@ -282,7 +246,47 @@ export function HeatmapCard() {
               orientation="horizontal"
               steps={5}
             />
-          </>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
+        {hasData ? (
+          <Heatmap
+            height="100%"
+            cellHeight={calculatedCellHeight}
+            data={heatmap.cells}
+            rows={
+              dataType === "NUMERIC"
+                ? 10
+                : "rows" in heatmap
+                  ? (heatmap.rows as number)
+                  : 0
+            }
+            cols={
+              dataType === "NUMERIC"
+                ? 10
+                : "cols" in heatmap
+                  ? (heatmap.cols as number)
+                  : 0
+            }
+            rowLabels={heatmap.rowLabels}
+            colLabels={heatmap.colLabels}
+            xAxisLabel={`${score2?.name} (${score2?.source})`}
+            yAxisLabel={`${score1.name} (${score1.source})`}
+            getColor={getColor}
+            showValues={false}
+            renderTooltip={(cell) => (
+              <HeatmapTooltipContent
+                cell={cell}
+                dataType={dataType}
+                score1={score1}
+                score2={score2}
+                score1Color={getColorForScore(1)}
+                score2Color={getColorForScore(2)}
+                totalMatchedPairs={totalMatchedPairs}
+              />
+            )}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No matched score pairs found for the selected time range

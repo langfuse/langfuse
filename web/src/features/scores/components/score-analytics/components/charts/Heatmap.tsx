@@ -101,6 +101,14 @@ export function Heatmap({
     ? `${cellHeightProp}px`
     : "minmax(24px, 40px)";
 
+  // Determine max label lengths based on grid dimensions
+  const maxYLabelLength = 8; // Y-axis allows up to 8 characters
+  const maxXLabelLength = useMemo(() => {
+    if (cols < 4) return 12; // Fewer columns, more space per label
+    if (cols < 8) return 10; // Medium number of columns
+    return 6; // Many columns, less space per label
+  }, [cols]);
+
   return (
     <TooltipProvider delayDuration={0}>
       <div
@@ -142,8 +150,12 @@ export function Heatmap({
                   return <div key={idx} className="h-0" />;
                 }
 
-                const shouldTruncate = !isDivisionPointMode && label.length > 3;
-                const truncated = shouldTruncate ? label.slice(0, 3) : label;
+                // Y-axis: truncate if > 8 chars, show first 5 + "..."
+                const shouldTruncate =
+                  !isDivisionPointMode && label.length > maxYLabelLength;
+                const truncated = shouldTruncate
+                  ? label.slice(0, 5) + "..."
+                  : label;
 
                 return (
                   <div
@@ -240,8 +252,12 @@ export function Heatmap({
                   return <div key={idx} className="w-0" />;
                 }
 
-                const shouldTruncate = !isDivisionPointMode && label.length > 3;
-                const truncated = shouldTruncate ? label.slice(0, 3) : label;
+                // X-axis: dynamic truncation based on number of columns
+                const shouldTruncate =
+                  !isDivisionPointMode && label.length > maxXLabelLength;
+                const truncated = shouldTruncate
+                  ? label.slice(0, maxXLabelLength - 3) + "..."
+                  : label;
 
                 return (
                   <div
@@ -262,7 +278,7 @@ export function Heatmap({
                           className="w-auto"
                         >
                           <div className="space-y-1">
-                            <p className="font-semibold">{label}</p>
+                            <p className="text-xs">{label}</p>
                           </div>
                         </HoverCardContent>
                       </HoverCard>

@@ -324,6 +324,13 @@ export function interpretCohensKappa(
     };
   }
 
+  if (kappa >= 1.0) {
+    return {
+      strength: "Perfect",
+      color: "green",
+      description: "perfect agreement between scores",
+    };
+  }
   if (kappa >= 0.81) {
     return {
       strength: "Almost Perfect",
