@@ -135,31 +135,31 @@ export function DistributionChartCard() {
 
     // Categorical/Boolean charts on individual tabs - regenerate colors for that specific score
     if (dataType === "CATEGORICAL" || dataType === "BOOLEAN") {
-      if (activeTab === "score1" && data.distribution.categories) {
-        // Regenerate colors for score1 only to avoid collision with score2
-        const categoryColors =
-          dataType === "CATEGORICAL"
-            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-                1,
-                data.distribution.categories,
-              )
-            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
-                1,
-              );
-        return categoryColors;
+      if (activeTab === "score1") {
+        // For boolean individual view, use solid color like numeric charts
+        if (dataType === "BOOLEAN") {
+          return { score1: getColorForScore(1) };
+        }
+        // For categorical, regenerate colors for score1 only to avoid collision with score2
+        if (data.distribution.categories) {
+          return require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
+            1,
+            data.distribution.categories,
+          );
+        }
       }
-      if (activeTab === "score2" && data.distribution.score2Categories) {
-        // Regenerate colors for score2 only to avoid collision with score1
-        const categoryColors =
-          dataType === "CATEGORICAL"
-            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-                2,
-                data.distribution.score2Categories,
-              )
-            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
-                2,
-              );
-        return categoryColors;
+      if (activeTab === "score2") {
+        // For boolean individual view, use solid color like numeric charts
+        if (dataType === "BOOLEAN") {
+          return { score1: getColorForScore(2) };
+        }
+        // For categorical, regenerate colors for score2 only to avoid collision with score1
+        if (data.distribution.score2Categories) {
+          return require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
+            2,
+            data.distribution.score2Categories,
+          );
+        }
       }
     }
 
