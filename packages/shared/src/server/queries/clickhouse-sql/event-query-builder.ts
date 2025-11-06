@@ -167,7 +167,7 @@ const EVENTS_AGGREGATION_FIELDS = {
 
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
-  public: "argMaxIf(public, event_ts, parent_span_id = '') AS public",
+  public: "max(public) AS public",
   // Legacy fields for backward compatibility
   tags: "array() AS tags",
   release: "'' AS release",
