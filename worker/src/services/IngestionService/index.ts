@@ -86,8 +86,13 @@ export type EventInput = {
   type?: string;
   environment?: string;
   version?: string;
+  release?: string;
   endTimeISO: string;
   completionStartTime?: string;
+
+  tags?: string[];
+  bookmarked?: boolean;
+  public?: boolean;
 
   // User/session
   userId?: string;
@@ -101,6 +106,7 @@ export type EventInput = {
   promptVersion?: string;
 
   // Model
+  modelId?: string;
   modelName?: string;
   modelParameters?: string | Record<string, unknown>;
 
@@ -109,7 +115,6 @@ export type EventInput = {
   usageDetails?: Record<string, number>;
   providedCostDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
-  totalCost?: number;
 
   // I/O
   input?: string;
@@ -278,24 +283,47 @@ export class IngestionService {
       `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
 
+    // Perform lookups for prompt and model/usage enrichment
+    const [prompt, generationUsage] = await Promise.all([
+      // Lookup prompt by name and version
+      eventData.promptName && eventData.promptVersion
+        ? this.promptService.getPrompt({
+            projectId: eventData.projectId,
+            promptName: eventData.promptName,
+            version:
+              typeof eventData.promptVersion === "string"
+                ? parseInt(eventData.promptVersion, 10)
+                : eventData.promptVersion,
+            label: undefined,
+          })
+        : null,
+      // Lookup model and enrich usage/cost details (includes tokenization if needed)
+      eventData.modelName
+        ? this.getGenerationUsage({
+            projectId: eventData.projectId,
+            observationRecord: {
+              id: eventData.spanId,
+              project_id: eventData.projectId,
+              trace_id: eventData.traceId,
+              provided_model_name: eventData.modelName,
+              provided_usage_details: eventData.providedUsageDetails ?? {},
+              provided_cost_details: eventData.providedCostDetails ?? {},
+              input: eventData.input,
+              output: eventData.output,
+            },
+          })
+        : null,
+    ]);
+
     const now = this.getMicrosecondTimestamp();
 
     // Store the full metadata JSON
-    const metadata = eventData.metadata;
+    const metadata = convertRecordValuesToString(eventData.metadata);
 
     // Flatten to path-based arrays
     const flattened = flattenJsonToPathArrays(metadata);
     const metadataNames = flattened.names;
     const metadataValues = flattened.values;
-
-    // Flatten to typed arrays
-    // const typed = this.flattenJsonToTypedPathArrays(metadata);
-    // const metadataStringNames = typed.stringNames;
-    // const metadataStringValues = typed.stringValues;
-    // const metadataNumberNames = typed.numberNames;
-    // const metadataNumberValues = typed.numberValues;
-    // const metadataBoolNames = typed.boolNames;
-    // const metadataBoolValues = typed.boolValues;
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
@@ -312,6 +340,11 @@ export class IngestionService {
       type: eventData.type ?? "SPAN",
       environment: eventData.environment ?? "default",
       version: eventData.version,
+      release: eventData.release,
+
+      tags: eventData.tags ?? [],
+      bookmarked: eventData.bookmarked ?? false,
+      public: eventData.public ?? false,
 
       // User/session
       user_id: eventData.userId,
@@ -329,12 +362,12 @@ export class IngestionService {
         : null,
 
       // Prompt
-      // prompt_id: eventData.promptId,
+      prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
       prompt_version: eventData.promptVersion,
 
       // Model
-      // model_id: eventData.modelId,
+      model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
       model_parameters: eventData.modelParameters
         ? typeof eventData.modelParameters === "string"
@@ -343,26 +376,21 @@ export class IngestionService {
         : {},
 
       // Usage & Cost
-      // provided_usage_details: eventData.providedUsageDetails ?? {},
-      // usage_details: eventData.usageDetails ?? {},
-      // provided_cost_details: eventData.providedCostDetails ?? {},
-      // cost_details: eventData.costDetails ?? {},
-      // total_cost: eventData.totalCost,
+      provided_usage_details: eventData.providedUsageDetails ?? {},
+      usage_details:
+        generationUsage?.usage_details ?? eventData.usageDetails ?? {},
+      provided_cost_details: eventData.providedCostDetails ?? {},
+      cost_details:
+        generationUsage?.cost_details ?? eventData.costDetails ?? {},
 
       // I/O
       input: eventData.input,
       output: eventData.output,
 
-      // Metadata (multiple approaches)
+      // Metadata
       metadata,
       metadata_names: metadataNames,
-      metadata_values: metadataValues,
-      // metadata_string_names: metadataStringNames,
-      // metadata_string_values: metadataStringValues,
-      // metadata_number_names: metadataNumberNames,
-      // metadata_number_values: metadataNumberValues,
-      // metadata_bool_names: metadataBoolNames,
-      // metadata_bool_values: metadataBoolValues,
+      metadata_raw_values: metadataValues,
 
       // Source/instrumentation metadata
       source: eventData.source,
@@ -381,22 +409,24 @@ export class IngestionService {
       // Experiment fields
       experiment_id: eventData.experimentId,
       experiment_name: eventData.experimentName,
-      experiment_metadata_names: eventData.experimentMetadataNames,
-      experiment_metadata_values: eventData.experimentMetadataValues,
+      experiment_metadata_names: eventData.experimentMetadataNames ?? [],
+      experiment_metadata_values: eventData.experimentMetadataValues ?? [],
       experiment_description: eventData.experimentDescription,
       experiment_dataset_id: eventData.experimentDatasetId,
       experiment_item_id: eventData.experimentItemId,
       experiment_item_root_span_id: eventData.experimentItemRootSpanId,
       experiment_item_expected_output: eventData.experimentItemExpectedOutput,
-      experiment_item_metadata_names: eventData.experimentItemMetadataNames,
-      experiment_item_metadata_values: eventData.experimentItemMetadataValues,
+      experiment_item_metadata_names:
+        eventData.experimentItemMetadataNames ?? [],
+      experiment_item_metadata_values:
+        eventData.experimentItemMetadataValues ?? [],
 
       // System timestamps
       created_at: now,
       updated_at: now,
       event_ts: now,
       is_deleted: 0,
-    } as any;
+    };
 
     // Write directly to ClickHouse queue (no merging for immutable events)
     this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
@@ -1035,13 +1065,23 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
-    observationRecord: ObservationRecordInsertType;
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      | "project_id"
+      | "trace_id"
+      | "id"
+      | "provided_model_name"
+      | "provided_usage_details"
+      | "provided_cost_details"
+      | "level"
+      | "input"
+      | "output"
+    >;
   }): Promise<
-    | Pick<
-        ObservationRecordInsertType,
-        "usage_details" | "cost_details" | "total_cost" | "internal_model_id"
-      >
-    | {}
+    Pick<
+      ObservationRecordInsertType,
+      "usage_details" | "cost_details" | "total_cost" | "internal_model_id"
+    >
   > {
     const { projectId, observationRecord } = params;
     const { model: internalModel, prices: modelPrices } =
@@ -1079,7 +1119,10 @@ export class IngestionService {
   }
 
   private async getUsageUnits(
-    observationRecord: ObservationRecordInsertType,
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      "provided_usage_details" | "level" | "input" | "output" | "id"
+    >,
     model: Model | null | undefined,
   ): Promise<
     Pick<
@@ -1207,7 +1250,10 @@ export class IngestionService {
 
   static calculateUsageCosts(
     modelPrices: Price[] | null | undefined,
-    observationRecord: ObservationRecordInsertType,
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      "provided_cost_details"
+    >,
     usageUnits: UsageCostType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
     const { provided_cost_details } = observationRecord;
