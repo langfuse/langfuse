@@ -2,6 +2,11 @@ import { useMemo } from "react";
 import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
 import { HeatmapCellComponent } from "./HeatmapCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
 
 export interface HeatmapProps {
@@ -99,13 +104,35 @@ export function Heatmap({
                 gridTemplateRows: `repeat(${rows}, ${cellHeight})`,
               }}
             >
-              {rowLabels.map((label, idx) => (
-                <div key={idx} className="flex items-center justify-end">
-                  <span className="max-w-[60px] truncate sm:max-w-[80px]">
-                    {label}
-                  </span>
-                </div>
-              ))}
+              {rowLabels.map((label, idx) => {
+                const shouldTruncate = label.length > 3;
+                const truncated = shouldTruncate ? label.slice(0, 3) : label;
+
+                return (
+                  <div key={idx} className="flex items-center justify-end">
+                    {shouldTruncate ? (
+                      <HoverCard>
+                        <HoverCardTrigger asChild>
+                          <span className="cursor-help text-right">
+                            {truncated}
+                          </span>
+                        </HoverCardTrigger>
+                        <HoverCardContent
+                          side="left"
+                          align="center"
+                          className="w-auto"
+                        >
+                          <div className="space-y-1">
+                            <p className="font-semibold">{label}</p>
+                          </div>
+                        </HoverCardContent>
+                      </HoverCard>
+                    ) : (
+                      <span>{label}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -157,15 +184,33 @@ export function Heatmap({
                 gridTemplateColumns: `repeat(${cols}, ${cellWidth})`,
               }}
             >
-              {colLabels.map((label, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-center truncate"
-                  title={label}
-                >
-                  {label}
-                </div>
-              ))}
+              {colLabels.map((label, idx) => {
+                const shouldTruncate = label.length > 3;
+                const truncated = shouldTruncate ? label.slice(0, 3) : label;
+
+                return (
+                  <div key={idx} className="flex items-center justify-center">
+                    {shouldTruncate ? (
+                      <HoverCard>
+                        <HoverCardTrigger asChild>
+                          <span className="cursor-help">{truncated}</span>
+                        </HoverCardTrigger>
+                        <HoverCardContent
+                          side="bottom"
+                          align="center"
+                          className="w-auto"
+                        >
+                          <div className="space-y-1">
+                            <p className="font-semibold">{label}</p>
+                          </div>
+                        </HoverCardContent>
+                      </HoverCard>
+                    ) : (
+                      <span>{label}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Spacer for alignment */}
