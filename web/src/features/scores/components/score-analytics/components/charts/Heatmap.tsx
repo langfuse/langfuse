@@ -100,8 +100,8 @@ export function Heatmap({
   return (
     <TooltipProvider delayDuration={0}>
       <div
-        className={cn("flex w-full flex-col gap-4", className)}
-        style={{ width }}
+        className={cn("flex w-full flex-1 flex-col gap-4", className)}
+        style={{ width, height }}
         role="img"
         aria-label={ariaLabel}
       >
@@ -114,7 +114,7 @@ export function Heatmap({
           </div>
         )}
 
-        <div className="flex items-stretch justify-center gap-2 sm:gap-4">
+        <div className="flex flex-1 items-stretch justify-center gap-2 sm:gap-4">
           {/* Row labels */}
           {rowLabels && rowLabels.length > 0 && (
             <div

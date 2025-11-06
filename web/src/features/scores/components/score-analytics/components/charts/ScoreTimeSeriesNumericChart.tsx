@@ -150,7 +150,7 @@ export function ScoreTimeSeriesNumericChart({
           stroke="hsl(var(--chart-grid))"
           fontSize={12}
           tickLine={false}
-          axisLine={false}
+          axisLine={{ stroke: "hsl(var(--border) / 0.34)" }}
           interval={1}
         />
         <YAxis

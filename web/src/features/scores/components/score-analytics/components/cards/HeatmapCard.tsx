@@ -13,6 +13,115 @@ import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
 import { getHeatmapCellColor } from "@/src/features/scores/lib/color-scales";
 import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
 import { useCallback } from "react";
+import type { ScoreDataType } from "@langfuse/shared";
+
+interface HeatmapTooltipContentProps {
+  cell: HeatmapCell;
+  dataType: ScoreDataType;
+  score1: { name: string; source: string };
+  score2: { name: string; source: string } | undefined;
+  score1Color: string;
+  score2Color: string;
+  totalMatchedPairs: number;
+}
+
+/**
+ * HeatmapTooltipContent - Renders tooltip content for heatmap cells
+ *
+ * Displays different information based on data type:
+ * - Numeric: Shows bin ranges and value distributions
+ * - Categorical: Shows category pairs and agreement metrics
+ */
+function HeatmapTooltipContent({
+  cell,
+  dataType,
+  score1,
+  score2,
+  score1Color,
+  score2Color,
+  totalMatchedPairs,
+}: HeatmapTooltipContentProps) {
+  const percentage = (cell.metadata?.percentage as number) ?? 0;
+
+  return (
+    <div className="space-y-2">
+      {/* Header Section */}
+      <div className="border-b border-border pb-2">
+        <p className="text-sm font-medium text-muted-foreground">
+          {dataType === "NUMERIC"
+            ? `Bin ${cell.row}×${cell.col}`
+            : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
+        </p>
+      </div>
+
+      {/* Primary Metrics Section */}
+      <div className="space-y-1">
+        <p className="text-base font-semibold text-foreground">
+          {cell.value.toLocaleString()} observations
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {percentage.toFixed(1)}% of {totalMatchedPairs.toLocaleString()}{" "}
+          matched pairs
+        </p>
+      </div>
+
+      {/* Secondary Info Section */}
+      <div className="space-y-1 border-t border-border pt-2">
+        {dataType === "NUMERIC" ? (
+          <>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score1Color }}
+              />
+              <span className="flex-1 text-xs text-muted-foreground">
+                {score1.name} ({score1.source})
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {(cell.metadata?.yRange as [number, number])?.[0]?.toFixed(2)} -{" "}
+                {(cell.metadata?.yRange as [number, number])?.[1]?.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score2Color }}
+              />
+              <span className="flex-1 text-xs text-muted-foreground">
+                {score2?.name} ({score2?.source})
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {(cell.metadata?.xRange as [number, number])?.[0]?.toFixed(2)} -{" "}
+                {(cell.metadata?.xRange as [number, number])?.[1]?.toFixed(2)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score1Color }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {score1.name} ({score1.source})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                style={{ backgroundColor: score2Color }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {score2?.name} ({score2?.source})
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * HeatmapCard - Smart card component for displaying score comparison heatmaps
@@ -55,7 +164,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>Loading heatmap...</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
+        <CardContent className="flex flex-1 flex-col items-center justify-center pl-0">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -70,7 +179,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
+        <CardContent className="flex flex-1 flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
           Select a score to view comparison
         </CardContent>
       </Card>
@@ -100,7 +209,7 @@ export function HeatmapCard() {
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[340px] flex-col items-center gap-4 pl-0">
+        <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
           <HeatmapPlaceholder />
         </CardContent>
       </Card>
@@ -116,10 +225,11 @@ export function HeatmapCard() {
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="flex h-[340px] flex-col items-center gap-4 pl-0">
+      <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
         {hasData ? (
           <>
             <Heatmap
+              height="100%"
               data={heatmap.cells}
               rows={
                 dataType === "NUMERIC"
@@ -141,100 +251,17 @@ export function HeatmapCard() {
               yAxisLabel={`${score1.name} (${score1.source})`}
               getColor={getColor}
               showValues={false}
-              renderTooltip={(cell) => {
-                const percentage = (cell.metadata?.percentage as number) ?? 0;
-                const score1Color = getColorForScore(1);
-                const score2Color = getColorForScore(2);
-
-                return (
-                  <div className="space-y-2">
-                    {/* Header Section */}
-                    <div className="pb-2">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {dataType === "NUMERIC"
-                          ? `Bin ${cell.row}×${cell.col}`
-                          : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
-                      </p>
-                    </div>
-
-                    {/* Primary Metrics Section */}
-                    <div className="space-y-1">
-                      <p className="text-base font-semibold text-foreground">
-                        {cell.value.toLocaleString()} observations
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {percentage.toFixed(1)}% of{" "}
-                        {totalMatchedPairs.toLocaleString()} matched pairs
-                      </p>
-                    </div>
-
-                    {/* Secondary Info Section */}
-                    <div className="space-y-1 border-t border-border pt-2">
-                      {dataType === "NUMERIC" ? (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-3 w-3 flex-shrink-0 rounded-sm"
-                              style={{ backgroundColor: score1Color }}
-                            />
-                            <span className="flex-1 text-xs text-muted-foreground">
-                              {score1.name} ({score1.source})
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {(
-                                cell.metadata?.yRange as [number, number]
-                              )?.[0]?.toFixed(2)}{" "}
-                              -{" "}
-                              {(
-                                cell.metadata?.yRange as [number, number]
-                              )?.[1]?.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-3 w-3 flex-shrink-0 rounded-sm"
-                              style={{ backgroundColor: score2Color }}
-                            />
-                            <span className="flex-1 text-xs text-muted-foreground">
-                              {score2?.name} ({score2?.source})
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {(
-                                cell.metadata?.xRange as [number, number]
-                              )?.[0]?.toFixed(2)}{" "}
-                              -{" "}
-                              {(
-                                cell.metadata?.xRange as [number, number]
-                              )?.[1]?.toFixed(2)}
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-3 w-3 flex-shrink-0 rounded-sm"
-                              style={{ backgroundColor: score1Color }}
-                            />
-                            <span className="text-xs text-muted-foreground">
-                              {score1.name} ({score1.source})
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-3 w-3 flex-shrink-0 rounded-sm"
-                              style={{ backgroundColor: score2Color }}
-                            />
-                            <span className="text-xs text-muted-foreground">
-                              {score2?.name} ({score2?.source})
-                            </span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              }}
+              renderTooltip={(cell) => (
+                <HeatmapTooltipContent
+                  cell={cell}
+                  dataType={dataType}
+                  score1={score1}
+                  score2={score2}
+                  score1Color={getColorForScore(1)}
+                  score2Color={getColorForScore(2)}
+                  totalMatchedPairs={totalMatchedPairs}
+                />
+              )}
             />
             <HeatmapLegend
               min={0}

@@ -35,7 +35,7 @@ function EmptyCell({ cellClassName }: { cellClassName?: string }) {
   return (
     <div
       className={cn(
-        "aspect-square rounded border-[0.5px] transition-all duration-150",
+        "rounded border-[0.5px] transition-all duration-150",
         "hover:brightness-95",
         cellClassName,
       )}
