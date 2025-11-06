@@ -322,35 +322,75 @@ function extractHslToHex(cssVar: string): string {
 }
 
 /**
- * Generate a monochrome color scale using chroma-js with OKLAB interpolation
- * Creates perceptually uniform gradients from darker to lighter shades
- * @param baseColor - CSS color string (e.g., "hsl(var(--chart-3))")
- * @param steps - Number of color steps to generate
- * @param minIntensity - Minimum intensity (0-1, where 0=white, 1=full color)
- * @param maxIntensity - Maximum intensity (0-1, where 0=white, 1=full color)
+ * Mix two colors in OKLAB space, matching CSS color-mix behavior
+ *
+ * CSS equivalent: color-mix(in oklab, baseColor X%, mixColor)
+ *
+ * @param baseColor - The primary color (e.g., blue for score1)
+ * @param mixColor - The color to mix with (e.g., white, gray, etc.)
+ * @param percentage - How much of baseColor to use (0-1, where 1 = 100% base)
+ * @param minPercentage - Minimum baseColor amount (default: 0.1 = 10%)
+ * @param maxPercentage - Maximum baseColor amount (default: 1.0 = 100%)
+ * @returns Hex color string
+ */
+function mixColorsInOklab(
+  baseColor: string,
+  mixColor: string,
+  percentage: number,
+  minPercentage: number = 0.1,
+  maxPercentage: number = 1.0,
+): string {
+  // Clamp percentage to [min, max] range
+  const clampedPercentage = Math.max(
+    minPercentage,
+    Math.min(maxPercentage, percentage),
+  );
+
+  // Mix in OKLAB space
+  // chroma.mix(a, b, ratio) where ratio=0 gives 'a', ratio=1 gives 'b'
+  // We want clampedPercentage of baseColor, so:
+  return chroma.mix(mixColor, baseColor, clampedPercentage, "oklab").hex();
+}
+
+/**
+ * Generate a monochrome color scale using OKLAB color mixing
+ * Creates discrete steps from darker (more baseColor) to lighter (more mixColor)
+ *
+ * @param baseColor - The base color (e.g., "hsl(var(--chart-3))" or "#3b82f6")
+ * @param steps - Number of discrete color steps to generate
+ * @param mixColor - Color to mix with (default: 'white')
+ * @param minPercentage - Minimum baseColor percentage (default: 0.1 = 10%)
+ * @param maxPercentage - Maximum baseColor percentage (default: 1.0 = 100%)
  * @returns Array of hex color strings
  */
 export function getMonochromeScale(
   baseColor: string,
   steps: number,
-  minIntensity: number = 0.3,
-  maxIntensity: number = 0.9,
+  mixColor: string = "white",
+  minPercentage: number = 0.1,
+  maxPercentage: number = 1.0,
 ): string[] {
   const baseHex = extractHslToHex(baseColor);
+  const colors: string[] = [];
 
-  // Create scale from lighter (white-ish) to darker (full color) using OKLAB
-  // OKLAB provides perceptually uniform interpolation
-  const scale = chroma
-    .scale([chroma(baseHex).brighten(2), baseHex])
-    .mode("oklab")
-    .colors(steps);
+  for (let i = 0; i < steps; i++) {
+    // Linearly interpolate from max (darker) to min (lighter)
+    // First color has maxPercentage, last color has minPercentage
+    const percentage =
+      maxPercentage - ((maxPercentage - minPercentage) * i) / (steps - 1);
 
-  // Map intensities: higher values = darker colors
-  return scale.map((color, index) => {
-    const intensity =
-      maxIntensity - ((maxIntensity - minIntensity) * index) / (steps - 1);
-    return chroma.mix("white", color, intensity, "oklab").hex();
-  });
+    colors.push(
+      mixColorsInOklab(
+        baseHex,
+        mixColor,
+        percentage,
+        minPercentage,
+        maxPercentage,
+      ),
+    );
+  }
+
+  return colors;
 }
 
 /**
@@ -369,9 +409,10 @@ export function getScoreCategoryColors(
   const baseColor =
     scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
 
-  // Generate scale with even distribution across intensity range
+  // Generate scale with even distribution across percentage range
+  // Wider range (20%-100%) for better distinction between categories
   const steps = Math.max(categories.length, 2);
-  const colors = getMonochromeScale(baseColor, steps, 0.3, 0.9);
+  const colors = getMonochromeScale(baseColor, steps, "white", 0.2, 1.0);
 
   // Reverse if requested (for different visual ordering)
   const colorArray = options?.reverse ? [...colors].reverse() : colors;
@@ -397,8 +438,9 @@ export function getScoreBooleanColors(
   const baseColor =
     scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
 
-  // Generate 2-step scale: darker for True (70%), lighter for False (30%)
-  const colors = getMonochromeScale(baseColor, 2, 0.3, 0.7);
+  // Generate 2-step scale: darker for True (80%), lighter for False (30%)
+  // More contrast than before for better distinction
+  const colors = getMonochromeScale(baseColor, 2, "white", 0.3, 0.8);
 
   return {
     True: colors[0], // Darker
