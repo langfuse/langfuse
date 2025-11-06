@@ -8,6 +8,7 @@ export interface ScoreDistributionChartProps {
   dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
   score1Name: string;
   score2Name?: string;
+  score2Source?: string;
   // For numeric scores, provide bin labels
   binLabels?: string[];
   // For categorical/boolean scores, provide category names
@@ -35,6 +36,7 @@ export function ScoreDistributionChart({
   dataType,
   score1Name,
   score2Name,
+  score2Source,
   binLabels,
   categories,
   stackedDistribution,
@@ -109,6 +111,8 @@ export function ScoreDistributionChart({
       score1Name={score1Name}
       stackedDistribution={stackedDistribution}
       score2Categories={score2Categories}
+      score2Name={score2Name}
+      score2Source={score2Source}
       colors={colors as Record<string, string>}
     />
   );

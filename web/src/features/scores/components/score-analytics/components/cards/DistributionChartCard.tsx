@@ -302,6 +302,13 @@ export function DistributionChartCard() {
                   ? score2.name
                   : undefined
             }
+            score2Source={
+              activeTab === "score1" || activeTab === "score2"
+                ? undefined
+                : mode === "two" && score2
+                  ? score2.source
+                  : undefined
+            }
             binLabels={distribution.binLabels}
             categories={distribution.categories}
             stackedDistribution={stackedDistributionData}
