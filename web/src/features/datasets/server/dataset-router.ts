@@ -7,9 +7,6 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { randomBytes } from "crypto";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
 import {
   paginationZod,
   DatasetStatus,
@@ -48,14 +45,7 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
-  type ChatMessage,
-  ChatMessageType,
-  fetchLLMCompletion,
-  traceException,
-  type TraceSinkParams,
 } from "@langfuse/shared/src/server";
-import { getDefaultModelParams } from "@/src/features/natural-language-filters/server/utils";
-import { env } from "@/src/env.mjs";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
