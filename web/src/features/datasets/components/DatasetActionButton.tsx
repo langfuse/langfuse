@@ -39,6 +39,8 @@ interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
   datasetName: string;
   datasetDescription?: string;
   datasetMetadata?: Prisma.JsonValue;
+  datasetInputSchema?: Prisma.JsonValue;
+  datasetExpectedOutputSchema?: Prisma.JsonValue;
   icon?: boolean;
 }
 
@@ -138,7 +140,7 @@ export const DatasetActionButton = forwardRef<
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="mb-4">
             {props.mode === "create"
@@ -179,6 +181,8 @@ export const DatasetActionButton = forwardRef<
             datasetName={props.datasetName}
             datasetDescription={props.datasetDescription}
             datasetMetadata={props.datasetMetadata}
+            datasetInputSchema={props.datasetInputSchema}
+            datasetExpectedOutputSchema={props.datasetExpectedOutputSchema}
           />
         )}
       </DialogContent>
