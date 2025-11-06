@@ -7,7 +7,7 @@ import { Button } from "@/src/components/ui/button";
 import { Copy, Check } from "lucide-react";
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
-const MAX_CELL_DISPLAY_CHARS = 2000;
+export const MAX_CELL_DISPLAY_CHARS = 2000;
 const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;

@@ -5,23 +5,20 @@ import {
   datasetRunItemsTableColsWithOptions,
   type FilterState,
 } from "@langfuse/shared";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
   datasetId,
-  scoreKeyToDisplayName,
   updateRunFilters,
   getFiltersForRun,
-  cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
   datasetId: string;
-  scoreKeyToDisplayName: Map<string, string>;
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
-  cellsLoading?: boolean;
 }) {
   const datasetRunItemsFilterOptionsResponse =
     api.datasets.runItemFilterOptions.useQuery({
@@ -38,6 +35,19 @@ export function useDatasetRunAggregateColumns({
     {
       refetchOnWindowFocus: false,
       refetchOnMount: false,
+    },
+  );
+
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
+    {
+      projectId,
+      filter: scoreFilters.forDatasetRunItems({
+        datasetRunIds: runIds,
+        datasetId,
+      }),
+    },
+    {
+      enabled: runIds.length > 0,
     },
   );
 
@@ -62,23 +72,22 @@ export function useDatasetRunAggregateColumns({
     return constructDatasetRunAggregateColumns({
       runAggregateColumnProps,
       projectId,
-      scoreKeyToDisplayName,
       datasetColumns,
+      serverScoreColumns: scoreKeysAndProps.data?.scoreColumns,
       updateRunFilters,
       getFiltersForRun,
-      cellsLoading,
     });
   }, [
     runAggregateColumnProps,
     projectId,
-    scoreKeyToDisplayName,
     datasetColumns,
+    scoreKeysAndProps.data?.scoreColumns,
     updateRunFilters,
     getFiltersForRun,
-    cellsLoading,
   ]);
 
   return {
     runAggregateColumns,
+    isLoading: scoreKeysAndProps.isLoading,
   };
 }

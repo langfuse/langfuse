@@ -24,6 +24,7 @@ interface BaseDatasetButtonProps {
 
 interface CreateDatasetButtonProps extends BaseDatasetButtonProps {
   mode: "create";
+  folderPrefix?: string;
 }
 
 interface DeleteDatasetButtonProps extends BaseDatasetButtonProps {
@@ -159,6 +160,7 @@ export const DatasetActionButton = forwardRef<
             mode="create"
             projectId={props.projectId}
             onFormSuccess={() => setOpen(false)}
+            folderPrefix={props.folderPrefix}
           />
         ) : props.mode === "delete" ? (
           <DatasetForm

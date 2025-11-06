@@ -24,7 +24,7 @@ export function TimeScopeDescription(props: {
   }
 
   return (
-    <div>
+    <span>
       This configuration will target{" "}
       {props.timeScope?.includes("NEW") && props.timeScope?.includes("EXISTING")
         ? "all future and existing"
@@ -32,7 +32,8 @@ export function TimeScopeDescription(props: {
           ? "all future"
           : "all existing"}{" "}
       {props.target === "trace" ? "traces" : "dataset run items"} that match
-      these filters.{" "}
-    </div>
+      these filters. Please note that it might take a while for your data to be
+      evaluated.
+    </span>
   );
 }

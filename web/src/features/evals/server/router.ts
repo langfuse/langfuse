@@ -21,6 +21,7 @@ import {
 } from "@langfuse/shared";
 import {
   getQueue,
+  getCostByEvaluatorIds,
   getScoresByIds,
   logger,
   QueueName,
@@ -597,41 +598,30 @@ export const evalRouter = createTRPCRouter({
   evaluatorsByTemplateName: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "evalJob:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
 
-        const templates = await ctx.prisma.evalTemplate.findMany({
+      const templates = await ctx.prisma.evalTemplate.findMany({
+        where: {
+          projectId: input.projectId,
+          name: input.evalTemplateName,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return {
+        evaluators: await ctx.prisma.jobConfiguration.findMany({
           where: {
             projectId: input.projectId,
-            name: input.evalTemplateName,
+            evalTemplateId: { in: templates.map((t) => t.id) },
           },
-          select: {
-            id: true,
-          },
-        });
-
-        return {
-          evaluators: await ctx.prisma.jobConfiguration.findMany({
-            where: {
-              projectId: input.projectId,
-              evalTemplateId: { in: templates.map((t) => t.id) },
-            },
-          }),
-        };
-      } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching eval jobs for template failed.",
-        });
-      }
+        }),
+      };
     }),
 
   jobConfigsByTarget: protectedProjectProcedure
@@ -659,130 +649,114 @@ export const evalRouter = createTRPCRouter({
   jobConfigsByTemplateName: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "evalJob:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
 
-        const templates = await ctx.prisma.evalTemplate.findMany({
+      const templates = await ctx.prisma.evalTemplate.findMany({
+        where: {
+          projectId: input.projectId,
+          name: input.evalTemplateName,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return {
+        evaluators: await ctx.prisma.jobConfiguration.findMany({
           where: {
             projectId: input.projectId,
-            name: input.evalTemplateName,
+            evalTemplateId: { in: templates.map((t) => t.id) },
           },
-          select: {
-            id: true,
-          },
-        });
-
-        return {
-          evaluators: await ctx.prisma.jobConfiguration.findMany({
-            where: {
-              projectId: input.projectId,
-              evalTemplateId: { in: templates.map((t) => t.id) },
-            },
-          }),
-        };
-      } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching eval jobs for template failed.",
-        });
-      }
+        }),
+      };
     }),
 
   createJob: protectedProjectProcedure
     .input(CreateEvalJobSchema)
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
+        where: {
+          id: input.evalTemplateId,
+          OR: [{ projectId: input.projectId }, { projectId: null }],
+        },
+      });
+
+      if (!evalTemplate) {
+        logger.warn(
+          `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
+        );
+        throw new Error("Template not found");
+      }
+
+      const jobId = uuidv4();
+      await auditLog({
+        session: ctx.session,
+        resourceType: "job",
+        resourceId: jobId,
+        action: "create",
+      });
+
+      const job = await ctx.prisma.jobConfiguration.create({
+        data: {
+          id: jobId,
           projectId: input.projectId,
-          scope: "evalJob:CUD",
-        });
+          jobType: "EVAL",
+          evalTemplateId: input.evalTemplateId,
+          scoreName: input.scoreName,
+          targetObject: input.target,
+          filter: input.filter ?? [],
+          variableMapping: input.mapping,
+          sampling: input.sampling,
+          delay: input.delay,
+          status: "ACTIVE",
+          timeScope: input.timeScope,
+        },
+      });
 
-        const evalTemplate = await ctx.prisma.evalTemplate.findUnique({
-          where: {
-            id: input.evalTemplateId,
-            OR: [{ projectId: input.projectId }, { projectId: null }],
-          },
-        });
+      // Clear the "no job configs" cache since we just created a new job configuration
+      await clearNoJobConfigsCache(input.projectId);
 
-        if (!evalTemplate) {
-          logger.warn(
-            `Template not found for project ${input.projectId} and id ${input.evalTemplateId}`,
-          );
-          throw new Error("Template not found");
+      if (input.timeScope.includes("EXISTING")) {
+        logger.info(
+          `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
+        );
+        const batchJobQueue = getQueue(QueueName.BatchActionQueue);
+        if (!batchJobQueue) {
+          throw new Error("Batch job queue not found");
         }
-
-        const jobId = uuidv4();
-        await auditLog({
-          session: ctx.session,
-          resourceType: "job",
-          resourceId: jobId,
-          action: "create",
-        });
-
-        const job = await ctx.prisma.jobConfiguration.create({
-          data: {
-            id: jobId,
-            projectId: input.projectId,
-            jobType: "EVAL",
-            evalTemplateId: input.evalTemplateId,
-            scoreName: input.scoreName,
-            targetObject: input.target,
-            filter: input.filter ?? [],
-            variableMapping: input.mapping,
-            sampling: input.sampling,
-            delay: input.delay,
-            status: "ACTIVE",
-            timeScope: input.timeScope,
-          },
-        });
-
-        // Clear the "no job configs" cache since we just created a new job configuration
-        await clearNoJobConfigsCache(input.projectId);
-
-        if (input.timeScope.includes("EXISTING")) {
-          logger.info(
-            `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
-          );
-          const batchJobQueue = getQueue(QueueName.BatchActionQueue);
-          if (!batchJobQueue) {
-            throw new Error("Batch job queue not found");
-          }
-          await batchJobQueue.add(
-            QueueJobs.BatchActionProcessingJob,
-            {
-              name: QueueJobs.BatchActionProcessingJob,
-              timestamp: new Date(),
-              id: uuidv4(),
-              payload: {
-                projectId: input.projectId,
-                actionId: "eval-create",
-                configId: job.id,
-                cutoffCreatedAt: new Date(),
-                targetObject: input.target,
-                query: {
-                  filter: input.filter ?? [],
-                  orderBy: {
-                    column: "timestamp",
-                    order: "DESC",
-                  },
+        await batchJobQueue.add(
+          QueueJobs.BatchActionProcessingJob,
+          {
+            name: QueueJobs.BatchActionProcessingJob,
+            timestamp: new Date(),
+            id: uuidv4(),
+            payload: {
+              projectId: input.projectId,
+              actionId: "eval-create",
+              configId: job.id,
+              cutoffCreatedAt: new Date(),
+              targetObject: input.target,
+              query: {
+                filter: input.filter ?? [],
+                orderBy: {
+                  column: "timestamp",
+                  order: "DESC",
                 },
               },
             },
-            { delay: input.delay },
-          );
-        }
-      } catch (e) {
-        logger.error(e);
-        throw e;
+          },
+          { delay: input.delay },
+        );
       }
     }),
   createTemplate: protectedProjectProcedure
@@ -1261,6 +1235,7 @@ export const evalRouter = createTRPCRouter({
               | "jobInputTraceId"
               | "jobTemplateId"
               | "jobConfigurationId"
+              | "executionTraceId"
               | "error"
             >
           >
@@ -1274,6 +1249,7 @@ export const evalRouter = createTRPCRouter({
             je.job_input_trace_id as "jobInputTraceId",
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
+            je.execution_trace_id as "executionTraceId",
             je.error
             `,
             input.projectId,
@@ -1332,17 +1308,17 @@ export const evalRouter = createTRPCRouter({
         }>
       >(Prisma.sql`
       SELECT DISTINCT
-        jc.id, 
+        jc.id,
         jc.score_name as "scoreName"
-      FROM 
+      FROM
         "job_configurations" as jc
-      WHERE 
+      WHERE
         jc.project_id = ${input.projectId}
         AND jc.job_type = 'EVAL'
         AND jc.target_object = 'dataset'
         AND jc.status = 'ACTIVE'
         AND (
-          jc.filter IS NULL 
+          jc.filter IS NULL
           OR jsonb_array_length(jc.filter) = 0
           OR EXISTS (
             SELECT 1
@@ -1351,7 +1327,7 @@ export const evalRouter = createTRPCRouter({
               AND f->>'type' = 'stringOptions'
               AND (
                 (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
-                OR 
+                OR
                 (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
               )
           )
@@ -1359,6 +1335,35 @@ export const evalRouter = createTRPCRouter({
       `);
 
       return evaluators;
+    }),
+
+  costByEvaluatorIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const costs = await getCostByEvaluatorIds(
+        input.projectId,
+        input.evaluatorIds,
+      );
+
+      // Convert array to map for easier lookup
+      return costs.reduce(
+        (acc, { evaluatorId, totalCost }) => {
+          acc[evaluatorId] = totalCost;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
     }),
 });
 

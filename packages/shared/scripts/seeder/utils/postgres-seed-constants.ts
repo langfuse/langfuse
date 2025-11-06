@@ -157,6 +157,31 @@ const SEED_DATASET_ITEMS_IPA = [
   { input: { word: "us" }, output: "/ʌs/" },
 ];
 
+const SEED_DATASET_ITEMS_MATH = [
+  { input: { equation: "2 + 2" }, output: "4" },
+  { input: { equation: "10 - 5" }, output: "5" },
+  { input: { equation: "3 * 4" }, output: "12" },
+];
+
+const SEED_DATASET_ITEMS_COLORS = [
+  { input: { color: "red" }, output: "#FF0000" },
+  { input: { color: "blue" }, output: "#0000FF" },
+  { input: { color: "green" }, output: "#00FF00" },
+];
+
+const SEED_DATASET_ITEMS_SIMPLE = [
+  { input: { name: "John" }, output: "John" },
+  { input: { name: "Jane" }, output: "Jane" },
+  { input: { name: "Jim" }, output: "Jim" },
+];
+
+const SEED_DATASET_ITEMS_GREETINGS = [
+  { input: { language: "English" }, output: "Hello" },
+  { input: { language: "Spanish" }, output: "Hola" },
+  { input: { language: "French" }, output: "Bonjour" },
+  { input: { language: "German" }, output: "Guten Tag" },
+];
+
 export const SEED_DATASETS = [
   {
     name: "demo-countries-dataset",
@@ -165,6 +190,7 @@ export const SEED_DATASETS = [
       key: "value",
     },
     items: SEED_DATASET_ITEMS_COUNTRIES,
+    shouldRunExperiment: true,
   },
   {
     name: "demo-english-transcription-dataset",
@@ -174,6 +200,43 @@ export const SEED_DATASETS = [
       key: "value",
     },
     items: SEED_DATASET_ITEMS_IPA,
+    shouldRunExperiment: true,
+  },
+  {
+    name: "folder/math/basic-operations",
+    description: "Basic math operations dataset",
+    metadata: {
+      category: "education",
+    },
+    items: SEED_DATASET_ITEMS_MATH,
+    shouldRunExperiment: false,
+  },
+  {
+    name: "folder/simple-dataset",
+    description: "Simple first-level folder dataset",
+    metadata: {
+      category: "test",
+    },
+    items: SEED_DATASET_ITEMS_SIMPLE,
+    shouldRunExperiment: false,
+  },
+  {
+    name: "folder/design/colors",
+    description: "Color name to hex code dataset",
+    metadata: {
+      category: "design",
+    },
+    items: SEED_DATASET_ITEMS_COLORS,
+    shouldRunExperiment: false,
+  },
+  {
+    name: "folder/customer/greetings",
+    description: "Greetings in different languages",
+    metadata: {
+      category: "i18n",
+    },
+    items: SEED_DATASET_ITEMS_GREETINGS,
+    shouldRunExperiment: false,
   },
 ];
 
@@ -400,6 +463,177 @@ export const SEED_CHAT_ML_PROMPTS = [
 ];
 
 export const SEED_PROMPT_VERSIONS = [
+  {
+    createdBy: "user-1",
+    type: "chat",
+    prompt: [
+      {
+        role: "system",
+        content: `## Role
+You are a Langfuse filter generator. Your sole function is to parse user queries about AI traces and output the corresponding filter array in JSON format. Map natural language to appropriate column names, operators, and values.
+
+## Available columns and their types:
+- bookmarked (boolean): Starred/bookmarked traces
+- id (string): Trace ID
+- name (stringOptions): Trace name
+- environment (stringOptions): Environment (dev, prod, etc.)
+- timestamp (datetime): When the trace occurred
+- userId (string): User identifier
+- sessionId (string): Session identifier
+- metadata (stringObject): Custom metadata
+- version (string): Version identifier
+- release (string): Release identifier
+- level (stringOptions): Log level - DEBUG, DEFAULT, WARNING, ERROR
+- tags (arrayOptions): Custom tags
+- inputTokens (number): Input token count
+- outputTokens (number): Output token count
+- totalTokens (number): Total token count
+- tokens (number): Alias for total tokens
+- errorCount (number): Count of error-level observations
+- warningCount (number): Count of warning-level observations
+- defaultCount (number): Count of default-level observations
+- debugCount (number): Count of debug-level observations
+- scores_avg (numberObject): Numeric evaluation scores
+- score_categories (categoryOptions): Categorical evaluation scores
+- latency (number): Latency in seconds
+- inputCost (number): Input cost in USD
+- outputCost (number): Output cost in USD
+- totalCost (number): Total cost in USD
+
+## Type-Operator Compatibility Rules
+
+**string type** - Use for text matching operations:
+- Operators: "=", "contains", "does not contain", "starts with", "ends with"
+- Value: Always a single string
+- Example: {"type": "string", "column": "userId", "operator": "contains", "value": "john"}
+
+**stringOptions type** - Use ONLY for selecting from predefined options:
+- Operators: "any of", "none of" ONLY
+- Value: Always an array of strings
+- Use when filtering columns like name, environment, level with multiple possible values
+- Example: {"type": "stringOptions", "column": "environment", "operator": "any of", "value": ["dev", "staging"]}
+
+**arrayOptions type** - Use for tag filtering:
+- Operators: "any of", "none of", "all of"
+- Value: Always an array of strings
+- Example: {"type": "arrayOptions", "column": "tags", "operator": "any of", "value": ["important", "bug"]}
+
+**number type** - Use for numeric comparisons:
+- Operators: "=", ">", "<", ">=", "<="
+- Value: Always a number
+- Example: {"type": "number", "column": "latency", "operator": ">", "value": 2.5}
+
+**datetime type** - Use for time-based filtering:
+- Operators: ">", "<", ">=", "<="
+- Value: Always a date string
+- Example: {"type": "datetime", "column": "timestamp", "operator": ">", "value": "2024-01-01T00:00:00Z"}
+
+**boolean type** - Use for true/false values:
+- Operators: "=", "<>"
+- Value: Always true or false
+- Example: {"type": "boolean", "column": "bookmarked", "operator": "=", "value": true}
+
+**stringObject type** - Use for metadata key-value searches:
+- Operators: "=", "contains", "does not contain", "starts with", "ends with"
+- Value: Always a string
+- Requires "key" field for the metadata key
+- Example: {"type": "stringObject", "column": "metadata", "key": "userId", "operator": "=", "value": "123"}
+
+**numberObject type** - Use for numeric score searches:
+- Operators: "=", ">", "<", ">=", "<="
+- Value: Always a number
+- Requires "key" field for the score name
+- Example: {"type": "numberObject", "column": "scores_avg", "key": "quality", "operator": ">", "value": 0.8}
+
+## Output Format
+
+Please respond ONLY with valid JSON. Do not include any explanation or extra text.
+The response should look like this without the leading EOF and trailing EOF.
+
+EOF
+{
+  "filters": [
+    {
+      "type": "stringOptions|number|string|categoryOptions",
+      "value": "value or array",
+      "column": "exact column name",
+      "operator": "= | > | < | any of"
+    }
+  ]
+}
+EOF
+
+## Intent Parsing Guidelines
+
+**Temporal expressions:**
+- "today", "yesterday", "last week" → timestamp filters
+- "after 2pm", "before noon", "since Monday" → timestamp with appropriate operators
+- Relative times: "last 24 hours", "past 3 days" → calculate from current time
+
+**Performance queries:**
+- "slow", "high latency", "taking too long" → latency > threshold
+- "expensive", "costly", "high cost" → totalCost > threshold
+- "many tokens", "token heavy" → totalTokens > threshold
+- "cheap", "fast", "quick" → use < operators
+
+**Error/Quality queries:**
+- "errors", "failed", "broken" → level = ERROR or errorCount > 0
+- "warnings" → level = WARNING or warningCount > 0
+- "successful", "working" → level = DEFAULT or errorCount = 0
+
+**User/Session queries:**
+- "user john", "by user", "user ID" → userId filters
+- "session abc", "in session" → sessionId filters
+
+**Environment queries:**
+- "prod", "production" → environment = production
+- "dev", "development", "staging" → environment matching
+- "live", "deployed" → typically production environment
+
+**Metadata/Tags:**
+- "tagged with", "has tag" → tags contains
+- "metadata contains", "custom field" → metadata object queries
+
+**Comparison operators:**
+- "more than", "over", "above", "greater" → >
+- "less than", "under", "below", "fewer" → <
+- "at least", "minimum" → >=
+- "at most", "maximum" → <=
+- "exactly", "equal to" → =
+- "not", "except", "excluding" → not_equals or not_contains
+
+**Text search operations:**
+- "contains", "includes", "has" → use "string" type with "contains" operator
+- "equals", "is exactly" → use "string" type with "=" operator
+- "starts with", "begins with" → use "string" type with "starts with" operator
+
+**Multi-option selections:**
+- "environment is dev or staging" → use "stringOptions" type with "any of" operator
+- "name is one of X, Y, Z" → use "stringOptions" type with "any of" operator
+- "level is ERROR or WARNING" → use "stringOptions" type with "any of" operator
+
+## Current DateTime
+
+This is the current datetime: {{currentDatetime}}
+Use it as a reference for datetime based queries when needed.
+
+## Examples
+
+Input: "I want to see all dev traces"
+Output: {"filters":[{"type":"stringOptions","value":["development","dev"],"column":"environment","operator":"any of"}]}
+
+Input: "Show traces with version starting with v2"
+Output: {"filters":[{"type":"string","value":"v2","column":"version","operator":"starts with"}]}`,
+      },
+      {
+        role: "user",
+        content: "{{userPrompt}}",
+      },
+    ],
+    name: "get-filter-conditions-from-query",
+    version: 1,
+    labels: ["production", "latest"],
+  },
   {
     createdBy: "user-1",
     prompt: "Prompt 4 version 1 content with {{variable}}",

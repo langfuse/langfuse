@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { z } from "zod/v4";
 
-import { type Model } from "../../db";
 import { env } from "../../env";
 import {
   InvalidRequestError,
@@ -50,12 +49,6 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
-// eslint-disable-next-line no-unused-vars
-export type TokenCountDelegate = (p: {
-  model: Model;
-  text: unknown;
-}) => number | undefined;
-
 /**
  * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
  * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
@@ -89,11 +82,13 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
  * @property delay - Delay in ms to wait before processing events in the batch.
  * @property source - Source of the events for metrics tracking (e.g., "otel", "api").
  * @property isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
+ * @property forwardToEventsTable - Whether to forward events to the staging events table for batch propagation. If undefined, falls back to environment flags.
  */
 type ProcessEventBatchOptions = {
   delay?: number | null;
   source?: "api" | "otel";
   isLangfuseInternal?: boolean;
+  forwardToEventsTable?: boolean;
 };
 
 /**
@@ -118,7 +113,12 @@ export const processEventBatch = async (
   if (input.length === 0) {
     return { successes: [], errors: [] };
   }
-  const { delay = null, source = "api", isLangfuseInternal = false } = options;
+  const {
+    delay = null,
+    source = "api",
+    isLangfuseInternal = false,
+    forwardToEventsTable,
+  } = options;
 
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
@@ -313,6 +313,7 @@ export const processEventBatch = async (
                   eventBodyId: eventData.eventBodyId,
                   fileKey: eventData.key,
                   skipS3List: shouldSkipS3List,
+                  forwardToEventsTable,
                 },
                 authCheck: authCheck as {
                   validKey: true;

@@ -71,6 +71,14 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       <button
         className={`flex h-6 w-6 cursor-pointer items-start justify-end border-none bg-transparent p-0 ${textColor} transition-colors duration-200`}
         onClick={() => dismissToast(toast)}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
         aria-label="Close"
       >
         <X size={14} />

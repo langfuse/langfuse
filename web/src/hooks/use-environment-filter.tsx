@@ -12,14 +12,17 @@ export function convertSelectedEnvironmentsToFilter(
   environmentColumns: string[],
   selectedEnvironments: string[],
 ) {
-  return selectedEnvironments.length > 0
-    ? environmentColumns.map((column) => ({
-        type: "stringOptions" as const,
-        column,
-        operator: "any of" as const,
-        value: selectedEnvironments,
-      }))
-    : [];
+  if (selectedEnvironments.length === 0) {
+    // No environments selected = no filter (show all)
+    return [];
+  }
+
+  return environmentColumns.map((column) => ({
+    type: "stringOptions" as const,
+    column,
+    operator: "any of" as const,
+    value: selectedEnvironments,
+  }));
 }
 
 export function useEnvironmentFilter(
@@ -56,8 +59,9 @@ export function useEnvironmentFilter(
 
     availableEnvironments.forEach((env) => {
       // If environment doesn't exist in map, set default visibility
+      // Environments prefixed with "langfuse-" are deselected by default
       if (updatedMap[env] === undefined) {
-        updatedMap[env] = !env.startsWith("langfuse");
+        updatedMap[env] = !env.startsWith("langfuse-");
         hasChanges = true;
       }
     });

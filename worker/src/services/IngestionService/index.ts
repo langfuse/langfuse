@@ -13,6 +13,7 @@ import {
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
+  convertTraceToStagingObservation,
   eventTypes,
   IngestionEntityTypes,
   IngestionEventType,
@@ -39,7 +40,10 @@ import {
   findModel,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
+  EventRecordInsertType,
   hasNoJobConfigsCache,
+  traceException,
+  flattenJsonToPathArrays,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -60,6 +64,97 @@ type InsertRecord =
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
+
+/**
+ * Flexible input type for writing events to the events table.
+ * This is intentionally loose to allow for iteration as the events
+ * table schema evolves. Only required fields are enforced.
+ */
+export type EventInput = {
+  // Required identifiers
+  projectId: string;
+  traceId: string;
+  spanId: string;
+  startTimeISO: string;
+
+  // Optional identifiers
+  orgId?: string;
+  parentSpanId?: string;
+
+  // Core properties
+  name?: string;
+  type?: string;
+  environment?: string;
+  version?: string;
+  release?: string;
+  endTimeISO: string;
+  completionStartTime?: string;
+
+  tags?: string[];
+  bookmarked?: boolean;
+  public?: boolean;
+
+  // User/session
+  userId?: string;
+  sessionId?: string;
+  level?: string;
+  statusMessage?: string;
+
+  // Prompt
+  promptId?: string;
+  promptName?: string;
+  promptVersion?: string;
+
+  // Model
+  modelId?: string;
+  modelName?: string;
+  modelParameters?: string | Record<string, unknown>;
+
+  // Usage & Cost
+  providedUsageDetails?: Record<string, number>;
+  usageDetails?: Record<string, number>;
+  providedCostDetails?: Record<string, number>;
+  costDetails?: Record<string, number>;
+
+  // I/O
+  input?: string;
+  output?: string;
+
+  // Metadata
+  // metadata can be a complex nested object with attributes, resourceAttributes, scopeAttributes, etc.
+  metadata: Record<string, unknown>;
+
+  // Source/instrumentation metadata
+  source: string;
+  serviceName?: string;
+  serviceVersion?: string;
+  scopeName?: string;
+  scopeVersion?: string;
+  telemetrySdkLanguage?: string;
+  telemetrySdkName?: string;
+  telemetrySdkVersion?: string;
+
+  // Storage
+  blobStorageFilePath?: string;
+  eventRaw?: string;
+  eventBytes?: number;
+
+  // Experiment fields
+  experimentId?: string;
+  experimentName?: string;
+  experimentMetadataNames?: string[];
+  experimentMetadataValues?: Array<string | null | undefined>;
+  experimentDescription?: string;
+  experimentDatasetId?: string;
+  experimentItemId?: string;
+  experimentItemRootSpanId?: string;
+  experimentItemExpectedOutput?: string;
+  experimentItemMetadataNames?: string[];
+  experimentItemMetadataValues?: Array<string | null | undefined>;
+
+  // Catch-all for future fields
+  [key: string]: any;
+};
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -130,6 +225,7 @@ export class IngestionService {
     eventBodyId: string,
     createdAtTimestamp: Date,
     events: IngestionEventType[],
+    forwardToEventsTable: boolean,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
@@ -142,6 +238,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
+          createEventTraceRecord: forwardToEventsTable,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -149,6 +246,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
+          writeToStagingTables: forwardToEventsTable,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -167,6 +265,171 @@ export class IngestionService {
         });
       }
     }
+  }
+
+  /**
+   * Writes a single event directly to the events table.
+   * Unlike other ingestion methods, this does not perform merging since
+   * events are immutable and written once.
+   *
+   * @param eventData - The event data to write
+   * @param fileKey - The file key where the raw event data is stored
+   */
+  public async writeEvent(
+    eventData: EventInput,
+    fileKey: string,
+  ): Promise<void> {
+    logger.debug(
+      `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
+    );
+
+    // Perform lookups for prompt and model/usage enrichment
+    const [prompt, generationUsage] = await Promise.all([
+      // Lookup prompt by name and version
+      eventData.promptName && eventData.promptVersion
+        ? this.promptService.getPrompt({
+            projectId: eventData.projectId,
+            promptName: eventData.promptName,
+            version:
+              typeof eventData.promptVersion === "string"
+                ? parseInt(eventData.promptVersion, 10)
+                : eventData.promptVersion,
+            label: undefined,
+          })
+        : null,
+      // Lookup model and enrich usage/cost details (includes tokenization if needed)
+      eventData.modelName
+        ? this.getGenerationUsage({
+            projectId: eventData.projectId,
+            observationRecord: {
+              id: eventData.spanId,
+              project_id: eventData.projectId,
+              trace_id: eventData.traceId,
+              provided_model_name: eventData.modelName,
+              provided_usage_details: eventData.providedUsageDetails ?? {},
+              provided_cost_details: eventData.providedCostDetails ?? {},
+              input: eventData.input,
+              output: eventData.output,
+            },
+          })
+        : null,
+    ]);
+
+    const now = this.getMicrosecondTimestamp();
+
+    // Store the full metadata JSON
+    const metadata = convertRecordValuesToString(eventData.metadata);
+
+    // Flatten to path-based arrays
+    const flattened = flattenJsonToPathArrays(metadata);
+    const metadataNames = flattened.names;
+    const metadataValues = flattened.values;
+
+    const eventRecord: EventRecordInsertType = {
+      // Required identifiers
+      id: eventData.spanId,
+      project_id: eventData.projectId,
+      trace_id: eventData.traceId,
+      span_id: eventData.spanId,
+
+      // Optional identifiers
+      parent_span_id: eventData.parentSpanId,
+
+      // Core properties with defaults
+      name: eventData.name ?? "",
+      type: eventData.type ?? "SPAN",
+      environment: eventData.environment ?? "default",
+      version: eventData.version,
+      release: eventData.release,
+
+      tags: eventData.tags ?? [],
+      bookmarked: eventData.bookmarked ?? false,
+      public: eventData.public ?? false,
+
+      // User/session
+      user_id: eventData.userId,
+      session_id: eventData.sessionId,
+
+      // Status
+      level: eventData.level ?? "DEFAULT",
+      status_message: eventData.statusMessage,
+
+      // Timestamps
+      start_time: this.getMicrosecondTimestamp(eventData.startTimeISO),
+      end_time: this.getMicrosecondTimestamp(eventData.endTimeISO),
+      completion_start_time: eventData.completionStartTime
+        ? this.getMicrosecondTimestamp(eventData.completionStartTime)
+        : null,
+
+      // Prompt
+      prompt_id: prompt?.id || "",
+      prompt_name: eventData.promptName,
+      prompt_version: eventData.promptVersion,
+
+      // Model
+      model_id: generationUsage?.internal_model_id || "",
+      provided_model_name: eventData.modelName,
+      model_parameters: eventData.modelParameters
+        ? typeof eventData.modelParameters === "string"
+          ? JSON.parse(eventData.modelParameters)
+          : eventData.modelParameters
+        : {},
+
+      // Usage & Cost
+      provided_usage_details: eventData.providedUsageDetails ?? {},
+      usage_details:
+        generationUsage?.usage_details ?? eventData.usageDetails ?? {},
+      provided_cost_details: eventData.providedCostDetails ?? {},
+      cost_details:
+        generationUsage?.cost_details ?? eventData.costDetails ?? {},
+
+      // I/O
+      input: eventData.input,
+      output: eventData.output,
+
+      // Metadata
+      metadata,
+      metadata_names: metadataNames,
+      metadata_raw_values: metadataValues,
+
+      // Source/instrumentation metadata
+      source: eventData.source,
+      service_name: eventData.serviceName,
+      service_version: eventData.serviceVersion,
+      scope_name: eventData.scopeName,
+      scope_version: eventData.scopeVersion,
+      telemetry_sdk_language: eventData.telemetrySdkLanguage,
+      telemetry_sdk_name: eventData.telemetrySdkName,
+      telemetry_sdk_version: eventData.telemetrySdkVersion,
+
+      // Storage
+      blob_storage_file_path: fileKey,
+      event_bytes: eventData.eventBytes ?? 0,
+
+      // Experiment fields
+      experiment_id: eventData.experimentId,
+      experiment_name: eventData.experimentName,
+      experiment_metadata_names: eventData.experimentMetadataNames ?? [],
+      experiment_metadata_values: eventData.experimentMetadataValues ?? [],
+      experiment_description: eventData.experimentDescription,
+      experiment_dataset_id: eventData.experimentDatasetId,
+      experiment_item_id: eventData.experimentItemId,
+      experiment_item_root_span_id: eventData.experimentItemRootSpanId,
+      experiment_item_expected_output: eventData.experimentItemExpectedOutput,
+      experiment_item_metadata_names:
+        eventData.experimentItemMetadataNames ?? [],
+      experiment_item_metadata_values:
+        eventData.experimentItemMetadataValues ?? [],
+
+      // System timestamps
+      created_at: now,
+      updated_at: now,
+      event_ts: now,
+      is_deleted: 0,
+    };
+
+    // Write directly to ClickHouse queue (no merging for immutable events)
+    this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -297,37 +560,52 @@ export class IngestionService {
       }),
       Promise.all(
         timeSortedEvents.map(async (scoreEvent) => {
-          const validatedScore = await validateAndInflateScore({
-            body: scoreEvent.body,
-            scoreId: entityId,
-            projectId,
-          });
+          try {
+            const validatedScore = await validateAndInflateScore({
+              body: scoreEvent.body,
+              scoreId: entityId,
+              projectId,
+            });
 
-          return {
-            id: entityId,
-            project_id: projectId,
-            environment: validatedScore.environment,
-            timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
-            name: validatedScore.name,
-            value: validatedScore.value,
-            source: validatedScore.source,
-            trace_id: validatedScore.traceId,
-            session_id: validatedScore.sessionId,
-            dataset_run_id: validatedScore.datasetRunId,
-            data_type: validatedScore.dataType,
-            observation_id: validatedScore.observationId,
-            config_id: validatedScore.configId,
-            comment: validatedScore.comment,
-            metadata: scoreEvent.body.metadata
-              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
-              : {},
-            string_value: validatedScore.stringValue,
-            created_at: Date.now(),
-            updated_at: Date.now(),
-            event_ts: new Date(scoreEvent.timestamp).getTime(),
-            is_deleted: 0,
-          };
+            return {
+              id: entityId,
+              project_id: projectId,
+              environment: validatedScore.environment,
+              timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
+              name: validatedScore.name,
+              value: validatedScore.value,
+              source: validatedScore.source,
+              trace_id: validatedScore.traceId,
+              session_id: validatedScore.sessionId,
+              dataset_run_id: validatedScore.datasetRunId,
+              data_type: validatedScore.dataType,
+              observation_id: validatedScore.observationId,
+              config_id: validatedScore.configId,
+              comment: validatedScore.comment,
+              metadata: scoreEvent.body.metadata
+                ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+                : {},
+              string_value: validatedScore.stringValue,
+              execution_trace_id: validatedScore.executionTraceId,
+              queue_id: validatedScore.queueId ?? null,
+              created_at: Date.now(),
+              updated_at: Date.now(),
+              event_ts: new Date(scoreEvent.timestamp).getTime(),
+              is_deleted: 0,
+            };
+            // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
+          } catch (error) {
+            logger.info(
+              `Failed to validate and enrich score body for project: ${projectId} and score: ${entityId}`,
+              error,
+            );
+            return null;
+          }
         }),
+      ).then((results) =>
+        results.filter(
+          (record): record is NonNullable<typeof record> => record !== null,
+        ),
       ),
     ]);
 
@@ -354,8 +632,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
+    createEventTraceRecord: boolean;
   }) {
-    const { projectId, entityId, createdAtTimestamp, traceEventList } = params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      traceEventList,
+      createEventTraceRecord,
+    } = params;
     if (traceEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -430,10 +715,7 @@ export class IngestionService {
           INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
           VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
           ON CONFLICT (id, project_id)
-          DO UPDATE SET
-            environment = EXCLUDED.environment,
-            updated_at = NOW()
-          WHERE trace_sessions.environment IS DISTINCT FROM EXCLUDED.environment
+          DO NOTHING
         `;
       } catch (e) {
         logger.error(
@@ -442,6 +724,19 @@ export class IngestionService {
         );
         throw e;
       }
+    }
+
+    // Dual-write to staging table for batch propagation to events table
+    // We pretend the trace is a "span" where span_id = trace_id
+    if (createEventTraceRecord) {
+      const traceAsStagingObservation = convertTraceToStagingObservation(
+        finalTraceRecord,
+        this.getPartitionAwareTimestamp(createdAtTimestamp),
+      );
+      this.clickHouseWriter.addToQueue(
+        TableName.ObservationsBatchStaging,
+        traceAsStagingObservation,
+      );
     }
 
     // Add trace into trace upsert queue for eval processing
@@ -465,6 +760,7 @@ export class IngestionService {
           projectId,
           traceId: entityId,
           exactTimestamp: new Date(finalTraceRecord.timestamp),
+          traceEnvironment: finalTraceRecord.environment,
         },
         id: randomUUID(),
         timestamp: new Date(),
@@ -478,9 +774,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
+    writeToStagingTables: boolean;
   }) {
-    const { projectId, entityId, createdAtTimestamp, observationEventList } =
-      params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      observationEventList,
+      writeToStagingTables,
+    } = params;
     if (observationEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -582,6 +884,25 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    // Dual-write to staging table for batch propagation to events table
+    // Here, we add some additional logic around the first seen timestamp.
+    // We "lock" partitions 4min after their creation, i.e. the 15:00:00 partition
+    // should stop receiving updates at 15:04:00.
+    // This means that we keep the createdAtTimestamp as-is if it is within the last
+    // 3.5 minutes (incl. a 30s buffer around writes) and otherwise,
+    // we set the current timestamp for the event.
+    if (writeToStagingTables) {
+      const stagingRecord = {
+        ...finalObservationRecord,
+        s3_first_seen_timestamp:
+          this.getPartitionAwareTimestamp(createdAtTimestamp),
+      };
+      this.clickHouseWriter.addToQueue(
+        TableName.ObservationsBatchStaging,
+        stagingRecord,
+      );
+    }
   }
 
   private async mergeScoreRecords(params: {
@@ -744,27 +1065,37 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
-    observationRecord: ObservationRecordInsertType;
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      | "project_id"
+      | "trace_id"
+      | "id"
+      | "provided_model_name"
+      | "provided_usage_details"
+      | "provided_cost_details"
+      | "level"
+      | "input"
+      | "output"
+    >;
   }): Promise<
-    | Pick<
-        ObservationRecordInsertType,
-        "usage_details" | "cost_details" | "total_cost" | "internal_model_id"
-      >
-    | {}
+    Pick<
+      ObservationRecordInsertType,
+      "usage_details" | "cost_details" | "total_cost" | "internal_model_id"
+    >
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = observationRecord.provided_model_name
-      ? await findModel({
-          projectId,
-          model: observationRecord.provided_model_name,
-        })
-      : null;
+    const { model: internalModel, prices: modelPrices } =
+      observationRecord.provided_model_name
+        ? await findModel({
+            projectId,
+            model: observationRecord.provided_model_name,
+          })
+        : { model: null, prices: [] };
 
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
-    const modelPrices = await this.getModelPrices(internalModel?.id);
 
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
@@ -787,14 +1118,11 @@ export class IngestionService {
     };
   }
 
-  private async getModelPrices(modelId?: string): Promise<Price[]> {
-    return modelId
-      ? ((await this.prisma.price.findMany({ where: { modelId } })) ?? [])
-      : [];
-  }
-
   private async getUsageUnits(
-    observationRecord: ObservationRecordInsertType,
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      "provided_usage_details" | "level" | "input" | "output" | "id"
+    >,
     model: Model | null | undefined,
   ): Promise<
     Pick<
@@ -814,83 +1142,96 @@ export class IngestionService {
       Object.keys(providedUsageDetails).length === 0 &&
       observationRecord.level !== ObservationLevel.ERROR
     ) {
-      let newInputCount: number | undefined;
-      let newOutputCount: number | undefined;
-      await instrumentAsync(
-        {
-          name: "token-count",
-        },
-        async (span) => {
-          try {
-            [newInputCount, newOutputCount] = await Promise.all([
-              tokenCountAsync({
+      try {
+        let newInputCount: number | undefined;
+        let newOutputCount: number | undefined;
+        await instrumentAsync(
+          {
+            name: "token-count",
+          },
+          async (span) => {
+            try {
+              [newInputCount, newOutputCount] = await Promise.all([
+                tokenCountAsync({
+                  text: observationRecord.input,
+                  model,
+                }),
+                tokenCountAsync({
+                  text: observationRecord.output,
+                  model,
+                }),
+              ]);
+            } catch (error) {
+              logger.warn(
+                `Async tokenization has failed. Falling back to synchronous tokenization`,
+                error,
+              );
+              newInputCount = tokenCount({
                 text: observationRecord.input,
                 model,
-              }),
-              tokenCountAsync({
+              });
+              newOutputCount = tokenCount({
                 text: observationRecord.output,
                 model,
-              }),
-            ]);
-          } catch (error) {
-            logger.warn(
-              `Async tokenization has failed. Falling back to synchronous tokenization`,
-              error,
-            );
-            newInputCount = tokenCount({
-              text: observationRecord.input,
-              model,
-            });
-            newOutputCount = tokenCount({
-              text: observationRecord.output,
-              model,
-            });
-          }
+              });
+            }
 
-          // Tracing
-          newInputCount
-            ? span.setAttribute(
-                "langfuse.tokenization.input-count",
-                newInputCount,
-              )
-            : undefined;
-          newOutputCount
-            ? span.setAttribute(
-                "langfuse.tokenization.output-count",
-                newOutputCount,
-              )
-            : undefined;
+            // Tracing
+            newInputCount
+              ? span.setAttribute(
+                  "langfuse.tokenization.input-count",
+                  newInputCount,
+                )
+              : undefined;
+            newOutputCount
+              ? span.setAttribute(
+                  "langfuse.tokenization.output-count",
+                  newOutputCount,
+                )
+              : undefined;
+            newInputCount || newOutputCount
+              ? span.setAttribute(
+                  "langfuse.tokenization.tokenizer",
+                  model.tokenizerId || "unknown",
+                )
+              : undefined;
+            newInputCount
+              ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
+              : undefined;
+            newOutputCount
+              ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
+              : undefined;
+          },
+        );
+
+        logger.debug(
+          `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
+        );
+
+        const newTotalCount =
           newInputCount || newOutputCount
-            ? span.setAttribute(
-                "langfuse.tokenization.tokenizer",
-                model.tokenizerId || "unknown",
-              )
+            ? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined;
-          newInputCount
-            ? recordIncrement("langfuse.tokenisedTokens", newInputCount)
-            : undefined;
-          newOutputCount
-            ? recordIncrement("langfuse.tokenisedTokens", newOutputCount)
-            : undefined;
-        },
-      );
 
-      logger.debug(
-        `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
-      );
+        const usage_details: Record<string, number> = {};
 
-      const newTotalCount =
-        newInputCount || newOutputCount
-          ? (newInputCount ?? 0) + (newOutputCount ?? 0)
-          : undefined;
+        if (newInputCount != null) usage_details.input = newInputCount;
+        if (newOutputCount != null) usage_details.output = newOutputCount;
+        if (newTotalCount != null) usage_details.total = newTotalCount;
 
-      const usage_details: Record<string, number> = {};
-
-      if (newInputCount != null) usage_details.input = newInputCount;
-      if (newOutputCount != null) usage_details.output = newOutputCount;
-      if (newTotalCount != null) usage_details.total = newTotalCount;
-
-      return { usage_details, provided_usage_details: providedUsageDetails };
+        return { usage_details, provided_usage_details: providedUsageDetails };
+      } catch (error) {
+        traceException(error);
+        logger.error(
+          `Tokenization failed for observation ${observationRecord.id} with model ${model.id}. Continuing without token counts.`,
+          error,
+        );
+        // Continue without token counts - return empty usage_details
+        return {
+          usage_details: {},
+          provided_usage_details: providedUsageDetails,
+        };
+      }
     }
 
     const usageDetails = { ...providedUsageDetails };
@@ -909,7 +1250,10 @@ export class IngestionService {
 
   static calculateUsageCosts(
     modelPrices: Price[] | null | undefined,
-    observationRecord: ObservationRecordInsertType,
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      "provided_cost_details"
+    >,
     usageUnits: UsageCostType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
     const { provided_cost_details } = observationRecord;
@@ -1324,8 +1668,31 @@ export class IngestionService {
     return typeof obj === "string" ? obj : JSON.stringify(obj);
   }
 
+  private getMicrosecondTimestamp(timestamp?: string | null): number {
+    return timestamp ? new Date(timestamp).getTime() * 1000 : Date.now() * 1000;
+  }
+
   private getMillisecondTimestamp(timestamp?: string | null): number {
     return timestamp ? new Date(timestamp).getTime() : Date.now();
+  }
+
+  /**
+   * Returns a partition-aware timestamp for staging table writes.
+   * If the createdAtTimestamp is within the last 3.5 minutes, returns it as-is.
+   * Otherwise, returns the current timestamp to prevent updates to old partitions.
+   *
+   * This implements the partition locking strategy where partitions are "locked"
+   * 4 minutes after creation (3.5 min + 30s buffer for writes).
+   */
+  private getPartitionAwareTimestamp(createdAtTimestamp: Date): number {
+    const now = Date.now();
+    const createdAt = createdAtTimestamp.getTime();
+    const ageInMs = now - createdAt;
+    const threeAndHalfMinutesInMs = 3.5 * 60 * 1000;
+
+    // If the createdAtTimestamp is within the last 3.5 minutes, use it
+    // Otherwise, use the current timestamp to avoid updating old partitions
+    return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
   }
 }
 

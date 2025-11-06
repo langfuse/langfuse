@@ -5,7 +5,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import {
   type CategoricalAggregate,
-  type NumericAggregate,
+  type AggregatedScoreData,
 } from "@langfuse/shared";
 
 import { numberFormatter } from "@/src/utils/numbers";
@@ -43,18 +43,18 @@ const ScoreValueCounts = ({
 
 export const ScoresTableCell = ({
   aggregate,
-  showSingleValue = false,
+  displayFormat,
   wrap = true,
   hasMetadata,
 }: {
-  aggregate: CategoricalAggregate | NumericAggregate;
-  showSingleValue?: boolean;
+  aggregate: AggregatedScoreData;
+  displayFormat: "smart" | "aggregate";
   wrap?: boolean;
   hasMetadata?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
 
-  if (showSingleValue && aggregate.values.length === 1 && projectId) {
+  if (displayFormat === "smart" && aggregate.values.length === 1 && projectId) {
     const value =
       aggregate.type === "NUMERIC"
         ? aggregate.average.toFixed(4)

@@ -22,6 +22,7 @@ export type AuditableResource =
   | "score"
   | "scoreConfig"
   | "model"
+  | "notificationPreference"
   | "prompt"
   | "promptProtectedLabel"
   | "session"
@@ -30,6 +31,7 @@ export type AuditableResource =
   | "job"
   | "blobStorageIntegration"
   | "posthogIntegration"
+  | "mixpanelIntegration"
   | "llmApiKey"
   | "llmTool"
   | "llmSchema"
@@ -39,6 +41,7 @@ export type AuditableResource =
   | "automation"
   | "action"
   | "slackIntegration"
+  | "cloudSpendAlert"
   // legacy resources
   | "membership";
 

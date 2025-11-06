@@ -39,6 +39,9 @@ import {
   convertDateToClickhouseDateTime,
   getAgentGraphData,
   tracesTableUiColumnDefinitions,
+  getTracesGroupedByUsers,
+  getTracesGroupedBySessionId,
+  updateEvents,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -47,6 +50,7 @@ import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
+import { env } from "@/src/env.mjs";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -178,38 +182,63 @@ export const traceRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        timestampFilter: timeFilter.optional(),
+        timestampFilter: z.array(timeFilter).optional(),
       }),
     )
     .query(async ({ input }) => {
       const { timestampFilter } = input;
 
-      const [numericScoreNames, categoricalScoreNames, traceNames, tags] =
-        await Promise.all([
-          getNumericScoresGroupedByName(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getTracesGroupedByName(
-            input.projectId,
-            tracesTableUiColumnDefinitions,
-            timestampFilter ? [timestampFilter] : [],
-          ),
-          getTracesGroupedByTags({
-            projectId: input.projectId,
-            filter: timestampFilter ? [timestampFilter] : [],
-          }),
-        ]);
+      const [
+        numericScoreNames,
+        categoricalScoreNames,
+        traceNames,
+        tags,
+        userIds,
+        sessionIds,
+      ] = await Promise.all([
+        getNumericScoresGroupedByName(input.projectId, timestampFilter ?? []),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          timestampFilter ?? [],
+        ),
+        getTracesGroupedByName(
+          input.projectId,
+          tracesTableUiColumnDefinitions,
+          timestampFilter ?? [],
+        ),
+        getTracesGroupedByTags({
+          projectId: input.projectId,
+          filter: timestampFilter ?? [],
+        }),
+        getTracesGroupedByUsers(
+          input.projectId,
+          timestampFilter ?? [],
+          undefined,
+          100,
+          0,
+        ),
+        getTracesGroupedBySessionId(
+          input.projectId,
+          timestampFilter ?? [],
+          undefined,
+          100,
+          0,
+        ),
+      ]);
 
       return {
-        name: traceNames.map((n) => ({ value: n.name })),
+        name: traceNames.map((n) => ({ value: n.name, count: n.count })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
         tags: tags,
+        users: userIds.map((u) => ({
+          value: u.user,
+          count: u.count,
+        })),
+        sessions: sessionIds.map((s) => ({
+          value: s.session_id,
+          count: s.count,
+        })),
       };
     }),
   byId: protectedGetTraceProcedure
@@ -385,7 +414,19 @@ export const traceRouter = createTRPCRouter({
         if (clickhouseTrace) {
           trace = clickhouseTrace;
           clickhouseTrace.bookmarked = input.bookmarked;
-          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+          const promises = [
+            upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+          ];
+          if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+            promises.push(
+              updateEvents(
+                input.projectId,
+                { traceIds: [clickhouseTrace.id], rootOnly: true },
+                { bookmarked: input.bookmarked },
+              ),
+            );
+          }
+          await Promise.all(promises);
         } else {
           logger.error(
             `Trace not found in Clickhouse: ${input.traceId}. Skipping bookmark.`,

@@ -26,8 +26,6 @@ import GCPServiceAccountKeySchema, {
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { processEventBatch } from "../ingestion/processEventBatch";
-import { logger } from "../logger";
 import {
   ChatMessage,
   ChatMessageRole,
@@ -40,16 +38,21 @@ import {
   OpenAIModel,
   ToolCallResponse,
   ToolCallResponseSchema,
-  TraceParams,
+  TraceSinkParams,
 } from "./types";
-import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { getInternalTracingHandler } from "./getInternalTracingHandler";
+import { decrypt } from "../../encryption";
+import { decryptAndParseExtraHeaders } from "./utils";
+import { logger } from "../logger";
+import { LLMCompletionError } from "./errors";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
   LLMAdapter.Anthropic,
 ];
 
@@ -68,15 +71,17 @@ type ProcessTracedEvents = () => Promise<void>;
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
+  llmConnection: {
+    secretKey: string;
+    extraHeaders?: string | null;
+    baseURL?: string | null;
+    config?: Record<string, string> | null;
+  };
   structuredOutputSchema?: ZodSchema | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
-  baseURL?: string;
-  apiKey: string;
-  extraHeaders?: Record<string, string>;
   maxRetries?: number;
-  config?: Record<string, string> | null;
-  traceParams?: TraceParams;
-  throwOnError?: boolean; // default is true
+  traceSinkParams?: TraceSinkParams;
+  shouldUseLangfuseAPIKey?: boolean;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -89,20 +94,14 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
   },
-): Promise<{
-  completion: IterableReadableStream<Uint8Array>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{
-  completion: string;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<string>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
@@ -110,73 +109,61 @@ export async function fetchLLMCompletion(
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
-): Promise<{
-  completion: Record<string, unknown>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
-    tools: LLMToolDefinition[];
     streaming: false;
+    tools: LLMToolDefinition[];
   },
-): Promise<{
-  completion: ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<ToolCallResponse>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
-): Promise<{
-  completion:
-    | string
-    | IterableReadableStream<Uint8Array>
-    | Record<string, unknown>
-    | ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}> {
-  // the apiKey must never be printed to the console
+): Promise<
+  | string
+  | IterableReadableStream<Uint8Array>
+  | Record<string, unknown>
+  | ToolCallResponse
+> {
   const {
     messages,
     tools,
     modelParams,
     streaming,
     callbacks,
-    apiKey,
-    baseURL,
+    llmConnection,
     maxRetries,
-    config,
-    traceParams,
-    extraHeaders,
-    throwOnError = true,
+    traceSinkParams,
+    shouldUseLangfuseAPIKey = false,
   } = params;
+
+  const { baseURL, config } = llmConnection;
+  const apiKey = decrypt(llmConnection.secretKey); // the apiKey must never be printed to the console
+  const extraHeaders = decryptAndParseExtraHeaders(llmConnection.extraHeaders);
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
-  if (traceParams) {
-    const handler = new CallbackHandler({
-      _projectId: traceParams.projectId,
-      _isLocalEventExportEnabled: true,
-      environment: traceParams.environment,
-    });
-    finalCallbacks.push(handler);
+  if (traceSinkParams) {
+    // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
+    // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
+    // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
+    if (!traceSinkParams.environment?.startsWith("langfuse")) {
+      logger.warn(
+        "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
+        {
+          environment: traceSinkParams.environment,
+          traceId: traceSinkParams.traceId,
+        },
+      );
+    } else {
+      const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
+      processTracedEvents = internalTracingHandler.processTracedEvents;
 
-    processTracedEvents = async () => {
-      try {
-        const events = await handler.langfuse._exportLocalEvents(
-          traceParams.projectId,
-        );
-        await processEventBatch(
-          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
-          traceParams.authCheck,
-          { isLangfuseInternal: true },
-        );
-      } catch (e) {
-        logger.error("Failed to process traced events", { error: e });
-      }
-    };
+      finalCallbacks.push(internalTracingHandler.handler);
+    }
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
@@ -249,7 +236,7 @@ export async function fetchLLMCompletion(
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
       anthropicApiKey: apiKey,
-      anthropicApiUrl: baseURL,
+      anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
@@ -285,7 +272,7 @@ export async function fetchLLMCompletion(
   } else if (modelParams.adapter === LLMAdapter.Azure) {
     chatModel = new AzureChatOpenAI({
       azureOpenAIApiKey: apiKey,
-      azureOpenAIBasePath: baseURL,
+      azureOpenAIBasePath: baseURL ?? undefined,
       azureOpenAIApiDeploymentName: modelParams.model,
       azureOpenAIApiVersion: "2025-02-01-preview",
       temperature: modelParams.temperature,
@@ -301,10 +288,16 @@ export async function fetchLLMCompletion(
       modelKwargs: modelParams.providerOptions,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
-    const { region } = BedrockConfigSchema.parse(config);
+    const { region } = shouldUseLangfuseAPIKey
+      ? { region: env.LANGFUSE_AWS_BEDROCK_REGION }
+      : BedrockConfigSchema.parse(config);
+
     // Handle both explicit credentials and default provider chain
+    // Only allow default provider chain in self-hosted or internal AI features
+    const isSelfHosted = !isLangfuseCloud;
     const credentials =
-      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud
+      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
+      (isSelfHosted || shouldUseLangfuseAPIKey)
         ? undefined // undefined = use AWS SDK default credential provider chain
         : BedrockCredentialSchema.parse(JSON.parse(apiKey));
 
@@ -361,18 +354,19 @@ export async function fetchLLMCompletion(
 
   const runConfig = {
     callbacks: finalCallbacks,
-    runId: traceParams?.traceId,
-    runName: traceParams?.traceName,
+    runId: traceSinkParams?.traceId,
+    runName: traceSinkParams?.traceName,
+    metadata: traceSinkParams?.metadata,
   };
 
   try {
+    // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      return {
-        completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-          .withStructuredOutput(params.structuredOutputSchema)
-          .invoke(finalMessages, runConfig),
-        processTracedEvents,
-      };
+      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+        .withStructuredOutput(params.structuredOutputSchema)
+        .invoke(finalMessages, runConfig);
+
+      return structuredOutput;
     }
 
     if (tools && tools.length > 0) {
@@ -388,32 +382,68 @@ export async function fetchLLMCompletion(
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return {
-        completion: parsed.data,
-        processTracedEvents,
-      };
+      return parsed.data;
     }
 
-    if (streaming) {
-      return {
-        completion: await chatModel
-          .pipe(new BytesOutputParser())
-          .stream(finalMessages, runConfig),
-        processTracedEvents,
-      };
+    if (streaming)
+      return chatModel
+        .pipe(new BytesOutputParser())
+        .stream(finalMessages, runConfig);
+
+    const completion = await chatModel
+      .pipe(new StringOutputParser())
+      .invoke(finalMessages, runConfig);
+
+    return completion;
+  } catch (e) {
+    const responseStatusCode =
+      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+    const message = e instanceof Error ? e.message : String(e);
+
+    // Check for non-retryable error patterns in message
+    const nonRetryablePatterns = [
+      "Request timed out",
+      "is not valid JSON",
+      "Unterminated string in JSON at position",
+      "TypeError",
+    ];
+
+    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
+      message.includes(pattern),
+    );
+
+    // Determine retryability:
+    // - 429 (rate limit): retryable with custom delay
+    // - 5xx (server errors): retryable with custom delay
+    // - 4xx (client errors): not retryable
+    // - Non-retryable patterns: not retryable
+    let isRetryable = false;
+
+    if (
+      e instanceof Error &&
+      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
+    ) {
+      // Explicit 429 handling
+      isRetryable = true;
+    } else if (responseStatusCode >= 500) {
+      // 5xx errors are retryable (server issues)
+      isRetryable = true;
+    } else if (responseStatusCode === 429) {
+      // Rate limit is retryable
+      isRetryable = true;
     }
 
-    return {
-      completion: await chatModel
-        .pipe(new StringOutputParser())
-        .invoke(finalMessages, runConfig),
-      processTracedEvents,
-    };
-  } catch (error) {
-    if (throwOnError) {
-      throw error;
+    // Override if error message indicates non-retryable issue
+    if (hasNonRetryablePattern) {
+      isRetryable = false;
     }
 
-    return { completion: "", processTracedEvents };
+    throw new LLMCompletionError({
+      message,
+      responseStatusCode,
+      isRetryable,
+    });
+  } finally {
+    await processTracedEvents();
   }
 }

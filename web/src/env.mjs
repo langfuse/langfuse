@@ -107,6 +107,24 @@ export const env = createEnv({
     AUTH_OKTA_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_OKTA_CHECKS: zAuthChecks,
     AUTH_OKTA_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AUTHENTIK_CLIENT_ID: z.string().optional(),
+    AUTH_AUTHENTIK_CLIENT_SECRET: z.string().optional(),
+    AUTH_AUTHENTIK_ISSUER: z
+      .string()
+      .regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+        message:
+          "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
+      })
+      .optional(),
+    AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_AUTHENTIK_CHECKS: zAuthChecks,
+    AUTH_AUTHENTIK_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_ONELOGIN_CLIENT_ID: z.string().optional(),
+    AUTH_ONELOGIN_CLIENT_SECRET: z.string().optional(),
+    AUTH_ONELOGIN_ISSUER: z.string().optional(),
+    AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_ONELOGIN_CHECKS: zAuthChecks,
+    AUTH_ONELOGIN_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CLIENT_ID: z.string().optional(),
     AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTH0_ISSUER: z.string().url().optional(),
@@ -125,6 +143,11 @@ export const env = createEnv({
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_KEYCLOAK_CHECKS: zAuthChecks,
+    AUTH_KEYCLOAK_SCOPE: z.string().optional(),
+    AUTH_KEYCLOAK_ID_TOKEN: z
+      .enum(["true", "false"])
+      .optional()
+      .default("true"),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
     AUTH_CUSTOM_ISSUER: z.string().url().optional(),
@@ -133,12 +156,17 @@ export const env = createEnv({
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_CUSTOM_CHECKS: zAuthChecks,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
-    AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional(),
+    AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
     AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_WORKOS_ORGANIZATION_ID: z.string().optional(),
     AUTH_WORKOS_CONNECTION_ID: z.string().optional(),
+    AUTH_WORDPRESS_CLIENT_ID: z.string().optional(),
+    AUTH_WORDPRESS_CLIENT_SECRET: z.string().optional(),
+    AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_WORDPRESS_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_WORDPRESS_CHECKS: zAuthChecks,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
@@ -164,11 +192,6 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
-
-    LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS: z.string().optional(),
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
@@ -278,6 +301,39 @@ export const env = createEnv({
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
+
+    // Tracing for Langfuse AI Features
+    LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
+
+    // Natural Langfuse Filters
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
+    LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
+
+    // API Performance Flags
+    // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
+    // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
+    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
+      .enum(["true", "false"])
+      .default("false"),
+    // Whether to propagate the toTimestamp restriction (including a server-side offset)
+    // onto the observations CTE in GET /api/public/traces. Can be used to improve performance
+    // for self-hosters that have a trace known trace duration of less than multiple hours.
+    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
+      .enum(["true", "false"])
+      .default("false"),
+
+    // Events table migration
+    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
+      .enum(["true", "false"])
+      .default("false"),
+
+    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
+      .enum(["true", "false"])
+      .default("false"),
   },
 
   /**
@@ -391,6 +447,22 @@ export const env = createEnv({
       process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
     AUTH_OKTA_CLIENT_AUTH_METHOD: process.env.AUTH_OKTA_CLIENT_AUTH_METHOD,
     AUTH_OKTA_CHECKS: process.env.AUTH_OKTA_CHECKS,
+    AUTH_AUTHENTIK_CLIENT_ID: process.env.AUTH_AUTHENTIK_CLIENT_ID,
+    AUTH_AUTHENTIK_CLIENT_SECRET: process.env.AUTH_AUTHENTIK_CLIENT_SECRET,
+    AUTH_AUTHENTIK_ISSUER: process.env.AUTH_AUTHENTIK_ISSUER,
+    AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING,
+    AUTH_AUTHENTIK_CLIENT_AUTH_METHOD:
+      process.env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+    AUTH_AUTHENTIK_CHECKS: process.env.AUTH_AUTHENTIK_CHECKS,
+    AUTH_ONELOGIN_CLIENT_ID: process.env.AUTH_ONELOGIN_CLIENT_ID,
+    AUTH_ONELOGIN_CLIENT_SECRET: process.env.AUTH_ONELOGIN_CLIENT_SECRET,
+    AUTH_ONELOGIN_ISSUER: process.env.AUTH_ONELOGIN_ISSUER,
+    AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING,
+    AUTH_ONELOGIN_CLIENT_AUTH_METHOD:
+      process.env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+    AUTH_ONELOGIN_CHECKS: process.env.AUTH_ONELOGIN_CHECKS,
     AUTH_AUTH0_CLIENT_ID: process.env.AUTH_AUTH0_CLIENT_ID,
     AUTH_AUTH0_CLIENT_SECRET: process.env.AUTH_AUTH0_CLIENT_SECRET,
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
@@ -414,6 +486,8 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CLIENT_AUTH_METHOD:
       process.env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
     AUTH_KEYCLOAK_CHECKS: process.env.AUTH_KEYCLOAK_CHECKS,
+    AUTH_KEYCLOAK_SCOPE: process.env.AUTH_KEYCLOAK_SCOPE,
+    AUTH_KEYCLOAK_ID_TOKEN: process.env.AUTH_KEYCLOAK_ID_TOKEN,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
@@ -430,6 +504,13 @@ export const env = createEnv({
       process.env.AUTH_WORKOS_ALLOW_ACCOUNT_LINKING,
     AUTH_WORKOS_ORGANIZATION_ID: process.env.AUTH_WORKOS_ORGANIZATION_ID,
     AUTH_WORKOS_CONNECTION_ID: process.env.AUTH_WORKOS_CONNECTION_ID,
+    AUTH_WORDPRESS_CLIENT_ID: process.env.AUTH_WORDPRESS_CLIENT_ID,
+    AUTH_WORDPRESS_CLIENT_SECRET: process.env.AUTH_WORDPRESS_CLIENT_SECRET,
+    AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING,
+    AUTH_WORDPRESS_CLIENT_AUTH_METHOD:
+      process.env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+    AUTH_WORDPRESS_CHECKS: process.env.AUTH_WORDPRESS_CHECKS,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
@@ -445,11 +526,6 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
-
-    LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE:
-      process.env.LANGFUSE_EXPERIMENT_USE_OTEL_INGESTION_QUEUE,
-    LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS:
-      process.env.LANGFUSE_EXPERIMENT_OTEL_INGESTION_QUEUE_PROJECT_IDS,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
@@ -553,6 +629,31 @@ export const env = createEnv({
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
+
+    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
+
+    // Langfuse Tracing AI Features
+    LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
+
+    // Api Performance Flags
+    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS:
+      process.env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS,
+    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL:
+      process.env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL,
+
+    // Natural Language Filters
+    LANGFUSE_AI_FEATURES_PUBLIC_KEY:
+      process.env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+    LANGFUSE_AI_FEATURES_SECRET_KEY:
+      process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+    LANGFUSE_AI_FEATURES_PROJECT_ID:
+      process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
+    // Events table migration
+    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

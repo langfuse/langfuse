@@ -16,6 +16,12 @@ const EnvSchema = z.object({
 
   NEXTAUTH_URL: z.string().optional(),
 
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
+    .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
+    .optional(),
+
+  STRIPE_SECRET_KEY: z.string().optional(),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -59,6 +65,7 @@ const EnvSchema = z.object({
     .default(50_000),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
+  CLOUD_CRM_EMAIL: z.string().optional(),
   LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -75,7 +82,7 @@ const EnvSchema = z.object({
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
-    .default(10000),
+    .default(1000),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
     .number()
     .positive()
@@ -115,7 +122,6 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
-  STRIPE_SECRET_KEY: z.string().optional(),
 
   // Skip the read from ClickHouse within the Ingestion pipeline for the given
   // project ids. Applicable for projects that were created after the S3 write
@@ -146,6 +152,12 @@ const EnvSchema = z.object({
 
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z
@@ -187,6 +199,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -208,6 +223,25 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+
+  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
+  LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
+    .number()
+    .positive()
+    .default(200),
+  LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS: z.coerce
+    .number()
+    .positive()
+    .default(5 * 60 * 1000), // 5 minutes
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -243,6 +277,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  // When disabled: Usage is still tracked in DB but no emails are sent and no orgs are blocked
+  // When enabled: Full enforcement (emails + blocking)
+  LANGFUSE_FREE_TIER_USAGE_THRESHOLD_ENFORCEMENT_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+
   LANGFUSE_S3_CONCURRENT_READS: z.coerce.number().positive().default(50),
   LANGFUSE_CLICKHOUSE_PROJECT_DELETION_CONCURRENCY_DURATION_MS: z.coerce
     .number()
@@ -257,7 +297,14 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
+  // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB: z
     .enum(["true", "false"])
     .default("false"),
 
