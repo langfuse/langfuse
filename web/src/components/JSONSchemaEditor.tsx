@@ -83,7 +83,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
             value={value}
             onChange={onChange}
             mode="json"
-            minHeight={200}
+            minHeight={100}
             className={className}
             editable={!disabled}
           />
