@@ -223,7 +223,11 @@ export function HeatmapCard() {
   // Magic number 248px represents approximate available height for grid
   // (card height minus header, labels, legend, gaps)
   const numRows =
-    dataType === "NUMERIC" ? 10 : "rows" in heatmap ? heatmap.rows : 10;
+    dataType === "NUMERIC"
+      ? 10
+      : heatmap && "rows" in heatmap
+        ? heatmap.rows
+        : 10;
   const calculatedCellHeight = Math.floor(248 / numRows);
 
   return (
