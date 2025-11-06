@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Line, LineChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useCallback } from "react";
+import { Line, LineChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -7,6 +7,7 @@ import {
   type ChartConfig,
 } from "@/src/components/ui/chart";
 import { type IntervalConfig } from "@/src/utils/date-range-utils";
+import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 
 export interface NumericTimeSeriesChartProps {
   data: Array<{
@@ -56,6 +57,34 @@ export function ScoreTimeSeriesNumericChart({
       };
     });
   }, [data, score1Name, score2Name, interval, isComparisonMode]);
+
+  // Visibility state for interactive legend (comparison mode only)
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Create visibility state object for legend
+  const visibilityState = useMemo(() => {
+    if (!isComparisonMode) return undefined;
+    return {
+      [score1Name]: !hiddenKeys.has(score1Name),
+      ...(score2Name && { [score2Name]: !hiddenKeys.has(score2Name) }),
+    };
+  }, [hiddenKeys, score1Name, score2Name, isComparisonMode]);
+
+  // Toggle handler
+  const handleVisibilityToggle = useCallback(
+    (key: string, visible: boolean) => {
+      setHiddenKeys((prev) => {
+        const next = new Set(prev);
+        if (visible) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const config: ChartConfig = useMemo(() => {
     if (isComparisonMode && score2Name) {
@@ -127,8 +156,11 @@ export function ScoreTimeSeriesNumericChart({
           dataKey={score1Name}
           stroke={colors.score1}
           strokeWidth={2}
-          dot={true}
-          activeDot={{ r: 6, strokeWidth: 0 }}
+          strokeOpacity={hiddenKeys.has(score1Name) ? 0 : 1}
+          dot={!hiddenKeys.has(score1Name)}
+          activeDot={
+            !hiddenKeys.has(score1Name) ? { r: 6, strokeWidth: 0 } : false
+          }
           connectNulls
         />
         {isComparisonMode && score2Name && (
@@ -137,8 +169,11 @@ export function ScoreTimeSeriesNumericChart({
             dataKey={score2Name}
             stroke={colors.score2}
             strokeWidth={2}
-            dot={true}
-            activeDot={{ r: 6, strokeWidth: 0 }}
+            strokeOpacity={hiddenKeys.has(score2Name) ? 0 : 1}
+            dot={!hiddenKeys.has(score2Name)}
+            activeDot={
+              !hiddenKeys.has(score2Name) ? { r: 6, strokeWidth: 0 } : false
+            }
             connectNulls
           />
         )}
@@ -146,6 +181,15 @@ export function ScoreTimeSeriesNumericChart({
           content={<ChartTooltipContent />}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={isComparisonMode}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
         />
       </LineChart>
     </ChartContainer>

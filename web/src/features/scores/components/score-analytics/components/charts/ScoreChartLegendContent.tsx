@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useRef,
-  useLayoutEffect,
-  useEffect,
-  useMemo,
-} from "react";
+import React, { useState, useRef, useLayoutEffect, useMemo } from "react";
 import { type LegendProps } from "recharts";
 import { MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -243,6 +237,7 @@ export const ScoreChartLegendContent = React.forwardRef<
       return () => {
         resizeObserver.disconnect();
       };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Empty deps - run only once, ResizeObserver handles updates
 
     const handleItemClick = (key: string) => {
@@ -254,21 +249,13 @@ export const ScoreChartLegendContent = React.forwardRef<
       onVisibilityChange(key, newVisibility);
     };
 
-    if (!payload || payload.length === 0) {
-      return null;
-    }
-
-    // Calculate visible items based on width-based measurement
-    // maxVisibleItems is calculated by ResizeObserver to reserve button space
-    const visibleCount = needsPopover
-      ? (maxVisibleItems ?? Math.max(6, Math.floor(payload.length * 0.7)))
-      : payload.length;
-
-    const visibleItems = payload.slice(0, visibleCount);
-    const hiddenCount = payload.length - visibleItems.length;
-
     // Group items by score name (prefix before dash)
+    // Must be before early return to satisfy React hooks rules
     const groupedItems = useMemo(() => {
+      if (!payload || payload.length === 0) {
+        return {};
+      }
+
       const groups: Record<string, typeof payload> = {};
 
       payload.forEach((item) => {
@@ -292,6 +279,19 @@ export const ScoreChartLegendContent = React.forwardRef<
 
       return groups;
     }, [payload, nameKey]);
+
+    if (!payload || payload.length === 0) {
+      return null;
+    }
+
+    // Calculate visible items based on width-based measurement
+    // maxVisibleItems is calculated by ResizeObserver to reserve button space
+    const visibleCount = needsPopover
+      ? (maxVisibleItems ?? Math.max(6, Math.floor(payload.length * 0.7)))
+      : payload.length;
+
+    const visibleItems = payload.slice(0, visibleCount);
+    const hiddenCount = payload.length - visibleItems.length;
 
     // Smart label formatter for common patterns
     const smartFormatLabel = (label: string): string => {
@@ -325,13 +325,13 @@ export const ScoreChartLegendContent = React.forwardRef<
     };
 
     // Format label for display
-    const getFormattedLabel = (item: (typeof payload)[0]) => {
+    const getFormattedLabel = (item: (typeof payload)[0]): string => {
       const key = `${nameKey || item.dataKey || "value"}`;
 
       // Try to get label from ChartConfig first
       const itemConfig = getPayloadConfigFromPayload(config, item, key);
       if (itemConfig?.label) {
-        return itemConfig.label;
+        return String(itemConfig.label);
       }
 
       // Fallback to original logic
@@ -343,11 +343,12 @@ export const ScoreChartLegendContent = React.forwardRef<
       }
 
       if (formatLabel) {
-        return formatLabel(rawLabel, item);
+        const formatted = formatLabel(rawLabel, item);
+        return String(formatted);
       }
 
       // Apply smart formatting as final fallback
-      return smartFormatLabel(rawLabel);
+      return smartFormatLabel(String(rawLabel));
     };
 
     return (
@@ -425,7 +426,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                   </div>
                   <div className="space-y-3">
                     {Object.entries(groupedItems).map(
-                      ([groupName, items], groupIndex) => (
+                      ([groupName, items], _groupIndex) => (
                         <div key={groupName}>
                           {/* Only show subheader if there are multiple groups */}
                           {Object.keys(groupedItems).length > 1 && (

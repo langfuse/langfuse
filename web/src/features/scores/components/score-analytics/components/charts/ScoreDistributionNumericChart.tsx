@@ -1,11 +1,12 @@
-import { useMemo } from "react";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useCallback } from "react";
+import { Bar, BarChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 
 interface NumericChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -79,6 +80,34 @@ export function ScoreDistributionNumericChart({
     return cfg;
   }, [isComparisonMode, score1Name, score2Name, colors]);
 
+  // Visibility state for interactive legend (comparison mode only)
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Create visibility state object for legend
+  const visibilityState = useMemo(() => {
+    if (!isComparisonMode) return undefined;
+    return {
+      pv: !hiddenKeys.has("pv"),
+      uv: !hiddenKeys.has("uv"),
+    };
+  }, [hiddenKeys, isComparisonMode]);
+
+  // Toggle handler
+  const handleVisibilityToggle = useCallback(
+    (key: string, visible: boolean) => {
+      setHiddenKeys((prev) => {
+        const next = new Set(prev);
+        if (visible) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   const hasManyBins = chartData.length > 10;
 
   return (
@@ -114,11 +143,31 @@ export function ScoreDistributionNumericChart({
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
 
-        <Bar dataKey="pv" fill={colors.score1} radius={[4, 4, 0, 0]} />
+        <Bar
+          dataKey="pv"
+          fill={colors.score1}
+          fillOpacity={hiddenKeys.has("pv") ? 0 : 1}
+          radius={[4, 4, 0, 0]}
+        />
 
         {isComparisonMode && (
-          <Bar dataKey="uv" fill={colors.score2} radius={[4, 4, 0, 0]} />
+          <Bar
+            dataKey="uv"
+            fill={colors.score2}
+            fillOpacity={hiddenKeys.has("uv") ? 0 : 1}
+            radius={[4, 4, 0, 0]}
+          />
         )}
+
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={isComparisonMode}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
+        />
       </BarChart>
     </ChartContainer>
   );

@@ -64,7 +64,7 @@ export function ScoreDistributionBooleanChart({
 
   // Create visibility state object for legend
   const visibilityState = useMemo(() => {
-    if (!isComparisonMode) return {};
+    if (!isComparisonMode) return undefined;
     return {
       pv: !hiddenKeys.has("pv"),
       uv: !hiddenKeys.has("uv"),
