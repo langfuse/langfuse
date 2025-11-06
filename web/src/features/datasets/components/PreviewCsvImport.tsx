@@ -25,6 +25,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
+import { chunk } from "lodash";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -69,12 +70,6 @@ type ImportProgress = {
   processedItems: number;
   status: "not-started" | "processing" | "complete";
 };
-
-function chunkArray<T>(array: T[], size: number): T[][] {
-  return Array.from({ length: Math.ceil(array.length / size) }, (_, i) =>
-    array.slice(i * size, i * size + size),
-  );
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -288,7 +283,7 @@ export function PreviewCsvImport({
       });
 
       const optimalChunkSize = getOptimalChunkSize(items, CHUNK_START_SIZE);
-      const chunks = chunkArray(items, optimalChunkSize);
+      const chunks = chunk(items, optimalChunkSize);
 
       for (const [index, chunk] of chunks.entries()) {
         const result = await mutCreateManyDatasetItems.mutateAsync({
