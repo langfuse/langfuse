@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Info } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { ScoreCombobox } from "./charts/ScoreCombobox";
 import { ObjectTypeFilter } from "./charts/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -7,6 +7,12 @@ import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
 import { type TimeRange } from "@/src/utils/date-range-utils";
 import { type ScoreOption } from "./charts/ScoreCombobox";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 
 export interface ScoreAnalyticsHeaderProps {
   scoreOptions: ScoreOption[];
@@ -73,15 +79,31 @@ export function ScoreAnalyticsHeader({
           disabled={!urlState.score1}
           className="h-8 w-[200px]"
         />
-        <a
-          href="https://langfuse.com/discussions"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center"
-          title="Score analytics is currently in beta. Click here to provide feedback!"
-        >
-          <Info className="h-4 w-4 text-muted-foreground" />
-        </a>
+        <HoverCard>
+          <HoverCardTrigger asChild>
+            <Badge variant="warning" className="cursor-help">
+              Beta Feature
+            </Badge>
+          </HoverCardTrigger>
+          <HoverCardContent className="w-80">
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold">Beta Feature</h4>
+              <p className="text-sm text-muted-foreground">
+                Score analytics is currently in beta. We're actively improving
+                this feature and would love to hear your feedback.
+              </p>
+              <a
+                href="https://langfuse.com/discussions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                Share feedback on GitHub Discussions
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       </div>
 
       {/* Middle: Spacer (hidden on mobile) */}
