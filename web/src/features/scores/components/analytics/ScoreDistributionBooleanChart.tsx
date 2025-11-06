@@ -9,6 +9,7 @@ import {
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 import {
   getSingleScoreColor,
+  getSingleScoreChartConfig,
   getTwoScoreColors,
 } from "@/src/features/scores/lib/color-scales";
 
