@@ -7,7 +7,10 @@ import {
   type ChartConfig,
 } from "@/src/components/ui/chart";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
-import { getSingleScoreColor } from "@/src/features/scores/lib/color-scales";
+import {
+  getSingleScoreColor,
+  getSingleScoreChartConfig,
+} from "@/src/features/scores/lib/color-scales";
 
 interface CategoricalChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
