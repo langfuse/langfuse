@@ -10,6 +10,7 @@ import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "./metrics";
+import RuntimeOptimization from "./runtime-optimization";
 import { useQueryParams, StringParam } from "use-query-params";
 import React from "react";
 import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
@@ -27,12 +28,14 @@ export default function PromptsWithFolder() {
   // this in the UI (we URL encode here and don't strip metrics). We could resolve this with another API call
   // to check the prompt name existence.
   const segmentsArray = Array.isArray(routeSegments) ? routeSegments : [];
+  const lastSegment = segmentsArray[segmentsArray.length - 1];
   const isMetricsPage =
-    segmentsArray.length > 0 &&
-    segmentsArray[segmentsArray.length - 1] === "metrics";
+    segmentsArray.length > 0 && lastSegment === "metrics";
+  const isRuntimeOptimizationPage =
+    segmentsArray.length > 0 && lastSegment === "runtime-optimization";
   const promptNameFromRoute =
     segmentsArray.length > 0
-      ? isMetricsPage
+      ? isMetricsPage || isRuntimeOptimizationPage
         ? segmentsArray.slice(0, -1).join("/")
         : segmentsArray.join("/")
       : "";
@@ -71,10 +74,13 @@ export default function PromptsWithFolder() {
 
   const showOnboarding = !isLoading && !hasAnyPrompt;
 
-  // Decide what to render: metrics, detail, or folder view
+  // Decide what to render: metrics, runtime optimization, detail, or folder view
   if (promptNameFromRoute.length > 0) {
     if (isMetricsPage) {
       return <PromptMetrics promptName={promptNameFromRoute} />;
+    }
+    if (isRuntimeOptimizationPage) {
+      return <RuntimeOptimization promptName={promptNameFromRoute} />;
     }
     return <PromptDetail promptName={promptNameFromRoute} />;
   }
