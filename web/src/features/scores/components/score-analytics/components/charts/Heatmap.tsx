@@ -117,9 +117,16 @@ export function Heatmap({
     if (rowLabelsRef.current && rowLabels && rowLabels.length > 0) {
       // Measure the actual width needed for the labels
       const width = rowLabelsRef.current.scrollWidth;
+      console.log("[Heatmap] Measured row labels scrollWidth:", width);
+
       // Add some padding (8px for pr-1, plus extra buffer)
       const totalWidth = width + 16;
-      setRowLabelsWidth(Math.max(60, Math.min(totalWidth, 120))); // Min 60px, max 120px
+      console.log("[Heatmap] Total width with padding:", totalWidth);
+
+      const finalWidth = Math.max(60, Math.min(totalWidth, 120)); // Min 60px, max 120px
+      console.log("[Heatmap] Final constrained width:", finalWidth);
+
+      setRowLabelsWidth(finalWidth);
     }
   }, [rowLabels, isDivisionPointMode]);
 
