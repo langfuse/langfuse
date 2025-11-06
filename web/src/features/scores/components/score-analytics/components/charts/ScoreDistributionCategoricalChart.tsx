@@ -3,9 +3,9 @@ import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 
 interface CategoricalChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -114,8 +114,6 @@ export function ScoreDistributionCategoricalChart({
     allStackKeys,
   ]);
 
-  const hasManyCategories = chartData.length > 10;
-
   // Configure chart colors and config using provided colors
   const config: ChartConfig = useMemo(() => {
     if (hasStackedData && allStackKeys.length > 0) {
@@ -150,31 +148,29 @@ export function ScoreDistributionCategoricalChart({
       config={config}
       className="[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-transparent"
     >
-      <BarChart
-        accessibilityLayer
-        data={chartData}
-        margin={{ bottom: hasManyCategories ? 60 : 20 }}
-      >
+      <BarChart accessibilityLayer data={chartData} margin={{ bottom: 20 }}>
         <XAxis
           dataKey="name"
           stroke="hsl(var(--chart-grid))"
-          fontSize={8}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
-          angle={hasManyCategories ? -45 : 0}
-          textAnchor={hasManyCategories ? "end" : "middle"}
-          height={hasManyCategories ? 90 : 30}
+          interval={0}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
-          fontSize={8}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => value.toLocaleString()}
         />
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={
+            <ScoreChartTooltip
+              valueFormatter={(value) => value.toLocaleString()}
+              labelFormatter={(label) => String(label)}
+            />
+          }
         />
 
         {hasStackedData &&

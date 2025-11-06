@@ -3,11 +3,14 @@ import { Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
-import { type IntervalConfig } from "@/src/utils/date-range-utils";
-import { formatTimestamp } from "./ScoreTimeSeriesNumericChart";
+import {
+  type IntervalConfig,
+  type TimeRange,
+} from "@/src/utils/date-range-utils";
+import { formatChartTimestamp } from "../../libs/chart-formatters";
+import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 
 export interface CategoricalTimeSeriesChartProps {
   data: Array<{
@@ -18,6 +21,7 @@ export interface CategoricalTimeSeriesChartProps {
   score1Name: string;
   score2Name?: string;
   interval: IntervalConfig;
+  timeRange: TimeRange;
   colors: Record<string, string>;
 }
 
@@ -31,6 +35,7 @@ export function ScoreTimeSeriesCategoricalChart({
   score1Name: _score1Name,
   score2Name: _score2Name,
   interval,
+  timeRange,
   colors,
 }: CategoricalTimeSeriesChartProps) {
   // Transform categorical data into pivot format for Recharts
@@ -54,9 +59,10 @@ export function ScoreTimeSeriesCategoricalChart({
     const formattedData = Array.from(groupedByTimestamp.entries())
       .sort(([tsA], [tsB]) => tsA - tsB)
       .map(([timestamp, categoryMap]) => {
-        const formattedTimestamp = formatTimestamp(
+        const formattedTimestamp = formatChartTimestamp(
           new Date(timestamp),
           interval,
+          timeRange,
         );
 
         const dataPoint: Record<string, string | number> = {
@@ -75,7 +81,7 @@ export function ScoreTimeSeriesCategoricalChart({
       chartData: formattedData,
       categories: Array.from(allCategories).sort(),
     };
-  }, [data, interval]);
+  }, [data, interval, timeRange]);
 
   // Create chart config with colors for each category
   const config: ChartConfig = useMemo(() => {
@@ -132,6 +138,7 @@ export function ScoreTimeSeriesCategoricalChart({
           tickLine={false}
           axisLine={false}
           label={{ value: "Count", angle: -90, position: "insideLeft" }}
+          tickFormatter={(value) => value.toLocaleString()}
         />
         {categories.map((category) => (
           <Line
@@ -146,9 +153,13 @@ export function ScoreTimeSeriesCategoricalChart({
           />
         ))}
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={
+            <ScoreChartTooltip
+              interval={interval}
+              timeRange={timeRange}
+              valueFormatter={(value) => value.toLocaleString()}
+            />
+          }
         />
       </LineChart>
     </ChartContainer>

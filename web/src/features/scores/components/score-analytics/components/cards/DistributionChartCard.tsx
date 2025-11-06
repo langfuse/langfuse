@@ -135,31 +135,39 @@ export function DistributionChartCard() {
 
     // Categorical/Boolean charts on individual tabs - regenerate colors for that specific score
     if (dataType === "CATEGORICAL" || dataType === "BOOLEAN") {
-      if (activeTab === "score1" && data.distribution.categories) {
-        // Regenerate colors for score1 only to avoid collision with score2
-        const categoryColors =
-          dataType === "CATEGORICAL"
-            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-                1,
-                data.distribution.categories,
-              )
-            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
-                1,
-              );
-        return categoryColors;
+      if (activeTab === "score1") {
+        // For boolean individual view, use solid color like numeric charts
+        if (dataType === "BOOLEAN") {
+          return { score1: getColorForScore(1) };
+        }
+        // For categorical, regenerate colors for score1 only to avoid collision with score2
+        if (data.distribution.categories) {
+          return require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
+            1,
+            data.distribution.categories,
+          );
+        }
       }
-      if (activeTab === "score2" && data.distribution.score2Categories) {
-        // Regenerate colors for score2 only to avoid collision with score1
-        const categoryColors =
-          dataType === "CATEGORICAL"
-            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-                2,
-                data.distribution.score2Categories,
-              )
-            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
-                2,
-              );
-        return categoryColors;
+      if (activeTab === "score2") {
+        // For boolean individual view, use solid color like numeric charts
+        if (dataType === "BOOLEAN") {
+          return { score1: getColorForScore(2) };
+        }
+        // For categorical, regenerate colors for score2 only to avoid collision with score1
+        if (data.distribution.score2Categories) {
+          return require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
+            2,
+            data.distribution.score2Categories,
+          );
+        }
+      }
+
+      // For "all" or "matched" tabs with boolean data, use solid colors like numeric
+      if (dataType === "BOOLEAN") {
+        return {
+          score1: getColorForScore(1),
+          score2: getColorForScore(2),
+        };
       }
     }
 
@@ -175,7 +183,7 @@ export function DistributionChartCard() {
           <CardTitle>Distribution</CardTitle>
           <CardDescription>Loading chart...</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center">
+        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -190,7 +198,7 @@ export function DistributionChartCard() {
           <CardTitle>Distribution</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
           Select a score to view distribution
         </CardContent>
       </Card>
@@ -270,7 +278,7 @@ export function DistributionChartCard() {
           )}
         </div>
       </CardHeader>
-      <CardContent className="h-[300px]">
+      <CardContent className="flex h-[340px] flex-col pl-0">
         {hasData ? (
           <ScoreDistributionChart
             distribution1={distribution1Data}

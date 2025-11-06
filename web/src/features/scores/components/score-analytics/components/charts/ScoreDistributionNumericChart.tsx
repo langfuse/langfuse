@@ -3,9 +3,10 @@ import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { compactNumberFormatter } from "@/src/utils/numbers";
+import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 
 interface NumericChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -79,39 +80,34 @@ export function ScoreDistributionNumericChart({
     return cfg;
   }, [isComparisonMode, score1Name, score2Name, colors]);
 
-  const hasManyBins = chartData.length > 10;
-
   return (
     <ChartContainer
       config={config}
       className="[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-transparent"
     >
-      <BarChart
-        accessibilityLayer
-        data={chartData}
-        margin={{ bottom: hasManyBins ? 60 : 20 }}
-      >
+      <BarChart accessibilityLayer data={chartData} margin={{ bottom: 20 }}>
         <XAxis
           dataKey="dimension"
           stroke="hsl(var(--chart-grid))"
-          fontSize={6}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
-          angle={hasManyBins ? -45 : 0}
-          textAnchor={hasManyBins ? "end" : "middle"}
-          height={hasManyBins ? 90 : 30}
-          interval={0}
+          interval={1}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
-          fontSize={6}
+          fontSize={12}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => compactNumberFormatter(value)}
         />
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={
+            <ScoreChartTooltip
+              valueFormatter={compactNumberFormatter}
+              labelFormatter={(label) => String(label)}
+            />
+          }
         />
 
         <Bar dataKey="pv" fill={colors.score1} radius={[4, 4, 0, 0]} />

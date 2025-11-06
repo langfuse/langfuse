@@ -210,7 +210,7 @@ export function TimelineChartCard() {
           <CardTitle>Trend Over Time</CardTitle>
           <CardDescription>Loading chart...</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center">
+        <CardContent className="flex h-[340px] grow items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -225,7 +225,7 @@ export function TimelineChartCard() {
           <CardTitle>Trend Over Time</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex h-[340px] items-center justify-center text-sm text-muted-foreground">
           Select a score to view trends
         </CardContent>
       </Card>
@@ -234,7 +234,13 @@ export function TimelineChartCard() {
 
   const { metadata } = data;
   const { mode, dataType } = metadata;
-  const { score1, score2, interval } = params;
+  const { score1, score2, interval, fromTimestamp, toTimestamp } = params;
+
+  // Construct TimeRange from params timestamps
+  const timeRange = {
+    from: fromTimestamp,
+    to: toTimestamp,
+  };
 
   const hasData = chartData.length > 0;
   const showTabs = mode === "two";
@@ -305,7 +311,7 @@ export function TimelineChartCard() {
           )}
         </div>
       </CardHeader>
-      <CardContent className="h-[300px]">
+      <CardContent className="flex h-[340px] flex-col pl-0">
         {hasData ? (
           <ScoreTimeSeriesChart
             data={chartData}
@@ -325,6 +331,7 @@ export function TimelineChartCard() {
                   : undefined
             }
             interval={interval}
+            timeRange={timeRange}
             colors={chartColors}
           />
         ) : (
