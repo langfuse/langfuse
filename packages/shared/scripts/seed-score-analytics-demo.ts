@@ -72,7 +72,7 @@ function generateRealisticTimestamp(): number {
     daysAgo = 90 + Math.random() * 275;
   }
 
-  const timestamp = now - daysAgo * 24 * 60 * 60 * 1000;
+  const timestamp = now - Math.floor(daysAgo * 24 * 60 * 60 * 1000);
 
   // Apply weekly pattern (lower on weekends)
   const date = new Date(timestamp);
@@ -83,13 +83,13 @@ function generateRealisticTimestamp(): number {
     // 30% chance to skip weekend data
     if (Math.random() < 0.3) {
       // Shift to Monday
-      return timestamp + (8 - dayOfWeek) * 24 * 60 * 60 * 1000;
+      return Math.floor(timestamp + (8 - dayOfWeek) * 24 * 60 * 60 * 1000);
     }
   }
 
-  // Add some random minutes/hours within the day
-  const hourJitter = Math.random() * 24 * 60 * 60 * 1000;
-  return Math.floor(timestamp + hourJitter);
+  // Add some random minutes/hours within the day (ensure integer)
+  const hourJitter = Math.floor(Math.random() * 24 * 60 * 60 * 1000);
+  return timestamp + hourJitter;
 }
 
 async function seedBooleanScores(projectId: string) {
@@ -184,6 +184,7 @@ async function seedBooleanScores(projectId: string) {
         id: randomUUID(),
         project_id: projectId,
         trace_id: trace.id,
+        observation_id: null,
         timestamp: trace.timestamp + randomInt(1000, 60000), // 1-60 seconds after trace
         name: "has_tool_use",
         value: null,
@@ -203,6 +204,7 @@ async function seedBooleanScores(projectId: string) {
         id: randomUUID(),
         project_id: projectId,
         trace_id: trace.id,
+        observation_id: null,
         timestamp: trace.timestamp + randomInt(1000, 60000),
         name: "has_hallucination",
         value: null,
