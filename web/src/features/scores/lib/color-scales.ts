@@ -461,3 +461,45 @@ export function getScoreNumericColor(scoreNumber: 1 | 2): string {
   // Use darkest color from monochrome scale (100% base color)
   return mixColorsInOklab(extractHslToHex(baseColor), "white", 1.0, 0.1, 1.0);
 }
+
+/**
+ * Get color for heatmap cells using score-specific monochrome scale
+ * Scale goes from 10% (lightest) to 100% (darkest) base color
+ * Returns 'transparent' for zero values (special case for empty cells)
+ *
+ * @param scoreNumber - Which score (1 or 2)
+ * @param value - The cell value
+ * @param min - Minimum value in the heatmap range
+ * @param max - Maximum value in the heatmap range
+ * @returns Hex color string or 'transparent' for zero values
+ */
+export function getHeatmapCellColor(
+  scoreNumber: 1 | 2,
+  value: number,
+  min: number,
+  max: number,
+): string {
+  // Special case: empty cells (value = 0) should be transparent
+  if (value === 0) {
+    return "transparent";
+  }
+
+  const baseColor =
+    scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
+  const baseHex = extractHslToHex(baseColor);
+
+  // Handle edge cases
+  if (max === min) {
+    // All values are the same - use middle of range
+    return mixColorsInOklab(baseHex, "white", 0.55, 0.1, 1.0);
+  }
+
+  // Normalize value to [0, 1] range
+  const normalized = (value - min) / (max - min);
+
+  // Map to percentage range [10%, 100%]
+  // Higher values get darker colors (higher percentage of base color)
+  const percentage = 0.1 + normalized * 0.9;
+
+  return mixColorsInOklab(baseHex, "white", percentage, 0.1, 1.0);
+}

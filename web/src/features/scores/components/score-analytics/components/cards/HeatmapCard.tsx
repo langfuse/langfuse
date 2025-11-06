@@ -10,6 +10,9 @@ import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { Heatmap } from "../charts/Heatmap";
 import { HeatmapLegend } from "../charts/HeatmapLegend";
 import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
+import { getHeatmapCellColor } from "@/src/features/scores/lib/color-scales";
+import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
+import { useCallback } from "react";
 
 /**
  * HeatmapCard - Smart card component for displaying score comparison heatmaps
@@ -27,6 +30,22 @@ import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
  */
 export function HeatmapCard() {
   const { data, isLoading, params } = useScoreAnalytics();
+
+  // Compute max value for color scaling (must be before early returns)
+  const maxValue =
+    data?.heatmap && data.heatmap.cells && data.heatmap.cells.length > 0
+      ? "maxValue" in data.heatmap && typeof data.heatmap.maxValue === "number"
+        ? data.heatmap.maxValue
+        : Math.max(...data.heatmap.cells.map((c: HeatmapCell) => c.value))
+      : 0;
+
+  // Create color function using score1's color (must be before early returns)
+  const getColor = useCallback(
+    (cell: HeatmapCell) => {
+      return getHeatmapCellColor(1, cell.value, 0, maxValue);
+    },
+    [maxValue],
+  );
 
   // Loading state
   if (isLoading) {
@@ -117,6 +136,7 @@ export function HeatmapCard() {
               colLabels={heatmap.colLabels}
               xAxisLabel={`${score2?.name} (${score2?.source})`}
               yAxisLabel={`${score1.name} (${score1.source})`}
+              getColor={getColor}
               renderTooltip={(cell) => (
                 <div className="space-y-1">
                   <p className="font-semibold">Count: {cell.value}</p>
@@ -158,7 +178,7 @@ export function HeatmapCard() {
             />
             <HeatmapLegend
               min={0}
-              max={Math.max(...heatmap.cells.map((c) => c.value))}
+              max={maxValue}
               variant="accent"
               title="Count"
               orientation="horizontal"
