@@ -4,6 +4,7 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { formatChartTooltipTimestamp } from "./chart-formatters";
+import { useChart } from "@/src/components/ui/chart";
 
 /**
  * Props for the ScoreChartTooltip component.
@@ -58,6 +59,8 @@ export function ScoreChartTooltip({
   valueFormatter = (value: number) => value.toString(),
   labelFormatter,
 }: ScoreChartTooltipProps) {
+  const { config } = useChart();
+
   if (!active || !payload || payload.length === 0) {
     return null;
   }
@@ -106,6 +109,10 @@ export function ScoreChartTooltip({
       {/* Data series with values */}
       <div className={cn("space-y-1 px-3 py-1.5")}>
         {sortedPayload.map((entry, index) => {
+          // Get series label from config using the Bar's dataKey
+          const seriesKey = entry.name || entry.dataKey || "";
+          const seriesLabel = config[seriesKey]?.label || seriesKey;
+
           return (
             <div
               key={`${index}-${entry.name}`}
@@ -119,16 +126,9 @@ export function ScoreChartTooltip({
                 }}
               />
 
-              {/* Series name */}
+              {/* Series label from config */}
               <span className="flex-1 text-sm text-muted-foreground">
-                {sortedPayload.length === 1 && (
-                  // For non-stacked charts
-                  <>{entry.payload?.name ?? entry.dataKey ?? ""}</>
-                )}
-                {sortedPayload.length !== 1 && (
-                  // For stacked charts
-                  <>{entry.name?.toString() ?? entry.dataKey ?? ""}</>
-                )}
+                {seriesLabel?.toString() ?? ""}
               </span>
               {/* Formatted value */}
               <span className="text-sm font-medium text-foreground">
