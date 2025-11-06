@@ -10,6 +10,7 @@ import { env } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { IngestionService } from "../../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
+import { chunk } from "lodash";
 
 const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
   "langfuse:event-propagation:experiment-backfill:last-run";
@@ -684,17 +685,6 @@ export async function updateBackfillTimestamp(timestamp: Date): Promise<void> {
   } catch (error) {
     logger.error("[EXPERIMENT BACKFILL] Failed to update timestamp", error);
   }
-}
-
-/**
- * Chunk an array into smaller arrays of specified size.
- */
-function chunk<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
 }
 
 /**

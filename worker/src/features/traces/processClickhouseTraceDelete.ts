@@ -10,6 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
+import { chunk } from "lodash";
 
 let s3MediaStorageClient: StorageService;
 
@@ -36,7 +37,9 @@ const deleteMediaItemsForTraces = async (
   if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     return;
   }
-  // First, find all records associated with the traces to be deleted
+
+  // Phase 1: Find and delete references, collect affected mediaIds
+  const allMediaIds = new Set<string>();
   const [traceMediaItems, observationMediaItems] = await Promise.all([
     prisma.traceMedia.findMany({
       select: {
@@ -64,55 +67,11 @@ const deleteMediaItemsForTraces = async (
     }),
   ]);
 
-  // Find media items that will have no remaining references after deletion
-  const mediaDeleteCandidates = await prisma.media.findMany({
-    select: {
-      id: true,
-      bucketPath: true,
-    },
-    where: {
-      projectId,
-      id: {
-        in: [...traceMediaItems, ...observationMediaItems].map(
-          (ref) => ref.mediaId,
-        ),
-      },
-      TraceMedia: {
-        every: {
-          id: {
-            in: traceMediaItems.map((ref) => ref.id),
-          },
-        },
-      },
-      ObservationMedia: {
-        every: {
-          id: {
-            in: observationMediaItems.map((ref) => ref.id),
-          },
-        },
-      },
-    },
-  });
+  // Collect all affected mediaIds
+  traceMediaItems.forEach((item) => allMediaIds.add(item.mediaId));
+  observationMediaItems.forEach((item) => allMediaIds.add(item.mediaId));
 
-  // Remove the media items that will have no remaining references
-  if (mediaDeleteCandidates.length > 0) {
-    // Delete from Cloud Storage
-    await getS3MediaStorageClient(
-      env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "", // Fallback is never used.
-    ).deleteFiles(mediaDeleteCandidates.map((f) => f.bucketPath));
-
-    // Delete from postgres
-    await prisma.media.deleteMany({
-      where: {
-        id: {
-          in: mediaDeleteCandidates.map((f) => f.id),
-        },
-        projectId,
-      },
-    });
-  }
-
-  // Remove all traceMedia and observationMedia items that we found earlier
+  // Delete the junction table records in chunks
   await Promise.all([
     prisma.traceMedia.deleteMany({
       where: {
@@ -131,6 +90,52 @@ const deleteMediaItemsForTraces = async (
       },
     }),
   ]);
+
+  // Phase 2: Delete orphaned media items using NOT EXISTS subquery
+  if (allMediaIds.size === 0) {
+    return;
+  }
+
+  const mediaIdChunks = chunk(Array.from(allMediaIds), 1000);
+
+  for (const mediaIdChunk of mediaIdChunks) {
+    // First, fetch media items that are orphaned (no references) to get their bucket paths
+    const orphanedMedia = await prisma.media.findMany({
+      select: {
+        id: true,
+        bucketPath: true,
+      },
+      where: {
+        projectId,
+        id: {
+          in: mediaIdChunk,
+        },
+        TraceMedia: {
+          none: {},
+        },
+        ObservationMedia: {
+          none: {},
+        },
+      },
+    });
+
+    if (orphanedMedia.length > 0) {
+      // Delete from S3
+      await getS3MediaStorageClient(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "", // Fallback is never used.
+      ).deleteFiles(orphanedMedia.map((f) => f.bucketPath));
+
+      // Delete from postgres
+      await prisma.media.deleteMany({
+        where: {
+          projectId,
+          id: {
+            in: orphanedMedia.map((f) => f.id),
+          },
+        },
+      });
+    }
+  }
 };
 
 export const processClickhouseTraceDelete = async (

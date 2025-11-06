@@ -1730,6 +1730,7 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+      "ai.model.id",
       "gen_ai.request.model",
       "gen_ai.response.model",
       "llm.response.model",
