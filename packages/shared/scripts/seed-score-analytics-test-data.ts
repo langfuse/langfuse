@@ -302,11 +302,39 @@ async function seedCategoricalScoresOnObservations(projectId: string) {
 
   let score1Count = 0;
   let score2Count = 0;
+  let score3Count = 0;
+  let score4Count = 0;
   let bothScoresCount = 0;
   let annotationCount = 0;
 
   const colorValues = ["red", "blue", "green", "yellow"];
   const genderValues = ["male", "female", "unspecified"];
+  const sentimentValues = [
+    "very_negative",
+    "negative",
+    "slightly_negative",
+    "neutral",
+    "slightly_positive",
+    "positive",
+    "very_positive",
+  ];
+  const intentValues = [
+    "information_request",
+    "product_inquiry",
+    "technical_support",
+    "billing_question",
+    "account_management",
+    "feature_request",
+    "bug_report",
+    "complaint",
+    "compliment",
+    "general_inquiry",
+    "sales_inquiry",
+    "refund_request",
+    "shipping_inquiry",
+    "password_reset",
+    "other",
+  ];
 
   for (let i = 0; i < observationRecords.length; i++) {
     const obs = observationRecords[i];
@@ -351,6 +379,44 @@ async function seedCategoricalScoresOnObservations(projectId: string) {
       }
     }
 
+    // Add score3: sentiment (EVAL) - 7 categories
+    if (shouldHaveBoth || i < 300 + 350) {
+      const score = createTraceScore({
+        id: randomUUID(),
+        project_id: projectId,
+        trace_id: obs.traceId,
+        observation_id: obs.id,
+        timestamp: addTimeJitter(obs.timestamp, 60),
+        name: "sentiment",
+        value: null,
+        string_value: randomChoice(sentimentValues),
+        data_type: "CATEGORICAL",
+        source: "EVAL",
+        comment: "Sentiment analysis",
+      });
+      scoreRecords.push(score);
+      score3Count++;
+
+      // Add ANNOTATION version
+      if (shouldHaveAnnotation) {
+        const annotationScore = createTraceScore({
+          id: randomUUID(),
+          project_id: projectId,
+          trace_id: obs.traceId,
+          observation_id: obs.id,
+          timestamp: addTimeJitter(obs.timestamp, 120),
+          name: "sentiment",
+          value: null,
+          string_value: randomChoice(sentimentValues),
+          data_type: "CATEGORICAL",
+          source: "ANNOTATION",
+          comment: "Human annotation for sentiment",
+        });
+        scoreRecords.push(annotationScore);
+        annotationCount++;
+      }
+    }
+
     // Add score2: gender (API)
     if (shouldHaveBoth || (i >= 650 && i < 650 + 350)) {
       const score = createTraceScore({
@@ -389,6 +455,44 @@ async function seedCategoricalScoresOnObservations(projectId: string) {
       }
     }
 
+    // Add score4: intent (EVAL) - 15 categories
+    if (shouldHaveBoth || (i >= 650 && i < 650 + 350)) {
+      const score = createTraceScore({
+        id: randomUUID(),
+        project_id: projectId,
+        trace_id: obs.traceId,
+        observation_id: obs.id,
+        timestamp: addTimeJitter(obs.timestamp, 60),
+        name: "intent",
+        value: null,
+        string_value: randomChoice(intentValues),
+        data_type: "CATEGORICAL",
+        source: "EVAL",
+        comment: "User intent classification",
+      });
+      scoreRecords.push(score);
+      score4Count++;
+
+      // Add ANNOTATION version
+      if (shouldHaveAnnotation) {
+        const annotationScore = createTraceScore({
+          id: randomUUID(),
+          project_id: projectId,
+          trace_id: obs.traceId,
+          observation_id: obs.id,
+          timestamp: addTimeJitter(obs.timestamp, 120),
+          name: "intent",
+          value: null,
+          string_value: randomChoice(intentValues),
+          data_type: "CATEGORICAL",
+          source: "ANNOTATION",
+          comment: "Human annotation for intent",
+        });
+        scoreRecords.push(annotationScore);
+        annotationCount++;
+      }
+    }
+
     if (shouldHaveBoth) {
       bothScoresCount++;
     }
@@ -410,7 +514,13 @@ async function seedCategoricalScoresOnObservations(projectId: string) {
 
   console.log(`✅ Categorical scores summary:`);
   console.log(`   - color (score1): ${score1Count} observations`);
+  console.log(
+    `   - sentiment (score3): ${score3Count} observations - 7 categories`,
+  );
   console.log(`   - gender (score2): ${score2Count} observations`);
+  console.log(
+    `   - intent (score4): ${score4Count} observations - 15 categories`,
+  );
   console.log(`   - Both scores: ${bothScoresCount} observations`);
   console.log(`   - With ANNOTATION: ${annotationCount} additional scores`);
 }
@@ -667,9 +777,14 @@ async function main() {
   console.log(`⏱️  Total time: ${duration}s`);
   console.log("\n📋 Summary:");
   console.log("   - 1000 traces with Boolean scores (tool_use, memory_use)");
-  console.log("   - 1000 observations with Categorical scores (color, gender)");
+  console.log(
+    "   - 1000 observations with Categorical scores (color, gender, sentiment, intent)",
+  );
   console.log("   - 1000 observations with Numeric scores (rizz, clarity)");
   console.log("   - Each includes ~1/3 with ANNOTATION source variants");
+  console.log("\n📊 Legend Testing:");
+  console.log("   - sentiment: 7 categories (test borderline overflow)");
+  console.log("   - intent: 15 categories (test popover/truncation)");
   console.log("\n🎉 Ready to test score analytics!");
   console.log(`\n🔗 Visit: /project/${projectId}/scores/analytics`);
 }
