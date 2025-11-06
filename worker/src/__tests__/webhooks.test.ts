@@ -82,6 +82,16 @@ class WebhookTestServer {
       http.post("https://webhook-timeout.example.com/*", () => {
         return HttpResponse.error();
       }),
+
+      // Redirect endpoint (should not be followed)
+      http.post("https://webhook-redirect.example.com/*", () => {
+        return new Response(null, {
+          status: 301,
+          headers: {
+            Location: "https://internal.private.network/webhook",
+          },
+        });
+      }),
     );
   }
 
@@ -1101,6 +1111,84 @@ describe("Webhook Integration Tests", () => {
       });
 
       expect(failures).toBe(0);
+    });
+
+    it("should reject redirects to prevent SSRF attacks", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      // Update action to point to redirect endpoint
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-redirect.example.com/test",
+          },
+        },
+      });
+
+      const newExecutionId = v4();
+
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt-version",
+          },
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      // Execute webhook - should fail due to redirect
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      // Verify execution was marked as error
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      expect(execution?.error).toBeDefined();
+
+      // Verify error message doesn't leak internal IP information
+      expect(execution?.error).toContain("Webhook redirect not allowed");
+      expect(execution?.error).not.toContain("internal.private.network");
+
+      // Verify no requests were received at the redirect target
+      const requests = webhookServer.getReceivedRequests();
+      const redirectTargetRequests = requests.filter((r) =>
+        r.url.includes("internal.private.network"),
+      );
+      expect(redirectTargetRequests).toHaveLength(0);
     });
 
     it(

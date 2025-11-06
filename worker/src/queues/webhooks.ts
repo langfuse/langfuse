@@ -201,6 +201,7 @@ async function executeWebhookAction({
             body: webhookPayload,
             headers: requestHeaders,
             signal: abortController.signal,
+            redirect: "error", // Prevent following redirects to avoid SSRF
           });
 
           httpStatus = res.status;
@@ -223,6 +224,22 @@ async function executeWebhookAction({
               `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${webhookConfig.url} and project ${projectId}`,
             );
           }
+
+          // Handle redirect errors to prevent information leakage
+          // When redirect: "error" is set, fetch throws a TypeError for redirects
+          if (
+            error instanceof TypeError &&
+            (error.message.toLowerCase().includes("redirect") ||
+              error.message.toLowerCase().includes("failed to fetch"))
+          ) {
+            logger.warn(
+              `Webhook redirect detected for url ${webhookConfig.url} and project ${projectId}`,
+            );
+            throw new Error(
+              `Webhook redirect not allowed for url ${webhookConfig.url} and project ${projectId}`,
+            );
+          }
+
           throw error;
         } finally {
           clearTimeout(timeoutId);
