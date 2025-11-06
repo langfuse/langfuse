@@ -268,7 +268,6 @@ export const createEvent = (
 
     // Generic props
     blob_storage_file_path: "",
-    event_raw: "{}",
     event_bytes: 2,
     is_deleted: 0,
 

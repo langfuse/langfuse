@@ -251,6 +251,14 @@ export const ingestionQueueProcessorBuilder = (
       if (!redis) throw new Error("Redis not available");
       if (!prisma) throw new Error("Prisma not available");
 
+      // Determine whether to forward to staging events table
+      // Use explicit flag from job payload if provided, otherwise fall back to env flags
+      const forwardToEventsTable =
+        job.data.payload.data.forwardToEventsTable ??
+        (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
+          env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
+          env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true");
+
       await new IngestionService(
         redis,
         prisma,
@@ -262,11 +270,7 @@ export const ingestionQueueProcessorBuilder = (
         job.data.payload.data.eventBodyId,
         firstS3WriteTime,
         events,
-        // Should be true eventually, but depends on feature flag in the meantime.
-        // writeToStagingTables - enables batch propagation to events table
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-          env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
-          env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true",
+        forwardToEventsTable,
       );
     } catch (e) {
       logger.error(

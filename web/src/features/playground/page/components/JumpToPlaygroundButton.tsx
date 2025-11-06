@@ -258,7 +258,7 @@ const parseGeneration = (
   if (!isGenerationLike(generation.type)) return null;
 
   let modelParams = parseModelParams(generation, modelToProviderMap);
-  const tools = parseTools(generation.input);
+  const tools = parseTools(generation.input, generation.metadata);
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
@@ -400,12 +400,16 @@ function parseModelParams(
   return modelParams;
 }
 
-function parseTools(inputString: string | null): PlaygroundTool[] {
-  if (!inputString) return [];
+function parseTools(
+  inputString: string | null,
+  metadataString: string | null,
+): PlaygroundTool[] {
+  if (!inputString && !metadataString) return [];
 
   try {
-    const input = JSON.parse(inputString);
-    return extractTools(input);
+    const input = inputString ? JSON.parse(inputString) : null;
+    const metadata = metadataString ? JSON.parse(metadataString) : null;
+    return extractTools(input, metadata);
   } catch {
     return [];
   }

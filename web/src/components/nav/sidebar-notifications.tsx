@@ -30,6 +30,24 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw4-1",
+    title: "Launch Week 4: Day 1",
+    description:
+      "New Filters for Tables and Public API to query Traces and Observations.",
+    link: "https://langfuse.com/blog/2025-10-29-launch-week-4",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-03",
+  },
+  {
+    id: "lw4-2",
+    title: "Launch Week 4: Day 2",
+    description:
+      "Collaborate with your team in Langfuse with @mentions & emoji reactions for comments.",
+    link: "https://langfuse.com/changelog/2025-11-04-comment-mentions-and-reactions",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-04",
+  },
+  {
     id: "js-sdk-v4",
     title: "New JS/TS SDK v4",
     description:

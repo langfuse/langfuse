@@ -1,0 +1,184 @@
+import { useMemo } from "react";
+import { Line, LineChart, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/src/components/ui/chart";
+import { type IntervalConfig } from "@/src/utils/date-range-utils";
+
+export interface NumericTimeSeriesChartProps {
+  data: Array<{
+    timestamp: Date;
+    avg1: number | null;
+    avg2: number | null;
+    count: number;
+  }>;
+  score1Name: string;
+  score2Name?: string;
+  interval: IntervalConfig;
+  colors: { score1: string; score2?: string };
+}
+
+/**
+ * Numeric time series chart component
+ * Renders line charts for numeric score time series
+ * - Single score: One line
+ * - Two scores: Two lines for comparison
+ */
+export function ScoreTimeSeriesNumericChart({
+  data,
+  score1Name,
+  score2Name,
+  interval,
+  colors,
+}: NumericTimeSeriesChartProps) {
+  const isComparisonMode = Boolean(score2Name);
+
+  // Transform data for Recharts
+  const chartData = useMemo(() => {
+    return data.map((item) => {
+      // Format timestamp based on interval
+      const timestamp = formatTimestamp(item.timestamp, interval);
+
+      if (isComparisonMode) {
+        return {
+          time_dimension: timestamp,
+          [score1Name]: item.avg1,
+          [score2Name!]: item.avg2,
+        };
+      }
+
+      return {
+        time_dimension: timestamp,
+        [score1Name]: item.avg1,
+      };
+    });
+  }, [data, score1Name, score2Name, interval, isComparisonMode]);
+
+  const config: ChartConfig = useMemo(() => {
+    if (isComparisonMode && score2Name) {
+      return {
+        [score1Name]: {
+          label: score1Name,
+          color: colors.score1,
+        },
+        [score2Name]: {
+          label: score2Name,
+          color: colors.score2,
+        },
+      };
+    }
+    return {
+      [score1Name]: {
+        label: score1Name,
+        color: colors.score1,
+      },
+    };
+  }, [score1Name, score2Name, isComparisonMode, colors]);
+
+  if (chartData.length === 0) {
+    return (
+      <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+        No time series data available
+      </div>
+    );
+  }
+
+  // Check if all values are null (no data in the selected time range)
+  const hasAnyData = chartData.some((item) => {
+    if (isComparisonMode) {
+      return item[score1Name] !== null || item[score2Name!] !== null;
+    }
+    return item[score1Name] !== null;
+  });
+
+  if (!hasAnyData) {
+    return (
+      <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+        No data points available for the selected time range
+      </div>
+    );
+  }
+
+  return (
+    <ChartContainer config={config}>
+      <LineChart accessibilityLayer data={chartData}>
+        <XAxis
+          dataKey="time_dimension"
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+          interval={0}
+          angle={-45}
+          textAnchor="end"
+          height={80}
+        />
+        <YAxis
+          stroke="hsl(var(--chart-grid))"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+        />
+        <Line
+          type="monotone"
+          dataKey={score1Name}
+          stroke={colors.score1}
+          strokeWidth={2}
+          dot={true}
+          activeDot={{ r: 6, strokeWidth: 0 }}
+          connectNulls
+        />
+        {isComparisonMode && score2Name && (
+          <Line
+            type="monotone"
+            dataKey={score2Name}
+            stroke={colors.score2}
+            strokeWidth={2}
+            dot={true}
+            activeDot={{ r: 6, strokeWidth: 0 }}
+            connectNulls
+          />
+        )}
+        <ChartTooltip
+          content={<ChartTooltipContent />}
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
+      </LineChart>
+    </ChartContainer>
+  );
+}
+
+/**
+ * Format timestamp based on aggregation interval
+ * Matches the dashboard pattern from BaseTimeSeriesChart.tsx
+ *
+ * For fine-grained intervals (second, minute, hour): shows full datetime
+ * For coarse intervals (day, month, year): shows date only
+ */
+export function formatTimestamp(date: Date, interval: IntervalConfig): string {
+  const { unit } = interval;
+
+  // Fine-grained intervals: show date and time
+  // Pattern matches dashboard's convertDate for "minute" and "hour" dateTrunc
+  if (unit === "second" || unit === "minute" || unit === "hour") {
+    return date.toLocaleTimeString("en-US", {
+      year: "2-digit",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  // Coarse intervals: show date only
+  // Pattern matches dashboard's convertDate for "day", "week", "month" dateTrunc
+  return date.toLocaleDateString("en-US", {
+    year: "2-digit",
+    month: "numeric",
+    day: "numeric",
+  });
+}

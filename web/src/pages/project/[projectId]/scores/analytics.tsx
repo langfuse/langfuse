@@ -1,51 +1,52 @@
 import { useRouter } from "next/router";
-import { useMemo, useEffect, useRef, useCallback } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
 import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
-import { ScoreCombobox } from "@/src/features/scores/components/analytics/ScoreCombobox";
-import { ObjectTypeFilter } from "@/src/features/scores/components/analytics/ObjectTypeFilter";
-import { type ScoreOption } from "@/src/features/scores/components/analytics/ScoreCombobox";
-import { TimeRangePicker } from "@/src/components/date-picker";
+import { type ScoreOption } from "@/src/features/scores/components/score-analytics/components/charts/ScoreCombobox";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
-  DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
   getOptimalInterval,
 } from "@/src/utils/date-range-utils";
 import { BarChart3, Loader2 } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { SingleScoreAnalytics } from "@/src/features/scores/components/analytics/SingleScoreAnalytics";
-import { TwoScoreAnalytics } from "@/src/features/scores/components/analytics/TwoScoreAnalytics";
-import { ComparisonStatistics } from "@/src/features/scores/components/analytics/ComparisonStatistics";
-import { HeatmapCard } from "@/src/features/scores/components/analytics/HeatmapCard";
 import {
-  generateNumericHeatmapData,
-  generateConfusionMatrixData,
-} from "@/src/features/scores/lib/heatmap-utils";
+  ScoreAnalyticsProvider,
+  type DataType,
+} from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsProvider";
+import { ScoreAnalyticsHeader } from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsHeader";
+import { ScoreAnalyticsDashboard } from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsDashboard";
 
-export default function ScoresAnalyticsPage() {
+/**
+ * Score Analytics V2 - Refactored Architecture
+ *
+ * This page uses the new Provider + Hook + Smart Cards pattern:
+ * - ScoreAnalyticsProvider: Fetches & transforms data once, exposes via Context
+ * - ScoreAnalyticsHeader: Score selectors, filters, time range picker
+ * - ScoreAnalyticsDashboard: 2x2 responsive grid with 4 smart cards
+ * - Smart Cards: Self-contained components that consume Provider context
+ *   - StatisticsCard: Summary metrics and comparison stats
+ *   - TimelineChartCard: Time series trends
+ *   - DistributionChartCard: Score distributions
+ *   - HeatmapCard: Score comparison heatmaps
+ *
+ * Benefits over old implementation:
+ * - Single data fetch (no prop drilling)
+ * - Eliminated ~400 lines of duplicated code
+ * - Type-safe with proper interfaces
+ * - Clean separation of concerns
+ * - Easy to test and maintain
+ */
+export default function ScoresAnalyticsV2Page() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   const urlStateHook = useAnalyticsUrlState();
-  const { state: urlState, setScore2, setObjectType } = urlStateHook;
-
-  // Wrapper that clears score2 when score1 is cleared (Requirement 3)
-  const setScore1 = useCallback(
-    (value: string | undefined) => {
-      urlStateHook.setScore1(value);
-
-      // Always clear score2 when clearing score1
-      if (value === undefined) {
-        urlStateHook.setScore2(undefined);
-      }
-    },
-    [urlStateHook],
-  );
+  const { state: urlState, setScore2 } = urlStateHook;
 
   const { timeRange, setTimeRange } = useDashboardDateRange();
 
@@ -58,13 +59,6 @@ export default function ScoresAnalyticsPage() {
     { projectId },
     { enabled: !!projectId },
   );
-
-  // TODO: REMOVE BEFORE MERGING TO MAIN - Log the query result to console for debugging
-  useEffect(() => {
-    if (scoresData) {
-      console.log("[Score Analytics] Fetched score identifiers:", scoresData);
-    }
-  }, [scoresData]);
 
   // Transform API data to ScoreOption format and sort by dataType
   const scoreOptions: ScoreOption[] = useMemo(() => {
@@ -126,33 +120,27 @@ export default function ScoresAnalyticsPage() {
     }
 
     prevScore1DataTypeRef.current = score1DataType;
-  }, [
-    score1DataType,
-    urlState.score2,
-    setScore2,
-    compatibleScore2DataTypes,
-    scoreOptions,
-  ]);
+  }, [score1DataType, urlState.score2, setScore2]);
 
   // Parse score identifiers (format: "name-dataType-source")
   const parsedScore1 = useMemo(() => {
-    if (!urlState.score1) return null;
+    if (!urlState.score1) return undefined;
     const selected = scoreOptions.find((opt) => opt.value === urlState.score1);
-    if (!selected) return null;
+    if (!selected) return undefined;
     return {
       name: selected.name,
-      dataType: selected.dataType,
+      dataType: selected.dataType as DataType,
       source: selected.source,
     };
   }, [urlState.score1, scoreOptions]);
 
   const parsedScore2 = useMemo(() => {
-    if (!urlState.score2) return null;
+    if (!urlState.score2) return undefined;
     const selected = scoreOptions.find((opt) => opt.value === urlState.score2);
-    if (!selected) return null;
+    if (!selected) return undefined;
     return {
       name: selected.name,
-      dataType: selected.dataType,
+      dataType: selected.dataType as DataType,
       source: selected.source,
     };
   }, [urlState.score2, scoreOptions]);
@@ -163,220 +151,46 @@ export default function ScoresAnalyticsPage() {
     [timeRange],
   );
 
-  // Fetch analytics when at least one score is selected
-  // For single score: pass same score as both score1 and score2
-  const shouldFetchAnalytics = !!(
-    parsedScore1 &&
-    projectId &&
-    absoluteTimeRange?.from &&
-    absoluteTimeRange?.to
-  );
-
   // Calculate optimal interval based on time range
   const interval = useMemo(() => {
     if (!absoluteTimeRange) return { count: 1, unit: "day" as const };
     return getOptimalInterval(absoluteTimeRange.from, absoluteTimeRange.to);
   }, [absoluteTimeRange]);
 
-  // TODO: REMOVE BEFORE MERGING - Debug logging
-  useEffect(() => {
-    console.log("[Score Analytics] Fetch conditions:", {
-      parsedScore1,
-      parsedScore2,
+  // Determine query params for Provider
+  const queryParams = useMemo(() => {
+    if (
+      !parsedScore1 ||
+      !projectId ||
+      !absoluteTimeRange?.from ||
+      !absoluteTimeRange?.to
+    ) {
+      return undefined;
+    }
+
+    return {
       projectId,
-      timeRange,
-      absoluteTimeRange,
-      shouldFetchAnalytics,
-    });
+      score1: parsedScore1,
+      score2: parsedScore2,
+      fromTimestamp: absoluteTimeRange.from,
+      toTimestamp: absoluteTimeRange.to,
+      interval,
+      objectType: urlState.objectType,
+    };
   }, [
     parsedScore1,
     parsedScore2,
     projectId,
-    timeRange,
     absoluteTimeRange,
-    shouldFetchAnalytics,
+    interval,
+    urlState.objectType,
   ]);
 
-  const {
-    data: analyticsData,
-    isLoading: analyticsLoading,
-    error: analyticsError,
-  } = api.scores.getScoreComparisonAnalytics.useQuery(
-    {
-      projectId,
-      score1: parsedScore1!,
-      score2: parsedScore2 ?? parsedScore1!, // Use same score if only one selected
-      fromTimestamp: absoluteTimeRange?.from!,
-      toTimestamp: absoluteTimeRange?.to!,
-      interval,
-      objectType: urlState.objectType,
-      matchedOnly: false, // Not used anymore - tabs control display
-    },
-    {
-      enabled: shouldFetchAnalytics,
-    },
-  );
-
-  // Debug logging for query state
-  if (typeof window !== "undefined" && shouldFetchAnalytics) {
-    console.log("[Score Analytics] Query state:", {
-      isLoading: analyticsLoading,
-      hasData: !!analyticsData,
-      hasError: !!analyticsError,
-      error: analyticsError,
-      dataKeys: analyticsData ? Object.keys(analyticsData) : [],
-    });
-  }
-
-  // Preprocess heatmap data
-  const heatmapData = useMemo(() => {
-    if (!analyticsData || !parsedScore1) return null;
-
-    const isNumeric = parsedScore1.dataType === "NUMERIC";
-
-    if (isNumeric && analyticsData.heatmap.length > 0) {
-      // Transform API data to match heatmap-utils expected format
-      const transformedData = analyticsData.heatmap.map((row) => ({
-        bin_x: row.binX,
-        bin_y: row.binY,
-        count: row.count,
-        min1: row.min1,
-        max1: row.max1,
-        min2: row.min2,
-        max2: row.max2,
-      }));
-
-      return generateNumericHeatmapData({
-        data: transformedData,
-        nBins: 10,
-        colorVariant: "accent",
-        showCounts: true,
-        showPercentages: false,
-      });
-    } else if (!isNumeric && analyticsData.confusionMatrix.length > 0) {
-      // Transform API data for confusion matrix
-      const transformedData = analyticsData.confusionMatrix.map((row) => ({
-        row_category: row.rowCategory,
-        col_category: row.colCategory,
-        count: row.count,
-      }));
-
-      return generateConfusionMatrixData({
-        data: transformedData,
-        colorVariant: "accent",
-        highlightDiagonal: true,
-        showCounts: true,
-        showPercentages: true,
-      });
-    }
-
-    return null;
-  }, [analyticsData, parsedScore1]);
-
-  // Calculate mode metrics for categorical/boolean scores
-  const modeMetrics = useMemo(() => {
-    if (!analyticsData || !parsedScore1) return null;
-
-    const isNumeric = parsedScore1.dataType === "NUMERIC";
-    if (isNumeric) return null; // Mode only for categorical/boolean
-
-    // Check if both scores are the same (name + source)
-    const isSameScore =
-      parsedScore1 &&
-      parsedScore2 &&
-      parsedScore1.name === parsedScore2.name &&
-      parsedScore1.source === parsedScore2.source;
-
-    // Helper function to calculate mode from distribution and time series
-    const calculateModeFromData = (
-      distribution: Array<{ binIndex: number; count: number }>,
-      timeSeries: Array<{ category: string; count: number }>,
-      totalCount: number,
-    ) => {
-      if (distribution.length === 0 || timeSeries.length === 0) return null;
-
-      // Extract unique categories from time series and sort alphabetically
-      // This matches the ORDER BY in the ClickHouse query
-      const uniqueCategories = Array.from(
-        new Set(timeSeries.map((item) => item.category)),
-      ).sort();
-
-      // Create binIndex → category name mapping
-      const binIndexToCategory = new Map(
-        uniqueCategories.map((cat, idx) => [idx, cat]),
-      );
-
-      // Find bin with max count (mode)
-      const maxCount = Math.max(...distribution.map((d) => d.count));
-      const modeItem = distribution.find((d) => d.count === maxCount);
-
-      if (!modeItem) return null;
-
-      const categoryName = binIndexToCategory.get(modeItem.binIndex);
-      if (!categoryName) return null;
-
-      const modePercentage = (modeItem.count / totalCount) * 100;
-
-      return {
-        mode: {
-          category: categoryName,
-          count: modeItem.count,
-        },
-        modePercentage,
-      };
-    };
-
-    // Calculate for Score 1
-    const score1Metrics = calculateModeFromData(
-      analyticsData.distribution1,
-      analyticsData.timeSeriesCategorical1,
-      analyticsData.counts.score1Total,
-    );
-
-    // Calculate for Score 2
-    // If same score is selected twice, reuse Score 1 data
-    // (backend skips duplicate query, so distribution2/timeSeries2 may be empty)
-    const score2Metrics = isSameScore
-      ? calculateModeFromData(
-          analyticsData.distribution1, // Use Score 1 data
-          analyticsData.timeSeriesCategorical1, // Use Score 1 data
-          analyticsData.counts.score2Total, // Use Score 2 total (may equal Score 1 total)
-        )
-      : calculateModeFromData(
-          analyticsData.distribution2,
-          analyticsData.timeSeriesCategorical2,
-          analyticsData.counts.score2Total,
-        );
-
-    return {
-      score1Mode: score1Metrics?.mode ?? null,
-      score1ModePercentage: score1Metrics?.modePercentage ?? null,
-      score2Mode: score2Metrics?.mode ?? null,
-      score2ModePercentage: score2Metrics?.modePercentage ?? null,
-    };
-  }, [analyticsData, parsedScore1, parsedScore2]);
-
+  // UI state flags
   const hasError = !!scoresError;
-  const hasNoScores = !scoresLoading && !hasError && scoreOptions.length === 0;
-  const hasNoSelection = !urlState.score1;
-  const hasTwoScores = !!(urlState.score1 && urlState.score2);
-
-  // Debug logging (inline to avoid hooks issues)
-  if (typeof window !== "undefined") {
-    // Only log in browser, not during SSR
-    const debugInfo = {
-      hasTwoScores,
-      parsedScore1: !!parsedScore1,
-      parsedScore2: !!parsedScore2,
-      analyticsData: !!analyticsData,
-      analyticsLoading,
-      analyticsError: !!analyticsError,
-      willRenderSingleScore: !hasTwoScores && !!parsedScore1 && !!analyticsData,
-      willRenderTwoScores:
-        hasTwoScores && !!parsedScore1 && !!parsedScore2 && !!analyticsData,
-    };
-    console.log("[Score Analytics] Rendering conditions:", debugInfo);
-  }
+  const hasNoScores =
+    !scoresLoading && scoreOptions.length === 0 && !scoresError;
+  const hasNoSelection = !hasError && !hasNoScores && !urlState.score1;
 
   return (
     <Page
@@ -395,268 +209,80 @@ export default function ScoresAnalyticsPage() {
       }}
     >
       <div className="flex max-h-full flex-col gap-0">
-        {/* Controls Section - Compact Toolbar */}
-        <div className="flex flex-col gap-1 border-b border-border p-2 lg:flex-row lg:items-center lg:gap-4">
-          {/* Left: Score Selectors */}
-          <div className="flex items-center gap-2">
-            <ScoreCombobox
-              value={urlState.score1}
-              onChange={setScore1}
-              options={scoreOptions}
-              placeholder="First score"
-              className="h-8 w-[200px]"
-            />
-            <ScoreCombobox
-              value={urlState.score2}
-              onChange={setScore2}
-              options={scoreOptions}
-              placeholder="Second score"
-              filterByDataType={compatibleScore2DataTypes}
-              disabled={!urlState.score1}
-              className="h-8 w-[200px]"
-            />
-          </div>
-
-          {/* Middle: Spacer (hidden on mobile) */}
-          <div className="hidden flex-1 lg:block" />
-
-          {/* Right: Filters */}
-          <div className="flex items-center gap-2">
-            <ObjectTypeFilter
-              value={urlState.objectType}
-              onChange={setObjectType}
-              className="h-8 w-[140px]"
-            />
-            <TimeRangePicker
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-              timeRangePresets={DASHBOARD_AGGREGATION_OPTIONS}
-              className="my-0"
-            />
-          </div>
-        </div>
+        {/* Header Controls */}
+        {!hasError && !hasNoScores && (
+          <ScoreAnalyticsHeader
+            scoreOptions={scoreOptions}
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            compatibleScore2DataTypes={compatibleScore2DataTypes}
+          />
+        )}
 
         {/* Content Section */}
-        {hasError ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-destructive/10 p-12">
-            <BarChart3 className="h-12 w-12 text-destructive" />
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">Error Loading Scores</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Failed to load score data. Please try refreshing the page.
-              </p>
+        <div className="max-h-full overflow-y-scroll p-4 pt-6">
+          {hasError ? (
+            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-destructive/10 p-12">
+              <BarChart3 className="h-12 w-12 text-destructive" />
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">Error Loading Scores</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Failed to load score data. Please try refreshing the page.
+                </p>
+              </div>
             </div>
-          </div>
-        ) : hasNoScores ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
-            <BarChart3 className="h-12 w-12 text-muted-foreground" />
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">No Scores Available</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Create scores by adding evaluations to your traces and
-                observations.
-              </p>
+          ) : hasNoScores ? (
+            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
+              <BarChart3 className="h-12 w-12 text-muted-foreground" />
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">No Scores Available</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Create scores by adding evaluations to your traces and
+                  observations.
+                </p>
+              </div>
             </div>
-          </div>
-        ) : hasNoSelection ? (
-          <div className="flex flex-col items-center justify-center gap-6 rounded-lg border bg-muted/20 p-12">
-            <BarChart3 className="h-16 w-16 text-muted-foreground" />
-            <div className="max-w-2xl text-center">
-              <h3 className="text-2xl font-semibold">Select a Score</h3>
-              <p className="mt-3 text-base text-muted-foreground">
-                Choose one or two scores from the dropdowns above to view
-                analytics
-              </p>
-              <div className="mt-6 space-y-3 text-sm text-muted-foreground">
-                <div className="rounded-lg bg-background/50 p-4">
-                  <p className="mb-1 font-semibold text-foreground">
-                    Single score selected:
-                  </p>
-                  <p>View distribution and trends over time</p>
-                </div>
-                <div className="rounded-lg bg-background/50 p-4">
-                  <p className="mb-1 font-semibold text-foreground">
-                    Two scores selected:
-                  </p>
-                  <p>
-                    Compare scores with heatmaps, correlation analysis, and
-                    statistical metrics
-                  </p>
+          ) : hasNoSelection ? (
+            <div className="flex flex-col items-center justify-center gap-6 rounded-lg border bg-muted/20 p-12">
+              <BarChart3 className="h-16 w-16 text-muted-foreground" />
+              <div className="max-w-2xl text-center">
+                <h3 className="text-2xl font-semibold">Select a Score</h3>
+                <p className="mt-3 text-base text-muted-foreground">
+                  Choose one or two scores from the dropdowns above to view
+                  analytics
+                </p>
+                <div className="mt-6 space-y-3 text-sm text-muted-foreground">
+                  <div className="rounded-lg bg-background/50 p-4">
+                    <p className="mb-1 font-semibold text-foreground">
+                      Single score selected:
+                    </p>
+                    <p>View distribution and trends over time</p>
+                  </div>
+                  <div className="rounded-lg bg-background/50 p-4">
+                    <p className="mb-1 font-semibold text-foreground">
+                      Two scores selected:
+                    </p>
+                    <p>
+                      Compare scores with heatmaps, correlation analysis, and
+                      statistical metrics
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : analyticsLoading ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
-            <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Loading analytics data...
-            </p>
-          </div>
-        ) : analyticsError ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-destructive/10 p-12">
-            <BarChart3 className="h-12 w-12 text-destructive" />
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">Error Loading Analytics</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Failed to load analytics data. Please try again.
+          ) : queryParams ? (
+            <ScoreAnalyticsProvider params={queryParams}>
+              <ScoreAnalyticsDashboard />
+            </ScoreAnalyticsProvider>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-4 rounded-lg border p-12">
+              <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Loading analytics data...
               </p>
             </div>
-          </div>
-        ) : analyticsData ? (
-          <div className="max-h-full space-y-6 overflow-y-scroll p-4 pt-6">
-            {parsedScore1 ? (
-              <>
-                {/* Row 1: Statistics + Timeline */}
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  {/* Statistics Card */}
-                  <ComparisonStatistics
-                    score1Name={parsedScore1.name}
-                    score1Source={parsedScore1.source}
-                    score2Name={parsedScore2?.name ?? null}
-                    score2Source={parsedScore2?.source ?? null}
-                    dataType={
-                      parsedScore1.dataType as
-                        | "NUMERIC"
-                        | "CATEGORICAL"
-                        | "BOOLEAN"
-                    }
-                    counts={analyticsData.counts}
-                    statistics={analyticsData.statistics}
-                    confusionMatrix={analyticsData.confusionMatrix}
-                    hasTwoScores={hasTwoScores}
-                    score1Mode={modeMetrics?.score1Mode ?? null}
-                    score1ModePercentage={
-                      modeMetrics?.score1ModePercentage ?? null
-                    }
-                    score2Mode={modeMetrics?.score2Mode ?? null}
-                    score2ModePercentage={
-                      modeMetrics?.score2ModePercentage ?? null
-                    }
-                  />
-
-                  {/* Timeline Card */}
-                  {hasTwoScores && parsedScore2 ? (
-                    <TwoScoreAnalytics
-                      score1={{
-                        ...parsedScore1,
-                        dataType: parsedScore1.dataType as
-                          | "NUMERIC"
-                          | "CATEGORICAL"
-                          | "BOOLEAN",
-                      }}
-                      score2={{
-                        ...parsedScore2,
-                        dataType: parsedScore2.dataType as
-                          | "NUMERIC"
-                          | "CATEGORICAL"
-                          | "BOOLEAN",
-                      }}
-                      analytics={analyticsData}
-                      interval={interval}
-                      nBins={10}
-                      fromDate={absoluteTimeRange!.from}
-                      toDate={absoluteTimeRange!.to}
-                      cardToRender="timeline"
-                    />
-                  ) : (
-                    <SingleScoreAnalytics
-                      scoreId={urlState.score1!}
-                      scoreName={parsedScore1.name}
-                      dataType={
-                        parsedScore1.dataType as
-                          | "NUMERIC"
-                          | "CATEGORICAL"
-                          | "BOOLEAN"
-                      }
-                      source={parsedScore1.source}
-                      analytics={analyticsData}
-                      interval={interval}
-                      nBins={10}
-                      fromDate={absoluteTimeRange!.from}
-                      toDate={absoluteTimeRange!.to}
-                      cardToRender="timeline"
-                    />
-                  )}
-                </div>
-
-                {/* Row 2: Distribution + Heatmap */}
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  {/* Distribution Card */}
-                  {hasTwoScores && parsedScore2 ? (
-                    <TwoScoreAnalytics
-                      score1={{
-                        ...parsedScore1,
-                        dataType: parsedScore1.dataType as
-                          | "NUMERIC"
-                          | "CATEGORICAL"
-                          | "BOOLEAN",
-                      }}
-                      score2={{
-                        ...parsedScore2,
-                        dataType: parsedScore2.dataType as
-                          | "NUMERIC"
-                          | "CATEGORICAL"
-                          | "BOOLEAN",
-                      }}
-                      analytics={analyticsData}
-                      interval={interval}
-                      nBins={10}
-                      fromDate={absoluteTimeRange!.from}
-                      toDate={absoluteTimeRange!.to}
-                      cardToRender="distribution"
-                    />
-                  ) : (
-                    <SingleScoreAnalytics
-                      scoreId={urlState.score1!}
-                      scoreName={parsedScore1.name}
-                      dataType={
-                        parsedScore1.dataType as
-                          | "NUMERIC"
-                          | "CATEGORICAL"
-                          | "BOOLEAN"
-                      }
-                      source={parsedScore1.source}
-                      analytics={analyticsData}
-                      interval={interval}
-                      nBins={10}
-                      fromDate={absoluteTimeRange!.from}
-                      toDate={absoluteTimeRange!.to}
-                      cardToRender="distribution"
-                    />
-                  )}
-
-                  {/* Heatmap Card */}
-                  <HeatmapCard
-                    hasTwoScores={hasTwoScores}
-                    dataType={
-                      parsedScore1.dataType as
-                        | "NUMERIC"
-                        | "CATEGORICAL"
-                        | "BOOLEAN"
-                    }
-                    heatmapData={heatmapData}
-                    score1Name={parsedScore1.name}
-                    score2Name={parsedScore2?.name ?? null}
-                    score1Source={parsedScore1.source}
-                    score2Source={parsedScore2?.source ?? null}
-                  />
-                </div>
-              </>
-            ) : null}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-muted/20 p-12">
-            <BarChart3 className="h-12 w-12 text-muted-foreground" />
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">No Data Available</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                No matching score pairs found for the selected time range and
-                filters.
-              </p>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Page>
   );

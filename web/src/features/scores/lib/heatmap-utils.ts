@@ -3,12 +3,6 @@
  * Transforms ClickHouse query results into heatmap cell data
  */
 
-import {
-  getColorFromMonoScale,
-  getDiagonalColor,
-  type HeatmapColorVariant,
-} from "./color-scales";
-
 /**
  * Represents a single cell in the heatmap grid
  */
@@ -17,7 +11,6 @@ export interface HeatmapCell {
   col: number; // 0-indexed column position
   value: number; // Raw value (e.g., count)
   displayValue?: string; // Optional formatted text to show in cell
-  color: string; // OKLCH color string
   metadata?: Record<string, unknown>; // Extra data for tooltips/clicks
 }
 
@@ -35,7 +28,6 @@ export interface NumericHeatmapInput {
     max2: number;
   }>;
   nBins: number;
-  colorVariant?: HeatmapColorVariant;
   showPercentages?: boolean;
   showCounts?: boolean;
 }
@@ -43,17 +35,18 @@ export interface NumericHeatmapInput {
 /**
  * Generate heatmap data for numeric score comparison
  * Creates a square grid with bins showing correlation patterns
+ * Colors are computed separately by the parent component
  */
 export function generateNumericHeatmapData({
   data,
   nBins,
-  colorVariant = "accent",
   showPercentages = false,
   showCounts = true,
 }: NumericHeatmapInput): {
   cells: HeatmapCell[];
   rowLabels: string[];
   colLabels: string[];
+  maxValue: number;
 } {
   // Handle empty data
   if (data.length === 0) {
@@ -61,6 +54,7 @@ export function generateNumericHeatmapData({
       cells: [],
       rowLabels: [],
       colLabels: [],
+      maxValue: 0,
     };
   }
 
@@ -75,7 +69,6 @@ export function generateNumericHeatmapData({
   // Generate cells
   const cells: HeatmapCell[] = data.map((d) => {
     const percentage = total > 0 ? (d.count / total) * 100 : 0;
-    const color = getColorFromMonoScale(d.count, 0, maxCount, colorVariant);
 
     const xRange: [number, number] = [
       min2 + d.bin_x * binWidth2,
@@ -101,7 +94,6 @@ export function generateNumericHeatmapData({
       col: d.bin_x,
       value: d.count,
       displayValue,
-      color,
       metadata: { xRange, yRange, percentage },
     };
   });
@@ -119,7 +111,7 @@ export function generateNumericHeatmapData({
     return formatBinLabel(start, end);
   });
 
-  return { cells, rowLabels, colLabels };
+  return { cells, rowLabels, colLabels, maxValue: maxCount };
 }
 
 /**
@@ -131,8 +123,6 @@ export interface ConfusionMatrixInput {
     col_category: string;
     count: number;
   }>;
-  colorVariant?: HeatmapColorVariant;
-  highlightDiagonal?: boolean;
   showPercentages?: boolean;
   showCounts?: boolean;
 }
@@ -140,11 +130,10 @@ export interface ConfusionMatrixInput {
 /**
  * Generate confusion matrix data for categorical/boolean score comparison
  * Creates an n×m grid showing agreement between categories
+ * Colors are computed separately by the parent component
  */
 export function generateConfusionMatrixData({
   data,
-  colorVariant = "accent",
-  highlightDiagonal = true,
   showPercentages = false,
   showCounts = true,
 }: ConfusionMatrixInput): {
@@ -153,6 +142,7 @@ export function generateConfusionMatrixData({
   colLabels: string[];
   rows: number;
   cols: number;
+  maxValue: number;
 } {
   // Handle empty data
   if (data.length === 0) {
@@ -162,6 +152,7 @@ export function generateConfusionMatrixData({
       colLabels: [],
       rows: 0,
       cols: 0,
+      maxValue: 0,
     };
   }
 
@@ -190,14 +181,6 @@ export function generateConfusionMatrixData({
       const percentage = total > 0 ? (count / total) * 100 : 0;
       const isDiagonal = rowCat === colCat;
 
-      // Use different color for diagonal if highlighting
-      let color: string;
-      if (highlightDiagonal && isDiagonal) {
-        color = getDiagonalColor(count, 0, maxCount, colorVariant);
-      } else {
-        color = getColorFromMonoScale(count, 0, maxCount, colorVariant);
-      }
-
       // Format display value
       let displayValue = "";
       if (showCounts && showPercentages) {
@@ -213,7 +196,6 @@ export function generateConfusionMatrixData({
         col: colIdx,
         value: count,
         displayValue,
-        color,
         metadata: {
           rowCategory: rowCat,
           colCategory: colCat,
@@ -230,6 +212,7 @@ export function generateConfusionMatrixData({
     colLabels: colCategories,
     rows: rowCategories.length,
     cols: colCategories.length,
+    maxValue: maxCount,
   };
 }
 

@@ -58,6 +58,7 @@ export function useScoreMutations({
         value: variables.value ?? null,
         stringValue: variables.stringValue ?? null,
         comment: variables.comment ?? null,
+        timestamp: variables.timestamp ?? new Date(),
       });
     },
     onError,
@@ -85,6 +86,7 @@ export function useScoreMutations({
           value: variables.value ?? null,
           stringValue: variables.stringValue ?? null,
           comment: variables.comment ?? null,
+          timestamp: variables.timestamp ?? new Date(),
         });
       } else {
         // Merge update into existing cache entry

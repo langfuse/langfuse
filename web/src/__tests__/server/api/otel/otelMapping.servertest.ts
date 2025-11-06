@@ -1234,6 +1234,10 @@ describe("OTel Resource Span Mapping", () => {
                       key: "operation.name",
                       value: { stringValue: operationName },
                     },
+                    {
+                      key: "gen_ai.response.model",
+                      value: { stringValue: "gpt-4o" },
+                    },
                   ],
                 },
               ],
@@ -2120,6 +2124,63 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "tags",
           entityAttributeValue: ["2", "3", "4"],
+        },
+      ],
+      [
+        "should extract tags from tag.tags single string to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            stringValue: "llamaindex",
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex"],
+        },
+      ],
+      [
+        "should extract tags from tag.tags array value to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            arrayValue: {
+              values: [
+                {
+                  stringValue: "llamaindex",
+                },
+                {
+                  stringValue: "rag",
+                },
+              ],
+            },
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex", "rag"],
+        },
+      ],
+      [
+        "should extract tags from tag.tags JSON string array to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            stringValue: '["llamaindex", "rag", "production"]',
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex", "rag", "production"],
+        },
+      ],
+      [
+        "should extract tags from tag.tags comma-separated string to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            stringValue: "llamaindex, rag, production",
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex", "rag", "production"],
         },
       ],
       [

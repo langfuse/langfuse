@@ -1356,6 +1356,73 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
   }));
 };
 
+/**
+ * Tuple type for observation data from ClickHouse groupArray
+ */
+export type ObservationTuple = [
+  id: string,
+  parentObservationId: string | null,
+  totalCost: string,
+  inputCost: string,
+  outputCost: string,
+  latencyMs: number,
+];
+
+/**
+ * Get observations grouped by trace ID with cost and latency data
+ *
+ * This is a pure data-fetching function that returns observations organized by trace.
+ * For business logic like recursive cost calculations, use the utility functions
+ * in the utils layer.
+ */
+export const getObservationsGroupedByTraceId = async (
+  projectId: string,
+  traceIds: string[],
+  timestamp?: Date,
+): Promise<Map<string, ObservationTuple[]>> => {
+  if (traceIds.length === 0) return new Map();
+
+  const query = `
+    SELECT
+        trace_id,
+        groupArray((
+          id,
+          parent_observation_id,
+          cost_details['total'],
+          cost_details['input'],
+          cost_details['output'],
+          dateDiff('millisecond', start_time, end_time)
+        )) AS observations
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)})
+    ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
+    GROUP BY trace_id
+  `;
+
+  const groupedObservations = await queryClickhouse<{
+    trace_id: string;
+    observations: ObservationTuple[];
+  }>({
+    query,
+    params: {
+      projectId,
+      traceIds,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return new Map(groupedObservations.map((g) => [g.trace_id, g.observations]));
+};
+
 export const getObservationCountsByProjectInCreationInterval = async ({
   start,
   end,

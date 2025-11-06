@@ -217,6 +217,13 @@ export const handleEventPropagationJob = async (
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
+        ), experiment_traces_to_exclude as (
+          select distinct
+            project_id,
+            trace_id
+          from dataset_run_items_rmt
+          where project_id in (select arrayJoin(project_ids) from batch_stats)
+            and created_at >= now() - interval 24 hour
         ), relevant_traces as (
           select
             t.id,
@@ -280,7 +287,6 @@ export const handleEventPropagationJob = async (
           telemetry_sdk_name,
           telemetry_sdk_version,
           blob_storage_file_path,
-          event_raw,
           event_bytes,
           created_at,
           updated_at,
@@ -312,7 +318,7 @@ export const handleEventPropagationJob = async (
           obs.completion_start_time,
           obs.prompt_id,
           obs.prompt_name,
-          CAST(obs.prompt_version, 'Nullable(String)') AS prompt_version,
+          obs.prompt_version,
           obs.internal_model_id AS model_id,
           obs.provided_model_name,
           obs.model_parameters,
@@ -342,7 +348,6 @@ export const handleEventPropagationJob = async (
           NULL AS telemetry_sdk_name,
           NULL AS telemetry_sdk_version,
           '' AS blob_storage_file_path,
-          '' AS event_raw,
           byteSize(*) AS event_bytes,
           obs.created_at,
           obs.updated_at,
@@ -353,6 +358,11 @@ export const handleEventPropagationJob = async (
         ON (
           obs.project_id = t.project_id AND
           obs.trace_id = t.id
+        )
+        LEFT ANTI JOIN experiment_traces_to_exclude excl
+        ON (
+          excl.project_id = obs.project_id AND
+          excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
       `,
