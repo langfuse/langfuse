@@ -236,8 +236,11 @@ export function useScoreAnalyticsQuery(
       ? fillDistributionBins(apiData.distribution1Individual, categories)
       : apiData.distribution1Individual;
 
-    const distribution2Individual = categories
-      ? fillDistributionBins(apiData.distribution2Individual, categories)
+    const distribution2Individual = apiData.score2Categories
+      ? fillDistributionBins(
+          apiData.distribution2Individual,
+          apiData.score2Categories,
+        )
       : apiData.distribution2Individual;
 
     const distribution1Matched = categories
