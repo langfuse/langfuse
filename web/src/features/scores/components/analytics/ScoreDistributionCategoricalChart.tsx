@@ -172,19 +172,9 @@ export function ScoreDistributionCategoricalChart({
     return state;
   }, [hiddenKeys, hasStackedData, allStackKeys]);
 
-  // Toggle handler with safety check (prevent hiding all items)
+  // Toggle handler
   const handleVisibilityToggle = useCallback(
     (key: string, visible: boolean) => {
-      // Prevent hiding the last visible item
-      if (!visible) {
-        const visibleCount = allStackKeys.filter(
-          (k) => !hiddenKeys.has(k),
-        ).length;
-        if (visibleCount <= 1) {
-          return;
-        }
-      }
-
       setHiddenKeys((prev) => {
         const next = new Set(prev);
         if (visible) {
@@ -195,7 +185,7 @@ export function ScoreDistributionCategoricalChart({
         return next;
       });
     },
-    [hiddenKeys, allStackKeys],
+    [],
   );
 
   return (

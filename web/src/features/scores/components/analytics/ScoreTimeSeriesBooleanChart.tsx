@@ -114,19 +114,9 @@ export function ScoreTimeSeriesBooleanChart({
     return state;
   }, [hiddenKeys, categories]);
 
-  // Toggle handler with safety check (prevent hiding all items)
+  // Toggle handler
   const handleVisibilityToggle = useCallback(
     (key: string, visible: boolean) => {
-      // Prevent hiding the last visible item
-      if (!visible) {
-        const visibleCount = categories.filter(
-          (c) => !hiddenKeys.has(c),
-        ).length;
-        if (visibleCount <= 1) {
-          return;
-        }
-      }
-
       setHiddenKeys((prev) => {
         const next = new Set(prev);
         if (visible) {
@@ -137,7 +127,7 @@ export function ScoreTimeSeriesBooleanChart({
         return next;
       });
     },
-    [hiddenKeys, categories],
+    [],
   );
 
   if (chartData.length === 0 || categories.length === 0) {

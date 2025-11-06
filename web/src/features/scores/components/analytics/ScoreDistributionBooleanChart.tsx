@@ -102,14 +102,9 @@ export function ScoreDistributionBooleanChart({
     return state;
   }, [hiddenKeys, isComparisonMode]);
 
-  // Toggle handler with safety check (prevent hiding all items)
+  // Toggle handler
   const handleVisibilityToggle = useCallback(
     (key: string, visible: boolean) => {
-      if (!visible && hiddenKeys.size >= 1) {
-        // Keep at least one visible
-        return;
-      }
-
       setHiddenKeys((prev) => {
         const next = new Set(prev);
         if (visible) {
@@ -120,7 +115,7 @@ export function ScoreDistributionBooleanChart({
         return next;
       });
     },
-    [hiddenKeys],
+    [],
   );
 
   return (
