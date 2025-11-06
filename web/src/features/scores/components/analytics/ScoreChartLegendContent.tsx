@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from "react";
+import React, { useState, useRef, useLayoutEffect, useMemo } from "react";
 import { type LegendProps } from "recharts";
 import { MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -37,6 +37,7 @@ interface LegendItemProps {
   visible: boolean;
   interactive: boolean;
   onClick?: () => void;
+  noTruncate?: boolean;
 }
 
 /**
@@ -48,6 +49,7 @@ const LegendItem = ({
   visible,
   interactive,
   onClick,
+  noTruncate = false,
 }: LegendItemProps) => {
   return (
     <button
@@ -77,7 +79,8 @@ const LegendItem = ({
       />
       <span
         className={cn(
-          "max-w-[120px] truncate text-muted-foreground",
+          "text-muted-foreground",
+          !noTruncate && "max-w-[120px] truncate",
           !visible && "line-through", // Strike through when hidden
         )}
       >
@@ -136,8 +139,8 @@ export const ScoreChartLegendContent = React.forwardRef<
         const containerHeight = container.scrollHeight;
         const twoLines = lineHeight * 2;
 
-        // Add 2px tolerance for rounding errors
-        setNeedsPopover(containerHeight > twoLines + 2);
+        // Add 6px tolerance for sub-pixel rendering and font variations
+        setNeedsPopover(containerHeight > twoLines + 6);
       };
 
       // Initial measurement
@@ -165,14 +168,72 @@ export const ScoreChartLegendContent = React.forwardRef<
     // This is approximate - actual display depends on label widths
     const estimateVisibleCount = () => {
       if (!needsPopover) return payload.length;
-      // Conservative estimate: ~6-8 items fit in 2 lines at typical widths
-      return Math.max(6, Math.floor(payload.length * 0.6));
+      // More generous estimate: aim to fill ~75% of available space
+      // Reduces unnecessary truncation while still preventing overflow
+      return Math.max(7, Math.floor(payload.length * 0.75));
     };
 
     const visibleItems = needsPopover
       ? payload.slice(0, estimateVisibleCount())
       : payload;
     const hiddenCount = payload.length - visibleItems.length;
+
+    // Group items by score name (prefix before dash)
+    const groupedItems = useMemo(() => {
+      const groups: Record<string, typeof payload> = {};
+
+      payload.forEach((item) => {
+        const key = `${nameKey || item.dataKey || "value"}`;
+        let groupName = "Categories";
+
+        // Try to extract score name from key (e.g., "sentiment-negative" → "sentiment")
+        if (key.includes("-")) {
+          const prefix = key.split("-")[0];
+          if (prefix) {
+            groupName =
+              prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase();
+          }
+        }
+
+        if (!groups[groupName]) {
+          groups[groupName] = [];
+        }
+        groups[groupName].push(item);
+      });
+
+      return groups;
+    }, [payload, nameKey]);
+
+    // Smart label formatter for common patterns
+    const smartFormatLabel = (label: string): string => {
+      if (!label || typeof label !== "string") return String(label);
+
+      // Pattern: "sentiment-negative" → "Negative"
+      if (label.includes("-")) {
+        const suffix = label.split("-").pop();
+        if (suffix) {
+          return suffix.charAt(0).toUpperCase() + suffix.slice(1).toLowerCase();
+        }
+      }
+
+      // Pattern: "high_confidence" → "High Confidence"
+      if (label.includes("_")) {
+        return label
+          .split("_")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(" ");
+      }
+
+      // Pattern: "camelCase" → "Camel Case"
+      if (/[a-z][A-Z]/.test(label)) {
+        return label
+          .replace(/([a-z])([A-Z])/g, "$1 $2")
+          .replace(/^./, (str) => str.toUpperCase());
+      }
+
+      // Default: capitalize first letter
+      return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+    };
 
     // Format label for display
     const getFormattedLabel = (item: (typeof payload)[0]) => {
@@ -196,7 +257,8 @@ export const ScoreChartLegendContent = React.forwardRef<
         return formatLabel(rawLabel, item);
       }
 
-      return rawLabel;
+      // Apply smart formatting as final fallback
+      return smartFormatLabel(rawLabel);
     };
 
     return (
@@ -242,69 +304,89 @@ export const ScoreChartLegendContent = React.forwardRef<
             );
           })}
 
-          {needsPopover && hiddenCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              ... (+{hiddenCount})
-            </span>
+          {/* Combined popover button with count - inline as last item */}
+          {needsPopover && (
+            <Popover open={showPopover} onOpenChange={setShowPopover}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:bg-accent"
+                  aria-label={`Show all ${payload.length} categories`}
+                >
+                  <span>Show all {payload.length}</span>
+                  {hiddenCount > 0 && (
+                    <span className="font-medium">(+{hiddenCount})</span>
+                  )}
+                  <MoreVertical className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-80"
+                align="end"
+                side={verticalAlign === "top" ? "bottom" : "top"}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">All Categories</p>
+                    <span className="text-xs text-muted-foreground">
+                      {payload.length} total
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {Object.entries(groupedItems).map(
+                      ([groupName, items], groupIndex) => (
+                        <div key={groupName}>
+                          {/* Only show subheader if there are multiple groups */}
+                          {Object.keys(groupedItems).length > 1 && (
+                            <h4 className="mb-2 text-xs font-medium text-muted-foreground">
+                              {groupName}
+                            </h4>
+                          )}
+                          <div className="space-y-1">
+                            {items.map((item) => {
+                              const key = `${nameKey || item.dataKey || "value"}`;
+                              const visible = visibilityState?.[key] ?? true;
+                              const color =
+                                item.color ||
+                                (typeof item.payload === "object" &&
+                                item.payload &&
+                                "fill" in item.payload
+                                  ? (item.payload as { fill: string }).fill
+                                  : "hsl(var(--chart-1))");
+
+                              const isUnmatched =
+                                key === "__unmatched__" || key === "unmatched";
+                              const finalColor = isUnmatched
+                                ? "hsl(var(--muted-foreground))"
+                                : color;
+
+                              return (
+                                <div
+                                  key={key}
+                                  className="rounded-sm px-2 py-1.5 hover:bg-accent/50"
+                                >
+                                  <LegendItem
+                                    color={finalColor}
+                                    label={getFormattedLabel(item)}
+                                    visible={visible}
+                                    interactive={interactive}
+                                    onClick={() => handleItemClick(key)}
+                                    noTruncate={true}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
         </div>
-
-        {/* Popover button for full list */}
-        {needsPopover && (
-          <Popover open={showPopover} onOpenChange={setShowPopover}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 shrink-0 p-0"
-                aria-label="Show all legend items"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-64"
-              align="end"
-              side={verticalAlign === "top" ? "bottom" : "top"}
-            >
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  All Categories ({payload.length})
-                </p>
-                <div className="max-h-64 space-y-1 overflow-y-auto">
-                  {payload.map((item) => {
-                    const key = `${nameKey || item.dataKey || "value"}`;
-                    const visible = visibilityState?.[key] ?? true;
-                    const color =
-                      item.color ||
-                      (typeof item.payload === "object" &&
-                      item.payload &&
-                      "fill" in item.payload
-                        ? (item.payload as { fill: string }).fill
-                        : "hsl(var(--chart-1))");
-
-                    const isUnmatched =
-                      key === "__unmatched__" || key === "unmatched";
-                    const finalColor = isUnmatched
-                      ? "hsl(var(--muted-foreground))"
-                      : color;
-
-                    return (
-                      <LegendItem
-                        key={key}
-                        color={finalColor}
-                        label={getFormattedLabel(item)}
-                        visible={visible}
-                        interactive={interactive}
-                        onClick={() => handleItemClick(key)}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        )}
       </div>
     );
   },
