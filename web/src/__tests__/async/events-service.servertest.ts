@@ -7,12 +7,18 @@ import {
   getEventFilterOptions,
 } from "@/src/features/events/server/eventsService";
 import { type ObservationType } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 // Helper to wait for ClickHouse to process data
 const waitForClickHouse = (ms = 2000) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-describe("Events Service", () => {
+const maybe =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip;
+
+maybe("Events Service", () => {
   describe("getEventList", () => {
     it("should return paginated list of events", async () => {
       const projectId = v4();
