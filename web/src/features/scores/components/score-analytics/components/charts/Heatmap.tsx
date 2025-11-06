@@ -117,16 +117,21 @@ export function Heatmap({
         role="img"
         aria-label={ariaLabel}
       >
-        {/* Y-axis label (vertical) */}
-        {yAxisLabel && (
-          <div className="flex justify-center">
-            <span className="text-sm font-medium text-muted-foreground">
-              {yAxisLabel}
-            </span>
-          </div>
-        )}
-
         <div className="flex flex-1 items-stretch justify-center gap-2 sm:gap-4">
+          {/* Y-axis label (vertical) */}
+          {yAxisLabel && (
+            <div className="flex items-center justify-center">
+              <span
+                className="text-sm font-medium text-muted-foreground"
+                style={{
+                  writingMode: "vertical-rl",
+                  transform: "rotate(180deg)",
+                }}
+              >
+                {yAxisLabel}
+              </span>
+            </div>
+          )}
           {/* Row labels */}
           {rowLabels && rowLabels.length > 0 && (
             <div
