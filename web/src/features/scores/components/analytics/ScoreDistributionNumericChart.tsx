@@ -82,7 +82,7 @@ export function ScoreDistributionNumericChart({
           },
         },
       }
-    : getSingleScoreChartConfig("pv");
+    : getSingleScoreChartConfig("pv", score1Name);
 
   // Visibility state for interactive legend (comparison mode only)
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
@@ -163,17 +163,15 @@ export function ScoreDistributionNumericChart({
           />
         )}
 
-        {isComparisonMode && (
-          <Legend
-            content={
-              <ScoreChartLegendContent
-                interactive={true}
-                visibilityState={visibilityState}
-                onVisibilityChange={handleVisibilityToggle}
-              />
-            }
-          />
-        )}
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={isComparisonMode}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
+        />
       </BarChart>
     </ChartContainer>
   );

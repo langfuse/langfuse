@@ -92,8 +92,8 @@ export function ScoreTimeSeriesNumericChart({
   }, [data, score1Name, score2Name, interval, isComparisonMode]);
 
   const config: ChartConfig = isComparisonMode
-    ? getTwoScoreChartConfig(score1Name, score2Name!)
-    : getSingleScoreChartConfig(score1Name);
+    ? getTwoScoreChartConfig(score1Name, score2Name!, score1Name, score2Name!)
+    : getSingleScoreChartConfig(score1Name, score1Name);
 
   const colors = getTwoScoreColors();
 
@@ -172,17 +172,15 @@ export function ScoreTimeSeriesNumericChart({
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
         />
-        {isComparisonMode && (
-          <Legend
-            content={
-              <ScoreChartLegendContent
-                interactive={true}
-                visibilityState={visibilityState}
-                onVisibilityChange={handleVisibilityToggle}
-              />
-            }
-          />
-        )}
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={isComparisonMode}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
+        />
       </LineChart>
     </ChartContainer>
   );

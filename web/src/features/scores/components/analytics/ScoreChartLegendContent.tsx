@@ -8,6 +8,10 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
+import {
+  useChart,
+  getPayloadConfigFromPayload,
+} from "@/src/components/ui/chart";
 
 export interface ScoreChartLegendContentProps
   extends Pick<LegendProps, "payload" | "verticalAlign"> {
@@ -110,6 +114,7 @@ export const ScoreChartLegendContent = React.forwardRef<
     },
     ref,
   ) => {
+    const { config } = useChart();
     const containerRef = useRef<HTMLDivElement>(null);
     const [showPopover, setShowPopover] = useState(false);
     const [needsPopover, setNeedsPopover] = useState(false);
@@ -172,6 +177,14 @@ export const ScoreChartLegendContent = React.forwardRef<
     // Format label for display
     const getFormattedLabel = (item: (typeof payload)[0]) => {
       const key = `${nameKey || item.dataKey || "value"}`;
+
+      // Try to get label from ChartConfig first
+      const itemConfig = getPayloadConfigFromPayload(config, item, key);
+      if (itemConfig?.label) {
+        return itemConfig.label;
+      }
+
+      // Fallback to original logic
       const rawLabel = item.value || key;
 
       // Handle "__unmatched__" special case
@@ -198,7 +211,7 @@ export const ScoreChartLegendContent = React.forwardRef<
         {/* Truncated inline legend (fixed 2-line height) */}
         <div
           ref={containerRef}
-          className="flex max-h-[48px] flex-1 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden"
+          className="flex max-h-[48px] flex-1 flex-wrap items-center justify-center gap-x-3 gap-y-1 overflow-hidden"
         >
           {visibleItems.map((item) => {
             const key = `${nameKey || item.dataKey || "value"}`;

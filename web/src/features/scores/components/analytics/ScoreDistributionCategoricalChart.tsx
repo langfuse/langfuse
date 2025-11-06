@@ -147,16 +147,8 @@ export function ScoreDistributionCategoricalChart({
       return stackConfig;
     }
 
-    // Single score mode: simple config
-    return {
-      pv: {
-        label: score1Name,
-        theme: {
-          light: getSingleScoreColor(),
-          dark: getSingleScoreColor(),
-        },
-      },
-    };
+    // Single score mode: use helper function
+    return getSingleScoreChartConfig("pv", score1Name);
   }, [hasStackedData, allStackKeys, score1Name]);
 
   // Visibility state for interactive legend (stacked mode only)
@@ -244,17 +236,15 @@ export function ScoreDistributionCategoricalChart({
           />
         )}
 
-        {hasStackedData && (
-          <Legend
-            content={
-              <ScoreChartLegendContent
-                interactive={true}
-                visibilityState={visibilityState}
-                onVisibilityChange={handleVisibilityToggle}
-              />
-            }
-          />
-        )}
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={hasStackedData}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
+        />
       </BarChart>
     </ChartContainer>
   );

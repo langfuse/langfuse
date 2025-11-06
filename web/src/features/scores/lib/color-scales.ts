@@ -224,9 +224,10 @@ export function getBarChartHoverOpacity(
  * Chart color configuration for Recharts ChartConfig
  * Single score variant
  */
-export function getSingleScoreChartConfig(metricKey: string) {
+export function getSingleScoreChartConfig(metricKey: string, label?: string) {
   return {
     [metricKey]: {
+      label: label,
       theme: {
         light: getSingleScoreColor(),
         dark: getSingleScoreColor(),
@@ -239,16 +240,23 @@ export function getSingleScoreChartConfig(metricKey: string) {
  * Chart color configuration for Recharts ChartConfig
  * Two score comparison variant
  */
-export function getTwoScoreChartConfig(score1Key: string, score2Key: string) {
+export function getTwoScoreChartConfig(
+  score1Key: string,
+  score2Key: string,
+  score1Label?: string,
+  score2Label?: string,
+) {
   const colors = getTwoScoreColors();
   return {
     [score1Key]: {
+      label: score1Label,
       theme: {
         light: colors.score1,
         dark: colors.score1,
       },
     },
     [score2Key]: {
+      label: score2Label,
       theme: {
         light: colors.score2,
         dark: colors.score2,
