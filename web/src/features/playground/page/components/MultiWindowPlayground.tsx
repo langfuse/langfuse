@@ -99,48 +99,38 @@ export default function MultiWindowPlayground({
   if (!firstWindowId) return null;
 
   return (
-    <>
-      {/* Mobile layout: single window only - visible below md breakpoint */}
-      <div className="block h-full p-4 md:hidden">
-        <PlaygroundProvider windowId={firstWindowId}>
-          <PlaygroundWindowContent
-            windowId={firstWindowId}
-            onRemove={onRemoveWindow}
-            onCopy={handleCopyWindow}
-            canRemove={false}
-            isMobile={true}
-          />
-        </PlaygroundProvider>
-      </div>
+    <div
+      ref={containerRef}
+      className="flex h-full flex-1 overflow-x-auto md:grid"
+      style={{
+        gridAutoFlow: "column",
+        gridAutoColumns: windowWidth,
+        gap: "1rem",
+        padding: "1rem",
+        scrollBehavior: "smooth",
+      }}
+    >
+      {windowState.windowIds.map((windowId, index) => {
+        const isFirstWindow = index === 0;
 
-      {/* Desktop layout: multi-window with horizontal grid - visible at md breakpoint and above */}
-      <div className="hidden h-full md:block">
-        <div
-          ref={containerRef}
-          className="h-full overflow-x-auto"
-          style={{
-            display: "grid",
-            gridAutoFlow: "column",
-            gridAutoColumns: windowWidth,
-            gap: "1rem",
-            padding: "1rem",
-            scrollBehavior: "smooth",
-          }}
-        >
-          {windowState.windowIds.map((windowId) => (
-            <PlaygroundProvider key={windowId} windowId={windowId}>
+        return (
+          <div
+            key={windowId}
+            className={isFirstWindow ? "flex-1" : "hidden md:block"}
+          >
+            <PlaygroundProvider windowId={windowId}>
               <PlaygroundWindowContent
                 windowId={windowId}
                 onRemove={onRemoveWindow}
                 onCopy={handleCopyWindow}
                 canRemove={windowState.windowIds.length > 1}
-                isMobile={false}
+                isMobile={!isFirstWindow}
               />
             </PlaygroundProvider>
-          ))}
-        </div>
-      </div>
-    </>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
