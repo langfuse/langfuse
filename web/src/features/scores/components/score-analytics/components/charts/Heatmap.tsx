@@ -164,7 +164,7 @@ export function Heatmap({
           {yAxisLabel && (
             <div className="flex items-center justify-center">
               <span
-                className="text-sm font-medium text-muted-foreground"
+                className="text-xs font-normal text-muted-foreground"
                 style={{
                   writingMode: "vertical-rl",
                   transform: "rotate(180deg)",
@@ -348,7 +348,7 @@ export function Heatmap({
 
         {/* X-axis label */}
         {xAxisLabel && (
-          <div className="text-center text-sm font-medium text-muted-foreground">
+          <div className="text-center text-xs font-normal text-muted-foreground">
             {xAxisLabel}
           </div>
         )}
