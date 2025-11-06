@@ -133,12 +133,12 @@ export function Heatmap({
               className={cn(
                 "pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs",
                 isDivisionPointMode
-                  ? "flex flex-col justify-between"
+                  ? "flex flex-1 flex-col justify-between self-stretch"
                   : "grid gap-1",
               )}
               style={
                 isDivisionPointMode
-                  ? { height: "100%" }
+                  ? undefined
                   : { gridTemplateRows: `repeat(${rows}, ${cellHeight})` }
               }
             >
