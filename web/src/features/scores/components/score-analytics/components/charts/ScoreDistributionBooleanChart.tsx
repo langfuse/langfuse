@@ -97,6 +97,7 @@ export function ScoreDistributionBooleanChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          interval={0}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"

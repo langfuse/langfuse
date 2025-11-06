@@ -315,5 +315,5 @@ function formatBinLabel(start: number, end: number): string {
     precision = 3;
   }
 
-  return `[${start.toFixed(precision)}, ${end.toFixed(precision)})`;
+  return `${start.toFixed(precision)} - ${end.toFixed(precision)}`;
 }

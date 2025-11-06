@@ -155,7 +155,7 @@ export function ScoreDistributionCategoricalChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          interval={1}
+          interval={0}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"
