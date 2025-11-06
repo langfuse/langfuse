@@ -23,6 +23,9 @@ import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDa
 import { Progress } from "@/src/components/ui/progress";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import { CsvImportValidationError } from "./CsvImportValidationError";
+import { type BulkDatasetItemValidationError } from "@langfuse/shared";
+import { chunk } from "lodash";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -67,12 +70,6 @@ type ImportProgress = {
   processedItems: number;
   status: "not-started" | "processing" | "complete";
 };
-
-function chunkArray<T>(array: T[], size: number): T[][] {
-  return Array.from({ length: Math.ceil(array.length / size) }, (_, i) =>
-    array.slice(i * size, i * size + size),
-  );
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -137,6 +134,9 @@ export function PreviewCsvImport({
     processedItems: 0,
     status: "not-started",
   });
+  const [validationErrors, setValidationErrors] = useState<
+    BulkDatasetItemValidationError[]
+  >([]);
 
   const utils = api.useUtils();
   const mutCreateManyDatasetItems =
@@ -231,6 +231,9 @@ export function PreviewCsvImport({
       return;
     }
 
+    // Clear any previous validation errors
+    setValidationErrors([]);
+
     let processedCount = 0;
     let headerMap: Map<string, number>;
 
@@ -280,13 +283,30 @@ export function PreviewCsvImport({
       });
 
       const optimalChunkSize = getOptimalChunkSize(items, CHUNK_START_SIZE);
-      const chunks = chunkArray(items, optimalChunkSize);
+      const chunks = chunk(items, optimalChunkSize);
 
       for (const [index, chunk] of chunks.entries()) {
-        await mutCreateManyDatasetItems.mutateAsync({
+        const result = await mutCreateManyDatasetItems.mutateAsync({
           projectId,
           items: chunk,
         });
+
+        // Check if validation failed
+        if (!result.success) {
+          // Adjust itemIndex to account for already processed chunks
+          const adjustedErrors = result.validationErrors.map((error) => ({
+            ...error,
+            itemIndex: error.itemIndex + processedCount,
+          }));
+
+          setValidationErrors(adjustedErrors);
+          setProgress?.({
+            totalItems: 0,
+            processedItems: 0,
+            status: "not-started",
+          });
+          return;
+        }
 
         processedCount += chunk.length;
         setProgress?.({
@@ -439,6 +459,9 @@ export function PreviewCsvImport({
             </div>
           </CardContent>
         </Card>
+        {validationErrors.length > 0 && (
+          <CsvImportValidationError errors={validationErrors} />
+        )}
       </DialogBody>
       <DialogFooter>
         <Button
@@ -450,6 +473,7 @@ export function PreviewCsvImport({
             setSelectedMetadataColumn(new Set());
             setExcludedColumns(new Set());
             setCsvFile(null);
+            setValidationErrors([]);
           }}
         >
           Cancel

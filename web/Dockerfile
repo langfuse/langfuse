@@ -5,7 +5,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^2.5.8 --global
+RUN npm install turbo@^2.6.0 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable

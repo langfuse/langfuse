@@ -1005,7 +1005,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\",\n    \"metadata\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"inputSchema\": \"UNKNOWN\",\n    \"expectedOutputSchema\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

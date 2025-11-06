@@ -39,6 +39,33 @@ const notifications: SidebarNotification[] = [
     createdAt: "2025-11-03",
   },
   {
+    id: "lw4-2",
+    title: "Launch Week 4: Day 2",
+    description:
+      "Collaborate with your team in Langfuse with @mentions & emoji reactions for comments.",
+    link: "https://langfuse.com/changelog/2025-11-04-comment-mentions-and-reactions",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-04",
+  },
+  {
+    id: "lw4-3",
+    title: "Launch Week 4: Day 3",
+    description:
+      "Available and used LLM tools are rendered in the UI for debugging. Log view & agent graphs GA.",
+    link: "https://langfuse.com/changelog/2025-11-05-langfuse-for-agents",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-05",
+  },
+  {
+    id: "lw4-4",
+    title: "Launch Week 4: Day 4",
+    description:
+      "New for Experiments: Annotations in the compare view, set a Baseline to view score differences, and filters for outliers",
+    link: "https://langfuse.com/blog/2025-10-29-launch-week-4#day-4-experiments-in-langfuse",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-06",
+  },
+  {
     id: "js-sdk-v4",
     title: "New JS/TS SDK v4",
     description:
@@ -52,7 +79,7 @@ const notifications: SidebarNotification[] = [
     title: "New Python SDK v3",
     description:
       "Python SDK V3 offers significant improvements in developer experience, performance, and integrations.",
-    link: "https://langfuse.com/docs/sdk/python/sdk-v3#upgrade-from-v2",
+    link: "https://langfuse.com/docs/observability/sdk/python/upgrade-path",
     linkTitle: "Upgrade to v3",
     createdAt: "2025-06-27",
   },

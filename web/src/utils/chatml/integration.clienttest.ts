@@ -173,11 +173,11 @@ describe("ChatML Integration", () => {
     if (!outResult.data)
       throw new Error("Expected outResult.data to be defined");
     expect(outResult.data).toHaveLength(1);
-    expect(outResult.data[0].role).toBe("assistant");
+    expect(outResult.data[0].role).toBe("model");
     expect(outResult.data[0].content).toContain("Langfuse");
 
     expect(allMessages).toHaveLength(2);
-    expect(allMessages[1].role).toBe("assistant");
+    expect(allMessages[1].role).toBe("model");
   });
 
   it("should handle Google Gemini format with contents array and system instruction", () => {
@@ -297,10 +297,12 @@ describe("ChatML Integration", () => {
     expect(inResult.data[0].role).toBe("system");
     expect(inResult.data[1].role).toBe("user");
     expect(inResult.data[1].content).toBe("hi");
-    expect(inResult.data[2].role).toBe("assistant");
-    expect(inResult.data[2].content).not.toContain("[object Object]");
+    expect(inResult.data[2].role).toBe("model");
+    expect(inResult.data[2].tool_calls).toBeDefined();
+    expect(inResult.data[2].tool_calls?.[0].name).toBe("say_hello");
     expect(inResult.data[3].role).toBe("user");
-    expect(inResult.data[3].content).not.toContain("[object Object]");
+    expect(typeof inResult.data[3].content).toBe("string");
+    expect(inResult.data[3].content).toContain("Hello Langfuse");
   });
 
   it("should handle LangGraph messages with type field", () => {
@@ -359,6 +361,43 @@ describe("ChatML Integration", () => {
     );
     expect(inResult.data[1].role).toBe("assistant");
     expect(inResult.data[2].role).toBe("tool");
+  });
+
+  it("should handle Microsoft Agent format with simple text parts", () => {
+    // Microsoft Agent format uses top-level parts array (not OpenAI format)
+    const createInput = () => [
+      {
+        role: "user",
+        parts: [
+          {
+            type: "text",
+            content: "What's the weather like in Portland?",
+          },
+        ],
+      },
+    ];
+
+    // Test with generic adapter explicitly
+    const resultWithFramework = normalizeInput(createInput(), {
+      framework: "generic",
+    });
+    expect(resultWithFramework.success).toBe(true);
+    expect(resultWithFramework.data?.[0].content).toBe(
+      "What's the weather like in Portland?",
+    );
+
+    // Test automatic detection (should use generic adapter since OpenAI/Gemini reject parts)
+    const inResult = normalizeInput(createInput(), {
+      observationName: "invoke_agent",
+    });
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+    expect(inResult.data).toHaveLength(1);
+    expect(inResult.data[0].role).toBe("user");
+    expect(inResult.data[0].content).toBe(
+      "What's the weather like in Portland?",
+    );
   });
 
   it("should handle Microsoft Agent framework format with parts-based tool calls", () => {
@@ -439,21 +478,20 @@ describe("ChatML Integration", () => {
       throw new Error("Expected outResult.data to be defined");
     expect(outResult.data).toHaveLength(3);
     expect(outResult.data[0].role).toBe("assistant");
-    // Tool call should be preserved as structured content
-    expect(Array.isArray(outResult.data[0].content)).toBe(true);
-    expect(outResult.data[0].content).toEqual([
-      {
-        type: "tool_call",
-        id: ["run_9guMCbt68iSVgtsx6WdKMA18", "call_Sz1QP8T7fuJkIECGDLFWOorq"],
-        name: "get_weather",
-        arguments: {
-          location: "Portland",
-        },
-      },
-    ]);
+    // Tool calls should be extracted to tool_calls field (normalized format)
+    expect(outResult.data[0].tool_calls).toBeDefined();
+    expect(outResult.data[0].tool_calls?.[0].name).toBe("get_weather");
+    expect(outResult.data[0].tool_calls?.[0].id).toBe(
+      "call_Sz1QP8T7fuJkIECGDLFWOorq",
+    );
+    expect(outResult.data[0].tool_calls?.[0].arguments).toBe(
+      '{"location":"Portland"}',
+    );
 
     expect(outResult.data[1].role).toBe("tool");
-    expect(Array.isArray(outResult.data[1].content)).toBe(true);
+    expect(outResult.data[1].content).toBe(
+      "The weather in Portland is stormy with a high of 19°C.",
+    );
 
     expect(outResult.data[2].role).toBe("assistant");
     expect(outResult.data[2].content).toBe(

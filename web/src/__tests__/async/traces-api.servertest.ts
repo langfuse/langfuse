@@ -47,6 +47,8 @@ type ObservationEventData = {
   provided_model_name?: string;
   provided_usage_details?: Record<string, number>;
   provided_cost_details?: Record<string, number>;
+  usage_details?: Record<string, number>;
+  cost_details?: Record<string, number>;
   total_cost?: number;
 };
 
@@ -126,7 +128,9 @@ const createTraceWithObservations = async (
       input: trace.input ?? null,
       output: trace.output ?? null,
       metadata: trace.metadata ?? {},
-      total_cost: 0, // Root trace event has no cost
+      cost_details: {
+        total: 0, // Root trace event has no cost
+      },
     });
 
     const observationEvents = observations.map((obs) =>
@@ -1629,6 +1633,9 @@ describe("/api/public/traces API Endpoint", () => {
               end_time: timestamp.getTime() + 1000,
               input: "What is the capital of France?",
               output: "The capital of France is Paris.",
+              cost_details: {
+                total: 0.05,
+              },
               total_cost: 0.05,
               metadata: { testKey: "testValue" },
             },
@@ -1639,6 +1646,9 @@ describe("/api/public/traces API Endpoint", () => {
               type: "SPAN",
               start_time: timestamp.getTime() + 500,
               end_time: timestamp.getTime() + 2000,
+              cost_details: {
+                total: 0.03,
+              },
               total_cost: 0.03,
               metadata: { testKey: "testValue" },
             },

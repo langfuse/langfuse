@@ -361,6 +361,8 @@ export async function queryClickhouse<T>(opts: {
             format: "JSONEachRow",
             query_params: opts.params,
             clickhouse_settings: {
+              asterisk_include_alias_columns: 1,
+              asterisk_include_materialized_columns: 1,
               ...opts.clickhouseSettings,
               log_comment: JSON.stringify(opts.tags ?? {}),
             },
