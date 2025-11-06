@@ -122,10 +122,7 @@ export function ScoreTimeSeriesNumericChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          interval={0}
-          angle={-45}
-          textAnchor="end"
-          height={80}
+          interval={1}
         />
         <YAxis
           stroke="hsl(var(--chart-grid))"

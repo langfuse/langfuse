@@ -175,7 +175,7 @@ export function DistributionChartCard() {
           <CardTitle>Distribution</CardTitle>
           <CardDescription>Loading chart...</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center">
+        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -190,7 +190,7 @@ export function DistributionChartCard() {
           <CardTitle>Distribution</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex h-[340px] flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
           Select a score to view distribution
         </CardContent>
       </Card>
@@ -270,7 +270,7 @@ export function DistributionChartCard() {
           )}
         </div>
       </CardHeader>
-      <CardContent className="h-[300px]">
+      <CardContent className="flex h-[340px] flex-col pl-0">
         {hasData ? (
           <ScoreDistributionChart
             distribution1={distribution1Data}

@@ -82,8 +82,15 @@ export function ScoreChartTooltip({
     formattedLabel = label;
   } else if (interval && timeRange && label) {
     // Format timestamp using interval-aware formatting (for numeric timestamps)
+    console.log("ScoreChartTooltip - label:", label, "type:", typeof label);
     const timestamp =
       typeof label === "number" ? new Date(label) : new Date(label);
+    console.log(
+      "ScoreChartTooltip - timestamp:",
+      timestamp,
+      "isValid:",
+      !isNaN(timestamp.getTime()),
+    );
     formattedLabel = formatChartTooltipTimestamp(
       timestamp,
       interval,
