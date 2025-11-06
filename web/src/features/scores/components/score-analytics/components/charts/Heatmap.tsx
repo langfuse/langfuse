@@ -131,9 +131,9 @@ export function Heatmap({
           {rowLabels && rowLabels.length > 0 && (
             <div
               className={cn(
-                "pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs",
+                "w-[60px] pr-1 text-right text-[10px] text-muted-foreground sm:w-[80px] sm:pr-2 sm:text-xs",
                 isDivisionPointMode
-                  ? "flex flex-1 flex-col justify-between self-stretch"
+                  ? "flex flex-col justify-between self-stretch"
                   : "grid gap-1",
               )}
               style={
