@@ -1,10 +1,11 @@
-import { useMemo } from "react";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useCallback } from "react";
+import { Bar, BarChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 
 interface BooleanChartProps {
@@ -32,6 +33,26 @@ export function ScoreDistributionBooleanChart({
 }: BooleanChartProps) {
   const isComparisonMode = Boolean(distribution2 && score2Name);
 
+  // Detect if we have namespaced category keys (e.g., "Color (annotation): True")
+  // This happens in "all" and "matched" tabs when comparing scores
+  const namespacedKeys = useMemo(() => {
+    const colorKeys = Object.keys(colors);
+    // Check if any key contains ":" which indicates namespacing
+    const hasNamespacing = colorKeys.some((key) => key.includes(":"));
+
+    if (!hasNamespacing) {
+      return null;
+    }
+
+    // Extract namespaced keys for each category
+    const keys: Record<string, string[]> = {};
+    categories.forEach((category) => {
+      keys[category] = colorKeys.filter((key) => key.endsWith(`: ${category}`));
+    });
+
+    return keys;
+  }, [colors, categories]);
+
   // Transform data for Recharts - grouped bars
   const chartData = useMemo(() => {
     const dist2Map = distribution2
@@ -44,6 +65,19 @@ export function ScoreDistributionBooleanChart({
         const label = categories[item.binIndex] ?? `Value ${item.binIndex}`;
 
         if (isComparisonMode && dist2Map) {
+          // Use namespaced keys if available, otherwise fall back to pv/uv
+          if (namespacedKeys && namespacedKeys[label]) {
+            const keys = namespacedKeys[label];
+            const score1Key = keys[0] ?? "pv";
+            const score2Key = keys[1] ?? "uv";
+
+            return {
+              name: label,
+              [score1Key]: item.count,
+              [score2Key]: dist2Map.get(item.binIndex) ?? 0,
+            };
+          }
+
           return {
             name: label,
             pv: item.count,
@@ -56,11 +90,87 @@ export function ScoreDistributionBooleanChart({
           };
         }
       });
-  }, [distribution1, distribution2, categories, isComparisonMode]);
+  }, [
+    distribution1,
+    distribution2,
+    categories,
+    isComparisonMode,
+    namespacedKeys,
+  ]);
 
-  // Build chart config - use average color from boolean values
+  // Extract actual dataKeys being used in the chart
+  const dataKeys = useMemo(() => {
+    if (!isComparisonMode) {
+      return { score1Key: "pv", score2Key: null };
+    }
+
+    // If we have namespaced keys, use the first category's keys as representative
+    if (namespacedKeys && categories.length > 0) {
+      const firstCategory = categories[0];
+      const keys = namespacedKeys[firstCategory];
+      if (keys && keys.length >= 2) {
+        return { score1Key: keys[0], score2Key: keys[1] };
+      }
+    }
+
+    // Fall back to pv/uv
+    return { score1Key: "pv", score2Key: "uv" };
+  }, [isComparisonMode, namespacedKeys, categories]);
+
+  // Visibility state for interactive legend (comparison mode only)
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Create visibility state object for legend
+  const visibilityState = useMemo(() => {
+    if (!isComparisonMode) return undefined;
+    return {
+      [dataKeys.score1Key]: !hiddenKeys.has(dataKeys.score1Key),
+      ...(dataKeys.score2Key && {
+        [dataKeys.score2Key]: !hiddenKeys.has(dataKeys.score2Key),
+      }),
+    };
+  }, [hiddenKeys, isComparisonMode, dataKeys]);
+
+  // Toggle handler
+  const handleVisibilityToggle = useCallback(
+    (key: string, visible: boolean) => {
+      setHiddenKeys((prev) => {
+        const next = new Set(prev);
+        if (visible) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  // Build chart config
   const config: ChartConfig = useMemo(() => {
-    // For boolean charts, use the first color we can find (True or False)
+    // If we have namespaced keys, use them with their colors
+    if (namespacedKeys && isComparisonMode) {
+      const cfg: ChartConfig = {};
+
+      // Add config for score1Key
+      cfg[dataKeys.score1Key] = {
+        label: dataKeys.score1Key,
+        color: colors[dataKeys.score1Key] || Object.values(colors)[0],
+      };
+
+      // Add config for score2Key if it exists
+      if (dataKeys.score2Key) {
+        cfg[dataKeys.score2Key] = {
+          label: dataKeys.score2Key,
+          color: colors[dataKeys.score2Key] || Object.values(colors)[1],
+        };
+      }
+
+      return cfg;
+    }
+
+    // Fall back to original logic without namespacing
     const firstColor =
       colors["True"] || colors["False"] || Object.values(colors)[0];
 
@@ -83,7 +193,14 @@ export function ScoreDistributionBooleanChart({
     }
 
     return cfg;
-  }, [isComparisonMode, score1Name, score2Name, colors]);
+  }, [
+    isComparisonMode,
+    score1Name,
+    score2Name,
+    colors,
+    namespacedKeys,
+    dataKeys,
+  ]);
 
   return (
     <ChartContainer
@@ -114,10 +231,30 @@ export function ScoreDistributionBooleanChart({
             />
           }
         />
-        <Bar dataKey="pv" fill={config.pv.color} radius={[4, 4, 0, 0]} />
-        {isComparisonMode && (
-          <Bar dataKey="uv" fill={config.uv?.color} radius={[4, 4, 0, 0]} />
+        <Bar
+          dataKey={dataKeys.score1Key}
+          fill={config[dataKeys.score1Key]?.color}
+          fillOpacity={hiddenKeys.has(dataKeys.score1Key) ? 0 : 1}
+          radius={[4, 4, 0, 0]}
+        />
+        {isComparisonMode && dataKeys.score2Key && (
+          <Bar
+            dataKey={dataKeys.score2Key}
+            fill={config[dataKeys.score2Key]?.color}
+            fillOpacity={hiddenKeys.has(dataKeys.score2Key) ? 0 : 1}
+            radius={[4, 4, 0, 0]}
+          />
         )}
+
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={isComparisonMode}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
+        />
       </BarChart>
     </ChartContainer>
   );
