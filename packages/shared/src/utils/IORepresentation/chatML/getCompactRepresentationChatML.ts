@@ -15,7 +15,7 @@ import { SimpleChatMlArraySchema } from "./types";
  */
 export function getCompactRepresentationChatML(io: unknown): {
   success: boolean;
-  data: string | any[] | Record<string, any> | null;
+  data: string | null;
 } {
   try {
     if (!io) return { success: false, data: null };
@@ -25,7 +25,10 @@ export function getCompactRepresentationChatML(io: unknown): {
       const parsed = SimpleChatMlArraySchema.safeParse(io);
       if (parsed.success && parsed.data.length > 0) {
         const lastMessage = parsed.data[parsed.data.length - 1];
-        return { success: true, data: lastMessage.content ?? null };
+        return {
+          success: true,
+          data: JSON.stringify(lastMessage.content) ?? null,
+        };
       }
       return { success: false, data: null };
     }
@@ -41,7 +44,7 @@ export function getCompactRepresentationChatML(io: unknown): {
         "content" in obj &&
         obj.content !== undefined
       ) {
-        return { success: true, data: obj.content ?? null };
+        return { success: true, data: JSON.stringify(obj.content) ?? null };
       }
 
       // Case 3: Object with 'messages' key
@@ -50,7 +53,10 @@ export function getCompactRepresentationChatML(io: unknown): {
         const parsed = SimpleChatMlArraySchema.safeParse(messages);
         if (parsed.success && parsed.data.length > 0) {
           const lastMessage = parsed.data[parsed.data.length - 1];
-          return { success: true, data: lastMessage.content ?? null };
+          return {
+            success: true,
+            data: JSON.stringify(lastMessage.content) ?? null,
+          };
         }
       }
     }

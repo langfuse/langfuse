@@ -9,7 +9,7 @@ import { getCompactRepresentationChatML } from "./chatML/getCompactRepresentatio
  */
 export function getCompactRepresentation(io: unknown): {
   success: boolean;
-  data: string | any[] | Record<string, any> | null;
+  data: string | null;
 } {
   if (io === undefined || io === null) return { success: false, data: null };
 
