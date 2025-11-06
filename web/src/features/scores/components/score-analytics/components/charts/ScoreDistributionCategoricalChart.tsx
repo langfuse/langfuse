@@ -184,13 +184,13 @@ export function ScoreDistributionCategoricalChart({
       return stackConfig;
     }
 
-    // Single score mode: use first category color or fallback
+    // Single score mode: use category name for pv label
     const firstColor = categories[0]
       ? colors[categories[0]]
       : Object.values(colors)[0];
     return {
       pv: {
-        label: score1Name,
+        label: (payload: any) => payload?.name ?? score1Name,
         color: firstColor,
       },
     };
