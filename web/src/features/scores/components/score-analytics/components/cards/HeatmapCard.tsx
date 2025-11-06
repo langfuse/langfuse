@@ -197,9 +197,13 @@ export function HeatmapCard() {
     dataType === "NUMERIC" ? "Score Comparison Heatmap" : "Confusion Matrix";
 
   const description =
-    dataType === "NUMERIC"
-      ? "Distribution of matched score pairs showing correlation patterns"
-      : "Agreement matrix between categorical scores";
+    mode === "single"
+      ? dataType === "NUMERIC"
+        ? "Distribution of matched score pairs showing correlation patterns"
+        : "Agreement matrix between categorical scores"
+      : dataType === "NUMERIC"
+        ? `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`
+        : `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
 
   // Single score mode - show placeholder
   if (mode === "single") {
