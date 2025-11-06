@@ -138,7 +138,37 @@ export function TimelineChartCard() {
       };
     }
 
-    // Categorical/Boolean charts - return full colorMappings
+    // Categorical/Boolean charts on individual tabs - regenerate colors for that specific score
+    if (dataType === "CATEGORICAL" || dataType === "BOOLEAN") {
+      if (activeTab === "score1" && data.distribution.categories) {
+        // Regenerate colors for score1 only to avoid collision with score2
+        const categoryColors =
+          dataType === "CATEGORICAL"
+            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
+                1,
+                data.distribution.categories,
+              )
+            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
+                1,
+              );
+        return categoryColors;
+      }
+      if (activeTab === "score2" && data.distribution.score2Categories) {
+        // Regenerate colors for score2 only to avoid collision with score1
+        const categoryColors =
+          dataType === "CATEGORICAL"
+            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
+                2,
+                data.distribution.score2Categories,
+              )
+            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
+                2,
+              );
+        return categoryColors;
+      }
+    }
+
+    // "all" or "matched" tabs - return full colorMappings with namespaced keys
     return colorMappings;
   }, [activeTab, data, colorMappings, getColorForScore]);
 
