@@ -3,9 +3,9 @@ import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/src/components/ui/chart";
+import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
 
 interface CategoricalChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
@@ -170,11 +170,15 @@ export function ScoreDistributionCategoricalChart({
           fontSize={8}
           tickLine={false}
           axisLine={false}
+          tickFormatter={(value) => value.toLocaleString()}
         />
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={
+            <ScoreChartTooltip
+              valueFormatter={(value) => value.toLocaleString()}
+              labelFormatter={(label) => String(label)}
+            />
+          }
         />
 
         {hasStackedData &&

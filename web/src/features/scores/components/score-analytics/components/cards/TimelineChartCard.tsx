@@ -234,7 +234,13 @@ export function TimelineChartCard() {
 
   const { metadata } = data;
   const { mode, dataType } = metadata;
-  const { score1, score2, interval } = params;
+  const { score1, score2, interval, fromTimestamp, toTimestamp } = params;
+
+  // Construct TimeRange from params timestamps
+  const timeRange = {
+    from: fromTimestamp,
+    to: toTimestamp,
+  };
 
   const hasData = chartData.length > 0;
   const showTabs = mode === "two";
@@ -325,6 +331,7 @@ export function TimelineChartCard() {
                   : undefined
             }
             interval={interval}
+            timeRange={timeRange}
             colors={chartColors}
           />
         ) : (
