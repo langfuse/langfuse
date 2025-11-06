@@ -467,15 +467,8 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     expect(validated[0]?.column).toBe("score_categories");
     expect(validated[1]?.column).toBe("scores_avg");
 
-    // 2. Encode: should find column IDs in columnToQueryKey
-    const encoded = encodeFiltersGeneric(
-      validated,
-      {
-        score_categories: "score_categories",
-        scores_avg: "scores_avg",
-      },
-      {},
-    );
+    // 2. Encode: should encode validated filters
+    const encoded = encodeFiltersGeneric(validated);
 
     expect(encoded).toBeTruthy();
     expect(encoded).toContain(
