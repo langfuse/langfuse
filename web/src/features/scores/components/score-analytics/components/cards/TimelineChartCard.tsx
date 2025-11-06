@@ -246,20 +246,20 @@ export function TimelineChartCard() {
   const showTabs = mode === "two";
 
   // Helper function to truncate tab labels with max character limit
-  const truncateLabel = (label: string, maxLength: number = 15): string => {
-    if (label.length <= maxLength) return label;
-    return label.substring(0, maxLength - 1) + "…";
+  const truncateLabel = (label: string): string => {
+    if (label.length <= 10) return label;
+    return label.substring(0, 7) + "...";
   };
 
   // Build full tab labels for title attribute (hover tooltip)
   const score1FullLabel =
     score1.name === score2?.name
-      ? `${score1.name} (${score1.source.toLowerCase()})`
+      ? `${score1.source} · ${score1.name}`
       : score1.name;
 
   const score2FullLabel = score2
     ? score2.name === score1.name
-      ? `${score2.name} (${score2.source.toLowerCase()})`
+      ? `${score2.source} · ${score2.name}`
       : score2.name
     : "Score 2";
 
