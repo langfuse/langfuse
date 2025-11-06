@@ -1,4 +1,10 @@
-import React, { useState, useRef, useLayoutEffect, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useLayoutEffect,
+  useEffect,
+  useMemo,
+} from "react";
 import { type LegendProps } from "recharts";
 import { MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -119,37 +125,125 @@ export const ScoreChartLegendContent = React.forwardRef<
   ) => {
     const { config } = useChart();
     const containerRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
     const [showPopover, setShowPopover] = useState(false);
     const [needsPopover, setNeedsPopover] = useState(false);
+    const [buttonWidth, setButtonWidth] = useState(140); // Estimated default width
+    const [maxVisibleItems, setMaxVisibleItems] = useState<number | null>(null);
 
-    // Measure actual height to detect overflow (hybrid approach)
+    // Measure button width on mount and when popover state changes
+    useLayoutEffect(() => {
+      if (buttonRef.current) {
+        const width = buttonRef.current.offsetWidth;
+        if (width > 0) {
+          setButtonWidth(width);
+        }
+      }
+    }, [needsPopover, payload?.length]);
+
+    // Width-based overflow detection with ResizeObserver
     useLayoutEffect(() => {
       if (!containerRef.current || !payload || payload.length === 0) {
         setNeedsPopover(false);
+        setMaxVisibleItems(null);
         return;
       }
 
-      const measure = () => {
-        const container = containerRef.current;
+      const container = containerRef.current;
+
+      const calculateLayout = () => {
         if (!container) return;
 
+        // First, render all items to detect if overflow occurs
+        const containerHeight = container.scrollHeight;
         const lineHeight = parseInt(
           window.getComputedStyle(container).lineHeight || "24",
         );
-        const containerHeight = container.scrollHeight;
         const twoLines = lineHeight * 2;
 
-        // Add 6px tolerance for sub-pixel rendering and font variations
-        setNeedsPopover(containerHeight > twoLines + 6);
+        // Add 6px tolerance for sub-pixel rendering
+        const hasOverflow = containerHeight > twoLines + 6;
+
+        if (!hasOverflow) {
+          setNeedsPopover(false);
+          setMaxVisibleItems(null);
+          return;
+        }
+
+        // If overflow detected, calculate how many items fit WITH button space reserved
+        setNeedsPopover(true);
+
+        const containerWidth = container.clientWidth;
+        const gapX = 12; // gap-x-3 = 12px
+        const buttonWidthWithGap = buttonWidth + gapX;
+
+        // Get all legend item elements currently rendered
+        const items = Array.from(
+          container.querySelectorAll("button[aria-pressed]"),
+        ) as HTMLElement[];
+
+        if (items.length === 0) {
+          // Fallback: use percentage-based estimate
+          setMaxVisibleItems(Math.max(6, Math.floor(payload.length * 0.7)));
+          return;
+        }
+
+        // Calculate cumulative width and count items that fit in one line
+        let cumulativeWidth = 0;
+        let itemsFitInLine = 0;
+        const lineOneThreshold = containerWidth;
+
+        for (let i = 0; i < items.length; i++) {
+          const itemWidth = items[i]!.offsetWidth;
+          const widthWithGap = i === 0 ? itemWidth : itemWidth + gapX;
+
+          if (cumulativeWidth + widthWithGap <= lineOneThreshold) {
+            cumulativeWidth += widthWithGap;
+            itemsFitInLine++;
+          } else {
+            break;
+          }
+        }
+
+        // For line 2, reserve space for the button
+        const lineTwoAvailable = containerWidth - buttonWidthWithGap;
+        let lineTwoCumulativeWidth = 0;
+        let itemsFitInLineTwo = 0;
+
+        for (let i = itemsFitInLine; i < items.length; i++) {
+          const itemWidth = items[i]!.offsetWidth;
+          const widthWithGap =
+            i === itemsFitInLine ? itemWidth : itemWidth + gapX;
+
+          if (lineTwoCumulativeWidth + widthWithGap <= lineTwoAvailable) {
+            lineTwoCumulativeWidth += widthWithGap;
+            itemsFitInLineTwo++;
+          } else {
+            break;
+          }
+        }
+
+        // Total items that fit: line 1 + line 2 (with button space reserved)
+        const totalItemsThatFit = itemsFitInLine + itemsFitInLineTwo;
+
+        // Subtract 1 for safety margin to prevent edge cases
+        setMaxVisibleItems(Math.max(5, totalItemsThatFit - 1));
       };
 
-      // Initial measurement
-      measure();
+      // Initial calculation
+      calculateLayout();
 
-      // Re-measure on window resize
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
-    }, [payload]);
+      // Use ResizeObserver for efficient resize tracking
+      const resizeObserver = new ResizeObserver(() => {
+        calculateLayout();
+      });
+
+      resizeObserver.observe(container);
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }, [payload, buttonWidth]);
 
     const handleItemClick = (key: string) => {
       if (!interactive || !onVisibilityChange) return;
@@ -164,18 +258,13 @@ export const ScoreChartLegendContent = React.forwardRef<
       return null;
     }
 
-    // Estimate visible items for truncation
-    // This is approximate - actual display depends on label widths
-    const estimateVisibleCount = () => {
-      if (!needsPopover) return payload.length;
-      // More generous estimate: aim to fill ~75% of available space
-      // Reduces unnecessary truncation while still preventing overflow
-      return Math.max(7, Math.floor(payload.length * 0.75));
-    };
+    // Calculate visible items based on width-based measurement
+    // maxVisibleItems is calculated by ResizeObserver to reserve button space
+    const visibleCount = needsPopover
+      ? (maxVisibleItems ?? Math.max(6, Math.floor(payload.length * 0.7)))
+      : payload.length;
 
-    const visibleItems = needsPopover
-      ? payload.slice(0, estimateVisibleCount())
-      : payload;
+    const visibleItems = payload.slice(0, visibleCount);
     const hiddenCount = payload.length - visibleItems.length;
 
     // Group items by score name (prefix before dash)
@@ -309,6 +398,7 @@ export const ScoreChartLegendContent = React.forwardRef<
             <Popover open={showPopover} onOpenChange={setShowPopover}>
               <PopoverTrigger asChild>
                 <Button
+                  ref={buttonRef}
                   variant="ghost"
                   size="sm"
                   className="h-6 shrink-0 gap-1 px-2 text-xs text-muted-foreground hover:bg-accent"
