@@ -161,6 +161,14 @@ export function DistributionChartCard() {
           );
         }
       }
+
+      // For "all" or "matched" tabs with boolean data, use solid colors like numeric
+      if (dataType === "BOOLEAN") {
+        return {
+          score1: getColorForScore(1),
+          score2: getColorForScore(2),
+        };
+      }
     }
 
     // "all" or "matched" tabs - return full colorMappings with namespaced keys
