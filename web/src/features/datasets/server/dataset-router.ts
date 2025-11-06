@@ -69,6 +69,7 @@ import {
   DatasetJSONSchema,
   type DatasetMutationResult,
 } from "@langfuse/shared/src/server";
+import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -198,16 +199,8 @@ const validateBulkDatasetItems = (params: {
     string,
     { inputSchema: unknown; expectedOutputSchema: unknown }
   >;
-}): Array<{
-  itemIndex: number;
-  field: "input" | "expectedOutput";
-  errors: Array<{ path: string; message: string; keyword?: string }>;
-}> => {
-  const validationErrors: Array<{
-    itemIndex: number;
-    field: "input" | "expectedOutput";
-    errors: Array<{ path: string; message: string; keyword?: string }>;
-  }> = [];
+}): BulkDatasetItemValidationError[] => {
+  const validationErrors: BulkDatasetItemValidationError[] = [];
 
   for (let i = 0; i < params.items.length; i++) {
     const item = params.items[i];
@@ -1354,93 +1347,103 @@ export const datasetRouter = createTRPCRouter({
         ),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "datasets:CUD",
-      });
-
-      // Verify all datasets exist and belong to the project
-      const datasetIds = [
-        ...new Set(input.items.map((item) => item.datasetId)),
-      ];
-      const datasets = await ctx.prisma.dataset.findMany({
-        where: {
-          id: { in: datasetIds },
+    .mutation(
+      async ({
+        input,
+        ctx,
+      }): Promise<
+        | { success: true }
+        | {
+            success: false;
+            validationErrors: BulkDatasetItemValidationError[];
+          }
+      > => {
+        throwIfNoProjectAccess({
+          session: ctx.session,
           projectId: input.projectId,
-        },
-        select: {
-          id: true,
-          inputSchema: true,
-          expectedOutputSchema: true,
-        },
-      });
-
-      if (datasets.length !== datasetIds.length) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "One or more datasets not found",
+          scope: "datasets:CUD",
         });
-      }
 
-      // Create a map of dataset schemas for quick lookup
-      const datasetSchemaMap = new Map(
-        datasets.map((ds) => [
-          ds.id,
-          {
-            inputSchema: ds.inputSchema,
-            expectedOutputSchema: ds.expectedOutputSchema,
+        // Verify all datasets exist and belong to the project
+        const datasetIds = [
+          ...new Set(input.items.map((item) => item.datasetId)),
+        ];
+        const datasets = await ctx.prisma.dataset.findMany({
+          where: {
+            id: { in: datasetIds },
+            projectId: input.projectId,
           },
-        ]),
-      );
-
-      const itemsWithIds = input.items.map((item) => ({
-        id: createCuid(),
-        input: formatDatasetItemData(item.input),
-        expectedOutput: formatDatasetItemData(item.expectedOutput),
-        metadata: formatDatasetItemData(item.metadata),
-        datasetId: item.datasetId,
-        sourceTraceId: item.sourceTraceId,
-        sourceObservationId: item.sourceObservationId,
-        projectId: input.projectId,
-        status: DatasetStatus.ACTIVE,
-      }));
-
-      // Validate all items - all-or-nothing
-      const validationErrors = validateBulkDatasetItems({
-        items: itemsWithIds,
-        datasetSchemas: datasetSchemaMap,
-      });
-
-      // If any validation errors, block entire operation
-      if (validationErrors.length > 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Validation failed for ${validationErrors.length} item(s)`,
-          cause: validationErrors,
+          select: {
+            id: true,
+            inputSchema: true,
+            expectedOutputSchema: true,
+          },
         });
-      }
 
-      // All items valid - create all
-      await ctx.prisma.datasetItem.createMany({
-        data: itemsWithIds,
-      });
+        if (datasets.length !== datasetIds.length) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "One or more datasets not found",
+          });
+        }
 
-      await Promise.all(
-        itemsWithIds.map(async (item) =>
-          auditLog({
-            session: ctx.session,
-            resourceType: "datasetItem",
-            resourceId: item.id,
-            action: "create",
-            after: item,
-          }),
-        ),
-      );
+        // Create a map of dataset schemas for quick lookup
+        const datasetSchemaMap = new Map(
+          datasets.map((ds) => [
+            ds.id,
+            {
+              inputSchema: ds.inputSchema,
+              expectedOutputSchema: ds.expectedOutputSchema,
+            },
+          ]),
+        );
 
-      return;
-    }),
+        const itemsWithIds = input.items.map((item) => ({
+          id: createCuid(),
+          input: formatDatasetItemData(item.input),
+          expectedOutput: formatDatasetItemData(item.expectedOutput),
+          metadata: formatDatasetItemData(item.metadata),
+          datasetId: item.datasetId,
+          sourceTraceId: item.sourceTraceId,
+          sourceObservationId: item.sourceObservationId,
+          projectId: input.projectId,
+          status: DatasetStatus.ACTIVE,
+        }));
+
+        // Validate all items - all-or-nothing
+        const validationErrors = validateBulkDatasetItems({
+          items: itemsWithIds,
+          datasetSchemas: datasetSchemaMap,
+        });
+
+        // If any validation errors, return them instead of throwing
+        if (validationErrors.length > 0) {
+          return {
+            success: false,
+            validationErrors,
+          };
+        }
+
+        // All items valid - create all
+        await ctx.prisma.datasetItem.createMany({
+          data: itemsWithIds,
+        });
+
+        await Promise.all(
+          itemsWithIds.map(async (item) =>
+            auditLog({
+              session: ctx.session,
+              resourceType: "datasetItem",
+              resourceId: item.id,
+              action: "create",
+              after: item,
+            }),
+          ),
+        );
+
+        return { success: true };
+      },
+    ),
   runItemsByItemId: protectedProjectProcedure
     .input(
       z.object({
