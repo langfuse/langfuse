@@ -503,3 +503,123 @@ export function getHeatmapCellColor(
 
   return mixColorsInOklab(baseHex, "white", percentage, 0.1, 1.0);
 }
+
+/**
+ * =======================
+ * Color Mapping Keys
+ * =======================
+ * Constants for special color mapping keys to avoid magic strings
+ */
+export const COLOR_MAPPING_KEYS = {
+  SCORE1_NUMERIC: "__score1_numeric__",
+  SCORE2_NUMERIC: "__score2_numeric__",
+  SCORE2_TRUE: "__score2_True",
+  SCORE2_FALSE: "__score2_False",
+} as const;
+
+/**
+ * =======================
+ * Comprehensive Color Mappings Builder
+ * =======================
+ * Builds complete color mappings for all score analytics visualizations
+ */
+
+export interface BuildColorMappingsParams {
+  dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
+  mode: "single" | "two";
+  score1Name: string;
+  score2Name?: string;
+  score1Source: string;
+  score2Source?: string;
+  categories?: string[];
+  score2Categories?: string[];
+}
+
+/**
+ * Build comprehensive color mappings for score analytics
+ * Handles all data types and creates namespaced versions for "all" and "allMatched" tabs
+ *
+ * @param params - Configuration for building color mappings
+ * @returns Record mapping category/value names to hex colors
+ */
+export function buildColorMappings(
+  params: BuildColorMappingsParams,
+): Record<string, string> {
+  const mappings: Record<string, string> = {};
+  const {
+    dataType,
+    mode,
+    score1Name,
+    score2Name,
+    score1Source,
+    score2Source,
+    categories,
+    score2Categories,
+  } = params;
+
+  // Build score name prefixes for namespaced categories in "all" and "allMatched" tabs
+  const score1Prefix =
+    mode === "two" && score1Name === score2Name && score1Source !== score2Source
+      ? `${score1Name} (${score1Source})`
+      : score1Name;
+
+  const score2Prefix =
+    mode === "two" &&
+    score2Name &&
+    score1Name === score2Name &&
+    score1Source !== score2Source
+      ? `${score2Name} (${score2Source})`
+      : (score2Name ?? "");
+
+  // Score 1 color mappings
+  if (dataType === "CATEGORICAL" && categories) {
+    const categoryColors = getScoreCategoryColors(1, categories);
+    Object.assign(mappings, categoryColors);
+
+    // Add namespaced versions for "all" and "allMatched" tabs
+    if (mode === "two") {
+      categories.forEach((category) => {
+        mappings[`${score1Prefix}: ${category}`] = categoryColors[category];
+      });
+    }
+  } else if (dataType === "BOOLEAN" && categories) {
+    const booleanColors = getScoreBooleanColors(1);
+    Object.assign(mappings, booleanColors);
+
+    // Add namespaced versions for "all" and "allMatched" tabs
+    if (mode === "two") {
+      categories.forEach((category) => {
+        mappings[`${score1Prefix}: ${category}`] = booleanColors[category];
+      });
+    }
+  } else if (dataType === "NUMERIC") {
+    mappings[COLOR_MAPPING_KEYS.SCORE1_NUMERIC] = getScoreNumericColor(1);
+  }
+
+  // Score 2 color mappings (if exists)
+  if (mode === "two") {
+    if (dataType === "CATEGORICAL" && score2Categories) {
+      const categoryColors = getScoreCategoryColors(2, score2Categories);
+      Object.assign(mappings, categoryColors);
+
+      // Add namespaced versions for "all" and "allMatched" tabs
+      score2Categories.forEach((category) => {
+        mappings[`${score2Prefix}: ${category}`] = categoryColors[category];
+      });
+    } else if (dataType === "BOOLEAN" && categories) {
+      const booleanColors = getScoreBooleanColors(2);
+      // Prefix with score2 to avoid collision with score1 boolean values
+      mappings[COLOR_MAPPING_KEYS.SCORE2_TRUE] = booleanColors.True;
+      mappings[COLOR_MAPPING_KEYS.SCORE2_FALSE] = booleanColors.False;
+
+      // Add namespaced versions for "all" and "allMatched" tabs
+      categories.forEach((category) => {
+        mappings[`${score2Prefix}: ${category}`] = booleanColors[category];
+      });
+    } else if (dataType === "NUMERIC") {
+      mappings[COLOR_MAPPING_KEYS.SCORE2_NUMERIC] = getScoreNumericColor(2);
+    }
+  }
+
+  return mappings;
+}

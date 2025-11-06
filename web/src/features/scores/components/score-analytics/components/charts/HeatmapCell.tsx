@@ -40,7 +40,7 @@ export function HeatmapCellComponent({
         )}
         style={{
           backgroundColor: "hsl(var(--background))",
-          borderColor: "rgba(202, 202, 218, 0.34)", // Derived from bg-background
+          borderColor: "hsl(var(--border) / 0.34)",
         }}
         aria-hidden="true"
       />
@@ -74,7 +74,7 @@ export function HeatmapCellComponent({
   const sharedStyle = {
     backgroundColor: isEmpty ? "hsl(var(--background))" : cellColor,
     borderColor: isEmpty
-      ? "rgba(202, 202, 218, 0.34)" // Transparent border for empty cells
+      ? "hsl(var(--border) / 0.34)" // Transparent border for empty cells
       : cellColor, // Border matches fill for filled cells
     color: textColor === "white" ? "white" : "black",
   };

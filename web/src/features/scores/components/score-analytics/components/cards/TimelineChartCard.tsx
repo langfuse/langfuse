@@ -10,6 +10,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreTimeSeriesChart } from "../charts/ScoreTimeSeriesChart";
+import {
+  getScoreCategoryColors,
+  getScoreBooleanColors,
+} from "@/src/features/scores/lib/color-scales";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";
 
@@ -144,26 +148,16 @@ export function TimelineChartCard() {
         // Regenerate colors for score1 only to avoid collision with score2
         const categoryColors =
           dataType === "CATEGORICAL"
-            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-                1,
-                data.distribution.categories,
-              )
-            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
-                1,
-              );
+            ? getScoreCategoryColors(1, data.distribution.categories)
+            : getScoreBooleanColors(1);
         return categoryColors;
       }
       if (activeTab === "score2" && data.distribution.score2Categories) {
         // Regenerate colors for score2 only to avoid collision with score1
         const categoryColors =
           dataType === "CATEGORICAL"
-            ? require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-                2,
-                data.distribution.score2Categories,
-              )
-            : require("@/src/features/scores/lib/color-scales").getScoreBooleanColors(
-                2,
-              );
+            ? getScoreCategoryColors(2, data.distribution.score2Categories)
+            : getScoreBooleanColors(2);
         return categoryColors;
       }
     }
