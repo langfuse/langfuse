@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Line, LineChart, XAxis, YAxis } from "recharts";
+import { useMemo, useState, useCallback } from "react";
+import { Line, LineChart, XAxis, YAxis, Legend } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/chart";
 import { type IntervalConfig } from "@/src/utils/date-range-utils";
 import { formatTimestamp } from "./ScoreTimeSeriesNumericChart";
+import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 
 export interface BooleanTimeSeriesChartProps {
   data: Array<{
@@ -78,6 +79,34 @@ export function ScoreTimeSeriesBooleanChart({
     };
   }, [data, interval]);
 
+  // Visibility state for interactive legend
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+
+  // Create visibility state object for legend
+  const visibilityState = useMemo(() => {
+    const state: Record<string, boolean> = {};
+    categories.forEach((category) => {
+      state[category] = !hiddenKeys.has(category);
+    });
+    return state;
+  }, [hiddenKeys, categories]);
+
+  // Toggle handler
+  const handleVisibilityToggle = useCallback(
+    (key: string, visible: boolean) => {
+      setHiddenKeys((prev) => {
+        const next = new Set(prev);
+        if (visible) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   // Create chart config with colors for each category
   const config: ChartConfig = useMemo(() => {
     const cfg: ChartConfig = {};
@@ -134,22 +163,35 @@ export function ScoreTimeSeriesBooleanChart({
           axisLine={false}
           label={{ value: "Count", angle: -90, position: "insideLeft" }}
         />
-        {categories.map((category) => (
-          <Line
-            key={category}
-            type="monotone"
-            dataKey={category}
-            stroke={config[category]?.color}
-            strokeWidth={2}
-            dot={true}
-            activeDot={{ r: 6, strokeWidth: 0 }}
-            connectNulls
-          />
-        ))}
+        {categories.map((category) => {
+          const isHidden = hiddenKeys.has(category);
+          return (
+            <Line
+              key={category}
+              type="monotone"
+              dataKey={category}
+              stroke={config[category]?.color}
+              strokeWidth={2}
+              strokeOpacity={isHidden ? 0 : 1}
+              dot={!isHidden}
+              activeDot={!isHidden ? { r: 6, strokeWidth: 0 } : false}
+              connectNulls
+            />
+          );
+        })}
         <ChartTooltip
           content={<ChartTooltipContent />}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}
+        />
+        <Legend
+          content={
+            <ScoreChartLegendContent
+              interactive={true}
+              visibilityState={visibilityState}
+              onVisibilityChange={handleVisibilityToggle}
+            />
+          }
         />
       </LineChart>
     </ChartContainer>
