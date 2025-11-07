@@ -4,82 +4,16 @@ import {
 } from "@/src/features/filters/lib/filter-query-encoding";
 import type { FilterState } from "@langfuse/shared";
 
-// Test-specific dinosaur-themed column mapping
-const TEST_COLUMN_TO_QUERY_KEY = {
-  species: "species",
-  diet: "diet",
-  period: "period",
-  habitat: "habitat",
-  extinct: "extinct",
-  length: "length",
-  name: "name",
-  ratings: "ratings",
-  scoresNumeric: "scoresNumeric",
-  metadata: "metadata",
-};
-
-const TEST_COLUMN_DEFS = [
-  { id: "species", name: "species", type: "stringOptions" as const },
-  { id: "diet", name: "diet", type: "stringOptions" as const },
-  { id: "period", name: "period", type: "stringOptions" as const },
-  { id: "habitat", name: "habitat", type: "arrayOptions" as const },
-  { id: "extinct", name: "extinct", type: "boolean" as const },
-  { id: "length", name: "length", type: "number" as const },
-  { id: "name", name: "name", type: "string" as const },
-  { id: "ratings", name: "ratings", type: "categoryOptions" as const },
-  {
-    id: "scoresNumeric",
-    name: "scoresNumeric",
-    type: "numberObject" as const,
-  },
-  { id: "metadata", name: "metadata", type: "stringObject" as const },
-];
-
-type FilterQueryOptions = Record<
-  keyof typeof TEST_COLUMN_TO_QUERY_KEY,
-  string[]
->;
-
 // Wrapper functions for tests
-const encodeFilters = (filters: FilterState, options: FilterQueryOptions) =>
-  encodeFiltersGeneric(filters, TEST_COLUMN_TO_QUERY_KEY, options);
+const encodeFilters = (filters: FilterState) => encodeFiltersGeneric(filters);
 
-const decodeFilters = (query: string, options: FilterQueryOptions) => {
-  return decodeFiltersGeneric(
-    query,
-    TEST_COLUMN_TO_QUERY_KEY,
-    options,
-    (column) => {
-      const columnDef = TEST_COLUMN_DEFS.find((col) => col.id === column);
-      return columnDef?.type || "stringOptions";
-    },
-  );
-};
+const decodeFilters = (query: string) => decodeFiltersGeneric(query);
 
 describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
-  const mockOptions: FilterQueryOptions = {
-    species: [
-      "t-rex",
-      "triceratops",
-      "velociraptor",
-      "brachiosaurus",
-      "stegosaurus",
-    ],
-    diet: ["carnivore", "herbivore", "omnivore"],
-    period: ["triassic", "jurassic", "cretaceous"],
-    habitat: ["forest", "plains", "swamp", "desert"],
-    extinct: ["Extinct", "Not extinct"],
-    length: [],
-    name: [],
-    ratings: [],
-    scoresNumeric: [],
-    metadata: [],
-  };
-
   describe("Encoding", () => {
     it("should encode empty filter state to empty string", () => {
       const filters: FilterState = [];
-      expect(encodeFilters(filters, mockOptions)).toBe("");
+      expect(encodeFilters(filters)).toBe("");
     });
 
     it("should encode single categorical filter", () => {
@@ -91,7 +25,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: ["jurassic"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "period;stringOptions;;any of;jurassic",
       );
     });
@@ -105,7 +39,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: ["jurassic", "cretaceous"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "period;stringOptions;;any of;jurassic%7Ccretaceous",
       );
     });
@@ -125,7 +59,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: ["carnivore", "omnivore"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "period;stringOptions;;any of;jurassic,diet;stringOptions;;any of;carnivore%7Comnivore",
       );
     });
@@ -139,7 +73,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: ["triassic"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "period;stringOptions;;none of;triassic",
       );
     });
@@ -153,7 +87,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: 5,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("length;number;;>=;5");
+      expect(encodeFilters(filters)).toBe("length;number;;>=;5");
     });
 
     it("should encode numeric <= filter", () => {
@@ -165,7 +99,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: 10,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe("length;number;;<=;10");
+      expect(encodeFilters(filters)).toBe("length;number;;<=;10");
     });
 
     it("should encode numeric range with both >= and <=", () => {
@@ -183,7 +117,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: 10,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "length;number;;>=;5,length;number;;<=;10",
       );
     });
@@ -197,9 +131,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: "rex",
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
-        "name;string;;contains;rex",
-      );
+      expect(encodeFilters(filters)).toBe("name;string;;contains;rex");
     });
 
     it("should encode categoryOptions filter", () => {
@@ -212,7 +144,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: ["high", "medium"],
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "ratings;categoryOptions;danger;any of;high%7Cmedium",
       );
     });
@@ -227,7 +159,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: 0.8,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "scoresNumeric;numberObject;accuracy;>=;0.8",
       );
     });
@@ -242,7 +174,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: "production",
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
+      expect(encodeFilters(filters)).toBe(
         "metadata;stringObject;environment;contains;production",
       );
     });
@@ -256,22 +188,17 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           value: true,
         },
       ];
-      expect(encodeFilters(filters, mockOptions)).toBe(
-        "extinct;boolean;;=;true",
-      );
+      expect(encodeFilters(filters)).toBe("extinct;boolean;;=;true");
     });
   });
 
   describe("Decoding", () => {
     it("should decode empty string to empty filter state", () => {
-      expect(decodeFilters("", mockOptions)).toEqual([]);
+      expect(decodeFilters("")).toEqual([]);
     });
 
     it("should decode single categorical filter", () => {
-      const result = decodeFilters(
-        "period;stringOptions;;any of;triassic",
-        mockOptions,
-      );
+      const result = decodeFilters("period;stringOptions;;any of;triassic");
       expect(result).toEqual([
         {
           column: "period",
@@ -285,7 +212,6 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
     it("should decode multiple values in categorical filter", () => {
       const result = decodeFilters(
         "period;stringOptions;;any of;triassic%7Cjurassic",
-        mockOptions,
       );
       expect(result).toEqual([
         {
@@ -300,7 +226,6 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
     it("should decode multiple filters", () => {
       const result = decodeFilters(
         "period;stringOptions;;any of;triassic,diet;stringOptions;;any of;carnivore%7Cherbivore",
-        mockOptions,
       );
       expect(result).toEqual([
         {
@@ -319,10 +244,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
     });
 
     it("should decode exclusive filters", () => {
-      const result = decodeFilters(
-        "period;stringOptions;;none of;triassic",
-        mockOptions,
-      );
+      const result = decodeFilters("period;stringOptions;;none of;triassic");
       expect(result).toEqual([
         {
           column: "period",
@@ -335,7 +257,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode numeric >= filter", () => {
       const query = "length;number;;%3E%3D;5";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "length",
@@ -348,7 +270,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode numeric <= filter", () => {
       const query = "length;number;;%3C%3D;10";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "length",
@@ -361,7 +283,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode numeric range with both >= and <=", () => {
       const query = "length;number;;%3E%3D;5,length;number;;%3C%3D;10";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "length",
@@ -380,7 +302,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode string filter", () => {
       const query = "name;string;;contains;rex";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "name",
@@ -393,7 +315,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode categoryOptions filter", () => {
       const query = "ratings;categoryOptions;danger;any of;high%7Cmedium";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "ratings",
@@ -407,7 +329,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode numberObject filter", () => {
       const query = "scoresNumeric;numberObject;accuracy;%3E%3D;0.8";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "scoresNumeric",
@@ -421,7 +343,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode stringObject filter", () => {
       const query = "metadata;stringObject;environment;contains;production";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "metadata",
@@ -435,7 +357,7 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
 
     it("should decode boolean filter", () => {
       const query = "extinct;boolean;;%3D;true";
-      const decoded = decodeFilters(query, mockOptions);
+      const decoded = decodeFilters(query);
       expect(decoded).toEqual([
         {
           column: "extinct",
@@ -476,8 +398,8 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ];
 
-      const serialized = encodeFilters(originalFilters, mockOptions);
-      const deserialized = decodeFilters(serialized, mockOptions);
+      const serialized = encodeFilters(originalFilters);
+      const deserialized = decodeFilters(serialized);
 
       expect(deserialized).toEqual(originalFilters);
     });
@@ -498,8 +420,8 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ];
 
-      const serialized = encodeFilters(exclusiveFilters, mockOptions);
-      const deserialized = decodeFilters(serialized, mockOptions);
+      const serialized = encodeFilters(exclusiveFilters);
+      const deserialized = decodeFilters(serialized);
 
       expect(deserialized).toEqual(exclusiveFilters);
     });
@@ -545,8 +467,8 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ];
 
-      const serialized = encodeFilters(mixedFilters, mockOptions);
-      const deserialized = decodeFilters(serialized, mockOptions);
+      const serialized = encodeFilters(mixedFilters);
+      const deserialized = decodeFilters(serialized);
 
       expect(deserialized).toEqual(mixedFilters);
     });
