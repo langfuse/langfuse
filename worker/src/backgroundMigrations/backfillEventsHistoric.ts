@@ -320,7 +320,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           o.prompt_version,
           o.internal_model_id AS model_id,
           o.provided_model_name,
-          o.model_parameters,
+          coalesce(o.model_parameters, '{}'),
           o.provided_usage_details,
           o.usage_details,
           o.provided_cost_details,

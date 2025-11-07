@@ -196,7 +196,7 @@ export async function getRelevantObservations(
       o.prompt_version AS prompt_version,
       coalesce(o.internal_model_id, '') AS model_id,
       coalesce(o.provided_model_name, '') AS provided_model_name,
-      coalesce(o.model_parameters, '') AS model_parameters,
+      coalesce(o.model_parameters, '{}') AS model_parameters,
       o.provided_usage_details AS provided_usage_details,
       o.usage_details AS usage_details,
       o.provided_cost_details AS provided_cost_details,
