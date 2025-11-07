@@ -505,6 +505,27 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
+  it("should extract text from Vercel AI SDK content array format", () => {
+    // Vercel AI SDK format: content as array with type/text structure
+    const input = {
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Hello world" }],
+        },
+      ],
+    };
+
+    const inResult = normalizeInput(input, {});
+    expect(inResult.success).toBe(true);
+
+    const playgroundMsg = convertChatMlToPlayground(inResult.data![0]);
+
+    // Should extract text, not stringify array
+    expect(playgroundMsg?.content).toBe("Hello world");
+    expect(playgroundMsg?.content).not.toContain("[{");
+  });
+
   it("should extract tools from Microsoft Agent Framework metadata", () => {
     // Microsoft Agent Framework stores tools in metadata.attributes["gen_ai.tool.definitions"]
     const input = [
