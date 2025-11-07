@@ -1,4 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
+import { useMemo } from "react";
 
 export interface HeatmapSkeletonProps {
   rows?: number;
@@ -11,17 +12,18 @@ export interface HeatmapSkeletonProps {
 
 /**
  * Calculate cell opacity based on distance from diagonal with jitter
- * Uses foreground color with opacity range (3%-28%)
+ * Uses foreground color with opacity range (2%-18%)
  *
  * Three zones based on distance from diagonal:
- * - Zone 1 (Dark): 12-28% opacity (near diagonal)
- * - Zone 2 (Medium): 6-14% opacity (mid-distance)
- * - Zone 3 (Light): 3-8% opacity (far from diagonal)
+ * - Zone 1 (Dark): 8-18% opacity (near diagonal)
+ * - Zone 2 (Medium): 4-10% opacity (mid-distance)
+ * - Zone 3 (Light): 2-5% opacity (far from diagonal)
  *
  * @param row - Row index (0-based)
  * @param col - Column index (0-based)
  * @param rows - Total number of rows
  * @param cols - Total number of columns
+ * @param seed - Random seed for variation on each component mount
  * @returns Opacity value as number (0-1 range)
  */
 function getCellOpacity(
@@ -29,6 +31,7 @@ function getCellOpacity(
   col: number,
   rows: number,
   cols: number,
+  seed: number,
 ): number {
   // Normalize to 0-1 range
   const normalizedRow = row / (rows - 1);
@@ -37,8 +40,8 @@ function getCellOpacity(
   // Calculate distance from diagonal (0 = on diagonal, 1 = far corner)
   const distanceFromDiagonal = Math.abs(normalizedRow - normalizedCol);
 
-  // Deterministic jitter based on cell position (0-1 range)
-  const jitter = ((row * 73 + col * 37) % 100) / 100;
+  // Random jitter based on cell position and seed (0-1 range)
+  const jitter = ((row * 73 + col * 37 + seed * 41) % 100) / 100;
 
   // Determine zone and opacity range
   let minOpacity: number;
@@ -46,16 +49,16 @@ function getCellOpacity(
 
   if (distanceFromDiagonal < 0.33) {
     // Zone 1: Dark (near diagonal) - highest opacity
-    minOpacity = 0.12;
-    maxOpacity = 0.28;
+    minOpacity = 0.08;
+    maxOpacity = 0.18;
   } else if (distanceFromDiagonal < 0.66) {
     // Zone 2: Medium (mid-distance)
-    minOpacity = 0.06;
-    maxOpacity = 0.14;
+    minOpacity = 0.04;
+    maxOpacity = 0.1;
   } else {
     // Zone 3: Light (far from diagonal)
-    minOpacity = 0.03;
-    maxOpacity = 0.08;
+    minOpacity = 0.02;
+    maxOpacity = 0.05;
   }
 
   // Calculate final opacity with jitter within zone range
@@ -88,6 +91,9 @@ export function HeatmapSkeleton({
   showAxisLabels = true,
   className,
 }: HeatmapSkeletonProps) {
+  // Generate random seed once on component mount for pattern variation
+  const randomSeed = useMemo(() => Math.random() * 1000, []);
+
   // Calculate cell dimensions - EXACT MATCH from Heatmap.tsx lines 99-102
   const cellWidth = "minmax(32px, 1fr)"; // Can grow wide
   const cellHeight = cellHeightProp
@@ -147,7 +153,7 @@ export function HeatmapSkeleton({
           {Array.from({ length: rows * cols }).map((_, idx) => {
             const row = Math.floor(idx / cols);
             const col = idx % cols;
-            const opacity = getCellOpacity(row, col, rows, cols);
+            const opacity = getCellOpacity(row, col, rows, cols, randomSeed);
 
             return (
               <div
