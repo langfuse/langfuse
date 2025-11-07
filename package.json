@@ -40,7 +40,6 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "release-it": "^19.0.4",
-    "tsx": "^4.20.5",
     "turbo": "^2.6.0"
   },
   "release-it": {
