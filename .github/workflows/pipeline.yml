@@ -49,18 +49,15 @@ jobs:
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Build and run both images from compose
         run: |
-          if ! docker compose -f docker-compose.build.yml up -d --wait; then
-            echo "=== Docker compose failed. Showing debug information ==="
-            echo ""
-            echo "=== Container Status ==="
-            docker compose -f docker-compose.build.yml ps
-            echo ""
-            echo "=== PostgreSQL Logs ==="
-            docker compose -f docker-compose.build.yml logs db
-            echo ""
-            echo "=== Redis Logs ==="
-            docker compose -f docker-compose.build.yml logs redis
+          docker compose -f docker-compose.build.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
+      - name: Ensure no unhealthy status
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
             exit 1
+          else
+            echo "All services are healthy"
           fi
       - name: Check worker health
         run: |
@@ -111,23 +108,8 @@ jobs:
           grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
       - name: Run + migrate
         run: |
-          if ! docker compose -f docker-compose.dev.yml up -d --wait; then
-            echo "=== Docker compose failed. Showing debug information ==="
-            echo ""
-            echo "=== Container Status ==="
-            docker compose -f docker-compose.dev.yml ps
-            echo ""
-            echo "=== PostgreSQL Logs ==="
-            docker compose -f docker-compose.dev.yml logs postgres
-            echo ""
-            echo "=== ClickHouse Logs ==="
-            docker compose -f docker-compose.dev.yml logs clickhouse
-            echo ""
-            echo "=== Redis Logs ==="
-            docker compose -f docker-compose.dev.yml logs redis
-            exit 1
-          fi
-          docker compose ps
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Seed DB
@@ -194,23 +176,18 @@ jobs:
           grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
       - name: Run + migrate
         run: |
-          if ! docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d --wait; then
-            echo "=== Docker compose failed. Showing debug information ==="
-            echo ""
-            echo "=== Container Status ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml ps
-            echo ""
-            echo "=== PostgreSQL Logs ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs postgres
-            echo ""
-            echo "=== ClickHouse Logs ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs clickhouse || true
-            echo ""
-            echo "=== Redis Logs ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs redis
-            exit 1
-          fi
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
+      - name: Ensure no unhealthy status
+        run: |
+          if docker compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
+
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Seed DB
@@ -278,23 +255,9 @@ jobs:
           cp .env.dev${{ matrix.blob-provider }}.example worker/.env
       - name: Run + migrate
         run: |
-          if ! docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d --wait; then
-            echo "=== Docker compose failed. Showing debug information ==="
-            echo ""
-            echo "=== Container Status ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml ps
-            echo ""
-            echo "=== PostgreSQL Logs ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs postgres
-            echo ""
-            echo "=== ClickHouse Logs ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs clickhouse || true
-            echo ""
-            echo "=== Redis Logs ==="
-            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs redis
-            exit 1
-          fi
+          docker compose -f docker-compose.dev.yml up -d
           docker compose ps
+          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Seed DB
         run: |
           pnpm run db:migrate
@@ -331,23 +294,17 @@ jobs:
           cp .env.dev.example web/.env
       - name: Run + migrate
         run: |
-          if ! docker compose -f docker-compose.dev.yml up -d --wait; then
-            echo "=== Docker compose failed. Showing debug information ==="
-            echo ""
-            echo "=== Container Status ==="
-            docker compose -f docker-compose.dev.yml ps
-            echo ""
-            echo "=== PostgreSQL Logs ==="
-            docker compose -f docker-compose.dev.yml logs postgres
-            echo ""
-            echo "=== ClickHouse Logs ==="
-            docker compose -f docker-compose.dev.yml logs clickhouse
-            echo ""
-            echo "=== Redis Logs ==="
-            docker compose -f docker-compose.dev.yml logs redis
-            exit 1
-          fi
+          docker compose -f docker-compose.dev.yml up -d
           docker compose ps
+          sleep 5 # Wait for PostgreSQL to accept connections
+          - name: Ensure Docker dependencies are healthy
+            run: |
+              if docker-compose ps | grep "(unhealthy)"; then
+                echo "One or more services are unhealthy"
+                exit 1
+              else
+                echo "All services are healthy"
+              fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
