@@ -66,6 +66,15 @@ const notifications: SidebarNotification[] = [
     createdAt: "2025-11-06",
   },
   {
+    id: "lw4-5",
+    title: "Launch Week 4: Day 5",
+    description:
+      "Score Analytics to compare and validate all your scores in Langfuse, from human ratings to LLM-as-a-judge",
+    link: "https://langfuse.com/changelog/2025-11-07-score-analytics-multi-score-comparison",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-07",
+  },
+  {
     id: "js-sdk-v4",
     title: "New JS/TS SDK v4",
     description:
