@@ -4,8 +4,9 @@ import {
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
 import { ThumbsUp, Star, LineChart, Code } from "lucide-react";
+import { ActionButton } from "@/src/components/ActionButton";
 
-export function ScoresOnboarding() {
+export function ScoresOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [
     {
       title: "Collect user feedback",
@@ -38,6 +39,27 @@ export function ScoresOnboarding() {
       title="Get Started with Scores"
       description="Scores allow you to evaluate the quality/safety of your LLM application through user feedback, model-based evaluations, or manual review. Scores can be used programmatically via the API and SDKs to track custom metrics."
       valuePropositions={valuePropositions}
+      primaryAction={{
+        label: "Set up LLM-as-a-judge",
+        component: (
+          <>
+            <ActionButton
+              size="lg"
+              href={`/project/${projectId}/evals`}
+              variant="default"
+            >
+              Set up LLM-as-a-judge
+            </ActionButton>
+            <ActionButton
+              size="lg"
+              href={`/project/${projectId}/annotation-queues`}
+              variant="default"
+            >
+              Create Annotation Queue
+            </ActionButton>
+          </>
+        ),
+      }}
       secondaryAction={{
         label: "Learn More",
         href: "https://langfuse.com/docs/evaluation/evaluation-methods/custom-scores",
