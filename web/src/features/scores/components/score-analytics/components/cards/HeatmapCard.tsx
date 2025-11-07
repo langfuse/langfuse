@@ -10,6 +10,7 @@ import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { Heatmap } from "../charts/Heatmap";
 import { HeatmapLegend } from "../charts/HeatmapLegend";
 import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
+import { HeatmapSkeleton } from "../charts/HeatmapSkeleton";
 import { getHeatmapCellColor } from "@/src/features/scores/components/score-analytics/libs/color-scales";
 import { type HeatmapCell } from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
 import { useCallback } from "react";
@@ -292,9 +293,12 @@ export function HeatmapCard() {
             )}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            No matched score pairs found for the selected time range
-          </div>
+          <HeatmapSkeleton
+            rows={numRows}
+            cols={dataType === "NUMERIC" ? 10 : (heatmap?.cols ?? 10)}
+            showLabels={true}
+            showAxisLabels={true}
+          />
         )}
       </CardContent>
     </Card>
