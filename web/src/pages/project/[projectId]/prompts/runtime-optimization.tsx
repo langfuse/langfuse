@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import Image from "next/image";
 import Page from "@/src/components/layouts/page";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import {
@@ -8,11 +9,19 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { Sparkles, Loader2, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
+import { OPTIMIZATION_ENVIRONMENTS } from "@langfuse/shared";
 
 export default function RuntimeOptimization({
   promptName: promptNameProp,
@@ -33,6 +42,9 @@ export default function RuntimeOptimization({
   const [numIterations, setNumIterations] = useState(1);
   const [numExamples, setNumExamples] = useState(1);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [selectedEnvironment, setSelectedEnvironment] = useState(
+    OPTIMIZATION_ENVIRONMENTS[0]?.name || "",
+  );
   const capture = usePostHogClientCapture();
 
   // Timer to show elapsed time during optimization
@@ -151,6 +163,7 @@ export default function RuntimeOptimization({
           numIterations,
           numExamples,
           promptLabel: latestPrompt.labels[0] || "",
+          environment: selectedEnvironment,
         }),
       });
 
@@ -266,6 +279,34 @@ export default function RuntimeOptimization({
             </p>
           </div>
 
+          {/* Environment Selection - Highlighted */}
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="environment" className="text-base font-medium">
+                Optimization Environment
+              </Label>
+              <Select
+                value={selectedEnvironment}
+                onValueChange={setSelectedEnvironment}
+                disabled={isOptimizing}
+              >
+                <SelectTrigger id="environment" className="bg-background">
+                  <SelectValue placeholder="Select environment" />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPTIMIZATION_ENVIRONMENTS.map((env) => (
+                    <SelectItem key={env.name} value={env.name}>
+                      {env.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Select which optimization script to run
+              </p>
+            </div>
+          </div>
+
           {/* Configuration Inputs */}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
@@ -342,7 +383,22 @@ export default function RuntimeOptimization({
 
         {/* Information Section */}
         <div className="rounded-lg border bg-muted/50 p-6">
-          <h3 className="mb-3 font-medium">How it works</h3>
+          <h3 className="mb-4 font-medium">How it works</h3>
+
+          {/* Diagram */}
+          <div className="mb-6 overflow-x-auto rounded-lg bg-white p-4">
+            <div className="min-w-[800px]">
+              <Image
+                src="/diagram_prompt_opt.png"
+                alt="Runtime Prompt Optimization Process"
+                width={1123}
+                height={255}
+                className="h-auto w-full"
+                priority={false}
+              />
+            </div>
+          </div>
+
           <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
             <li>Generate set of trajectories using the current prompt</li>
             <li>

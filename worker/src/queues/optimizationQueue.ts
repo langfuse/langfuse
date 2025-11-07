@@ -1,6 +1,7 @@
 import { Job } from "bullmq";
 import { spawn } from "child_process";
 import { logger, QueueName, TQueueJobTypes } from "@langfuse/shared/src/server";
+import { getOptimizationEnvironment } from "@langfuse/shared";
 import path from "path";
 
 export const optimizationQueueProcessor = async (
@@ -13,6 +14,7 @@ export const optimizationQueueProcessor = async (
       promptLabel,
       numIterations,
       numExamples,
+      environment,
     } = job.data.payload;
 
     logger.info("Starting optimization job", {
@@ -30,21 +32,18 @@ export const optimizationQueueProcessor = async (
     console.log(`Prompt Label: ${promptLabel}`);
     console.log(`Iterations: ${numIterations}`);
     console.log(`Examples: ${numExamples}`);
+    console.log(`Environment: ${environment}`);
     console.log(`Job ID: ${job.id}`);
     console.log(`========================================\n`);
 
-    // Path to the Python script
-    // const scriptPath = path.join(
-    //   process.cwd(),
-    //   "..",
-    //   "scripts",
-    //   "optimize_prompt.py",
-    // );
-    const scriptPath =
-      "/Users/abhishek/rotation_project/wxo-agent-evaluation/src/wxo_agentic_evaluation/optimization/tau_bench_prompt_optimization.py";
-    // Execute the Python script using the aws_sdg mamba environment's Python
-    // Direct path to the Python interpreter in the mamba environment
-    const pythonPath = "/Users/abhishek/mamba/envs/aws_sdg/bin/python";
+    // Get environment configuration
+    const envConfig = getOptimizationEnvironment(environment);
+    if (!envConfig) {
+      throw new Error(`Optimization environment "${environment}" not found`);
+    }
+
+    const scriptPath = envConfig.scriptPath;
+    const pythonPath = envConfig.pythonPath || "/Users/abhishek/mamba/envs/aws_sdg/bin/python";
 
     // Build CLI arguments
     const args = [

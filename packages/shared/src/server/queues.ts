@@ -202,6 +202,7 @@ export const OptimizationJobSchema = z.object({
   promptLabel: z.string(),
   numIterations: z.number(),
   numExamples: z.number(),
+  environment: z.string(),
 });
 
 export const WebhookOutboundEnvelopeSchema = z.object({

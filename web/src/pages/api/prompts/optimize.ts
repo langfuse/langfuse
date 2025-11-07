@@ -16,6 +16,7 @@ const OptimizeRequestSchema = z.object({
   numIterations: z.number().min(1).max(100).default(10),
   numExamples: z.number().min(1).max(50).default(5),
   promptLabel: z.string().optional(),
+  environment: z.string(),
 });
 
 export default async function handler(
@@ -40,7 +41,7 @@ export default async function handler(
     if (!parseResult.success) {
       return res.status(400).json({
         error: "Invalid request body",
-        details: parseResult.error.errors,
+        details: parseResult.error.issues,
       });
     }
 
@@ -50,6 +51,7 @@ export default async function handler(
       promptLabel,
       numIterations,
       numExamples,
+      environment,
     } = parseResult.data;
 
     // TODO: Add project access check
@@ -78,6 +80,7 @@ export default async function handler(
         promptLabel: promptLabel || "",
         numIterations,
         numExamples,
+        environment,
       },
       name: QueueJobs.OptimizationJob,
     });

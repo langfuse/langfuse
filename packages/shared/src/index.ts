@@ -62,6 +62,7 @@ export {
   type MessagePlaceholderValues,
   type PromptMessage as ServerPromptMessage,
 } from "./server/llm/compileChatMessages";
+export * from "./server/optimizationEnvironments";
 
 // export db types only
 export * from "@prisma/client";
