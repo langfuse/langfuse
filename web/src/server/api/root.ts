@@ -24,32 +24,10 @@ import { batchExportRouter } from "@/src/server/api/routers/batchExport";
 import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
 import { commentsRouter } from "@/src/server/api/routers/comments";
-<<<<<<< HEAD
 import { queueRouter } from "@/src/ee/features/annotation-queues/server/annotationQueues";
 import { queueItemRouter } from "@/src/ee/features/annotation-queues/server/annotationQueueItems";
 import { experimentsRouter } from "@/src/ee/features/experiments/server/router";
 import { mediaRouter } from "@/src/server/api/routers/media";
-=======
-import { commentReactionsRouter } from "@/src/server/api/routers/commentReactions";
-import { queueRouter } from "@/src/features/annotation-queues/server/annotationQueuesRouter";
-import { queueItemRouter } from "@/src/features/annotation-queues/server/annotationQueueItemsRouter";
-import { experimentsRouter } from "@/src/features/experiments/server/router";
-import { mediaRouter } from "@/src/server/api/routers/media";
-import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
-import { auditLogsRouter } from "./routers/auditLogs";
-import { tableRouter } from "@/src/features/table/server/tableRouter";
-import { cloudStatusRouter } from "@/src/features/cloud-status-notification/server/cloud-status-router";
-import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
-import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPresets";
-import { automationsRouter } from "@/src/features/automations/server/router";
-import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
-import { slackRouter } from "@/src/features/slack/server/router";
-import { plainRouter } from "@/src/features/support-chat/trpc/plainRouter";
-import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
-import { surveysRouter } from "@/src/server/api/routers/surveys";
-import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
-import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
->>>>>>> 67990ebfd (chore: protect allFromProject (#10136))
 
 /**
  * This is the primary router for your server.
