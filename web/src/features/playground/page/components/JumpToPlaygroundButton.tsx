@@ -132,7 +132,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
   }, [capturedState, setIsAvailable]);
 
-  const handlePlaygroundAction = (useFreshPlayground: boolean, openInNewTab: boolean = false) => {
+  const handlePlaygroundAction = (useFreshPlayground: boolean, openInNewTab: boolean) => {
     capture(props.analyticsEventName, {
       playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
       openInNewTab,
@@ -265,20 +265,20 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <div 
-          className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
-          onClick={(e) => {
-            e.preventDefault();
-            setOpenInNewTab(!openInNewTab);
-          }}
+          className="flex items-center justify-between px-2 py-1.5 text-sm"
+          role="menuitem"
         >
-          <div className="flex items-center gap-2">
+          <label 
+            htmlFor="open-in-new-tab-toggle"
+            className="flex items-center gap-2 cursor-pointer flex-1"
+          >
             <ExternalLink className="h-4 w-4" />
             <span>Open in new tab</span>
-          </div>
+          </label>
           <Switch 
+            id="open-in-new-tab-toggle"
             checked={openInNewTab}
             onCheckedChange={setOpenInNewTab}
-            onClick={(e) => e.stopPropagation()}
           />
         </div>
       </DropdownMenuContent>

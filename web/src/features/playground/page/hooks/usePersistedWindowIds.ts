@@ -35,32 +35,37 @@ export function usePersistedWindowIds() {
       // Clear all existing playground data first
       clearAllPlaygroundData();
 
-      // Migrate temporary cache to sessionStorage
-      tempCacheKeys.forEach((tempKey) => {
-        try {
-          const tempCacheData = localStorage.getItem(tempKey);
-          if (tempCacheData) {
-            // Extract the window ID from the temp key
-            const windowId = tempKey.replace("playground-temp-cache-", "");
-            const cacheKey = `langfuse-playgroundCache_${windowId}`;
-            
-            // Move cache from localStorage to sessionStorage
-            sessionStorage.setItem(cacheKey, tempCacheData);
-            console.log(`Migrated temporary cache from ${tempKey} to ${cacheKey}`);
-            
-            // Clean up temporary cache from localStorage
-            localStorage.removeItem(tempKey);
-            
-            // Set this as the only window ID for fresh playground
-            setWindowIds([windowId]);
-            setIsLoaded(true);
-            return;
-          }
-        } catch (error) {
-          console.error(`Failed to migrate temporary cache from ${tempKey}:`, error);
-          localStorage.removeItem(tempKey);
+      // Migrate the first temporary cache to sessionStorage
+      // (there should typically only be one, but we process the first if multiple exist)
+      const tempKey = tempCacheKeys[0];
+      try {
+        const tempCacheData = localStorage.getItem(tempKey);
+        if (tempCacheData) {
+          // Extract the window ID from the temp key
+          const windowId = tempKey.replace("playground-temp-cache-", "");
+          const cacheKey = `langfuse-playgroundCache_${windowId}`;
+          
+          // Move cache from localStorage to sessionStorage
+          sessionStorage.setItem(cacheKey, tempCacheData);
+          console.log(`Migrated temporary cache from ${tempKey} to ${cacheKey}`);
+          
+          // Set this as the only window ID for fresh playground
+          setWindowIds([windowId]);
+          setIsLoaded(true);
         }
-      });
+      } catch (error) {
+        console.error(`Failed to migrate temporary cache from ${tempKey}:`, error);
+      } finally {
+        // Clean up all temporary cache keys from localStorage
+        tempCacheKeys.forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch (error) {
+            console.error(`Failed to remove temporary cache ${key}:`, error);
+          }
+        });
+      }
+      return;
     }
 
     // Normal initialization if no temporary cache found
