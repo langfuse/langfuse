@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS events
       -- Model
       model_id String,
       provided_model_name String,
-      model_parameters Map(LowCardinality(String), Dynamic),
+      model_parameters Nullable(String),
       model_parameters_json JSON MATERIALIZED model_parameters::JSON,
 
       -- Usage
