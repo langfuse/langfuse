@@ -29,7 +29,7 @@ export class OptimizationQueue {
             connection: newRedis,
             prefix: getQueuePrefix(QueueName.OptimizationQueue),
             defaultJobOptions: {
-              removeOnComplete: true,
+              removeOnComplete: 100, // Keep last 100 completed jobs for status polling
               removeOnFail: 1_000,
               attempts: 3,
               backoff: {

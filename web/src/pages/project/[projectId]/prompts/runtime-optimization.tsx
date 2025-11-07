@@ -30,8 +30,8 @@ export default function RuntimeOptimization({
     number | null
   >(null);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [numIterations, setNumIterations] = useState(10);
-  const [numExamples, setNumExamples] = useState(5);
+  const [numIterations, setNumIterations] = useState(1);
+  const [numExamples, setNumExamples] = useState(1);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
 
@@ -52,7 +52,12 @@ export default function RuntimeOptimization({
   // Poll job status while optimizing
   useEffect(() => {
     if (!isOptimizing || !currentJobId) {
-      console.log("Polling stopped - isOptimizing:", isOptimizing, "currentJobId:", currentJobId);
+      console.log(
+        "Polling stopped - isOptimizing:",
+        isOptimizing,
+        "currentJobId:",
+        currentJobId,
+      );
       return;
     }
 
@@ -67,13 +72,17 @@ export default function RuntimeOptimization({
 
         console.log("Poll response status:", response.status);
 
-        if (!response.ok) {
-          console.error("Poll response not ok:", response.status);
-          return;
-        }
-
         const data = await response.json();
         console.log("Job status data:", data);
+
+        // Handle job not found - might have been removed after completion
+        if (!response.ok || data.status === "not_found") {
+          console.warn("Job not found - may have been completed and removed");
+          setIsOptimizing(false);
+          setOptimizationStartTime(null);
+          setCurrentJobId(null);
+          return;
+        }
 
         if (data.status === "completed") {
           console.log("Job completed! Showing success toast");
@@ -156,7 +165,7 @@ export default function RuntimeOptimization({
       showSuccessToast({
         title: "Optimization started",
         description:
-          "Your prompt optimization is running in the background. This may take 5-10 minutes. Results will appear automatically when complete.",
+          "Your prompt optimization is running in the background. This may take 1-2 minutes. Results will appear automatically when complete.",
         duration: 10000,
       });
     } catch (error) {
@@ -265,19 +274,19 @@ export default function RuntimeOptimization({
                 id="numIterations"
                 type="number"
                 min={1}
-                max={100}
+                max={3}
                 value={numIterations}
                 onChange={(e) => setNumIterations(Number(e.target.value))}
                 disabled={isOptimizing}
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="numExamples">Number of Examples</Label>
+              <Label htmlFor="numExamples">Number of Trajectories</Label>
               <Input
                 id="numExamples"
                 type="number"
                 min={1}
-                max={50}
+                max={5}
                 value={numExamples}
                 onChange={(e) => setNumExamples(Number(e.target.value))}
                 disabled={isOptimizing}
