@@ -10,6 +10,8 @@ const defaultRedisOptions: Partial<RedisOptions> = {
   keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
 };
 
+const REDIS_SCAN_COUNT = 1000;
+
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
     if (times >= 5) {
@@ -177,6 +179,48 @@ export const safeMultiDel = async (
     // In single-node mode, can delete all keys at once
     await redis.del(keys);
   }
+};
+
+const scanKeysForNode = async (
+  client: Redis,
+  pattern: string,
+  collector: Set<string>,
+) => {
+  let cursor = "0";
+
+  do {
+    const [nextCursor, keys]: [string, string[]] = await client.scan(
+      cursor,
+      "MATCH",
+      pattern,
+      "COUNT",
+      REDIS_SCAN_COUNT,
+    );
+
+    keys.forEach((key) => collector.add(key));
+    cursor = nextCursor;
+  } while (cursor !== "0");
+};
+
+export const scanKeys = async (
+  redis: Redis | Cluster | null,
+  pattern: string,
+): Promise<string[]> => {
+  if (!redis) return [];
+
+  const collectedKeys = new Set<string>();
+
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    await Promise.all(
+      (redis as Cluster)
+        .nodes("master")
+        .map((node) => scanKeysForNode(node, pattern, collectedKeys)),
+    );
+  } else {
+    await scanKeysForNode(redis as Redis, pattern, collectedKeys);
+  }
+
+  return Array.from(collectedKeys);
 };
 
 const createRedisClient = () => {
