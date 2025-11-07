@@ -257,7 +257,7 @@ const getObservationsFromEventsTableInternal = async <T>(
   const needsTraceJoin =
     traceTableFilter.length > 0 || orderByTraces || search.query;
 
-  // When we have default ordering by time, we order by toUnixTimestamp(e.start_time)
+  // When we have default ordering by time, we order by (e.start_time_unix)
   // This way, clickhouse is able to read more efficiently directly from disk without ordering
   const newDefaultOrder =
     orderBy?.column === "startTime"
@@ -270,7 +270,7 @@ const getObservationsFromEventsTableInternal = async <T>(
       uiTableName: "order_by_unix",
       uiTableId: "order_by_unix",
       clickhouseTableName: "events",
-      clickhouseSelect: "toUnixTimestamp(e.start_time)",
+      clickhouseSelect: "e.start_time_unix",
     },
   ]);
 
@@ -439,7 +439,7 @@ const getObservationByIdFromEventsTableInternal = async ({
     .when(Boolean(traceId), (b) =>
       b.whereRaw("trace_id = {traceId: String}", { traceId }),
     )
-    .orderBy("ORDER BY toUnixTimestamp(start_time) DESC, event_ts DESC")
+    .orderBy("ORDER BY start_time_Unix DESC, event_ts DESC")
     .limit(1, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -643,7 +643,7 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
 
   if (opts.select === "rows") {
     queryBuilder
-      .orderBy("ORDER BY toUnixTimestamp(e.start_time) DESC")
+      .orderBy("ORDER BY e.start_time_unix DESC")
       .limit(limit, (page - 1) * limit);
   }
 
