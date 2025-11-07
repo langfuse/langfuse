@@ -477,14 +477,7 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     expect(encoded).toContain("scores_avg;numberObject;accuracy");
 
     // 3. Round-trip: decode should restore
-    const decoded = decodeFiltersGeneric(
-      encoded,
-      {
-        score_categories: "score_categories",
-        scores_avg: "scores_avg",
-      },
-      {},
-    );
+    const decoded = decodeFiltersGeneric(encoded);
 
     expect(decoded).toHaveLength(2);
     expect(decoded[0]?.column).toBe("score_categories");
