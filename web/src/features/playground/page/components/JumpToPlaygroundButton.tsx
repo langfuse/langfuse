@@ -1,4 +1,4 @@
-import { Terminal, ChevronDown } from "lucide-react";
+import { Terminal, ChevronDown, ExternalLink } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import { v4 as uuidv4 } from "uuid";
@@ -9,8 +9,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { Switch } from "@/src/components/ui/switch";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -70,6 +72,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const [openInNewTab, setOpenInNewTab] = useState<boolean>(false);
 
   // Generate a stable window ID based on the source data
   const stableWindowId = useMemo(() => {
@@ -129,9 +132,10 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
   }, [capturedState, setIsAvailable]);
 
-  const handlePlaygroundAction = (useFreshPlayground: boolean) => {
+  const handlePlaygroundAction = (useFreshPlayground: boolean, openInNewTab: boolean = false) => {
     capture(props.analyticsEventName, {
       playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
+      openInNewTab,
     });
 
     // First, ensure we have state to save
@@ -141,36 +145,90 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
 
     if (useFreshPlayground) {
-      // Clear all existing playground data and reset to single window
-      clearAllCache(stableWindowId);
+      if (openInNewTab) {
+        // For fresh playground in new tab:
+        // 1. Save cache to localStorage temporarily (sessionStorage doesn't transfer to new tabs)
+        // 2. Open playground in new tab
+        // 3. The playground page will check localStorage and migrate to sessionStorage
+        try {
+          const tempKey = `playground-temp-cache-${stableWindowId}`;
+          localStorage.setItem(tempKey, JSON.stringify(capturedState));
+          console.log(`Temporary cache saved to localStorage with key: ${tempKey}`);
+          
+          // Open playground in new tab
+          const playgroundUrl = `/project/${projectId}/playground`;
+          window.open(playgroundUrl, "_blank", "noopener,noreferrer");
+        } catch (error) {
+          console.error("Failed to save temporary cache or open new tab:", error);
+        }
+      } else {
+        // For fresh playground in current tab:
+        // Clear all existing playground data and reset to single window
+        clearAllCache(stableWindowId);
+        
+        // Use requestAnimationFrame to ensure the state update has been processed
+        requestAnimationFrame(() => {
+          try {
+            setPlaygroundCache(capturedState);
+            console.log(
+              `Cache saved for fresh playground window ${stableWindowId}`,
+            );
+
+            // Navigate after cache is successfully saved
+            router.push(`/project/${projectId}/playground`);
+          } catch (error) {
+            console.error("Failed to save playground cache:", error);
+            // Navigate anyway, but user might not see their data
+            router.push(`/project/${projectId}/playground`);
+          }
+        });
+      }
     } else {
       // Add to existing playground
-      const addedWindowId = addWindowWithId(stableWindowId);
+      if (openInNewTab) {
+        // When opening in a new tab with "Add to existing", we can't actually add to the existing
+        // playground because sessionStorage doesn't transfer to new tabs.
+        // So we treat it the same as "Fresh playground" in a new tab.
+        try {
+          const tempKey = `playground-temp-cache-${stableWindowId}`;
+          localStorage.setItem(tempKey, JSON.stringify(capturedState));
+          console.log(`Temporary cache saved to localStorage: ${tempKey}`);
+          
+          // Open playground in new tab
+          const playgroundUrl = `/project/${projectId}/playground`;
+          window.open(playgroundUrl, "_blank", "noopener,noreferrer");
+        } catch (error) {
+          console.error("Failed to save temporary cache or open new tab:", error);
+        }
+      } else {
+        // Add to existing playground in current tab
+        const addedWindowId = addWindowWithId(stableWindowId);
 
-      if (!addedWindowId) {
-        console.warn(
-          "Failed to add window to existing playground, maximum windows reached",
-        );
-        return;
+        if (!addedWindowId) {
+          console.warn(
+            "Failed to add window to existing playground, maximum windows reached",
+          );
+          return;
+        }
+
+        // Use requestAnimationFrame to ensure the state update has been processed
+        requestAnimationFrame(() => {
+          try {
+            setPlaygroundCache(capturedState);
+            console.log(
+              `Cache saved for existing playground window ${stableWindowId}`,
+            );
+
+            // Navigate after cache is successfully saved
+            router.push(`/project/${projectId}/playground`);
+          } catch (error) {
+            console.error("Failed to save playground cache:", error);
+            // Navigate anyway, but user might not see their data
+            router.push(`/project/${projectId}/playground`);
+          }
+        });
       }
     }
-
-    // Use requestAnimationFrame to ensure the state update has been processed
-    requestAnimationFrame(() => {
-      try {
-        setPlaygroundCache(capturedState);
-        console.log(
-          `Cache saved for existing playground window ${stableWindowId}`,
-        );
-
-        // Navigate after cache is successfully saved
-        router.push(`/project/${projectId}/playground`);
-      } catch (error) {
-        console.error("Failed to save playground cache:", error);
-        // Navigate anyway, but user might not see their data
-        router.push(`/project/${projectId}/playground`);
-      }
-    });
   };
 
   const tooltipMessage = isAvailable
@@ -197,14 +255,32 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => handlePlaygroundAction(true)}>
+        <DropdownMenuItem onClick={() => handlePlaygroundAction(true, openInNewTab)}>
           <Terminal className="mr-2 h-4 w-4" />
           Fresh playground
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handlePlaygroundAction(false)}>
+        <DropdownMenuItem onClick={() => handlePlaygroundAction(false, openInNewTab)}>
           <Terminal className="mr-2 h-4 w-4" />
           Add to existing
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <div 
+          className="flex items-center justify-between px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded-sm"
+          onClick={(e) => {
+            e.preventDefault();
+            setOpenInNewTab(!openInNewTab);
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <ExternalLink className="h-4 w-4" />
+            <span>Open in new tab</span>
+          </div>
+          <Switch 
+            checked={openInNewTab}
+            onCheckedChange={setOpenInNewTab}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -20,6 +20,50 @@ export function usePersistedWindowIds() {
 
   // Load window IDs from storage on initial mount
   useEffect(() => {
+    // Check for temporary cache from "Fresh playground" button (opened in new tab)
+    // This cache is stored in localStorage because sessionStorage doesn't transfer to new tabs
+    const tempCacheKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("playground-temp-cache-")) {
+        tempCacheKeys.push(key);
+      }
+    }
+
+    // If we found temporary cache, this is a fresh playground opened in a new tab
+    if (tempCacheKeys.length > 0) {
+      // Clear all existing playground data first
+      clearAllPlaygroundData();
+
+      // Migrate temporary cache to sessionStorage
+      tempCacheKeys.forEach((tempKey) => {
+        try {
+          const tempCacheData = localStorage.getItem(tempKey);
+          if (tempCacheData) {
+            // Extract the window ID from the temp key
+            const windowId = tempKey.replace("playground-temp-cache-", "");
+            const cacheKey = `langfuse-playgroundCache_${windowId}`;
+            
+            // Move cache from localStorage to sessionStorage
+            sessionStorage.setItem(cacheKey, tempCacheData);
+            console.log(`Migrated temporary cache from ${tempKey} to ${cacheKey}`);
+            
+            // Clean up temporary cache from localStorage
+            localStorage.removeItem(tempKey);
+            
+            // Set this as the only window ID for fresh playground
+            setWindowIds([windowId]);
+            setIsLoaded(true);
+            return;
+          }
+        } catch (error) {
+          console.error(`Failed to migrate temporary cache from ${tempKey}:`, error);
+          localStorage.removeItem(tempKey);
+        }
+      });
+    }
+
+    // Normal initialization if no temporary cache found
     const savedWindowIds = getWindowIds();
     setWindowIds(savedWindowIds ?? [uuidv4()]);
     setIsLoaded(true);
