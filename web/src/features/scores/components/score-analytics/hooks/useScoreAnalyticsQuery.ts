@@ -232,6 +232,15 @@ export function useScoreAnalyticsQuery(
       stackedDistribution: apiData.stackedDistribution,
     });
 
+    // Extract score2 categories for proper binning
+    // When comparing two different categorical scores, score2 may have different categories
+    const score2Categories =
+      apiData.score2Categories && apiData.score2Categories.length > 0
+        ? apiData.score2Categories
+        : mode === "two" && categories
+          ? categories // Fallback to score1 categories if score2Categories empty
+          : undefined;
+
     // ========================================================================
     // 2. Fill distribution bins (categorical/boolean only)
     // Note: Sort all distributions by binIndex to ensure deterministic ordering
@@ -253,8 +262,9 @@ export function useScoreAnalyticsQuery(
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution2Individual = categories
-      ? fillDistributionBins(apiData.distribution2Individual, categories)
+    // Use score2Categories for score2Individual (not score1 categories)
+    const distribution2Individual = score2Categories
+      ? fillDistributionBins(apiData.distribution2Individual, score2Categories)
       : apiData.distribution2Individual
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
@@ -265,8 +275,9 @@ export function useScoreAnalyticsQuery(
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution2Matched = categories
-      ? fillDistributionBins(apiData.distribution2Matched, categories)
+    // Use score2Categories for score2Matched (not score1 categories)
+    const distribution2Matched = score2Categories
+      ? fillDistributionBins(apiData.distribution2Matched, score2Categories)
       : apiData.distribution2Matched
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
