@@ -77,6 +77,8 @@
     "@slack/oauth": "^3.0.4",
     "@slack/web-api": "^7.10.0",
     "@types/bcryptjs": "^2.4.6",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.10",
     "date-fns": "^3.3.1",

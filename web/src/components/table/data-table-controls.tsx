@@ -170,7 +170,6 @@ export function DataTableControls({
                 <CategoricalFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   options={filter.options}
@@ -195,7 +194,6 @@ export function DataTableControls({
                 <NumericFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -215,7 +213,6 @@ export function DataTableControls({
                 <StringFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -232,7 +229,6 @@ export function DataTableControls({
                 <KeyValueFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -252,7 +248,6 @@ export function DataTableControls({
                 <NumericKeyValueFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -271,7 +266,6 @@ export function DataTableControls({
                 <StringKeyValueFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}

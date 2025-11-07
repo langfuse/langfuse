@@ -6,20 +6,10 @@ import {
 import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 
 // Generic helpers for reusable encoding/decoding across feature areas
-export type ColumnToQueryKeyMap = Record<string, string>;
 export type GenericFilterOptions = Record<
   string,
   string[] | (string | SingleValueOption)[] | Record<string, string[]>
 >;
-
-export const createShortKeyGetter =
-  (columnToQueryKey: ColumnToQueryKeyMap) =>
-  (column: string): string | null => {
-    const key = columnToQueryKey[column];
-    return key ?? null;
-  };
-
-// Note: short key getters are feature-specific; use createShortKeyGetter in feature modules
 
 // Pure helper: compute UI-selected values from a filter entry and available values
 export function computeSelectedValues(
@@ -41,21 +31,11 @@ export function computeSelectedValues(
  * Multiple filters separated by commas
  * Array values joined with |
  */
-export function encodeFiltersGeneric(
-  filters: FilterState,
-  columnToQueryKey: ColumnToQueryKeyMap,
-  _options?: Partial<GenericFilterOptions>,
-): string {
+export function encodeFiltersGeneric(filters: FilterState): string {
   return (
     encodeDelimitedArray(
       filters
         .map((f) => {
-          const columnId = columnToQueryKey[f.column];
-
-          if (!columnId) {
-            return null;
-          }
-
           // Determine the key field (for categoryOptions, numberObject, stringObject)
           const key =
             f.type === "numberObject" ||
@@ -78,7 +58,7 @@ export function encodeFiltersGeneric(
             encodedValue = encodeURIComponent(String(f.value));
           }
 
-          return `${columnId};${f.type};${key};${f.operator};${encodedValue}`;
+          return `${f.column};${f.type};${key};${f.operator};${encodedValue}`;
         })
         .filter((s): s is string => s !== null),
       ",",
@@ -88,14 +68,9 @@ export function encodeFiltersGeneric(
 
 /**
  * Decodes the legacy semicolon-delimited format to FilterState
- * Format: columnId;type;key;operator;value
+ * Format: column;type;key;operator;value
  */
-export function decodeFiltersGeneric(
-  query: string,
-  columnToQueryKey: ColumnToQueryKeyMap,
-  _options: Partial<GenericFilterOptions>,
-  _getType?: (column: string) => any,
-): FilterState {
+export function decodeFiltersGeneric(query: string): FilterState {
   if (!query.trim()) return [];
 
   const decoded = decodeDelimitedArray(query, ",");
@@ -103,24 +78,12 @@ export function decodeFiltersGeneric(
 
   const filters: FilterState = [];
 
-  // Create reverse mapping from columnId to column name
-  const idToColumn: Record<string, string> = {};
-  for (const [columnName, columnId] of Object.entries(columnToQueryKey)) {
-    idToColumn[columnId] = columnName;
-  }
-
   for (const filterString of decoded) {
     if (!filterString) continue;
 
-    const [columnId, type, key, operator, encodedValue] =
-      filterString.split(";");
+    const [column, type, key, operator, encodedValue] = filterString.split(";");
 
-    if (!columnId || !type || !operator || encodedValue === undefined) {
-      continue;
-    }
-
-    const column = idToColumn[columnId];
-    if (!column) {
+    if (!column || !type || !operator || encodedValue === undefined) {
       continue;
     }
 
