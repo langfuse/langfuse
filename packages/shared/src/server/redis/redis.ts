@@ -29,22 +29,24 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
 };
 
 /**
- * Parse Redis cluster nodes from environment variable
+ * Parse Redis node definitions from environment variable
  * Format: "host1:port1,host2:port2,host3:port3"
  */
-const parseClusterNodes = (
+const parseRedisNodes = (
   nodesString: string,
 ): Array<{ host: string; port: number }> => {
   return nodesString.split(",").map((node) => {
     const [host, port] = node.trim().split(":");
     if (!host || !port) {
       throw new Error(
-        `Invalid cluster node format: ${node}. Expected format: host:port`,
+        `Invalid Redis node format: ${node}. Expected format: host:port`,
       );
     }
     return { host, port: parseInt(port, 10) };
   });
 };
+const parseClusterNodes = parseRedisNodes;
+const parseSentinelNodes = parseRedisNodes;
 
 const createRedisClusterInstance = (
   additionalOptions: Partial<RedisOptions> = {},
@@ -100,11 +102,79 @@ const createRedisClusterInstance = (
   return cluster;
 };
 
+const createRedisSentinelInstance = (
+  additionalOptions: Partial<RedisOptions> = {},
+): Redis | null => {
+  if (!env.REDIS_SENTINEL_MASTER_NAME) {
+    logger.error(
+      "REDIS_SENTINEL_MASTER_NAME is required when REDIS_SENTINEL_ENABLED is true",
+    );
+    return null;
+  }
+
+  if (!env.REDIS_SENTINEL_NODES) {
+    logger.error(
+      "REDIS_SENTINEL_NODES is required when REDIS_SENTINEL_ENABLED is true",
+    );
+    return null;
+  }
+
+  const sentinels = parseSentinelNodes(env.REDIS_SENTINEL_NODES);
+  const tlsOptions =
+    env.REDIS_TLS_ENABLED === "true"
+      ? {
+          tls: {
+            ca: env.REDIS_TLS_CA_PATH
+              ? fs.readFileSync(env.REDIS_TLS_CA_PATH)
+              : undefined,
+            cert: env.REDIS_TLS_CERT_PATH
+              ? fs.readFileSync(env.REDIS_TLS_CERT_PATH)
+              : undefined,
+            key: env.REDIS_TLS_KEY_PATH
+              ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
+              : undefined,
+          },
+        }
+      : {};
+
+  const instance = new Redis({
+    sentinels,
+    name: env.REDIS_SENTINEL_MASTER_NAME,
+    username: env.REDIS_USERNAME || undefined,
+    password: env.REDIS_AUTH || undefined,
+    sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
+    sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
+    ...defaultRedisOptions,
+    ...additionalOptions,
+    ...tlsOptions,
+  });
+
+  instance.on("error", (error) => {
+    logger.error("Redis sentinel error", error);
+  });
+
+  return instance;
+};
+
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ): Redis | Cluster | null => {
+  if (
+    env.REDIS_CLUSTER_ENABLED === "true" &&
+    env.REDIS_SENTINEL_ENABLED === "true"
+  ) {
+    logger.error(
+      "Invalid Redis configuration: REDIS_CLUSTER_ENABLED and REDIS_SENTINEL_ENABLED cannot both be true",
+    );
+    return null;
+  }
+
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     return createRedisClusterInstance(additionalOptions);
+  }
+
+  if (env.REDIS_SENTINEL_ENABLED === "true") {
+    return createRedisSentinelInstance(additionalOptions);
   }
 
   const tlsOptions =
