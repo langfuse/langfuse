@@ -15,6 +15,82 @@ import { getScoreCategoryColors } from "../../libs/color-scales";
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
 /**
+ * Calculate score2 items that have no matching score1 items
+ * by comparing total score2Individual counts vs matched counts in stackedDistribution
+ */
+function calculateUnmatchedScore2Distribution(
+  score2Individual: Array<{ binIndex: number; count: number }>,
+  stackedDistribution: Array<{
+    score1Category: string;
+    score2Stack: string;
+    count: number;
+  }>,
+  score2Categories: string[],
+): Array<{
+  score1Category: string;
+  score2Stack: string;
+  count: number;
+}> {
+  // Helper to check if a key represents an unmatched category
+  const isUnmatchedKey = (key: string): boolean => {
+    return (
+      key === "__unmatched__" || key === "0" || key === "" || key === "null"
+    );
+  };
+
+  // Build total counts map from score2Individual
+  const totalCountsMap = new Map<string, number>();
+  score2Individual.forEach((item) => {
+    // Bounds check
+    if (item.binIndex >= 0 && item.binIndex < score2Categories.length) {
+      const category = score2Categories[item.binIndex];
+      if (category) {
+        totalCountsMap.set(category, item.count);
+      }
+    }
+  });
+
+  // Build matched counts map, excluding already-unmatched items
+  const matchedCountsMap = new Map<string, number>();
+  stackedDistribution.forEach((item) => {
+    // Skip existing unmatched markers
+    if (
+      !isUnmatchedKey(item.score2Stack) &&
+      !isUnmatchedKey(item.score1Category)
+    ) {
+      const currentCount = matchedCountsMap.get(item.score2Stack) || 0;
+      matchedCountsMap.set(item.score2Stack, currentCount + item.count);
+    }
+  });
+
+  // Calculate unmatched counts with edge case handling
+  const unmatchedDistribution: Array<{
+    score1Category: string;
+    score2Stack: string;
+    count: number;
+  }> = [];
+
+  score2Categories.forEach((category) => {
+    const totalCount = totalCountsMap.get(category) || 0;
+    const matchedCount = matchedCountsMap.get(category) || 0;
+
+    // Prevent negative counts (edge case: race conditions)
+    const unmatchedCount = Math.max(0, totalCount - matchedCount);
+
+    // Only add if there are unmatched items
+    if (unmatchedCount > 0) {
+      unmatchedDistribution.push({
+        score1Category: "__unmatched__",
+        score2Stack: category,
+        count: unmatchedCount,
+      });
+    }
+  });
+
+  return unmatchedDistribution;
+}
+
+/**
  * DistributionCategoricalCard - Distribution chart card for CATEGORICAL scores
  *
  * Responsibilities:
@@ -75,14 +151,28 @@ export function DistributionCategoricalCard() {
           score2Categories: undefined,
           description: `${score2?.name ?? "Score 2"} - ${statistics.score2?.total.toLocaleString()} observations`,
         };
-      case "all":
+      case "all": {
+        // Calculate unmatched score2 items and augment stackedDistribution
+        const unmatchedScore2 = calculateUnmatchedScore2Distribution(
+          distribution.score2Individual,
+          distribution.stackedDistribution,
+          distribution.score2Categories ?? [],
+        );
+
+        // Combine original stacked data with unmatched score2 items
+        const augmentedStackedDistribution = [
+          ...distribution.stackedDistribution,
+          ...unmatchedScore2,
+        ];
+
         return {
           distribution1: undefined, // Not used in stacked mode
           categories: distribution.categories ?? [],
-          stackedDistribution: distribution.stackedDistribution, // Use full stacked data (includes __unmatched__)
+          stackedDistribution: augmentedStackedDistribution,
           score2Categories: distribution.score2Categories ?? [],
           description: `${score1.name} (${statistics.score1.total.toLocaleString()}) vs ${score2?.name} (${statistics.score2?.total.toLocaleString()})`,
         };
+      }
       case "matched":
         return {
           distribution1: undefined, // Not used in stacked mode

@@ -103,14 +103,19 @@ export function ScoreDistributionCategoricalChart({
 
       // Normalize: ensure every category has all stack keys, even if count is 0
       return Array.from(grouped.entries())
-        .sort()
+        .sort((a, b) => {
+          // Put __unmatched__ last (rightmost column)
+          if (a[0] === "__unmatched__") return 1;
+          if (b[0] === "__unmatched__") return -1;
+          return a[0].localeCompare(b[0]);
+        })
         .map(([category, stacks]) => {
           const normalizedStacks: Record<string, number> = {};
           allStackKeys.forEach((stackKey) => {
             normalizedStacks[stackKey] = stacks[stackKey] ?? 0;
           });
           return {
-            name: category,
+            name: category === "__unmatched__" ? "no match" : category,
             ...normalizedStacks,
           };
         });
