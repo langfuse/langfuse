@@ -11,13 +11,18 @@ export interface HeatmapSkeletonProps {
 
 /**
  * Calculate cell opacity based on distance from diagonal with jitter
- * Cells near diagonal (row ≈ col) are darker, with random variation
+ * Uses foreground color with subtle opacity range (2%-16%)
+ *
+ * Three zones based on distance from diagonal:
+ * - Zone 1 (Dark): 8-16% opacity (near diagonal)
+ * - Zone 2 (Medium): 4-8% opacity (mid-distance)
+ * - Zone 3 (Light): 2-4% opacity (far from diagonal)
  *
  * @param row - Row index (0-based)
  * @param col - Column index (0-based)
  * @param rows - Total number of rows
  * @param cols - Total number of columns
- * @returns Opacity class string (e.g., "bg-muted/50")
+ * @returns Opacity class string with arbitrary value (e.g., "bg-foreground/[0.12]")
  */
 function getCellOpacity(
   row: number,
@@ -29,24 +34,35 @@ function getCellOpacity(
   const normalizedRow = row / (rows - 1);
   const normalizedCol = col / (cols - 1);
 
-  // Calculate distance from diagonal
+  // Calculate distance from diagonal (0 = on diagonal, 1 = far corner)
   const distanceFromDiagonal = Math.abs(normalizedRow - normalizedCol);
 
-  // Add deterministic "random" jitter based on cell position
-  // Using a simple hash-like function for consistency
-  const jitter = ((row * 73 + col * 37) % 100) / 100 / 5; // ±0.2 variation
+  // Deterministic jitter based on cell position (0-1 range)
+  const jitter = ((row * 73 + col * 37) % 100) / 100;
 
-  // Base opacity: 0 at diagonal, 1 at corners
-  let opacity = distanceFromDiagonal + jitter;
+  // Determine zone and opacity range
+  let minOpacity: number;
+  let maxOpacity: number;
 
-  // Clamp to reasonable range and map to opacity levels
-  opacity = Math.max(0, Math.min(1, opacity));
+  if (distanceFromDiagonal < 0.33) {
+    // Zone 1: Dark (near diagonal) - can reach maximum 16%
+    minOpacity = 0.04;
+    maxOpacity = 0.16;
+  } else if (distanceFromDiagonal < 0.66) {
+    // Zone 2: Medium (mid-distance)
+    minOpacity = 0.04;
+    maxOpacity = 0.08;
+  } else {
+    // Zone 3: Light (far from diagonal)
+    minOpacity = 0.02;
+    maxOpacity = 0.04;
+  }
 
-  // Map to opacity classes: darker near diagonal, lighter away
-  if (opacity < 0.25) return "bg-muted/70"; // Darkest (near diagonal)
-  if (opacity < 0.5) return "bg-muted/55";
-  if (opacity < 0.75) return "bg-muted/35";
-  return "bg-muted/20"; // Lightest (far from diagonal)
+  // Calculate final opacity with jitter within zone range
+  const opacity = minOpacity + jitter * (maxOpacity - minOpacity);
+
+  // Return Tailwind arbitrary value class
+  return `bg-foreground/[${opacity.toFixed(2)}]`;
 }
 
 /**
