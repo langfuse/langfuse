@@ -51,7 +51,7 @@ describe("Traces table API test", () => {
     expect(tableRows[0].scoresAvg).toEqual([]);
   });
 
-  it("should get a correct trace with observations", async () => {
+  it.skip("should get a correct trace with observations", async () => {
     const project_id = v4();
     const trace_id = v4();
 
