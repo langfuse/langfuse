@@ -1,32 +1,6 @@
 import { observationsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-
-const OBSERVATION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  environment: "environment",
-  name: "name",
-  type: "type",
-  traceName: "traceName",
-  level: "level",
-  model: "model",
-  modelId: "modelId",
-  promptName: "promptName",
-  tags: "tags",
-  metadata: "metadata",
-  version: "version",
-  timeToFirstToken: "timeToFirstToken",
-  latency: "latency",
-  tokensPerSecond: "tokensPerSecond",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
-  inputTokens: "inputTokens",
-  outputTokens: "outputTokens",
-  totalTokens: "totalTokens",
-  score_categories: "score_categories",
-  scores_avg: "scores_avg",
-};
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -38,8 +12,6 @@ export const OBSERVATION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 
 export const observationFilterConfig: FilterConfig = {
   tableName: "observations",
-
-  columnToQueryKey: OBSERVATION_COLUMN_TO_QUERY_KEY,
 
   columnDefinitions: observationsTableCols,
 
