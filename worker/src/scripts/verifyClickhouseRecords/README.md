@@ -34,3 +34,4 @@ Use it to validate whether Clickhouse and Postgres produce equal results.
 
 Postgres seems to retain a higher precision for floating point numeric numbers.
 In the object comparisons this frequently leads to false positives in the 10^-8 range.
+Something
