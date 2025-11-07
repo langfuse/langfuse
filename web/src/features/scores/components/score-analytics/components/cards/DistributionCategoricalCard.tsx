@@ -155,13 +155,13 @@ export function DistributionCategoricalCard() {
         // Calculate unmatched score2 items and augment stackedDistribution
         const unmatchedScore2 = calculateUnmatchedScore2Distribution(
           distribution.score2Individual,
-          distribution.stackedDistribution,
+          distribution.stackedDistribution ?? [],
           distribution.score2Categories ?? [],
         );
 
         // Combine original stacked data with unmatched score2 items
         const augmentedStackedDistribution = [
-          ...distribution.stackedDistribution,
+          ...(distribution.stackedDistribution ?? []),
           ...unmatchedScore2,
         ];
 
