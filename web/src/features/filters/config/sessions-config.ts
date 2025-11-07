@@ -1,25 +1,6 @@
 import { sessionsViewCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-
-const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  environment: "environment",
-  id: "id",
-  userIds: "userIds",
-  tags: "tags",
-  bookmarked: "bookmarked",
-  sessionDuration: "sessionDuration",
-  countTraces: "countTraces",
-  inputTokens: "inputTokens",
-  outputTokens: "outputTokens",
-  totalTokens: "totalTokens",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
-  score_categories: "score_categories",
-  scores_avg: "scores_avg",
-};
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -31,8 +12,6 @@ export const SESSION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 
 export const sessionFilterConfig: FilterConfig = {
   tableName: "sessions",
-
-  columnToQueryKey: SESSION_COLUMN_TO_QUERY_KEY,
 
   columnDefinitions: sessionsViewCols,
 
