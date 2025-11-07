@@ -478,7 +478,7 @@ interface ApiQueryBuilder {
   }): QueryBuilder;
 
   // Filtering (can reference rollup fields in filters)
-  where(filters: FilterExpression): QueryBuilder;
+  where(filters: FilterCondition[]): QueryBuilder;
 
   // Sorting and pagination
   orderBy(field: string, direction: 'asc' | 'desc'): QueryBuilder;

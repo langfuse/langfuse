@@ -12,6 +12,7 @@ import { viewDeclarations } from "@/src/features/query/dataModel";
 import {
   FilterList,
   createFilterFromFilterState,
+  translateAggregation,
 } from "@langfuse/shared/src/server";
 import { InvalidRequestError } from "@langfuse/shared";
 
@@ -37,38 +38,10 @@ export class QueryBuilder {
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
-    switch (metric.aggregation) {
-      case "sum":
-        return `sum(${metric.alias || metric.sql})`;
-      case "avg":
-        return `avg(${metric.alias || metric.sql})`;
-      case "count":
-        return `count(${metric.alias || metric.sql})`;
-      case "max":
-        return `max(${metric.alias || metric.sql})`;
-      case "min":
-        return `min(${metric.alias || metric.sql})`;
-      case "p50":
-        return `quantile(0.5)(${metric.alias || metric.sql})`;
-      case "p75":
-        return `quantile(0.75)(${metric.alias || metric.sql})`;
-      case "p90":
-        return `quantile(0.9)(${metric.alias || metric.sql})`;
-      case "p95":
-        return `quantile(0.95)(${metric.alias || metric.sql})`;
-      case "p99":
-        return `quantile(0.99)(${metric.alias || metric.sql})`;
-      case "histogram":
-        // Get histogram bins from chart config, fallback to 10
-        const bins = this.chartConfig?.bins ?? 10;
-        return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
-      default:
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = metric.aggregation;
-        throw new InvalidRequestError(
-          `Invalid aggregation: ${metric.aggregation}`,
-        );
-    }
+    const sqlExpression = metric.alias || metric.sql;
+    return translateAggregation(sqlExpression, metric.aggregation, {
+      bins: this.chartConfig?.bins,
+    });
   }
 
   private getViewDeclaration(

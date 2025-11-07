@@ -34,3 +34,6 @@ export {
   type CTESchema,
   type CTEWithSchema,
 } from "./clickhouse-sql/event-query-builder";
+export * from "./field-catalog";
+export * from "./declarative-query-builder";
+export { translateAggregation } from "./clickhouse-sql/aggregation-functions";
