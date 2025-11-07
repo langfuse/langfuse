@@ -33,8 +33,34 @@ export function DistributionNumericCard() {
 
   const [activeTab, setActiveTab] = useState<DistributionTab>("all");
 
+  // Select appropriate bin labels based on active tab
+  // Backend uses different binning strategies per tab, so we need different labels
+  const selectedBinLabels = useMemo(() => {
+    if (!data?.distribution) return undefined;
+
+    const { distribution, metadata } = data;
+    const { mode } = metadata;
+
+    // Single score mode: use individual1 labels
+    if (mode === "single") {
+      return distribution.binLabelsIndividual1;
+    }
+
+    // Two score mode: select labels based on active tab
+    switch (activeTab) {
+      case "score1":
+        return distribution.binLabelsIndividual1; // Individual binning for score1
+      case "score2":
+        return distribution.binLabelsIndividual2; // Individual binning for score2
+      case "all":
+      case "matched":
+        return distribution.binLabelsGlobal; // Global binning for comparison
+      default:
+        return distribution.binLabelsGlobal;
+    }
+  }, [data, activeTab]);
+
   // Select distribution data based on active tab
-  // Note: binLabels are already computed in the Provider and stored in distribution.binLabels
   const { distribution1Data, distribution2Data, description } = useMemo(() => {
     if (!data) {
       return {
@@ -224,7 +250,7 @@ export function DistributionNumericCard() {
         </div>
       </CardHeader>
       <CardContent className="flex h-[340px] flex-col pl-0">
-        {hasData && distribution.binLabels ? (
+        {hasData && selectedBinLabels ? (
           <ScoreDistributionNumericChart
             distribution1={distribution1Data ?? []}
             distribution2={
@@ -232,7 +258,7 @@ export function DistributionNumericCard() {
                 ? undefined
                 : (distribution2Data ?? undefined)
             }
-            binLabels={distribution.binLabels}
+            binLabels={selectedBinLabels}
             score1Name={
               activeTab === "score2" && score2
                 ? score2.name

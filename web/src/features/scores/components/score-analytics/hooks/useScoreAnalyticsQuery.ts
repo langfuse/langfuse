@@ -83,7 +83,13 @@ export interface Distribution {
   score1: Array<{ binIndex: number; count: number }>;
   score2: Array<{ binIndex: number; count: number }> | null;
   categories?: string[]; // For categorical/boolean
-  binLabels?: string[]; // For numeric
+  binLabels?: string[]; // For numeric (deprecated - use specific labels below)
+
+  // Tab-specific bin labels (for numeric scores)
+  // Backend uses different binning strategies per tab, so we need different labels
+  binLabelsIndividual1?: string[]; // For score1 tab (using min1/max1 bounds)
+  binLabelsIndividual2?: string[]; // For score2 tab (using min2/max2 bounds)
+  binLabelsGlobal?: string[]; // For all/matched tabs (using global_min/global_max bounds)
 
   // Tab-specific distributions (for card components to select from)
   score1Individual: Array<{ binIndex: number; count: number }>;
@@ -269,15 +275,36 @@ export function useScoreAnalyticsQuery(
     // 3. Generate bin labels (numeric only)
     // ========================================================================
     // For numeric scores, we need min/max bounds to generate bin labels.
-    // First try to get bounds from heatmap (when there are matched pairs).
-    // If heatmap is empty (no matched pairs), calculate bounds from statistics.
-    let binLabels: string[] | undefined = undefined;
+    // Backend uses THREE different binning strategies:
+    // - Individual binning for score1 (using min1/max1)
+    // - Individual binning for score2 (using min2/max2)
+    // - Global binning for all/matched (using global_min/global_max)
+    // We must generate THREE separate sets of labels to match!
+    let binLabelsIndividual1: string[] | undefined = undefined;
+    let binLabelsIndividual2: string[] | undefined = undefined;
+    let binLabelsGlobal: string[] | undefined = undefined;
+
     if (isNumeric) {
       // Try to get bounds from heatmap (preferred, as it contains pre-calculated bounds)
       if (apiData.heatmap[0]) {
-        binLabels = generateBinLabels({
+        // Individual labels for score1 (for score1 tab)
+        binLabelsIndividual1 = generateBinLabels({
           min: apiData.heatmap[0].min1,
           max: apiData.heatmap[0].max1,
+          nBins,
+        });
+
+        // Individual labels for score2 (for score2 tab)
+        binLabelsIndividual2 = generateBinLabels({
+          min: apiData.heatmap[0].min2,
+          max: apiData.heatmap[0].max2,
+          nBins,
+        });
+
+        // Global labels (for all/matched tabs)
+        binLabelsGlobal = generateBinLabels({
+          min: apiData.heatmap[0].globalMin,
+          max: apiData.heatmap[0].globalMax,
           nBins,
         });
       }
@@ -288,12 +315,41 @@ export function useScoreAnalyticsQuery(
         apiData.statistics.mean1 !== null &&
         apiData.statistics.std1 !== null
       ) {
-        const mean = apiData.statistics.mean1;
-        const std = apiData.statistics.std1;
-        // Use ±3 standard deviations as bounds (covers ~99.7% of data)
-        const min = mean - 3 * std;
-        const max = mean + 3 * std;
-        binLabels = generateBinLabels({ min, max, nBins });
+        // For score1 individual
+        const mean1 = apiData.statistics.mean1;
+        const std1 = apiData.statistics.std1;
+        binLabelsIndividual1 = generateBinLabels({
+          min: mean1 - 3 * std1,
+          max: mean1 + 3 * std1,
+          nBins,
+        });
+
+        // For score2 individual (if available)
+        if (
+          apiData.statistics.mean2 !== null &&
+          apiData.statistics.std2 !== null
+        ) {
+          const mean2 = apiData.statistics.mean2;
+          const std2 = apiData.statistics.std2;
+          binLabelsIndividual2 = generateBinLabels({
+            min: mean2 - 3 * std2,
+            max: mean2 + 3 * std2,
+            nBins,
+          });
+
+          // Global bounds: union of both ranges
+          const globalMin = Math.min(mean1 - 3 * std1, mean2 - 3 * std2);
+          const globalMax = Math.max(mean1 + 3 * std1, mean2 + 3 * std2);
+          binLabelsGlobal = generateBinLabels({
+            min: globalMin,
+            max: globalMax,
+            nBins,
+          });
+        } else {
+          // Single score mode: all labels are the same
+          binLabelsIndividual2 = binLabelsIndividual1;
+          binLabelsGlobal = binLabelsIndividual1;
+        }
       }
     }
 
@@ -505,7 +561,10 @@ export function useScoreAnalyticsQuery(
         score1: distribution1,
         score2: mode === "two" ? distribution2 : null,
         categories,
-        binLabels,
+        binLabels: binLabelsGlobal, // For backward compatibility, default to global
+        binLabelsIndividual1,
+        binLabelsIndividual2,
+        binLabelsGlobal,
         score1Individual: distribution1Individual,
         score2Individual: distribution2Individual,
         score1Matched: distribution1Matched,
