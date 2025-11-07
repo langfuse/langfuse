@@ -46,17 +46,23 @@ export default async function chatCompletionHandler(req: NextRequest) {
       );
     }
 
-    if (
-      modelParams.adapter === LLMAdapter.Anthropic &&
-      modelParams.model?.includes("claude-sonnet-4-5")
-    ) {
-      // If both temperature and top_p are provided, prefer top_p (unset temperature).
-      // If only one is provided, leave it as-is.
+    if (modelParams.adapter === LLMAdapter.Anthropic) {
       if (
-        modelParams.temperature !== undefined &&
-        modelParams.top_p !== undefined
+        modelParams.model?.includes("claude-sonnet-4-5") ||
+        modelParams.model?.includes("claude-opus-4-1") ||
+        modelParams.model?.includes("claude-haiku-4-5")
+        // all of these models support either top_p or temperature
       ) {
-        modelParams.temperature = undefined;
+        // If both temperature and top_p are provided, prefer top_p (unset temperature).
+        if (
+          modelParams.temperature !== undefined &&
+          modelParams.top_p !== undefined
+        ) {
+          modelParams.temperature = undefined;
+        }
+      }
+      if (modelParams.top_p == -1) {
+        modelParams.top_p = 0.99;
       }
     }
 
