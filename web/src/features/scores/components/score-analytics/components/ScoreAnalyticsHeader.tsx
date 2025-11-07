@@ -4,7 +4,7 @@ import { ScoreCombobox } from "./charts/ScoreCombobox";
 import { ObjectTypeFilter } from "./charts/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
-import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
+import { useAnalyticsUrlState } from "@/src/features/scores/components/score-analytics/libs/analytics-url-state";
 import { type TimeRange } from "@/src/utils/date-range-utils";
 import { type ScoreOption } from "./charts/ScoreCombobox";
 import { Badge } from "@/src/components/ui/badge";

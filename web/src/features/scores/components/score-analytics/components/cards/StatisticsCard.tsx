@@ -19,7 +19,7 @@ import {
   interpretOverallAgreement,
   interpretMAE,
   interpretRMSE,
-} from "@/src/features/scores/lib/statistics-utils";
+} from "@/src/features/scores/components/score-analytics/libs/statistics-utils";
 
 /**
  * StatisticsCard - Smart card component for displaying score statistics

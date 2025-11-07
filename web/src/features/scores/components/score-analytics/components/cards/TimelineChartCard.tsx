@@ -13,7 +13,7 @@ import { ScoreTimeSeriesChart } from "../charts/ScoreTimeSeriesChart";
 import {
   getScoreCategoryColors,
   getScoreBooleanColors,
-} from "@/src/features/scores/lib/color-scales";
+} from "@/src/features/scores/components/score-analytics/libs/color-scales";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";
 

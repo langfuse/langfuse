@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
-import type { InterpretationResult } from "@/src/features/scores/lib/statistics-utils";
+import type { InterpretationResult } from "@/src/features/scores/components/score-analytics/libs/statistics-utils";
 
 interface MetricCardProps {
   label: string;

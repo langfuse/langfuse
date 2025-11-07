@@ -5,7 +5,7 @@ import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
-import { useAnalyticsUrlState } from "@/src/features/scores/lib/analytics-url-state";
+import { useAnalyticsUrlState } from "@/src/features/scores/components/score-analytics/libs/analytics-url-state";
 import { type ScoreOption } from "@/src/features/scores/components/score-analytics/components/charts/ScoreCombobox";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {

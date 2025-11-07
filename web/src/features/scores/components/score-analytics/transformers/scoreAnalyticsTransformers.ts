@@ -8,7 +8,7 @@ import type { RouterOutputs } from "@/src/utils/api";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
-} from "@/src/features/scores/lib/heatmap-utils";
+} from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
 
 // Type aliases for cleaner code
 type ConfusionMatrixRow = {

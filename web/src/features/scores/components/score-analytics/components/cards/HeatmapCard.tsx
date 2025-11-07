@@ -10,8 +10,8 @@ import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { Heatmap } from "../charts/Heatmap";
 import { HeatmapLegend } from "../charts/HeatmapLegend";
 import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
-import { getHeatmapCellColor } from "@/src/features/scores/lib/color-scales";
-import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
+import { getHeatmapCellColor } from "@/src/features/scores/components/score-analytics/libs/color-scales";
+import { type HeatmapCell } from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
 import { useCallback } from "react";
 import type { ScoreDataType } from "@langfuse/shared";
 

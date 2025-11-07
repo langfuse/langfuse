@@ -9,7 +9,7 @@ import {
   getTwoScoreColors,
   getScoreNumericColor,
   buildColorMappings,
-} from "@/src/features/scores/lib/color-scales";
+} from "@/src/features/scores/components/score-analytics/libs/color-scales";
 
 // Re-export types for convenience
 export type {

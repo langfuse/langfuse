@@ -1,5 +1,5 @@
-import { type HeatmapCell } from "@/src/features/scores/lib/heatmap-utils";
-import { getContrastColor } from "@/src/features/scores/lib/color-scales";
+import { type HeatmapCell } from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
+import { getContrastColor } from "@/src/features/scores/components/score-analytics/libs/color-scales";
 import {
   Tooltip,
   TooltipContent,

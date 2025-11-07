@@ -6,7 +6,7 @@ import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateSco
 import {
   normalizeIntervalForClickHouse,
   getClickHouseTimeBucketFunction,
-} from "@/src/features/scores/lib/clickhouse-time-utils";
+} from "@/src/features/scores/components/score-analytics/libs/clickhouse-time-utils";
 import {
   getDateFromOption,
   SelectedTimeOptionSchema,

@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionChart } from "../charts/ScoreDistributionChart";
+import { getScoreCategoryColors } from "../../libs/color-scales";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
@@ -142,10 +143,7 @@ export function DistributionChartCard() {
         }
         // For categorical, regenerate colors for score1 only to avoid collision with score2
         if (data.distribution.categories) {
-          return require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-            1,
-            data.distribution.categories,
-          );
+          return getScoreCategoryColors(1, data.distribution.categories);
         }
       }
       if (activeTab === "score2") {
@@ -155,10 +153,7 @@ export function DistributionChartCard() {
         }
         // For categorical, regenerate colors for score2 only to avoid collision with score1
         if (data.distribution.score2Categories) {
-          return require("@/src/features/scores/lib/color-scales").getScoreCategoryColors(
-            2,
-            data.distribution.score2Categories,
-          );
+          return getScoreCategoryColors(2, data.distribution.score2Categories);
         }
       }
 
