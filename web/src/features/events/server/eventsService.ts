@@ -56,7 +56,7 @@ export async function getEventList(params: GetObservationsListParams) {
     limit: params.limit,
     offset: params.page * params.limit,
     selectIOAndMetadata: true, // Include input/output truncated fields
-    renderingProps: { truncated: true },
+    renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
   const observations =
