@@ -35,6 +35,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   worker:
     build:
@@ -62,6 +63,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   redis:
     image: redis:7.2.4
@@ -72,8 +74,14 @@ services:
       - 6379:6379
 
   db:
-    image: postgres
+    image: postgres:17
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres

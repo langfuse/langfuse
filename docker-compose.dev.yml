@@ -47,13 +47,14 @@ services:
       - 6379:6379
 
   postgres:
-    image: postgres:${POSTGRES_VERSION:-latest}
+    image: postgres:${POSTGRES_VERSION:-17}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 3s
       timeout: 3s
       retries: 10
+      start_period: 30s
     command: ["postgres", "-c", "log_statement=all"]
     environment:
       - POSTGRES_USER=postgres
