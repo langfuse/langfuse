@@ -295,7 +295,13 @@ export function HeatmapCard() {
         ) : (
           <HeatmapSkeleton
             rows={numRows}
-            cols={dataType === "NUMERIC" ? 10 : (heatmap?.cols ?? 10)}
+            cols={
+              dataType === "NUMERIC"
+                ? 10
+                : "cols" in heatmap
+                  ? (heatmap.cols as number)
+                  : 10
+            }
             showLabels={true}
             showAxisLabels={true}
           />
