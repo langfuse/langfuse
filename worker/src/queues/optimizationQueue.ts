@@ -7,15 +7,29 @@ export const optimizationQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.OptimizationQueue]>,
 ) => {
   try {
-    const { projectId } = job.data.payload;
+    const {
+      projectId,
+      promptName,
+      promptLabel,
+      numIterations,
+      numExamples,
+    } = job.data.payload;
 
     logger.info("Starting optimization job", {
       projectId,
+      promptName,
+      promptLabel,
+      numIterations,
+      numExamples,
       jobId: job.id,
     });
     console.log(`\n========================================`);
     console.log(`🚀 Starting Prompt Optimization`);
     console.log(`Project ID: ${projectId}`);
+    console.log(`Prompt Name: ${promptName}`);
+    console.log(`Prompt Label: ${promptLabel}`);
+    console.log(`Iterations: ${numIterations}`);
+    console.log(`Examples: ${numExamples}`);
     console.log(`Job ID: ${job.id}`);
     console.log(`========================================\n`);
 
@@ -32,8 +46,23 @@ export const optimizationQueueProcessor = async (
     // Direct path to the Python interpreter in the mamba environment
     const pythonPath = "/Users/abhishek/mamba/envs/aws_sdg/bin/python";
 
+    // Build CLI arguments
+    const args = [
+      scriptPath,
+      "--num-iterations",
+      numIterations.toString(),
+      "--num-examples",
+      numExamples.toString(),
+      "--prompt-name",
+      promptName,
+      "--prompt-label",
+      promptLabel,
+    ];
+
+    console.log(`Executing: ${pythonPath} ${args.join(" ")}\n`);
+
     await new Promise<void>((resolve, reject) => {
-      const pythonProcess = spawn(pythonPath, [scriptPath], {
+      const pythonProcess = spawn(pythonPath, args, {
         env: {
           ...process.env,
           PROJECT_ID: projectId,
@@ -60,11 +89,19 @@ export const optimizationQueueProcessor = async (
       });
 
       pythonProcess.on("close", (code) => {
-        console.log(`\n========================================`);
         if (code === 0) {
-          console.log(`✅ Optimization job completed successfully!`);
+          console.log(`\n========================================`);
+          console.log(`✅ OPTIMIZATION COMPLETED SUCCESSFULLY!`);
+          console.log(`========================================`);
+          console.log(`Project ID: ${projectId}`);
+          console.log(`Prompt Name: ${promptName}`);
+          console.log(`Prompt Label: ${promptLabel}`);
+          console.log(`Iterations: ${numIterations}`);
+          console.log(`Examples: ${numExamples}`);
+          console.log(`Job ID: ${job.id}`);
           console.log(`Exit code: ${code}`);
-          console.log(`========================================\n`);
+          console.log(`========================================`);
+          console.log(`\n📊 Check your Langfuse prompts to see the optimized version!\n`);
           logger.info("Optimization job completed successfully", {
             projectId,
             jobId: job.id,
@@ -72,10 +109,17 @@ export const optimizationQueueProcessor = async (
           });
           resolve();
         } else {
-          console.log(`❌ Optimization job failed`);
+          console.log(`\n========================================`);
+          console.log(`❌ OPTIMIZATION FAILED`);
+          console.log(`========================================`);
+          console.log(`Project ID: ${projectId}`);
+          console.log(`Prompt Name: ${promptName}`);
           console.log(`Exit code: ${code}`);
-          console.log(`STDOUT:\n${stdout}`);
-          console.log(`STDERR:\n${stderr}`);
+          console.log(`========================================`);
+          console.log(`\nSTDOUT:`);
+          console.log(stdout || "(no output)");
+          console.log(`\nSTDERR:`);
+          console.log(stderr || "(no errors)");
           console.log(`========================================\n`);
           logger.error("Optimization job failed", {
             projectId,

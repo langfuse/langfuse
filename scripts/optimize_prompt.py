@@ -16,8 +16,8 @@ def main():
         print("Starting prompt optimization...")
 
         # Set Langfuse credentials
-        os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-0b6e7f84-8eac-488b-94f2-341b06e44494"
-        os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-2ad3587d-0de7-4546-9ded-53f7fc95a68f"
+        os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-13f43b23-f5b0-4a0e-b8cc-7f982ad00dd2"
+        os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-89ba7eb1-6a11-4c7f-9a9a-bbc60903bde2"
         os.environ["LANGFUSE_HOST"] = "http://localhost:3000"
 
         # Initialize Langfuse client
@@ -26,7 +26,7 @@ def main():
 
         # Create optimized prompt
         prompt = langfuse.create_prompt(
-            name="langflow chinese system prompt",
+            name="test-prompt",
             prompt="You are a helpful assistant. Always reply in chinese.",
             labels=["latest"],  # Labels help organize and retrieve prompts
             tags=["langflow", "system"],  # Tags for categorization

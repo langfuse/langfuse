@@ -13,6 +13,9 @@ const OptimizeRequestSchema = z.object({
   promptId: z.string().optional(),
   promptName: z.string().optional(),
   promptVersion: z.number().optional(),
+  numIterations: z.number().min(1).max(100).default(10),
+  numExamples: z.number().min(1).max(50).default(5),
+  promptLabel: z.string().optional(),
 });
 
 export default async function handler(
@@ -41,7 +44,13 @@ export default async function handler(
       });
     }
 
-    const { projectId } = parseResult.data;
+    const {
+      projectId,
+      promptName,
+      promptLabel,
+      numIterations,
+      numExamples,
+    } = parseResult.data;
 
     // TODO: Add project access check
     // throwIfNoProjectAccess({
@@ -65,6 +74,10 @@ export default async function handler(
       id: jobId,
       payload: {
         projectId,
+        promptName: promptName || "",
+        promptLabel: promptLabel || "",
+        numIterations,
+        numExamples,
       },
       name: QueueJobs.OptimizationJob,
     });

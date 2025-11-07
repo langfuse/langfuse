@@ -198,6 +198,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
 
 export const OptimizationJobSchema = z.object({
   projectId: z.string(),
+  promptName: z.string(),
+  promptLabel: z.string(),
+  numIterations: z.number(),
+  numExamples: z.number(),
 });
 
 export const WebhookOutboundEnvelopeSchema = z.object({
