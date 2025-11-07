@@ -218,6 +218,7 @@ const getObservationsFromEventsTableInternal = async <T>(
     projectId,
     filter,
     selectIOAndMetadata,
+    renderingProps = DEFAULT_RENDERING_PROPS,
     limit,
     offset,
     orderBy,
@@ -281,7 +282,12 @@ const getObservationsFromEventsTableInternal = async <T>(
   } else {
     queryBuilder.selectFieldSet("base", "calculated");
     if (selectIOAndMetadata) {
-      queryBuilder.selectFieldSet("io", "metadata");
+      queryBuilder
+        .selectIO(
+          renderingProps.truncated,
+          env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
+        )
+        .selectFieldSet("metadata");
     }
   }
 
