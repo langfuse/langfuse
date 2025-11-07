@@ -190,6 +190,8 @@ export class OtelIngestionProcessor {
             const events: any[] = [];
 
             for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+              const isLangfuseSDKSpans =
+                scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
@@ -333,8 +335,19 @@ export class OtelIngestionProcessor {
                     startTimeISO,
                   ),
 
-                  // TODO: Usage details
+                  // Usage and cost details
+                  providedUsageDetails: this.extractUsageDetails(
+                    spanAttributes,
+                    scopeSpan?.scope?.name ?? "",
+                  ),
+                  providedCostDetails: this.extractCostDetails(
+                    spanAttributes,
+                    isLangfuseSDKSpans,
+                  ),
 
+                  // Properties
+                  tags: this.extractTags(spanAttributes),
+                  public: this.extractPublic(spanAttributes),
                   userId: this.extractUserId(spanAttributes),
                   sessionId: this.extractSessionId(spanAttributes),
 
@@ -743,7 +756,7 @@ export class OtelIngestionProcessor {
           null,
         userId: this.extractUserId(attributes),
         sessionId: this.extractSessionId(attributes),
-        public: this.isTracePublic(attributes),
+        public: this.extractPublic(attributes),
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         input,
@@ -778,7 +791,7 @@ export class OtelIngestionProcessor {
           null,
         userId: this.extractUserId(attributes),
         sessionId: this.extractSessionId(attributes),
-        public: this.isTracePublic(attributes),
+        public: this.extractPublic(attributes),
         tags: this.extractTags(attributes),
         environment: this.extractEnvironment(attributes, resourceAttributes),
         input: attributes[LangfuseOtelSpanAttributes.TRACE_INPUT],
@@ -802,7 +815,7 @@ export class OtelIngestionProcessor {
     };
   }
 
-  private isTracePublic(
+  private extractPublic(
     attributes?: Record<string, unknown>,
   ): boolean | undefined {
     const value =
@@ -810,8 +823,7 @@ export class OtelIngestionProcessor {
       attributes?.["langfuse.public"];
 
     if (value == null) return;
-
-    return value === true || value === "true" ? true : false;
+    return value === true || value === "true";
   }
 
   private createObservationEvent(
@@ -1718,6 +1730,7 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+      "ai.model.id",
       "gen_ai.request.model",
       "gen_ai.response.model",
       "llm.response.model",
