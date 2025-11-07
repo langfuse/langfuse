@@ -522,8 +522,12 @@ describe("Playground Jump Full Pipeline", () => {
     const playgroundMsg = convertChatMlToPlayground(inResult.data![0]);
 
     // Should extract text, not stringify array
-    expect(playgroundMsg?.content).toBe("Hello world");
-    expect(playgroundMsg?.content).not.toContain("[{");
+    expect(
+      playgroundMsg && "content" in playgroundMsg && playgroundMsg.content,
+    ).toBe("Hello world");
+    expect(
+      playgroundMsg && "content" in playgroundMsg && playgroundMsg.content,
+    ).not.toContain("[{");
   });
 
   it("should extract tools from Microsoft Agent Framework metadata", () => {
