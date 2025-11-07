@@ -1,9 +1,4 @@
-import {
-  useQueryParams,
-  StringParam,
-  BooleanParam,
-  withDefault,
-} from "use-query-params";
+import { useQueryParams, StringParam, withDefault } from "use-query-params";
 
 export type ObjectType = "all" | "trace" | "session" | "observation" | "run";
 
@@ -12,12 +7,10 @@ export interface ScoreAnalyticsUrlState {
   score2?: string;
   dateRange: string;
   objectType: ObjectType;
-  matchedOnly: boolean;
 }
 
 const DEFAULT_DATE_RANGE = "1d";
 const DEFAULT_OBJECT_TYPE: ObjectType = "all";
-const DEFAULT_MATCHED_ONLY = false;
 
 /**
  * Hook to manage URL state for the Score Analytics page
@@ -29,7 +22,6 @@ export function useAnalyticsUrlState() {
     score2: StringParam,
     dateRange: withDefault(StringParam, DEFAULT_DATE_RANGE),
     objectType: withDefault(StringParam, DEFAULT_OBJECT_TYPE),
-    matchedOnly: withDefault(BooleanParam, DEFAULT_MATCHED_ONLY),
   });
 
   const state: ScoreAnalyticsUrlState = {
@@ -37,7 +29,6 @@ export function useAnalyticsUrlState() {
     score2: query.score2 ?? undefined,
     dateRange: query.dateRange,
     objectType: query.objectType as ObjectType,
-    matchedOnly: query.matchedOnly,
   };
 
   const setState = (newState: Partial<ScoreAnalyticsUrlState>) => {
@@ -60,10 +51,6 @@ export function useAnalyticsUrlState() {
     setState({ objectType });
   };
 
-  const setMatchedOnly = (matchedOnly: boolean) => {
-    setState({ matchedOnly });
-  };
-
   const clearScores = () => {
     setState({ score1: undefined, score2: undefined });
   };
@@ -75,7 +62,6 @@ export function useAnalyticsUrlState() {
     setScore2,
     setDateRange,
     setObjectType,
-    setMatchedOnly,
     clearScores,
   };
 }

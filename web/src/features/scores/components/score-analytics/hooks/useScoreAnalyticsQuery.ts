@@ -187,7 +187,6 @@ export function useScoreAnalyticsQuery(
       toTimestamp,
       interval,
       objectType,
-      matchedOnly: false, // Not used anymore - tabs control display
     },
     {
       enabled: !!(projectId && score1),
