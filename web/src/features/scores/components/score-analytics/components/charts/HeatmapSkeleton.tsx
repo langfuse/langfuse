@@ -10,6 +10,46 @@ export interface HeatmapSkeletonProps {
 }
 
 /**
+ * Calculate cell opacity based on distance from diagonal with jitter
+ * Cells near diagonal (row ≈ col) are darker, with random variation
+ *
+ * @param row - Row index (0-based)
+ * @param col - Column index (0-based)
+ * @param rows - Total number of rows
+ * @param cols - Total number of columns
+ * @returns Opacity class string (e.g., "bg-muted/50")
+ */
+function getCellOpacity(
+  row: number,
+  col: number,
+  rows: number,
+  cols: number,
+): string {
+  // Normalize to 0-1 range
+  const normalizedRow = row / (rows - 1);
+  const normalizedCol = col / (cols - 1);
+
+  // Calculate distance from diagonal
+  const distanceFromDiagonal = Math.abs(normalizedRow - normalizedCol);
+
+  // Add deterministic "random" jitter based on cell position
+  // Using a simple hash-like function for consistency
+  const jitter = ((row * 73 + col * 37) % 100) / 100 / 5; // ±0.2 variation
+
+  // Base opacity: 0 at diagonal, 1 at corners
+  let opacity = distanceFromDiagonal + jitter;
+
+  // Clamp to reasonable range and map to opacity levels
+  opacity = Math.max(0, Math.min(1, opacity));
+
+  // Map to opacity classes: darker near diagonal, lighter away
+  if (opacity < 0.25) return "bg-muted/50"; // Darkest (near diagonal)
+  if (opacity < 0.5) return "bg-muted/40";
+  if (opacity < 0.75) return "bg-muted/30";
+  return "bg-muted/20"; // Lightest (far from diagonal)
+}
+
+/**
  * HeatmapSkeleton - Loading placeholder for Heatmap component
  *
  * Matches the exact dimensions and layout of the real Heatmap component,
@@ -18,9 +58,10 @@ export interface HeatmapSkeletonProps {
  * Features:
  * - 10x10 grid by default (configurable)
  * - Exact cell dimensions matching real heatmap
- * - Optional row/column labels
- * - Optional axis labels
- * - Subtle hover effect
+ * - Diagonal pattern: darker cells near diagonal, lighter away
+ * - Random jitter for natural appearance
+ * - Optional row/column labels with skeleton placeholders
+ * - Optional axis labels with skeleton placeholders
  * - Automatic light/dark mode support via CSS variables
  */
 export function HeatmapSkeleton({
@@ -51,7 +92,7 @@ export function HeatmapSkeleton({
         {showAxisLabels && (
           <div className="flex items-center justify-center">
             <div
-              className="h-16 w-3 animate-pulse rounded-sm bg-background"
+              className="h-16 w-3 animate-pulse rounded-sm bg-muted/40"
               style={{
                 writingMode: "vertical-rl",
                 transform: "rotate(180deg)",
@@ -71,7 +112,7 @@ export function HeatmapSkeleton({
           >
             {Array.from({ length: rows }).map((_, idx) => (
               <div key={idx} className="flex items-center justify-end">
-                <div className="h-3 w-10 animate-pulse rounded-sm bg-background" />
+                <div className="h-3 w-10 animate-pulse rounded-sm bg-muted/40" />
               </div>
             ))}
           </div>
@@ -87,12 +128,21 @@ export function HeatmapSkeleton({
           }}
           role="grid"
         >
-          {Array.from({ length: rows * cols }).map((_, idx) => (
-            <div
-              key={idx}
-              className="animate-pulse rounded-sm border border-border/50 bg-muted/30 transition-all duration-150 hover:brightness-95"
-            />
-          ))}
+          {Array.from({ length: rows * cols }).map((_, idx) => {
+            const row = Math.floor(idx / cols);
+            const col = idx % cols;
+            const opacityClass = getCellOpacity(row, col, rows, cols);
+
+            return (
+              <div
+                key={idx}
+                className={cn(
+                  "animate-pulse rounded-sm border border-border/50 transition-all duration-150 hover:brightness-95",
+                  opacityClass,
+                )}
+              />
+            );
+          })}
         </div>
 
         {/* Spacer for alignment when row labels exist */}
@@ -113,7 +163,7 @@ export function HeatmapSkeleton({
           >
             {Array.from({ length: cols }).map((_, idx) => (
               <div key={idx} className="flex items-center justify-center">
-                <div className="h-2.5 w-8 animate-pulse rounded-sm bg-background" />
+                <div className="h-2.5 w-8 animate-pulse rounded-sm bg-muted/40" />
               </div>
             ))}
           </div>
@@ -126,7 +176,7 @@ export function HeatmapSkeleton({
       {/* X-axis label placeholder */}
       {showAxisLabels && (
         <div className="flex justify-center text-center">
-          <div className="h-3 w-16 animate-pulse rounded-sm bg-background" />
+          <div className="h-3 w-16 animate-pulse rounded-sm bg-muted/40" />
         </div>
       )}
     </div>
