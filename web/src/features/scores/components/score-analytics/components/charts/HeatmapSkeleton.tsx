@@ -43,9 +43,9 @@ function getCellOpacity(
   opacity = Math.max(0, Math.min(1, opacity));
 
   // Map to opacity classes: darker near diagonal, lighter away
-  if (opacity < 0.25) return "bg-muted/50"; // Darkest (near diagonal)
-  if (opacity < 0.5) return "bg-muted/40";
-  if (opacity < 0.75) return "bg-muted/30";
+  if (opacity < 0.25) return "bg-muted/70"; // Darkest (near diagonal)
+  if (opacity < 0.5) return "bg-muted/55";
+  if (opacity < 0.75) return "bg-muted/35";
   return "bg-muted/20"; // Lightest (far from diagonal)
 }
 
@@ -137,7 +137,7 @@ export function HeatmapSkeleton({
               <div
                 key={idx}
                 className={cn(
-                  "animate-pulse rounded-sm border border-border/50 transition-all duration-150 hover:brightness-95",
+                  "rounded-sm border border-border/50 transition-all duration-150 hover:brightness-95",
                   opacityClass,
                 )}
               />
