@@ -23,11 +23,15 @@ import { encrypt } from "@langfuse/shared/encryption";
 
 describe("BlobStorageIntegrationProcessingJob", () => {
   let storageService: StorageService;
+  let s3StorageService: StorageService;
   const bucketName = env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || "";
   const accessKeyId = env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID || "";
   const secretAccessKey = env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY || "";
   const endpoint = env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT || undefined;
   const region = env.LANGFUSE_S3_EVENT_UPLOAD_REGION || undefined;
+  const minioAccessKeyId = "minio";
+  const minioAccessKeySecret = "miniosecret";
+  const minioEndpoint = "http://localhost:9090";
 
   beforeAll(async () => {
     storageService = StorageServiceFactory.getInstance({
@@ -37,6 +41,15 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       endpoint,
       region,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+    s3StorageService = StorageServiceFactory.getInstance({
+      accessKeyId: minioAccessKeyId,
+      secretAccessKey: minioAccessKeySecret,
+      bucketName,
+      endpoint: minioEndpoint,
+      region,
+      forcePathStyle: true,
+      useAzureBlob: false,
     });
   });
 
@@ -85,10 +98,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         type: BlobStorageIntegrationType.S3,
         bucketName,
         prefix: "",
-        accessKeyId,
-        secretAccessKey: encrypt(secretAccessKey),
+        accessKeyId: minioAccessKeyId,
+        secretAccessKey: encrypt(minioAccessKeySecret),
         region: region ? region : "auto",
-        endpoint: endpoint ? endpoint : null,
+        endpoint: minioEndpoint,
         forcePathStyle:
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
@@ -142,7 +155,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await s3StorageService.listFiles("");
     const projectFiles = files.filter((f) => f.file.includes(projectId));
 
     // Should have 3 files (traces, observations, scores)
@@ -161,19 +174,19 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     // Check file contents
     if (traceFile) {
-      const content = await storageService.download(traceFile.file);
+      const content = await s3StorageService.download(traceFile.file);
       expect(content).toContain(traceId);
       expect(content).toContain("Test Trace");
     }
 
     if (observationFile) {
-      const content = await storageService.download(observationFile.file);
+      const content = await s3StorageService.download(observationFile.file);
       expect(content).toContain(observationId);
       expect(content).toContain("Test Observation");
     }
 
     if (scoreFile) {
-      const content = await storageService.download(scoreFile.file);
+      const content = await s3StorageService.download(scoreFile.file);
       expect(content).toContain(scoreId);
       expect(content).toContain("Test Score");
       expect(content).toContain("0.95");
@@ -209,10 +222,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         type: BlobStorageIntegrationType.S3,
         bucketName,
         prefix: "",
-        accessKeyId,
-        secretAccessKey: encrypt(secretAccessKey),
+        accessKeyId: minioAccessKeyId,
+        secretAccessKey: encrypt(minioAccessKeySecret),
         region: region,
-        endpoint: endpoint,
+        endpoint: minioEndpoint,
         forcePathStyle:
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
@@ -272,10 +285,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         type: BlobStorageIntegrationType.S3,
         bucketName,
         prefix,
-        accessKeyId,
-        secretAccessKey: encrypt(secretAccessKey),
+        accessKeyId: minioAccessKeyId,
+        secretAccessKey: encrypt(minioAccessKeySecret),
         region: region ? region : "auto",
-        endpoint: endpoint ? endpoint : null,
+        endpoint: minioEndpoint,
         forcePathStyle:
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
@@ -367,10 +380,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${fileType.toLowerCase()}-test/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -386,7 +399,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } as Job);
 
       // Get files for this file type
-      const files = await storageService.listFiles("");
+      const files = await s3StorageService.listFiles("");
       const projectFiles = files.filter(
         (f) =>
           f.file.includes(projectId) &&
@@ -404,7 +417,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
       // Check file contents for each type
       for (const file of projectFiles) {
-        const content = await storageService.download(file.file);
+        const content = await s3StorageService.download(file.file);
 
         // Verify content based on file type
         if (file.file.includes("/traces/")) {
@@ -602,10 +615,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${projectId}/test-custom/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -620,7 +633,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         data: { payload: { projectId } },
       } as Job);
 
-      const files = await storageService.listFiles(`${projectId}/test-custom/`);
+      const files = await s3StorageService.listFiles(
+        `${projectId}/test-custom/`,
+      );
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
@@ -628,7 +643,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
       // Should only include traces from custom date onwards
       if (traceFile) {
-        const content = await storageService.download(traceFile.file);
+        const content = await s3StorageService.download(traceFile.file);
         expect(content).not.toContain(oldTrace.id);
         expect(content).toContain(recentTrace.id);
       }
@@ -737,10 +752,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${projectId}/test-catchup/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -793,10 +808,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${projectId}/test-caught-up/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
