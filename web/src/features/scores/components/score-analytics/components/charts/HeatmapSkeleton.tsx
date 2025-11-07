@@ -12,12 +12,12 @@ export interface HeatmapSkeletonProps {
 
 /**
  * Calculate cell opacity based on distance from diagonal with jitter
- * Uses foreground color with opacity range (2%-18%)
+ * Uses foreground color with opacity range (1%-15%)
  *
  * Three zones based on distance from diagonal:
- * - Zone 1 (Dark): 8-18% opacity (near diagonal)
- * - Zone 2 (Medium): 4-10% opacity (mid-distance)
- * - Zone 3 (Light): 2-5% opacity (far from diagonal)
+ * - Zone 1 (Dark): 5-15% opacity (near diagonal)
+ * - Zone 2 (Medium): 2-8% opacity (mid-distance)
+ * - Zone 3 (Light): 1-4% opacity (far from diagonal)
  *
  * @param row - Row index (0-based)
  * @param col - Column index (0-based)
@@ -49,16 +49,16 @@ function getCellOpacity(
 
   if (distanceFromDiagonal < 0.33) {
     // Zone 1: Dark (near diagonal) - highest opacity
-    minOpacity = 0.08;
-    maxOpacity = 0.18;
+    minOpacity = 0.05;
+    maxOpacity = 0.15;
   } else if (distanceFromDiagonal < 0.66) {
     // Zone 2: Medium (mid-distance)
-    minOpacity = 0.04;
-    maxOpacity = 0.1;
+    minOpacity = 0.02;
+    maxOpacity = 0.08;
   } else {
     // Zone 3: Light (far from diagonal)
-    minOpacity = 0.02;
-    maxOpacity = 0.05;
+    minOpacity = 0.01;
+    maxOpacity = 0.04;
   }
 
   // Calculate final opacity with jitter within zone range
