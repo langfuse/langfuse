@@ -46,7 +46,10 @@ export default async function chatCompletionHandler(req: NextRequest) {
       );
     }
 
-    if (modelParams.adapter === LLMAdapter.Anthropic) {
+    if (
+      modelParams.adapter === LLMAdapter.Anthropic &&
+      modelParams.model?.includes("claude-sonnet-4-5")
+    ) {
       // If both temperature and top_p are provided, prefer top_p (unset temperature).
       // If only one is provided, leave it as-is.
       if (
