@@ -77,9 +77,9 @@ export function DistributionCategoricalCard() {
         };
       case "all":
         return {
-          distribution1: distribution.score1Individual,
+          distribution1: undefined, // Not used in stacked mode
           categories: distribution.categories ?? [],
-          stackedDistribution: undefined,
+          stackedDistribution: distribution.stackedDistribution, // Use full stacked data (includes __unmatched__)
           score2Categories: distribution.score2Categories ?? [],
           description: `${score1.name} (${statistics.score1.total.toLocaleString()}) vs ${score2?.name} (${statistics.score2?.total.toLocaleString()})`,
         };
