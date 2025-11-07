@@ -851,7 +851,6 @@ export const scoresRouter = createTRPCRouter({
         objectType: z
           .enum(["all", "trace", "session", "observation", "run"])
           .default("all"),
-        matchedOnly: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
@@ -1228,7 +1227,7 @@ export const scoresRouter = createTRPCRouter({
             WHERE project_id = {projectId: String}
               AND name = {score1Name: String}
               AND source = {score1Source: String}
-              AND data_type = {dataType: String}
+              AND data_type = {dataType1: String}
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
@@ -1245,7 +1244,7 @@ export const scoresRouter = createTRPCRouter({
             WHERE project_id = {projectId: String}
               AND name = {score2Name: String}
               AND source = {score2Source: String}
-              AND data_type = {dataType: String}
+              AND data_type = {dataType2: String}
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
@@ -1818,7 +1817,8 @@ export const scoresRouter = createTRPCRouter({
           score1Source: score1.source,
           score2Name: score2.name,
           score2Source: score2.source,
-          dataType: score1.dataType,
+          dataType1: score1.dataType,
+          dataType2: score2.dataType,
           fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
           toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
           nBins,
