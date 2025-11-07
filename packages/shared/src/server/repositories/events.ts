@@ -439,7 +439,7 @@ const getObservationByIdFromEventsTableInternal = async ({
     .when(Boolean(traceId), (b) =>
       b.whereRaw("trace_id = {traceId: String}", { traceId }),
     )
-    .orderBy("ORDER BY start_time_Unix DESC, event_ts DESC")
+    .orderBy("ORDER BY start_time_unix DESC, event_ts DESC")
     .limit(1, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
