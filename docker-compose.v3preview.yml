@@ -116,6 +116,7 @@ services:
       interval: 3s
       timeout: 10s
       retries: 10
+      start_period: 10s
 
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
@@ -125,6 +126,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+      start_period: 30s
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
