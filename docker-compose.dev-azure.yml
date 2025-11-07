@@ -42,6 +42,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+      start_period: 30s
     command: ["postgres", "-c", "log_statement=all"]
     environment:
       - POSTGRES_USER=postgres
