@@ -4,9 +4,12 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
+  normalizeIntervalForClickHouse,
+  getClickHouseTimeBucketFunction,
+} from "@/src/features/scores/lib/clickhouse-time-utils";
+import {
   getDateFromOption,
   SelectedTimeOptionSchema,
-  type IntervalConfig,
 } from "@/src/utils/date-range-utils";
 import {
   createTRPCRouter,
@@ -890,56 +893,8 @@ export const scoresRouter = createTRPCRouter({
        *
        * This approach ensures consistent, calendar-aligned behavior across all time ranges.
        *
-       * @param interval - The requested interval (may be multi-unit like {count: 2, unit: "day"})
-       * @returns Normalized single-unit interval for ClickHouse (e.g., {count: 1, unit: "day"})
+       * See: /web/src/features/scores/lib/clickhouse-time-utils.ts for implementation details
        */
-      const normalizeIntervalForClickHouse = (
-        interval: IntervalConfig,
-      ): IntervalConfig => {
-        // Special case: 7-day intervals become ISO 8601 weeks (Monday-aligned)
-        if (interval.count === 7 && interval.unit === "day") {
-          return { count: 7, unit: "day" }; // Will use toStartOfWeek
-        }
-
-        // All other intervals: normalize to single-unit
-        return { count: 1, unit: interval.unit };
-      };
-
-      /**
-       * Returns the appropriate ClickHouse time bucketing function for SINGLE-UNIT intervals.
-       * Uses calendar-aligned functions to ensure "today's" data appears in today's bucket.
-       *
-       * @param timestampField - The timestamp field name to bucket (e.g., "timestamp", "timestamp1")
-       * @param normalizedInterval - Single-unit interval (or 7-day for weeks)
-       * @returns ClickHouse SQL function call as string
-       */
-      const getClickHouseTimeBucketFunction = (
-        timestampField: string,
-        normalizedInterval: IntervalConfig,
-      ): string => {
-        const { count, unit } = normalizedInterval;
-
-        // Special case: 7-day intervals align to ISO 8601 week (Monday start)
-        if (count === 7 && unit === "day") {
-          return `toStartOfWeek(${timestampField}, 1)`; // mode 1 = Monday
-        }
-
-        // All other cases are single-unit intervals with calendar alignment
-        switch (unit) {
-          case "second":
-            return `toStartOfSecond(${timestampField})`;
-          case "minute":
-            return `toStartOfMinute(${timestampField})`;
-          case "hour":
-            return `toStartOfHour(${timestampField})`;
-          case "day":
-            return `toStartOfDay(${timestampField}, 'UTC')`;
-          case "month":
-            return `toStartOfMonth(${timestampField})`;
-          case "year":
-            return `toStartOfYear(${timestampField})`;
-        }
-      };
 
       // Normalize the interval for ClickHouse (always single-unit except 7-day weeks)
       const normalizedInterval = normalizeIntervalForClickHouse(interval);
