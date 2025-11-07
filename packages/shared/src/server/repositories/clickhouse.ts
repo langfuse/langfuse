@@ -235,6 +235,9 @@ export async function* queryClickhouseStream<T>(opts: {
           format: "JSONEachRow",
           query_params: opts.params,
           clickhouse_settings: {
+            asterisk_include_alias_columns: 1,
+            asterisk_include_materialized_columns: 1,
+            optimize_move_to_prewhere_if_final: 1,
             ...opts.clickhouseSettings,
             log_comment: JSON.stringify(opts.tags ?? {}),
           },
@@ -359,6 +362,7 @@ export async function queryClickhouse<T>(opts: {
             clickhouse_settings: {
               asterisk_include_alias_columns: 1,
               asterisk_include_materialized_columns: 1,
+              optimize_move_to_prewhere_if_final: 1,
               ...opts.clickhouseSettings,
               log_comment: JSON.stringify(opts.tags ?? {}),
             },
