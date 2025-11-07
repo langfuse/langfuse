@@ -9,7 +9,6 @@ import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { Heatmap } from "../charts/Heatmap";
 import { HeatmapLegend } from "../charts/HeatmapLegend";
-import { HeatmapPlaceholder } from "../charts/HeatmapPlaceholder";
 import { HeatmapSkeleton } from "../charts/HeatmapSkeleton";
 import { getHeatmapCellColor } from "@/src/features/scores/components/score-analytics/libs/color-scales";
 import { type HeatmapCell } from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
@@ -215,7 +214,16 @@ export function HeatmapCard() {
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
-          <HeatmapPlaceholder />
+          <HeatmapSkeleton
+            rows={10}
+            cols={10}
+            cellHeight={Math.floor(200 / 10)}
+            showLabels={true}
+            showAxisLabels={true}
+          />
+          <p className="text-center text-sm text-muted-foreground">
+            Select a second score to view comparison heatmap
+          </p>
         </CardContent>
       </Card>
     );
@@ -298,10 +306,11 @@ export function HeatmapCard() {
             cols={
               dataType === "NUMERIC"
                 ? 10
-                : "cols" in heatmap
+                : heatmap && "cols" in heatmap
                   ? (heatmap.cols as number)
                   : 10
             }
+            cellHeight={calculatedCellHeight}
             showLabels={true}
             showAxisLabels={true}
           />

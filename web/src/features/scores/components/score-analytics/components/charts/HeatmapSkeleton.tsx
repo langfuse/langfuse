@@ -90,7 +90,7 @@ export function HeatmapSkeleton({
           {Array.from({ length: rows * cols }).map((_, idx) => (
             <div
               key={idx}
-              className="animate-pulse rounded-sm border border-border/50 bg-background transition-all duration-150 hover:brightness-95"
+              className="animate-pulse rounded-sm border border-border/50 bg-muted/30 transition-all duration-150 hover:brightness-95"
             />
           ))}
         </div>

@@ -205,6 +205,10 @@ export function useScoreAnalyticsQuery(
     const dataType = score1.dataType;
     const isNumeric = dataType === "NUMERIC";
 
+    // Determine mode based on whether score2 was originally provided in params
+    // (not the fallback value sent to the API at line 190)
+    const mode: "single" | "two" = score2 !== undefined ? "two" : "single";
+
     // Determine if we have two scores and if they're the same
     const isSameScore = Boolean(
       score1 &&
@@ -212,8 +216,6 @@ export function useScoreAnalyticsQuery(
         score1.name === score2.name &&
         score1.source === score2.source,
     );
-
-    const mode: "single" | "two" = score2 ? "two" : "single";
 
     // ========================================================================
     // 1. Extract categories (categorical/boolean only)
