@@ -49,7 +49,19 @@ jobs:
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Build and run both images from compose
         run: |
-          docker compose -f docker-compose.build.yml up -d --wait
+          if ! docker compose -f docker-compose.build.yml up -d --wait; then
+            echo "=== Docker compose failed. Showing debug information ==="
+            echo ""
+            echo "=== Container Status ==="
+            docker compose -f docker-compose.build.yml ps
+            echo ""
+            echo "=== PostgreSQL Logs ==="
+            docker compose -f docker-compose.build.yml logs db
+            echo ""
+            echo "=== Redis Logs ==="
+            docker compose -f docker-compose.build.yml logs redis
+            exit 1
+          fi
       - name: Check worker health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
@@ -99,7 +111,22 @@ jobs:
           grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait
+          if ! docker compose -f docker-compose.dev.yml up -d --wait; then
+            echo "=== Docker compose failed. Showing debug information ==="
+            echo ""
+            echo "=== Container Status ==="
+            docker compose -f docker-compose.dev.yml ps
+            echo ""
+            echo "=== PostgreSQL Logs ==="
+            docker compose -f docker-compose.dev.yml logs postgres
+            echo ""
+            echo "=== ClickHouse Logs ==="
+            docker compose -f docker-compose.dev.yml logs clickhouse
+            echo ""
+            echo "=== Redis Logs ==="
+            docker compose -f docker-compose.dev.yml logs redis
+            exit 1
+          fi
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -167,7 +194,22 @@ jobs:
           grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d --wait
+          if ! docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d --wait; then
+            echo "=== Docker compose failed. Showing debug information ==="
+            echo ""
+            echo "=== Container Status ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml ps
+            echo ""
+            echo "=== PostgreSQL Logs ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs postgres
+            echo ""
+            echo "=== ClickHouse Logs ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs clickhouse || true
+            echo ""
+            echo "=== Redis Logs ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs redis
+            exit 1
+          fi
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -236,7 +278,22 @@ jobs:
           cp .env.dev${{ matrix.blob-provider }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d --wait
+          if ! docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d --wait; then
+            echo "=== Docker compose failed. Showing debug information ==="
+            echo ""
+            echo "=== Container Status ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml ps
+            echo ""
+            echo "=== PostgreSQL Logs ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs postgres
+            echo ""
+            echo "=== ClickHouse Logs ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs clickhouse || true
+            echo ""
+            echo "=== Redis Logs ==="
+            docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml logs redis
+            exit 1
+          fi
           docker compose ps
       - name: Seed DB
         run: |
@@ -274,7 +331,22 @@ jobs:
           cp .env.dev.example web/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait
+          if ! docker compose -f docker-compose.dev.yml up -d --wait; then
+            echo "=== Docker compose failed. Showing debug information ==="
+            echo ""
+            echo "=== Container Status ==="
+            docker compose -f docker-compose.dev.yml ps
+            echo ""
+            echo "=== PostgreSQL Logs ==="
+            docker compose -f docker-compose.dev.yml logs postgres
+            echo ""
+            echo "=== ClickHouse Logs ==="
+            docker compose -f docker-compose.dev.yml logs clickhouse
+            echo ""
+            echo "=== Redis Logs ==="
+            docker compose -f docker-compose.dev.yml logs redis
+            exit 1
+          fi
           docker compose ps
       - name: Seed DB
         run: |
@@ -321,7 +393,22 @@ jobs:
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait
+          if ! docker compose -f docker-compose.dev.yml up -d --wait; then
+            echo "=== Docker compose failed. Showing debug information ==="
+            echo ""
+            echo "=== Container Status ==="
+            docker compose -f docker-compose.dev.yml ps
+            echo ""
+            echo "=== PostgreSQL Logs ==="
+            docker compose -f docker-compose.dev.yml logs postgres
+            echo ""
+            echo "=== ClickHouse Logs ==="
+            docker compose -f docker-compose.dev.yml logs clickhouse
+            echo ""
+            echo "=== Redis Logs ==="
+            docker compose -f docker-compose.dev.yml logs redis
+            exit 1
+          fi
           docker compose ps
       - name: Seed DB
         run: |
