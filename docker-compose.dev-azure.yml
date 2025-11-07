@@ -23,6 +23,29 @@ services:
     volumes:
       - langfuse_azurite_data:/data
 
+  minio:
+    image: docker.io/minio/minio
+    container_name: ${MINIO_CONTAINER_NAME:-langfuse-minio}
+    entrypoint: sh
+    # create the 'langfuse' bucket before starting the service
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+    ports:
+      - ${HOST_IP:-127.0.0.1}:${MINIO_API_PORT:-9090}:9000
+      - ${HOST_IP:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9091}:9001
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+    networks:
+      - default
+
   redis:
     image: docker.io/redis:7.2.4
     restart: always
@@ -59,4 +82,7 @@ volumes:
   langfuse_clickhouse_logs:
     driver: local
   langfuse_azurite_data:
+    driver: local
+  langfuse_minio_data:
+    name: ${MINIO_VOLUME_NAME:-langfuse_minio_data}
     driver: local
