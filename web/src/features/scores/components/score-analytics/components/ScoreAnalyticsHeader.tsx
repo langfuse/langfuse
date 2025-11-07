@@ -89,8 +89,8 @@ export function ScoreAnalyticsHeader({
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Beta Feature</h4>
               <p className="text-sm text-muted-foreground">
-                Score analytics is currently in beta. We're actively improving
-                this feature and would love to hear your feedback.
+                Score analytics is currently in beta. We&apos;re actively
+                improving this feature and would love to hear your feedback.
               </p>
               <a
                 href="https://langfuse.com/discussions"
