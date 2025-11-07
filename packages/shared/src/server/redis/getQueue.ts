@@ -29,6 +29,7 @@ import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
+import { OptimizationQueue } from "./optimizationQueue";
 
 // IngestionQueue, OtelIngestionQueue, and TraceUpsert are sharded and require a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) or TraceUpsertQueue.getInstance({ shardName: queueName }) directly instead
@@ -99,6 +100,8 @@ export function getQueue(
       return EventPropagationQueue.getInstance();
     case QueueName.NotificationQueue:
       return NotificationQueue.getInstance();
+    case QueueName.OptimizationQueue:
+      return OptimizationQueue.getInstance();
     default: {
       // eslint-disable-next-line no-case-declarations, no-unused-vars
       const exhaustiveCheckDefault: never = queueName;

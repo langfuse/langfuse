@@ -229,6 +229,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_OPTIMIZATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
 
   LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
     .number()

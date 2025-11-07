@@ -72,6 +72,7 @@ import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
+import { optimizationQueueProcessor } from "./queues/optimizationQueue";
 
 const app = express();
 
@@ -508,6 +509,16 @@ if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
     notificationQueueProcessor,
     {
       concurrency: 5, // Process up to 5 notification jobs concurrently
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_OPTIMIZATION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.OptimizationQueue,
+    optimizationQueueProcessor,
+    {
+      concurrency: 1, // Process 1 optimization job at a time (long-running Python script)
     },
   );
 }

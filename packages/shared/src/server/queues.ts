@@ -196,6 +196,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
+export const OptimizationJobSchema = z.object({
+  projectId: z.string(),
+});
+
 export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
   action: EventActionSchema,
@@ -260,6 +264,7 @@ export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
 export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
+export type OptimizationJobType = z.infer<typeof OptimizationJobSchema>;
 
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),
@@ -301,6 +306,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  OptimizationQueue = "optimization-queue",
 }
 
 export enum QueueJobs {
@@ -336,6 +342,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  OptimizationJob = "optimization-job",
 }
 
 export type TQueueJobTypes = {
@@ -491,5 +498,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.OptimizationQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: OptimizationJobType;
+    name: QueueJobs.OptimizationJob;
   };
 };
