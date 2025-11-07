@@ -1,6 +1,5 @@
 import { eventsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
 // Helper function to get column name from eventsTableCols by ID
@@ -10,40 +9,6 @@ export const getEventsColumnName = (id: string): string => {
     throw new Error(`Column ${id} not found in eventsTableCols`);
   }
   return column?.name;
-};
-
-const OBSERVATION_EVENTS_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  environment: "environment",
-  name: "name",
-  type: "type",
-  traceName: "traceName",
-  level: "level",
-  providedModelName: "providedModelName",
-  modelId: "modelId",
-  promptName: "promptName",
-  traceTags: "traceTags",
-  metadata: "metadata",
-  version: "version",
-  timeToFirstToken: "timeToFirstToken",
-  latency: "latency",
-  tokensPerSecond: "tokensPerSecond",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
-  inputTokens: "inputTokens",
-  outputTokens: "outputTokens",
-  totalTokens: "totalTokens",
-  score_categories: "score_categories",
-  scores_avg: "scores_avg",
-  spanId: "spanId",
-  parentSpanId: "parentSpanId",
-  traceId: "traceId",
-  userId: "userId",
-  sessionId: "sessionId",
-  statusMessage: "statusMessage",
-  completionStartTime: "completionStartTime",
-  promptId: "promptId",
-  promptVersion: "promptVersion",
 };
 
 /**
@@ -56,8 +21,6 @@ export const OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
-
-  columnToQueryKey: OBSERVATION_EVENTS_COLUMN_TO_QUERY_KEY,
 
   columnDefinitions: eventsTableCols,
 
