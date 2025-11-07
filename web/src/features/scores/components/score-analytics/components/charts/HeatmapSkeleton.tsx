@@ -11,25 +11,25 @@ export interface HeatmapSkeletonProps {
 
 /**
  * Calculate cell opacity based on distance from diagonal with jitter
- * Uses foreground color with subtle opacity range (2%-16%)
+ * Uses foreground color with opacity range (3%-28%)
  *
  * Three zones based on distance from diagonal:
- * - Zone 1 (Dark): 8-16% opacity (near diagonal)
- * - Zone 2 (Medium): 4-8% opacity (mid-distance)
- * - Zone 3 (Light): 2-4% opacity (far from diagonal)
+ * - Zone 1 (Dark): 12-28% opacity (near diagonal)
+ * - Zone 2 (Medium): 6-14% opacity (mid-distance)
+ * - Zone 3 (Light): 3-8% opacity (far from diagonal)
  *
  * @param row - Row index (0-based)
  * @param col - Column index (0-based)
  * @param rows - Total number of rows
  * @param cols - Total number of columns
- * @returns Opacity class string with arbitrary value (e.g., "bg-foreground/[0.12]")
+ * @returns Opacity value as number (0-1 range)
  */
 function getCellOpacity(
   row: number,
   col: number,
   rows: number,
   cols: number,
-): string {
+): number {
   // Normalize to 0-1 range
   const normalizedRow = row / (rows - 1);
   const normalizedCol = col / (cols - 1);
@@ -45,24 +45,24 @@ function getCellOpacity(
   let maxOpacity: number;
 
   if (distanceFromDiagonal < 0.33) {
-    // Zone 1: Dark (near diagonal) - can reach maximum 16%
-    minOpacity = 0.04;
-    maxOpacity = 0.16;
+    // Zone 1: Dark (near diagonal) - highest opacity
+    minOpacity = 0.12;
+    maxOpacity = 0.28;
   } else if (distanceFromDiagonal < 0.66) {
     // Zone 2: Medium (mid-distance)
-    minOpacity = 0.04;
-    maxOpacity = 0.08;
+    minOpacity = 0.06;
+    maxOpacity = 0.14;
   } else {
     // Zone 3: Light (far from diagonal)
-    minOpacity = 0.02;
-    maxOpacity = 0.04;
+    minOpacity = 0.03;
+    maxOpacity = 0.08;
   }
 
   // Calculate final opacity with jitter within zone range
   const opacity = minOpacity + jitter * (maxOpacity - minOpacity);
 
-  // Return Tailwind arbitrary value class
-  return `bg-foreground/[${opacity.toFixed(2)}]`;
+  // Return opacity value (will be used in inline style)
+  return opacity;
 }
 
 /**
@@ -147,15 +147,15 @@ export function HeatmapSkeleton({
           {Array.from({ length: rows * cols }).map((_, idx) => {
             const row = Math.floor(idx / cols);
             const col = idx % cols;
-            const opacityClass = getCellOpacity(row, col, rows, cols);
+            const opacity = getCellOpacity(row, col, rows, cols);
 
             return (
               <div
                 key={idx}
-                className={cn(
-                  "rounded-sm border border-border/50 transition-all duration-150 hover:brightness-95",
-                  opacityClass,
-                )}
+                className="rounded-sm border border-border/50 transition-all duration-150 hover:brightness-95"
+                style={{
+                  backgroundColor: `hsl(var(--foreground) / ${opacity})`,
+                }}
               />
             );
           })}
