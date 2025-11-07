@@ -115,12 +115,17 @@ export class StorageServiceFactory {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
   }): StorageService {
-    if (params.useAzureBlob || env.LANGFUSE_USE_AZURE_BLOB === "true") {
+    if (
+      params.useAzureBlob !== undefined
+        ? params.useAzureBlob
+        : env.LANGFUSE_USE_AZURE_BLOB === "true"
+    ) {
       return new AzureBlobStorageService(params);
     }
     if (
-      params.useGoogleCloudStorage ||
-      env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
+      params.useGoogleCloudStorage !== undefined
+        ? params.useGoogleCloudStorage
+        : env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
     ) {
       // Use provided credentials or fall back to environment variable
       const googleParams = {

@@ -479,7 +479,19 @@ export const traceRouter = createTRPCRouter({
           });
         }
         clickhouseTrace.public = input.public;
-        await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        const promises = [
+          upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+        ];
+        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+          promises.push(
+            updateEvents(
+              input.projectId,
+              { traceIds: [clickhouseTrace.id] },
+              { public: input.public },
+            ),
+          );
+        }
+        await Promise.all(promises);
         return clickhouseTrace;
       } catch (error) {
         logger.error("Failed to call traces.publish", error);

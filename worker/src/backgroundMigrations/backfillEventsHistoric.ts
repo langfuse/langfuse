@@ -9,6 +9,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { parseArgs } from "node:util";
 
+// TODO: This is WIP and should not be used for actual backfills.
+
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "d8cf9f5e-747e-4ffe-8156-dec0eaebce9d";
 
@@ -272,12 +274,11 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           usage_details,
           provided_cost_details,
           cost_details,
-          total_cost,
           input,
           output,
-          -- metadata,
+          metadata,
           metadata_names,
-          metadata_values,
+          metadata_raw_values,
           source,
           service_name,
           service_version,
@@ -287,7 +288,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           telemetry_sdk_name,
           telemetry_sdk_version,
           blob_storage_file_path,
-          event_raw,
           event_bytes,
           created_at,
           updated_at,
@@ -317,20 +317,19 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           o.completion_start_time,
           o.prompt_id,
           o.prompt_name,
-          CAST(o.prompt_version, 'Nullable(String)') AS prompt_version,
+          o.prompt_version,
           o.internal_model_id AS model_id,
           o.provided_model_name,
-          o.model_parameters,
+          coalesce(o.model_parameters, '{}'),
           o.provided_usage_details,
           o.usage_details,
           o.provided_cost_details,
           o.cost_details,
-          coalesce(o.total_cost, 0) AS total_cost,
           coalesce(o.input, '') AS input,
           coalesce(o.output, '') AS output,
-          -- CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
+          CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
           mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-          mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_values,
+          mapValues(mapConcat(o.metadata, coalesce(t.metadata, map()))) AS metadata_raw_values,
           multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
           NULL AS service_name,
           NULL AS service_version,
@@ -340,7 +339,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           NULL AS telemetry_sdk_name,
           NULL AS telemetry_sdk_version,
           '' AS blob_storage_file_path,
-          '' AS event_raw,
           byteSize(*) AS event_bytes,
           o.created_at,
           o.updated_at,

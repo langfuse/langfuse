@@ -55,6 +55,7 @@ describe("Webhook URL Validation", () => {
       await expect(
         validateWebhookURL("http://test.localhost/hook"),
       ).rejects.toThrow("Blocked hostname detected");
+      // Generic error message without IP address
       await expect(
         validateWebhookURL("https://127.0.0.1/hook"),
       ).rejects.toThrow("Blocked IP address detected");
@@ -64,6 +65,7 @@ describe("Webhook URL Validation", () => {
     });
 
     it("should reject private network URLs", async () => {
+      // Generic error messages without exposing IP addresses
       await expect(
         validateWebhookURL("http://192.168.1.1/hook"),
       ).rejects.toThrow("Blocked IP address detected");
@@ -82,18 +84,21 @@ describe("Webhook URL Validation", () => {
     });
 
     it("should reject multicast addresses", async () => {
+      // Generic error message without exposing IP address
       await expect(validateWebhookURL("http://224.0.0.1/hook")).rejects.toThrow(
         "Blocked IP address detected",
       );
     });
 
     it("should reject broadcast addresses", async () => {
+      // Generic error message without exposing IP address
       await expect(
         validateWebhookURL("http://255.255.255.255/hook"),
       ).rejects.toThrow("Blocked IP address detected");
     });
 
     it("should reject IPv6 private addresses", async () => {
+      // Generic error messages without exposing IP addresses
       await expect(validateWebhookURL("http://[fc00::1]/hook")).rejects.toThrow(
         /Blocked IP address detected|ipaddr:/,
       );

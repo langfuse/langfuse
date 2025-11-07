@@ -342,3 +342,37 @@ export function buildTraceUiData(
 
   return { tree, hiddenObservationsCount, searchItems: out };
 }
+
+/**
+ * Download trace data with optionally observations as JSON file
+ * @param trace - Trace object to download
+ * @param observations - Array of observations (can be basic or with full I/O data)
+ * @param filename - Optional custom filename (defaults to trace-{traceId}.json)
+ */
+export function downloadTraceAsJson(params: {
+  trace: {
+    id: string;
+    [key: string]: unknown;
+  };
+  observations: unknown[];
+  filename?: string;
+}) {
+  const { trace, observations, filename } = params;
+
+  const exportData = {
+    trace,
+    observations,
+  };
+
+  const jsonString = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([jsonString], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename || `trace-${trace.id}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

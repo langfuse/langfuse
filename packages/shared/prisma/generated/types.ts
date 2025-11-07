@@ -412,6 +412,8 @@ export type Dataset = {
   metadata: unknown | null;
   remote_experiment_url: string | null;
   remote_experiment_payload: unknown | null;
+  input_schema: unknown | null;
+  expected_output_schema: unknown | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };

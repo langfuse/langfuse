@@ -489,7 +489,10 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
   );
 }
 
-if (env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true") {
+if (
+  env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
+  env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+) {
   // Instantiate the queue to trigger scheduled jobs
   EventPropagationQueue.getInstance();
 
