@@ -148,7 +148,7 @@ export function DistributionBooleanCard() {
     );
   }
 
-  const { distribution, metadata } = data;
+  const { metadata } = data;
   const { mode } = metadata;
   const { score1, score2 } = params;
 
