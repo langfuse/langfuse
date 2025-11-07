@@ -127,7 +127,8 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Total Cost ($)",
     uiTableId: "totalCost",
     clickhouseTableName: "events",
-    clickhouseSelect: "cost_details.total",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
   },
   {
     uiTableName: "Level",
@@ -173,14 +174,16 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Total Tokens",
     uiTableId: "totalTokens",
     clickhouseTableName: "events",
-    clickhouseSelect: "usage_details.total",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Tokens",
     uiTableId: "tokens",
     clickhouseTableName: "events",
-    clickhouseSelect: "usage_details.total",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {

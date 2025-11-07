@@ -149,42 +149,48 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Total Cost ($)",
     id: "totalCost",
     type: "number",
-    internal: "e.total_cost",
+    internal:
+      "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
     nullable: true,
   },
   {
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
-    internal: "e.usage_details.input",
+    internal:
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
     nullable: true,
   },
   {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
-    internal: "e.usage_details.output",
+    internal:
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
     nullable: true,
   },
   {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
-    internal: "e.usage_details.total",
+    internal:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
     nullable: true,
   },
   {
     name: "Input Cost ($)",
     id: "inputCost",
     type: "number",
-    internal: "e.cost_details.input",
+    internal:
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
     nullable: true,
   },
   {
     name: "Output Cost ($)",
     id: "outputCost",
     type: "number",
-    internal: "e.cost_details.output",
+    internal:
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details)))",
     nullable: true,
   },
   {
@@ -207,7 +213,7 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "tokensPerSecond",
     type: "number",
     internal:
-      "e.usage_details.output / (date_diff('millisecond', e.start_time, e.end_time) / 1000.0)",
+      "(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details))) / (date_diff('millisecond', start_time, end_time) / 1000))",
     nullable: true,
   },
   {
