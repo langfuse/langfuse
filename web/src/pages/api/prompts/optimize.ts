@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod/v4";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/src/pages/api/auth/[...nextauth]";
+import { getAuthOptions } from "@/src/server/auth";
 import {
   OptimizationQueue,
   QueueJobs,
@@ -26,6 +26,7 @@ export default async function handler(
     }
 
     // Check authentication
+    const authOptions = await getAuthOptions();
     const session = await getServerSession(req, res, authOptions);
     if (!session?.user) {
       return res.status(401).json({ error: "Unauthorized" });
