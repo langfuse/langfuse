@@ -1386,17 +1386,22 @@ export const scoresRouter = createTRPCRouter({
           ),
 
           -- CTE 8: Statistics
+          -- IMPORTANT: Calculate mean/std from individual filtered scores, NOT matched_scores
+          -- This ensures statistics are available even when matchedCount = 0
+          -- Comparison metrics (mae/rmse/correlations) still use matched_scores since they require pairs
           stats AS (
             SELECT
-              count() as matched_count,
+              (SELECT count() FROM matched_scores) as matched_count,
               ${
                 isNumeric
-                  ? `avg(value1) as mean1,
-              avg(value2) as mean2,
-              stddevPop(value1) as std1,
-              stddevPop(value2) as std2,
-              avg(abs(value1 - value2)) as mae,
-              sqrt(avg(pow(value1 - value2, 2))) as rmse,
+                  ? `-- Individual score statistics from filtered tables (not matched pairs)
+              (SELECT avg(value) FROM score1_filtered) as mean1,
+              (SELECT avg(value) FROM score2_filtered) as mean2,
+              (SELECT stddevPop(value) FROM score1_filtered) as std1,
+              (SELECT stddevPop(value) FROM score2_filtered) as std2,
+              -- Comparison metrics require matched pairs
+              (SELECT avg(abs(value1 - value2)) FROM matched_scores) as mae,
+              (SELECT sqrt(avg(pow(value1 - value2, 2))) FROM matched_scores) as rmse,
               -- Conditional correlation: only execute subquery if safe
               -- Uses short-circuit evaluation to prevent errors with insufficient data
               ${
@@ -1427,7 +1432,6 @@ export const scoresRouter = createTRPCRouter({
               NULL as mae,
               NULL as rmse`
               }
-            FROM matched_scores
           ),
 
           ${timeseriesCTE},
