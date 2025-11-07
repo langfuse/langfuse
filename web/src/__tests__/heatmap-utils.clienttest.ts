@@ -20,8 +20,9 @@ describe("heatmap-utils", () => {
       expect(result.cells[0].row).toBe(0);
       expect(result.cells[0].col).toBe(0);
       expect(result.cells[0].value).toBe(45);
-      expect(result.rowLabels).toHaveLength(10);
-      expect(result.colLabels).toHaveLength(10);
+      // Division point labels: nBins + 1 (11 labels for 10 bins)
+      expect(result.rowLabels).toHaveLength(11);
+      expect(result.colLabels).toHaveLength(11);
     });
 
     it("should generate correct labels for numeric bins", () => {
@@ -34,8 +35,11 @@ describe("heatmap-utils", () => {
 
       const result = generateNumericHeatmapData(input);
 
-      expect(result.rowLabels[0]).toMatch(/\[0\.\d+, 0\.\d+\)/);
-      expect(result.colLabels[0]).toMatch(/\[0\.\d+, 0\.\d+\)/);
+      // Labels are division points (numeric values), not ranges
+      expect(result.rowLabels[0]).toBe("0.00");
+      expect(result.colLabels[0]).toBe("0.00");
+      expect(result.rowLabels[10]).toBe("1.00");
+      expect(result.colLabels[10]).toBe("1.00");
     });
 
     it("should calculate percentages correctly", () => {
