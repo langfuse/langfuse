@@ -9,33 +9,32 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
-import { ScoreDistributionChart } from "../charts/ScoreDistributionChart";
-import { getScoreCategoryColors } from "../../libs/color-scales";
+import { ScoreDistributionNumericChart } from "../charts/ScoreDistributionNumericChart";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
 /**
- * DistributionChartCard - Smart card component for displaying score distributions
+ * DistributionNumericCard - Distribution chart card for NUMERIC scores
  *
- * Consumes ScoreAnalyticsProvider context and displays:
- * - Distribution histograms/bar charts
- * - Tabs: Individual / Matched / Stacked (modes vary by context)
- * - Auto-selects appropriate chart based on data type
+ * Responsibilities:
+ * - Manage tab state (score1/score2/all/matched)
+ * - Select appropriate distribution data based on tab
+ * - Generate correct bin labels matching backend binning strategy
+ * - Apply color mapping (solid colors: blue for score1, yellow for score2)
+ * - Render ScoreDistributionNumericChart directly
  *
- * Handles:
- * - Loading states
- * - Empty states
- * - Single vs two-score modes
- * - Numeric vs categorical vs boolean data types
+ * Key Implementation Details:
+ * - Individual tabs (score1/score2) use individual-bounded distributions + individual bin labels
+ * - Comparison tabs (all/matched) use global-bounded distributions + global bin labels
+ * - This ensures bin labels match the backend's binning strategy
  */
-export function DistributionChartCard() {
-  const { data, isLoading, params, colorMappings, getColorForScore } =
-    useScoreAnalytics();
+export function DistributionNumericCard() {
+  const { data, isLoading, params, getColorForScore } = useScoreAnalytics();
 
   const [activeTab, setActiveTab] = useState<DistributionTab>("all");
 
-  // Determine which distribution data to show based on tab
-  // Note: useMemo must be called before any early returns (React hooks rule)
+  // Select distribution data based on active tab
+  // Note: binLabels are already computed in the Provider and stored in distribution.binLabels
   const { distribution1Data, distribution2Data, description } = useMemo(() => {
     if (!data) {
       return {
@@ -46,23 +45,17 @@ export function DistributionChartCard() {
     }
 
     const { distribution, metadata, statistics } = data;
-    const { mode, dataType } = metadata;
+    const { mode } = metadata;
     const { score1, score2 } = params;
-    const isSingleScore = mode === "single";
-    const isNumeric = dataType === "NUMERIC";
 
-    if (isSingleScore) {
+    if (mode === "single") {
       // Single score mode - only show individual distribution
       return {
         distribution1Data: distribution.score1,
         distribution2Data: undefined,
         description: `${statistics.score1.total.toLocaleString()} observations${
-          isNumeric && statistics.score1.mean !== null
+          statistics.score1.mean !== null
             ? ` | Average: ${statistics.score1.mean.toFixed(3)}`
-            : ""
-        }${
-          dataType !== "NUMERIC" && statistics.score1.mode
-            ? ` | Most frequent: ${statistics.score1.mode.category} (${statistics.score1.mode.count.toLocaleString()})`
             : ""
         }`,
       };
@@ -84,8 +77,8 @@ export function DistributionChartCard() {
         };
       case "all":
         return {
-          distribution1Data: distribution.score1Individual,
-          distribution2Data: distribution.score2Individual,
+          distribution1Data: distribution.score1,
+          distribution2Data: distribution.score2,
           description: `${score1.name} (${statistics.score1.total.toLocaleString()}) vs ${score2?.name} (${statistics.score2?.total.toLocaleString()})`,
         };
       case "matched":
@@ -97,78 +90,21 @@ export function DistributionChartCard() {
     }
   }, [data, activeTab, params]);
 
-  // For matched view in categorical mode, use stackedDistribution
-  const stackedDistributionData = useMemo(() => {
-    if (!data) return undefined;
-    const { distribution, metadata } = data;
-    const { mode, dataType } = metadata;
-
-    return mode === "two" &&
-      dataType === "CATEGORICAL" &&
-      activeTab === "matched"
-      ? distribution.stackedDistributionMatched
-      : undefined;
-  }, [data, activeTab]);
-
-  // Derive colors based on active tab and data type
-  // Note: useMemo must be called before any early returns (React hooks rule)
+  // Build color mapping for numeric charts (solid colors)
   const chartColors = useMemo(() => {
-    if (!data) return colorMappings;
-
-    const { dataType } = data.metadata;
-
-    // Numeric charts
-    if (dataType === "NUMERIC") {
-      if (activeTab === "score1") {
-        // Visual slot 1, but score1's color
-        return { score1: getColorForScore(1) };
-      }
-      if (activeTab === "score2") {
-        // Visual slot 1, but score2's color
-        return { score1: getColorForScore(2) };
-      }
-      // "all" or "matched" tabs
-      return {
-        score1: getColorForScore(1),
-        score2: getColorForScore(2),
-      };
+    if (activeTab === "score1") {
+      return { score1: getColorForScore(1) };
     }
-
-    // Categorical/Boolean charts on individual tabs - regenerate colors for that specific score
-    if (dataType === "CATEGORICAL" || dataType === "BOOLEAN") {
-      if (activeTab === "score1") {
-        // For boolean individual view, use solid color like numeric charts
-        if (dataType === "BOOLEAN") {
-          return { score1: getColorForScore(1) };
-        }
-        // For categorical, regenerate colors for score1 only to avoid collision with score2
-        if (data.distribution.categories) {
-          return getScoreCategoryColors(1, data.distribution.categories);
-        }
-      }
-      if (activeTab === "score2") {
-        // For boolean individual view, use solid color like numeric charts
-        if (dataType === "BOOLEAN") {
-          return { score1: getColorForScore(2) };
-        }
-        // For categorical, regenerate colors for score2 only to avoid collision with score1
-        if (data.distribution.score2Categories) {
-          return getScoreCategoryColors(2, data.distribution.score2Categories);
-        }
-      }
-
-      // For "all" or "matched" tabs with boolean data, use solid colors like numeric
-      if (dataType === "BOOLEAN") {
-        return {
-          score1: getColorForScore(1),
-          score2: getColorForScore(2),
-        };
-      }
+    if (activeTab === "score2") {
+      // Visual slot 1, but score2's color
+      return { score1: getColorForScore(2) };
     }
-
-    // "all" or "matched" tabs - return full colorMappings with namespaced keys
-    return colorMappings;
-  }, [activeTab, data, colorMappings, getColorForScore]);
+    // "all" or "matched" tabs
+    return {
+      score1: getColorForScore(1),
+      score2: getColorForScore(2),
+    };
+  }, [activeTab, getColorForScore]);
 
   // Loading state
   if (isLoading) {
@@ -201,7 +137,7 @@ export function DistributionChartCard() {
   }
 
   const { distribution, metadata } = data;
-  const { mode, dataType } = metadata;
+  const { mode } = metadata;
   const { score1, score2 } = params;
 
   const hasData = distribution1Data.length > 0;
@@ -274,15 +210,15 @@ export function DistributionChartCard() {
         </div>
       </CardHeader>
       <CardContent className="flex h-[340px] flex-col pl-0">
-        {hasData ? (
-          <ScoreDistributionChart
+        {hasData && distribution.binLabels ? (
+          <ScoreDistributionNumericChart
             distribution1={distribution1Data}
             distribution2={
               activeTab === "score1" || activeTab === "score2"
                 ? undefined
-                : distribution2Data
+                : (distribution2Data ?? undefined)
             }
-            dataType={dataType}
+            binLabels={distribution.binLabels}
             score1Name={
               activeTab === "score2" && score2
                 ? score2.name
@@ -297,21 +233,6 @@ export function DistributionChartCard() {
                   ? score2.name
                   : undefined
             }
-            score2Source={
-              activeTab === "score1" || activeTab === "score2"
-                ? undefined
-                : mode === "two" && score2
-                  ? score2.source
-                  : undefined
-            }
-            binLabels={distribution.binLabels}
-            categories={
-              activeTab === "score2" && distribution.score2Categories
-                ? distribution.score2Categories
-                : distribution.categories
-            }
-            stackedDistribution={stackedDistributionData}
-            score2Categories={distribution.score2Categories}
             colors={chartColors}
           />
         ) : (
