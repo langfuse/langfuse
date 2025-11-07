@@ -228,31 +228,42 @@ export function useScoreAnalyticsQuery(
 
     // ========================================================================
     // 2. Fill distribution bins (categorical/boolean only)
+    // Note: Sort all distributions by binIndex to ensure deterministic ordering
+    // fillDistributionBins() already returns sorted data for categorical/boolean
+    // For numeric, we sort to handle non-deterministic ClickHouse row ordering
     // ========================================================================
     const distribution1 = categories
       ? fillDistributionBins(apiData.distribution1, categories)
-      : apiData.distribution1;
+      : apiData.distribution1.slice().sort((a, b) => a.binIndex - b.binIndex);
 
     const distribution2 =
       categories && mode === "two"
         ? fillDistributionBins(apiData.distribution2, categories)
-        : apiData.distribution2;
+        : apiData.distribution2.slice().sort((a, b) => a.binIndex - b.binIndex);
 
     const distribution1Individual = categories
       ? fillDistributionBins(apiData.distribution1Individual, categories)
-      : apiData.distribution1Individual;
+      : apiData.distribution1Individual
+          .slice()
+          .sort((a, b) => a.binIndex - b.binIndex);
 
     const distribution2Individual = categories
       ? fillDistributionBins(apiData.distribution2Individual, categories)
-      : apiData.distribution2Individual;
+      : apiData.distribution2Individual
+          .slice()
+          .sort((a, b) => a.binIndex - b.binIndex);
 
     const distribution1Matched = categories
       ? fillDistributionBins(apiData.distribution1Matched, categories)
-      : apiData.distribution1Matched;
+      : apiData.distribution1Matched
+          .slice()
+          .sort((a, b) => a.binIndex - b.binIndex);
 
     const distribution2Matched = categories
       ? fillDistributionBins(apiData.distribution2Matched, categories)
-      : apiData.distribution2Matched;
+      : apiData.distribution2Matched
+          .slice()
+          .sort((a, b) => a.binIndex - b.binIndex);
 
     // ========================================================================
     // 3. Generate bin labels (numeric only)

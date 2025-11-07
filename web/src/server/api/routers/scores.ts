@@ -950,6 +950,7 @@ export const scoresRouter = createTRPCRouter({
             FROM score1_filtered
             WHERE string_value IS NOT NULL OR value IS NOT NULL
             GROUP BY COALESCE(string_value, toString(value))
+            ORDER BY bin_index
           )`;
 
       const distribution2CTE = isNumeric
@@ -971,6 +972,7 @@ export const scoresRouter = createTRPCRouter({
             FROM score2_filtered
             WHERE string_value IS NOT NULL OR value IS NOT NULL
             GROUP BY COALESCE(string_value, toString(value))
+            ORDER BY bin_index
           )`;
 
       // Build time series CTE conditionally based on single vs two-score
@@ -1038,6 +1040,7 @@ export const scoresRouter = createTRPCRouter({
             FROM matched_scores
             WHERE string_value1 IS NOT NULL OR value1 IS NOT NULL
             GROUP BY COALESCE(string_value1, toString(value1))
+            ORDER BY bin_index
           )`;
 
       const distribution2MatchedCTE = isNumeric
@@ -1059,6 +1062,7 @@ export const scoresRouter = createTRPCRouter({
             FROM matched_scores
             WHERE string_value2 IS NOT NULL OR value2 IS NOT NULL
             GROUP BY COALESCE(string_value2, toString(value2))
+            ORDER BY bin_index
           )`;
 
       // Build individual-bound distributions for single-score display
@@ -1077,6 +1081,7 @@ export const scoresRouter = createTRPCRouter({
           distribution1_individual AS (
             SELECT bin_index, count
             FROM distribution1
+            ORDER BY bin_index
           )`;
 
       const distribution2IndividualCTE = isNumeric
@@ -1094,6 +1099,7 @@ export const scoresRouter = createTRPCRouter({
           distribution2_individual AS (
             SELECT bin_index, count
             FROM distribution2
+            ORDER BY bin_index
           )`;
 
       // Build matched-only time series for single-score mode
