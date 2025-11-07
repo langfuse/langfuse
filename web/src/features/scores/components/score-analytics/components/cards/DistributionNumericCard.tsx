@@ -64,14 +64,28 @@ export function DistributionNumericCard() {
     // Two score mode - handle tabs
     switch (activeTab) {
       case "score1":
+        // Use individual distribution if available and non-empty, fallback to global distribution
+        // This handles the case where backend might return empty array for individual distributions
+        // when there are no matching pairs between scores
+        const score1Data =
+          distribution.score1Individual &&
+          distribution.score1Individual.length > 0
+            ? distribution.score1Individual
+            : distribution.score1;
         return {
-          distribution1Data: distribution.score1Individual,
+          distribution1Data: score1Data,
           distribution2Data: undefined,
           description: `${score1.name} - ${statistics.score1.total.toLocaleString()} observations`,
         };
       case "score2":
+        // Use individual distribution if available and non-empty, fallback to global distribution
+        const score2Data =
+          distribution.score2Individual &&
+          distribution.score2Individual.length > 0
+            ? distribution.score2Individual
+            : distribution.score2;
         return {
-          distribution1Data: distribution.score2Individual,
+          distribution1Data: score2Data,
           distribution2Data: undefined,
           description: `${score2?.name ?? "Score 2"} - ${statistics.score2?.total.toLocaleString()} observations`,
         };
@@ -140,7 +154,7 @@ export function DistributionNumericCard() {
   const { mode } = metadata;
   const { score1, score2 } = params;
 
-  const hasData = distribution1Data.length > 0;
+  const hasData = (distribution1Data?.length ?? 0) > 0;
   const showTabs = mode === "two";
 
   // Helper function to truncate tab labels with max character limit
@@ -212,7 +226,7 @@ export function DistributionNumericCard() {
       <CardContent className="flex h-[340px] flex-col pl-0">
         {hasData && distribution.binLabels ? (
           <ScoreDistributionNumericChart
-            distribution1={distribution1Data}
+            distribution1={distribution1Data ?? []}
             distribution2={
               activeTab === "score1" || activeTab === "score2"
                 ? undefined

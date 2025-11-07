@@ -268,14 +268,34 @@ export function useScoreAnalyticsQuery(
     // ========================================================================
     // 3. Generate bin labels (numeric only)
     // ========================================================================
-    const binLabels =
-      isNumeric && apiData.heatmap[0]
-        ? generateBinLabels({
-            min: apiData.heatmap[0].min1,
-            max: apiData.heatmap[0].max1,
-            nBins,
-          })
-        : undefined;
+    // For numeric scores, we need min/max bounds to generate bin labels.
+    // First try to get bounds from heatmap (when there are matched pairs).
+    // If heatmap is empty (no matched pairs), calculate bounds from statistics.
+    let binLabels: string[] | undefined = undefined;
+    if (isNumeric) {
+      // Try to get bounds from heatmap (preferred, as it contains pre-calculated bounds)
+      if (apiData.heatmap[0]) {
+        binLabels = generateBinLabels({
+          min: apiData.heatmap[0].min1,
+          max: apiData.heatmap[0].max1,
+          nBins,
+        });
+      }
+      // Fallback: Calculate bounds from statistics when heatmap is empty
+      // This handles the case when matchedCount = 0 (no paired observations)
+      else if (
+        apiData.statistics &&
+        apiData.statistics.mean1 !== null &&
+        apiData.statistics.std1 !== null
+      ) {
+        const mean = apiData.statistics.mean1;
+        const std = apiData.statistics.std1;
+        // Use ±3 standard deviations as bounds (covers ~99.7% of data)
+        const min = mean - 3 * std;
+        const max = mean + 3 * std;
+        binLabels = generateBinLabels({ min, max, nBins });
+      }
+    }
 
     // ========================================================================
     // 4. Transform heatmap data
