@@ -849,7 +849,7 @@ export const scoresRouter = createTRPCRouter({
         nBins: z.number().int().min(5).max(50).default(10),
         maxMatchedScoresLimit: z.number().int().default(100000),
         objectType: z
-          .enum(["all", "trace", "session", "observation", "run"])
+          .enum(["all", "trace", "session", "observation", "dataset_run"])
           .default("all"),
       }),
     )
@@ -908,7 +908,7 @@ export const scoresRouter = createTRPCRouter({
               ? "AND observation_id IS NOT NULL"
               : objectType === "session"
                 ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND run_id IS NULL"
-                : objectType === "run"
+                : objectType === "dataset_run"
                   ? "AND run_id IS NOT NULL"
                   : "";
 

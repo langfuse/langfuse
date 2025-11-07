@@ -12,7 +12,7 @@ const OBJECT_TYPE_OPTIONS: Array<{ value: ObjectType; label: string }> = [
   { value: "trace", label: "Traces" },
   { value: "session", label: "Sessions" },
   { value: "observation", label: "Observations" },
-  { value: "run", label: "Runs" },
+  { value: "dataset_run", label: "Dataset Runs" },
 ];
 
 interface ObjectTypeFilterProps {

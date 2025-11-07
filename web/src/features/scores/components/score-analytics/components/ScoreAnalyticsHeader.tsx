@@ -27,7 +27,7 @@ export interface ScoreAnalyticsHeaderProps {
  * Provides UI controls for:
  * - Score 1 selector (required)
  * - Score 2 selector (optional, for comparison)
- * - Object type filter (all, trace, session, observation, run)
+ * - Object type filter (all, trace, session, observation, dataset_run)
  * - Time range picker
  *
  * Uses useAnalyticsUrlState hook to sync selections with URL query params.

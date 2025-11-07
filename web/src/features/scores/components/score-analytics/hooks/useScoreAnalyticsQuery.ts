@@ -19,7 +19,12 @@ import {
 
 export type DataType = "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
 
-export type ObjectType = "all" | "trace" | "session" | "observation" | "run";
+export type ObjectType =
+  | "all"
+  | "trace"
+  | "session"
+  | "observation"
+  | "dataset_run";
 
 /**
  * Parsed score identifier
