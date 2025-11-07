@@ -25,7 +25,7 @@ services:
       - LANGFUSE_INIT_USER_PASSWORD=${LANGFUSE_INIT_USER_PASSWORD:-}
 
   db:
-    image: postgres
+    image: postgres:17
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]

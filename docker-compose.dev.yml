@@ -47,7 +47,7 @@ services:
       - 6379:6379
 
   postgres:
-    image: postgres:${POSTGRES_VERSION:-latest}
+    image: postgres:${POSTGRES_VERSION:-17}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
