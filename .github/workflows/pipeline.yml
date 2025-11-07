@@ -108,8 +108,9 @@ jobs:
           grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Seed DB
@@ -179,15 +180,6 @@ jobs:
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
-      - name: Ensure no unhealthy status
-        run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
-
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Seed DB
@@ -255,9 +247,17 @@ jobs:
           cp .env.dev${{ matrix.blob-provider }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          docker compose ps
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose ps
+      - name: Ensure no unhealthy status
+        run: |
+          if docker compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
@@ -297,14 +297,6 @@ jobs:
           docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
-          - name: Ensure Docker dependencies are healthy
-            run: |
-              if docker-compose ps | grep "(unhealthy)"; then
-                echo "One or more services are unhealthy"
-                exit 1
-              else
-                echo "All services are healthy"
-              fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
@@ -350,23 +342,17 @@ jobs:
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
-          if ! docker compose -f docker-compose.dev.yml up -d --wait; then
-            echo "=== Docker compose failed. Showing debug information ==="
-            echo ""
-            echo "=== Container Status ==="
-            docker compose -f docker-compose.dev.yml ps
-            echo ""
-            echo "=== PostgreSQL Logs ==="
-            docker compose -f docker-compose.dev.yml logs postgres
-            echo ""
-            echo "=== ClickHouse Logs ==="
-            docker compose -f docker-compose.dev.yml logs clickhouse
-            echo ""
-            echo "=== Redis Logs ==="
-            docker compose -f docker-compose.dev.yml logs redis
-            exit 1
-          fi
+          docker compose -f docker-compose.dev.yml up -d
           docker compose ps
+          sleep 5 # Wait for PostgreSQL to accept connections
+      - name: Ensure Docker dependencies are healthy
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
