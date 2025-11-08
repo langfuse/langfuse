@@ -92,11 +92,11 @@ const ADAPTIVE_FINAL_THRESHOLD = 100_000;
 
 /**
  * Hash-based sampling thresholds
- * - SAMPLING_THRESHOLD: Estimated matched scores above this trigger sampling
- * - TARGET_SAMPLE_SIZE: Target number of samples to collect when sampling is triggered
+ * - SAMPLING_THRESHOLD: Sample when either score table exceeds this count
+ * - TARGET_SAMPLE_SIZE: Target number of rows to sample from each table
  */
-const SAMPLING_THRESHOLD = 100_000; // Start sampling if estimated matches > 100k
-const TARGET_SAMPLE_SIZE = 50_000; // Aim for 50k samples when sampling
+const SAMPLING_THRESHOLD = 100_000; // Start sampling if either table > 100k
+const TARGET_SAMPLE_SIZE = 100_000; // Aim for 100k samples from each table
 
 /**
  * Helper function: Estimate score match count using lightweight preflight query
@@ -1061,10 +1061,15 @@ export const scoresRouter = createTRPCRouter({
         estimates.score1Count < ADAPTIVE_FINAL_THRESHOLD &&
         estimates.score2Count < ADAPTIVE_FINAL_THRESHOLD;
 
-      // Hash-based sampling decision: Sample when estimated matched count exceeds threshold
-      const shouldSample = estimates.estimatedMatchedCount > SAMPLING_THRESHOLD;
+      // Hash-based sampling decision: Sample when either score table exceeds threshold
+      const shouldSample =
+        estimates.score1Count > SAMPLING_THRESHOLD ||
+        estimates.score2Count > SAMPLING_THRESHOLD;
+
+      // Calculate rate based on larger table to ensure both tables sample to ~100k rows
+      const maxCount = Math.max(estimates.score1Count, estimates.score2Count);
       const samplingRate = shouldSample
-        ? Math.min(1.0, TARGET_SAMPLE_SIZE / estimates.estimatedMatchedCount)
+        ? Math.min(1.0, TARGET_SAMPLE_SIZE / maxCount)
         : 1.0;
       const samplingPercent = Math.round(samplingRate * 100); // Convert to 0-100 for modulo
 

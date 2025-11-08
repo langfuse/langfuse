@@ -668,10 +668,10 @@ describe("Score Comparison Analytics tRPC", () => {
         result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
       ).toBeGreaterThan(100_000);
 
-      // Verify actualSampleSize is approximately TARGET_SAMPLE_SIZE (50k)
+      // Verify actualSampleSize is approximately TARGET_SAMPLE_SIZE (100k)
       // Allow for variance due to hash distribution
-      expect(result.samplingMetadata.actualSampleSize).toBeGreaterThan(40_000);
-      expect(result.samplingMetadata.actualSampleSize).toBeLessThan(60_000);
+      expect(result.samplingMetadata.actualSampleSize).toBeGreaterThan(80_000);
+      expect(result.samplingMetadata.actualSampleSize).toBeLessThan(120_000);
 
       // Verify counts reflect sampling
       expect(result.counts.matchedCount).toBe(
