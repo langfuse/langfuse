@@ -1124,13 +1124,13 @@ export const scoresRouter = createTRPCRouter({
         objectType === "all"
           ? ""
           : objectType === "trace"
-            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND run_id IS NULL"
+            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND dataset_run_id IS NULL"
             : objectType === "observation"
               ? "AND observation_id IS NOT NULL"
               : objectType === "session"
-                ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND run_id IS NULL"
+                ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND dataset_run_id IS NULL"
                 : objectType === "dataset_run"
-                  ? "AND run_id IS NOT NULL"
+                  ? "AND dataset_run_id IS NOT NULL"
                   : "";
 
       // Run preflight query to estimate data size and determine optimization strategy
