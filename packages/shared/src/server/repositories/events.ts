@@ -995,6 +995,9 @@ export const getEventsGroupedByModel = async (
     selectExpression: "e.provided_model_name as name, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw(
+      "e.provided_model_name IS NOT NULL AND length(e.provided_model_name) > 0",
+    )
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1033,6 +1036,7 @@ export const getEventsGroupedByModelId = async (
     selectExpression: "e.model_id as modelId, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.model_id IS NOT NULL AND length(e.model_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1071,6 +1075,7 @@ export const getEventsGroupedByName = async (
     selectExpression: "e.name as name, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.name IS NOT NULL AND length(e.name) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1150,6 +1155,7 @@ export const getEventsGroupedByType = async (
     selectExpression: "e.type as type, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.type IS NOT NULL AND length(e.type) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1190,6 +1196,7 @@ export const getEventsGroupedByUserId = async (
     selectExpression: "e.user_id as userId, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1230,6 +1237,7 @@ export const getEventsGroupedByVersion = async (
     selectExpression: "e.version as version, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.version IS NOT NULL AND length(e.version) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1270,6 +1278,7 @@ export const getEventsGroupedBySessionId = async (
     selectExpression: "e.session_id as sessionId, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.session_id IS NOT NULL AND length(e.session_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1310,6 +1319,7 @@ export const getEventsGroupedByLevel = async (
     selectExpression: "e.level as level, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.level IS NOT NULL AND length(e.level) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1350,6 +1360,7 @@ export const getEventsGroupedByEnvironment = async (
     selectExpression: "e.environment as environment, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.environment IS NOT NULL AND length(e.environment) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
