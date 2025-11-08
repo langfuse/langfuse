@@ -116,10 +116,12 @@ export const addAttributesToSpan = ({
     );
 
     if (startTimeFilter?.value && endTimeFilter?.value) {
-      span.setAttribute(
-        "duration_minutes",
-        dateDiff(startTimeFilter.value as Date, endTimeFilter.value as Date),
+      const durationMs = dateDiff(
+        startTimeFilter.value as Date,
+        endTimeFilter.value as Date,
       );
+      // Convert milliseconds to minutes
+      span.setAttribute("duration_minutes", durationMs / 60000);
     }
 
     input.filter.forEach((f) => {
