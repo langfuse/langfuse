@@ -5,6 +5,7 @@ import { DistributionCategoricalCard } from "./cards/DistributionCategoricalCard
 import { DistributionBooleanCard } from "./cards/DistributionBooleanCard";
 import { HeatmapCard } from "./cards/HeatmapCard";
 import { useScoreAnalytics } from "./ScoreAnalyticsProvider";
+import { ScoreAnalyticsNoticeBanner } from "./ScoreAnalyticsNoticeBanner";
 
 /**
  * ScoreAnalyticsDashboard - Layout component for score analytics
@@ -53,11 +54,17 @@ export function ScoreAnalyticsDashboard() {
   };
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      <StatisticsCard />
-      <TimelineChartCard />
-      {renderDistributionCard()}
-      <HeatmapCard />
-    </div>
+    <>
+      {/* Unified notice banner (transitions: loading → sampling notice) */}
+      <ScoreAnalyticsNoticeBanner />
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <StatisticsCard />
+        <TimelineChartCard />
+        {renderDistributionCard()}
+        <HeatmapCard />
+      </div>
+    </>
   );
 }

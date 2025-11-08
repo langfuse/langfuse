@@ -196,6 +196,7 @@ export interface UseScoreAnalyticsQueryResult {
  */
 export function useScoreAnalyticsQuery(
   params: ScoreAnalyticsQueryParams,
+  options?: { enabled?: boolean },
 ): UseScoreAnalyticsQueryResult {
   const {
     projectId,
@@ -224,7 +225,7 @@ export function useScoreAnalyticsQuery(
       objectType,
     },
     {
-      enabled: !!(projectId && score1),
+      enabled: (options?.enabled ?? true) && !!(projectId && score1),
     },
   );
 

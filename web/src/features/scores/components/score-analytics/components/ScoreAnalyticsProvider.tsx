@@ -10,6 +10,7 @@ import {
   getScoreNumericColor,
   buildColorMappings,
 } from "@/src/features/scores/components/score-analytics/libs/color-scales";
+import { api } from "@/src/utils/api";
 
 // Re-export types for convenience
 export type {
@@ -55,12 +56,23 @@ function getScoreColors(mode: "single" | "two" | undefined): ScoreColors {
 // Context Definition
 // ============================================================================
 
+export interface EstimateData {
+  score1Count: number;
+  score2Count: number;
+  estimatedMatchedCount: number;
+  willSample: boolean;
+  willSkipFinal: boolean;
+  estimatedQueryTime: string;
+}
+
 export interface ScoreAnalyticsContextValue
   extends UseScoreAnalyticsQueryResult {
   colors: ScoreColors;
   params: ScoreAnalyticsQueryParams;
   colorMappings: Record<string, string>;
   getColorForScore: (scoreNumber: 1 | 2) => string;
+  estimate: EstimateData | undefined;
+  isEstimating: boolean;
 }
 
 const ScoreAnalyticsContext = createContext<
@@ -95,8 +107,29 @@ export function ScoreAnalyticsProvider({
   params,
   children,
 }: ScoreAnalyticsProviderProps) {
-  // Fetch and transform data using the hook
-  const queryResult = useScoreAnalyticsQuery(params);
+  // Step 1: Run estimate query first
+  const canEstimate =
+    params.score1 !== undefined && params.score2 !== undefined;
+
+  const estimateQuery = api.scores.estimateScoreComparisonSize.useQuery(
+    {
+      projectId: params.projectId,
+      score1: params.score1 ?? { name: "", dataType: "", source: "" },
+      score2: params.score2 ?? { name: "", dataType: "", source: "" },
+      fromTimestamp: params.fromTimestamp,
+      toTimestamp: params.toTimestamp,
+      objectType: params.objectType ?? "all",
+    },
+    {
+      enabled: canEstimate,
+      staleTime: 30_000, // Cache for 30 seconds
+    },
+  );
+
+  // Step 2: Only run main query after estimate succeeds
+  const queryResult = useScoreAnalyticsQuery(params, {
+    enabled: estimateQuery.isSuccess,
+  });
 
   // Determine color scheme based on mode
   const colors = useMemo(() => {
@@ -134,8 +167,18 @@ export function ScoreAnalyticsProvider({
       params,
       colorMappings,
       getColorForScore,
+      estimate: estimateQuery.data,
+      isEstimating: estimateQuery.isLoading,
     }),
-    [queryResult, colors, params, colorMappings, getColorForScore],
+    [
+      queryResult,
+      colors,
+      params,
+      colorMappings,
+      getColorForScore,
+      estimateQuery.data,
+      estimateQuery.isLoading,
+    ],
   );
 
   return (

@@ -8,6 +8,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { MetricCard } from "../charts/MetricCard";
+import { SamplingDetailsHoverCard } from "../ScoreAnalyticsNoticeBanner";
 import {
   calculateCohensKappa,
   calculateWeightedF1Score,
@@ -100,7 +101,15 @@ export function StatisticsCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Statistics</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Statistics
+          {data.samplingMetadata.isSampled && (
+            <SamplingDetailsHoverCard
+              samplingMetadata={data.samplingMetadata}
+              showLabel
+            />
+          )}
+        </CardTitle>
         <CardDescription>
           {score2
             ? `${score1.name} vs ${score2.name}`

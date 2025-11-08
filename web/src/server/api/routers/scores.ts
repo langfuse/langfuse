@@ -909,6 +909,98 @@ export const scoresRouter = createTRPCRouter({
     }),
 
   /**
+   * Estimate score comparison size for UI loading indicators
+   * Returns quick estimates without running full analytics query
+   */
+  estimateScoreComparisonSize: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        score1: z.object({
+          name: z.string(),
+          dataType: z.string(),
+          source: z.string(),
+        }),
+        score2: z.object({
+          name: z.string(),
+          dataType: z.string(),
+          source: z.string(),
+        }),
+        fromTimestamp: z.date(),
+        toTimestamp: z.date(),
+        objectType: z
+          .enum(["all", "trace", "session", "observation", "dataset_run"])
+          .default("all"),
+      }),
+    )
+    .query(async ({ input }) => {
+      const {
+        projectId,
+        score1,
+        score2,
+        fromTimestamp,
+        toTimestamp,
+        objectType,
+      } = input;
+
+      // Build object type filter
+      const objectTypeFilter =
+        objectType === "all"
+          ? ""
+          : objectType === "trace"
+            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND dataset_run_id IS NULL"
+            : objectType === "session"
+              ? "AND session_id IS NOT NULL"
+              : objectType === "observation"
+                ? "AND observation_id IS NOT NULL"
+                : objectType === "dataset_run"
+                  ? "AND dataset_run_id IS NOT NULL"
+                  : "";
+
+      // Run preflight estimate (uses 1% sampling)
+      const estimates = await estimateScoreMatchCount({
+        projectId,
+        score1Name: score1.name,
+        score1Source: score1.source,
+        score1DataType: score1.dataType,
+        score2Name: score2.name,
+        score2Source: score2.source,
+        score2DataType: score2.dataType,
+        fromTimestamp,
+        toTimestamp,
+        objectTypeFilter,
+      });
+
+      // Determine if sampling and FINAL will be used
+      const willSample =
+        estimates.score1Count > SAMPLING_THRESHOLD ||
+        estimates.score2Count > SAMPLING_THRESHOLD;
+
+      const willSkipFinal =
+        estimates.score1Count >= ADAPTIVE_FINAL_THRESHOLD ||
+        estimates.score2Count >= ADAPTIVE_FINAL_THRESHOLD;
+
+      // Estimate query time based on dataset size
+      const estimatedQueryTime =
+        estimates.estimatedMatchedCount > 1_000_000
+          ? "30-60s"
+          : estimates.estimatedMatchedCount > 500_000
+            ? "15-30s"
+            : estimates.estimatedMatchedCount > 100_000
+              ? "10-20s"
+              : "<10s";
+
+      return {
+        score1Count: estimates.score1Count,
+        score2Count: estimates.score2Count,
+        estimatedMatchedCount: estimates.estimatedMatchedCount,
+        willSample,
+        willSkipFinal,
+        estimatedQueryTime,
+      };
+    }),
+
+  /**
    * Get comprehensive score comparison analytics using single UNION ALL query
    * Returns counts, heatmap, confusion matrix, statistics, time series, and distributions
    */
