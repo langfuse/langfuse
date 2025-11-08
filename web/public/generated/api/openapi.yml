@@ -3542,6 +3542,58 @@ paths:
                     Langfuse.
               required:
                 - newLabels
+    delete:
+      description: Delete a specific prompt version
+      operationId: promptVersion_delete
+      tags:
+        - PromptVersion
+      parameters:
+        - name: name
+          in: path
+          description: The name of the prompt
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          description: Version of the prompt to delete
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletePromptVersionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt
@@ -8295,6 +8347,14 @@ components:
           type: boolean
       required:
         - success
+    DeletePromptVersionResponse:
+      title: DeletePromptVersionResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     PromptMetaListResponse:
       title: PromptMetaListResponse
       type: object

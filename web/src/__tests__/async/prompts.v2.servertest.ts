@@ -3057,6 +3057,117 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   });
 });
 
+describe("DELETE api/public/v2/prompts/[promptName]/versions/[version]", () => {
+  afterAll(async () => {
+    await disconnectQueues();
+  });
+
+  it("should delete a prompt version", async () => {
+    const { projectId, auth } = await createOrgProjectAndApiKey();
+    const promptName = `delete-me-${nanoid()}`;
+
+    const created = await prisma.prompt.create({
+      data: {
+        name: promptName,
+        prompt: "to be deleted",
+        labels: [],
+        version: 1,
+        projectId,
+        createdBy: "API",
+      },
+    });
+
+    const res = await makeAPICall(
+      "DELETE",
+      `${baseURI}/${encodeURIComponent(promptName)}/versions/1`,
+      undefined,
+      auth,
+    );
+
+    expect(res.status).toBe(200);
+    // @ts-expect-error
+    expect(res.body?.message).toContain("deleted");
+
+    const exists = await prisma.prompt.findUnique({
+      where: { id: created.id },
+    });
+    expect(exists).toBeNull();
+  });
+
+  it("should block delete if dependent prompts exist", async () => {
+    const { projectId, auth } = await createOrgProjectAndApiKey();
+    // child referenced by label
+    await prisma.prompt.create({
+      data: {
+        name: "child-for-delete",
+        prompt: "child",
+        labels: ["production"],
+        version: 1,
+        projectId,
+        createdBy: "API",
+      },
+    });
+    // parent referencing child via label to create dependency
+    const parent = await prisma.prompt.create({
+      data: {
+        name: "parent-for-delete",
+        prompt:
+          "uses child @@@langfusePrompt:name=child-for-delete|label=production@@@",
+        labels: [],
+        version: 1,
+        projectId,
+        createdBy: "API",
+      },
+    });
+
+    // Wire dependency row to mirror PromptService behavior at creation time
+    await prisma.promptDependency.create({
+      data: {
+        projectId,
+        parentId: parent.id,
+        childName: "child-for-delete",
+        childLabel: "production",
+      },
+    });
+
+    const res = await makeAPICall(
+      "DELETE",
+      `${baseURI}/child-for-delete/versions/1`,
+      undefined,
+      auth,
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("should block delete if protected labels exist", async () => {
+    const { projectId, auth } = await createOrgProjectAndApiKey();
+    // mark label as protected
+    await prisma.promptProtectedLabels.create({
+      data: { projectId, label: "production" },
+    });
+    // create prompt carrying protected label
+    await prisma.prompt.create({
+      data: {
+        name: "protected-for-delete",
+        prompt: "content",
+        labels: ["production"],
+        version: 1,
+        projectId,
+        createdBy: "API",
+      },
+    });
+
+    const res = await makeAPICall(
+      "DELETE",
+      `${baseURI}/protected-for-delete/versions/1`,
+      undefined,
+      auth,
+    );
+
+    expect([401, 403]).toContain(res.status); // forbidden via protected label entitlement
+  });
+});
+
 const isPrompt = (x: unknown): x is Prompt => {
   if (typeof x !== "object" || x === null) return false;
   const prompt = x as Prompt;
