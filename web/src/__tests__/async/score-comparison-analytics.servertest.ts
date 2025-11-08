@@ -540,11 +540,18 @@ describe("Score Comparison Analytics tRPC", () => {
 
       // Verify query succeeded
       expect(result.counts).toBeDefined();
-      expect(result.counts.score1Total).toBeGreaterThanOrEqual(batchSize);
-      expect(result.counts.score2Total).toBeGreaterThanOrEqual(batchSize);
 
-      // Note: matchedCount is capped at 100k by maxMatchedScoresLimit parameter
-      expect(result.counts.matchedCount).toBe(100_000);
+      // Note: With 150k scores in each table, sampling will trigger (threshold = 100k)
+      // Sampling rate = 100k / 150k = 67%, so we expect ~100k from each table
+      // Allow variance due to hash distribution
+      expect(result.counts.score1Total).toBeGreaterThan(90_000);
+      expect(result.counts.score1Total).toBeLessThan(110_000);
+      expect(result.counts.score2Total).toBeGreaterThan(90_000);
+      expect(result.counts.score2Total).toBeLessThan(110_000);
+
+      // matchedCount should be similar to sample size (not the full 150k)
+      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
+      expect(result.counts.matchedCount).toBeLessThan(110_000);
 
       // Verify preflight estimates via samplingMetadata
       expect(result.samplingMetadata.preflightEstimates).toBeDefined();
@@ -567,6 +574,11 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.samplingMetadata.adaptiveFinal?.reason).toContain(
         "Large dataset - skipping FINAL for performance",
       );
+
+      // Verify sampling was applied (150k > 100k threshold)
+      expect(result.samplingMetadata.isSampled).toBe(true);
+      expect(result.samplingMetadata.samplingMethod).toBe("hash");
+      expect(result.samplingMetadata.samplingRate).toBeCloseTo(0.67, 1); // 100k/150k ≈ 0.67
     }, 180000); // 3 minute timeout for large data insertion
 
     // Test 7: Hash-based sampling for datasets with >100k estimated matched scores
