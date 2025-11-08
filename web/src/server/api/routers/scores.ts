@@ -1562,16 +1562,15 @@ export const scoresRouter = createTRPCRouter({
             LIMIT 1000000 -- Safety limit to prevent Cartesian product explosions when multiple scores of same name/source exist on one attachment point (trace/observation/session/run)
           ),
 
-          -- CTE 3a: Count unique matched attachment points
-          -- Uses GROUP BY (faster than DISTINCT) to count unique (trace, observation, session, run) combinations
-          -- This ensures matched count <= min(score1Total, score2Total)
+          -- CTE 3a: Count all matched score pairs
+          -- Counts all rows in matched_scores (not unique attachment points).
+          -- NOTE: When multiple scores of same name/source exist on one attachment point,
+          -- matched count can exceed both score1Total and score2Total due to Cartesian product.
+          -- Example: 2 "gpt4" scores + 3 "gemini" scores on same trace = 6 matched pairs (2 × 3 = 6).
+          -- This is correct behavior - each score pair combination is a valid match.
           matched_count AS (
             SELECT count(*) as cnt
-            FROM (
-              SELECT 1
-              FROM matched_scores
-              GROUP BY trace_id, observation_id, session_id, run_id
-            )
+            FROM matched_scores
           ),
 
           -- CTE 4: Bounds (for numeric heatmap and distribution binning)

@@ -74,6 +74,13 @@ export function StatisticsCard() {
   const { dataType } = metadata;
   const { score1, score2 } = params;
 
+  // Check if Cartesian product occurred (matched count exceeds both individual counts)
+  const hasCartesianProduct =
+    statistics.comparison &&
+    statistics.comparison.matchedCount > statistics.score1.total &&
+    statistics.score2 &&
+    statistics.comparison.matchedCount > statistics.score2.total;
+
   // Determine what to show
   const showScore1Data = statistics.score1.total > 0;
   const showScore2Data = statistics.score2 !== null;
@@ -318,6 +325,33 @@ export function StatisticsCard() {
                         : "--"
                     }
                     helpText="Number of observations with both scores"
+                    warning={
+                      hasCartesianProduct
+                        ? {
+                            show: true,
+                            content: (
+                              <div className="space-y-2 text-xs">
+                                <p className="font-semibold">
+                                  Matched count exceeds individual score counts
+                                  due to Cartesian product
+                                </p>
+                                <p>
+                                  This occurs when multiple scores of the same
+                                  name/source exist on a single attachment point
+                                  (trace/observation/session/run). Each
+                                  combination creates a match.
+                                </p>
+                                <p className="text-muted-foreground">
+                                  <strong>Example:</strong> If one trace has 2
+                                  &quot;gpt4&quot; scores and 3
+                                  &quot;gemini&quot; scores, this creates 6
+                                  matched pairs (2 × 3 = 6).
+                                </p>
+                              </div>
+                            ),
+                          }
+                        : undefined
+                    }
                     isContext
                     isPlaceholder={!showComparisonMetrics}
                   />
@@ -427,6 +461,33 @@ export function StatisticsCard() {
                         : "--"
                     }
                     helpText="Number of observations with both scores"
+                    warning={
+                      hasCartesianProduct
+                        ? {
+                            show: true,
+                            content: (
+                              <div className="space-y-2 text-xs">
+                                <p className="font-semibold">
+                                  Matched count exceeds individual score counts
+                                  due to Cartesian product
+                                </p>
+                                <p>
+                                  This occurs when multiple scores of the same
+                                  name/source exist on a single attachment point
+                                  (trace/observation/session/run). Each
+                                  combination creates a match.
+                                </p>
+                                <p className="text-muted-foreground">
+                                  <strong>Example:</strong> If one trace has 2
+                                  &quot;gpt4&quot; scores and 3
+                                  &quot;gemini&quot; scores, this creates 6
+                                  matched pairs (2 × 3 = 6).
+                                </p>
+                              </div>
+                            ),
+                          }
+                        : undefined
+                    }
                     isContext
                     isPlaceholder={!showComparisonMetrics}
                   />
