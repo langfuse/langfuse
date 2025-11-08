@@ -28,6 +28,8 @@ import { env } from "@/src/env.mjs";
 type CreateContextOptions = {
   session: Session | null;
   headers: IncomingHttpHeaders;
+  clientIp: string | null;
+  ipChain: string[];
 };
 
 /**
@@ -44,6 +46,8 @@ export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     session: opts.session,
     headers: opts.headers,
+    clientIp: opts.clientIp,
+    ipChain: opts.ipChain,
     prisma,
     DB,
   };
@@ -64,6 +68,12 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   // Get the headers from the request
   const headers = req.headers;
 
+  // Extract IP information from headers and socket
+  const { clientIp, ipChain } = extractIpInfo(
+    headers,
+    req.socket?.remoteAddress,
+  );
+
   // Log all headers in staging for debugging
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING") {
     logger.info("tRPC Context Debug", {
@@ -72,6 +82,8 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
         remoteAddress: req.socket?.remoteAddress,
         remotePort: req.socket?.remotePort,
       },
+      clientIp,
+      ipChain,
       url: req.url,
       method: req.method,
       session: {
@@ -86,7 +98,7 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
     email: session?.user?.email ?? undefined,
   });
 
-  return createInnerTRPCContext({ session, headers });
+  return createInnerTRPCContext({ session, headers, clientIp, ipChain });
 };
 
 /**
@@ -108,6 +120,7 @@ import {
   addUserToSpan,
   contextWithLangfuseProps,
   ClickHouseResourceError,
+  extractIpInfo,
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
