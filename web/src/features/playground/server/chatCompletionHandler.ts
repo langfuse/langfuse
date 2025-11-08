@@ -45,27 +45,6 @@ export default async function chatCompletionHandler(req: NextRequest) {
         `Could not parse API key for provider ${body.modelParams.provider}: ${parsedKey.error.message}`,
       );
     }
-
-    if (modelParams.adapter === LLMAdapter.Anthropic) {
-      if (
-        modelParams.model?.includes("claude-sonnet-4-5") ||
-        modelParams.model?.includes("claude-opus-4-1") ||
-        modelParams.model?.includes("claude-haiku-4-5")
-        // all of these models support either top_p or temperature
-      ) {
-        // If both temperature and top_p are provided, prefer top_p (unset temperature).
-        if (
-          modelParams.temperature !== undefined &&
-          modelParams.top_p !== undefined
-        ) {
-          modelParams.temperature = undefined;
-        }
-      }
-      if (modelParams.top_p == -1) {
-        modelParams.top_p = 0.99;
-      }
-    }
-
     const fetchLLMCompletionParams = {
       llmConnection: parsedKey.data,
       messages,

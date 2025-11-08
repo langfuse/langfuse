@@ -234,13 +234,31 @@ export async function fetchLLMCompletion(
     | ChatVertexAI
     | ChatGoogleGenerativeAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    chatModel = new ChatAnthropic({
+    const isClaude45Family =
+      modelParams.model?.includes("claude-sonnet-4-5") ||
+      modelParams.model?.includes("claude-opus-4-1") ||
+      modelParams.model?.includes("claude-haiku-4-5");
+
+    if (isClaude45Family) {
+      // Prefer top_p if both exist
+      if (
+        modelParams.temperature !== undefined &&
+        modelParams.top_p !== undefined
+      ) {
+        modelParams.temperature = undefined;
+      }
+
+      // Default fallback for top_p
+      if (modelParams.top_p === -1) {
+        modelParams.top_p = 0.99;
+      }
+    }
+
+    const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
-      temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
@@ -248,7 +266,24 @@ export async function fetchLLMCompletion(
         ...(proxyAgent && { httpAgent: proxyAgent }),
       },
       invocationKwargs: modelParams.providerOptions,
-    });
+    };
+    chatModel = new ChatAnthropic(chatOptions);
+    if (isClaude45Family) {
+      if (
+        modelParams.temperature !== undefined &&
+        modelParams.top_p === undefined
+      ) {
+        chatModel.temperature = modelParams.temperature;
+        chatModel.temperature = undefined;
+      }
+      if (
+        modelParams.top_p !== undefined &&
+        modelParams.temperature === undefined
+      ) {
+        chatModel.topP = modelParams.top_p;
+        chatModel.temperature = undefined;
+      }
+    }
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
