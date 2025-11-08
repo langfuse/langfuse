@@ -239,21 +239,6 @@ export async function fetchLLMCompletion(
       modelParams.model?.includes("claude-opus-4-1") ||
       modelParams.model?.includes("claude-haiku-4-5");
 
-    if (isClaude45Family) {
-      // Prefer top_p if both exist
-      if (
-        modelParams.temperature !== undefined &&
-        modelParams.top_p !== undefined
-      ) {
-        modelParams.temperature = undefined;
-      }
-
-      // Default fallback for top_p
-      if (modelParams.top_p === -1) {
-        modelParams.top_p = 0.99;
-      }
-    }
-
     const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
@@ -265,6 +250,8 @@ export async function fetchLLMCompletion(
         timeout: timeoutMs,
         ...(proxyAgent && { httpAgent: proxyAgent }),
       },
+      temperature: modelParams.temperature,
+      topP: modelParams.top_p,
       invocationKwargs: modelParams.providerOptions,
     };
     chatModel = new ChatAnthropic(chatOptions);
@@ -273,14 +260,12 @@ export async function fetchLLMCompletion(
         modelParams.temperature !== undefined &&
         modelParams.top_p === undefined
       ) {
-        chatModel.temperature = modelParams.temperature;
-        chatModel.temperature = undefined;
+        chatModel.topP = undefined;
       }
       if (
         modelParams.top_p !== undefined &&
         modelParams.temperature === undefined
       ) {
-        chatModel.topP = modelParams.top_p;
         chatModel.temperature = undefined;
       }
     }

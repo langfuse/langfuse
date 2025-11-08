@@ -16,7 +16,6 @@ import {
   LLMApiKeySchema,
   logger,
   fetchLLMCompletion,
-  LLMAdapter,
 } from "@langfuse/shared/src/server";
 
 export default async function chatCompletionHandler(req: NextRequest) {
@@ -45,6 +44,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
         `Could not parse API key for provider ${body.modelParams.provider}: ${parsedKey.error.message}`,
       );
     }
+
     const fetchLLMCompletionParams = {
       llmConnection: parsedKey.data,
       messages,
