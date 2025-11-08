@@ -23,6 +23,7 @@ import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
+import { env } from "@/src/env.mjs";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -63,6 +64,23 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
   // Get the headers from the request
   const headers = req.headers;
 
+  // Log all headers in staging for debugging
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING") {
+    logger.info("tRPC Context Debug", {
+      headers: headers,
+      socket: {
+        remoteAddress: req.socket?.remoteAddress,
+        remotePort: req.socket?.remotePort,
+      },
+      url: req.url,
+      method: req.method,
+      session: {
+        userId: session?.user?.id,
+        email: session?.user?.email,
+      },
+    });
+  }
+
   addUserToSpan({
     userId: session?.user?.id,
     email: session?.user?.email ?? undefined,
@@ -93,7 +111,6 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
-import { env } from "@/src/env.mjs";
 import { BaseError } from "@langfuse/shared";
 
 setUpSuperjson();
