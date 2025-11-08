@@ -126,9 +126,10 @@ export function ScoreAnalyticsProvider({
     },
   );
 
-  // Step 2: Only run main query after estimate succeeds
+  // Step 2: Only run main query after estimate succeeds (two-score mode)
+  // For single-score mode, run immediately without estimate
   const queryResult = useScoreAnalyticsQuery(params, {
-    enabled: estimateQuery.isSuccess,
+    enabled: !canEstimate || estimateQuery.isSuccess,
   });
 
   // Determine color scheme based on mode
