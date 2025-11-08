@@ -1,0 +1,26 @@
+diff --git a/core/lib/oauth/client.js b/core/lib/oauth/client.js
+index 52c51eb6ff422dc0899ccec31baf3fa39e42eeae..0aa610be09803b428553217f57016ccf4c9b9720 100644
+--- a/core/lib/oauth/client.js
++++ b/core/lib/oauth/client.js
+@@ -7,7 +7,20 @@ exports.openidClient = openidClient;
+ var _openidClient = require("openid-client");
+ async function openidClient(options) {
+   const provider = options.provider;
+-  if (provider.httpOptions) _openidClient.custom.setHttpOptionsDefaults(provider.httpOptions);
++  let httpOptions = {};
++
++  // Preserve existing provider httpOptions
++  if (provider.httpOptions) httpOptions = { ...provider.httpOptions };
++
++  // Optional timeout from environment variable
++  if (process.env.AUTH_SSO_TIMEOUT) {
++    const timeout = parseInt(process.env.AUTH_SSO_TIMEOUT, 10);
++    if (!isNaN(timeout) && timeout > 0) {
++      httpOptions.timeout = timeout;
++    }
++  }
++
++  _openidClient.custom.setHttpOptionsDefaults(httpOptions);
+   let issuer;
+   if (provider.wellKnown) {
+     issuer = await _openidClient.Issuer.discover(provider.wellKnown);
