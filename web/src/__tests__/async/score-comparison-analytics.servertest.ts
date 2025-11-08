@@ -351,7 +351,7 @@ describe("Score Comparison Analytics tRPC", () => {
           createTrace({
             id: traceId,
             project_id: projectId,
-            timestamp: now,
+            timestamp: now.getTime(),
           }),
         );
 
