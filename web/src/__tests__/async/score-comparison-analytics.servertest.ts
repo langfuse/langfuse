@@ -412,12 +412,18 @@ describe("Score Comparison Analytics tRPC", () => {
 
       // Verify query succeeded
       expect(result.counts).toBeDefined();
-      expect(result.counts.score1Total).toBeGreaterThanOrEqual(batchSize);
-      expect(result.counts.score2Total).toBeGreaterThanOrEqual(batchSize);
 
-      // Note: matchedCount is capped at 100k by maxMatchedScoresLimit parameter
-      // This is expected behavior for large datasets
-      expect(result.counts.matchedCount).toBe(100_000);
+      // Note: With 101k scores, sampling may or may not trigger depending on
+      // preflight variance (1% sample of 101k = ~1010 samples, extrapolated = 95k-105k)
+      // If sampling triggers: ~100k rows each (rate ≈ 99%)
+      // If no sampling: full 101k rows each
+      // Either way, we should see 95k-105k rows
+      expect(result.counts.score1Total).toBeGreaterThan(95_000);
+      expect(result.counts.score2Total).toBeGreaterThan(95_000);
+
+      // matchedCount should be close to score totals (all scores match in this test)
+      expect(result.counts.matchedCount).toBeGreaterThan(95_000);
+      expect(result.counts.matchedCount).toBeLessThanOrEqual(101_000);
 
       // Verify preflight estimates via samplingMetadata
       expect(result.samplingMetadata.preflightEstimates).toBeDefined();
