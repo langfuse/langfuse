@@ -65,14 +65,31 @@ export function ScoreChartTooltip({
     return null;
   }
 
-  // Filter out duplicates and sort by value in descending order
+  // Filter out duplicates
   const uniquePayload = Array.from(
     new Map(payload.map((item) => [item.name ?? item.dataKey, item])).values(),
   );
 
-  const sortedPayload = uniquePayload.sort(
-    (a, b) => (Number(b.value) ?? 0) - (Number(a.value) ?? 0),
-  );
+  // Sort payload by config key order for stable tooltip across columns
+  // This maintains consistent ordering (e.g., alphabetical + unmatched last)
+  // REVERSED to mirror the visual stack order (bottom-to-top becomes top-to-bottom in tooltip)
+  // Falls back to value-based sorting if config keys not available
+  const configKeys = Object.keys(config);
+  const sortedPayload = uniquePayload.sort((a, b) => {
+    const keyA = a.name ?? a.dataKey ?? "";
+    const keyB = b.name ?? b.dataKey ?? "";
+
+    // If both keys exist in config, sort by config order (reversed)
+    const indexA = configKeys.indexOf(keyA);
+    const indexB = configKeys.indexOf(keyB);
+
+    if (indexA !== -1 && indexB !== -1) {
+      return indexB - indexA; // Reversed: mirror visual stack order
+    }
+
+    // Fallback to value-based sorting (descending) for non-config keys
+    return (Number(b.value) ?? 0) - (Number(a.value) ?? 0);
+  });
 
   // Format the label (timestamp)
   let formattedLabel: string;

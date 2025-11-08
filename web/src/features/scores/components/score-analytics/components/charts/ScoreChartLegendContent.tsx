@@ -423,16 +423,10 @@ export const ScoreChartLegendContent = React.forwardRef<
                 ? (item.payload as { fill: string }).fill
                 : "hsl(var(--chart-1))");
 
-            // Special color for "unmatched" category
-            const isUnmatched = key === "__unmatched__" || key === "unmatched";
-            const finalColor = isUnmatched
-              ? "hsl(var(--muted-foreground))"
-              : color;
-
             return (
               <LegendItem
                 key={key}
-                color={finalColor}
+                color={color}
                 label={getFormattedLabel(item)}
                 visible={visible}
                 interactive={interactive}
@@ -493,19 +487,13 @@ export const ScoreChartLegendContent = React.forwardRef<
                                   ? (item.payload as { fill: string }).fill
                                   : "hsl(var(--chart-1))");
 
-                              const isUnmatched =
-                                key === "__unmatched__" || key === "unmatched";
-                              const finalColor = isUnmatched
-                                ? "hsl(var(--muted-foreground))"
-                                : color;
-
                               return (
                                 <div
                                   key={key}
                                   className="rounded-sm px-2 py-1.5 hover:bg-accent/50"
                                 >
                                   <LegendItem
-                                    color={finalColor}
+                                    color={color}
                                     label={getFormattedLabel(item)}
                                     visible={visible}
                                     interactive={interactive}
