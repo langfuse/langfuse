@@ -239,7 +239,90 @@ describe("Score Comparison Analytics tRPC", () => {
       ).rejects.toThrow();
     });
 
-    // Test 4: Calculates counts correctly with partial matches
+    // Test 4: Adaptive FINAL optimization (console log verification)
+    // Note: This test verifies that the query completes successfully
+    // The adaptive FINAL logic is tested via console logs in the implementation
+    // For datasets with estimated counts < 100k: uses FINAL for accuracy
+    // For datasets with estimated counts >= 100k: skips FINAL for performance
+    it("should complete successfully regardless of dataset size (adaptive FINAL)", async () => {
+      const traceId = v4();
+      const trace = createTrace({ id: traceId, project_id: projectId });
+      await createTracesCh([trace]);
+
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-adaptive-score1-${v4()}`;
+      const scoreName2 = `test-adaptive-score2-${v4()}`;
+
+      // Create a small dataset (will use FINAL)
+      const score1 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: null,
+        name: scoreName1,
+        source: "ANNOTATION",
+        data_type: "NUMERIC",
+        value: 0.5,
+        timestamp: now.getTime(),
+      });
+
+      const score2 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: null,
+        name: scoreName2,
+        source: "ANNOTATION",
+        data_type: "NUMERIC",
+        value: 0.6,
+        timestamp: now.getTime(),
+      });
+
+      await createScoresCh([score1, score2]);
+
+      // Capture console.log output to verify optimization decision
+      const consoleLogSpy = jest.spyOn(console, "log");
+
+      const result = await caller.scores.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        score2: {
+          name: scoreName2,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+      expect(result.counts.matchedCount).toBe(1);
+
+      // Verify optimization decision was logged
+      const optimizationLogs = consoleLogSpy.mock.calls.filter((call) =>
+        call[0]?.includes("Score analytics optimization decision"),
+      );
+      expect(optimizationLogs.length).toBeGreaterThan(0);
+
+      // For this small dataset, should use FINAL
+      const decisionLog = optimizationLogs[0]?.[1];
+      expect(decisionLog).toHaveProperty("shouldUseFinal");
+      // With only 1-2 scores, preflight will estimate ~100 (1% sample * 100)
+      // This is below ADAPTIVE_FINAL_THRESHOLD (100k), so should use FINAL
+      expect(decisionLog?.shouldUseFinal).toBe(true);
+
+      consoleLogSpy.mockRestore();
+    });
+
+    // Test 5: Calculates counts correctly with partial matches
     it("should calculate counts correctly with partial matches", async () => {
       const trace1 = v4();
       const trace2 = v4();

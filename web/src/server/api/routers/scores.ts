@@ -84,6 +84,13 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
 };
 
 /**
+ * Threshold for adaptive FINAL optimization
+ * Use FINAL for datasets smaller than this to ensure accuracy (scores can be updated)
+ * Skip FINAL for larger datasets to avoid expensive merge overhead
+ */
+const ADAPTIVE_FINAL_THRESHOLD = 100_000;
+
+/**
  * Helper function: Estimate score match count using lightweight preflight query
  * Uses 1% hash sample for fast approximation without FINAL merge overhead
  * Returns estimates for score1 count, score2 count, and matched count
@@ -1047,6 +1054,19 @@ export const scoresRouter = createTRPCRouter({
         estimatedMatchedCount: estimates.estimatedMatchedCount,
       });
 
+      // Adaptive FINAL logic: Only use FINAL for small datasets to avoid expensive merge
+      // For large datasets, skip FINAL to improve performance (scores can be updated, so accuracy matters for recent data)
+      const shouldUseFinal =
+        estimates.score1Count < ADAPTIVE_FINAL_THRESHOLD &&
+        estimates.score2Count < ADAPTIVE_FINAL_THRESHOLD;
+
+      console.log("Score analytics optimization decision:", {
+        shouldUseFinal,
+        reason: shouldUseFinal
+          ? "Small dataset - using FINAL for accuracy"
+          : "Large dataset - skipping FINAL for performance",
+      });
+
       // Determine if this is a single-score or two-score query
       const isSingleScore =
         score1.name === score2.name && score1.source === score2.source;
@@ -1361,12 +1381,13 @@ export const scoresRouter = createTRPCRouter({
           -- CTE 1: Filter score 1
           -- PREWHERE optimization: Apply most selective filters (project_id, name) early
           -- to reduce data read from disk before applying other filters
+          -- Adaptive FINAL: Only use FINAL for small datasets (<100k) to balance accuracy vs performance
           score1_filtered AS (
             SELECT
               id, value, string_value,
               trace_id, observation_id, session_id, dataset_run_id as run_id,
               timestamp
-            FROM scores FINAL
+            FROM scores ${shouldUseFinal ? "FINAL" : ""}
             PREWHERE project_id = {projectId: String}
               AND name = {score1Name: String}
             WHERE source = {score1Source: String}
@@ -1379,12 +1400,13 @@ export const scoresRouter = createTRPCRouter({
 
           -- CTE 2: Filter score 2
           -- PREWHERE optimization: Apply most selective filters (project_id, name) early
+          -- Adaptive FINAL: Only use FINAL for small datasets (<100k)
           score2_filtered AS (
             SELECT
               id, value, string_value,
               trace_id, observation_id, session_id, dataset_run_id as run_id,
               timestamp
-            FROM scores FINAL
+            FROM scores ${shouldUseFinal ? "FINAL" : ""}
             PREWHERE project_id = {projectId: String}
               AND name = {score2Name: String}
             WHERE source = {score2Source: String}
