@@ -569,7 +569,121 @@ describe("Score Comparison Analytics tRPC", () => {
       );
     }, 180000); // 3 minute timeout for large data insertion
 
-    // Test 7: Calculates counts correctly with partial matches
+    // Test 7: Hash-based sampling for datasets with >100k estimated matched scores
+    it("should apply hash-based sampling when estimated matched count exceeds threshold", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-hash-sample-s1-${v4()}`;
+      const scoreName2 = `test-hash-sample-s2-${v4()}`;
+
+      // Create 120k matched scores (both scores on same traces)
+      // This should trigger hash-based sampling (threshold = 100k)
+      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
+      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 120_000;
+
+      console.log(
+        `Creating ${batchSize} matched scores for hash-based sampling test...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+        const scoreTimestamp =
+          now.getTime() - Math.floor(Math.random() * 3600000);
+
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime(),
+          }),
+        );
+
+        score1Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName1,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+
+        score2Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName2,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+      }
+
+      await createTracesCh(tracesBatch);
+      await createScoresCh([...score1Batch, ...score2Batch]);
+
+      const result = await caller.scores.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        score2: {
+          name: scoreName2,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "hour" as const },
+        objectType: "all",
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+
+      // Verify sampling was applied
+      expect(result.samplingMetadata.isSampled).toBe(true);
+      expect(result.samplingMetadata.samplingMethod).toBe("hash");
+      expect(result.samplingMetadata.samplingRate).toBeLessThan(1.0);
+      expect(result.samplingMetadata.samplingRate).toBeGreaterThan(0);
+      expect(result.samplingMetadata.samplingExpression).toContain(
+        "cityHash64",
+      );
+
+      // Verify preflight estimates triggered sampling
+      expect(
+        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
+      ).toBeGreaterThan(100_000);
+
+      // Verify actualSampleSize is approximately TARGET_SAMPLE_SIZE (50k)
+      // Allow for variance due to hash distribution
+      expect(result.samplingMetadata.actualSampleSize).toBeGreaterThan(40_000);
+      expect(result.samplingMetadata.actualSampleSize).toBeLessThan(60_000);
+
+      // Verify counts reflect sampling
+      expect(result.counts.matchedCount).toBe(
+        result.samplingMetadata.actualSampleSize,
+      );
+
+      // Verify data quality - all result arrays should have data
+      expect(result.heatmap.length).toBeGreaterThan(0);
+      expect(result.timeSeries.length).toBeGreaterThan(0);
+    }, 180000); // 3 minute timeout for large data insertion
+
+    // Test 8: Calculates counts correctly with partial matches
     it("should calculate counts correctly with partial matches", async () => {
       const trace1 = v4();
       const trace2 = v4();

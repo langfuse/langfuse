@@ -91,6 +91,14 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
 const ADAPTIVE_FINAL_THRESHOLD = 100_000;
 
 /**
+ * Hash-based sampling thresholds
+ * - SAMPLING_THRESHOLD: Estimated matched scores above this trigger sampling
+ * - TARGET_SAMPLE_SIZE: Target number of samples to collect when sampling is triggered
+ */
+const SAMPLING_THRESHOLD = 100_000; // Start sampling if estimated matches > 100k
+const TARGET_SAMPLE_SIZE = 50_000; // Aim for 50k samples when sampling
+
+/**
  * Helper function: Estimate score match count using lightweight preflight query
  * Uses 1% hash sample for fast approximation without FINAL merge overhead
  * Returns estimates for score1 count, score2 count, and matched count
@@ -1053,6 +1061,24 @@ export const scoresRouter = createTRPCRouter({
         estimates.score1Count < ADAPTIVE_FINAL_THRESHOLD &&
         estimates.score2Count < ADAPTIVE_FINAL_THRESHOLD;
 
+      // Hash-based sampling decision: Sample when estimated matched count exceeds threshold
+      const shouldSample = estimates.estimatedMatchedCount > SAMPLING_THRESHOLD;
+      const samplingRate = shouldSample
+        ? Math.min(1.0, TARGET_SAMPLE_SIZE / estimates.estimatedMatchedCount)
+        : 1.0;
+      const samplingPercent = Math.round(samplingRate * 100); // Convert to 0-100 for modulo
+
+      // Sampling expression using cityHash64 on composite key (trace_id, observation_id, session_id, dataset_run_id)
+      // This ensures deterministic pseudo-random sampling that preserves matched pairs
+      const samplingExpression = shouldSample
+        ? `cityHash64(
+            coalesce(trace_id, ''),
+            coalesce(observation_id, ''),
+            coalesce(session_id, ''),
+            coalesce(dataset_run_id, '')
+          ) % 100 < ${samplingPercent}`
+        : null;
+
       // Determine if this is a single-score or two-score query
       const isSingleScore =
         score1.name === score2.name && score1.source === score2.source;
@@ -1368,6 +1394,7 @@ export const scoresRouter = createTRPCRouter({
           -- PREWHERE optimization: Apply most selective filters (project_id, name) early
           -- to reduce data read from disk before applying other filters
           -- Adaptive FINAL: Only use FINAL for small datasets (<100k) to balance accuracy vs performance
+          -- Hash-based sampling: Applied when estimated matched count exceeds threshold
           score1_filtered AS (
             SELECT
               id, value, string_value,
@@ -1382,11 +1409,13 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
               ${objectTypeFilter}
+              ${shouldSample ? `AND ${samplingExpression}` : ""}
           ),
 
           -- CTE 2: Filter score 2
           -- PREWHERE optimization: Apply most selective filters (project_id, name) early
           -- Adaptive FINAL: Only use FINAL for small datasets (<100k)
+          -- Hash-based sampling: Applied when estimated matched count exceeds threshold
           score2_filtered AS (
             SELECT
               id, value, string_value,
@@ -1401,6 +1430,7 @@ export const scoresRouter = createTRPCRouter({
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
               ${objectTypeFilter}
+              ${shouldSample ? `AND ${samplingExpression}` : ""}
           ),
 
           -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)
@@ -2158,12 +2188,12 @@ export const scoresRouter = createTRPCRouter({
         ),
         // Sampling metadata for transparency
         samplingMetadata: {
-          isSampled: false, // Will be set to true in Step 5 when sampling is applied
-          samplingMethod: "none" as const,
-          samplingRate: 1.0,
+          isSampled: shouldSample,
+          samplingMethod: shouldSample ? ("hash" as const) : ("none" as const),
+          samplingRate,
           estimatedTotalMatches: estimates.estimatedMatchedCount,
           actualSampleSize: countsRow?.col3 ?? 0,
-          samplingExpression: null,
+          samplingExpression,
           // Include preflight estimates for testing and transparency
           preflightEstimates: {
             score1Count: estimates.score1Count,
