@@ -137,6 +137,17 @@ export interface SamplingMetadata {
   estimatedTotalMatches: number;
   actualSampleSize: number;
   samplingExpression: string | null; // e.g., "cityHash64(...) % 100 < 10"
+  // Preflight query estimates (used for adaptive FINAL optimization)
+  preflightEstimates?: {
+    score1Count: number;
+    score2Count: number;
+    estimatedMatchedCount: number;
+  };
+  // Adaptive FINAL optimization decision
+  adaptiveFinal?: {
+    usedFinal: boolean;
+    reason: string;
+  };
 }
 
 /**

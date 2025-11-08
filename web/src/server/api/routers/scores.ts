@@ -1047,25 +1047,11 @@ export const scoresRouter = createTRPCRouter({
         objectTypeFilter,
       });
 
-      // Log estimates for monitoring and debugging
-      console.log("Score analytics preflight estimates:", {
-        score1Count: estimates.score1Count,
-        score2Count: estimates.score2Count,
-        estimatedMatchedCount: estimates.estimatedMatchedCount,
-      });
-
       // Adaptive FINAL logic: Only use FINAL for small datasets to avoid expensive merge
       // For large datasets, skip FINAL to improve performance (scores can be updated, so accuracy matters for recent data)
       const shouldUseFinal =
         estimates.score1Count < ADAPTIVE_FINAL_THRESHOLD &&
         estimates.score2Count < ADAPTIVE_FINAL_THRESHOLD;
-
-      console.log("Score analytics optimization decision:", {
-        shouldUseFinal,
-        reason: shouldUseFinal
-          ? "Small dataset - using FINAL for accuracy"
-          : "Large dataset - skipping FINAL for performance",
-      });
 
       // Determine if this is a single-score or two-score query
       const isSingleScore =
@@ -2178,6 +2164,19 @@ export const scoresRouter = createTRPCRouter({
           estimatedTotalMatches: estimates.estimatedMatchedCount,
           actualSampleSize: countsRow?.col3 ?? 0,
           samplingExpression: null,
+          // Include preflight estimates for testing and transparency
+          preflightEstimates: {
+            score1Count: estimates.score1Count,
+            score2Count: estimates.score2Count,
+            estimatedMatchedCount: estimates.estimatedMatchedCount,
+          },
+          // Include adaptive FINAL decision for testing and transparency
+          adaptiveFinal: {
+            usedFinal: shouldUseFinal,
+            reason: shouldUseFinal
+              ? "Small dataset - using FINAL for accuracy"
+              : "Large dataset - skipping FINAL for performance",
+          },
         },
       };
     }),

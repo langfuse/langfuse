@@ -239,12 +239,10 @@ describe("Score Comparison Analytics tRPC", () => {
       ).rejects.toThrow();
     });
 
-    // Test 4: Adaptive FINAL optimization (console log verification)
-    // Note: This test verifies that the query completes successfully
-    // The adaptive FINAL logic is tested via console logs in the implementation
+    // Test 4: Adaptive FINAL optimization with small dataset
     // For datasets with estimated counts < 100k: uses FINAL for accuracy
     // For datasets with estimated counts >= 100k: skips FINAL for performance
-    it("should complete successfully regardless of dataset size (adaptive FINAL)", async () => {
+    it("should use FINAL for small datasets (adaptive FINAL)", async () => {
       const traceId = v4();
       const trace = createTrace({ id: traceId, project_id: projectId });
       await createTracesCh([trace]);
@@ -281,9 +279,6 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([score1, score2]);
 
-      // Capture console.log output to verify optimization decision
-      const consoleLogSpy = jest.spyOn(console, "log");
-
       const result = await caller.scores.getScoreComparisonAnalytics({
         projectId,
         score1: {
@@ -306,20 +301,21 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.counts).toBeDefined();
       expect(result.counts.matchedCount).toBe(1);
 
-      // Verify optimization decision was logged
-      const optimizationLogs = consoleLogSpy.mock.calls.filter((call) =>
-        call[0]?.includes("Score analytics optimization decision"),
+      // Verify adaptive FINAL decision via samplingMetadata
+      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
+      expect(result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(true);
+      expect(result.samplingMetadata.adaptiveFinal?.reason).toContain(
+        "Small dataset - using FINAL for accuracy",
       );
-      expect(optimizationLogs.length).toBeGreaterThan(0);
 
-      // For this small dataset, should use FINAL
-      const decisionLog = optimizationLogs[0]?.[1];
-      expect(decisionLog).toHaveProperty("shouldUseFinal");
-      // With only 1-2 scores, preflight will estimate ~100 (1% sample * 100)
-      // This is below ADAPTIVE_FINAL_THRESHOLD (100k), so should use FINAL
-      expect(decisionLog?.shouldUseFinal).toBe(true);
-
-      consoleLogSpy.mockRestore();
+      // Verify preflight estimates are included
+      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
+      expect(
+        result.samplingMetadata.preflightEstimates?.score1Count,
+      ).toBeLessThan(100_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.score2Count,
+      ).toBeLessThan(100_000);
     });
 
     // Test 5: Adaptive FINAL skips FINAL for large datasets (>100k scores)
@@ -396,8 +392,133 @@ describe("Score Comparison Analytics tRPC", () => {
 
       console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
 
-      // Capture console.log output to verify optimization decision
-      const consoleLogSpy = jest.spyOn(console, "log");
+      const result = await caller.scores.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        score2: {
+          name: scoreName2,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+      expect(result.counts.score1Total).toBeGreaterThanOrEqual(batchSize);
+      expect(result.counts.score2Total).toBeGreaterThanOrEqual(batchSize);
+
+      // Note: matchedCount is capped at 100k by maxMatchedScoresLimit parameter
+      // This is expected behavior for large datasets
+      expect(result.counts.matchedCount).toBe(100_000);
+
+      // Verify preflight estimates via samplingMetadata
+      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
+      // Preflight uses 1% sampling, so estimates may have variance
+      // For 101k scores, 1% sample could estimate anywhere from ~95k-105k
+      expect(
+        result.samplingMetadata.preflightEstimates?.score1Count,
+      ).toBeGreaterThan(90_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.score2Count,
+      ).toBeGreaterThan(90_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
+      ).toBeGreaterThan(90_000);
+
+      // Verify adaptive FINAL decision via samplingMetadata
+      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
+      // The decision logic should evaluate based on estimates
+      // If estimates are >= 100k threshold, usedFinal = false
+      // If estimates are < 100k threshold, usedFinal = true
+      // Both outcomes are valid for this test - what matters is the query completes successfully
+      expect(typeof result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(
+        "boolean",
+      );
+      expect(result.samplingMetadata.adaptiveFinal?.reason).toBeDefined();
+    }, 120000); // 2 minute timeout for large data insertion
+
+    // Test 6: Adaptive FINAL with 150k scores - should definitively skip FINAL
+    it("should skip FINAL for 150k+ scores with high confidence", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-xlarge-score1-${v4()}`;
+      const scoreName2 = `test-xlarge-score2-${v4()}`;
+
+      // Create 150k scores for score1 and 150k for score2
+      // This is well above ADAPTIVE_FINAL_THRESHOLD (100k)
+      // Even with 1% sampling variance, should reliably estimate >100k
+      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
+      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 150_000; // Well above threshold
+
+      console.log(
+        `Creating ${batchSize} scores for large-scale adaptive FINAL test (this may take a moment)...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+
+        // Create trace
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime(),
+          }),
+        );
+
+        // Create score1
+        score1Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName1,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+
+        // Create score2
+        score2Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName2,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+      }
+
+      // Insert in batches to avoid memory issues
+      const insertBatchSize = 10_000;
+      for (let i = 0; i < batchSize; i += insertBatchSize) {
+        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
+        await createScoresCh([
+          ...score1Batch.slice(i, i + insertBatchSize),
+          ...score2Batch.slice(i, i + insertBatchSize),
+        ]);
+      }
+
+      console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
 
       const result = await caller.scores.getScoreComparisonAnalytics({
         projectId,
@@ -421,36 +542,34 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.counts).toBeDefined();
       expect(result.counts.score1Total).toBeGreaterThanOrEqual(batchSize);
       expect(result.counts.score2Total).toBeGreaterThanOrEqual(batchSize);
-      expect(result.counts.matchedCount).toBeGreaterThanOrEqual(batchSize);
 
-      // Verify preflight estimates were logged
-      const estimateLogs = consoleLogSpy.mock.calls.filter((call) =>
-        call[0]?.includes("Score analytics preflight estimates"),
-      );
-      expect(estimateLogs.length).toBeGreaterThan(0);
+      // Note: matchedCount is capped at 100k by maxMatchedScoresLimit parameter
+      expect(result.counts.matchedCount).toBe(100_000);
 
-      const estimates = estimateLogs[0]?.[1];
-      expect(estimates?.score1Count).toBeGreaterThan(100_000);
-      expect(estimates?.score2Count).toBeGreaterThan(100_000);
+      // Verify preflight estimates via samplingMetadata
+      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
+      // For 150k scores, even with 1% sampling variance, should reliably estimate >100k
+      // 150k * 1% = 1500 sampled → extrapolated estimate should be 140k-160k range
+      expect(
+        result.samplingMetadata.preflightEstimates?.score1Count,
+      ).toBeGreaterThan(100_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.score2Count,
+      ).toBeGreaterThan(100_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
+      ).toBeGreaterThan(100_000);
 
-      // Verify optimization decision was logged
-      const optimizationLogs = consoleLogSpy.mock.calls.filter((call) =>
-        call[0]?.includes("Score analytics optimization decision"),
-      );
-      expect(optimizationLogs.length).toBeGreaterThan(0);
-
-      // For this large dataset, should NOT use FINAL (skip for performance)
-      const decisionLog = optimizationLogs[0]?.[1];
-      expect(decisionLog).toHaveProperty("shouldUseFinal");
-      expect(decisionLog?.shouldUseFinal).toBe(false);
-      expect(decisionLog?.reason).toContain(
+      // Verify adaptive FINAL decision via samplingMetadata
+      // For 150k scores, should definitively skip FINAL for performance
+      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
+      expect(result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(false);
+      expect(result.samplingMetadata.adaptiveFinal?.reason).toContain(
         "Large dataset - skipping FINAL for performance",
       );
+    }, 180000); // 3 minute timeout for large data insertion
 
-      consoleLogSpy.mockRestore();
-    }, 120000); // 2 minute timeout for large data insertion
-
-    // Test 6: Calculates counts correctly with partial matches
+    // Test 7: Calculates counts correctly with partial matches
     it("should calculate counts correctly with partial matches", async () => {
       const trace1 = v4();
       const trace2 = v4();
