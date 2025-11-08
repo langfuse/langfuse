@@ -142,6 +142,17 @@ describe("Score Comparison Analytics tRPC", () => {
 
       expect(result.distribution2).toBeDefined();
       expect(Array.isArray(result.distribution2)).toBe(true);
+
+      // Verify sampling metadata is present
+      expect(result.samplingMetadata).toBeDefined();
+      expect(result.samplingMetadata.isSampled).toBe(false); // No sampling for small dataset
+      expect(result.samplingMetadata.samplingMethod).toBe("none");
+      expect(result.samplingMetadata.samplingRate).toBe(1.0);
+      expect(
+        result.samplingMetadata.estimatedTotalMatches,
+      ).toBeGreaterThanOrEqual(0);
+      expect(result.samplingMetadata.actualSampleSize).toBe(1); // Matches matchedCount
+      expect(result.samplingMetadata.samplingExpression).toBeNull();
     });
 
     // Test 2: Returns empty results when no scores exist
@@ -175,6 +186,12 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.timeSeries).toEqual([]);
       expect(result.distribution1).toEqual([]);
       expect(result.distribution2).toEqual([]);
+
+      // Verify sampling metadata even when no data
+      expect(result.samplingMetadata).toBeDefined();
+      expect(result.samplingMetadata.isSampled).toBe(false);
+      expect(result.samplingMetadata.samplingMethod).toBe("none");
+      expect(result.samplingMetadata.actualSampleSize).toBe(0);
     });
 
     // Test 3: Validates input schema

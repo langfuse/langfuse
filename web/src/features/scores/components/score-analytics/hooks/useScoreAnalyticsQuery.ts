@@ -128,6 +128,18 @@ export interface TimeSeries {
 }
 
 /**
+ * Sampling metadata for query transparency
+ */
+export interface SamplingMetadata {
+  isSampled: boolean;
+  samplingMethod: "none" | "hash" | "limit";
+  samplingRate: number; // 0-1 (e.g., 0.1 = 10% sample)
+  estimatedTotalMatches: number;
+  actualSampleSize: number;
+  samplingExpression: string | null; // e.g., "cityHash64(...) % 100 < 10"
+}
+
+/**
  * Complete transformed score analytics data
  */
 export interface ScoreAnalyticsData {
@@ -144,6 +156,7 @@ export interface ScoreAnalyticsData {
     isSameScore: boolean;
     dataType: DataType;
   };
+  samplingMetadata: SamplingMetadata;
 }
 
 /**
@@ -614,6 +627,7 @@ export function useScoreAnalyticsQuery(
         isSameScore,
         dataType,
       },
+      samplingMetadata: apiData.samplingMetadata,
     };
   }, [apiData, score1, score2, fromTimestamp, toTimestamp, interval, nBins]);
 
