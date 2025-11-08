@@ -226,6 +226,7 @@ export function useScoreAnalyticsQuery(
     },
     {
       enabled: (options?.enabled ?? true) && !!(projectId && score1),
+      trpc: { abortOnUnmount: true },
     },
   );
 

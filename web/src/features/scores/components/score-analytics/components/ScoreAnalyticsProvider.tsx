@@ -123,6 +123,7 @@ export function ScoreAnalyticsProvider({
     {
       enabled: canEstimate,
       staleTime: 30_000, // Cache for 30 seconds
+      trpc: { abortOnUnmount: true },
     },
   );
 
