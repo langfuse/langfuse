@@ -322,7 +322,135 @@ describe("Score Comparison Analytics tRPC", () => {
       consoleLogSpy.mockRestore();
     });
 
-    // Test 5: Calculates counts correctly with partial matches
+    // Test 5: Adaptive FINAL skips FINAL for large datasets (>100k scores)
+    it("should skip FINAL for large datasets to improve performance", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-large-score1-${v4()}`;
+      const scoreName2 = `test-large-score2-${v4()}`;
+
+      // Create 101k scores for score1 and 101k for score2
+      // This exceeds ADAPTIVE_FINAL_THRESHOLD (100k)
+      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
+      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 101_000; // Exceed threshold
+
+      console.log(
+        `Creating ${batchSize} scores for adaptive FINAL test (this may take a moment)...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+
+        // Create trace
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now,
+          }),
+        );
+
+        // Create score1
+        score1Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName1,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+
+        // Create score2
+        score2Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName2,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+      }
+
+      // Insert in batches to avoid memory issues
+      const insertBatchSize = 10_000;
+      for (let i = 0; i < batchSize; i += insertBatchSize) {
+        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
+        await createScoresCh([
+          ...score1Batch.slice(i, i + insertBatchSize),
+          ...score2Batch.slice(i, i + insertBatchSize),
+        ]);
+      }
+
+      console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
+
+      // Capture console.log output to verify optimization decision
+      const consoleLogSpy = jest.spyOn(console, "log");
+
+      const result = await caller.scores.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        score2: {
+          name: scoreName2,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+      expect(result.counts.score1Total).toBeGreaterThanOrEqual(batchSize);
+      expect(result.counts.score2Total).toBeGreaterThanOrEqual(batchSize);
+      expect(result.counts.matchedCount).toBeGreaterThanOrEqual(batchSize);
+
+      // Verify preflight estimates were logged
+      const estimateLogs = consoleLogSpy.mock.calls.filter((call) =>
+        call[0]?.includes("Score analytics preflight estimates"),
+      );
+      expect(estimateLogs.length).toBeGreaterThan(0);
+
+      const estimates = estimateLogs[0]?.[1];
+      expect(estimates?.score1Count).toBeGreaterThan(100_000);
+      expect(estimates?.score2Count).toBeGreaterThan(100_000);
+
+      // Verify optimization decision was logged
+      const optimizationLogs = consoleLogSpy.mock.calls.filter((call) =>
+        call[0]?.includes("Score analytics optimization decision"),
+      );
+      expect(optimizationLogs.length).toBeGreaterThan(0);
+
+      // For this large dataset, should NOT use FINAL (skip for performance)
+      const decisionLog = optimizationLogs[0]?.[1];
+      expect(decisionLog).toHaveProperty("shouldUseFinal");
+      expect(decisionLog?.shouldUseFinal).toBe(false);
+      expect(decisionLog?.reason).toContain(
+        "Large dataset - skipping FINAL for performance",
+      );
+
+      consoleLogSpy.mockRestore();
+    }, 120000); // 2 minute timeout for large data insertion
+
+    // Test 6: Calculates counts correctly with partial matches
     it("should calculate counts correctly with partial matches", async () => {
       const trace1 = v4();
       const trace2 = v4();
