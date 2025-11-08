@@ -12,6 +12,7 @@ import {
   createObservation,
   createObservationsCh,
   createSessionScore,
+  createDatasetRunScore,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -4018,6 +4019,181 @@ describe("Score Comparison Analytics tRPC", () => {
       result.timeSeriesCategorical1.forEach((entry) => {
         expect(entry.count).toBe(2);
       });
+    });
+
+    // Test: ObjectType filtering works correctly for all types
+    it("should filter scores correctly by objectType (trace, observation, session, dataset_run)", async () => {
+      const traceId = v4();
+      const observationId = v4();
+      const sessionId = v4();
+      const datasetRunId = v4();
+
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `objectType-test-score1-${v4()}`;
+      const scoreName2 = `objectType-test-score2-${v4()}`;
+
+      // Create trace for trace-level scores
+      const trace = createTrace({ id: traceId, project_id: projectId });
+      await createTracesCh([trace]);
+
+      // Create observation for observation-level scores
+      const observation = createObservation({
+        id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+      });
+      await createObservationsCh([observation]);
+
+      const scores = [
+        // Trace-level scores (2 pairs)
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          session_id: null,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 1.0,
+          timestamp: now.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          session_id: null,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 2.0,
+          timestamp: now.getTime(),
+        }),
+
+        // Observation-level scores (2 pairs)
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          session_id: null,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 3.0,
+          timestamp: now.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          session_id: null,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 4.0,
+          timestamp: now.getTime(),
+        }),
+
+        // Session-level scores (2 pairs)
+        createSessionScore({
+          project_id: projectId,
+          session_id: sessionId,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 5.0,
+          timestamp: now.getTime(),
+        }),
+        createSessionScore({
+          project_id: projectId,
+          session_id: sessionId,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 6.0,
+          timestamp: now.getTime(),
+        }),
+
+        // Dataset run-level scores (2 pairs)
+        createDatasetRunScore({
+          project_id: projectId,
+          dataset_run_id: datasetRunId,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 7.0,
+          timestamp: now.getTime(),
+        }),
+        createDatasetRunScore({
+          project_id: projectId,
+          dataset_run_id: datasetRunId,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 8.0,
+          timestamp: now.getTime(),
+        }),
+      ];
+
+      await createScoresCh(scores);
+
+      const baseParams = {
+        projectId,
+        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
+        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "hour" as const },
+      };
+
+      // Test 1: objectType = "all" should return all 4 matched pairs
+      const resultAll = await caller.scores.getScoreComparisonAnalytics({
+        ...baseParams,
+        objectType: "all",
+      });
+      expect(resultAll.counts.matchedCount).toBe(4);
+      expect(resultAll.counts.score1Total).toBe(4);
+      expect(resultAll.counts.score2Total).toBe(4);
+
+      // Test 2: objectType = "trace" should return only trace-level scores (1 pair)
+      const resultTrace = await caller.scores.getScoreComparisonAnalytics({
+        ...baseParams,
+        objectType: "trace",
+      });
+      expect(resultTrace.counts.matchedCount).toBe(1);
+      expect(resultTrace.counts.score1Total).toBe(1);
+      expect(resultTrace.counts.score2Total).toBe(1);
+
+      // Test 3: objectType = "observation" should return only observation-level scores (1 pair)
+      const resultObservation = await caller.scores.getScoreComparisonAnalytics(
+        {
+          ...baseParams,
+          objectType: "observation",
+        },
+      );
+      expect(resultObservation.counts.matchedCount).toBe(1);
+      expect(resultObservation.counts.score1Total).toBe(1);
+      expect(resultObservation.counts.score2Total).toBe(1);
+
+      // Test 4: objectType = "session" should return only session-level scores (1 pair)
+      const resultSession = await caller.scores.getScoreComparisonAnalytics({
+        ...baseParams,
+        objectType: "session",
+      });
+      expect(resultSession.counts.matchedCount).toBe(1);
+      expect(resultSession.counts.score1Total).toBe(1);
+      expect(resultSession.counts.score2Total).toBe(1);
+
+      // Test 5: objectType = "dataset_run" should return only dataset_run-level scores (1 pair)
+      const resultDatasetRun = await caller.scores.getScoreComparisonAnalytics({
+        ...baseParams,
+        objectType: "dataset_run",
+      });
+      expect(resultDatasetRun.counts.matchedCount).toBe(1);
+      expect(resultDatasetRun.counts.score1Total).toBe(1);
+      expect(resultDatasetRun.counts.score2Total).toBe(1);
     });
   });
 });
