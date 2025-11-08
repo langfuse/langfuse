@@ -702,7 +702,105 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.timeSeries.length).toBeGreaterThan(0);
     }, 180000); // 3 minute timeout for large data insertion
 
-    // Test 8: Calculates counts correctly with partial matches
+    // Test 8: Identical scores with sampling show perfect correlation
+    it("should return perfect correlation for identical scores with sampling", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName = `test-identical-${v4()}`;
+
+      // Create 150k scores (exceeds sampling threshold)
+      const scoreBatch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 150_000;
+
+      console.log(
+        `Creating ${batchSize} identical scores for perfect correlation test...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+        const scoreTimestamp =
+          now.getTime() - Math.floor(Math.random() * 3600000);
+
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime(),
+          }),
+        );
+
+        scoreBatch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+      }
+
+      // Insert in batches
+      const insertBatchSize = 10_000;
+      for (let i = 0; i < batchSize; i += insertBatchSize) {
+        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
+        await createScoresCh(scoreBatch.slice(i, i + insertBatchSize));
+      }
+
+      console.log(`Inserted ${batchSize} traces and scores`);
+
+      // Compare score to itself
+      const result = await caller.scores.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        score2: {
+          name: scoreName,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "hour" as const },
+        objectType: "all",
+      });
+
+      // Verify sampling occurred (150k > 100k threshold)
+      expect(result.samplingMetadata.isSampled).toBe(true);
+      expect(result.samplingMetadata.samplingMethod).toBe("hash");
+
+      // CRITICAL: For identical scores, score1Total === score2Total === matchedCount
+      // This ensures the same sample was used for both CTEs
+      expect(result.counts.score1Total).toBe(result.counts.score2Total);
+      expect(result.counts.matchedCount).toBe(result.counts.score1Total);
+      expect(result.counts.matchedCount).toBe(result.counts.score2Total);
+
+      // Verify sample size is within expected range (~100k)
+      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
+      expect(result.counts.matchedCount).toBeLessThan(110_000);
+
+      // Verify all heatmap points are on the diagonal (bin1Index === bin2Index)
+      // For identical scores, every point should have the same bin for both axes
+      const offDiagonalPoints = result.heatmap.filter(
+        (point) => point.bin1Index !== point.bin2Index,
+      );
+      expect(offDiagonalPoints.length).toBe(0); // No points off diagonal
+
+      // Verify correlation is skipped for identical scores (as per existing logic)
+      expect(result.statistics.spearmanCorrelation).toBeNull();
+    }, 180000); // 3 minute timeout for large data insertion
+
+    // Test 9: Calculates counts correctly with partial matches
     it("should calculate counts correctly with partial matches", async () => {
       const trace1 = v4();
       const trace2 = v4();

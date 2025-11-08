@@ -1513,43 +1513,53 @@ export const scoresRouter = createTRPCRouter({
           -- PREWHERE optimization: Apply most selective filters (project_id, name) early
           -- Adaptive FINAL: Only use FINAL for small datasets (<100k)
           -- Hash-based sampling: Applied when estimated matched count exceeds threshold
+          -- Special case: When comparing identical scores, reuse score1_filtered to ensure perfect correlation
           score2_filtered AS (
-            SELECT
-              id, value, string_value,
-              trace_id, observation_id, session_id, dataset_run_id as run_id,
-              timestamp
-            FROM scores ${shouldUseFinal ? "FINAL" : ""}
-            PREWHERE project_id = {projectId: String}
-              AND name = {score2Name: String}
-            WHERE source = {score2Source: String}
-              AND data_type = {dataType2: String}
-              AND timestamp >= {fromTimestamp: DateTime64(3)}
-              AND timestamp <= {toTimestamp: DateTime64(3)}
-              AND is_deleted = 0
-              ${objectTypeFilter}
-              ${shouldSample ? `AND ${samplingExpression}` : ""}
+            ${
+              isIdenticalScores
+                ? `SELECT * FROM score1_filtered`
+                : `SELECT
+                     id, value, string_value,
+                     trace_id, observation_id, session_id, dataset_run_id as run_id,
+                     timestamp
+                   FROM scores ${shouldUseFinal ? "FINAL" : ""}
+                   PREWHERE project_id = {projectId: String}
+                     AND name = {score2Name: String}
+                   WHERE source = {score2Source: String}
+                     AND data_type = {dataType2: String}
+                     AND timestamp >= {fromTimestamp: DateTime64(3)}
+                     AND timestamp <= {toTimestamp: DateTime64(3)}
+                     AND is_deleted = 0
+                     ${objectTypeFilter}
+                     ${shouldSample ? `AND ${samplingExpression}` : ""}`
+            }
           ),
 
           -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)
           -- NULL-safe comparison: convert NULL to empty string for comparison
+          -- Special case: For identical scores, use self-join on ID to ensure perfect pairing
           matched_scores AS (
             SELECT
               s1.value as value1,
               s1.string_value as string_value1,
-              s2.value as value2,
-              s2.string_value as string_value2,
+              ${isIdenticalScores ? "s1.value" : "s2.value"} as value2,
+              ${isIdenticalScores ? "s1.string_value" : "s2.string_value"} as string_value2,
               s1.timestamp as timestamp1,
-              s2.timestamp as timestamp2,
-              coalesce(s1.trace_id, s2.trace_id) as trace_id,
-              coalesce(s1.observation_id, s2.observation_id) as observation_id,
-              coalesce(s1.session_id, s2.session_id) as session_id,
-              coalesce(s1.run_id, s2.run_id) as run_id
+              ${isIdenticalScores ? "s1.timestamp" : "s2.timestamp"} as timestamp2,
+              ${isIdenticalScores ? "s1.trace_id" : "coalesce(s1.trace_id, s2.trace_id)"} as trace_id,
+              ${isIdenticalScores ? "s1.observation_id" : "coalesce(s1.observation_id, s2.observation_id)"} as observation_id,
+              ${isIdenticalScores ? "s1.session_id" : "coalesce(s1.session_id, s2.session_id)"} as session_id,
+              ${isIdenticalScores ? "s1.run_id" : "coalesce(s1.run_id, s2.run_id)"} as run_id
             FROM score1_filtered s1
-            INNER JOIN score2_filtered s2
-              ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
+            INNER JOIN ${isIdenticalScores ? "score1_filtered" : "score2_filtered"} s2
+              ON ${
+                isIdenticalScores
+                  ? "s1.id = s2.id"
+                  : `ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
               AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
               AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
-              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
+              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')`
+              }
             LIMIT {maxMatchedScoresLimit: UInt32}
           ),
 
