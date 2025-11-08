@@ -2006,61 +2006,6 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.counts.matchedCount).toBe(1);
     });
 
-    // Test 21: Enforces max matched scores limit
-    it("should enforce maxMatchedScoresLimit", async () => {
-      const traces = Array.from({ length: 150 }, () => v4());
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
-
-      const now = new Date();
-      const fromTimestamp = new Date(now.getTime() - 3600000);
-      const toTimestamp = new Date(now.getTime() + 3600000);
-
-      const scoreName1 = `test21-limit1-${v4()}`;
-      const scoreName2 = `test21-limit2-${v4()}`;
-
-      // Create 150 matched pairs
-      const scores = traces.flatMap((traceId) => [
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 1,
-          timestamp: now.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 2,
-          timestamp: now.getTime(),
-        }),
-      ]);
-
-      await createScoresCh(scores);
-
-      const result = await caller.scores.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 10,
-        maxMatchedScoresLimit: 100,
-      });
-
-      // Matched count should be limited to 100
-      expect(result.counts.matchedCount).toBeLessThanOrEqual(100);
-    });
-
     // Test 22: Handles out-of-order timestamps
     it("should handle scores created in random order", async () => {
       const traces = [v4(), v4(), v4()];

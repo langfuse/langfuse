@@ -1068,7 +1068,6 @@ export const scoresRouter = createTRPCRouter({
           )
           .default({ count: 1, unit: "day" }),
         nBins: z.number().int().min(5).max(50).default(10),
-        maxMatchedScoresLimit: z.number().int().default(100000),
         objectType: z
           .enum(["all", "trace", "session", "observation", "dataset_run"])
           .default("all"),
@@ -1083,7 +1082,6 @@ export const scoresRouter = createTRPCRouter({
         toTimestamp,
         interval,
         nBins,
-        maxMatchedScoresLimit,
         objectType,
       } = input;
 
@@ -1538,6 +1536,7 @@ export const scoresRouter = createTRPCRouter({
           -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)
           -- NULL-safe comparison: convert NULL to empty string for comparison
           -- Special case: For identical scores, use self-join on ID to ensure perfect pairing
+          -- Note: No LIMIT needed - sampling already ensures score1_filtered and score2_filtered are ~100k rows max
           matched_scores AS (
             SELECT
               s1.value as value1,
@@ -1560,7 +1559,19 @@ export const scoresRouter = createTRPCRouter({
               AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
               AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')`
               }
-            LIMIT {maxMatchedScoresLimit: UInt32}
+            LIMIT 1000000 -- Safety limit to prevent Cartesian product explosions when multiple scores of same name/source exist on one attachment point (trace/observation/session/run)
+          ),
+
+          -- CTE 3a: Count unique matched attachment points
+          -- Uses GROUP BY (faster than DISTINCT) to count unique (trace, observation, session, run) combinations
+          -- This ensures matched count <= min(score1Total, score2Total)
+          matched_count AS (
+            SELECT count(*) as cnt
+            FROM (
+              SELECT 1
+              FROM matched_scores
+              GROUP BY trace_id, observation_id, session_id, run_id
+            )
           ),
 
           -- CTE 4: Bounds (for numeric heatmap and distribution binning)
@@ -1619,7 +1630,7 @@ export const scoresRouter = createTRPCRouter({
               AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
               AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
               AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
-            LIMIT {maxMatchedScoresLimit: UInt32}
+            LIMIT 1000000  -- Safety limit for categorical LEFT JOIN (more prone to expansion than INNER JOIN)
           ),
 
           -- CTE 6b: Stacked distribution (score1 categories with score2 breakdowns)
@@ -1746,7 +1757,7 @@ export const scoresRouter = createTRPCRouter({
           'counts' as result_type,
           CAST((SELECT count() FROM score1_filtered) AS Float64) as col1,
           CAST((SELECT count() FROM score2_filtered) AS Float64) as col2,
-          CAST((SELECT count() FROM matched_scores) AS Float64) as col3,
+          CAST((SELECT cnt FROM matched_count) AS Float64) as col3,
           CAST(NULL AS Nullable(Float64)) as col4,
           CAST(NULL AS Nullable(Float64)) as col5,
           CAST(NULL AS Nullable(Float64)) as col6,
@@ -2115,7 +2126,6 @@ export const scoresRouter = createTRPCRouter({
           fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
           toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
           nBins,
-          maxMatchedScoresLimit,
         },
         tags: {
           feature: "scores",
