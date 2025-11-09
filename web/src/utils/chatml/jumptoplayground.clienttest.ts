@@ -654,8 +654,12 @@ describe("Playground Jump Full Pipeline", () => {
       .data?.map(convertChatMlToPlayground)
       .filter((m) => m !== null);
 
-    expect(playgroundMessages?.[1].role).toBe("tool");
-    expect(playgroundMessages?.[1].content).toContain("PatientNo");
+    const secondMsg = playgroundMessages?.[1];
+    expect(secondMsg).toBeDefined();
+    expect(secondMsg && "role" in secondMsg ? secondMsg.role : null).toBe(
+      "tool",
+    );
+    expect(secondMsg?.content).toContain("PatientNo");
   });
 
   it("should handle VAPI camelCase toolCalls and preserve IDs", () => {
