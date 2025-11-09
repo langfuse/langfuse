@@ -11,7 +11,7 @@ import {
   getEventCount,
   getEventFilterOptions,
 } from "./eventsService";
-import { instrumentAsync, logger } from "@langfuse/shared/src/server";
+import { instrumentAsync } from "@langfuse/shared/src/server";
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.extend({
@@ -39,8 +39,6 @@ export const eventsRouter = createTRPCRouter({
         },
         async (span) => {
           addAttributesToSpan({ span, input, orderBy: input.orderBy });
-
-          logger.info("hallo nina");
 
           return getEventList({
             projectId: ctx.session.projectId,
