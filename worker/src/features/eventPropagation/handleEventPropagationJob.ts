@@ -320,7 +320,7 @@ export const handleEventPropagationJob = async (
           obs.prompt_version,
           obs.internal_model_id AS model_id,
           obs.provided_model_name,
-          obs.model_parameters,
+          coalesce(obs.model_parameters, '{}'),
           obs.provided_usage_details,
           obs.usage_details,
           obs.provided_cost_details,

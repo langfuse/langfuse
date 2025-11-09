@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS events
       parent_span_id String,
 
       start_time DateTime64(6),
+      start_time_unix UInt32 MATERIALIZED toUnixTimestamp(start_time),
       end_time Nullable(DateTime64(6)),
 
       -- Core properties
@@ -160,26 +161,35 @@ CREATE TABLE IF NOT EXISTS events
       -- Model
       model_id String,
       provided_model_name String,
-      model_parameters JSON,
+      model_parameters String,
+      model_parameters_json JSON MATERIALIZED model_parameters::JSON,
 
       -- Usage
-      provided_usage_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
-      usage_details JSON(
+      provided_usage_details Map(LowCardinality(String), UInt64),
+      provided_usage_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_usage_details::JSON,
+      usage_details Map(LowCardinality(String), UInt64),
+      usage_details_json JSON(
         max_dynamic_paths=64,
         max_dynamic_types=8,
         input UInt64,
         output UInt64,
         total UInt64,
-      ),
-      provided_cost_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
-      cost_details JSON(
+      ) MATERIALIZED usage_details::JSON,
+      provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
+      provided_cost_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_cost_details::JSON,
+      cost_details Map(LowCardinality(String), Decimal(18,12)),
+      cost_details_json JSON(
         max_dynamic_paths=64,
         max_dynamic_types=8,
         input Decimal(18,12),
         output Decimal(18,12),
         total Decimal(18,12),
-      ),
-      total_cost Decimal(18, 12) ALIAS cost_details.total,
+      ) MATERIALIZED cost_details::JSON,
+
+      calculated_input_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
+      calculated_output_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
+      calculated_total_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
+      total_cost Decimal(18, 12) ALIAS cost_details_json.total,
 
       -- I/O
       input String CODEC(ZSTD(3)),
@@ -255,7 +265,7 @@ CREATE TABLE IF NOT EXISTS events
   ENGINE = ReplacingMergeTree(event_ts, is_deleted)
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
-  ORDER BY (project_id, toUnixTimestamp(start_time), xxHash32(trace_id), span_id)
+  ORDER BY (project_id, start_time_unix, xxHash32(trace_id), span_id)
   SAMPLE BY xxHash32(trace_id)
   SETTINGS
     index_granularity = 8192,
@@ -312,7 +322,7 @@ clickhouse client \
          CAST(o.prompt_version, 'Nullable(String)'),
          o.internal_model_id                                                             AS model_id,
          o.provided_model_name,
-         o.model_parameters,
+         coalesce(o.model_parameters, '{}'),
          o.provided_usage_details,
          o.usage_details,
          o.provided_cost_details,

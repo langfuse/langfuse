@@ -43,6 +43,14 @@ export function ScoreDistributionCategoricalChart({
     stackedDistribution && stackedDistribution.length > 0,
   );
 
+  // Helper: Check if a key represents an unmatched category
+  // Backend can send: "__unmatched__", "0", "", or null
+  const isUnmatchedKey = (key: string): boolean => {
+    return (
+      key === "__unmatched__" || key === "0" || key === "" || key === "null"
+    );
+  };
+
   // Calculate all possible stack keys from actual data
   // This ensures we include ALL categories present in the data, including those
   // not in score2Categories (e.g., "0" or other values) and __unmatched__
@@ -57,17 +65,21 @@ export function ScoreDistributionCategoricalChart({
       stacksFromData.add(item.score2Stack);
     });
 
+    // Normalize all unmatched variations to "__unmatched__" for consistent handling
+    const normalizedStacks = Array.from(stacksFromData).map((key) =>
+      isUnmatchedKey(key) ? "__unmatched__" : key,
+    );
+
     // Separate regular categories from __unmatched__
     // This ensures __unmatched__ is always last for consistent color assignment
     const regularStacks = Array.from(
-      new Set([...Array.from(stacksFromData), ...score2Categories]),
+      new Set([...normalizedStacks, ...score2Categories]),
     )
       .filter((key) => key !== "__unmatched__")
-      .sort();
+      .sort(); // Sort alphabetically for stable color assignment
 
     // Add __unmatched__ at the end if it exists in the actual data
-    // Don't add it based on score2Categories since that never includes __unmatched__
-    const hasUnmatched = stacksFromData.has("__unmatched__");
+    const hasUnmatched = normalizedStacks.includes("__unmatched__");
 
     return hasUnmatched ? [...regularStacks, "__unmatched__"] : regularStacks;
   }, [hasStackedData, stackedDistribution, score2Categories]);
@@ -82,19 +94,28 @@ export function ScoreDistributionCategoricalChart({
         if (!grouped.has(item.score1Category)) {
           grouped.set(item.score1Category, {});
         }
-        grouped.get(item.score1Category)![item.score2Stack] = item.count;
+        // Normalize unmatched keys to "__unmatched__"
+        const normalizedKey = isUnmatchedKey(item.score2Stack)
+          ? "__unmatched__"
+          : item.score2Stack;
+        grouped.get(item.score1Category)![normalizedKey] = item.count;
       });
 
       // Normalize: ensure every category has all stack keys, even if count is 0
       return Array.from(grouped.entries())
-        .sort()
+        .sort((a, b) => {
+          // Put __unmatched__ last (rightmost column)
+          if (a[0] === "__unmatched__") return 1;
+          if (b[0] === "__unmatched__") return -1;
+          return a[0].localeCompare(b[0]);
+        })
         .map(([category, stacks]) => {
           const normalizedStacks: Record<string, number> = {};
           allStackKeys.forEach((stackKey) => {
             normalizedStacks[stackKey] = stacks[stackKey] ?? 0;
           });
           return {
-            name: category,
+            name: category === "__unmatched__" ? "no match" : category,
             ...normalizedStacks,
           };
         });
@@ -154,30 +175,36 @@ export function ScoreDistributionCategoricalChart({
       // Stacked mode: create config for all stack keys using color mappings
       const stackConfig: ChartConfig = {};
       allStackKeys.forEach((key) => {
+        // Special handling for unmatched category
+        if (key === "__unmatched__") {
+          stackConfig[key] = {
+            label: "no match",
+            color: "hsl(var(--muted))", // Light grey for unmatched
+          };
+          return;
+        }
+
         // Try namespaced key first (for when score1 and score2 have same category names)
         // Format: "ScoreName (source): category"
         let color: string | undefined;
 
-        if (key !== "__unmatched__" && score2Name && score2Source) {
+        if (score2Name && score2Source) {
           const namespacedKey = `${score2Name} (${score2Source}): ${key}`;
           color = colors[namespacedKey];
         }
 
         // Fallback to non-namespaced key
-        if (!color && key !== "__unmatched__") {
+        if (!color) {
           color = colors[key];
         }
 
-        // Final fallback
+        // Final fallback to first available color
         if (!color) {
-          color =
-            key === "__unmatched__"
-              ? "hsl(var(--muted-foreground))"
-              : Object.values(colors)[0];
+          color = Object.values(colors)[0];
         }
 
         stackConfig[key] = {
-          label: key === "__unmatched__" ? "Unmatched" : key,
+          label: key,
           color,
         };
       });
