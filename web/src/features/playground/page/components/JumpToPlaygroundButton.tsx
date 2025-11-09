@@ -155,14 +155,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         // 3. The playground page will check localStorage and migrate to sessionStorage
         try {
           const tempKey = `playground-temp-cache-${stableWindowId}`;
-          const cacheString = JSON.stringify(capturedState);
-          localStorage.setItem(tempKey, cacheString);
-          console.log(`[JumpToPlayground] Saved temp cache:`, {
-            tempKey,
-            windowId: stableWindowId,
-            cacheLength: cacheString.length,
-            hasMessages: capturedState?.messages?.length,
-          });
+          localStorage.setItem(tempKey, JSON.stringify(capturedState));
 
           // Open playground in new tab
           const playgroundUrl = `/project/${projectId}/playground`;
@@ -182,9 +175,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         requestAnimationFrame(() => {
           try {
             setPlaygroundCache(capturedState);
-            console.log(
-              `Cache saved for fresh playground window ${stableWindowId}`,
-            );
 
             // Navigate after cache is successfully saved
             router.push(`/project/${projectId}/playground`);
@@ -204,7 +194,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         try {
           const tempKey = `playground-temp-cache-${stableWindowId}`;
           localStorage.setItem(tempKey, JSON.stringify(capturedState));
-          console.log(`Temporary cache saved to localStorage: ${tempKey}`);
 
           // Open playground in new tab
           const playgroundUrl = `/project/${projectId}/playground`;
@@ -230,9 +219,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         requestAnimationFrame(() => {
           try {
             setPlaygroundCache(capturedState);
-            console.log(
-              `Cache saved for existing playground window ${stableWindowId}`,
-            );
 
             // Navigate after cache is successfully saved
             router.push(`/project/${projectId}/playground`);

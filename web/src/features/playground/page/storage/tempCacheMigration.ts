@@ -11,8 +11,6 @@
 export function migrateTempCacheIfNeeded(): string | null {
   if (typeof window === "undefined") return null;
 
-  console.log("[TempCache] Checking for temporary cache...");
-
   // Find all temporary cache keys
   const tempCacheKeys: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -22,14 +20,8 @@ export function migrateTempCacheIfNeeded(): string | null {
     }
   }
 
-  console.log(
-    `[TempCache] Found ${tempCacheKeys.length} temp cache keys:`,
-    tempCacheKeys,
-  );
-
   // No temp cache found
   if (tempCacheKeys.length === 0) {
-    console.log("[TempCache] No temp cache found, skipping migration");
     return null;
   }
 
@@ -53,22 +45,17 @@ export function migrateTempCacheIfNeeded(): string | null {
 
       // Also set the window IDs list (use the correct key without "langfuse-" prefix)
       sessionStorage.setItem("playgroundWindowIds", JSON.stringify([windowId]));
-
-      console.log(
-        `[TempCache] Migrated ${tempKey} → ${cacheKey} and set windowIds`,
-      );
     }
   } catch (error) {
-    console.error(`[TempCache] Failed to migrate ${tempKey}:`, error);
+    console.error(`Failed to migrate temporary cache:`, error);
     windowId = null;
   } finally {
     // Clean up ALL temporary cache keys from localStorage
     tempCacheKeys.forEach((key) => {
       try {
         localStorage.removeItem(key);
-        console.log(`[TempCache] Cleaned up ${key}`);
       } catch (error) {
-        console.error(`[TempCache] Failed to cleanup ${key}:`, error);
+        console.error(`Failed to cleanup temporary cache:`, error);
       }
     });
   }
