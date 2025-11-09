@@ -8,6 +8,12 @@ import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnte
 import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
+import { migrateTempCacheIfNeeded } from "@/src/features/playground/page/storage/tempCacheMigration";
+
+// Run temp cache migration before React renders to ensure cache is available
+if (typeof window !== "undefined") {
+  migrateTempCacheIfNeeded();
+}
 
 /**
  * PlaygroundPage Component

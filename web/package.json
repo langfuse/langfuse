@@ -33,6 +33,8 @@
     "@dnd-kit/modifiers": "^7.0.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@ferrucc-io/emoji-picker": "^0.0.47",
     "@headlessui/react": "2.2.7",
     "@headlessui/tailwindcss": "0.2.1",

@@ -132,7 +132,10 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
   }, [capturedState, setIsAvailable]);
 
-  const handlePlaygroundAction = (useFreshPlayground: boolean, openInNewTab: boolean) => {
+  const handlePlaygroundAction = (
+    useFreshPlayground: boolean,
+    openInNewTab: boolean,
+  ) => {
     capture(props.analyticsEventName, {
       playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
       openInNewTab,
@@ -152,20 +155,29 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         // 3. The playground page will check localStorage and migrate to sessionStorage
         try {
           const tempKey = `playground-temp-cache-${stableWindowId}`;
-          localStorage.setItem(tempKey, JSON.stringify(capturedState));
-          console.log(`Temporary cache saved to localStorage with key: ${tempKey}`);
-          
+          const cacheString = JSON.stringify(capturedState);
+          localStorage.setItem(tempKey, cacheString);
+          console.log(`[JumpToPlayground] Saved temp cache:`, {
+            tempKey,
+            windowId: stableWindowId,
+            cacheLength: cacheString.length,
+            hasMessages: capturedState?.messages?.length,
+          });
+
           // Open playground in new tab
           const playgroundUrl = `/project/${projectId}/playground`;
           window.open(playgroundUrl, "_blank", "noopener,noreferrer");
         } catch (error) {
-          console.error("Failed to save temporary cache or open new tab:", error);
+          console.error(
+            "Failed to save temporary cache or open new tab:",
+            error,
+          );
         }
       } else {
         // For fresh playground in current tab:
         // Clear all existing playground data and reset to single window
         clearAllCache(stableWindowId);
-        
+
         // Use requestAnimationFrame to ensure the state update has been processed
         requestAnimationFrame(() => {
           try {
@@ -193,12 +205,15 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
           const tempKey = `playground-temp-cache-${stableWindowId}`;
           localStorage.setItem(tempKey, JSON.stringify(capturedState));
           console.log(`Temporary cache saved to localStorage: ${tempKey}`);
-          
+
           // Open playground in new tab
           const playgroundUrl = `/project/${projectId}/playground`;
           window.open(playgroundUrl, "_blank", "noopener,noreferrer");
         } catch (error) {
-          console.error("Failed to save temporary cache or open new tab:", error);
+          console.error(
+            "Failed to save temporary cache or open new tab:",
+            error,
+          );
         }
       } else {
         // Add to existing playground in current tab
@@ -255,27 +270,31 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => handlePlaygroundAction(true, openInNewTab)}>
+        <DropdownMenuItem
+          onClick={() => handlePlaygroundAction(true, openInNewTab)}
+        >
           <Terminal className="mr-2 h-4 w-4" />
           Fresh playground
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handlePlaygroundAction(false, openInNewTab)}>
+        <DropdownMenuItem
+          onClick={() => handlePlaygroundAction(false, openInNewTab)}
+        >
           <Terminal className="mr-2 h-4 w-4" />
           Add to existing
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <div 
+        <div
           className="flex items-center justify-between px-2 py-1.5 text-sm"
           role="menuitem"
         >
-          <label 
+          <label
             htmlFor="open-in-new-tab-toggle"
-            className="flex items-center gap-2 cursor-pointer flex-1"
+            className="flex flex-1 cursor-pointer items-center gap-2"
           >
             <ExternalLink className="h-4 w-4" />
             <span>Open in new tab</span>
           </label>
-          <Switch 
+          <Switch
             id="open-in-new-tab-toggle"
             checked={openInNewTab}
             onCheckedChange={setOpenInNewTab}
