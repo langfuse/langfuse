@@ -114,9 +114,17 @@ export function convertChatMlToPlayground(
   const toolCallId =
     msg.tool_call_id || jsonData?.tool_call_id || jsonData?.toolCallId;
   if (toolCallId) {
+    // If content is undefined but we have rich data in json.json (spread tool result),
+    // use that for playground display
+    // this happens if for complex tool calls isRichToolResult applies
+    const toolContent =
+      msg.content !== undefined && msg.content !== null
+        ? msg.content
+        : jsonData;
+
     return {
       role: ChatMessageRole.Tool,
-      content: contentToString(msg.content),
+      content: contentToString(toolContent),
       type: ChatMessageType.ToolResult,
       toolCallId: toolCallId as string,
     };
