@@ -659,7 +659,9 @@ describe("Playground Jump Full Pipeline", () => {
     expect(secondMsg && "role" in secondMsg ? secondMsg.role : null).toBe(
       "tool",
     );
-    expect(secondMsg?.content).toContain("PatientNo");
+    expect(
+      secondMsg && "content" in secondMsg ? secondMsg.content : "",
+    ).toContain("PatientNo");
   });
 
   it("should handle VAPI camelCase toolCalls and preserve IDs", () => {
