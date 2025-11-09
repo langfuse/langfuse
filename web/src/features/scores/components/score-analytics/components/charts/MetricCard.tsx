@@ -5,7 +5,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { HelpCircle } from "lucide-react";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { HelpCircle, AlertCircle } from "lucide-react";
 import type { InterpretationResult } from "@/src/features/scores/components/score-analytics/libs/statistics-utils";
 
 interface MetricCardProps {
@@ -13,6 +18,10 @@ interface MetricCardProps {
   value: string | number;
   interpretation?: InterpretationResult;
   helpText?: string;
+  warning?: {
+    show: boolean;
+    content: React.ReactNode;
+  };
   isPlaceholder?: boolean;
   isContext?: boolean; // Data context metrics (counts) vs analysis metrics (statistics)
 }
@@ -27,6 +36,7 @@ export function MetricCard({
   value,
   interpretation,
   helpText,
+  warning,
   isPlaceholder = false,
   isContext = false,
 }: MetricCardProps) {
@@ -107,6 +117,16 @@ export function MetricCard({
               </Tooltip>
             </TooltipProvider>
           )}
+        {warning?.show && !isPlaceholder && !isNA && (
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <AlertCircle className="h-4 w-4 cursor-help text-amber-500" />
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80">
+              {warning.content}
+            </HoverCardContent>
+          </HoverCard>
+        )}
       </div>
     </div>
   );

@@ -128,6 +128,29 @@ export interface TimeSeries {
 }
 
 /**
+ * Sampling metadata for query transparency
+ */
+export interface SamplingMetadata {
+  isSampled: boolean;
+  samplingMethod: "none" | "hash" | "limit";
+  samplingRate: number; // 0-1 (e.g., 0.1 = 10% sample)
+  estimatedTotalMatches: number;
+  actualSampleSize: number;
+  samplingExpression: string | null; // e.g., "cityHash64(...) % 100 < 10"
+  // Preflight query estimates (used for adaptive FINAL optimization)
+  preflightEstimates?: {
+    score1Count: number;
+    score2Count: number;
+    estimatedMatchedCount: number;
+  };
+  // Adaptive FINAL optimization decision
+  adaptiveFinal?: {
+    usedFinal: boolean;
+    reason: string;
+  };
+}
+
+/**
  * Complete transformed score analytics data
  */
 export interface ScoreAnalyticsData {
@@ -144,6 +167,7 @@ export interface ScoreAnalyticsData {
     isSameScore: boolean;
     dataType: DataType;
   };
+  samplingMetadata: SamplingMetadata;
 }
 
 /**
@@ -172,6 +196,7 @@ export interface UseScoreAnalyticsQueryResult {
  */
 export function useScoreAnalyticsQuery(
   params: ScoreAnalyticsQueryParams,
+  options?: { enabled?: boolean },
 ): UseScoreAnalyticsQueryResult {
   const {
     projectId,
@@ -200,7 +225,8 @@ export function useScoreAnalyticsQuery(
       objectType,
     },
     {
-      enabled: !!(projectId && score1),
+      enabled: (options?.enabled ?? true) && !!(projectId && score1),
+      trpc: { abortOnUnmount: true },
     },
   );
 
@@ -232,6 +258,15 @@ export function useScoreAnalyticsQuery(
       stackedDistribution: apiData.stackedDistribution,
     });
 
+    // Extract score2 categories for proper binning
+    // When comparing two different categorical scores, score2 may have different categories
+    const score2Categories =
+      apiData.score2Categories && apiData.score2Categories.length > 0
+        ? apiData.score2Categories
+        : mode === "two" && categories
+          ? categories // Fallback to score1 categories if score2Categories empty
+          : undefined;
+
     // ========================================================================
     // 2. Fill distribution bins (categorical/boolean only)
     // Note: Sort all distributions by binIndex to ensure deterministic ordering
@@ -253,8 +288,9 @@ export function useScoreAnalyticsQuery(
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution2Individual = categories
-      ? fillDistributionBins(apiData.distribution2Individual, categories)
+    // Use score2Categories for score2Individual (not score1 categories)
+    const distribution2Individual = score2Categories
+      ? fillDistributionBins(apiData.distribution2Individual, score2Categories)
       : apiData.distribution2Individual
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
@@ -265,8 +301,9 @@ export function useScoreAnalyticsQuery(
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution2Matched = categories
-      ? fillDistributionBins(apiData.distribution2Matched, categories)
+    // Use score2Categories for score2Matched (not score1 categories)
+    const distribution2Matched = score2Categories
+      ? fillDistributionBins(apiData.distribution2Matched, score2Categories)
       : apiData.distribution2Matched
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
@@ -603,6 +640,7 @@ export function useScoreAnalyticsQuery(
         isSameScore,
         dataType,
       },
+      samplingMetadata: apiData.samplingMetadata,
     };
   }, [apiData, score1, score2, fromTimestamp, toTimestamp, interval, nBins]);
 

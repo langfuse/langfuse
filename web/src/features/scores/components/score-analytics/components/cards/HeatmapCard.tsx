@@ -14,6 +14,7 @@ import { getHeatmapCellColor } from "@/src/features/scores/components/score-anal
 import { type HeatmapCell } from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
 import { useCallback } from "react";
 import type { ScoreDataType } from "@langfuse/shared";
+import { SamplingDetailsHoverCard } from "../ScoreAnalyticsNoticeBanner";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
@@ -246,20 +247,32 @@ export function HeatmapCard() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <CardTitle className="flex items-center gap-2">
+                {title}
+                {data.samplingMetadata.isSampled && (
+                  <SamplingDetailsHoverCard
+                    samplingMetadata={data.samplingMetadata}
+                    showLabel
+                  />
+                )}
+              </CardTitle>
+              <CardDescription>{description}</CardDescription>
+            </div>
+            {hasData && (
+              <HeatmapLegend
+                min={0}
+                max={maxValue}
+                scoreNumber={1}
+                orientation="horizontal"
+                steps={5}
+              />
+            )}
           </div>
-          {hasData && (
-            <HeatmapLegend
-              min={0}
-              max={maxValue}
-              scoreNumber={1}
-              orientation="horizontal"
-              steps={5}
-            />
-          )}
+          {/* Placeholder to align with tabs in other cards */}
+          <div className="h-10" />
         </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col items-center gap-4 pl-0">
