@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { ScoreDataTypeValues, ScoreSourceValues } from "../../domain/scores";
 
 export const clickhouseStringDateSchema = z
   .string()
@@ -179,6 +180,10 @@ export type TraceNullRecordInsertType = z.infer<
   typeof traceNullRecordInsertSchema
 >;
 
+/**
+ * ClickHouse score record schema - primary storage for scores
+ * This is the source of truth for score storage structure
+ */
 export const scoreRecordBaseSchema = z.object({
   id: z.string(),
   project_id: z.string(),
@@ -189,12 +194,12 @@ export const scoreRecordBaseSchema = z.object({
   environment: z.string().default("default"),
   name: z.string(),
   value: z.number().nullish(),
-  source: z.string(),
+  source: z.enum(ScoreSourceValues),
   comment: z.string().nullish(),
   metadata: z.record(z.string(), z.string()),
   author_user_id: z.string().nullish(),
   config_id: z.string().nullish(),
-  data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
+  data_type: z.enum(ScoreDataTypeValues).nullish(),
   string_value: z.string().nullish(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),

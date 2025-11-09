@@ -1,6 +1,10 @@
-import { ScoreDataType } from "@prisma/client";
 import { ScoreRecordReadType } from "./definitions";
-import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
+import {
+  ScoreDomain,
+  ScoreSourceType,
+  type ScoreDataType,
+  type ScoreSource,
+} from "../../domain/scores";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export type ScoreAggregation = {
@@ -9,12 +13,18 @@ export type ScoreAggregation = {
   string_value: string | null;
   value: string;
   source: string;
-  data_type: string;
+  data_type: ScoreDataType;
   comment: string | null;
   timestamp: Date;
 };
 
+/**
+ * Converts ClickHouse score record to domain score
+ * Handles discriminated union based on data_type field
+ */
 export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
+  const dataType = row.data_type ?? "NUMERIC";
+
   return {
     id: row.id,
     timestamp: new Date(row.timestamp),
@@ -31,13 +41,13 @@ export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
     metadata: parseMetadataCHRecordToDomain(row.metadata),
     authorUserId: row.author_user_id ?? null,
     configId: row.config_id ?? null,
-    dataType: row.data_type as ScoreDataType,
+    dataType: dataType as ScoreDataType,
     stringValue: row.string_value ?? null,
     queueId: row.queue_id ?? null,
     executionTraceId: row.execution_trace_id ?? null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
-  };
+  } as ScoreDomain;
 };
 
 export const convertScoreAggregation = (row: ScoreAggregation) => {
