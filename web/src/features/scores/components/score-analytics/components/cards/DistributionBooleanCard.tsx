@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreDistributionBooleanChart } from "../charts/ScoreDistributionBooleanChart";
+import { SamplingDetailsHoverCard } from "../ScoreAnalyticsNoticeBanner";
 
 type DistributionTab = "score1" | "score2" | "all" | "matched";
 
@@ -157,8 +158,8 @@ export function DistributionBooleanCard() {
 
   // Helper function to truncate tab labels with max character limit
   const truncateLabel = (label: string): string => {
-    if (label.length <= 10) return label;
-    return label.substring(0, 7) + "...";
+    if (label.length <= 20) return label;
+    return label.substring(0, 17) + "...";
   };
 
   // Build full tab labels for title attribute (hover tooltip)
@@ -178,44 +179,45 @@ export function DistributionBooleanCard() {
       <CardHeader>
         <div className="flex flex-col gap-3">
           <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>Distribution</CardTitle>
+            <div className="flex-1">
+              <CardTitle className="flex items-center gap-2">
+                Distribution
+                {data.samplingMetadata.isSampled && (
+                  <SamplingDetailsHoverCard
+                    samplingMetadata={data.samplingMetadata}
+                    showLabel
+                  />
+                )}
+              </CardTitle>
               <CardDescription>{description}</CardDescription>
             </div>
-            {showTabs && (
-              <Tabs
-                value={activeTab}
-                onValueChange={(v) => setActiveTab(v as DistributionTab)}
-                className="hidden xl:block"
-              >
-                <TabsList className="grid w-[400px] grid-cols-4">
-                  <TabsTrigger value="score1" title={score1FullLabel}>
-                    {truncateLabel(score1FullLabel)}
-                  </TabsTrigger>
-                  <TabsTrigger value="score2" title={score2FullLabel}>
-                    {truncateLabel(score2FullLabel)}
-                  </TabsTrigger>
-                  <TabsTrigger value="all">all</TabsTrigger>
-                  <TabsTrigger value="matched">matched</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            )}
           </div>
           {showTabs && (
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as DistributionTab)}
-              className="xl:hidden"
             >
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="score1" title={score1FullLabel}>
+              <TabsList className="h-7">
+                <TabsTrigger
+                  value="score1"
+                  title={score1FullLabel}
+                  className="h-5 px-2 text-xs"
+                >
                   {truncateLabel(score1FullLabel)}
                 </TabsTrigger>
-                <TabsTrigger value="score2" title={score2FullLabel}>
+                <TabsTrigger
+                  value="score2"
+                  title={score2FullLabel}
+                  className="h-5 px-2 text-xs"
+                >
                   {truncateLabel(score2FullLabel)}
                 </TabsTrigger>
-                <TabsTrigger value="all">all</TabsTrigger>
-                <TabsTrigger value="matched">matched</TabsTrigger>
+                <TabsTrigger value="all" className="h-5 px-2 text-xs">
+                  all
+                </TabsTrigger>
+                <TabsTrigger value="matched" className="h-5 px-2 text-xs">
+                  matched
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           )}

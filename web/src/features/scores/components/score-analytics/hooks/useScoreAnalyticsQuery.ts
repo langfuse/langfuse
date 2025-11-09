@@ -128,6 +128,29 @@ export interface TimeSeries {
 }
 
 /**
+ * Sampling metadata for query transparency
+ */
+export interface SamplingMetadata {
+  isSampled: boolean;
+  samplingMethod: "none" | "hash" | "limit";
+  samplingRate: number; // 0-1 (e.g., 0.1 = 10% sample)
+  estimatedTotalMatches: number;
+  actualSampleSize: number;
+  samplingExpression: string | null; // e.g., "cityHash64(...) % 100 < 10"
+  // Preflight query estimates (used for adaptive FINAL optimization)
+  preflightEstimates?: {
+    score1Count: number;
+    score2Count: number;
+    estimatedMatchedCount: number;
+  };
+  // Adaptive FINAL optimization decision
+  adaptiveFinal?: {
+    usedFinal: boolean;
+    reason: string;
+  };
+}
+
+/**
  * Complete transformed score analytics data
  */
 export interface ScoreAnalyticsData {
@@ -144,6 +167,7 @@ export interface ScoreAnalyticsData {
     isSameScore: boolean;
     dataType: DataType;
   };
+  samplingMetadata: SamplingMetadata;
 }
 
 /**
@@ -172,6 +196,7 @@ export interface UseScoreAnalyticsQueryResult {
  */
 export function useScoreAnalyticsQuery(
   params: ScoreAnalyticsQueryParams,
+  options?: { enabled?: boolean },
 ): UseScoreAnalyticsQueryResult {
   const {
     projectId,
@@ -200,7 +225,8 @@ export function useScoreAnalyticsQuery(
       objectType,
     },
     {
-      enabled: !!(projectId && score1),
+      enabled: (options?.enabled ?? true) && !!(projectId && score1),
+      trpc: { abortOnUnmount: true },
     },
   );
 
@@ -614,6 +640,7 @@ export function useScoreAnalyticsQuery(
         isSameScore,
         dataType,
       },
+      samplingMetadata: apiData.samplingMetadata,
     };
   }, [apiData, score1, score2, fromTimestamp, toTimestamp, interval, nBins]);
 
