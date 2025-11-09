@@ -26,6 +26,7 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
   ) : (
     <Trace
       key={trace.data.id}
+      traceId={trace.data.id}
       trace={trace.data}
       scores={trace.data.scores}
       projectId={trace.data.projectId}

@@ -141,7 +141,7 @@ function resolveScoreValueIngestion(
 
 function resolveScoreValueAnnotation(
   body: ScoreDomain,
-): string | number | null {
+): string | number | null | undefined {
   switch (body.dataType) {
     case ScoreDataType.NUMERIC:
     case ScoreDataType.BOOLEAN:

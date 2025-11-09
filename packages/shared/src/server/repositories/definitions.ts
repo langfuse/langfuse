@@ -188,7 +188,7 @@ export const scoreRecordBaseSchema = z.object({
   dataset_run_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string(),
-  value: z.number().nullish(),
+  value: z.number(),
   source: z.string(),
   comment: z.string().nullish(),
   metadata: z.record(z.string(), z.string()),

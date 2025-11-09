@@ -62,11 +62,12 @@ const getNestedObservationKeys = (
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace?: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
     metadata: string | null;
   };
+  traceId: string;
   scores: APIScoreV2[];
   projectId: string;
   viewType?: "detailed" | "focused";
@@ -167,7 +168,7 @@ export function Trace(props: {
 
   const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
     {
-      projectId: props.trace.projectId,
+      projectId: props.projectId,
       objectType: "OBSERVATION",
     },
     {
@@ -183,8 +184,8 @@ export function Trace(props: {
 
   const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
-      projectId: props.trace.projectId,
-      objectId: props.trace.id,
+      projectId: props.projectId,
+      objectId: props.traceId,
       objectType: "TRACE",
     },
     {
@@ -210,8 +211,8 @@ export function Trace(props: {
 
   const agentGraphDataQuery = api.traces.getAgentGraphData.useQuery(
     {
-      projectId: props.trace.projectId,
-      traceId: props.trace.id,
+      projectId: props.projectId,
+      traceId: props.traceId,
       minStartTime,
       maxStartTime,
     },
@@ -265,18 +266,20 @@ export function Trace(props: {
 
   const handleDownloadTrace = useCallback(() => {
     downloadTraceUtil({
-      trace: props.trace,
+      trace: props.trace ?? { id: props.traceId },
       observations: props.observations,
     });
     capture("trace_detail:download_button_click");
-  }, [props.trace, props.observations, capture]);
+  }, [props.trace, props.traceId, props.observations, capture]);
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
-    `${props.trace.id}-expanded`,
-    [
-      `trace-${props.trace.id}`,
-      ...getNestedObservationKeys(props.observations),
-    ],
+    `${props.traceId}-expanded`,
+    props.trace
+      ? [
+          `trace-${props.traceId}`,
+          ...getNestedObservationKeys(props.observations),
+        ]
+      : getNestedObservationKeys(props.observations),
   );
 
   // Merge server scores with score cache for optimistic updates in the tree view
@@ -284,7 +287,7 @@ export function Trace(props: {
     props.scores,
     {
       type: "trace",
-      traceId: props.trace.id,
+      traceId: props.traceId,
     },
     "target-and-child-scores",
   );
@@ -296,7 +299,7 @@ export function Trace(props: {
     searchItems,
   } = useMemo(
     () =>
-      buildTraceUiData(props.trace, props.observations, minObservationLevel),
+      buildTraceUiData(props.observations, props.trace, minObservationLevel),
     [props.trace, props.observations, minObservationLevel],
   );
 
@@ -310,8 +313,8 @@ export function Trace(props: {
       ...(traceCommentCounts.data
         ? [
             [
-              `trace-${props.trace.id}`,
-              traceCommentCounts.data.get(props.trace.id),
+              `trace-${props.traceId}`,
+              traceCommentCounts.data.get(props.traceId),
             ],
           ]
         : []),
@@ -354,20 +357,27 @@ export function Trace(props: {
     currentObservationId === "" ||
     currentObservationId === null ||
     viewTab === "log" ? (
-      <TracePreview
-        trace={props.trace}
-        observations={props.observations}
-        serverScores={props.scores}
-        commentCounts={castToNumberMap(traceCommentCounts.data)}
-        viewType={viewType}
-      />
+      // Only show TracePreview if trace exists
+      props.trace ? (
+        <TracePreview
+          trace={props.trace}
+          observations={props.observations}
+          serverScores={props.scores}
+          commentCounts={castToNumberMap(traceCommentCounts.data)}
+          viewType={viewType}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground">
+          Select an observation to view details
+        </div>
+      )
     ) : isValidObservationId ? (
       <ObservationPreview
         observations={props.observations}
         serverScores={props.scores}
         projectId={props.projectId}
         currentObservationId={currentObservationId}
-        traceId={props.trace.id}
+        traceId={props.traceId}
         commentCounts={castToNumberMap(observationCommentCounts.data)}
         viewType={viewType}
         isTimeline={props.selectedTab?.includes("timeline")}
@@ -406,27 +416,44 @@ export function Trace(props: {
                       {props.selectedTab?.includes("timeline") ? (
                         <Button
                           onClick={() => {
-                            const isTraceExpanded = expandedItems.includes(
-                              `trace-${props.trace.id}`,
-                            );
+                            const traceKey = `trace-${props.traceId}`;
+                            const isTraceExpanded = props.trace
+                              ? expandedItems.includes(traceKey)
+                              : expandedItems.length > 0;
+
                             if (isTraceExpanded) {
                               setExpandedItems([]);
                             } else {
-                              setExpandedItems([
-                                `trace-${props.trace.id}`,
-                                ...getNestedObservationKeys(props.observations),
-                              ]);
+                              const keys = props.trace
+                                ? [
+                                    traceKey,
+                                    ...getNestedObservationKeys(
+                                      props.observations,
+                                    ),
+                                  ]
+                                : getNestedObservationKeys(props.observations);
+                              setExpandedItems(keys);
                             }
                           }}
                           variant="ghost"
                           size="icon"
                           title={
-                            expandedItems.includes(`trace-${props.trace.id}`)
+                            (
+                              props.trace
+                                ? expandedItems.includes(
+                                    `trace-${props.traceId}`,
+                                  )
+                                : expandedItems.length > 0
+                            )
                               ? "Collapse all"
                               : "Expand all"
                           }
                         >
-                          {expandedItems.includes(`trace-${props.trace.id}`) ? (
+                          {(
+                            props.trace
+                              ? expandedItems.includes(`trace-${props.traceId}`)
+                              : expandedItems.length > 0
+                          ) ? (
                             <FoldVertical className="h-4 w-4" />
                           ) : (
                             <UnfoldVertical className="h-4 w-4" />
@@ -435,31 +462,44 @@ export function Trace(props: {
                       ) : (
                         <Button
                           onClick={() => {
-                            const traceRootId = `trace-${props.trace.id}`;
-                            const isEverythingCollapsed =
-                              collapsedNodes.includes(traceRootId);
+                            const traceRootId = `trace-${props.traceId}`;
+                            // When there's no trace, check if any observation is collapsed
+                            const isEverythingCollapsed = props.trace
+                              ? collapsedNodes.includes(traceRootId)
+                              : collapsedNodes.length > 0;
+
                             if (isEverythingCollapsed) {
                               expandAll();
                             } else {
                               const allObservationIds = props.observations.map(
                                 (o) => o.id,
                               );
-                              setCollapsedNodes([
-                                ...allObservationIds,
-                                traceRootId,
-                              ]);
+                              const nodesToCollapse = props.trace
+                                ? [...allObservationIds, traceRootId]
+                                : allObservationIds;
+                              setCollapsedNodes(nodesToCollapse);
                             }
                           }}
                           variant="ghost"
                           size="icon"
                           title={
-                            collapsedNodes.includes(`trace-${props.trace.id}`)
+                            (
+                              props.trace
+                                ? collapsedNodes.includes(
+                                    `trace-${props.traceId}`,
+                                  )
+                                : collapsedNodes.length > 0
+                            )
                               ? "Expand all"
                               : "Collapse all"
                           }
                         >
-                          {collapsedNodes.includes(
-                            `trace-${props.trace.id}`,
+                          {(
+                            props.trace
+                              ? collapsedNodes.includes(
+                                  `trace-${props.traceId}`,
+                                )
+                              : collapsedNodes.length > 0
                           ) ? (
                             <UnfoldVertical className="h-4 w-4" />
                           ) : (
@@ -532,11 +572,12 @@ export function Trace(props: {
                   {props.selectedTab?.includes("timeline") ? (
                     <div className="w-full">
                       <TraceTimelineView
-                        key={props.trace.id}
+                        traceId={props.traceId}
+                        key={props.traceId}
                         trace={props.trace}
                         displayScores={displayScores}
                         observations={props.observations}
-                        projectId={props.trace.projectId}
+                        projectId={props.projectId}
                         currentObservationId={currentObservationId ?? null}
                         setCurrentObservationId={setCurrentObservationId}
                         expandedItems={expandedItems}
@@ -636,33 +677,47 @@ export function Trace(props: {
                           {props.selectedTab?.includes("timeline") ? (
                             <Button
                               onClick={() => {
-                                // Check if trace is expanded (top level element)
-                                const isTraceExpanded = expandedItems.includes(
-                                  `trace-${props.trace.id}`,
-                                );
+                                const traceKey = `trace-${props.traceId}`;
+                                const isTraceExpanded = props.trace
+                                  ? expandedItems.includes(traceKey)
+                                  : expandedItems.length > 0;
+
                                 if (isTraceExpanded) {
                                   setExpandedItems([]);
                                 } else {
-                                  setExpandedItems([
-                                    `trace-${props.trace.id}`,
-                                    ...getNestedObservationKeys(
-                                      props.observations,
-                                    ),
-                                  ]);
+                                  const keys = props.trace
+                                    ? [
+                                        traceKey,
+                                        ...getNestedObservationKeys(
+                                          props.observations,
+                                        ),
+                                      ]
+                                    : getNestedObservationKeys(
+                                        props.observations,
+                                      );
+                                  setExpandedItems(keys);
                                 }
                               }}
                               variant="ghost"
                               size="icon"
                               title={
-                                expandedItems.includes(
-                                  `trace-${props.trace.id}`,
+                                (
+                                  props.trace
+                                    ? expandedItems.includes(
+                                        `trace-${props.traceId}`,
+                                      )
+                                    : expandedItems.length > 0
                                 )
                                   ? "Collapse all"
                                   : "Expand all"
                               }
                             >
-                              {expandedItems.includes(
-                                `trace-${props.trace.id}`,
+                              {(
+                                props.trace
+                                  ? expandedItems.includes(
+                                      `trace-${props.traceId}`,
+                                    )
+                                  : expandedItems.length > 0
                               ) ? (
                                 <FoldVertical className="h-4 w-4" />
                               ) : (
@@ -671,11 +726,11 @@ export function Trace(props: {
                             </Button>
                           ) : (
                             (() => {
-                              // Use the same root id format as the tree (see buildTraceUiData)
-                              const traceRootId = `trace-${props.trace.id}`;
-                              // Check if everything is collapsed by seeing if the trace root is collapsed
-                              const isEverythingCollapsed =
-                                collapsedNodes.includes(traceRootId);
+                              const traceRootId = `trace-${props.traceId}`;
+                              // When there's no trace, check if any observation is collapsed
+                              const isEverythingCollapsed = props.trace
+                                ? collapsedNodes.includes(traceRootId)
+                                : collapsedNodes.length > 0;
 
                               return (
                                 <Button
@@ -683,13 +738,12 @@ export function Trace(props: {
                                     if (isEverythingCollapsed) {
                                       expandAll();
                                     } else {
-                                      // Collapse all observations AND the trace root
                                       const allObservationIds =
                                         props.observations.map((o) => o.id);
-                                      setCollapsedNodes([
-                                        ...allObservationIds,
-                                        traceRootId,
-                                      ]);
+                                      const nodesToCollapse = props.trace
+                                        ? [...allObservationIds, traceRootId]
+                                        : allObservationIds;
+                                      setCollapsedNodes(nodesToCollapse);
                                     }
                                   }}
                                   variant="ghost"
@@ -809,11 +863,12 @@ export function Trace(props: {
                                 className="overflow-y-auto overflow-x-hidden"
                               >
                                 <TraceTimelineView
-                                  key={`timeline-${props.trace.id}`}
+                                  traceId={props.traceId}
+                                  key={`timeline-${props.traceId}`}
                                   trace={props.trace}
                                   displayScores={displayScores}
                                   observations={props.observations}
-                                  projectId={props.trace.projectId}
+                                  projectId={props.projectId}
                                   currentObservationId={
                                     currentObservationId ?? null
                                   }
@@ -842,7 +897,7 @@ export function Trace(props: {
                                 className="overflow-hidden"
                               >
                                 <TraceGraphView
-                                  key={`graph-timeline-${props.trace.id}`}
+                                  key={`graph-timeline-${props.traceId}`}
                                   agentGraphData={agentGraphData}
                                 />
                               </ResizablePanel>
@@ -850,11 +905,12 @@ export function Trace(props: {
                           ) : (
                             <div className="flex h-full w-full overflow-y-auto overflow-x-hidden">
                               <TraceTimelineView
-                                key={props.trace.id}
+                                traceId={props.traceId}
+                                key={props.traceId}
                                 trace={props.trace}
                                 displayScores={displayScores}
                                 observations={props.observations}
-                                projectId={props.trace.projectId}
+                                projectId={props.projectId}
                                 currentObservationId={
                                   currentObservationId ?? null
                                 }
@@ -903,7 +959,7 @@ export function Trace(props: {
                                 className="overflow-hidden"
                               >
                                 <TraceGraphView
-                                  key={`graph-tree-${props.trace.id}`}
+                                  key={`graph-tree-${props.traceId}`}
                                   agentGraphData={agentGraphData}
                                 />
                               </ResizablePanel>

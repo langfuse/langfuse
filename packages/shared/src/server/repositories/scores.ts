@@ -1,5 +1,5 @@
 import { ScoreDataType } from "@prisma/client";
-import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
+import { ScoreDomain, ScoreSource } from "../../domain/scores";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -99,7 +99,7 @@ export const getScoreById = async ({
 }: {
   projectId: string;
   scoreId: string;
-  source?: ScoreSourceType;
+  source?: (typeof ScoreSource)[number];
 }) => {
   return _handleGetScoreById({
     projectId,
@@ -112,7 +112,7 @@ export const getScoreById = async ({
 export const getScoresByIds = async (
   projectId: string,
   scoreId: string[],
-  source?: ScoreSourceType,
+  source?: (typeof ScoreSource)[number],
 ) => {
   return _handleGetScoresByIds({
     projectId,
@@ -604,7 +604,7 @@ export const getScoresGroupedByNameSourceType = async ({
 
   return rows.map((row) => ({
     name: row.name,
-    source: row.source as ScoreSourceType,
+    source: row.source as (typeof ScoreSource)[number],
     dataType: row.data_type as ScoreDataType,
   }));
 };
@@ -865,7 +865,7 @@ export async function getScoresUiTable<
     stringValue: row.string_value,
     comment: row.comment,
     dataType: row.data_type as ScoreDataType,
-    source: row.source as ScoreSourceType,
+    source: row.source as (typeof ScoreSource)[number],
     name: row.name,
     value: row.value,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
@@ -1552,7 +1552,7 @@ export const hasAnyScore = async (projectId: string) => {
 export const getScoreMetadataById = async (
   projectId: string,
   id: string,
-  source?: ScoreSourceType,
+  source?: (typeof ScoreSource)[number],
 ) => {
   const query = `    SELECT
       metadata

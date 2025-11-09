@@ -396,6 +396,7 @@ function TraceTreeItem({
 }
 
 export function TraceTimelineView({
+  traceId,
   trace,
   observations,
   projectId,
@@ -413,7 +414,8 @@ export function TraceTimelineView({
   setMinLevel,
   containerWidth,
 }: {
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  traceId: string;
+  trace?: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     latency?: number;
     input: string | null;
     output: string | null;
@@ -434,7 +436,8 @@ export function TraceTimelineView({
   setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
   containerWidth?: number;
 }) {
-  const { latency, name, id } = trace;
+  const latency = trace?.latency;
+  const name = trace?.name;
 
   const { nestedObservations, hiddenObservationsCount } = useMemo(
     () => nestObservations(observations, minLevel),
@@ -488,7 +491,7 @@ export function TraceTimelineView({
 
   const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
     {
-      projectId: trace.projectId,
+      projectId: projectId,
       objectType: "OBSERVATION",
     },
     {
@@ -504,8 +507,8 @@ export function TraceTimelineView({
 
   const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
-      projectId: trace.projectId,
-      objectId: trace.id,
+      projectId: projectId,
+      objectId: traceId,
       objectType: "TRACE",
     },
     {
@@ -515,7 +518,7 @@ export function TraceTimelineView({
         },
       },
       refetchOnMount: false, // prevents refetching loops
-      enabled: isAuthenticatedAndProjectMember && showComments,
+      enabled: isAuthenticatedAndProjectMember && showComments && !!traceId,
     },
   );
 
@@ -539,12 +542,40 @@ export function TraceTimelineView({
     }
   }, [observations, expandedItems, contentWidth]);
 
-  if (!latency) return null;
-  const stepSize = calculateStepSize(latency, SCALE_WIDTH);
+  // When there's no trace or no latency, we need to calculate span from observations
+  const hasTrace = !!trace && !!latency;
+
+  // Calculate the time span for observations
+  const observationTimeSpan = useMemo(() => {
+    if (observations.length === 0) return 0;
+    const startTimes = observations.map((o) => o.startTime.getTime());
+    const endTimes = observations
+      .map((o) => o.endTime?.getTime())
+      .filter(isPresent);
+
+    if (endTimes.length === 0) return 0;
+
+    const minStart = Math.min(...startTimes);
+    const maxEnd = Math.max(...endTimes);
+    return (maxEnd - minStart) / 1000; // Convert to seconds
+  }, [observations]);
+
+  const effectiveLatency = latency ?? observationTimeSpan;
+
+  // If no trace and no observations with end times, we can't render timeline
+  if (!hasTrace && observationTimeSpan === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-4 text-center text-muted-foreground">
+        No timeline data available
+      </div>
+    );
+  }
+
+  const stepSize = calculateStepSize(effectiveLatency, SCALE_WIDTH);
   const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
 
   const traceScores = scores.filter((s) => s.observationId === null);
-  const totalDuration = latency * 1000; // Convert to milliseconds for consistency
+  const totalDuration = effectiveLatency * 1000; // Convert to milliseconds for consistency
 
   return (
     <div ref={parentRef} className="h-full w-full px-3">
@@ -633,73 +664,105 @@ export function TraceTimelineView({
                 itemChildrenIndentation={TREE_INDENTATION}
                 expansionTrigger="iconContainer"
               >
-                <TreeItem
-                  key={`trace-${id}`}
-                  itemId={`trace-${id}`}
-                  classes={{
-                    content: `!min-w-fit hover:!bg-background`,
-                    selected: "!bg-background !important",
-                    label: "!min-w-fit",
-                    iconContainer:
-                      "absolute left-3 top-1/2 z-10 -translate-y-1/2",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const isIconClick = (e.target as HTMLElement).closest(
-                      "svg.MuiSvgIcon-root",
-                    );
-                    if (!isIconClick) {
-                      setCurrentObservationId(null);
+                {hasTrace ? (
+                  <TreeItem
+                    key={`trace-${traceId}`}
+                    itemId={`trace-${traceId}`}
+                    classes={{
+                      content: `!min-w-fit hover:!bg-background`,
+                      selected: "!bg-background !important",
+                      label: "!min-w-fit",
+                      iconContainer:
+                        "absolute left-3 top-1/2 z-10 -translate-y-1/2",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const isIconClick = (e.target as HTMLElement).closest(
+                        "svg.MuiSvgIcon-root",
+                      );
+                      if (!isIconClick) {
+                        setCurrentObservationId(null);
+                      }
+                    }}
+                    label={
+                      <TreeItemInner
+                        name={name}
+                        latency={latency}
+                        totalScaleSpan={totalScaleSpan}
+                        type="TRACE"
+                        hasChildren={!!nestedObservations.length}
+                        isSelected={currentObservationId === null}
+                        showMetrics={showMetrics}
+                        showScores={showScores}
+                        showComments={showComments}
+                        colorCodeMetrics={colorCodeMetrics}
+                        scores={traceScores}
+                        commentCount={getNumberFromMap(
+                          traceCommentCounts.data,
+                          traceId,
+                        )}
+                        totalCost={totalCost}
+                      />
                     }
-                  }}
-                  label={
-                    <TreeItemInner
-                      name={name}
-                      latency={latency}
-                      totalScaleSpan={totalScaleSpan}
-                      type="TRACE"
-                      hasChildren={!!nestedObservations.length}
-                      isSelected={currentObservationId === null}
-                      showMetrics={showMetrics}
-                      showScores={showScores}
-                      showComments={showComments}
-                      colorCodeMetrics={colorCodeMetrics}
-                      scores={traceScores}
-                      commentCount={getNumberFromMap(
-                        traceCommentCounts.data,
-                        id,
-                      )}
-                      totalCost={totalCost}
-                    />
-                  }
-                >
-                  {Boolean(nestedObservations.length)
-                    ? nestedObservations.map((observation) => (
-                        <TraceTreeItem
-                          key={`observation-${observation.id}`}
-                          observation={observation}
-                          level={1}
-                          traceStartTime={nestedObservations[0].startTime}
-                          totalScaleSpan={totalScaleSpan}
-                          projectId={projectId}
-                          scores={scores}
-                          observations={observations}
-                          cardWidth={cardWidth}
-                          commentCounts={castToNumberMap(
-                            observationCommentCounts.data,
-                          )}
-                          currentObservationId={currentObservationId}
-                          setCurrentObservationId={setCurrentObservationId}
-                          showMetrics={showMetrics}
-                          showScores={showScores}
-                          showComments={showComments}
-                          colorCodeMetrics={colorCodeMetrics}
-                          parentTotalDuration={totalDuration}
-                          parentTotalCost={totalCost}
-                        />
-                      ))
-                    : null}
-                </TreeItem>
+                  >
+                    {Boolean(nestedObservations.length)
+                      ? nestedObservations.map((observation) => (
+                          <TraceTreeItem
+                            key={`observation-${observation.id}`}
+                            observation={observation}
+                            level={1}
+                            traceStartTime={nestedObservations[0].startTime}
+                            totalScaleSpan={totalScaleSpan}
+                            projectId={projectId}
+                            scores={scores}
+                            observations={observations}
+                            cardWidth={cardWidth}
+                            commentCounts={castToNumberMap(
+                              observationCommentCounts.data,
+                            )}
+                            currentObservationId={currentObservationId}
+                            setCurrentObservationId={setCurrentObservationId}
+                            showMetrics={showMetrics}
+                            showScores={showScores}
+                            showComments={showComments}
+                            colorCodeMetrics={colorCodeMetrics}
+                            parentTotalDuration={totalDuration}
+                            parentTotalCost={totalCost}
+                          />
+                        ))
+                      : null}
+                  </TreeItem>
+                ) : (
+                  // No trace: render observations directly as roots
+                  <>
+                    {nestedObservations.map((observation) => (
+                      <TraceTreeItem
+                        key={`observation-${observation.id}`}
+                        observation={observation}
+                        level={0}
+                        traceStartTime={
+                          nestedObservations[0]?.startTime ?? new Date()
+                        }
+                        totalScaleSpan={totalScaleSpan}
+                        projectId={projectId}
+                        scores={scores}
+                        observations={observations}
+                        cardWidth={cardWidth}
+                        commentCounts={castToNumberMap(
+                          observationCommentCounts.data,
+                        )}
+                        currentObservationId={currentObservationId}
+                        setCurrentObservationId={setCurrentObservationId}
+                        showMetrics={showMetrics}
+                        showScores={showScores}
+                        showComments={showComments}
+                        colorCodeMetrics={colorCodeMetrics}
+                        parentTotalDuration={totalDuration}
+                        parentTotalCost={totalCost}
+                      />
+                    ))}
+                  </>
+                )}
               </SimpleTreeView>
 
               {minLevel && hiddenObservationsCount > 0 ? (

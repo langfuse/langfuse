@@ -22,7 +22,6 @@ import {
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
-  ScoreSource,
   LangfuseNotFoundError,
   InternalServerError,
   BatchActionQuerySchema,
@@ -72,7 +71,7 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
-type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
+type AllScoresReturnType = ScoreDomain & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
@@ -225,7 +224,7 @@ export const scoresRouter = createTRPCRouter({
         orderBy: input.orderBy,
         limit: input.limit,
         offset: input.page * input.limit,
-        excludeMetadata: true,
+        excludeMetadata: false,
         includeHasMetadataFlag: true,
       });
 
@@ -490,7 +489,7 @@ export const scoresRouter = createTRPCRouter({
       const score = !!clickhouseScore
         ? {
             ...clickhouseScore,
-            value: input.value ?? null,
+            value: input.value ?? 0,
             stringValue: input.stringValue ?? null,
             comment: input.comment ?? null,
             metadata: {},
@@ -505,7 +504,7 @@ export const scoresRouter = createTRPCRouter({
             ...inflatedParams,
             // only trace and session scores are supported for annotation
             datasetRunId: null,
-            value: input.value ?? null,
+            value: input.value ?? 0,
             stringValue: input.stringValue ?? null,
             dataType: input.dataType ?? null,
             configId: input.configId ?? null,
@@ -513,7 +512,7 @@ export const scoresRouter = createTRPCRouter({
             comment: input.comment ?? null,
             metadata: {},
             authorUserId: ctx.session.user.id,
-            source: ScoreSource.ANNOTATION,
+            source: "ANNOTATION" as const,
             queueId: input.queueId ?? null,
             executionTraceId: null,
             createdAt: new Date(),
@@ -530,8 +529,8 @@ export const scoresRouter = createTRPCRouter({
         observation_id: inflatedParams.observationId,
         session_id: inflatedParams.sessionId,
         name: input.name,
-        value: input.value !== null ? input.value : undefined,
-        source: ScoreSource.ANNOTATION,
+        value: input.value !== null ? input.value : 0,
+        source: "ANNOTATION" as const,
         comment: input.comment,
         author_user_id: ctx.session.user.id,
         config_id: input.configId,
@@ -565,7 +564,7 @@ export const scoresRouter = createTRPCRouter({
       const score = await getScoreById({
         projectId: input.projectId,
         scoreId: input.id,
-        source: ScoreSource.ANNOTATION,
+        source: "ANNOTATION",
       });
 
       if (!score) {
@@ -652,7 +651,7 @@ export const scoresRouter = createTRPCRouter({
           session_id: inflatedParams.sessionId,
           name: input.name,
           value: input.value !== null ? input.value : undefined,
-          source: ScoreSource.ANNOTATION,
+          source: "ANNOTATION",
           comment: input.comment,
           author_user_id: ctx.session.user.id,
           config_id: input.configId,
@@ -676,8 +675,8 @@ export const scoresRouter = createTRPCRouter({
           executionTraceId: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          source: ScoreSource.ANNOTATION,
-          value: input.value ?? null,
+          source: "ANNOTATION" as const,
+          value: input.value ?? 0,
           stringValue: input.stringValue ?? null,
           comment: input.comment ?? null,
           authorUserId: ctx.session.user.id,
@@ -735,7 +734,7 @@ export const scoresRouter = createTRPCRouter({
           comment: input.comment,
           author_user_id: ctx.session.user.id,
           queue_id: input.queueId,
-          source: ScoreSource.ANNOTATION,
+          source: "ANNOTATION",
           name: score.name,
           data_type: score.dataType,
           config_id: score.configId,
@@ -789,7 +788,7 @@ export const scoresRouter = createTRPCRouter({
       const clickhouseScore = await getScoreById({
         projectId: input.projectId,
         scoreId: input.id,
-        source: ScoreSource.ANNOTATION,
+        source: "ANNOTATION",
       });
       if (!clickhouseScore) {
         logger.warn(

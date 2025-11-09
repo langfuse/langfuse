@@ -39,7 +39,7 @@ export const TraceTree = ({
   minLevel,
   setMinLevel,
 }: {
-  tree: TreeNode;
+  tree: TreeNode | TreeNode[] | undefined;
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
   // Note: displayScores are merged with client-side score cache; handling optimistic updates
@@ -56,7 +56,11 @@ export const TraceTree = ({
   minLevel?: ObservationLevelType;
   setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
 }) => {
-  const totalCost = useMemo(() => {
+  const { totalCost, totalDuration, nodes } = useMemo(() => {
+    if (!tree) {
+      return { totalCost: undefined, totalDuration: undefined, nodes: [] };
+    }
+
     // For unified tree, we need to calculate total cost differently
     // Convert TreeNode back to observation format for cost calculation
     const convertTreeNodeToObservation = (node: TreeNode): any => ({
@@ -64,39 +68,72 @@ export const TraceTree = ({
       children: node.children.map(convertTreeNodeToObservation),
     });
 
+    // Handle forest structure (array of root nodes)
+    if (Array.isArray(tree)) {
+      const allObservations = tree.flatMap((node) =>
+        unnestObservation(convertTreeNodeToObservation(node)),
+      );
+      return {
+        totalCost: calculateDisplayTotalCost({ allObservations }),
+        totalDuration: undefined, // No trace latency in forest structure
+        nodes: tree,
+      };
+    }
+
+    // Handle single tree node
     if (tree.type === "TRACE") {
       // For trace root, calculate from all children
       const allObservations = tree.children.flatMap((child) =>
         unnestObservation(convertTreeNodeToObservation(child)),
       );
-      return calculateDisplayTotalCost({ allObservations });
+      return {
+        totalCost: calculateDisplayTotalCost({ allObservations }),
+        totalDuration: tree.latency ? tree.latency * 1000 : undefined,
+        nodes: [tree],
+      };
     }
 
-    return calculateDisplayTotalCost({
-      allObservations: [convertTreeNodeToObservation(tree)],
-    });
+    // Single observation root (shouldn't happen in practice)
+    return {
+      totalCost: calculateDisplayTotalCost({
+        allObservations: [convertTreeNodeToObservation(tree)],
+      }),
+      totalDuration: undefined,
+      nodes: [tree],
+    };
   }, [tree]);
+
+  if (!tree) {
+    return (
+      <div className={cn("p-4 text-center text-muted-foreground", className)}>
+        No data available
+      </div>
+    );
+  }
 
   return (
     <div className={className}>
-      <TreeNodeComponent
-        node={tree}
-        collapsedNodes={collapsedNodes}
-        toggleCollapsedNode={toggleCollapsedNode}
-        scores={scores}
-        comments={nodeCommentCounts}
-        indentationLevel={0}
-        currentNodeId={currentNodeId}
-        setCurrentNodeId={setCurrentNodeId}
-        showMetrics={showMetrics}
-        showScores={showScores}
-        colorCodeMetrics={colorCodeMetrics}
-        parentTotalCost={totalCost}
-        parentTotalDuration={tree.latency ? tree.latency * 1000 : undefined}
-        showComments={showComments}
-        treeLines={[]}
-        isLastSibling={true}
-      />
+      {nodes.map((node, index) => (
+        <TreeNodeComponent
+          key={node.id}
+          node={node}
+          collapsedNodes={collapsedNodes}
+          toggleCollapsedNode={toggleCollapsedNode}
+          scores={scores}
+          comments={nodeCommentCounts}
+          indentationLevel={0}
+          currentNodeId={currentNodeId}
+          setCurrentNodeId={setCurrentNodeId}
+          showMetrics={showMetrics}
+          showScores={showScores}
+          colorCodeMetrics={colorCodeMetrics}
+          parentTotalCost={totalCost}
+          parentTotalDuration={totalDuration}
+          showComments={showComments}
+          treeLines={[]}
+          isLastSibling={index === nodes.length - 1}
+        />
+      ))}
 
       {minLevel && hiddenObservationsCount && hiddenObservationsCount > 0 ? (
         <span className="flex items-center gap-1 p-2 py-4">

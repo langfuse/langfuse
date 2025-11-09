@@ -1,10 +1,10 @@
 import { z } from "zod/v4";
 import {
+  BooleanData,
   CategoricalData,
   NumericData,
-  BooleanData,
   ScoreFoundationSchema,
-} from "../shared";
+} from "../../../../../domain";
 
 /**
  * Foundation schema for scores API v1 i.e. trace and observation scores ONLY

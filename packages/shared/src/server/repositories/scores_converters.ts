@@ -1,6 +1,6 @@
 import { ScoreDataType } from "@prisma/client";
 import { ScoreRecordReadType } from "./definitions";
-import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
+import { ScoreDomain, type ScoreSource } from "../../domain/scores";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export type ScoreAggregation = {
@@ -26,7 +26,7 @@ export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
     datasetRunId: row.dataset_run_id ?? null,
     name: row.name,
     value: row.value ?? null,
-    source: row.source as ScoreSourceType,
+    source: row.source as (typeof ScoreSource)[number],
     comment: row.comment ?? null,
     metadata: parseMetadataCHRecordToDomain(row.metadata),
     authorUserId: row.author_user_id ?? null,
@@ -46,7 +46,7 @@ export const convertScoreAggregation = (row: ScoreAggregation) => {
     name: row.name,
     stringValue: row.string_value,
     value: Number(row.value),
-    source: row.source as ScoreSourceType,
+    source: row.source as (typeof ScoreSource)[number],
     dataType: row.data_type as ScoreDataType,
     comment: row.comment,
     timestamp: row.timestamp,

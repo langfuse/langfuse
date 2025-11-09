@@ -61,6 +61,7 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { PeekViewObservationDetailNew } from "@/src/components/table/peek/peek-observation-detail-new";
 
 export type EventsTableRow = {
   // Identity fields
@@ -957,7 +958,7 @@ export default function ObservationsEventsTable({
       itemType: "TRACE",
       customTitlePrefix: "Observation ID:",
       detailNavigationKey: "observations",
-      children: <PeekViewObservationDetail projectId={projectId} />,
+      children: <PeekViewObservationDetailNew projectId={projectId} />,
       tableDataUpdatedAt: observations.dataUpdatedAt,
       ...peekNavigationProps,
     }),

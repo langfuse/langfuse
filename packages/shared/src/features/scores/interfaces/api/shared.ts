@@ -3,59 +3,9 @@ import { jsonSchema, publicApiPaginationZod } from "../../../../utils/zod";
 import { stringDateTime } from "../../../../utils/typeChecks";
 import { applyScoreValidation } from "../../../../utils/scores";
 import { PostScoreBodyFoundationSchema } from "../shared";
+import { ScoreDataType, ScoreSource } from "../../../../domain";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
-const ScoreDataType = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
-const ScoreSource = ["API", "EVAL", "ANNOTATION"] as const;
-
-/**
- * Objects
- */
-export const NumericData = z.object({
-  value: z.number(),
-  stringValue: z.undefined().nullish(),
-  dataType: z.literal("NUMERIC"),
-});
-
-export const CategoricalData = z.object({
-  value: z.number().nullish(),
-  stringValue: z.string(),
-  dataType: z.literal("CATEGORICAL"),
-});
-
-export const BooleanData = z.object({
-  value: z.number(),
-  stringValue: z.string(),
-  dataType: z.literal("BOOLEAN"),
-});
-
-/**
- * Foundation schema for all score types, needs to be extended with entity score may be associated with. Note there are two API versions, where v1 allows only trace and observation scores, while v2 additionally allows session and dataset run scores
- * @see {@link ScoreFoundationSchemaV1}, {@link ScoreFoundationSchemaV2}
- *
- * Must also be extended with score data specific schema (numeric, categorical, boolean)
- * @see {@link NumericData}, {@link CategoricalData}, {@link BooleanData}
- */
-export const ScoreFoundationSchema = z.object({
-  id: z.string(),
-  timestamp: z.coerce.date(),
-  projectId: z.string(),
-  environment: z.string().default("default"),
-  name: z.string(),
-  source: z.enum(ScoreSource),
-  authorUserId: z.string().nullish(),
-  comment: z.string().nullish(),
-  metadata: jsonSchema.nullish(),
-  configId: z.string().nullish(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
-  queueId: z.string().nullish(),
-  executionTraceId: z.string().nullish(),
-});
-
-/**
- * Endpoints
- */
 
 // GET /scores/{scoreId}
 export const GetScoreQuery = z.object({

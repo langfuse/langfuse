@@ -34,6 +34,7 @@ export const PeekViewObservationDetail = ({
   return (
     <Trace
       key={`${trace.data.id}-${peekId}`}
+      traceId={trace.data.id}
       trace={trace.data}
       scores={trace.data.scores}
       projectId={trace.data.projectId}

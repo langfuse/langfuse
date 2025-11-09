@@ -1,5 +1,3 @@
-import { type z } from "zod/v4";
-import { z as zodSchema } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -13,16 +11,21 @@ import {
 } from "./eventsService";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import type * as opentelemetry from "@opentelemetry/api";
+import z from "zod/v4";
 
 const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
+  limit: z.preprocess(
+    (x) => (x === "" ? undefined : x),
+    z.coerce.number().nonnegative().lte(10000).default(50),
+  ),
 });
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
-const GetEventFilterOptionsInput = zodSchema.object({
-  projectId: zodSchema.string(),
-  startTimeFilter: zodSchema.array(timeFilter).optional(),
+const GetEventFilterOptionsInput = z.object({
+  projectId: z.string(),
+  startTimeFilter: z.array(timeFilter).optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -40,7 +43,7 @@ export const eventsRouter = createTRPCRouter({
         async (span) => {
           addAttributesToSpan({ span, input, orderBy: input.orderBy });
 
-          return getEventList({
+          const events = await getEventList({
             projectId: ctx.session.projectId,
             filter: input.filter ?? [],
             searchQuery: input.searchQuery ?? undefined,
@@ -49,6 +52,23 @@ export const eventsRouter = createTRPCRouter({
             page: input.page,
             limit: input.limit,
           });
+
+          return {
+            // we need to send the input and output as strings for the frontend as randomIO may be blocked by superjson/trpc
+            // for security reasons. E.g. "property" fields are blocked by default.
+            observations: events.observations.map((observation) => ({
+              ...observation,
+              input: observation.input
+                ? JSON.stringify(observation.input)
+                : null,
+              output: observation.output
+                ? JSON.stringify(observation.output)
+                : null,
+              metadata: observation.metadata
+                ? JSON.stringify(observation.metadata)
+                : null,
+            })),
+          };
         },
       );
     }),
@@ -73,9 +93,9 @@ export const eventsRouter = createTRPCRouter({
     }),
   filterOptions: protectedProjectProcedure
     .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        startTimeFilter: zodSchema.array(timeFilter).optional(),
+      z.object({
+        projectId: z.string(),
+        startTimeFilter: z.array(timeFilter).optional(),
       }),
     )
     .query(async ({ input }) => {

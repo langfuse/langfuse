@@ -195,16 +195,16 @@ export const unnestObservation = (nestedObservation: NestedObservation) => {
 // Transform trace + observations into unified tree structure
 // This function is only used internally by buildTraceUiData
 function buildTraceTree(
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  observations: ObservationReturnType[],
+  trace?: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
     metadata: string | null;
     latency?: number;
   },
-  observations: ObservationReturnType[],
   minLevel?: ObservationLevelType,
 ): {
-  tree: TreeNode;
+  tree: TreeNode | TreeNode[] | undefined;
   hiddenObservationsCount: number;
 } {
   // First, nest the observations as before
@@ -237,15 +237,19 @@ function buildTraceTree(
 
   // Create the root tree node (trace)
   // Use a unique ID for the trace root to avoid conflicts with observations that might have the same ID
-  const tree: TreeNode = {
-    id: `trace-${trace.id}`,
-    type: "TRACE",
-    name: trace.name ?? "",
-    startTime: trace.timestamp,
-    endTime: null, // traces don't have explicit end times
-    children: nestedObservations.map(convertObservationToTreeNode),
-    latency: trace.latency,
-  };
+  const tree: TreeNode | TreeNode[] | undefined = trace
+    ? {
+        id: `trace-${trace.id}`,
+        type: "TRACE",
+        name: trace.name ?? "",
+        startTime: trace.timestamp,
+        endTime: null, // traces don't have explicit end times
+        children: nestedObservations.map(convertObservationToTreeNode),
+        latency: trace.latency,
+      }
+    : nestedObservations.length > 0
+      ? nestedObservations.map(convertObservationToTreeNode)
+      : undefined;
 
   return { tree, hiddenObservationsCount };
 }
@@ -253,22 +257,23 @@ function buildTraceTree(
 // UI helper: build flat search items with per-node aggregated totals and root-level parent totals for heatmap scaling
 
 export function buildTraceUiData(
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  observations: ObservationReturnType[],
+  trace?: Omit<TraceDomain, "input" | "output" | "metadata"> & {
     input: string | null;
     output: string | null;
     metadata: string | null;
     latency?: number;
   },
-  observations: ObservationReturnType[],
+
   minLevel?: ObservationLevelType,
 ): {
-  tree: TreeNode;
+  tree: TreeNode | TreeNode[] | undefined;
   hiddenObservationsCount: number;
   searchItems: TraceSearchListItem[];
 } {
   const { tree, hiddenObservationsCount } = buildTraceTree(
-    trace,
     observations,
+    trace,
     minLevel,
   );
 
@@ -315,15 +320,36 @@ export function buildTraceUiData(
     return nodeCost || childrenCost;
   };
 
-  const rootTotalCost =
-    tree.type === "TRACE"
-      ? tree.children.reduce<Decimal | undefined>((acc, child) => {
+  // Calculate root cost and duration based on tree structure
+  let rootTotalCost: Decimal | undefined;
+  let rootDuration: number | undefined;
+
+  if (tree) {
+    if (Array.isArray(tree)) {
+      // Forest structure (no trace): calculate total from all root observations
+      rootTotalCost = tree.reduce<Decimal | undefined>((acc, node) => {
+        const nodeCost = calculateTreeNodeTotalCost(node);
+        if (!nodeCost) return acc;
+        return acc ? acc.plus(nodeCost) : nodeCost;
+      }, undefined);
+      rootDuration = undefined; // No trace latency in forest structure
+    } else if (tree.type === "TRACE") {
+      // Single trace root: calculate from its children
+      rootTotalCost = tree.children.reduce<Decimal | undefined>(
+        (acc, child) => {
           const childCost = calculateTreeNodeTotalCost(child);
           if (!childCost) return acc;
           return acc ? acc.plus(childCost) : childCost;
-        }, undefined)
-      : calculateTreeNodeTotalCost(tree);
-  const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
+        },
+        undefined,
+      );
+      rootDuration = tree.latency ? tree.latency * 1000 : undefined;
+    } else {
+      // Single observation root (shouldn't happen in practice, but handle it)
+      rootTotalCost = calculateTreeNodeTotalCost(tree);
+      rootDuration = undefined;
+    }
+  }
 
   const out: TraceSearchListItem[] = [];
   const visit = (node: TreeNode) => {
@@ -338,7 +364,15 @@ export function buildTraceUiData(
     });
     node.children.forEach(visit);
   };
-  visit(tree);
+
+  // Visit all nodes - handle both single tree and forest
+  if (tree) {
+    if (Array.isArray(tree)) {
+      tree.forEach(visit);
+    } else {
+      visit(tree);
+    }
+  }
 
   return { tree, hiddenObservationsCount, searchItems: out };
 }

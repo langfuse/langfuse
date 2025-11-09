@@ -54,7 +54,7 @@ export type ObservationDomain = z.infer<typeof ObservationDomain>;
 
 export const ObservationSchema = z.object({
   id: z.string(),
-  traceId: z.string().nullable(),
+  traceId: z.string(),
   projectId: z.string(),
   environment: z.string(),
   type: ObservationTypeDomain,
