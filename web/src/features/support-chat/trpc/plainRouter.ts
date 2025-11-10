@@ -58,7 +58,10 @@ const PrepareAttachmentUploadsInput = z.object({
         fileSizeBytes: z.number().int().positive(),
       }),
     )
-    .max(5, "Maximum 5 files allowed")
+    .max(
+      5,
+      `Maximum 5 files allowed (each ≤ ${(PLAIN_MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB)`,
+    )
     .refine(
       (files) =>
         files.every((f) => f.fileSizeBytes <= PLAIN_MAX_FILE_SIZE_BYTES),
