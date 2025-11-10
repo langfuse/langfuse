@@ -22,6 +22,13 @@ export const scoresTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 's."environment"',
+    options: [], // to be added at runtime
+  },
+  {
     name: "Observation ID",
     id: "observationId",
     type: "string",

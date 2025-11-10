@@ -13,11 +13,16 @@ export const scoreFilterConfig: FilterConfig = {
 
   columnDefinitions: scoresTableCols,
 
-  defaultExpanded: ["name"],
+  defaultExpanded: ["environment", "name"],
 
   defaultSidebarCollapsed: true,
 
   facets: [
+    {
+      type: "categorical" as const,
+      column: "environment",
+      label: "Environment",
+    },
     {
       type: "categorical" as const,
       column: "name",
