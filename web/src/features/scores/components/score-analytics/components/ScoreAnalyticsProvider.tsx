@@ -63,6 +63,7 @@ export interface EstimateData {
   willSample: boolean;
   willSkipFinal: boolean;
   estimatedQueryTime: string;
+  mode: "single" | "two";
 }
 
 export interface ScoreAnalyticsContextValue
@@ -112,6 +113,9 @@ export function ScoreAnalyticsProvider({
   // and sampling transparency
   const canEstimate = params.score1 !== undefined;
 
+  // Determine mode: "single" when only score1 selected, "two" when score2 explicitly provided
+  const mode: "single" | "two" = params.score2 === undefined ? "single" : "two";
+
   const estimateQuery = api.scores.estimateScoreComparisonSize.useQuery(
     {
       projectId: params.projectId,
@@ -122,6 +126,7 @@ export function ScoreAnalyticsProvider({
       fromTimestamp: params.fromTimestamp,
       toTimestamp: params.toTimestamp,
       objectType: params.objectType ?? "all",
+      mode, // Pass explicit mode to backend
     },
     {
       enabled: canEstimate,

@@ -209,6 +209,9 @@ export function useScoreAnalyticsQuery(
     nBins = 10,
   } = params;
 
+  // Determine mode: "single" when only score1 selected, "two" when score2 explicitly provided
+  const mode: "single" | "two" = score2 === undefined ? "single" : "two";
+
   // Fetch API data
   const {
     data: apiData,
@@ -219,6 +222,7 @@ export function useScoreAnalyticsQuery(
       projectId,
       score1,
       score2: score2 ?? score1, // Use same score if only one selected
+      mode, // Pass explicit mode to backend
       fromTimestamp,
       toTimestamp,
       interval,
@@ -234,20 +238,10 @@ export function useScoreAnalyticsQuery(
   const transformedData = useMemo<ScoreAnalyticsData | null>(() => {
     if (!apiData) return null;
 
-    const dataType = score1.dataType;
+    // Use metadata from backend (authoritative source for mode, isSameScore, dataType)
+    const { mode, isSameScore } = apiData.metadata;
+    const dataType = apiData.metadata.dataType as DataType;
     const isNumeric = dataType === "NUMERIC";
-
-    // Determine mode based on whether score2 was originally provided in params
-    // (not the fallback value sent to the API at line 190)
-    const mode: "single" | "two" = score2 !== undefined ? "two" : "single";
-
-    // Determine if we have two scores and if they're the same
-    const isSameScore = Boolean(
-      score1 &&
-        score2 &&
-        score1.name === score2.name &&
-        score1.source === score2.source,
-    );
 
     // ========================================================================
     // 1. Extract categories (categorical/boolean only)
@@ -635,6 +629,7 @@ export function useScoreAnalyticsQuery(
         },
       },
       heatmap,
+      // Use metadata from API response (backend echoes mode and provides authoritative isSameScore)
       metadata: {
         mode,
         isSameScore,
