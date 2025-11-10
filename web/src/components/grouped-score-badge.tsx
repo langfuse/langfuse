@@ -4,7 +4,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { type LastUserScore, type APIScoreV2 } from "@langfuse/shared";
+import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import {
   BracesIcon,
   MessageCircleMoreIcon,
@@ -14,7 +14,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
-const partitionScores = <T extends APIScoreV2 | LastUserScore>(
+const partitionScores = <T extends ScoreDomain | LastUserScore>(
   scores: Record<string, T[]>,
   maxVisible?: number,
 ) => {
@@ -28,7 +28,7 @@ const partitionScores = <T extends APIScoreV2 | LastUserScore>(
   return { visibleScores, hiddenScores };
 };
 
-const hasMetadata = (score: APIScoreV2 | LastUserScore) => {
+const hasMetadata = (score: ScoreDomain | LastUserScore) => {
   if (!score.metadata) return false;
   try {
     const metadata =
@@ -41,7 +41,7 @@ const hasMetadata = (score: APIScoreV2 | LastUserScore) => {
   }
 };
 
-const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
+const ScoreGroupBadge = <T extends ScoreDomain | LastUserScore>({
   name,
   scores,
   compact,
@@ -113,7 +113,7 @@ const ScoreGroupBadge = <T extends APIScoreV2 | LastUserScore>({
   );
 };
 
-export const GroupedScoreBadges = <T extends APIScoreV2 | LastUserScore>({
+export const GroupedScoreBadges = <T extends ScoreDomain | LastUserScore>({
   scores,
   maxVisible,
   compact,

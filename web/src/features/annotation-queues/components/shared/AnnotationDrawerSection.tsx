@@ -2,7 +2,7 @@ import { Card } from "@/src/components/ui/card";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import {
   type AnnotationQueueItem,
-  type APIScoreV2,
+  type ScoreDomain,
   isPresent,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
@@ -16,7 +16,7 @@ interface AnnotationDrawerSectionProps {
     lockedByUser: { name: string | null | undefined } | null;
   };
   scoreTarget: ScoreTarget;
-  scores: APIScoreV2[];
+  scores: ScoreDomain[];
   configs: ScoreConfigDomain[];
   environment?: string;
 }

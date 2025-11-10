@@ -23,7 +23,7 @@ import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
+import { type ScoreDomain, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -67,7 +67,7 @@ export function Trace(props: {
     output: string | null;
     metadata: string | null;
   };
-  scores: APIScoreV2[];
+  scores: ScoreDomain[];
   projectId: string;
   viewType?: "detailed" | "focused";
   context?: "peek" | "fullscreen"; // are we in peek or fullscreen mode?

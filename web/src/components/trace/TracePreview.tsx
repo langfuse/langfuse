@@ -1,6 +1,6 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   type TraceDomain,
   AnnotationQueueObjectType,
   isGenerationLike,
@@ -75,7 +75,7 @@ export const TracePreview = ({
     metadata: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  serverScores: APIScoreV2[];
+  serverScores: ScoreDomain[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
   showCommentButton?: boolean;

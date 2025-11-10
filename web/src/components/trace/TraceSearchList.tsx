@@ -7,7 +7,7 @@ import {
 } from "@/src/components/ui/command";
 import { SpanItem } from "@/src/components/trace/SpanItem";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import { type TreeNode } from "./lib/types";
 
@@ -20,7 +20,7 @@ export interface TraceSearchListItem {
 
 export interface TraceSearchListProps {
   items: TraceSearchListItem[];
-  displayScores: APIScoreV2[];
+  displayScores: ScoreDomain[];
   onSelect: (observationId: string | undefined) => void;
   comments?: Map<string, number>;
   showMetrics: boolean;

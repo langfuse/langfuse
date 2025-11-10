@@ -1,7 +1,7 @@
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import {
   isPresent,
-  type APIScoreV2,
+  type ScoreDomain,
   type TraceDomain,
   ObservationLevel,
   type ObservationLevelType,
@@ -83,7 +83,7 @@ function TreeItemInner({
   showScores?: boolean;
   showComments?: boolean;
   colorCodeMetrics?: boolean;
-  scores?: APIScoreV2[];
+  scores?: ScoreDomain[];
   commentCount?: number;
   parentTotalDuration?: number;
   totalCost?: Decimal;
@@ -281,7 +281,7 @@ function TraceTreeItem({
   traceStartTime: Date;
   totalScaleSpan: number;
   projectId: string;
-  scores: APIScoreV2[];
+  scores: ScoreDomain[];
   observations: Array<ObservationReturnTypeWithMetadata>;
   cardWidth: number;
   commentCounts?: Map<string, number>;
@@ -421,7 +421,7 @@ export function TraceTimelineView({
   };
   observations: Array<ObservationReturnTypeWithMetadata>;
   projectId: string;
-  displayScores: APIScoreV2[];
+  displayScores: ScoreDomain[];
   currentObservationId: string | null;
   setCurrentObservationId: (id: string | null) => void;
   expandedItems: string[];

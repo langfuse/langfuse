@@ -1,7 +1,7 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   AnnotationQueueObjectType,
-  type APIScoreV2,
+  type ScoreDomain,
   isGenerationLike,
 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
@@ -53,7 +53,7 @@ export const ObservationPreview = ({
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  serverScores: APIScoreV2[];
+  serverScores: ScoreDomain[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;

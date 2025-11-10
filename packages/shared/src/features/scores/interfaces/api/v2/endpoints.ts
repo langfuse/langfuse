@@ -1,18 +1,18 @@
 import z from "zod/v4";
 import { paginationMetaResponseZod } from "../../../../../utils/zod";
 import { GetScoreQuery, GetScoresQuery } from "../shared";
-import { APIScoreSchemaV2 } from "./schemas";
+import { ScoreSchema } from "../../../../../domain/scores";
 
 // GET /scores/{scoreId} v2
 export const GetScoreQueryV2 = GetScoreQuery;
-export const GetScoreResponseV2 = APIScoreSchemaV2;
+export const GetScoreResponseV2 = ScoreSchema;
 
 // GET /scores v2
 export const GetScoresQueryV2 = GetScoresQuery.extend({
   sessionId: z.string().nullish(),
 });
 export const GetScoreResponseDataV2 = z.intersection(
-  APIScoreSchemaV2,
+  ScoreSchema,
   z.object({
     trace: z
       .object({

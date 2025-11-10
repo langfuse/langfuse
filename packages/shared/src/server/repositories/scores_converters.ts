@@ -15,7 +15,7 @@ export type ScoreAggregation = {
 };
 
 export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
-  return {
+  const baseScore = {
     id: row.id,
     timestamp: new Date(row.timestamp),
     projectId: row.project_id,
@@ -25,18 +25,27 @@ export const convertToScore = (row: ScoreRecordReadType): ScoreDomain => {
     observationId: row.observation_id ?? null,
     datasetRunId: row.dataset_run_id ?? null,
     name: row.name,
-    value: row.value ?? null,
+    value: row.value,
     source: row.source as ScoreSourceType,
     comment: row.comment ?? null,
     metadata: parseMetadataCHRecordToDomain(row.metadata),
     authorUserId: row.author_user_id ?? null,
     configId: row.config_id ?? null,
     dataType: row.data_type as ScoreDataType,
-    stringValue: row.string_value ?? null,
     queueId: row.queue_id ?? null,
     executionTraceId: row.execution_trace_id ?? null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
+  };
+
+  if (row.data_type === "NUMERIC") {
+    return { ...baseScore, dataType: "NUMERIC", stringValue: null };
+  }
+
+  return {
+    ...baseScore,
+    dataType: row.data_type as "CATEGORICAL" | "BOOLEAN",
+    stringValue: row.string_value!,
   };
 };
 
