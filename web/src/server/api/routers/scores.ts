@@ -37,6 +37,7 @@ import {
   getScoresUiCount,
   getScoresUiTable,
   getScoreNames,
+  getScoreStringValues,
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
@@ -321,25 +322,27 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { timestampFilter } = input;
-      const [names, tags, traceNames, userIds] = await Promise.all([
-        getScoreNames(input.projectId, timestampFilter ?? []),
-        getTracesGroupedByTags({
-          projectId: input.projectId,
-          filter: timestampFilter ?? [],
-        }),
-        getTracesGroupedByName(
-          input.projectId,
-          tracesTableUiColumnDefinitions,
-          timestampFilter ?? [],
-        ),
-        getTracesGroupedByUsers(
-          input.projectId,
-          timestampFilter ?? [],
-          undefined,
-          100, // limit to top 100 users
-          0,
-        ),
-      ]);
+      const [names, tags, traceNames, userIds, stringValues] =
+        await Promise.all([
+          getScoreNames(input.projectId, timestampFilter ?? []),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ?? [],
+          }),
+          getTracesGroupedByName(
+            input.projectId,
+            tracesTableUiColumnDefinitions,
+            timestampFilter ?? [],
+          ),
+          getTracesGroupedByUsers(
+            input.projectId,
+            timestampFilter ?? [],
+            undefined,
+            100, // limit to top 100 users
+            0,
+          ),
+          getScoreStringValues(input.projectId, timestampFilter ?? []),
+        ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
@@ -349,6 +352,7 @@ export const scoresRouter = createTRPCRouter({
           count: tn.count,
         })),
         userId: userIds.map((u) => ({ value: u.user, count: u.count })),
+        stringValue: stringValues,
       };
     }),
   deleteMany: protectedProjectProcedure
