@@ -169,40 +169,42 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       });
 
       // Convert tool-call content items to tool_calls array
-      const toolCallItems = normalized.content.filter(
-        (item: unknown) =>
-          item &&
-          typeof item === "object" &&
-          (item as Record<string, unknown>).type === "tool-call",
-      );
-
-      if (toolCallItems.length > 0) {
-        normalized.tool_calls = toolCallItems.map((item: unknown) => {
-          const tc = item as Record<string, unknown>;
-          return {
-            id: tc.toolCallId,
-            name: tc.toolName,
-            arguments: tc.arguments,
-            type: "function",
-          };
-        });
-
-        // Remove tool-call items from content, keep only text items
-        const textItems = normalized.content.filter(
+      if (Array.isArray(normalized.content)) {
+        const toolCallItems = normalized.content.filter(
           (item: unknown) =>
             item &&
             typeof item === "object" &&
-            (item as Record<string, unknown>).type === "text",
+            (item as Record<string, unknown>).type === "tool-call",
         );
 
-        if (textItems.length > 0) {
-          const texts = textItems.map(
-            (item: unknown) => (item as Record<string, unknown>).text ?? "",
+        if (toolCallItems.length > 0) {
+          normalized.tool_calls = toolCallItems.map((item: unknown) => {
+            const tc = item as Record<string, unknown>;
+            return {
+              id: tc.toolCallId,
+              name: tc.toolName,
+              arguments: tc.arguments,
+              type: "function",
+            };
+          });
+
+          // Remove tool-call items from content, keep only text items
+          const textItems = normalized.content.filter(
+            (item: unknown) =>
+              item &&
+              typeof item === "object" &&
+              (item as Record<string, unknown>).type === "text",
           );
-          normalized.content = texts.join("");
-        } else {
-          // No text content, remove content field
-          delete normalized.content;
+
+          if (textItems.length > 0) {
+            const texts = textItems.map(
+              (item: unknown) => (item as Record<string, unknown>).text ?? "",
+            );
+            normalized.content = texts.join("");
+          } else {
+            // No text content, remove content field
+            delete normalized.content;
+          }
         }
       }
 
