@@ -36,6 +36,36 @@ export function stringifyToolResultContent(content: unknown): string {
   return JSON.stringify(content);
 }
 
+/**
+ * used to check if a tool call is "complex" to render as PrettyJsonView table
+ * or stringify it and render it as pure string. only used for role: tool type
+ * calls. used for tool calls themselves, not for tool selections by an LLM.
+ *
+ * Rich = has nested structure OR has more than 2 top-level keys
+ * Simple <= 2 keys with only scalar values (strings, numbers, booleans, null)
+ */
+export function isRichToolResult(content: unknown): boolean {
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    return false;
+  }
+
+  const keys = Object.keys(content);
+
+  // More than 2 keys → probably rich/structured data
+  if (keys.length > 2) return true;
+
+  // Check if any value is an object or array (nested structure)
+  for (const key of keys) {
+    const value = (content as Record<string, unknown>)[key];
+    if (value && typeof value === "object") {
+      return true; // Has nested structure
+    }
+  }
+
+  // 1-2 keys with only scalar values: simple
+  return false;
+}
+
 export function parseMetadata(
   metadata: unknown,
 ): Record<string, unknown> | null {

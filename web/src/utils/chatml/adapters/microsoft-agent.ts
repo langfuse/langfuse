@@ -3,6 +3,7 @@ import {
   parseMetadata,
   getNestedProperty,
   stringifyToolResultContent,
+  isRichToolResult,
 } from "../helpers";
 import { z } from "zod/v4";
 
@@ -174,13 +175,23 @@ function normalizeMicrosoftAgentMessage(msg: unknown): Record<string, unknown> {
     delete normalized.parts;
   }
 
-  // Stringify object content for tool result messages
+  // For tool messages with rich object content, spread into message
+  // so it goes to json passthrough field → renders as PrettyJsonView.
+  // Rich = nested structure OR 3+ keys. Simple <=2 scalar keys.
   if (
     normalized.role === "tool" &&
     typeof normalized.content === "object" &&
+    normalized.content !== null &&
     !Array.isArray(normalized.content)
   ) {
-    normalized.content = stringifyToolResultContent(normalized.content);
+    if (isRichToolResult(normalized.content)) {
+      // Rich object: spread for table rendering
+      const { content, ...rest } = normalized;
+      return { ...rest, ...content };
+    } else {
+      // Simple object: stringify for text rendering
+      normalized.content = stringifyToolResultContent(normalized.content);
+    }
   }
 
   return normalized;
