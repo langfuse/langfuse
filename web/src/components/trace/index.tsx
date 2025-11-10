@@ -63,10 +63,9 @@ const getNestedObservationKeys = (
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null | undefined;
   };
   scores: WithStringifiedMetadata<ScoreDomain>[];
   projectId: string;
