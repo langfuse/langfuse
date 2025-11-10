@@ -80,7 +80,6 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
-  executionTraceId: string | null;
 };
 
 /**
@@ -490,7 +489,7 @@ export const scoresRouter = createTRPCRouter({
       const score = !!clickhouseScore
         ? {
             ...clickhouseScore,
-            value: input.value ?? null,
+            value: input.value,
             stringValue: input.stringValue ?? null,
             comment: input.comment ?? null,
             metadata: {},
@@ -505,7 +504,7 @@ export const scoresRouter = createTRPCRouter({
             ...inflatedParams,
             // only trace and session scores are supported for annotation
             datasetRunId: null,
-            value: input.value ?? null,
+            value: input.value,
             stringValue: input.stringValue ?? null,
             dataType: input.dataType ?? null,
             configId: input.configId ?? null,
@@ -530,7 +529,7 @@ export const scoresRouter = createTRPCRouter({
         observation_id: inflatedParams.observationId,
         session_id: inflatedParams.sessionId,
         name: input.name,
-        value: input.value !== null ? input.value : undefined,
+        value: input.value,
         source: ScoreSource.ANNOTATION,
         comment: input.comment,
         author_user_id: ctx.session.user.id,
@@ -651,7 +650,7 @@ export const scoresRouter = createTRPCRouter({
           observation_id: inflatedParams.observationId,
           session_id: inflatedParams.sessionId,
           name: input.name,
-          value: input.value !== null ? input.value : undefined,
+          value: input.value,
           source: ScoreSource.ANNOTATION,
           comment: input.comment,
           author_user_id: ctx.session.user.id,
@@ -677,7 +676,7 @@ export const scoresRouter = createTRPCRouter({
           createdAt: new Date(),
           updatedAt: new Date(),
           source: ScoreSource.ANNOTATION,
-          value: input.value ?? null,
+          value: input.value,
           stringValue: input.stringValue ?? null,
           comment: input.comment ?? null,
           authorUserId: ctx.session.user.id,
@@ -747,7 +746,7 @@ export const scoresRouter = createTRPCRouter({
 
         updatedScore = {
           ...score,
-          value: input.value ?? null,
+          value: input.value,
           stringValue: input.stringValue ?? null,
           comment: input.comment ?? null,
           authorUserId: ctx.session.user.id,

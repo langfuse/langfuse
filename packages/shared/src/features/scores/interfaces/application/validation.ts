@@ -15,7 +15,7 @@ type InputScore = ScoreDomain & { hasMetadata?: boolean };
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: ScoreDomain): ScoreDomain =>
+export const validateDbScore = (score: unknown): ScoreDomain =>
   ScoreSchema.parse(score);
 
 /**
