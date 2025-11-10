@@ -46,6 +46,11 @@ export const scoreFilterConfig: FilterConfig = {
       max: 100,
     },
     {
+      type: "categorical" as const,
+      column: "stringValue",
+      label: "String Value",
+    },
+    {
       type: "string" as const,
       column: "traceId",
       label: "Trace ID",

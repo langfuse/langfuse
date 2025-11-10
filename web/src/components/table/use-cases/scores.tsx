@@ -233,6 +233,11 @@ export default function ScoresTable({
       source: ["ANNOTATION", "API", "EVAL"],
       dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
       value: [],
+      stringValue:
+        filterOptions.data?.stringValue?.map((sv) => ({
+          value: sv.value,
+          count: sv.count !== undefined ? Number(sv.count) : undefined,
+        })) || [],
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
