@@ -273,6 +273,20 @@ export const langgraphAdapter: ProviderAdapter = {
     // EXPLICIT: Framework hint
     if (ctx.framework === "langgraph") return true;
 
+    // REJECTIONS: Reject OpenAI Agents SDK format
+    if (meta && typeof meta === "object") {
+      if ("scope" in meta && typeof meta.scope === "object") {
+        const scope = meta.scope as Record<string, unknown>;
+        if (
+          scope.name === "openinference.instrumentation.openai_agents" ||
+          (typeof scope.name === "string" &&
+            scope.name.includes("openai_agents"))
+        ) {
+          return false;
+        }
+      }
+    }
+
     // HINTS: LangGraph/LangChain-specific metadata markers
     if (meta && typeof meta === "object") {
       // LangGraph markers
