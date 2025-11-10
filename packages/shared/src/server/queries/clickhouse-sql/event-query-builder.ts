@@ -599,12 +599,12 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
 
   /**
    * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
-   * Uses start_time_unix for efficient filtering via primary key
+   * Uses BOTH start_time (for partition pruning) and start_time_unix (for index efficiency)
    */
   withStartTimeFrom(startTimeFrom?: string | null): this {
     return this.when(Boolean(startTimeFrom), (b) =>
       b.whereRaw(
-        `start_time_unix >= toUnixTimestamp({startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL})`,
+        `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL} AND start_time_unix >= toUnixTimestamp({startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL})`,
         { startTimeFrom },
       ),
     );

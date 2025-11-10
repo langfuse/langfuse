@@ -431,9 +431,12 @@ const getObservationByIdFromEventsTableInternal = async ({
     )
     .whereRaw("span_id = {id: String}", { id })
     .when(Boolean(startTime), (b) =>
-      b.whereRaw("toDate(start_time) = toDate({startTime: DateTime64(3)})", {
-        startTime: convertDateToClickhouseDateTime(startTime!),
-      }),
+      b.whereRaw(
+        "toDate(start_time) = toDate({startTime: DateTime64(3)}) AND start_time_unix >= toUnixTimestamp(toStartOfDay({startTime: DateTime64(3)})) AND start_time_unix < toUnixTimestamp(toStartOfDay({startTime: DateTime64(3)}) + INTERVAL 1 DAY)",
+        {
+          startTime: convertDateToClickhouseDateTime(startTime!),
+        },
+      ),
     )
     .when(Boolean(type), (b) => b.whereRaw("type = {type: String}", { type }))
     .when(Boolean(traceId), (b) =>
