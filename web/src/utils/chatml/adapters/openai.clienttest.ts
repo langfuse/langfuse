@@ -160,7 +160,7 @@ describe("OpenAI Adapter", () => {
     expect(result.data?.[0].content).toBe("Hello");
   });
 
-  it("should stringify tool message object content", () => {
+  it("should stringify simple tool message object content (1-2 scalar keys)", () => {
     const input = {
       messages: [
         {
@@ -173,10 +173,38 @@ describe("OpenAI Adapter", () => {
 
     const result = normalizeInput(input, { framework: "openai" });
     expect(result.success).toBe(true);
+    // Simple objects (< 5 keys) get stringified, not spread
     expect(typeof result.data?.[0].content).toBe("string");
     expect(result.data?.[0].content).toBe(
       '{"temperature":72,"conditions":"sunny"}',
     );
+    expect(result.data?.[0].tool_call_id).toBe("call_123");
+  });
+
+  it("should spread rich tool message object content (3+ keys or nested) for table rendering", () => {
+    const input = {
+      messages: [
+        {
+          role: "tool",
+          content: {
+            PatientNo: "123",
+            Firstname: "John",
+            Lastname: "Doe",
+            Email: "john@example.com",
+            Mobile: "1234567890",
+          },
+          tool_call_id: "call_456",
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "openai" });
+    expect(result.success).toBe(true);
+    // Rich objects (5+ keys) get spread for passthrough rendering
+    expect(result.data?.[0].content).toBeUndefined();
+    expect(result.data?.[0].json?.json?.PatientNo).toBe("123");
+    expect(result.data?.[0].json?.json?.Firstname).toBe("John");
+    expect(result.data?.[0].tool_call_id).toBe("call_456");
   });
 
   describe("Chat Completions API", () => {
