@@ -39,10 +39,9 @@ export const BooleanData = z.object({
 });
 
 // Only used for backwards compatibility with old score API schemas
-export const ScoreSchemaExclReferences = z.object({
+export const ScoreSchemaExclReferencesAndDates = z.object({
   // Core identifiers
   id: z.string(),
-  timestamp: z.date(),
   projectId: z.string(),
   // Metadata
   environment: z.string(),
@@ -59,13 +58,14 @@ export const ScoreSchemaExclReferences = z.object({
   queueId: z.string().nullable(),
   // Score execution
   executionTraceId: z.string().nullable(),
-  // Timestamps
-  createdAt: z.date(),
-  updatedAt: z.date(),
 });
 
-export const ScoreFoundationSchema = ScoreSchemaExclReferences.and(
+const ScoreFoundationSchema = ScoreSchemaExclReferencesAndDates.and(
   z.object({
+    // Timestamps
+    createdAt: z.date(),
+    updatedAt: z.date(),
+    timestamp: z.date(),
     // Score references; one of the following must be provided
     traceId: z.string().nullable(),
     sessionId: z.string().nullable(),

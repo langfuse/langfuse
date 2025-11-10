@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import {
-  ScoreSchemaExclReferences,
+  ScoreSchemaExclReferencesAndDates,
   CategoricalData,
   NumericData,
   BooleanData,
@@ -12,7 +12,12 @@ import {
  * Must be extended with score data specific schema (numeric, categorical, boolean)
  * @see {@link NumericData}, {@link CategoricalData}, {@link BooleanData}
  */
-const ScoreFoundationSchemaV1 = ScoreSchemaExclReferences.extend({
+const ScoreFoundationSchemaV1 = ScoreSchemaExclReferencesAndDates.extend({
+  // Timestamps
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+  timestamp: z.coerce.date(),
+  // Score references
   traceId: z.string(),
   observationId: z.string().nullish(),
 });
