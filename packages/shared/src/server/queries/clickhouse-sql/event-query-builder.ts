@@ -26,6 +26,7 @@ const EVENTS_FIELDS = {
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
+  startTimeUnix: 'e.start_time_unix as "start_time_unix"',
   endTime: 'e.end_time as "end_time"',
   completionStartTime: 'e.completion_start_time as "completion_start_time"',
   createdAt: 'e.created_at as "created_at"',
@@ -598,11 +599,12 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
 
   /**
    * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
+   * Uses start_time_unix for efficient filtering via primary key
    */
   withStartTimeFrom(startTimeFrom?: string | null): this {
     return this.when(Boolean(startTimeFrom), (b) =>
       b.whereRaw(
-        `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        `start_time_unix >= toUnixTimestamp({startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL})`,
         { startTimeFrom },
       ),
     );
