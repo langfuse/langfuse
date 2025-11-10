@@ -122,3 +122,36 @@ describe("CTEQueryBuilder", () => {
     expect(params.param3).toBe("value3");
   });
 });
+
+describe("EventsAggregationQueryBuilder", () => {
+  it("should include both start_time and start_time_unix filters with withStartTimeFrom", () => {
+    const builder = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .withStartTimeFrom("2024-01-01T00:00:00.000Z")
+      .orderBy("ORDER BY timestamp DESC");
+
+    const { query, params } = builder.buildWithParams();
+
+    // Should contain both filters for partition pruning and index usage
+    expect(query).toContain("start_time >=");
+    expect(query).toContain("start_time_unix >=");
+    expect(query).toContain("toUnixTimestamp");
+    expect(params.startTimeFrom).toBe("2024-01-01T00:00:00.000Z");
+  });
+
+  it("should not include time filters when startTimeFrom is null", () => {
+    const builder = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .withStartTimeFrom(null)
+      .orderBy("ORDER BY timestamp DESC");
+
+    const { query } = builder.buildWithParams();
+
+    expect(query).not.toContain("start_time >=");
+    expect(query).not.toContain("start_time_unix >=");
+  });
+});
