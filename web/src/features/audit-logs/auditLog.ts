@@ -229,6 +229,8 @@ export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
       action: log.action,
       before: log.before ? JSON.stringify(log.before) : undefined,
       after: log.after ? JSON.stringify(log.after) : undefined,
+      clientIp: meta.clientIp ?? undefined,
+      ipChain: meta.ipChain ?? undefined,
     },
   });
 }
