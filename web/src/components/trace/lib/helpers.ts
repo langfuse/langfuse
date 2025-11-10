@@ -8,6 +8,7 @@ import {
   ObservationLevel,
   type TraceDomain,
 } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export function nestObservations(
   list: ObservationReturnType[],
@@ -195,10 +196,9 @@ export const unnestObservation = (nestedObservation: NestedObservation) => {
 // Transform trace + observations into unified tree structure
 // This function is only used internally by buildTraceUiData
 function buildTraceTree(
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
     latency?: number;
   },
   observations: ObservationReturnType[],
@@ -253,10 +253,9 @@ function buildTraceTree(
 // UI helper: build flat search items with per-node aggregated totals and root-level parent totals for heatmap scaling
 
 export function buildTraceUiData(
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
     latency?: number;
   },
   observations: ObservationReturnType[],

@@ -4,6 +4,7 @@ import { type ScoreTarget } from "@/src/features/scores/types";
 import { mergeScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
 import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTarget";
 import { type ScoreDomain } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**
  * Hook for merging server scores with cached scores
@@ -21,10 +22,10 @@ import { type ScoreDomain } from "@langfuse/shared";
  * @returns ScoreDomain[] with all cache operations applied
  */
 export function useMergedScores(
-  serverScores: ScoreDomain[],
+  serverScores: WithStringifiedMetadata<ScoreDomain>[],
   target: ScoreTarget,
   mode: "target-and-child-scores" | "target-scores-only" = "target-scores-only",
-): ScoreDomain[] {
+): WithStringifiedMetadata<ScoreDomain>[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
   const cachedScores = getAllForTarget(mode, {

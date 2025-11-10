@@ -33,6 +33,7 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -128,7 +129,11 @@ export function SessionUsers({
   );
 }
 
-const SessionScores = ({ scores }: { scores: ScoreDomain[] }) => {
+const SessionScores = ({
+  scores,
+}: {
+  scores: WithStringifiedMetadata<ScoreDomain>[];
+}) => {
   return (
     <div className="flex flex-wrap gap-1">
       <GroupedScoreBadges scores={scores} />

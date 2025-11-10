@@ -21,6 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export const TraceTree = ({
   tree,
@@ -43,7 +44,7 @@ export const TraceTree = ({
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
   // Note: displayScores are merged with client-side score cache; handling optimistic updates
-  displayScores: ScoreDomain[];
+  displayScores: WithStringifiedMetadata<ScoreDomain>[];
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
   showMetrics: boolean;
@@ -124,7 +125,7 @@ type TreeNodeComponentProps = {
   node: TreeNode;
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
-  scores: ScoreDomain[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
   indentationLevel: number;
   currentNodeId: string | undefined;

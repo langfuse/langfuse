@@ -1,5 +1,6 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
   type ScoreDataType,
@@ -79,7 +80,7 @@ type AnalyticsData = {
 export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   projectId: string;
   scoreTarget: Target;
-  scores: ScoreDomain[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   analyticsData?: AnalyticsData;
   scoreMetadata: {
     projectId: string;
@@ -107,7 +108,7 @@ export type ScoreConfigSelection =
 
 export type AnnotationForm<Target extends ScoreTarget> = {
   scoreTarget: Target;
-  serverScores: ScoreDomain[] | ScoreAggregate;
+  serverScores: WithStringifiedMetadata<ScoreDomain>[] | ScoreAggregate;
   scoreMetadata: {
     projectId: string;
     queueId?: string;

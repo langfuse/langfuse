@@ -9,6 +9,7 @@ import {
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 interface AnnotationDrawerSectionProps {
   item: AnnotationQueueItem & {
@@ -16,7 +17,7 @@ interface AnnotationDrawerSectionProps {
     lockedByUser: { name: string | null | undefined } | null;
   };
   scoreTarget: ScoreTarget;
-  scores: ScoreDomain[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   configs: ScoreConfigDomain[];
   environment?: string;
 }
