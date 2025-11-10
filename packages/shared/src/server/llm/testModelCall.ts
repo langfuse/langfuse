@@ -27,7 +27,9 @@ export const testModelCall = async ({
     messages: [
       {
         role: ChatMessageRole.User,
-        content: prompt ?? "mock content",
+        content:
+          prompt ??
+          'Extract a score (1-5) and reasoning from this text: "This is a test. It works well."',
         type: ChatMessageType.User,
       },
     ],
@@ -38,8 +40,8 @@ export const testModelCall = async ({
       ...modelConfig,
     },
     structuredOutputSchema: zodV3.object({
-      score: zodV3.string(),
-      reasoning: zodV3.string(),
+      score: zodV3.string().describe("Score from 1-5"),
+      reasoning: zodV3.string().describe("Explanation of the score"),
     }),
   });
 };
