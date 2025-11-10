@@ -65,47 +65,93 @@ const OpenAIOutputSingleMessageSchema = z.looseObject({
 function normalizeMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
 
-  let normalized = removeNullFields(msg);
-
-  // Normalize camelCase toolCalls to snake_case tool_calls (VAPI framework does this, otherwise it matches OpenAI)
-  if ("toolCalls" in normalized && Array.isArray(normalized.toolCalls)) {
-    normalized.tool_calls = normalized.toolCalls;
-    delete normalized.toolCalls;
-  }
+  // we want to do type-based conversions BEFORE removeNullFields
+  // because removeNullFields moves unrecognized fields to json passthrough
+  let working = msg as Record<string, unknown>;
 
   // Convert direct function call message to tool_calls array format
   // Format: { type: "function_call", name: "...", arguments: {...}, call_id: "..." }
   // Convert to: { role: "assistant", tool_calls: [{ id, name, arguments, type }] }
   if (
-    (normalized.type === "function_call" || normalized.type === "tool_call") &&
-    normalized.name &&
-    typeof normalized.name === "string"
+    (working.type === "function_call" || working.type === "tool_call") &&
+    working.name &&
+    typeof working.name === "string"
   ) {
     const toolCall: Record<string, unknown> = {
-      id: normalized.call_id || normalized.id || "",
-      name: normalized.name,
+      id: working.call_id || working.id || "",
+      name: working.name,
       arguments:
-        typeof normalized.arguments === "string"
-          ? normalized.arguments
-          : JSON.stringify(normalized.arguments ?? {}),
+        typeof working.arguments === "string"
+          ? working.arguments
+          : JSON.stringify(working.arguments ?? {}),
       type: "function",
     };
 
-    // Remove the direct function call properties and add tool_calls array
     /* eslint-disable @typescript-eslint/no-unused-vars */
     const {
       type: _type,
       name: _name,
       arguments: _args,
       call_id: _call_id,
+      id: _id,
+      status: _status,
       ...rest
-    } = normalized;
+    } = working;
     /* eslint-enable @typescript-eslint/no-unused-vars */
-    normalized = {
+    working = {
       ...rest,
       role: rest.role || "assistant",
       tool_calls: [toolCall],
     };
+  }
+
+  // Convert function_call_output to standard tool message format
+  // Format: { type: "function_call_output", call_id: "...", output: "..." }
+  // Convert to: { role: "tool", tool_call_id: "...", content: "..." }
+  if (working.type === "function_call_output") {
+    const content =
+      typeof working.output === "string"
+        ? working.output
+        : JSON.stringify(working.output ?? "");
+
+    /* eslint-disable @typescript-eslint/no-unused-vars */
+    const { type: _type, call_id, output: _output, ...rest } = working;
+    /* eslint-enable @typescript-eslint/no-unused-vars */
+
+    working = {
+      ...rest,
+      role: "tool",
+      tool_call_id: call_id,
+      content,
+    };
+  }
+
+  // Now apply removeNullFields after conversions
+  let normalized = removeNullFields(working);
+
+  // Extract text from OpenAI Agents output_text format
+  // Format: content: [{type: "output_text", text: "..."}]
+  if (
+    normalized.content &&
+    Array.isArray(normalized.content) &&
+    normalized.content.length > 0
+  ) {
+    const firstItem = normalized.content[0];
+    if (
+      firstItem &&
+      typeof firstItem === "object" &&
+      (firstItem as Record<string, unknown>).type === "output_text" &&
+      typeof (firstItem as Record<string, unknown>).text === "string"
+    ) {
+      // Extract just the text for simple output
+      normalized.content = (firstItem as Record<string, unknown>).text;
+    }
+  }
+
+  // Normalize camelCase toolCalls to snake_case tool_calls (VAPI framework does this, otherwise it matches OpenAI)
+  if ("toolCalls" in normalized && Array.isArray(normalized.toolCalls)) {
+    normalized.tool_calls = normalized.toolCalls;
+    delete normalized.toolCalls;
   }
 
   // Flatten OpenAI nested tool_calls format: function.name → name, function.arguments → arguments
@@ -200,6 +246,20 @@ function preprocessData(data: unknown): unknown {
         ...normalizeMessage(msg),
         tools: (obj.tools as unknown[]).map(flattenToolDefinition),
       }));
+    }
+  }
+
+  // Responses API without tools: {output: [...]}
+  if (
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    "output" in data &&
+    !("messages" in data) &&
+    !("tools" in data)
+  ) {
+    const obj = data as Record<string, unknown>;
+    if (Array.isArray(obj.output)) {
+      return (obj.output as unknown[]).map(normalizeMessage);
     }
   }
 
