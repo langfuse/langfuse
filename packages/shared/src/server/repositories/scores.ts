@@ -244,7 +244,10 @@ export const getScoresForSessions = async <
     clickhouseConfigs,
   });
 
-  return rows.map((row) => convertClickhouseScoreToDomain(row));
+  const includeMetadataPayload = excludeMetadata ? false : true;
+  return rows.map((row) =>
+    convertClickhouseScoreToDomain(row, includeMetadataPayload),
+  );
 };
 
 export const getScoresForDatasetRuns = async <
@@ -293,7 +296,10 @@ export const getScoresForDatasetRuns = async <
     clickhouseConfigs,
   });
 
-  return rows.map((row) => convertClickhouseScoreToDomain(row));
+  const includeMetadataPayload = excludeMetadata ? false : true;
+  return rows.map((row) =>
+    convertClickhouseScoreToDomain(row, includeMetadataPayload),
+  );
 };
 
 export const getTraceScoresForDatasetRuns = async (
@@ -357,8 +363,12 @@ export const getTraceScoresForDatasetRuns = async (
     },
   });
 
+  const includeMetadataPayload = false;
   return rows.map((row) => ({
-    ...convertClickhouseScoreToDomain({ ...row, metadata: {} }),
+    ...convertClickhouseScoreToDomain(
+      { ...row, metadata: {} },
+      includeMetadataPayload,
+    ),
     datasetRunId: row.run_id,
     hasMetadata: !!row.has_metadata,
   }));
@@ -426,11 +436,15 @@ export const getScoresForTraces = async <
     preferredClickhouseService,
   });
 
+  const includeMetadataPayload = excludeMetadata ? false : true;
   return rows.map((row) => {
-    const score = convertClickhouseScoreToDomain({
-      ...row,
-      metadata: excludeMetadata ? {} : row.metadata,
-    });
+    const score = convertClickhouseScoreToDomain(
+      {
+        ...row,
+        metadata: excludeMetadata ? {} : row.metadata,
+      },
+      includeMetadataPayload,
+    );
 
     recordDistribution(
       "langfuse.query_by_id_age",
@@ -523,11 +537,15 @@ export const getScoresForObservations = async <
     clickhouseConfigs,
   });
 
+  const includeMetadataPayload = excludeMetadata ? false : true;
   return rows.map((row) => ({
-    ...convertClickhouseScoreToDomain({
-      ...row,
-      metadata: excludeMetadata ? {} : row.metadata,
-    }),
+    ...convertClickhouseScoreToDomain(
+      {
+        ...row,
+        metadata: excludeMetadata ? {} : row.metadata,
+      },
+      includeMetadataPayload,
+    ),
     hasMetadata: (includeHasMetadata
       ? !!row.has_metadata
       : undefined) as IncludeHasMetadata extends true ? boolean : never,
@@ -849,7 +867,6 @@ export async function getScoresUiTable<
   });
 
   const includeMetadataPayload = excludeMetadata ? false : true;
-
   return rows.map((row) => {
     const score = convertClickhouseScoreToDomain(
       { ...row, metadata: excludeMetadata ? {} : row.metadata },
