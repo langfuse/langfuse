@@ -931,6 +931,7 @@ export const scoresRouter = createTRPCRouter({
         objectType: z
           .enum(["all", "trace", "session", "observation", "dataset_run"])
           .default("all"),
+        mode: z.enum(["single", "two"]).optional(), // Frontend passes "single" when only score1 selected
       }),
     )
     .query(async ({ input }) => {
@@ -997,6 +998,7 @@ export const scoresRouter = createTRPCRouter({
         willSample,
         willSkipFinal,
         estimatedQueryTime,
+        mode: input.mode ?? "two", // Echo back the mode from frontend
       };
     }),
 
@@ -1018,6 +1020,7 @@ export const scoresRouter = createTRPCRouter({
           dataType: z.string(),
           source: z.string(),
         }),
+        mode: z.enum(["single", "two"]).optional(), // Frontend passes "single" when only score1 selected
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
         interval: z
@@ -2323,6 +2326,12 @@ export const scoresRouter = createTRPCRouter({
               ? "Small dataset - using FINAL for accuracy"
               : "Large dataset - skipping FINAL for performance",
           },
+        },
+        // Metadata about query mode and score comparison
+        metadata: {
+          mode: input.mode ?? "two", // Echo back the mode from frontend
+          isSameScore: isIdenticalScores,
+          dataType: score1.dataType,
         },
       };
     }),

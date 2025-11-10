@@ -63,6 +63,7 @@ export interface EstimateData {
   willSample: boolean;
   willSkipFinal: boolean;
   estimatedQueryTime: string;
+  mode: "single" | "two";
 }
 
 export interface ScoreAnalyticsContextValue
@@ -108,17 +109,24 @@ export function ScoreAnalyticsProvider({
   children,
 }: ScoreAnalyticsProviderProps) {
   // Step 1: Run estimate query first
-  const canEstimate =
-    params.score1 !== undefined && params.score2 !== undefined;
+  // Enable for both single-score and two-score modes to provide loading indicators
+  // and sampling transparency
+  const canEstimate = params.score1 !== undefined;
+
+  // Determine mode: "single" when only score1 selected, "two" when score2 explicitly provided
+  const mode: "single" | "two" = params.score2 === undefined ? "single" : "two";
 
   const estimateQuery = api.scores.estimateScoreComparisonSize.useQuery(
     {
       projectId: params.projectId,
       score1: params.score1 ?? { name: "", dataType: "", source: "" },
-      score2: params.score2 ?? { name: "", dataType: "", source: "" },
+      // For single-score mode, pass score1 as score2 (backend will detect identical scores)
+      score2: params.score2 ??
+        params.score1 ?? { name: "", dataType: "", source: "" },
       fromTimestamp: params.fromTimestamp,
       toTimestamp: params.toTimestamp,
       objectType: params.objectType ?? "all",
+      mode, // Pass explicit mode to backend
     },
     {
       enabled: canEstimate,
@@ -127,8 +135,8 @@ export function ScoreAnalyticsProvider({
     },
   );
 
-  // Step 2: Only run main query after estimate succeeds (two-score mode)
-  // For single-score mode, run immediately without estimate
+  // Step 2: Only run main query after estimate succeeds
+  // This applies to both single-score and two-score modes now
   const queryResult = useScoreAnalyticsQuery(params, {
     enabled: !canEstimate || estimateQuery.isSuccess,
   });
