@@ -3,6 +3,7 @@ import {
   removeNullFields,
   stringifyToolResultContent,
   parseMetadata,
+  isRichToolResult,
 } from "../helpers";
 import { z } from "zod/v4";
 
@@ -184,13 +185,23 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     });
   }
 
-  // Stringify object/array content for tool messages
+  // For tool messages with rich object content, spread into message
+  // so it goes to json passthrough field → renders as PrettyJsonView.
+  // Rich = nested structure OR 3+ keys. Simple <=2 scalar keys.
   if (
     normalized.role === "tool" &&
     typeof normalized.content === "object" &&
-    normalized.content !== null
+    normalized.content !== null &&
+    !Array.isArray(normalized.content)
   ) {
-    normalized.content = stringifyToolResultContent(normalized.content);
+    if (isRichToolResult(normalized.content)) {
+      // Rich object: spread for table rendering
+      const { content, ...rest } = normalized;
+      return { ...rest, ...content };
+    } else {
+      // Simple object: stringify for text rendering
+      normalized.content = stringifyToolResultContent(normalized.content);
+    }
   }
 
   return normalized;
@@ -261,6 +272,20 @@ export const langgraphAdapter: ProviderAdapter = {
 
     // EXPLICIT: Framework hint
     if (ctx.framework === "langgraph") return true;
+
+    // REJECTIONS: Reject OpenAI Agents SDK format
+    if (meta && typeof meta === "object") {
+      if ("scope" in meta && typeof meta.scope === "object") {
+        const scope = meta.scope as Record<string, unknown>;
+        if (
+          scope.name === "openinference.instrumentation.openai_agents" ||
+          (typeof scope.name === "string" &&
+            scope.name.includes("openai_agents"))
+        ) {
+          return false;
+        }
+      }
+    }
 
     // HINTS: LangGraph/LangChain-specific metadata markers
     if (meta && typeof meta === "object") {

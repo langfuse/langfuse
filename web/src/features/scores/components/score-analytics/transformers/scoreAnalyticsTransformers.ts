@@ -60,7 +60,15 @@ export function extractCategories(params: {
 }): string[] | undefined {
   if (params.dataType === "NUMERIC") return undefined;
 
-  // Try stackedDistribution first (for categorical comparisons)
+  // For boolean scores: ALWAYS return both categories
+  // This ensures confusion matrix, distributions, and time series show both False and True
+  // even when the data only contains one category (e.g., all True or all False)
+  // IMPORTANT: This check must come BEFORE stackedDistribution/confusionMatrix checks
+  // to prevent early returns with incomplete category lists
+  if (params.dataType === "BOOLEAN") {
+    return ["False", "True"];
+  }
+
   if (params.stackedDistribution && params.stackedDistribution.length > 0) {
     const uniqueCategories = new Set<string>();
     params.stackedDistribution.forEach((item) => {
@@ -76,11 +84,6 @@ export function extractCategories(params: {
       uniqueCategories.add(row.rowCategory);
     });
     return Array.from(uniqueCategories).sort();
-  }
-
-  // For boolean: hardcoded assumption
-  if (params.dataType === "BOOLEAN") {
-    return ["False", "True"];
   }
 
   return undefined;
