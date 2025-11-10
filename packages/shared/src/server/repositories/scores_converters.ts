@@ -41,7 +41,7 @@ export const convertClickhouseScoreToDomain = <ExcludeMetadata extends boolean>(
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
     metadata: (includeMetadataPayload
       ? (parseMetadataCHRecordToDomain(record.metadata ?? {}) ?? {})
-      : null) as ExcludeMetadata extends true
+      : {}) as ExcludeMetadata extends true
       ? never
       : NonNullable<ReturnType<typeof parseMetadataCHRecordToDomain>>,
   };
