@@ -21,7 +21,7 @@ export const TraceDomain = z.object({
   version: z.string().nullable(),
   input: jsonSchema.nullable(),
   output: jsonSchema.nullable(),
-  metadata: MetadataDomain,
+  metadata: MetadataDomain.nullable(), // TODO: discuss with team
   createdAt: z.date(),
   updatedAt: z.date(),
   sessionId: z.string().nullable(),
