@@ -234,7 +234,7 @@ export const createEvent = (
     // Model
     model_id: null,
     provided_model_name: "gpt-3.5-turbo",
-    model_parameters: null,
+    model_parameters: "{}",
 
     // Usage & Cost
     provided_usage_details: { input: 1234, output: 5678, total: 6912 },

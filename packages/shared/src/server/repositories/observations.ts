@@ -505,6 +505,7 @@ export type ObservationTableQuery = {
   limit?: number;
   offset?: number;
   selectIOAndMetadata?: boolean;
+  renderingProps?: RenderingProps;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 

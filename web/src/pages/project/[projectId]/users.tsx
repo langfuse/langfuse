@@ -110,6 +110,12 @@ const UsersTable = () => {
           operator: ">=",
           value: dateRange.from,
         },
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: "<=",
+          value: dateRange.to,
+        },
       ]
     : [];
 

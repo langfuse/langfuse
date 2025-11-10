@@ -3,6 +3,7 @@ import {
   removeNullFields,
   stringifyToolResultContent,
   parseMetadata,
+  isRichToolResult,
 } from "../helpers";
 import { z } from "zod/v4";
 
@@ -65,6 +66,12 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
 
   let normalized = removeNullFields(msg);
+
+  // Normalize camelCase toolCalls to snake_case tool_calls (VAPI framework does this, otherwise it matches OpenAI)
+  if ("toolCalls" in normalized && Array.isArray(normalized.toolCalls)) {
+    normalized.tool_calls = normalized.toolCalls;
+    delete normalized.toolCalls;
+  }
 
   // Convert direct function call message to tool_calls array format
   // Format: { type: "function_call", name: "...", arguments: {...}, call_id: "..." }
@@ -132,13 +139,23 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     });
   }
 
-  // Stringify object content for tool messages
+  // For tool messages with rich object content, spread into message
+  // so it goes to json passthrough field and renders as PrettyJsonView.
+  // Rich = nested structure OR 3+ keys. Simple <=2 scalar keys.
   if (
     normalized.role === "tool" &&
     typeof normalized.content === "object" &&
+    normalized.content !== null &&
     !Array.isArray(normalized.content)
   ) {
-    normalized.content = stringifyToolResultContent(normalized.content);
+    if (isRichToolResult(normalized.content)) {
+      // Rich object: spread for table rendering
+      const { content, ...rest } = normalized;
+      return { ...rest, ...content };
+    } else {
+      // Simple object: stringify for text rendering
+      normalized.content = stringifyToolResultContent(normalized.content);
+    }
   }
 
   return normalized;

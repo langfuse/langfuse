@@ -505,6 +505,31 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
+  it("should extract text from Vercel AI SDK content array format", () => {
+    // Vercel AI SDK format: content as array with type/text structure
+    const input = {
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Hello world" }],
+        },
+      ],
+    };
+
+    const inResult = normalizeInput(input, {});
+    expect(inResult.success).toBe(true);
+
+    const playgroundMsg = convertChatMlToPlayground(inResult.data![0]);
+
+    // Should extract text, not stringify array
+    expect(
+      playgroundMsg && "content" in playgroundMsg && playgroundMsg.content,
+    ).toBe("Hello world");
+    expect(
+      playgroundMsg && "content" in playgroundMsg && playgroundMsg.content,
+    ).not.toContain("[{");
+  });
+
   it("should extract tools from Microsoft Agent Framework metadata", () => {
     // Microsoft Agent Framework stores tools in metadata.attributes["gen_ai.tool.definitions"]
     const input = [
@@ -591,5 +616,111 @@ describe("Playground Jump Full Pipeline", () => {
     });
     expect(tools[1].name).toBe("get_time");
     expect(tools[1].description).toBe("Get the current time in a timezone.");
+  });
+
+  it("should preserve rich tool results when jumping to playground", () => {
+    // Regression test: tool results with many keys(6+) are spread into json passthrough by adapters
+    // (for PrettyJsonView table rendering in trace view). playgroundConverter must fallback
+    // to jsonData when content is undefined to preserve tool result data for playground.
+    const input = {
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "c1",
+              type: "function",
+              function: { name: "verify", arguments: {} },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: {
+            PatientNo: "123",
+            First: "J",
+            Last: "D",
+            Email: "j@x.com",
+            Mobile: "555",
+            Active: true,
+          },
+          tool_call_id: "c1",
+        },
+      ],
+    };
+
+    const playgroundMessages = normalizeInput(input, { metadata: input })
+      .data?.map(convertChatMlToPlayground)
+      .filter((m) => m !== null);
+
+    const secondMsg = playgroundMessages?.[1];
+    expect(secondMsg).toBeDefined();
+    expect(secondMsg && "role" in secondMsg ? secondMsg.role : null).toBe(
+      "tool",
+    );
+    expect(
+      secondMsg && "content" in secondMsg ? secondMsg.content : "",
+    ).toContain("PatientNo");
+  });
+
+  it("should handle VAPI camelCase toolCalls and preserve IDs", () => {
+    // VAPI uses camelCase toolCalls instead of tool_calls
+    // Critical: Tool call IDs must be preserved for OpenAI API compatibility
+    const input = {
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "verify_user",
+            description: "Verify user",
+            parameters: { type: "object", properties: {}, required: [] },
+          },
+        },
+      ],
+      messages: [
+        {
+          role: "assistant",
+          content: "Checking...",
+          toolCalls: [
+            {
+              id: "call_123",
+              type: "function",
+              function: { name: "verify_user", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: '{"verified": true}',
+          tool_call_id: "call_123",
+        },
+      ],
+    };
+
+    const inResult = normalizeInput(input, {
+      observationName: "chat-completion",
+    });
+    expect(inResult.success).toBe(true);
+
+    const playgroundMessages = inResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Critical assertions: IDs must match
+    const toolCallMsg = playgroundMessages[0];
+    expect(toolCallMsg?.type).toBe("assistant-tool-call");
+    if (toolCallMsg?.type === "assistant-tool-call") {
+      expect(toolCallMsg.toolCalls[0].id).toBe("call_123");
+    }
+
+    const toolResultMsg = playgroundMessages[1];
+    expect(toolResultMsg?.type).toBe("tool-result");
+    if (toolResultMsg?.type === "tool-result") {
+      expect(toolResultMsg.toolCallId).toBe("call_123");
+    }
+
+    // Verify tools extracted
+    expect(extractTools(input)).toHaveLength(1);
   });
 });

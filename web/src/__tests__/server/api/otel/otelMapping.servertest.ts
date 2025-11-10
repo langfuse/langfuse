@@ -1698,6 +1698,16 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract providedModelName from ai.model.id",
+        {
+          entity: "observation",
+          otelAttributeKey: "ai.model.id",
+          otelAttributeValue: { stringValue: "gemini-embedding-001" },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gemini-embedding-001",
+        },
+      ],
+      [
         "should extract providedModelName from llm.model_name",
         {
           entity: "observation",
