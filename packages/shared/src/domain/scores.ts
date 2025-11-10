@@ -1,11 +1,25 @@
 import z from "zod/v4";
 import { MetadataDomain } from "./traces";
 
-const ScoreSourceArray = ["API", "EVAL", "ANNOTATION"] as const;
+export const ScoreSourceArray = ["API", "EVAL", "ANNOTATION"] as const;
+export const ScoreSourceEnum = {
+  API: "API",
+  EVAL: "EVAL",
+  ANNOTATION: "ANNOTATION",
+} as const;
 export const ScoreSourceDomain = z.enum(ScoreSourceArray);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
-const ScoreDataTypeArray = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
+export const ScoreDataTypeArray = [
+  "NUMERIC",
+  "CATEGORICAL",
+  "BOOLEAN",
+] as const;
+export const ScoreDataTypeEnum = {
+  NUMERIC: "NUMERIC",
+  CATEGORICAL: "CATEGORICAL",
+  BOOLEAN: "BOOLEAN",
+} as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
 

@@ -2,7 +2,6 @@ import { ScoreDataType } from "@prisma/client";
 import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
 import {
   commandClickhouse,
-  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
   upsertClickhouse,

@@ -322,10 +322,7 @@ export const traceRouter = createTRPCRouter({
           : null,
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: validatedScores.map((s) => ({
-          ...s,
-          metadata: s.metadata ? JSON.stringify(s.metadata) : undefined,
-        })),
+        scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
           ...o,
