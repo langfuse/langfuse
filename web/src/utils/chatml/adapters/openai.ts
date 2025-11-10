@@ -218,8 +218,10 @@ function flattenToolDefinition(tool: unknown): Record<string, unknown> {
   // Handle nested {type, function: {name, ...}} or flat {name, ...}
   const toolFunc = (t.function as Record<string, unknown> | undefined) ?? t;
 
-  const toolDef: Record<string, unknown> = { name: toolFunc.name };
-  if (toolFunc.description != null) toolDef.description = toolFunc.description;
+  const toolDef: Record<string, unknown> = {
+    name: toolFunc.name,
+    description: toolFunc.description ?? "",
+  };
   if (toolFunc.parameters != null) toolDef.parameters = toolFunc.parameters;
   return toolDef;
 }
