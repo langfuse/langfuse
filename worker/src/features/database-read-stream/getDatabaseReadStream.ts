@@ -567,6 +567,8 @@ export const getDatabaseReadStreamPaginated = async ({
             resourceType: log.resourceType,
             resourceId: log.resourceId,
             action: log.action,
+            clientIp: log.clientIp,
+            ipChain: log.ipChain,
             before: log.before,
             after: log.after,
           }));
