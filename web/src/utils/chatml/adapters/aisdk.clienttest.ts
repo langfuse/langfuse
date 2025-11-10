@@ -9,7 +9,7 @@ jest.mock("@langfuse/shared", () => ({
   },
 }));
 
-import { normalizeInput, normalizeOutput } from "./index";
+import { normalizeInput } from "./index";
 import { aisdkAdapter } from "./aisdk";
 
 describe("AI SDK Adapter", () => {
