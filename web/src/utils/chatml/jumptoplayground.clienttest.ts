@@ -694,8 +694,13 @@ describe("Playground Jump Full Pipeline", () => {
     expect(playgroundMessages).toHaveLength(3);
 
     // Message 1: user
-    expect(playgroundMessages[0]?.role).toBe("user");
-    expect(playgroundMessages[0]?.content).toBe("What's the weather in Tokyo?");
+    expect(playgroundMessages[0]?.type).toBe("public-api-created");
+    if (playgroundMessages[0]?.type === "public-api-created") {
+      expect(playgroundMessages[0].role).toBe("user");
+      expect(playgroundMessages[0].content).toBe(
+        "What's the weather in Tokyo?",
+      );
+    }
 
     // Message 2: assistant with tool call
     expect(playgroundMessages[1]?.type).toBe("assistant-tool-call");
