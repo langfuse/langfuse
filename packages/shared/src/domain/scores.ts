@@ -1,20 +1,12 @@
 import z from "zod/v4";
 import { MetadataDomain } from "./traces";
 
-export const ScoreSource = {
-  ANNOTATION: "ANNOTATION",
-  API: "API",
-  EVAL: "EVAL",
-} as const;
-
-export const ScoreSourceDomain = z.enum(["ANNOTATION", "API", "EVAL"]);
+const ScoreSourceArray = ["API", "EVAL", "ANNOTATION"] as const;
+export const ScoreSourceDomain = z.enum(ScoreSourceArray);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
-export const ScoreDataTypeDomain = z.enum([
-  "NUMERIC",
-  "CATEGORICAL",
-  "BOOLEAN",
-]);
+const ScoreDataTypeArray = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
+export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
 
 export const NumericData = z.object({
@@ -32,7 +24,8 @@ export const BooleanData = z.object({
   dataType: z.literal("BOOLEAN"),
 });
 
-export const ScoreFoundationSchema = z.object({
+// Only used for backwards compatibility with old score API schemas
+export const ScoreSchemaExclReferences = z.object({
   // Core identifiers
   id: z.string(),
   timestamp: z.date(),
@@ -47,11 +40,6 @@ export const ScoreFoundationSchema = z.object({
   authorUserId: z.string().nullable(),
   comment: z.string().nullable(),
   metadata: MetadataDomain,
-  // Score references; one of the following must be provided
-  traceId: z.string().nullable(),
-  sessionId: z.string().nullable(),
-  datasetRunId: z.string().nullable(),
-  observationId: z.string().nullable(),
   // Score associations
   configId: z.string().nullable(),
   queueId: z.string().nullable(),
@@ -61,6 +49,16 @@ export const ScoreFoundationSchema = z.object({
   createdAt: z.date(),
   updatedAt: z.date(),
 });
+
+export const ScoreFoundationSchema = ScoreSchemaExclReferences.and(
+  z.object({
+    // Score references; one of the following must be provided
+    traceId: z.string().nullable(),
+    sessionId: z.string().nullable(),
+    datasetRunId: z.string().nullable(),
+    observationId: z.string().nullable(),
+  }),
+);
 
 export const ScoreSchema = ScoreFoundationSchema.and(
   z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),

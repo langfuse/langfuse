@@ -1,10 +1,10 @@
 import { z } from "zod/v4";
 import {
+  ScoreSchemaExclReferences,
   CategoricalData,
   NumericData,
   BooleanData,
-  ScoreFoundationSchema,
-} from "../shared";
+} from "../../../../../domain/scores";
 
 /**
  * Foundation schema for scores API v1 i.e. trace and observation scores ONLY
@@ -12,16 +12,14 @@ import {
  * Must be extended with score data specific schema (numeric, categorical, boolean)
  * @see {@link NumericData}, {@link CategoricalData}, {@link BooleanData}
  */
-const ScoreFoundationSchemaV1 = ScoreFoundationSchema.extend({
+const ScoreFoundationSchemaV1 = ScoreSchemaExclReferences.extend({
   traceId: z.string(),
   observationId: z.string().nullish(),
 });
 
-export const APIScoreSchemaV1 = z.discriminatedUnion("dataType", [
-  ScoreFoundationSchemaV1.merge(NumericData),
-  ScoreFoundationSchemaV1.merge(CategoricalData),
-  ScoreFoundationSchemaV1.merge(BooleanData),
-]);
+export const APIScoreSchemaV1 = ScoreFoundationSchemaV1.and(
+  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
+);
 
 // this needs to be fixed and omit the datasetRunId and sessionId fields AND traceId must be required
 
