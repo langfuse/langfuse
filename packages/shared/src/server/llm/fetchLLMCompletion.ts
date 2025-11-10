@@ -13,10 +13,7 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
-import {
-  BytesOutputParser,
-  StringOutputParser,
-} from "@langchain/core/output_parsers";
+import { BytesOutputParser } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
 import { env } from "../../env";
@@ -47,6 +44,7 @@ import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import { ReasoningAwareStringParser } from "./reasoning-aware-parser";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -391,7 +389,7 @@ export async function fetchLLMCompletion(
         .stream(finalMessages, runConfig);
 
     const completion = await chatModel
-      .pipe(new StringOutputParser())
+      .pipe(new ReasoningAwareStringParser())
       .invoke(finalMessages, runConfig);
 
     return completion;
