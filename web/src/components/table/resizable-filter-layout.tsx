@@ -24,8 +24,13 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
 
   // Extract filter sidebar and table content from children
   const childrenArray = Children.toArray(children).filter(Boolean);
-  const filterSidebar = childrenArray[0];
-  const tableContent = childrenArray.slice(1);
+
+  // If there's only one child, it's the table content (no filter sidebar)
+  const hasFilterSidebar = childrenArray.length > 1;
+  const filterSidebar = hasFilterSidebar ? childrenArray[0] : null;
+  const tableContent = hasFilterSidebar
+    ? childrenArray.slice(1)
+    : childrenArray;
 
   const filterDefault = 15;
   const tableDefault = 85;
