@@ -57,7 +57,13 @@ export const evalJobDatasetCreatorQueueProcessor = async (
     // Handle observation-not-found errors with manual retry
     if (isObservationNotFoundError(e)) {
       const shouldRetry = await retryObservationNotFound(e, {
-        data: job.data.payload,
+        data: {
+          projectId: job.data.payload.projectId,
+          datasetItemId: job.data.payload.datasetItemId,
+          traceId: job.data.payload.traceId,
+          observationId: job.data.payload.observationId,
+          retryBaggage: job.data.retryBaggage,
+        },
       });
 
       if (shouldRetry) {
