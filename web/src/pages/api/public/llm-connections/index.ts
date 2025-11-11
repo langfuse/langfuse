@@ -74,7 +74,7 @@ export default withMiddlewares({
     bodySchema: PutLlmConnectionV1Body,
     responseSchema: PutLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,
-    fn: async ({ body, auth, res }) => {
+    fn: async ({ body, auth, res, req }) => {
       const projectId = auth.scope.projectId;
 
       const existingConnection = await prisma.llmApiKeys.findUnique({
