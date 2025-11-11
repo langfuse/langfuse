@@ -444,11 +444,7 @@ export default function ObservationsEventsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: EventsTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {

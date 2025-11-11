@@ -518,11 +518,7 @@ export default function ObservationsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationsTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {

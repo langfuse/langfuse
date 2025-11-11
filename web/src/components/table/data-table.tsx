@@ -549,7 +549,7 @@ function TableBodyComponent<TData>({
             {row.getVisibleCells().map((cell) => {
               const cellValue = cell.getValue();
               const isStringCell = typeof cellValue === "string";
-              const isSmallRowHeight = rowHeight === "s";
+              const isSmallRowHeight = (rowHeight ?? "s") === "s";
 
               return (
                 <TableCell
