@@ -457,7 +457,7 @@ export const ObservationPreview = ({
                   />
                 )}
               </div>
-              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+              <div className="px-2">
                 {observationWithInputAndOutput.data?.metadata && (
                   <PrettyJsonView
                     key={observationWithInputAndOutput.data.id + "-metadata"}
