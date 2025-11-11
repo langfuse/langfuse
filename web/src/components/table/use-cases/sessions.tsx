@@ -140,7 +140,8 @@ export default function SessionsTable({
 
   const environmentOptions = useMemo(
     () =>
-      environmentFilterOptions.data?.map((value) => value.environment) || [],
+      environmentFilterOptions.data?.map((value) => value.environment) ??
+      undefined,
     [environmentFilterOptions.data],
   );
 
@@ -184,9 +185,9 @@ export default function SessionsTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
 
     return {
       bookmarked: ["Bookmarked", "Not bookmarked"],
@@ -195,8 +196,8 @@ export default function SessionsTable({
         filterOptions.data?.userIds.map((u) => ({
           value: u.value,
           count: Number(u.count),
-        })) || [],
-      tags: filterOptions.data?.tags.map((t) => t.value) || [], // tags don't have counts
+        })) ?? undefined,
+      tags: filterOptions.data?.tags.map((t) => t.value) ?? undefined, // tags don't have counts
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -214,6 +215,7 @@ export default function SessionsTable({
     sessionFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending || environmentFilterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

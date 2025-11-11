@@ -246,22 +246,22 @@ export default function ObservationsEventsTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
 
     return {
-      environment: filterOptions.data?.environment ?? [],
-      name: filterOptions.data?.name ?? [],
-      type: filterOptions.data?.type ?? [],
-      level: filterOptions.data?.level ?? [],
-      providedModelName: filterOptions.data?.providedModelName ?? [],
-      modelId: filterOptions.data?.modelId ?? [],
-      promptName: filterOptions.data?.promptName ?? [],
-      traceTags: filterOptions.data?.traceTags ?? [],
-      userId: filterOptions.data?.userId ?? [],
-      sessionId: filterOptions.data?.sessionId ?? [],
-      version: filterOptions.data?.version ?? [],
+      environment: filterOptions.data?.environment ?? undefined,
+      name: filterOptions.data?.name ?? undefined,
+      type: filterOptions.data?.type ?? undefined,
+      level: filterOptions.data?.level ?? undefined,
+      providedModelName: filterOptions.data?.providedModelName ?? undefined,
+      modelId: filterOptions.data?.modelId ?? undefined,
+      promptName: filterOptions.data?.promptName ?? undefined,
+      traceTags: filterOptions.data?.traceTags ?? undefined,
+      userId: filterOptions.data?.userId ?? undefined,
+      sessionId: filterOptions.data?.sessionId ?? undefined,
+      version: filterOptions.data?.version ?? undefined,
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -280,6 +280,7 @@ export default function ObservationsEventsTable({
     observationEventsFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
