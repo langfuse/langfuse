@@ -302,7 +302,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
             WHEN o.id = concat('t-', o.trace_id) THEN ''
             ELSE coalesce(o.parent_observation_id, concat('t-', o.trace_id))
           END AS parent_span_id,
-          greatest(o.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
+          o.start_time AS start_time,
           o.end_time,
           o.name,
           o.type,
