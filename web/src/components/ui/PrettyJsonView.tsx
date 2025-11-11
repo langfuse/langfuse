@@ -1075,39 +1075,46 @@ export function PrettyJsonView(props: {
         <>
           {/* Always render JsonPrettyTable to preserve internal React Table state */}
           <div
-            className={getContainerClasses(
-              props.title,
-              props.scrollable,
-              props.codeClassName,
-              "flex whitespace-pre-wrap break-words text-xs",
-            )}
+            className="io-message-content"
             style={{ display: shouldUseTableView ? "flex" : "none" }}
           >
-            {props.isLoading ? (
-              <Skeleton className="m-3 h-3 w-3/4" />
-            ) : (
-              <JsonPrettyTable
-                data={tableData}
-                expandAllRef={expandAllRef}
-                onExpandStateChange={setAllRowsExpanded}
-                noBorder={true}
-                expanded={
-                  actualExpansionState === false ? {} : actualExpansionState
-                }
-                onExpandedChange={handleTableExpandedChange}
-                onLazyLoadChildren={handleLazyLoadChildren}
-                onForceUpdate={handleForceUpdate}
-                smartDefaultsLevel={null}
-                expandedCells={expandedCells}
-                toggleCellExpansion={toggleCellExpansion}
-                stickyTopLevelKey={props.stickyTopLevelKey}
-                showObservationTypeBadge={props.showObservationTypeBadge}
-              />
-            )}
+            <div
+              className={getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+                "flex whitespace-pre-wrap break-words text-xs",
+              )}
+            >
+              {props.isLoading ? (
+                <Skeleton className="m-3 h-3 w-3/4" />
+              ) : (
+                <JsonPrettyTable
+                  data={tableData}
+                  expandAllRef={expandAllRef}
+                  onExpandStateChange={setAllRowsExpanded}
+                  noBorder={true}
+                  expanded={
+                    actualExpansionState === false ? {} : actualExpansionState
+                  }
+                  onExpandedChange={handleTableExpandedChange}
+                  onLazyLoadChildren={handleLazyLoadChildren}
+                  onForceUpdate={handleForceUpdate}
+                  smartDefaultsLevel={null}
+                  expandedCells={expandedCells}
+                  toggleCellExpansion={toggleCellExpansion}
+                  stickyTopLevelKey={props.stickyTopLevelKey}
+                  showObservationTypeBadge={props.showObservationTypeBadge}
+                />
+              )}
+            </div>
           </div>
 
           {/* Always render JSONView to preserve its state too */}
-          <div style={{ display: shouldUseTableView ? "none" : "block" }}>
+          <div
+            className="io-message-content"
+            style={{ display: shouldUseTableView ? "none" : "block" }}
+          >
             <JSONView
               json={props.json}
               title={props.title} // Title value used for background styling

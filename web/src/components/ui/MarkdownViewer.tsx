@@ -372,7 +372,7 @@ export function MarkdownView({
       ) : null}
       <div
         className={cn(
-          "grid grid-flow-row gap-2 border-t px-1 py-3",
+          "io-message-content grid grid-flow-row gap-2 border-t px-1 py-3",
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green"
             : "",
