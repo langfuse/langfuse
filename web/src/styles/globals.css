@@ -200,7 +200,7 @@
   body,
   div#__next,
   div#__next > div {
-    min-height: 100%;
+    height: 100%;
   }
 }
 
