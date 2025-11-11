@@ -387,7 +387,11 @@ const SidebarFooter = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="footer"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn(
+        "flex flex-col gap-2",
+        "group-data-[collapsible=icon]:p-2",
+        className,
+      )}
       {...props}
     />
   );
@@ -437,6 +441,7 @@ const SidebarGroup = React.forwardRef<
       data-sidebar="group"
       className={cn(
         "relative flex w-full min-w-0 flex-col px-1 py-1 first:pt-0",
+        "group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:first:pt-2",
         className,
       )}
       {...props}
@@ -458,6 +463,7 @@ const SidebarGroupLabel = React.forwardRef<
       className={cn(
         "flex h-8 shrink-0 items-center whitespace-nowrap px-[9px] text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opa] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:hidden",
+        "-mb-2",
         className,
       )}
       {...props}
@@ -509,7 +515,11 @@ const SidebarMenu = React.forwardRef<
   <ul
     ref={ref}
     data-sidebar="menu"
-    className={cn("flex w-full min-w-0 flex-col gap-0.5", className)}
+    className={cn(
+      "flex w-full min-w-0 flex-col gap-0.5 pt-1",
+      "group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:pt-0",
+      className,
+    )}
     {...props}
   />
 ));
