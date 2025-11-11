@@ -258,6 +258,7 @@ export default function ScoresTable({
     scoreFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

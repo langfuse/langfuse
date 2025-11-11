@@ -214,6 +214,7 @@ export default function SessionsTable({
     sessionFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

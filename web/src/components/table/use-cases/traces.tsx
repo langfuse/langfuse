@@ -273,6 +273,7 @@ export default function TracesTable({
     traceFilterConfig,
     filterOptions,
     projectId,
+    traceFilterOptionsResponse.isPending,
   );
 
   const combinedFilterState = queryFilter.filterState.concat(

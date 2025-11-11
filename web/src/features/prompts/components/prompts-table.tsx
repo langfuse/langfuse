@@ -228,6 +228,7 @@ export function PromptTable() {
     promptFilterConfig,
     newFilterOptions,
     projectId,
+    promptFilterOptions.isPending,
   );
 
   useEffect(() => {

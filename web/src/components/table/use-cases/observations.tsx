@@ -346,6 +346,7 @@ export default function ObservationsTable({
     observationFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

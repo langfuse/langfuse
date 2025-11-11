@@ -243,6 +243,7 @@ export function useSidebarFilterState(
     (string | SingleValueOption)[] | Record<string, string[]>
   >,
   projectId?: string,
+  loading?: boolean,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -694,6 +695,16 @@ export function useSidebarFilterState(
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
 
+    // Helper to determine if a filter should show loading state
+    // Only filters that depend on options from the query should show loading
+    const shouldShowLoading = (facetColumn: string): boolean => {
+      if (!loading) return false;
+      // Only show loading if the filter depends on options and options are not yet available
+      // Filters that use options: categorical, keyValue, numericKeyValue, stringKeyValue
+      // Filters that don't use options: numeric (uses facet.min/max), string (static), boolean (static)
+      return options[facetColumn] === undefined;
+    };
+
     return config.facets
       .map((facet): UIFilter | null => {
         if (facet.type === "numeric") {
@@ -798,7 +809,7 @@ export function useSidebarFilterState(
               !Array.isArray(availableValues)
                 ? (availableValues as Record<string, string[]>)
                 : ({} as Record<string, string[]>),
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: KeyValueFilterEntry[]) => {
@@ -878,7 +889,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: NumericKeyValueFilterEntry[]) => {
@@ -958,7 +969,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: StringKeyValueFilterEntry[]) => {
@@ -1140,7 +1151,7 @@ export function useSidebarFilterState(
           value: selectedValues,
           options: availableValues,
           counts,
-          loading: false,
+          loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
           isActive,
           onChange: (values: string[]) => updateFilter(facet.column, values),
@@ -1190,6 +1201,7 @@ export function useSidebarFilterState(
   }, [
     config,
     options,
+    loading,
     filterState,
     updateFilter,
     updateFilterOnly,
