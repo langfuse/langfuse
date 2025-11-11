@@ -285,49 +285,50 @@ export default function ObservationsTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
 
     return {
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        environmentFilterOptions.data?.map((value) => value.environment) ??
+        undefined,
       name:
         filterOptions.data?.name?.map((n) => ({
           value: n.value,
           count: n.count !== undefined ? Number(n.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       type:
         filterOptions.data?.type?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
           count: tn.count !== undefined ? Number(tn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       model:
         filterOptions.data?.model?.map((m) => ({
           value: m.value,
           count: m.count !== undefined ? Number(m.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       modelId:
         filterOptions.data?.modelId?.map((mid) => ({
           value: mid.value,
           count: mid.count !== undefined ? Number(mid.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       promptName:
         filterOptions.data?.promptName?.map((pn) => ({
           value: pn.value,
           count: pn.count !== undefined ? Number(pn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       tags:
         filterOptions.data?.tags?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -346,7 +347,7 @@ export default function ObservationsTable({
     observationFilterConfig,
     newFilterOptions,
     projectId,
-    filterOptions.isPending,
+    filterOptions.isPending || environmentFilterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

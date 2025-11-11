@@ -231,32 +231,35 @@ export default function TracesTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = traceFilterOptionsResponse.data?.scores_avg || [];
+    const scoresNumeric =
+      traceFilterOptionsResponse.data?.scores_avg ?? undefined;
 
     return {
       name:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
           value: n.value,
           count: Number(n.count),
-        })) || [],
+        })) ?? undefined,
       // tags don't have counts
-      tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
+      tags:
+        traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        environmentFilterOptions.data?.map((value) => value.environment) ??
+        undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       bookmarked: ["Bookmarked", "Not bookmarked"],
       userId:
         traceFilterOptionsResponse.data?.users?.map((u) => ({
           value: u.value,
           count: Number(u.count),
-        })) || [],
+        })) ?? undefined,
       sessionId:
         traceFilterOptionsResponse.data?.sessions?.map((s) => ({
           value: s.value,
           count: Number(s.count),
-        })) || [],
+        })) ?? undefined,
       latency: [],
       inputTokens: [],
       outputTokens: [],
@@ -273,7 +276,7 @@ export default function TracesTable({
     traceFilterConfig,
     filterOptions,
     projectId,
-    traceFilterOptionsResponse.isPending,
+    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
   );
 
   const combinedFilterState = queryFilter.filterState.concat(
