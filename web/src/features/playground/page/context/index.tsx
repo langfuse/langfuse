@@ -519,7 +519,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     if (!cacheLoaded) return;
 
     // Don't save empty initial state to avoid overwriting valid cache
-    if (messages.length > 0 && modelParams.provider.value) {
+    // Save if we have messages - provider selection is optional
+    if (messages.length > 0) {
       setPlaygroundCache({
         messages,
         modelParams,
