@@ -325,6 +325,19 @@ async function ensureMetadataIsSetOnStripeSubscription(
       cloudRegion: currentEnvironment,
     };
 
+    // Check if subscription is in terminal state (canceled or ended)
+    // Stripe does not allow metadata updates on canceled subscriptions
+    if (subscription.status === "canceled" || subscription.ended_at) {
+      logger.info(
+        `[Stripe Webhook] (${currentEnvironment}) Skipping metadata update for ended subscription ${subscription.id}, using org lookup result`,
+      );
+      // Return synthetic subscription with metadata from org lookup
+      return {
+        ...subscription,
+        metadata: metadata,
+      } as Stripe.Subscription;
+    }
+
     await stripeClient.subscriptions.update(subscription.id, {
       metadata: metadata,
     });

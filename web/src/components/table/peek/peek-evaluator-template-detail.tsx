@@ -19,7 +19,7 @@ export const PeekViewEvaluatorTemplateDetail = ({
   });
 
   if (!template) {
-    return <Skeleton className="h-full w-full" />;
+    return <Skeleton className="h-full w-full rounded-none" />;
   }
 
   return (

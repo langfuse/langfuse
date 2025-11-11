@@ -113,6 +113,7 @@ export function StatisticsCard() {
           {data.samplingMetadata.isSampled && (
             <SamplingDetailsHoverCard
               samplingMetadata={data.samplingMetadata}
+              mode={data.metadata.mode}
               showLabel
             />
           )}

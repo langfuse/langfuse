@@ -87,12 +87,17 @@ export const ObservationPreview = ({
     (s) => s.observationId === currentObservationId,
   );
 
-  const observationWithInputAndOutput = api.observations.byId.useQuery({
-    observationId: currentObservationId,
-    startTime: currentObservation?.startTime,
-    traceId: traceId,
-    projectId: projectId,
-  });
+  const observationWithInputAndOutput = api.observations.byId.useQuery(
+    {
+      observationId: currentObservationId,
+      startTime: currentObservation?.startTime,
+      traceId: traceId,
+      projectId: projectId,
+    },
+    {
+      staleTime: 5 * 60 * 1000, // 5 minutes - matches prefetch staleTime
+    },
+  );
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
     {
