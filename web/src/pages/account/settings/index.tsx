@@ -72,7 +72,7 @@ function UpdateDisplayName() {
   return (
     <div>
       <Header title="Display Name" />
-      <Card className="mb-4 p-3">
+      <Card className="p-3">
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-primary">
             Your display name will be updated from &quot;
