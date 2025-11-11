@@ -240,7 +240,7 @@ export function useSidebarFilterState(
   config: FilterConfig,
   options: Record<
     string,
-    (string | SingleValueOption)[] | Record<string, string[]>
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
   projectId?: string,
   loading?: boolean,
