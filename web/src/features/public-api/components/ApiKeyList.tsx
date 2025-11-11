@@ -29,22 +29,20 @@ import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { startCase } from "lodash";
+import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 
 type ApiKeyScope = "project" | "organization";
 type ApiKeyEntity = { id: string; note: string | null };
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const { entityId, scope } = props;
+  const envCode = useLangfuseEnvCode();
+
   if (!entityId) {
     throw new Error(
       `${scope}Id is required for ApiKeyList with scope ${scope}`,
     );
   }
-
-  const envCode = `LANGFUSE_SECRET_KEY = "sk-lf-..."
-LANGFUSE_PUBLIC_KEY = "pk-lf-..."
-LANGFUSE_BASE_URL = "https://cloud.langfuse.com" # 🇪🇺 EU region
-# LANGFUSE_BASE_URL = "https://us.cloud.langfuse.com" # 🇺🇸 US region`;
 
   const hasProjectAccess = useHasProjectAccess({
     projectId: props.entityId,
