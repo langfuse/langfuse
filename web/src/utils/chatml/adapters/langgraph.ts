@@ -3,6 +3,7 @@ import {
   removeNullFields,
   stringifyToolResultContent,
   parseMetadata,
+  isRichToolResult,
 } from "../helpers";
 import { z } from "zod/v4";
 
@@ -184,13 +185,23 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     });
   }
 
-  // Stringify object/array content for tool messages
+  // For tool messages with rich object content, spread into message
+  // so it goes to json passthrough field → renders as PrettyJsonView.
+  // Rich = nested structure OR 3+ keys. Simple <=2 scalar keys.
   if (
     normalized.role === "tool" &&
     typeof normalized.content === "object" &&
-    normalized.content !== null
+    normalized.content !== null &&
+    !Array.isArray(normalized.content)
   ) {
-    normalized.content = stringifyToolResultContent(normalized.content);
+    if (isRichToolResult(normalized.content)) {
+      // Rich object: spread for table rendering
+      const { content, ...rest } = normalized;
+      return { ...rest, ...content };
+    } else {
+      // Simple object: stringify for text rendering
+      normalized.content = stringifyToolResultContent(normalized.content);
+    }
   }
 
   return normalized;
@@ -261,6 +272,37 @@ export const langgraphAdapter: ProviderAdapter = {
 
     // EXPLICIT: Framework hint
     if (ctx.framework === "langgraph") return true;
+
+    // REJECTIONS: Reject AI SDK v5 and OpenAI Agents SDK formats
+    if (meta && typeof meta === "object") {
+      // Check scope.name for AI SDK or OpenAI Agents
+      if ("scope" in meta && typeof meta.scope === "object") {
+        const scope = meta.scope as Record<string, unknown>;
+
+        // Reject AI SDK v5 (scope.name === "ai")
+        if (scope.name === "ai") return false;
+
+        // Reject OpenAI Agents SDK
+        if (
+          scope.name === "openinference.instrumentation.openai_agents" ||
+          (typeof scope.name === "string" &&
+            scope.name.includes("openai_agents"))
+        ) {
+          return false;
+        }
+      }
+
+      // Check attributes["operation.name"] for AI SDK pattern
+      if ("attributes" in meta && typeof meta.attributes === "object") {
+        const attrs = meta.attributes as Record<string, unknown>;
+        if (
+          typeof attrs["operation.name"] === "string" &&
+          attrs["operation.name"].startsWith("ai.")
+        ) {
+          return false;
+        }
+      }
+    }
 
     // HINTS: LangGraph/LangChain-specific metadata markers
     if (meta && typeof meta === "object") {

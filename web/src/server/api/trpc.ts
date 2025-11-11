@@ -168,11 +168,15 @@ const resolveError = (error: TRPCError) => {
   return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
 };
 
-const logErrorByCode = (errorCode: TRPCError["code"]) => {
+const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
   if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
-    logger.info(`middleware intercepted error with code ${errorCode}`);
+    logger.info(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
   } else {
-    logger.error(`middleware intercepted error with code ${errorCode}`);
+    logger.error(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
   }
 };
 
@@ -188,7 +192,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         code: "SERVICE_UNAVAILABLE",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
-      logErrorByCode(res.error.code);
+      logErrorByCode(res.error.code, res.error);
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
@@ -206,7 +210,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
           ? res.error.message
           : "Internal error. " + errorMessage,
       });
-      logErrorByCode(code);
+      logErrorByCode(code, res.error);
     }
   }
 

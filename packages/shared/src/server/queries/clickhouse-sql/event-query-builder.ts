@@ -21,6 +21,8 @@ const EVENTS_FIELDS = {
   version: "e.version as version",
   bookmarked: "e.bookmarked as bookmarked",
   public: "e.public as public",
+  userId: 'e.user_id as "user_id"',
+  sessionId: 'e.session_id as "session_id"',
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
@@ -54,9 +56,9 @@ const EVENTS_FIELDS = {
 
   // Calculated fields
   latency:
-    "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency",
+    "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency",
   timeToFirstToken:
-    "if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as \"time_to_first_token\"",
+    "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
 } as const;
 
 /**

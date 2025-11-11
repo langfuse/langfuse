@@ -257,22 +257,10 @@ const getObservationsFromEventsTableInternal = async <T>(
   const needsTraceJoin =
     traceTableFilter.length > 0 || orderByTraces || search.query;
 
-  // When we have default ordering by time, we order by (e.start_time_unix)
-  // This way, clickhouse is able to read more efficiently directly from disk without ordering
-  const newDefaultOrder =
-    orderBy?.column === "startTime"
-      ? [{ column: "order_by_unix", order: orderBy.order }]
-      : [orderBy ?? null];
-
-  const chOrderBy = orderByToClickhouseSql(newDefaultOrder, [
-    ...eventsTableUiColumnDefinitions,
-    {
-      uiTableName: "order_by_unix",
-      uiTableId: "order_by_unix",
-      clickhouseTableName: "events",
-      clickhouseSelect: "e.start_time_unix",
-    },
-  ]);
+  const chOrderBy = orderByToClickhouseSql(
+    [orderBy ?? null],
+    eventsTableUiColumnDefinitions,
+  );
 
   // Build query using EventsQueryBuilder
   const queryBuilder = new EventsQueryBuilder({ projectId });
@@ -439,7 +427,7 @@ const getObservationByIdFromEventsTableInternal = async ({
     .when(Boolean(traceId), (b) =>
       b.whereRaw("trace_id = {traceId: String}", { traceId }),
     )
-    .orderBy("ORDER BY start_time_unix DESC, event_ts DESC")
+    .orderBy("ORDER BY start_time DESC, event_ts DESC")
     .limit(1, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -643,7 +631,7 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
 
   if (opts.select === "rows") {
     queryBuilder
-      .orderBy("ORDER BY e.start_time_unix DESC")
+      .orderBy("ORDER BY e.start_time DESC")
       .limit(limit, (page - 1) * limit);
   }
 
@@ -995,6 +983,9 @@ export const getEventsGroupedByModel = async (
     selectExpression: "e.provided_model_name as name, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw(
+      "e.provided_model_name IS NOT NULL AND length(e.provided_model_name) > 0",
+    )
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1033,6 +1024,7 @@ export const getEventsGroupedByModelId = async (
     selectExpression: "e.model_id as modelId, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.model_id IS NOT NULL AND length(e.model_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1071,6 +1063,7 @@ export const getEventsGroupedByName = async (
     selectExpression: "e.name as name, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.name IS NOT NULL AND length(e.name) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1150,6 +1143,7 @@ export const getEventsGroupedByType = async (
     selectExpression: "e.type as type, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.type IS NOT NULL AND length(e.type) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1190,6 +1184,7 @@ export const getEventsGroupedByUserId = async (
     selectExpression: "e.user_id as userId, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1230,6 +1225,7 @@ export const getEventsGroupedByVersion = async (
     selectExpression: "e.version as version, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.version IS NOT NULL AND length(e.version) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1270,6 +1266,7 @@ export const getEventsGroupedBySessionId = async (
     selectExpression: "e.session_id as sessionId, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.session_id IS NOT NULL AND length(e.session_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1310,6 +1307,7 @@ export const getEventsGroupedByLevel = async (
     selectExpression: "e.level as level, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.level IS NOT NULL AND length(e.level) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 
@@ -1350,6 +1348,7 @@ export const getEventsGroupedByEnvironment = async (
     selectExpression: "e.environment as environment, count() as count",
   })
     .where(appliedEventsFilter)
+    .whereRaw("e.environment IS NOT NULL AND length(e.environment) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
 

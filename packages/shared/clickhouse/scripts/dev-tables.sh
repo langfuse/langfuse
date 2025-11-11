@@ -132,7 +132,6 @@ CREATE TABLE IF NOT EXISTS events
       parent_span_id String,
 
       start_time DateTime64(6),
-      start_time_unix UInt32 MATERIALIZED toUnixTimestamp(start_time),
       end_time Nullable(DateTime64(6)),
 
       -- Core properties
@@ -265,7 +264,8 @@ CREATE TABLE IF NOT EXISTS events
   ENGINE = ReplacingMergeTree(event_ts, is_deleted)
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
-  ORDER BY (project_id, start_time_unix, xxHash32(trace_id), span_id)
+  PRIMARY KEY (project_id, start_time, xxHash32(trace_id))
+  ORDER BY (project_id, start_time, xxHash32(trace_id), span_id)
   SAMPLE BY xxHash32(trace_id)
   SETTINGS
     index_granularity = 8192,

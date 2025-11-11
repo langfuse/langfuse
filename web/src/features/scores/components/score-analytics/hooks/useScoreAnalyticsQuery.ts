@@ -128,6 +128,29 @@ export interface TimeSeries {
 }
 
 /**
+ * Sampling metadata for query transparency
+ */
+export interface SamplingMetadata {
+  isSampled: boolean;
+  samplingMethod: "none" | "hash" | "limit";
+  samplingRate: number; // 0-1 (e.g., 0.1 = 10% sample)
+  estimatedTotalMatches: number;
+  actualSampleSize: number;
+  samplingExpression: string | null; // e.g., "cityHash64(...) % 100 < 10"
+  // Preflight query estimates (used for adaptive FINAL optimization)
+  preflightEstimates?: {
+    score1Count: number;
+    score2Count: number;
+    estimatedMatchedCount: number;
+  };
+  // Adaptive FINAL optimization decision
+  adaptiveFinal?: {
+    usedFinal: boolean;
+    reason: string;
+  };
+}
+
+/**
  * Complete transformed score analytics data
  */
 export interface ScoreAnalyticsData {
@@ -144,6 +167,7 @@ export interface ScoreAnalyticsData {
     isSameScore: boolean;
     dataType: DataType;
   };
+  samplingMetadata: SamplingMetadata;
 }
 
 /**
@@ -172,6 +196,7 @@ export interface UseScoreAnalyticsQueryResult {
  */
 export function useScoreAnalyticsQuery(
   params: ScoreAnalyticsQueryParams,
+  options?: { enabled?: boolean },
 ): UseScoreAnalyticsQueryResult {
   const {
     projectId,
@@ -184,6 +209,9 @@ export function useScoreAnalyticsQuery(
     nBins = 10,
   } = params;
 
+  // Determine mode: "single" when only score1 selected, "two" when score2 explicitly provided
+  const mode: "single" | "two" = score2 === undefined ? "single" : "two";
+
   // Fetch API data
   const {
     data: apiData,
@@ -194,13 +222,15 @@ export function useScoreAnalyticsQuery(
       projectId,
       score1,
       score2: score2 ?? score1, // Use same score if only one selected
+      mode, // Pass explicit mode to backend
       fromTimestamp,
       toTimestamp,
       interval,
       objectType,
     },
     {
-      enabled: !!(projectId && score1),
+      enabled: (options?.enabled ?? true) && !!(projectId && score1),
+      trpc: { abortOnUnmount: true },
     },
   );
 
@@ -208,20 +238,10 @@ export function useScoreAnalyticsQuery(
   const transformedData = useMemo<ScoreAnalyticsData | null>(() => {
     if (!apiData) return null;
 
-    const dataType = score1.dataType;
+    // Use metadata from backend (authoritative source for mode, isSameScore, dataType)
+    const { mode, isSameScore } = apiData.metadata;
+    const dataType = apiData.metadata.dataType as DataType;
     const isNumeric = dataType === "NUMERIC";
-
-    // Determine mode based on whether score2 was originally provided in params
-    // (not the fallback value sent to the API at line 190)
-    const mode: "single" | "two" = score2 !== undefined ? "two" : "single";
-
-    // Determine if we have two scores and if they're the same
-    const isSameScore = Boolean(
-      score1 &&
-        score2 &&
-        score1.name === score2.name &&
-        score1.source === score2.source,
-    );
 
     // ========================================================================
     // 1. Extract categories (categorical/boolean only)
@@ -231,6 +251,15 @@ export function useScoreAnalyticsQuery(
       confusionMatrix: apiData.confusionMatrix,
       stackedDistribution: apiData.stackedDistribution,
     });
+
+    // Extract score2 categories for proper binning
+    // When comparing two different categorical scores, score2 may have different categories
+    const score2Categories =
+      apiData.score2Categories && apiData.score2Categories.length > 0
+        ? apiData.score2Categories
+        : mode === "two" && categories
+          ? categories // Fallback to score1 categories if score2Categories empty
+          : undefined;
 
     // ========================================================================
     // 2. Fill distribution bins (categorical/boolean only)
@@ -253,8 +282,9 @@ export function useScoreAnalyticsQuery(
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution2Individual = categories
-      ? fillDistributionBins(apiData.distribution2Individual, categories)
+    // Use score2Categories for score2Individual (not score1 categories)
+    const distribution2Individual = score2Categories
+      ? fillDistributionBins(apiData.distribution2Individual, score2Categories)
       : apiData.distribution2Individual
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
@@ -265,8 +295,9 @@ export function useScoreAnalyticsQuery(
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
 
-    const distribution2Matched = categories
-      ? fillDistributionBins(apiData.distribution2Matched, categories)
+    // Use score2Categories for score2Matched (not score1 categories)
+    const distribution2Matched = score2Categories
+      ? fillDistributionBins(apiData.distribution2Matched, score2Categories)
       : apiData.distribution2Matched
           .slice()
           .sort((a, b) => a.binIndex - b.binIndex);
@@ -598,11 +629,13 @@ export function useScoreAnalyticsQuery(
         },
       },
       heatmap,
+      // Use metadata from API response (backend echoes mode and provides authoritative isSameScore)
       metadata: {
         mode,
         isSameScore,
         dataType,
       },
+      samplingMetadata: apiData.samplingMetadata,
     };
   }, [apiData, score1, score2, fromTimestamp, toTimestamp, interval, nBins]);
 

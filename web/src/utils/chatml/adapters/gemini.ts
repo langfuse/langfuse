@@ -1,5 +1,9 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
-import { parseMetadata, stringifyToolResultContent } from "../helpers";
+import {
+  parseMetadata,
+  stringifyToolResultContent,
+  isRichToolResult,
+} from "../helpers";
 import { z } from "zod/v4";
 
 /**
@@ -100,8 +104,11 @@ function extractFromParts(parts: unknown[]): {
     }
 
     // {text: "..."} or {type: "text", text: "..."}
-    if (typeof p.text === "string") {
-      textParts.push(p.text);
+    // text can be a string (normal response) or an object (when responseMimeType: "application/json")
+    if (p.text !== undefined && p.text !== null) {
+      textParts.push(
+        typeof p.text === "string" ? p.text : JSON.stringify(p.text, null, 2),
+      );
       continue;
     }
 
@@ -271,13 +278,23 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
     }
   }
 
-  // stringify object content for tool result messages
+  // For tool messages with rich object content, spread into message
+  // so it goes to json passthrough field and renders as PrettyJsonView.
+  // Rich = nested structure OR 3+ keys. Simple <=2 scalar keys.
   if (
     normalized.role === "tool" &&
     typeof normalized.content === "object" &&
+    normalized.content !== null &&
     !Array.isArray(normalized.content)
   ) {
-    normalized.content = stringifyToolResultContent(normalized.content);
+    if (isRichToolResult(normalized.content)) {
+      // Rich object: spread for table rendering
+      const { content, ...rest } = normalized;
+      return { ...rest, ...content };
+    } else {
+      // Simple object: stringify for text rendering
+      normalized.content = stringifyToolResultContent(normalized.content);
+    }
   }
 
   return normalized;

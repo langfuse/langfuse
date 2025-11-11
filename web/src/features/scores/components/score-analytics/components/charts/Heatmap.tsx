@@ -117,35 +117,19 @@ export function Heatmap({
     if (rowLabelsRef.current && rowLabels && rowLabels.length > 0) {
       const container = rowLabelsRef.current;
 
-      console.log("[Heatmap] Container measurements:", {
-        clientWidth: container.clientWidth,
-        scrollWidth: container.scrollWidth,
-        offsetWidth: container.offsetWidth,
-      });
-
       // Find the widest label by measuring each label element
       const labelElements = container.querySelectorAll("span");
       let maxLabelWidth = 0;
 
-      labelElements.forEach((element, idx) => {
+      labelElements.forEach((element) => {
         const width = element.offsetWidth;
-        console.log(
-          `[Heatmap] Label ${idx} width:`,
-          width,
-          "text:",
-          element.textContent,
-        );
         maxLabelWidth = Math.max(maxLabelWidth, width);
       });
 
-      console.log("[Heatmap] Max label width found:", maxLabelWidth);
-
       // Add padding (pr-1 is 4px on small screens, pr-2 is 8px on larger)
       const totalWidth = maxLabelWidth + 8;
-      console.log("[Heatmap] Total width with padding:", totalWidth);
 
       const finalWidth = Math.max(36, Math.min(totalWidth, 120)); // Min 36px, max 120px
-      console.log("[Heatmap] Final constrained width:", finalWidth);
 
       setRowLabelsWidth(finalWidth);
     }
