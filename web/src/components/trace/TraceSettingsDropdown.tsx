@@ -110,12 +110,7 @@ export const TraceSettingsDropdown = ({
               <span className="mr-2">Show Duration</span>
               <Switch
                 checked={durationOnObservationTree}
-                onCheckedChange={(e) => {
-                  capture("trace_detail:observation_tree_toggle_duration", {
-                    show: e,
-                  });
-                  setDurationOnObservationTree(e);
-                }}
+                onCheckedChange={setDurationOnObservationTree}
               />
             </div>
           </DropdownMenuItem>
@@ -125,12 +120,7 @@ export const TraceSettingsDropdown = ({
               <span className="mr-2">Show Cost/Tokens</span>
               <Switch
                 checked={costTokensOnObservationTree}
-                onCheckedChange={(e) => {
-                  capture("trace_detail:observation_tree_toggle_cost_tokens", {
-                    show: e,
-                  });
-                  setCostTokensOnObservationTree(e);
-                }}
+                onCheckedChange={setCostTokensOnObservationTree}
               />
             </div>
           </DropdownMenuItem>
