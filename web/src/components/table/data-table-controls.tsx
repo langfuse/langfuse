@@ -132,11 +132,11 @@ export function DataTableControls({
   return (
     <div
       className={cn(
-        "flex h-full w-full flex-col border-t bg-background",
+        "flex h-full w-full flex-col overflow-auto border-t bg-background",
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="sticky top-0 z-10 mb-2 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
+      <div className="sticky top-0 z-20 mb-2 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
         <span className="text-sm font-medium">Filters</span>
         {filterWithAI && isLangfuseCloud && (
           <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
@@ -156,7 +156,7 @@ export function DataTableControls({
           </Popover>
         )}
       </div>
-      <div className="flex-1 overflow-auto pb-10">
+      <div className="pb-10">
         <Accordion
           type="multiple"
           className="w-full"
@@ -358,7 +358,7 @@ const FilterAccordionTrigger = ({
   children,
   ...props
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>) => (
-  <AccordionPrimitive.Header className="flex">
+  <AccordionPrimitive.Header className="sticky top-10 z-10 flex bg-background">
     <AccordionPrimitive.Trigger
       className={cn(
         "flex flex-1 items-center justify-between font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
@@ -401,7 +401,7 @@ export function FilterAccordionItem({
 }: FilterAccordionItemProps) {
   return (
     <FilterAccordionItemPrimitive value={filterKey} className="border-none">
-      <FilterAccordionTrigger className="px-4 py-2 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
+      <FilterAccordionTrigger className="px-4 py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
         <div className="flex grow items-center gap-1.5 pr-2">
           <span className="flex grow items-baseline gap-1">
             {label}

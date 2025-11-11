@@ -27,8 +27,8 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
   const filterSidebar = childrenArray[0];
   const tableContent = childrenArray.slice(1);
 
-  const filterDefault = 15;
-  const tableDefault = 85;
+  const filterDefault = 25;
+  const tableDefault = 75;
 
   // If sidebar is collapsed or doesn't exist, render only the table content
   if (!open || !filterSidebar) {
@@ -39,8 +39,8 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
 
   return (
     <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
-      <ResizablePanel defaultSize={filterDefault} minSize={15} maxSize={50}>
-        <div className="h-full w-full">{filterSidebar}</div>
+      <ResizablePanel defaultSize={filterDefault} minSize={20} maxSize={50}>
+        {filterSidebar}
       </ResizablePanel>
       <ResizableHandle />
       <ResizablePanel defaultSize={tableDefault} minSize={50}>
