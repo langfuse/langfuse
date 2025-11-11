@@ -53,7 +53,7 @@ export default async function handler(
         },
         where: {
           id: authCheck.scope.projectId,
-          // deletedAt: null, // here we want to include deleted projects and grey them in the UI.
+          deletedAt: null,
         },
       });
 
