@@ -25,7 +25,8 @@ export const TraceTree = ({
   displayScores: scores,
   currentNodeId,
   setCurrentNodeId,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   nodeCommentCounts,
@@ -44,7 +45,8 @@ export const TraceTree = ({
   displayScores: APIScoreV2[];
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   nodeCommentCounts?: Map<string, number>;
@@ -109,7 +111,8 @@ export const TraceTree = ({
         indentationLevel={0}
         currentNodeId={currentNodeId}
         setCurrentNodeId={setCurrentNodeId}
-        showMetrics={showMetrics}
+        showDuration={showDuration}
+        showCostTokens={showCostTokens}
         showScores={showScores}
         colorCodeMetrics={colorCodeMetrics}
         parentTotalCost={totalCost}
@@ -151,7 +154,8 @@ type TreeNodeComponentProps = {
   indentationLevel: number;
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   parentTotalCost?: Decimal;
@@ -171,7 +175,8 @@ const UnmemoizedTreeNodeComponent = ({
   indentationLevel,
   currentNodeId,
   setCurrentNodeId,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   parentTotalCost,
@@ -291,7 +296,8 @@ const UnmemoizedTreeNodeComponent = ({
               node={node}
               scores={scores}
               comments={comments}
-              showMetrics={showMetrics}
+              showDuration={showDuration}
+              showCostTokens={showCostTokens}
               showScores={showScores}
               colorCodeMetrics={colorCodeMetrics}
               parentTotalCost={parentTotalCost}
@@ -354,7 +360,8 @@ const UnmemoizedTreeNodeComponent = ({
                   indentationLevel={indentationLevel + 1}
                   currentNodeId={currentNodeId}
                   setCurrentNodeId={setCurrentNodeId}
-                  showMetrics={showMetrics}
+                  showDuration={showDuration}
+                  showCostTokens={showCostTokens}
                   showScores={showScores}
                   colorCodeMetrics={colorCodeMetrics}
                   parentTotalCost={parentTotalCost}
