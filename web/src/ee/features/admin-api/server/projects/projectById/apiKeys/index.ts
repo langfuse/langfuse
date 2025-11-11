@@ -109,7 +109,6 @@ export async function handleCreateApiKey(
       action: "create",
       orgId: orgId,
       projectId: projectId,
-      orgRole: "ADMIN",
       apiKeyId: "ORG_KEY",
     });
 
