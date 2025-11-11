@@ -22,6 +22,7 @@ import {
 import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { X as IconX, Search, WandSparkles } from "lucide-react";
 import type {
   UIFilter,
@@ -571,11 +572,21 @@ export function CategoricalFacet({
 
             {/* Loading / Empty / Options */}
             {loading ? (
-              <div className="pl-4 text-sm text-muted-foreground">
-                Loading...
-              </div>
+              <>
+                {[1, 2].map((i) => (
+                  <div key={i} className="relative flex items-center px-2">
+                    <div className="group/checkbox flex items-center rounded-sm p-1">
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                    </div>
+                    <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="ml-auto h-3 w-8" />
+                    </div>
+                  </div>
+                ))}
+              </>
             ) : options.length === 0 ? (
-              <div className="py-1 text-center text-sm text-muted-foreground">
+              <div className="py-1 text-center text-xs text-muted-foreground">
                 No options found
               </div>
             ) : (

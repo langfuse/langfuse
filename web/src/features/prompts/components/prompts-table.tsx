@@ -210,7 +210,7 @@ export function PromptTable() {
             value: item.value,
             count: item.count !== undefined ? Number(item.count) : undefined,
           };
-        }) || [],
+        }) ?? undefined,
       tags:
         promptFilterOptions.data?.tags?.map((t) => {
           // API type says { value: string }[], but for some items, there is an optional count
@@ -219,7 +219,7 @@ export function PromptTable() {
             value: item.value,
             count: item.count !== undefined ? Number(item.count) : undefined,
           };
-        }) || [],
+        }) ?? undefined,
       version: [],
     }),
     [promptFilterOptions.data],
@@ -229,6 +229,7 @@ export function PromptTable() {
     promptFilterConfig,
     newFilterOptions,
     projectId,
+    promptFilterOptions.isPending,
   );
 
   useEffect(() => {

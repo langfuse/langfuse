@@ -346,6 +346,8 @@ export function Trace(props: {
       hiddenObservationsCount={hiddenObservationsCount}
       minLevel={minObservationLevel}
       setMinLevel={setMinObservationLevel}
+      projectId={props.projectId}
+      traceId={props.trace.id}
     />
   );
 

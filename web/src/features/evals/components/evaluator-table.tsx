@@ -108,6 +108,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     evaluatorFilterConfig,
     newFilterOptions,
     projectId,
+    false,
   );
 
   const evaluators = api.evals.allConfigs.useQuery({
