@@ -131,33 +131,31 @@ export function DataTableControls({
   return (
     <div
       className={cn(
-        "h-full w-full border-r border-t bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
+        "flex h-full w-full flex-col border-t bg-background",
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="flex h-full flex-col overflow-auto pb-10">
-        <div className="mb-2 flex h-10 shrink-0 items-center justify-between border-b px-3">
-          <span className="text-sm font-medium">Filters</span>
-          {filterWithAI && isLangfuseCloud && (
-            <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <WandSparkles className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Filter with AI</TooltipContent>
-              </Tooltip>
-              <PopoverContent align="center" className="w-[400px]">
-                <DataTableAIFilters
-                  onFiltersGenerated={handleFiltersGenerated}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
+      <div className="sticky top-0 z-10 mb-2 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
+        <span className="text-sm font-medium">Filters</span>
+        {filterWithAI && isLangfuseCloud && (
+          <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <WandSparkles className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Filter with AI</TooltipContent>
+            </Tooltip>
+            <PopoverContent align="center" className="w-[400px]">
+              <DataTableAIFilters onFiltersGenerated={handleFiltersGenerated} />
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+      <div className="flex-1 overflow-auto pb-10">
         <Accordion
           type="multiple"
           className="w-full"
