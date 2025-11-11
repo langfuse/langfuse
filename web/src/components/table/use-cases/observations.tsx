@@ -5,6 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -1207,7 +1208,7 @@ export default function ObservationsTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -1274,7 +1275,7 @@ export default function ObservationsTable({
               }}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );
