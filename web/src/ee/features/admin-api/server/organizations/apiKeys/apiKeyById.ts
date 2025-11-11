@@ -55,7 +55,6 @@ export async function handleDeleteApiKey(
     resourceId: apiKeyId,
     action: "delete",
     orgId: organizationId,
-    orgRole: "ADMIN",
     apiKeyId: "ADMIN_KEY",
   });
 

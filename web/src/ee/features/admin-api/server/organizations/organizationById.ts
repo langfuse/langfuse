@@ -128,7 +128,6 @@ export async function handleUpdateOrganization(
     resourceId: organizationId,
     action: "update",
     orgId: organizationId,
-    orgRole: "ADMIN",
     before: existingOrg,
     after: updatedOrganization,
     apiKeyId: "ADMIN_KEY",
@@ -187,7 +186,6 @@ export async function handleDeleteOrganization(
     resourceId: organizationId,
     action: "delete",
     orgId: organizationId,
-    orgRole: "ADMIN",
     before: deletedOrganization,
     apiKeyId: "ADMIN_KEY",
   });

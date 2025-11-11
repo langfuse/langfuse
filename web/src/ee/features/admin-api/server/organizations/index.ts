@@ -97,7 +97,6 @@ export async function handleCreateOrganization(
     resourceId: organization.id,
     action: "create",
     orgId: organization.id,
-    orgRole: "ADMIN",
     after: organization,
     apiKeyId: "ADMIN_KEY",
   });
