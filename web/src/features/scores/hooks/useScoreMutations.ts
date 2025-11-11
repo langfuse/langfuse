@@ -22,7 +22,8 @@ export function useScoreMutations({
     set: cacheSet,
     get: cacheGet,
     delete: cacheDelete,
-    remove: cacheRemove,
+    rollbackSet: cacheRollbackSet,
+    rollbackDelete: cacheRollbackDelete,
     setColumn: cacheSetColumn,
   } = useScoreCache();
 
@@ -62,8 +63,8 @@ export function useScoreMutations({
     },
     onError: (err, variables) => {
       if (!variables.id) return;
-      // Remove failed create from cache
-      cacheRemove(variables.id);
+      // Rollback failed create from cache
+      cacheRollbackSet(variables.id);
       showErrorToast("Failed to create score", err.message, "WARNING");
     },
   });
@@ -110,21 +111,27 @@ export function useScoreMutations({
         // Had cache entry → restore previous value
         cacheSet(variables.id, context.previousCacheValue);
       } else {
-        // No cache entry → was DB-persisted → remove optimistic update
-        cacheRemove(variables.id);
+        // No cache entry → was DB-persisted → rollback optimistic update
+        cacheRollbackSet(variables.id);
       }
-
       showErrorToast("Failed to update score", err.message, "WARNING");
     },
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
     onMutate: (variables) => {
+      // Snapshot score before delete (may be undefined)
+      const previousCacheValue = cacheGet(variables.id);
+
       // Mark score as deleted
       cacheDelete(variables.id);
+
+      return { previousCacheValue };
     },
-    onError: () => {
-      window.location.reload();
+    onError: (err, variables, context) => {
+      // Rollback
+      cacheRollbackDelete(variables.id, context?.previousCacheValue);
+      showErrorToast("Failed to delete score", err.message, "WARNING");
     },
   });
 
