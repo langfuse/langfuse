@@ -87,7 +87,7 @@ const DemoBadge = () => {
     return null;
 
   return (
-    <SidebarGroup className="mb-1 border-b">
+    <SidebarGroup className="border-b">
       <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
