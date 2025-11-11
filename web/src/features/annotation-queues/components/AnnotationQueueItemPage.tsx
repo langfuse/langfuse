@@ -1,6 +1,5 @@
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -77,10 +76,6 @@ export const AnnotationQueueItemPage: React.FC<{
   const completeMutation = api.annotationQueueItems.complete.useMutation({
     onSuccess: async () => {
       utils.annotationQueueItems.invalidate();
-      showSuccessToast({
-        title: "Item marked as complete",
-        description: "The item is successfully marked as complete.",
-      });
       if (isSingleItem) {
         return;
       }

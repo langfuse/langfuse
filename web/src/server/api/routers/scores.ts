@@ -37,6 +37,7 @@ import {
   getScoresUiCount,
   getScoresUiTable,
   getScoreNames,
+  getScoreStringValues,
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
@@ -321,25 +322,27 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { timestampFilter } = input;
-      const [names, tags, traceNames, userIds] = await Promise.all([
-        getScoreNames(input.projectId, timestampFilter ?? []),
-        getTracesGroupedByTags({
-          projectId: input.projectId,
-          filter: timestampFilter ?? [],
-        }),
-        getTracesGroupedByName(
-          input.projectId,
-          tracesTableUiColumnDefinitions,
-          timestampFilter ?? [],
-        ),
-        getTracesGroupedByUsers(
-          input.projectId,
-          timestampFilter ?? [],
-          undefined,
-          100, // limit to top 100 users
-          0,
-        ),
-      ]);
+      const [names, tags, traceNames, userIds, stringValues] =
+        await Promise.all([
+          getScoreNames(input.projectId, timestampFilter ?? []),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ?? [],
+          }),
+          getTracesGroupedByName(
+            input.projectId,
+            tracesTableUiColumnDefinitions,
+            timestampFilter ?? [],
+          ),
+          getTracesGroupedByUsers(
+            input.projectId,
+            timestampFilter ?? [],
+            undefined,
+            100, // limit to top 100 users
+            0,
+          ),
+          getScoreStringValues(input.projectId, timestampFilter ?? []),
+        ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
@@ -349,6 +352,7 @@ export const scoresRouter = createTRPCRouter({
           count: tn.count,
         })),
         userId: userIds.map((u) => ({ value: u.user, count: u.count })),
+        stringValue: stringValues,
       };
     }),
   deleteMany: protectedProjectProcedure
@@ -931,6 +935,7 @@ export const scoresRouter = createTRPCRouter({
         objectType: z
           .enum(["all", "trace", "session", "observation", "dataset_run"])
           .default("all"),
+        mode: z.enum(["single", "two"]).optional(), // Frontend passes "single" when only score1 selected
       }),
     )
     .query(async ({ input }) => {
@@ -997,6 +1002,7 @@ export const scoresRouter = createTRPCRouter({
         willSample,
         willSkipFinal,
         estimatedQueryTime,
+        mode: input.mode ?? "two", // Echo back the mode from frontend
       };
     }),
 
@@ -1018,6 +1024,7 @@ export const scoresRouter = createTRPCRouter({
           dataType: z.string(),
           source: z.string(),
         }),
+        mode: z.enum(["single", "two"]).optional(), // Frontend passes "single" when only score1 selected
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
         interval: z
@@ -2323,6 +2330,12 @@ export const scoresRouter = createTRPCRouter({
               ? "Small dataset - using FINAL for accuracy"
               : "Large dataset - skipping FINAL for performance",
           },
+        },
+        // Metadata about query mode and score comparison
+        metadata: {
+          mode: input.mode ?? "two", // Echo back the mode from frontend
+          isSameScore: isIdenticalScores,
+          dataType: score1.dataType,
         },
       };
     }),

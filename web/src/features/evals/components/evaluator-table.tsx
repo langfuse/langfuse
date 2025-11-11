@@ -6,6 +6,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
@@ -107,6 +108,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     evaluatorFilterConfig,
     newFilterOptions,
     projectId,
+    false,
   );
 
   const evaluators = api.evals.allConfigs.useQuery({
@@ -416,7 +418,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -468,7 +470,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               onColumnVisibilityChange={setColumnVisibility}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}

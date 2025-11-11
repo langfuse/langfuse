@@ -71,7 +71,7 @@ const PageHeader = ({
         <div className="border-b">
           <div
             className={cn(
-              "flex min-h-12 items-center gap-3 px-3 py-2",
+              "flex min-h-11 items-center gap-3 px-3 py-2",
               container && "lg:container",
             )}
           >
@@ -87,7 +87,7 @@ const PageHeader = ({
         <div className="bg-header">
           <div
             className={cn(
-              "flex min-h-12 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
+              "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
               container && "lg:container",
             )}
           >

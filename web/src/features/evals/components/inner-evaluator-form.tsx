@@ -116,7 +116,7 @@ const TracesPreview = memo(
             Sample over the last 24 hours that match these filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             <TracesTable
               projectId={projectId}

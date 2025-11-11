@@ -17,6 +17,7 @@ import {
   QueueJobs,
   instrumentSync,
   recordDistribution,
+  UsageDetails,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -271,6 +272,18 @@ export class OtelIngestionProcessor {
                 const experimentFields =
                   this.extractExperimentFields(spanAttributes);
 
+                const usageDetails = UsageDetails.safeParse(
+                  this.extractUsageDetails(
+                    spanAttributes,
+                    scopeSpan?.scope?.name ?? "",
+                  ),
+                );
+                if (!usageDetails.success) {
+                  logger.warn(
+                    `Invalid usage details extracted from OTEL span for traceId ${traceId}: ${JSON.stringify(usageDetails.error)}`,
+                  );
+                }
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -336,10 +349,9 @@ export class OtelIngestionProcessor {
                   ),
 
                   // Usage and cost details
-                  providedUsageDetails: this.extractUsageDetails(
-                    spanAttributes,
-                    scopeSpan?.scope?.name ?? "",
-                  ),
+                  providedUsageDetails: usageDetails.success
+                    ? usageDetails.data
+                    : undefined,
                   providedCostDetails: this.extractCostDetails(
                     spanAttributes,
                     isLangfuseSDKSpans,
@@ -903,11 +915,8 @@ export class OtelIngestionProcessor {
       usageDetails: this.extractUsageDetails(
         attributes,
         instrumentationScopeName,
-      ) as any,
-      costDetails: this.extractCostDetails(
-        attributes,
-        isLangfuseSDKSpans,
-      ) as any,
+      ),
+      costDetails: this.extractCostDetails(attributes, isLangfuseSDKSpans),
       input,
       output,
     };

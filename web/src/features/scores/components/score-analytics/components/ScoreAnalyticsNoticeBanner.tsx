@@ -53,8 +53,9 @@ export function ScoreAnalyticsNoticeBanner() {
             </div>
             {estimate && (
               <div className="text-sm text-muted-foreground">
-                Analyzing ~{estimate.score1Count.toLocaleString()} (Score 1) and
-                ~{estimate.score2Count.toLocaleString()} (Score 2) scores
+                {estimate.mode === "single"
+                  ? `Analyzing ~${estimate.score1Count.toLocaleString()} scores`
+                  : `Analyzing ~${estimate.score1Count.toLocaleString()} (Score 1) and ~${estimate.score2Count.toLocaleString()} (Score 2) scores`}
                 {estimate.willSample && " • Sampling will be applied"}
                 {estimate.estimatedQueryTime && (
                   <> • Est. time: {estimate.estimatedQueryTime}</>
@@ -78,16 +79,13 @@ export function ScoreAnalyticsNoticeBanner() {
               Sampled Data
               <SamplingDetailsHoverCard
                 samplingMetadata={data.samplingMetadata}
+                mode={data.metadata.mode}
               />
             </div>
             <div className="text-sm text-muted-foreground">
-              Results based on a{" "}
-              {(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of
-              ~
-              {data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}{" "}
-              Score 1 and ~
-              {data.samplingMetadata.preflightEstimates?.score2Count.toLocaleString()}{" "}
-              Score 2 data.
+              {data.metadata.mode === "single"
+                ? `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} scores.`
+                : `Results based on a ${(data.samplingMetadata.samplingRate * 100).toFixed(2)}% sample of ~${data.samplingMetadata.preflightEstimates?.score1Count.toLocaleString()} Score 1 and ~${data.samplingMetadata.preflightEstimates?.score2Count.toLocaleString()} Score 2 data.`}
             </div>
           </div>
         </div>
@@ -101,6 +99,7 @@ export function ScoreAnalyticsNoticeBanner() {
 
 function SamplingDetailsHoverCard({
   samplingMetadata,
+  mode = "two",
   showLabel = false,
 }: {
   samplingMetadata: {
@@ -115,6 +114,7 @@ function SamplingDetailsHoverCard({
       reason: string;
     };
   };
+  mode?: "single" | "two";
   showLabel?: boolean;
 }) {
   return (
@@ -137,29 +137,45 @@ function SamplingDetailsHoverCard({
       <HoverCardContent className="w-80" align="start">
         <div className="space-y-3">
           <div>
-            <h4 className="mb-2 text-sm font-semibold">Estimated Scores</h4>
+            <h4 className="mb-2 text-sm font-semibold">
+              {mode === "single" ? "Estimated Score Count" : "Estimated Scores"}
+            </h4>
             <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Score 1:</dt>
-                <dd className="font-medium">
-                  ~
-                  {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Score 2:</dt>
-                <dd className="font-medium">
-                  ~
-                  {samplingMetadata.preflightEstimates?.score2Count.toLocaleString()}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Estimated Matches:</dt>
-                <dd className="font-medium">
-                  ~
-                  {samplingMetadata.preflightEstimates?.estimatedMatchedCount.toLocaleString()}
-                </dd>
-              </div>
+              {mode === "single" ? (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Total Scores:</dt>
+                  <dd className="font-medium">
+                    ~
+                    {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
+                  </dd>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Score 1:</dt>
+                    <dd className="font-medium">
+                      ~
+                      {samplingMetadata.preflightEstimates?.score1Count.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Score 2:</dt>
+                    <dd className="font-medium">
+                      ~
+                      {samplingMetadata.preflightEstimates?.score2Count.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">
+                      Estimated Matches:
+                    </dt>
+                    <dd className="font-medium">
+                      ~
+                      {samplingMetadata.preflightEstimates?.estimatedMatchedCount.toLocaleString()}
+                    </dd>
+                  </div>
+                </>
+              )}
             </dl>
           </div>
 
