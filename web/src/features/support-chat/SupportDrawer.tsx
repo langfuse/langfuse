@@ -38,7 +38,7 @@ export const SupportDrawer = ({
       ])}
     >
       <div className="bg-background">
-        <div className="flex min-h-12 w-full items-center justify-between gap-1 px-4 py-1">
+        <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
           <Breadcrumb>
             <BreadcrumbList>
               {currentMode === "intro" ? (

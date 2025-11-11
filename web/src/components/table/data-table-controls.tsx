@@ -6,7 +6,8 @@ import {
   useRef,
   useCallback,
 } from "react";
-import useLocalStorage from "@/src/components/useLocalStorage";
+import { useMediaQuery } from "react-responsive";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { Accordion } from "@/src/components/ui/accordion";
@@ -44,6 +45,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 interface ControlsContextType {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  tableName?: string;
 }
 
 export const ControlsContext = createContext<ControlsContextType | null>(null);
@@ -57,14 +59,15 @@ export function DataTableControlsProvider({
   tableName?: string;
   defaultSidebarCollapsed?: boolean;
 }) {
+  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const storageKey = tableName
     ? `data-table-controls-${tableName}`
     : "data-table-controls";
-  const defaultOpen = !defaultSidebarCollapsed;
-  const [open, setOpen] = useLocalStorage(storageKey, defaultOpen);
+  const defaultOpen = isDesktop ? !defaultSidebarCollapsed : false;
+  const [open, setOpen] = useSessionStorage(storageKey, defaultOpen);
 
   return (
-    <ControlsContext.Provider value={{ open, setOpen }}>
+    <ControlsContext.Provider value={{ open, setOpen, tableName }}>
       <div
         // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
         className="group/controls contents"
@@ -81,7 +84,7 @@ export function useDataTableControls() {
 
   if (!context) {
     // Return default values when not in a provider (e.g., tables without the new sidebar)
-    return { open: false, setOpen: () => {} };
+    return { open: false, setOpen: () => {}, tableName: undefined };
   }
 
   return context as ControlsContextType;
@@ -1019,13 +1022,13 @@ interface FilterModeTabsProps {
 
 function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 px-4">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 px-4 @container">
       <span className="text-[10px] text-muted-foreground/80">Mode:</span>
-      <div className="inline-flex flex-1 rounded border border-input/50 bg-background text-[10px]">
+      <div className="flex flex-1 flex-col rounded border border-input/50 bg-background text-[10px] @[7.5rem]:min-w-[140px] @[7.5rem]:flex-row">
         <button
           onClick={() => onModeChange("select")}
           className={cn(
-            "flex-1 rounded-l px-3 py-0.5 transition-colors",
+            "flex-1 rounded-t px-3 py-0.5 transition-colors @[7.5rem]:rounded-l @[7.5rem]:rounded-tr-none",
             mode === "select"
               ? "bg-accent font-medium text-accent-foreground"
               : "text-muted-foreground hover:text-foreground",
@@ -1033,11 +1036,11 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         >
           SELECT
         </button>
-        <div className="w-px bg-border/50" />
+        <div className="h-px bg-border/50 @[7.5rem]:h-auto @[7.5rem]:w-px" />
         <button
           onClick={() => onModeChange("text")}
           className={cn(
-            "flex-1 rounded-r px-3 py-0.5 transition-colors",
+            "flex-1 rounded-b px-3 py-0.5 transition-colors @[7.5rem]:rounded-r @[7.5rem]:rounded-bl-none",
             mode === "text"
               ? "bg-accent font-medium text-accent-foreground"
               : "text-muted-foreground hover:text-foreground",

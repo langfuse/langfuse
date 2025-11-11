@@ -14,7 +14,7 @@ import { useDataTableControls } from "./data-table-controls";
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
-  const { open } = useDataTableControls();
+  const { open, tableName } = useDataTableControls();
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
 
   // On mobile, render children as-is (stacked layout)
@@ -24,11 +24,16 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
 
   // Extract filter sidebar and table content from children
   const childrenArray = Children.toArray(children).filter(Boolean);
-  const filterSidebar = childrenArray[0];
-  const tableContent = childrenArray.slice(1);
 
-  const filterDefault = 25;
-  const tableDefault = 75;
+  // If there's only one child, it's the table content (no filter sidebar)
+  const hasFilterSidebar = childrenArray.length > 1;
+  const filterSidebar = hasFilterSidebar ? childrenArray[0] : null;
+  const tableContent = hasFilterSidebar
+    ? childrenArray.slice(1)
+    : childrenArray;
+
+  const filterDefault = 15;
+  const tableDefault = 85;
 
   // If sidebar is collapsed or doesn't exist, render only the table content
   if (!open || !filterSidebar) {
@@ -37,9 +42,16 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     );
   }
 
+  const autoSaveId = tableName ? `filter-layout-${tableName}` : "filter-layout";
+
   return (
-    <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
-      <ResizablePanel defaultSize={filterDefault} minSize={20} maxSize={50}>
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="flex h-full w-full"
+      autoSaveId={autoSaveId}
+      storage={sessionStorage}
+    >
+      <ResizablePanel defaultSize={filterDefault} minSize={12} maxSize={50}>
         {filterSidebar}
       </ResizablePanel>
       <ResizableHandle />
