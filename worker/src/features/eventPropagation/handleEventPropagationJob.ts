@@ -299,8 +299,7 @@ export const handleEventPropagationJob = async (
             ELSE coalesce(obs.parent_observation_id, concat('t-', obs.trace_id))
           END AS parent_span_id,
           -- Convert timestamps from DateTime64(3) to DateTime64(6) via implicit conversion
-          -- Clamp start_time to 1970-01-01 or later (Unix epoch minimum) to avoid toUnixTimestamp() errors
-          greatest(obs.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
+          obs.start_time,
           obs.end_time,
           obs.name,
           obs.type,
