@@ -136,7 +136,7 @@ export function DataTableControls({
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="sticky top-0 z-20 mb-2 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
+      <div className="sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
         <span className="text-sm font-medium">Filters</span>
         {filterWithAI && isLangfuseCloud && (
           <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
@@ -401,7 +401,7 @@ export function FilterAccordionItem({
 }: FilterAccordionItemProps) {
   return (
     <FilterAccordionItemPrimitive value={filterKey} className="border-none">
-      <FilterAccordionTrigger className="px-4 py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
+      <FilterAccordionTrigger className="px-3 py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
         <div className="flex grow items-center gap-1.5 pr-2">
           <span className="flex grow items-baseline gap-1">
             {label}
@@ -633,14 +633,16 @@ export function CategoricalFacet({
                       />
                     ))}
                     {hasMoreFilteredOptions && !showAll && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowAll(true)}
-                        className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
-                      >
-                        Show more values
-                      </Button>
+                      <div className="px-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowAll(true)}
+                          className="text-normal mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                        >
+                          Show more values
+                        </Button>
+                      </div>
                     )}
                   </>
                 )}
