@@ -384,7 +384,7 @@ export const TracePreview = ({
           {/* show preview always if not detailed view */}
           <TabsBarContent
             value="preview"
-            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-2"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
               <IOPreview
@@ -404,14 +404,12 @@ export const TracePreview = ({
                 }
               />
 
-              <div className="io-message-header px-2 text-sm font-medium">
-                {"Tags"}
-              </div>
-              <div className="flex flex-wrap gap-x-1 gap-y-1">
+              <div className="px-2 text-sm font-medium">{"Tags"}</div>
+              <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
                 <TagList selectedTags={trace.tags} isLoading={false} />
               </div>
 
-              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+              <div className="px-2">
                 <PrettyJsonView
                   key={trace.id + "-metadata"}
                   title="Metadata"

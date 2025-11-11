@@ -419,7 +419,7 @@ export const ObservationPreview = ({
           )}
           <TabsBarContent
             value="preview"
-            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-2"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
               <div>
