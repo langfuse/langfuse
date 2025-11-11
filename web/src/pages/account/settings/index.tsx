@@ -290,7 +290,7 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
           <Header title="Password" />
           <Card className="p-3">
             <p className="mb-4 text-sm text-primary">
-              To change your password, we'll send you a secure link to your
+              To change your password, we will send you a secure link to your
               email address. Click the button below to start the password reset
               process.
             </p>
