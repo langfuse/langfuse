@@ -5,7 +5,7 @@ import {
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
-import { Fragment, useMemo, useRef, useEffect } from "react";
+import { Fragment, useMemo, useRef, useEffect, useCallback } from "react";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -21,6 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { api } from "@/src/utils/api";
 
 export const TraceTree = ({
   tree,
@@ -38,6 +39,8 @@ export const TraceTree = ({
   hiddenObservationsCount,
   minLevel,
   setMinLevel,
+  projectId,
+  traceId,
 }: {
   tree: TreeNode;
   collapsedNodes: string[];
@@ -55,7 +58,30 @@ export const TraceTree = ({
   hiddenObservationsCount?: number;
   minLevel?: ObservationLevelType;
   setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
+  projectId: string;
+  traceId: string;
 }) => {
+  const utils = api.useUtils();
+
+  const handleObservationHover = useCallback(
+    (node: TreeNode) => {
+      if (node.type !== "TRACE") {
+        void utils.observations.byId.prefetch(
+          {
+            observationId: node.id,
+            startTime: node.startTime,
+            traceId,
+            projectId,
+          },
+          {
+            staleTime: 5 * 60 * 1000, // don't refetch if data is <5min old
+          },
+        );
+      }
+    },
+    [utils, traceId, projectId],
+  );
+
   const totalCost = useMemo(() => {
     // For unified tree, we need to calculate total cost differently
     // Convert TreeNode back to observation format for cost calculation
@@ -96,6 +122,7 @@ export const TraceTree = ({
         showComments={showComments}
         treeLines={[]}
         isLastSibling={true}
+        onObservationHover={handleObservationHover}
       />
 
       {minLevel && hiddenObservationsCount && hiddenObservationsCount > 0 ? (
@@ -137,6 +164,7 @@ type TreeNodeComponentProps = {
   showComments: boolean;
   treeLines: boolean[]; // Track which levels need vertical lines
   isLastSibling: boolean;
+  onObservationHover: (node: TreeNode) => void;
 };
 
 const UnmemoizedTreeNodeComponent = ({
@@ -156,6 +184,7 @@ const UnmemoizedTreeNodeComponent = ({
   showComments,
   treeLines,
   isLastSibling,
+  onObservationHover,
 }: TreeNodeComponentProps) => {
   const capture = usePostHogClientCapture();
   const collapsed = collapsedNodes.includes(node.id);
@@ -258,6 +287,7 @@ const UnmemoizedTreeNodeComponent = ({
                   e.stopPropagation();
                   setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
                 }}
+                onMouseEnter={() => onObservationHover(node)}
                 className={cn(
                   "peer relative flex min-w-0 flex-1 items-start rounded-md py-1.5 pl-2 pr-2 text-left",
                 )}
@@ -343,6 +373,7 @@ const UnmemoizedTreeNodeComponent = ({
                   showComments={showComments}
                   treeLines={childTreeLines}
                   isLastSibling={isChildLastSibling}
+                  onObservationHover={onObservationHover}
                 />
               );
             })}

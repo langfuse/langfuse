@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -79,20 +79,17 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   } = props;
   const availableValues = mode === "categorical" ? props.availableValues : {};
 
+  // Track which popover is open (by index)
+  const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
+
   // Local UI state for filter rows (includes incomplete filters)
+  // Initialize once from activeFilters but don't sync on every change
+  // This allows incomplete filter rows to persist in the UI while being edited
   const [localFilters, setLocalFilters] = useState<
     | KeyValueFilterEntry[]
     | NumericKeyValueFilterEntry[]
     | StringKeyValueFilterEntry[]
-  >([]);
-
-  // Track which popover is open (by index)
-  const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
-
-  // Initialize from activeFilters (which only has complete filters)
-  useEffect(() => {
-    setLocalFilters(activeFilters.length > 0 ? activeFilters : []);
-  }, [activeFilters]);
+  >(() => (activeFilters.length > 0 ? activeFilters : []));
 
   const handleFilterChange = (
     index: number,
@@ -230,17 +227,10 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                               key={option}
                               value={option}
                               onSelect={(value) => {
-                                if (mode === "categorical") {
-                                  handleFilterChange(index, {
-                                    key: value,
-                                    value: [],
-                                  });
-                                } else {
-                                  handleFilterChange(index, {
-                                    key: value,
-                                    value: "",
-                                  });
-                                }
+                                // Only update the key, preserve the existing value
+                                handleFilterChange(index, {
+                                  key: value,
+                                });
                                 setOpenPopoverIndex(null); // Close after selection
                               }}
                             >
@@ -266,17 +256,10 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   placeholder={keyPlaceholder}
                   value={filter.key}
                   onChange={(e) => {
-                    if (mode === "categorical") {
-                      handleFilterChange(index, {
-                        key: e.target.value,
-                        value: [],
-                      });
-                    } else {
-                      handleFilterChange(index, {
-                        key: e.target.value,
-                        value: "",
-                      });
-                    }
+                    // Only update the key, preserve the existing value
+                    handleFilterChange(index, {
+                      key: e.target.value,
+                    });
                   }}
                   className="flex-1"
                 />
