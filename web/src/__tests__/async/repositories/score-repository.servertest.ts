@@ -3,6 +3,7 @@ import {
   createScoresCh,
   getScoreById,
   getScoresGroupedByNameSourceType,
+  getScoresUiTable,
   createTracesCh,
   createObservationsCh,
   createTrace,
@@ -394,6 +395,130 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "EVAL",
         dataType: "CATEGORICAL",
       });
+    });
+  });
+
+  describe("getScoresUiTable", () => {
+    it("should return empty array when no scores match filter", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return scores with trace metadata", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const userId = "test-user";
+      const traceName = "test-trace";
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+        user_id: userId,
+        name: traceName,
+        tags: ["tag1", "tag2"],
+      });
+      await createTracesCh([trace]);
+
+      const score = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId,
+        name: "accuracy",
+        value: 0.95,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+      await createScoresCh([score]);
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: score.id,
+        name: "accuracy",
+        value: 0.95,
+        traceUserId: userId,
+        traceName: traceName,
+        traceTags: ["tag1", "tag2"],
+      });
+    });
+
+    it("should filter scores by name", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const score1 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: v4(),
+        name: "accuracy",
+        source: "API",
+      });
+      const score2 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: v4(),
+        name: "precision",
+        source: "API",
+      });
+      await createScoresCh([score1, score2]);
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [
+          {
+            column: "name",
+            operator: "=",
+            value: "accuracy",
+            type: "string",
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("accuracy");
+    });
+
+    it("should exclude metadata when flag is set", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const score = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: v4(),
+        name: "test",
+        metadata: { key: "value" },
+      });
+      await createScoresCh([score]);
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+        excludeMetadata: true,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].metadata).toBeUndefined();
     });
   });
 });
