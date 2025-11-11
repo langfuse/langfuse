@@ -150,7 +150,6 @@ function PlaygroundWindowContent({
   onRemove: (windowId: string) => void;
   onCopy: (windowId: string) => void;
   canRemove: boolean;
-  windowCount?: number;
   isMobile?: boolean;
 }) {
   const playgroundContext = usePlaygroundContext();
