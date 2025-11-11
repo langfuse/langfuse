@@ -305,6 +305,12 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const field = controlledFields[index];
     if (!field) return;
 
+    // Capture previous form state for rollback
+    const previousValue = field.value;
+    const previousStringValue = field.stringValue;
+    const previousId = field.id;
+    const previousTimestamp = field.timestamp;
+
     // Clear errors
     form.clearErrors(`scoreData.${index}.value`);
 
@@ -328,22 +334,54 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     };
 
     if (scoreId) {
-      updateMutation.mutate({
-        ...baseScoreData,
-        id: scoreId,
-        timestamp: scoreTimestamp ?? undefined,
-      } as UpdateAnnotationScoreData);
+      updateMutation.mutate(
+        {
+          ...baseScoreData,
+          id: scoreId,
+          timestamp: scoreTimestamp ?? undefined,
+        } as UpdateAnnotationScoreData,
+        {
+          onError: () => {
+            // Rollback form to previous state
+            form.setValue(`scoreData.${index}.value`, previousValue);
+            form.setValue(
+              `scoreData.${index}.stringValue`,
+              previousStringValue,
+            );
+            form.setError(`scoreData.${index}.value`, {
+              message: "Update failed",
+            });
+          },
+        },
+      );
     } else {
       const id = uuid();
       const timestamp = new Date();
       // Update scoreId and timestamp in form for future updates
       form.setValue(`scoreData.${index}.id`, id);
       form.setValue(`scoreData.${index}.timestamp`, timestamp);
-      createMutation.mutate({
-        ...baseScoreData,
-        id,
-        timestamp,
-      } as CreateAnnotationScoreData);
+      createMutation.mutate(
+        {
+          ...baseScoreData,
+          id,
+          timestamp,
+        } as CreateAnnotationScoreData,
+        {
+          onError: () => {
+            // Rollback form to empty state (was a create)
+            form.setValue(`scoreData.${index}.id`, previousId);
+            form.setValue(`scoreData.${index}.timestamp`, previousTimestamp);
+            form.setValue(`scoreData.${index}.value`, previousValue);
+            form.setValue(
+              `scoreData.${index}.stringValue`,
+              previousStringValue,
+            );
+            form.setError(`scoreData.${index}.value`, {
+              message: "Create failed",
+            });
+          },
+        },
+      );
     }
   };
 
@@ -395,6 +433,9 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const field = controlledFields[index];
     if (!field || !field.id) return;
 
+    // Capture previous comment for rollback
+    const previousComment = field.comment;
+
     // Update form with the new comment value
     update(index, {
       ...field,
@@ -402,12 +443,27 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     });
 
     // Fire mutation with new comment (only pass necessary fields)
-    updateMutation.mutate({
-      ...field,
-      ...scoreMetadata,
-      scoreTarget,
-      comment: newComment,
-    } as UpdateAnnotationScoreData);
+    updateMutation.mutate(
+      {
+        ...field,
+        ...scoreMetadata,
+        scoreTarget,
+        comment: newComment,
+      } as UpdateAnnotationScoreData,
+      {
+        onError: () => {
+          // Rollback form comment to previous state
+          update(index, {
+            ...field,
+            comment: previousComment,
+          });
+          form.setError(`scoreData.${index}.comment`, {
+            type: "server",
+            message: "Failed to update comment",
+          });
+        },
+      },
+    );
   };
 
   return (

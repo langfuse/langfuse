@@ -5,6 +5,7 @@ import {
 } from "@/src/features/scores/lib/helpers";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type ScoreTarget } from "@langfuse/shared";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 export function useScoreMutations({
   scoreTarget,
@@ -21,13 +22,9 @@ export function useScoreMutations({
     set: cacheSet,
     get: cacheGet,
     delete: cacheDelete,
+    remove: cacheRemove,
     setColumn: cacheSetColumn,
   } = useScoreCache();
-
-  // Rather than rolling back optimistic updates, we reload the page to clear the cache and invalidate trpc queries
-  const onError = () => {
-    window.location.reload();
-  };
 
   // Create mutations with cache writes
   const createMutation = api.scores.createAnnotationScore.useMutation({
@@ -60,15 +57,22 @@ export function useScoreMutations({
         comment: variables.comment ?? null,
         timestamp: variables.timestamp ?? new Date(),
       });
+
+      return { scoreId: variables.id! };
     },
-    onError,
+    onError: (err, variables) => {
+      if (!variables.id) return;
+      // Remove failed create from cache
+      cacheRemove(variables.id);
+      showErrorToast("Failed to create score", err.message, "WARNING");
+    },
   });
 
   const updateMutation = api.scores.updateAnnotationScore.useMutation({
     onMutate: (variables) => {
-      const existing = cacheGet(variables.id);
+      const previousCacheValue = cacheGet(variables.id);
 
-      if (!existing) {
+      if (!previousCacheValue) {
         // Write to cache for optimistic update
         cacheSet(variables.id, {
           id: variables.id,
@@ -91,14 +95,27 @@ export function useScoreMutations({
       } else {
         // Merge update into existing cache entry
         cacheSet(variables.id, {
-          ...existing,
-          value: variables.value ?? existing.value,
-          stringValue: variables.stringValue ?? existing.stringValue,
+          ...previousCacheValue,
+          value: variables.value ?? previousCacheValue.value,
+          stringValue: variables.stringValue ?? previousCacheValue.stringValue,
           comment: variables.comment ?? null,
         });
       }
+
+      return { previousCacheValue };
     },
-    onError,
+    onError: (err, variables, context) => {
+      // Rollback cache
+      if (context?.previousCacheValue) {
+        // Had cache entry → restore previous value
+        cacheSet(variables.id, context.previousCacheValue);
+      } else {
+        // No cache entry → was DB-persisted → remove optimistic update
+        cacheRemove(variables.id);
+      }
+
+      showErrorToast("Failed to update score", err.message, "WARNING");
+    },
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
@@ -106,7 +123,9 @@ export function useScoreMutations({
       // Mark score as deleted
       cacheDelete(variables.id);
     },
-    onError,
+    onError: () => {
+      window.location.reload();
+    },
   });
 
   return {

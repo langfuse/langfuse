@@ -41,6 +41,7 @@ type ScoreCacheContextValue = {
   set: (id: string, score: CachedScore) => void;
   get: (id: string) => CachedScore | undefined;
   delete: (id: string) => void;
+  remove: (id: string) => void;
   isDeleted: (id: string) => boolean;
   clear: () => void;
 
@@ -93,6 +94,16 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
       return newSet;
     });
     // Also remove from cache if present
+    setCache((prev) => {
+      if (!prev.has(id)) return prev;
+      const newCache = new Map(prev);
+      newCache.delete(id);
+      return newCache;
+    });
+  }, []);
+
+  const remove = useCallback((id: string) => {
+    // Remove from cache without marking as deleted
     setCache((prev) => {
       if (!prev.has(id)) return prev;
       const newCache = new Map(prev);
@@ -175,6 +186,7 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
         set,
         get,
         delete: deleteScore,
+        remove,
         isDeleted,
         clear,
         getAllForTarget,
