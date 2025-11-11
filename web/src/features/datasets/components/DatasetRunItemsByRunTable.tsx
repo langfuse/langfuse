@@ -166,7 +166,7 @@ export function DatasetRunItemsByRunTable(props: {
       cell: ({ row }) => {
         const totalCost: DatasetRunItemByRunRowData["totalCost"] =
           row.getValue("totalCost");
-        return <>{totalCost}</>;
+        return totalCost ?? undefined;
       },
     },
     {

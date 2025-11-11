@@ -22,6 +22,7 @@ import {
 import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { X as IconX, Search, WandSparkles } from "lucide-react";
 import type {
   UIFilter,
@@ -131,33 +132,31 @@ export function DataTableControls({
   return (
     <div
       className={cn(
-        "h-full w-full border-r border-t bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
+        "flex h-full w-full flex-col overflow-auto border-t bg-background",
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="flex h-full flex-col overflow-auto pb-10">
-        <div className="mb-2 flex h-10 shrink-0 items-center justify-between border-b px-3">
-          <span className="text-sm font-medium">Filters</span>
-          {filterWithAI && isLangfuseCloud && (
-            <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <WandSparkles className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Filter with AI</TooltipContent>
-              </Tooltip>
-              <PopoverContent align="center" className="w-[400px]">
-                <DataTableAIFilters
-                  onFiltersGenerated={handleFiltersGenerated}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
+      <div className="sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
+        <span className="text-sm font-medium">Filters</span>
+        {filterWithAI && isLangfuseCloud && (
+          <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <WandSparkles className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Filter with AI</TooltipContent>
+            </Tooltip>
+            <PopoverContent align="center" className="w-[400px]">
+              <DataTableAIFilters onFiltersGenerated={handleFiltersGenerated} />
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+      <div className="pb-10">
         <Accordion
           type="multiple"
           className="w-full"
@@ -170,7 +169,6 @@ export function DataTableControls({
                 <CategoricalFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   options={filter.options}
@@ -195,7 +193,6 @@ export function DataTableControls({
                 <NumericFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -215,7 +212,6 @@ export function DataTableControls({
                 <StringFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -232,7 +228,6 @@ export function DataTableControls({
                 <KeyValueFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -252,7 +247,6 @@ export function DataTableControls({
                 <NumericKeyValueFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -271,7 +265,6 @@ export function DataTableControls({
                 <StringKeyValueFacet
                   key={filter.column}
                   filterKey={filter.column}
-                  filterKeyShort={filter.shortKey}
                   label={filter.label}
                   expanded={filter.expanded}
                   loading={filter.loading}
@@ -365,7 +358,7 @@ const FilterAccordionTrigger = ({
   children,
   ...props
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>) => (
-  <AccordionPrimitive.Header className="flex">
+  <AccordionPrimitive.Header className="sticky top-10 z-10 flex bg-background">
     <AccordionPrimitive.Trigger
       className={cn(
         "flex flex-1 items-center justify-between font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
@@ -408,7 +401,7 @@ export function FilterAccordionItem({
 }: FilterAccordionItemProps) {
   return (
     <FilterAccordionItemPrimitive value={filterKey} className="border-none">
-      <FilterAccordionTrigger className="px-4 py-2 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
+      <FilterAccordionTrigger className="px-3 py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
         <div className="flex grow items-center gap-1.5 pr-2">
           <span className="flex grow items-baseline gap-1">
             {label}
@@ -579,11 +572,21 @@ export function CategoricalFacet({
 
             {/* Loading / Empty / Options */}
             {loading ? (
-              <div className="pl-4 text-sm text-muted-foreground">
-                Loading...
-              </div>
+              <>
+                {[1, 2].map((i) => (
+                  <div key={i} className="relative flex items-center px-2">
+                    <div className="group/checkbox flex items-center rounded-sm p-1">
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                    </div>
+                    <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="ml-auto h-3 w-8" />
+                    </div>
+                  </div>
+                ))}
+              </>
             ) : options.length === 0 ? (
-              <div className="py-1 text-center text-sm text-muted-foreground">
+              <div className="py-1 text-center text-xs text-muted-foreground">
                 No options found
               </div>
             ) : (
@@ -630,14 +633,16 @@ export function CategoricalFacet({
                       />
                     ))}
                     {hasMoreFilteredOptions && !showAll && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowAll(true)}
-                        className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
-                      >
-                        Show more values
-                      </Button>
+                      <div className="px-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowAll(true)}
+                          className="text-normal mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                        >
+                          Show more values
+                        </Button>
+                      </div>
                     )}
                   </>
                 )}

@@ -10,8 +10,6 @@ import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-  type GenericFilterOptions,
-  type ColumnToQueryKeyMap,
 } from "../lib/filter-query-encoding";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -23,27 +21,15 @@ import type { FilterConfig } from "../lib/filter-config";
  * This prevents duplicates when old URLs use display names and new filters use column IDs.
  *
  * @param filtersQuery - Encoded filter string from URL
- * @param columnToQueryKey - Mapping of column IDs to query keys
  * @param columnDefinitions - Column definitions for validation and normalization
- * @param options - Available filter options
  * @returns Normalized and validated FilterState
  */
 export function decodeAndNormalizeFilters(
   filtersQuery: string,
-  columnToQueryKey: ColumnToQueryKeyMap,
   columnDefinitions: ColumnDefinition[],
-  options: GenericFilterOptions,
 ): FilterState {
   try {
-    const filters = decodeFiltersGeneric(
-      filtersQuery,
-      columnToQueryKey,
-      options,
-      (column) => {
-        const columnDef = columnDefinitions.find((col) => col.id === column);
-        return columnDef?.type || "stringOptions";
-      },
-    );
+    const filters = decodeFiltersGeneric(filtersQuery);
 
     // Normalize display names to column IDs immediately after decoding
     // This prevents duplicates when old URLs use display names (e.g., "Environment")
@@ -95,7 +81,6 @@ function computeNumericRange(
 export interface BaseUIFilter {
   column: string;
   label: string;
-  shortKey: string | null;
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -255,9 +240,10 @@ export function useSidebarFilterState(
   config: FilterConfig,
   options: Record<
     string,
-    (string | SingleValueOption)[] | Record<string, string[]>
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
   projectId?: string,
+  loading?: boolean,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -282,29 +268,15 @@ export function useSidebarFilterState(
   );
 
   const filterState: FilterState = useMemo(() => {
-    return decodeAndNormalizeFilters(
-      filtersQuery,
-      config.columnToQueryKey,
-      config.columnDefinitions,
-      options,
-    );
-  }, [
-    filtersQuery,
-    config.columnToQueryKey,
-    config.columnDefinitions,
-    options,
-  ]);
+    return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
+  }, [filtersQuery, config.columnDefinitions]);
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
-      const encoded = encodeFiltersGeneric(
-        newFilters,
-        config.columnToQueryKey,
-        options,
-      );
+      const encoded = encodeFiltersGeneric(newFilters);
       setFiltersQuery(encoded || null);
     },
-    [config.columnToQueryKey, options, setFiltersQuery],
+    [setFiltersQuery],
   );
 
   // track if defaults have been applied before, versioned to support future changes
@@ -723,8 +695,14 @@ export function useSidebarFilterState(
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
 
-    const getShortKey = (column: string): string | null => {
-      return config.columnToQueryKey[column] ?? null;
+    // Helper to determine if a filter should show loading state
+    // Only filters that depend on options from the query should show loading
+    const shouldShowLoading = (facetColumn: string): boolean => {
+      if (!loading) return false;
+      // Only show loading if the filter depends on options and options are not yet available
+      // Filters that use options: categorical, keyValue, numericKeyValue, stringKeyValue
+      // Filters that don't use options: numeric (uses facet.min/max), string (static), boolean (static)
+      return options[facetColumn] === undefined;
     };
 
     return config.facets
@@ -744,7 +722,7 @@ export function useSidebarFilterState(
             type: "numeric",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: currentRange,
             min: facet.min,
             max: facet.max,
@@ -773,7 +751,7 @@ export function useSidebarFilterState(
             type: "string",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: currentValue,
             loading: false,
             expanded: expandedSet.has(facet.column),
@@ -823,7 +801,7 @@ export function useSidebarFilterState(
             type: "keyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
             availableValues:
@@ -831,7 +809,7 @@ export function useSidebarFilterState(
               !Array.isArray(availableValues)
                 ? (availableValues as Record<string, string[]>)
                 : ({} as Record<string, string[]>),
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: KeyValueFilterEntry[]) => {
@@ -908,10 +886,10 @@ export function useSidebarFilterState(
             type: "numericKeyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: NumericKeyValueFilterEntry[]) => {
@@ -988,10 +966,10 @@ export function useSidebarFilterState(
             type: "stringKeyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: StringKeyValueFilterEntry[]) => {
@@ -1047,7 +1025,7 @@ export function useSidebarFilterState(
             type: "categorical",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: selectedOptions,
             options: availableOptions,
             counts: EMPTY_MAP,
@@ -1169,11 +1147,11 @@ export function useSidebarFilterState(
           type: "categorical",
           column: facet.column,
           label: facet.label,
-          shortKey: getShortKey(facet.column),
+
           value: selectedValues,
           options: availableValues,
           counts,
-          loading: false,
+          loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
           isActive,
           onChange: (values: string[]) => updateFilter(facet.column, values),
@@ -1223,6 +1201,7 @@ export function useSidebarFilterState(
   }, [
     config,
     options,
+    loading,
     filterState,
     updateFilter,
     updateFilterOnly,

@@ -458,10 +458,7 @@ export const OpenAiMessageView: React.FC<{
                 <>
                   <div
                     key={originalIndex}
-                    className={cn(
-                      "transition-colors hover:bg-muted",
-                      !isShowingTable && "group",
-                    )}
+                    className={cn("transition-colors hover:bg-muted")}
                   >
                     {isPlaceholderMessage(message) ? (
                       <>

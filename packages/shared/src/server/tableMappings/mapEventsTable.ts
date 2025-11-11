@@ -89,7 +89,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "timeToFirstToken",
     clickhouseTableName: "events",
     clickhouseSelect:
-      "if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time) / 1000)",
+      "if(isNull(e.completion_start_time), NULL,  date_diff('millisecond', e.start_time, e.completion_start_time) / 1000)",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
@@ -98,7 +98,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "latency",
     clickhouseTableName: "events",
     clickhouseSelect:
-      "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000)",
+      "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000)",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
@@ -222,12 +222,24 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
     clickhouseTableName: "events",
-    clickhouseSelect: "o.prompt_name",
+    clickhouseSelect: "e.prompt_name",
   },
   {
     uiTableName: "Prompt Version",
     uiTableId: "promptVersion",
     clickhouseTableName: "events",
-    clickhouseSelect: "o.prompt_version",
+    clickhouseSelect: "e.prompt_version",
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."user_id"',
+  },
+  {
+    uiTableName: "Session ID",
+    uiTableId: "sessionId",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."session_id"',
   },
 ];

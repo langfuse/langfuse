@@ -160,7 +160,7 @@ describe("OpenAI Adapter", () => {
     expect(result.data?.[0].content).toBe("Hello");
   });
 
-  it("should stringify tool message object content", () => {
+  it("should stringify simple tool message object content (1-2 scalar keys)", () => {
     const input = {
       messages: [
         {
@@ -173,10 +173,104 @@ describe("OpenAI Adapter", () => {
 
     const result = normalizeInput(input, { framework: "openai" });
     expect(result.success).toBe(true);
+    // Simple objects (< 5 keys) get stringified, not spread
     expect(typeof result.data?.[0].content).toBe("string");
     expect(result.data?.[0].content).toBe(
       '{"temperature":72,"conditions":"sunny"}',
     );
+    expect(result.data?.[0].tool_call_id).toBe("call_123");
+  });
+
+  it("should spread rich tool message object content (3+ keys or nested) for table rendering", () => {
+    const input = {
+      messages: [
+        {
+          role: "tool",
+          content: {
+            PatientNo: "123",
+            Firstname: "John",
+            Lastname: "Doe",
+            Email: "john@example.com",
+            Mobile: "1234567890",
+          },
+          tool_call_id: "call_456",
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "openai" });
+    expect(result.success).toBe(true);
+    // Rich objects (5+ keys) get spread for passthrough rendering
+    expect(result.data?.[0].content).toBeUndefined();
+    expect(result.data?.[0].json?.json?.PatientNo).toBe("123");
+    expect(result.data?.[0].json?.json?.Firstname).toBe("John");
+    expect(result.data?.[0].tool_call_id).toBe("call_456");
+  });
+
+  describe("OpenAI Agents SDK format", () => {
+    it("should convert function_call to assistant with tool_calls", () => {
+      const output = [
+        {
+          type: "function_call",
+          name: "get_weather",
+          arguments: { city: "SF" },
+          call_id: "call_123",
+        },
+      ];
+
+      const result = normalizeOutput(output, { framework: "openai" });
+
+      expect(result.data?.[0].role).toBe("assistant");
+      expect(result.data?.[0].tool_calls?.[0]).toEqual({
+        id: "call_123",
+        name: "get_weather",
+        arguments: '{"city":"SF"}',
+        type: "function",
+      });
+    });
+
+    it("should convert function_call_output to tool message", () => {
+      const input = [
+        {
+          type: "function_call_output",
+          call_id: "call_456",
+          output: "It's sunny.",
+        },
+      ];
+
+      const result = normalizeInput(input, { framework: "openai" });
+
+      expect(result.data?.[0].role).toBe("tool");
+      expect(result.data?.[0].tool_call_id).toBe("call_456");
+      expect(result.data?.[0].content).toBe("It's sunny.");
+    });
+
+    it("should attach tools to messages in Responses API format", () => {
+      const output = {
+        tools: [{ name: "get_weather", type: "function", description: null }],
+        output: [{ type: "function_call", name: "get_weather", call_id: "c1" }],
+      };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+
+      expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+      expect(result.data?.[0].tools?.[0].description).toBe("");
+    });
+
+    it("should extract text from output_text content", () => {
+      const output = {
+        output: [
+          {
+            content: [{ type: "output_text", text: "Hello" }],
+            role: "assistant",
+          },
+        ],
+      };
+
+      const result = normalizeOutput(output, { framework: "openai" });
+
+      expect(result.data?.[0].content).toBe("Hello");
+    });
   });
 
   describe("Chat Completions API", () => {

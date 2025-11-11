@@ -18,13 +18,16 @@ export default withMiddlewares({
     responseSchema: PostDatasetsV2Response,
     rateLimitResource: "datasets",
     fn: async ({ body, auth }) => {
-      const { name, description, metadata } = body;
+      const { name, description, metadata, inputSchema, expectedOutputSchema } =
+        body;
 
       const dataset = await upsertDataset({
         input: {
           name,
           description: description ?? undefined,
           metadata: metadata ?? undefined,
+          inputSchema,
+          expectedOutputSchema,
         },
         projectId: auth.scope.projectId,
       });
@@ -53,6 +56,8 @@ export default withMiddlewares({
           name: true,
           description: true,
           metadata: true,
+          inputSchema: true,
+          expectedOutputSchema: true,
           projectId: true,
           createdAt: true,
           updatedAt: true,
