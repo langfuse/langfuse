@@ -405,7 +405,9 @@ export function ResizableContent({ children }: PropsWithChildren) {
   if (!isDesktop) {
     return (
       <>
-        <main className="h-full flex-1">{children}</main>
+        <main className="h-full flex-1" style={{ overscrollBehaviorY: "none" }}>
+          {children}
+        </main>
 
         <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
           <DrawerContent
@@ -432,10 +434,14 @@ export function ResizableContent({ children }: PropsWithChildren) {
     );
   }
 
+  // 👉 DESKTOP: Always render ResizablePanelGroup to prevent remounting children
   return (
     <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
       <ResizablePanel ref={mainPanelRef} defaultSize={100} minSize={30}>
-        <main className="relative h-full w-full overflow-scroll">
+        <main
+          className="relative h-full w-full overflow-scroll"
+          style={{ overscrollBehaviorY: "none" }}
+        >
           {children}
         </main>
       </ResizablePanel>
