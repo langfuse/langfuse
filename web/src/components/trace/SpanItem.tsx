@@ -76,7 +76,7 @@ export const SpanItem: React.FC<SpanItemProps> = ({
       <div className="flex min-w-0 items-center gap-2 overflow-hidden">
         <span className="flex-shrink truncate text-xs">{node.name}</span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-x-2">
           {comments && showComments ? (
             <CommentCountIcon count={comments.get(node.id)} />
           ) : null}
@@ -97,7 +97,7 @@ export const SpanItem: React.FC<SpanItemProps> = ({
       </div>
 
       {shouldRenderMetrics && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-x-2">
           {duration || node.latency ? (
             <span
               title={
