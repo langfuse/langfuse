@@ -156,7 +156,7 @@ export const TracePreview = ({
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2 pl-2">
+        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2 px-2">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
@@ -166,7 +166,7 @@ export const TracePreview = ({
             </span>
             <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
+          <div className="mr-1 flex h-full flex-wrap content-start items-start justify-end gap-1">
             <NewDatasetItemFromExistingObject
               traceId={trace.id}
               projectId={trace.projectId}
@@ -404,12 +404,14 @@ export const TracePreview = ({
                 }
               />
 
-              <div className="text-sm font-medium">{"Tags"}</div>
+              <div className="io-message-header px-2 text-sm font-medium">
+                {"Tags"}
+              </div>
               <div className="flex flex-wrap gap-x-1 gap-y-1">
                 <TagList selectedTags={trace.tags} isLoading={false} />
               </div>
 
-              <div className="[&_.io-message-content]:px-2">
+              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
                 <PrettyJsonView
                   key={trace.id + "-metadata"}
                   title="Metadata"

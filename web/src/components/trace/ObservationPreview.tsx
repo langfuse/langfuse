@@ -138,7 +138,7 @@ export const ObservationPreview = ({
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2 pl-2">
+        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2 px-2">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={preloadedObservation.type} isSmall />
@@ -153,7 +153,7 @@ export const ObservationPreview = ({
               ]}
             />
           </div>
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
+          <div className="mr-1 flex h-full flex-wrap content-start items-start justify-end gap-1">
             {observationWithInputAndOutput.data && (
               <NewDatasetItemFromExistingObject
                 traceId={preloadedObservation.traceId}
@@ -216,7 +216,7 @@ export const ObservationPreview = ({
             )}
           </div>
         </div>
-        <div className="grid w-full min-w-0 items-center justify-between pl-2">
+        <div className="grid w-full min-w-0 items-center justify-between px-2">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
             <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
               <LocalIsoDate
@@ -457,7 +457,7 @@ export const ObservationPreview = ({
                   />
                 )}
               </div>
-              <div className="[&_.io-message-content]:px-2">
+              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
                 {observationWithInputAndOutput.data?.metadata && (
                   <PrettyJsonView
                     key={observationWithInputAndOutput.data.id + "-metadata"}
