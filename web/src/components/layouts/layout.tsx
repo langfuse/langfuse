@@ -314,13 +314,9 @@ export default function Layout(props: PropsWithChildren) {
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <div className="bg-primary-foreground">
-        <SidebarProvider>
-          <main className="min-h-dvh w-full p-3 px-4 py-4 sm:px-6 lg:px-8">
-            {props.children}
-          </main>
-        </SidebarProvider>
-      </div>
+      <main className="min-h-dvh w-full bg-primary-foreground p-3 px-4 py-4 sm:px-6 lg:px-8">
+        {props.children}
+      </main>
     );
   return (
     <>
