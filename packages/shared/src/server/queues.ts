@@ -375,6 +375,7 @@ export type TQueueJobTypes = {
     id: string;
     payload: DatasetRunItemUpsertEventType;
     name: QueueJobs.DatasetRunItemUpsert;
+    retryBaggage?: RetryBaggage;
   };
   [QueueName.EvaluationExecution]: {
     timestamp: Date;
