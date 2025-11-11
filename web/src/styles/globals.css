@@ -185,6 +185,7 @@
 @layer base {
   * {
     @apply border-border;
+    overscroll-behavior-y: none;
   }
 
   body {
