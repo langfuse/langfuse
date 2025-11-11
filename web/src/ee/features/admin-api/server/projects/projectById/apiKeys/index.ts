@@ -110,6 +110,7 @@ export async function handleCreateApiKey(
       orgId: orgId,
       projectId: projectId,
       apiKeyId: "ORG_KEY",
+      req,
     });
 
     logger.info(

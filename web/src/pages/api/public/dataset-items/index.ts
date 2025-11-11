@@ -32,7 +32,7 @@ export default withMiddlewares({
     bodySchema: PostDatasetItemsV1Body,
     responseSchema: PostDatasetItemsV1Response,
     rateLimitResource: "datasets",
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, req }) => {
       const {
         datasetName,
         id,
@@ -143,6 +143,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         after: item,
+        req,
       });
 
       return transformDbDatasetItemToAPIDatasetItem({

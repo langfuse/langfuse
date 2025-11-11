@@ -7,6 +7,8 @@ import type {
   ProjectAuthedContext,
   OrgAuthedContext,
 } from "@/src/server/api/trpc";
+import type { NextApiRequest } from "next";
+import { extractIpInfo } from "@langfuse/shared/src/server";
 
 // Union type for authed contexts with orgId (required for audit logs)
 // AuthedContext is excluded because it doesn't guarantee orgId in session
@@ -93,6 +95,7 @@ type AuditLogWithApiKey = AuditLogBase & {
   apiKeyId: string;
   orgId: string;
   projectId?: string;
+  req: NextApiRequest;
 
   // negative assertions to prevent excess properties
   trpcCtx?: never;
@@ -163,11 +166,18 @@ function mapToUniformContext(log: AuditLog): UniformAuditLogContext {
   }
 
   if (hasApiKey(log)) {
+    const ipInfo = extractIpInfo(
+      log.req.headers,
+      log.req.socket?.remoteAddress,
+    );
+
     return {
       apiKeyId: log.apiKeyId,
       orgId: log.orgId,
       projectId: log.projectId,
       type: AuditLogRecordType.API_KEY,
+      clientIp: ipInfo.clientIp ?? undefined,
+      ipChain: ipInfo.ipChain ?? undefined,
     };
   }
 

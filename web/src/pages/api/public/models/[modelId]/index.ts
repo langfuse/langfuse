@@ -52,7 +52,7 @@ export default withMiddlewares({
     name: "Delete model",
     querySchema: DeleteModelV1Query,
     responseSchema: DeleteModelV1Response,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, req }) => {
       const model = await prisma.model.findFirst({
         where: {
           id: query.modelId,
@@ -78,6 +78,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         before: model,
+        req,
       });
 
       // Clear model cache for the project after successful deletion

@@ -35,7 +35,7 @@ export default withMiddlewares({
     name: "Create Score Config",
     bodySchema: PostScoreConfigBody,
     responseSchema: PostScoreConfigResponse,
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, req }) => {
       const inflatedConfigInput = inflateConfigBody(body);
 
       const config = await prisma.scoreConfig.create({
@@ -55,6 +55,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         after: config,
+        req,
       });
 
       return validateDbScoreConfig(config);

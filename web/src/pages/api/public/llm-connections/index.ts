@@ -144,6 +144,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
+        req,
       });
 
       // Transform and validate through strict schema

@@ -79,7 +79,7 @@ export default withMiddlewares({
     name: "Create custom model definition",
     bodySchema: PostModelsV1Body,
     responseSchema: PostModelsV1Response,
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, req }) => {
       const validRegex = await isValidPostgresRegex(body.matchPattern, prisma);
       if (!validRegex) {
         throw new InvalidRequestError(
@@ -126,6 +126,7 @@ export default withMiddlewares({
           orgId: auth.scope.orgId,
           apiKeyId: auth.scope.apiKeyId,
           after: createdModel,
+          req,
         });
 
         return createdModel;

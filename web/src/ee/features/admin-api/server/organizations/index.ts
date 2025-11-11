@@ -99,6 +99,7 @@ export async function handleCreateOrganization(
     orgId: organization.id,
     after: organization,
     apiKeyId: "ADMIN_KEY",
+    req,
   });
 
   logger.info(`Created organization ${organization.id} via admin API`);

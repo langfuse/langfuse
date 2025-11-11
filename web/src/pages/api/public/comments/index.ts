@@ -17,7 +17,7 @@ export default withMiddlewares({
     name: "Create Comment",
     bodySchema: PostCommentsV1Body,
     responseSchema: PostCommentsV1Response,
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, req }) => {
       const result = await validateCommentReferenceObject({
         ctx: { prisma, auth },
         input: body,
@@ -47,6 +47,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         after: comment,
+        req,
       });
 
       return { id: comment.id };

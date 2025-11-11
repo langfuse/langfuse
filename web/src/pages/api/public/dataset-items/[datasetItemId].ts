@@ -52,7 +52,7 @@ export default withMiddlewares({
     querySchema: DeleteDatasetItemV1Query,
     responseSchema: DeleteDatasetItemV1Response,
     rateLimitResource: "datasets",
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, req }) => {
       const { datasetItemId } = query;
 
       // First get the item to check if it exists
@@ -87,6 +87,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         before: datasetItem,
+        req,
       });
 
       return {

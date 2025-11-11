@@ -17,7 +17,7 @@ export default withMiddlewares({
     bodySchema: PostDatasetsV1Body,
     responseSchema: PostDatasetsV1Response,
     rateLimitResource: "datasets",
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, req }) => {
       const { name, description, metadata, inputSchema, expectedOutputSchema } =
         body;
 
@@ -40,6 +40,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         after: dataset,
+        req,
       });
 
       return {

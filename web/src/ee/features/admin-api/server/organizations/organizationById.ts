@@ -131,6 +131,7 @@ export async function handleUpdateOrganization(
     before: existingOrg,
     after: updatedOrganization,
     apiKeyId: "ADMIN_KEY",
+    req,
   });
 
   logger.info(`Updated organization ${organizationId} via admin API`);
@@ -188,6 +189,7 @@ export async function handleDeleteOrganization(
     orgId: organizationId,
     before: deletedOrganization,
     apiKeyId: "ADMIN_KEY",
+    req,
   });
 
   logger.info(`Deleted organization ${organizationId} via admin API`);

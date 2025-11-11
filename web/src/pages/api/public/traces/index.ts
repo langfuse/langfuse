@@ -145,7 +145,7 @@ export default withMiddlewares({
     name: "Delete Multiple Traces",
     bodySchema: DeleteTracesV1Body,
     responseSchema: DeleteTracesV1Response,
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, req }) => {
       const { traceIds } = body;
 
       await Promise.all(
@@ -157,6 +157,7 @@ export default withMiddlewares({
             projectId: auth.scope.projectId,
             apiKeyId: auth.scope.apiKeyId,
             orgId: auth.scope.orgId,
+            req,
           }),
         ),
       );
