@@ -661,7 +661,7 @@ const getObservationsTableInternal = async <T>(
   ]);
 
   const hasScoresFilter = filter.some((f) =>
-    f.column.toLowerCase().includes("scores"),
+    f.column.toLowerCase().includes("score"),
   );
 
   // query optimisation: joining traces onto observations is expensive. Hence, only join if the UI table contains filters on traces.
