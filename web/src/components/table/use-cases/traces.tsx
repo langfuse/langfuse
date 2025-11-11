@@ -542,11 +542,7 @@ export default function TracesTable({
       enableSorting,
       cell: ({ row }) => {
         const value: TracesTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {

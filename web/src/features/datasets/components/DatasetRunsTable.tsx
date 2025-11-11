@@ -421,11 +421,7 @@ export function DatasetRunsTable(props: {
       cell: ({ row }) => {
         const description: DatasetRunRowData["description"] =
           row.getValue("description");
-        return (
-          <div className="max-h-full max-w-full overflow-y-auto overflow-x-hidden break-words">
-            {description}
-          </div>
-        );
+        return description;
       },
     },
     {
