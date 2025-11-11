@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS observations_batch_staging
     environment LowCardinality(String) DEFAULT 'default',
 ) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
 PARTITION BY toStartOfInterval(s3_first_seen_timestamp, INTERVAL 3 MINUTE)
+PRIMARY KEY (project_id, toDate(s3_first_seen_timestamp))
 ORDER BY (
     project_id,
     toDate(s3_first_seen_timestamp),
