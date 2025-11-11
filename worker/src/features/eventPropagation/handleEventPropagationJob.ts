@@ -338,8 +338,8 @@ export const handleEventPropagationJob = async (
           obs.updated_at,
           obs.event_ts,
           obs.is_deleted
-        FROM relevant_traces t
-        RIGHT JOIN observations_batch_staging obs FINAL
+        FROM observations_batch_staging obs FINAL
+        LEFT JOIN relevant_traces t
         ON (
           obs.project_id = t.project_id AND
           obs.trace_id = t.id
