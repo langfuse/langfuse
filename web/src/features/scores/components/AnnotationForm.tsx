@@ -353,6 +353,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
 
     if (!config || !field) return;
 
+    if (field.value === null || field.value === undefined) {
+      return; // Don't create/update score with empty value
+    }
+
     // Client-side validation - don't fire mutation if invalid
     const errorMessage = validateNumericScore({
       value: field.value,
