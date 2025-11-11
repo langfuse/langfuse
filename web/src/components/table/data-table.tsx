@@ -406,6 +406,7 @@ export function DataTable<TData extends object, TValue>({
               <MemoizedTableBody
                 table={table}
                 rowheighttw={rowheighttw}
+                rowHeight={rowHeight}
                 columns={columns}
                 data={data}
                 help={help}
@@ -422,6 +423,7 @@ export function DataTable<TData extends object, TValue>({
               <TableBodyComponent
                 table={table}
                 rowheighttw={rowheighttw}
+                rowHeight={rowHeight}
                 columns={columns}
                 data={data}
                 help={help}
@@ -466,6 +468,7 @@ function renderOrderingIndicator(orderBy?: OrderByState) {
 interface TableBodyComponentProps<TData> {
   table: ReturnType<typeof useReactTable<TData>>;
   rowheighttw?: string;
+  rowHeight?: RowHeight;
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
@@ -517,6 +520,7 @@ function TableRowComponent<TData>({
 function TableBodyComponent<TData>({
   table,
   rowheighttw,
+  rowHeight,
   columns,
   data,
   help,
@@ -542,24 +546,53 @@ function TableBodyComponent<TData>({
             onRowClick={onRowClick}
             getRowClassName={getRowClassName}
           >
-            {row.getVisibleCells().map((cell) => (
-              <TableCell
-                key={cell.id}
-                className={cn(
-                  "overflow-hidden border-b p-1 text-xs first:pl-2",
-                  rowheighttw === "s" && "whitespace-nowrap",
-                  getPinningClasses(cell.column),
-                )}
-                style={{
-                  width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  ...getCommonPinningStyles(cell.column),
-                }}
-              >
-                <div className={cn("flex items-center", rowheighttw)}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </div>
-              </TableCell>
-            ))}
+            {row.getVisibleCells().map((cell) => {
+              const cellValue = cell.getValue();
+              const isStringCell = typeof cellValue === "string";
+              const isSmallRowHeight = (rowHeight ?? "s") === "s";
+
+              return (
+                <TableCell
+                  key={cell.id}
+                  className={cn(
+                    "overflow-hidden border-b p-1 text-xs first:pl-2",
+                    isSmallRowHeight && "whitespace-nowrap",
+                    getPinningClasses(cell.column),
+                  )}
+                  style={{
+                    width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                    ...getCommonPinningStyles(cell.column),
+                  }}
+                >
+                  <div
+                    className={cn(
+                      "flex",
+                      "items-start",
+                      isSmallRowHeight && "items-center",
+                      rowheighttw,
+                    )}
+                  >
+                    {isStringCell && isSmallRowHeight ? (
+                      <div className="min-w-0 truncate">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    ) : isStringCell && !isSmallRowHeight ? (
+                      <div className="min-w-0 overflow-hidden text-ellipsis">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    ) : (
+                      flexRender(cell.column.columnDef.cell, cell.getContext())
+                    )}
+                  </div>
+                </TableCell>
+              );
+            })}
           </TableRowComponent>
         ))
       ) : (
@@ -608,6 +641,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.table.options.data !== next.table.options.data) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
+  if (prev.rowHeight !== next.rowHeight) return false;
 
   // Then do more expensive deep equality checks
   if (
