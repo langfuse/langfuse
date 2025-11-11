@@ -548,10 +548,7 @@ async function handleSubscriptionChanged(
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
     void auditLog({
-      session: {
-        user: { id: "stripe-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "stripe-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,
@@ -588,10 +585,7 @@ async function handleSubscriptionChanged(
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
     void auditLog({
-      session: {
-        user: { id: "stripe-webhook" },
-        orgId: parsedOrg.id,
-      },
+      userId: "stripe-webhook",
       orgId: parsedOrg.id,
       resourceType: "organization",
       resourceId: parsedOrg.id,

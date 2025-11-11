@@ -363,7 +363,7 @@ export const traceRouter = createTRPCRouter({
           actionId: "trace-delete",
           actionType: BatchActionType.Delete,
           tableName: BatchExportTableName.Traces,
-          session: ctx.session,
+          trpcCtx: ctx,
           query: input.query,
         });
       } else {
@@ -373,7 +373,7 @@ export const traceRouter = createTRPCRouter({
               resourceType: "trace",
               resourceId: traceId,
               action: "delete",
-              session: ctx.session,
+              trpcCtx: ctx,
             }),
           ),
         );
@@ -397,7 +397,7 @@ export const traceRouter = createTRPCRouter({
       });
       try {
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "trace",
           resourceId: input.traceId,
           action: "bookmark",
@@ -457,7 +457,7 @@ export const traceRouter = createTRPCRouter({
       });
       try {
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "trace",
           resourceId: input.traceId,
           action: "publish",
@@ -516,7 +516,7 @@ export const traceRouter = createTRPCRouter({
       });
       try {
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "trace",
           resourceId: input.traceId,
           action: "updateTags",

@@ -68,7 +68,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         }
       }
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         action: "update",
         resourceType: "posthogIntegration",
         resourceId: input.projectId,
@@ -104,7 +104,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
           scope: "integrations:CRUD",
         });
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           action: "delete",
           resourceType: "posthogIntegration",
           resourceId: input.projectId,

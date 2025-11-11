@@ -622,8 +622,7 @@ class BillingService {
     }
 
     void auditLog({
-      session: this.ctx.session,
-      orgId: parsedOrg.id,
+      trpcCtx: this.ctx,
       resourceType: "organization",
       resourceId: parsedOrg.id,
       action: "BillingService.createCheckoutSession",
@@ -757,8 +756,7 @@ class BillingService {
       );
 
       void auditLog({
-        session: this.ctx.session,
-        orgId: parsedOrg.id,
+        trpcCtx: this.ctx,
         resourceType: "organization",
         resourceId: parsedOrg.id,
         action: "BillingService.changePlan",
@@ -863,8 +861,7 @@ class BillingService {
       );
 
       void auditLog({
-        session: this.ctx.session,
-        orgId: parsedOrg.id,
+        trpcCtx: this.ctx,
         resourceType: "organization",
         resourceId: parsedOrg.id,
         action: "BillingService.changePlan",
@@ -993,8 +990,7 @@ class BillingService {
     );
 
     void auditLog({
-      session: this.ctx.session,
-      orgId: parsedOrg.id,
+      trpcCtx: this.ctx,
       resourceType: "organization",
       resourceId: parsedOrg.id,
       action: "BillingService.changePlan",
@@ -1054,8 +1050,7 @@ class BillingService {
     );
 
     void auditLog({
-      session: this.ctx.session,
-      orgId: parsedOrg.id,
+      trpcCtx: this.ctx,
       resourceType: "organization",
       resourceId: parsedOrg.id,
       action: "BillingService.cancel",
@@ -1120,8 +1115,7 @@ class BillingService {
     );
 
     void auditLog({
-      session: this.ctx.session,
-      orgId: parsedOrg.id,
+      trpcCtx: this.ctx,
       resourceType: "organization",
       resourceId: parsedOrg.id,
       action: "BillingService.reactivate",
@@ -1194,8 +1188,7 @@ class BillingService {
     );
 
     void auditLog({
-      session: this.ctx.session,
-      orgId: parsedOrg.id,
+      trpcCtx: this.ctx,
       resourceType: "organization",
       resourceId: parsedOrg.id,
       action: "BillingService.cancelImmediatelyAndInvoice",
@@ -1232,8 +1225,7 @@ class BillingService {
     await this.releaseExistingSubscriptionScheduleIfAny(subscription, opId);
 
     void auditLog({
-      session: this.ctx.session,
-      orgId: parsedOrg.id,
+      trpcCtx: this.ctx,
       resourceType: "organization",
       resourceId: parsedOrg.id,
       action: "BillingService.clearPlanSwitchSchedule",
@@ -1725,8 +1717,7 @@ class BillingService {
     }
 
     void auditLog({
-      session: this.ctx.session,
-      orgId: parsedOrg.id,
+      trpcCtx: this.ctx,
       resourceType: "organization",
       resourceId: parsedOrg.id,
       action: "BillingService.applyPromotionCode",

@@ -104,7 +104,7 @@ export const notificationPreferencesRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "notificationPreference",
         resourceId: preference.id,
         action: before ? "update" : "create",

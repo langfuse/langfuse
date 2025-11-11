@@ -895,7 +895,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "datasetItem",
         resourceId: input.datasetItemId,
         action: "update",
@@ -935,7 +935,7 @@ export const datasetRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "dataset",
           resourceId: dataset.id,
           action: "create",
@@ -1048,7 +1048,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "dataset",
         resourceId: dataset.id,
         action: "update",
@@ -1082,7 +1082,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "dataset",
         resourceId: deletedDataset.id,
         action: "delete",
@@ -1137,7 +1137,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "datasetItem",
         resourceId: deletedItem.id,
         action: "delete",
@@ -1235,7 +1235,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "dataset",
         resourceId: newDataset.id,
         action: "create",
@@ -1311,7 +1311,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "datasetItem",
         resourceId: datasetItem.id,
         action: "create",
@@ -1422,7 +1422,7 @@ export const datasetRouter = createTRPCRouter({
         await Promise.all(
           itemsWithIds.map(async (item) =>
             auditLog({
-              session: ctx.session,
+              trpcCtx: ctx,
               resourceType: "datasetItem",
               resourceId: item.id,
               action: "create",
@@ -1788,7 +1788,7 @@ export const datasetRouter = createTRPCRouter({
       await Promise.all(
         datasetRuns.map((run) =>
           auditLog({
-            session: ctx.session,
+            trpcCtx: ctx,
             resourceType: "datasetRun",
             resourceId: run.id,
             action: "delete",
@@ -1841,7 +1841,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "dataset",
         resourceId: updatedDataset.id,
         action: "update",
@@ -1993,7 +1993,7 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "dataset",
         resourceId: updatedDataset.id,
         action: "update",
@@ -2111,7 +2111,7 @@ export const datasetRouter = createTRPCRouter({
 
       // Audit log
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "dataset",
         resourceId: input.datasetId,
         action: "updateSchema",

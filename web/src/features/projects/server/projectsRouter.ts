@@ -56,7 +56,7 @@ export const projectsRouter = createTRPCRouter({
         },
       });
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "project",
         resourceId: project.id,
         action: "create",
@@ -94,7 +94,7 @@ export const projectsRouter = createTRPCRouter({
         },
       });
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "project",
         resourceId: input.projectId,
         action: "update",
@@ -127,7 +127,7 @@ export const projectsRouter = createTRPCRouter({
         },
       });
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "project",
         resourceId: input.projectId,
         action: "update",
@@ -174,7 +174,7 @@ export const projectsRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "project",
         resourceId: input.projectId,
         before: project,
@@ -238,7 +238,7 @@ export const projectsRouter = createTRPCRouter({
       }
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "project",
         resourceId: input.projectId,
         action: "transfer",

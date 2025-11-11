@@ -76,28 +76,6 @@ type AuditLogWithTrpcCtx = AuditLogBase & {
   apiKeyId?: never;
 };
 
-// to be deprecated when all audit logs use trpcCtx
-type AuditLogWithSession = AuditLogBase & {
-  session: {
-    user: {
-      id: string;
-    };
-    orgId: string;
-    orgRole?: Role;
-    projectId?: string;
-    projectRole?: Role;
-  };
-
-  // negative assertions to prevent excess properties
-  trpcCtx?: never;
-  userId?: never;
-  orgId?: never;
-  orgRole?: never;
-  projectId?: never;
-  projectRole?: never;
-  apiKeyId?: never;
-};
-
 type AuditLogWithUserIds = AuditLogBase & {
   userId: string;
   orgId: string;
@@ -124,11 +102,7 @@ type AuditLogWithApiKey = AuditLogBase & {
   projectRole?: never;
 };
 
-type AuditLog =
-  | AuditLogWithTrpcCtx
-  | AuditLogWithSession
-  | AuditLogWithUserIds
-  | AuditLogWithApiKey;
+type AuditLog = AuditLogWithTrpcCtx | AuditLogWithUserIds | AuditLogWithApiKey;
 
 // Uniform context type for audit log metadata
 type UniformAuditLogContext = {
@@ -146,10 +120,6 @@ type UniformAuditLogContext = {
 // Type guards for discriminated union narrowing
 function hasTrpcCtx(log: AuditLog): log is AuditLogWithTrpcCtx {
   return "trpcCtx" in log && log.trpcCtx !== undefined;
-}
-
-function hasSession(log: AuditLog): log is AuditLogWithSession {
-  return "session" in log && log.session !== undefined;
 }
 
 function hasUserId(log: AuditLog): log is AuditLogWithUserIds {
@@ -178,17 +148,6 @@ function mapToUniformContext(log: AuditLog): UniformAuditLogContext {
       type: AuditLogRecordType.USER,
       clientIp: log.trpcCtx.clientIp ?? undefined,
       ipChain: log.trpcCtx.ipChain ?? undefined,
-    };
-  }
-
-  if (hasSession(log)) {
-    return {
-      userId: log.session.user.id,
-      orgId: log.session.orgId,
-      userOrgRole: log.session.orgRole,
-      projectId: log.session.projectId,
-      userProjectRole: log.session.projectRole,
-      type: AuditLogRecordType.USER,
     };
   }
 

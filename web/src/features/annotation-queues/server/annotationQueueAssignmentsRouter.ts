@@ -77,7 +77,7 @@ export const queueAssignmentRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "annotationQueueAssignment",
         resourceId: input.queueId,
         action: "create",
@@ -128,7 +128,7 @@ export const queueAssignmentRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "annotationQueueAssignment",
         resourceId: input.queueId,
         before: { ...input },

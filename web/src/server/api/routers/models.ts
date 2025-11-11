@@ -302,7 +302,7 @@ export const modelRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "model",
           resourceId: upsertedModel.id,
           action: modelId ? "update" : "create",
@@ -339,7 +339,7 @@ export const modelRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "model",
         resourceId: input.modelId,
         action: "delete",

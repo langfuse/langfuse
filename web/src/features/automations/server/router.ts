@@ -105,7 +105,7 @@ export const automationsRouter = createTRPCRouter({
         generateWebhookSecret();
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "action",
         resourceId: input.actionId,
         action: "update",
@@ -317,7 +317,7 @@ export const automationsRouter = createTRPCRouter({
       );
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "automation",
         resourceId: trigger.id,
         action: "create",
@@ -441,7 +441,7 @@ export const automationsRouter = createTRPCRouter({
       );
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "automation",
         resourceId: trigger.id,
         action: "update",
@@ -527,7 +527,7 @@ export const automationsRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "automation",
           resourceId: input.automationId,
           action: "delete",

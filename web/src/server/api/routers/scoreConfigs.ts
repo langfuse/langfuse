@@ -98,7 +98,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "scoreConfig",
         resourceId: config.id,
         action: "create",
@@ -146,7 +146,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "scoreConfig",
         resourceId: config.id,
         action: "update",

@@ -309,7 +309,7 @@ export const promptRouter = createTRPCRouter({
 
       await auditLog(
         {
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "prompt",
           resourceId: prompt.id,
           action: "create",
@@ -351,7 +351,7 @@ export const promptRouter = createTRPCRouter({
 
       await auditLog(
         {
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "prompt",
           resourceId: prompt.id,
           action: "create",
@@ -487,7 +487,7 @@ export const promptRouter = createTRPCRouter({
         for (const prompt of prompts) {
           await auditLog(
             {
-              session: ctx.session,
+              trpcCtx: ctx,
               resourceType: "prompt",
               resourceId: prompt.id,
               action: "delete",
@@ -616,7 +616,7 @@ export const promptRouter = createTRPCRouter({
 
         await auditLog(
           {
-            session: ctx.session,
+            trpcCtx: ctx,
             resourceType: "prompt",
             resourceId: input.promptVersionId,
             action: "delete",
@@ -793,7 +793,7 @@ export const promptRouter = createTRPCRouter({
 
         await auditLog(
           {
-            session: ctx.session,
+            trpcCtx: ctx,
             resourceType: "prompt",
             resourceId: toBeLabeledPrompt.id,
             action: "setLabel",
@@ -979,7 +979,7 @@ export const promptRouter = createTRPCRouter({
 
       try {
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "prompt",
           resourceId: promptName,
           action: "updateTags",
@@ -1269,7 +1269,7 @@ export const promptRouter = createTRPCRouter({
 
       await auditLog(
         {
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "promptProtectedLabel",
           resourceId: protectedLabel.id,
           action: "create",
@@ -1311,7 +1311,7 @@ export const promptRouter = createTRPCRouter({
 
       await auditLog(
         {
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "promptProtectedLabel",
           resourceId: protectedLabel.id,
           action: "delete",

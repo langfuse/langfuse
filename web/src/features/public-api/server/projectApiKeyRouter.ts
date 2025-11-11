@@ -65,7 +65,7 @@ export const projectApiKeysRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "apiKey",
         resourceId: apiKeyMeta.id,
         action: "create",
@@ -89,7 +89,7 @@ export const projectApiKeysRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "apiKey",
         resourceId: input.keyId,
         action: "update",
@@ -122,7 +122,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "apiKey",
         resourceId: input.id,
         action: "delete",
