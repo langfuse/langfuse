@@ -138,7 +138,7 @@ export const ObservationPreview = ({
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
+        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={preloadedObservation.type} isSmall />
