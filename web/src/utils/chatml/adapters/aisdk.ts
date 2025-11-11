@@ -401,8 +401,9 @@ export const aisdkAdapter: ProviderAdapter = {
       }
 
       if ("attributes" in meta && typeof meta.attributes === "object") {
-        const attrs = meta.attributes as Record<string, unknown>;
+        const attrs = meta.attributes as Record<string, unknown> | null;
         if (
+          attrs &&
           typeof attrs["operation.name"] === "string" &&
           attrs["operation.name"].startsWith("ai.")
         ) {
