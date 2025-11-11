@@ -88,9 +88,7 @@
     /* Banner height system for fixed/sticky positioning
        Banner components dynamically update --banner-height via JS */
     --banner-height: 0px;
-    --banner-offset: calc(
-      env(safe-area-inset-top, 0px) + var(--banner-height, 0px)
-    );
+    --banner-offset: calc(env(safe-area-inset-top, 0px) + var(--banner-height, 0px));
   }
 
   .dark {
@@ -177,6 +175,7 @@
     --color-4: oklch(80.2% 0.134 225);
     --color-5: oklch(90.7% 0.231 133);
   }
+
   .theme {
     --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   }
@@ -197,12 +196,13 @@
   html,
   body,
   div#__next,
-  div#__next > div {
-    height: 100%;
+  div#__next>div {
+    min-height: 100%;
   }
 }
 
 @layer base {
+
   input[type="number"].appearance-none::-webkit-inner-spin-button,
   input[type="number"].appearance-none::-webkit-outer-spin-button {
     -webkit-appearance: none;
@@ -240,6 +240,7 @@
     0% {
       background-position: 0%;
     }
+
     100% {
       background-position: 200%;
     }
