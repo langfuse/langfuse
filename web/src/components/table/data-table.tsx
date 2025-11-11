@@ -567,21 +567,20 @@ function TableBodyComponent<TData>({
                   <div
                     className={cn(
                       "flex",
-                      isStringCell && !isSmallRowHeight
-                        ? "items-start"
-                        : "items-center",
+                      "items-start",
+                      isSmallRowHeight && "items-center",
                       rowheighttw,
                     )}
                   >
                     {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 flex-1 truncate">
+                      <div className="min-w-0 truncate">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
                         )}
                       </div>
                     ) : isStringCell && !isSmallRowHeight ? (
-                      <div className="min-w-0 flex-1 overflow-hidden text-ellipsis">
+                      <div className="min-w-0 overflow-hidden text-ellipsis">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
