@@ -1171,7 +1171,7 @@ class BillingService {
    */
   async cancel(orgId: string, opId?: string) {
     return await instrumentAsync(
-      { name: "stripe.subscription.cancel" },
+      { name: "stripe.subscription.cancel", spanKind: SpanKind.CLIENT },
       async (span) => {
         const client = this.stripe;
 
