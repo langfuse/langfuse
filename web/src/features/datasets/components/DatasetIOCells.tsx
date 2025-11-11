@@ -3,7 +3,7 @@ import { cn } from "@/src/utils/tailwind";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
-import { Card } from "@/src/components/ui/card";
+import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 
 export const DatasetItemIOCell = ({
   projectId,
@@ -103,13 +103,10 @@ export const TraceObservationIOCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return isSilentError ? (
-    <Card className="flex h-full w-full flex-col items-center justify-center">
-      <h2 className="mb-2 text-lg font-bold">Not found</h2>
-      <p className="mb-6 text-center">
-        The {!!observationId ? "observation" : "trace"} is either still being
-        processed or has been deleted.
-      </p>
-    </Card>
+    <NotFoundCard
+      itemType={!!observationId ? "observation" : "trace"}
+      singleLine={singleLine}
+    />
   ) : (
     <MemoizedIOTableCell
       isLoading={isLoading || !data}
