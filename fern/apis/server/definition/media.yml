@@ -136,6 +136,10 @@ types:
         name: VIDEO_MP4
       - value: video/webm
         name: VIDEO_WEBM
+      - value: video/ogg
+        name: VIDEO_OGG
+      - value: video/mpgeg
+        name: VIDEO_MPGEG
       - value: text/plain
         name: TEXT_PLAIN
       - value: text/html
@@ -144,12 +148,16 @@ types:
         name: TEXT_CSS
       - value: text/csv
         name: TEXT_CSV
+      - value: text/markdown
+        name: TEXT_MARKDOWN
       - value: application/pdf
         name: APPLICATION_PDF
       - value: application/msword
         name: APPLICATION_MSWORD
       - value: application/vnd.ms-excel
         name: APPLICATION_MS_EXCEL
+      - value: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+        name: APPLICATION_OPENXML_SPREADSHEET
       - value: application/zip
         name: APPLICATION_ZIP
       - value: application/json
