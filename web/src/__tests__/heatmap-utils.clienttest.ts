@@ -2,7 +2,7 @@ import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
   fillMissingBins,
-} from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
+} from "@/src/features/score-analytics/lib/heatmap-utils";
 
 describe("heatmap-utils", () => {
   describe("generateNumericHeatmapData", () => {

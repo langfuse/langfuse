@@ -16,11 +16,6 @@ import {
 } from "@/src/components/trace/lib/helpers";
 import type Decimal from "decimal.js";
 import { SpanItem } from "@/src/components/trace/SpanItem";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { api } from "@/src/utils/api";
 
 export const TraceTree = ({
@@ -277,43 +272,37 @@ const UnmemoizedTreeNodeComponent = ({
           </div>
 
           {/* 4. Content button: just the text/metrics content */}
-          <Tooltip delayDuration={750}>
-            <TooltipTrigger asChild>
-              {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
-              <button
-                type="button"
-                aria-selected={isSelected}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
-                }}
-                onMouseEnter={() => onObservationHover(node)}
-                className={cn(
-                  "peer relative flex min-w-0 flex-1 items-start rounded-md py-1.5 pl-2 pr-2 text-left",
-                )}
-                ref={currentNodeRef}
-              >
-                <SpanItem
-                  node={node}
-                  scores={scores}
-                  comments={comments}
-                  showMetrics={showMetrics}
-                  showScores={showScores}
-                  colorCodeMetrics={colorCodeMetrics}
-                  parentTotalCost={parentTotalCost}
-                  parentTotalDuration={parentTotalDuration}
-                  showComments={showComments}
-                />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" align="start">
-              <p className="max-w-md break-words">{node.name}</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
+          <button
+            type="button"
+            aria-selected={isSelected}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
+            }}
+            onMouseEnter={() => onObservationHover(node)}
+            title={node.name}
+            className={cn(
+              "peer relative flex min-w-0 flex-1 items-start rounded-md py-0.5 pl-1 pr-2 text-left",
+            )}
+            ref={currentNodeRef}
+          >
+            <SpanItem
+              node={node}
+              scores={scores}
+              comments={comments}
+              showMetrics={showMetrics}
+              showScores={showScores}
+              colorCodeMetrics={colorCodeMetrics}
+              parentTotalCost={parentTotalCost}
+              parentTotalDuration={parentTotalDuration}
+              showComments={showComments}
+            />
+          </button>
 
           {/* 5. Expand/Collapse button */}
           {node.children.length > 0 && (
-            <div className="flex items-center justify-end py-1 pr-2">
+            <div className="flex items-center justify-end py-1 pr-1">
               <Button
                 data-expand-button
                 size="icon"
