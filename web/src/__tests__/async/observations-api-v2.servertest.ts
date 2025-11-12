@@ -1,9 +1,4 @@
-import {
-  createTrace,
-  createTracesCh,
-  createEvent,
-  createEventsCh,
-} from "@langfuse/shared/src/server";
+import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
@@ -17,20 +12,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const observationId = randomUUID();
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000; // microseconds for events table
-
-      // Create a trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "test-trace",
-        user_id: "user-1",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-        metadata: { testKey: "testValue" },
-        release: "1.0.0",
-        version: "2.0.0",
-      });
-
-      await createTracesCh([createdTrace]);
 
       // Create observation
       const observation = createEvent({
@@ -96,17 +77,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const uniqueName = `toplevel-test-${randomUUID().substring(0, 8)}`;
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
-
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "test-trace",
-        user_id: "user-1",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
 
       // Create parent observation (top-level) with unique name
       const parentObs = createEvent({
@@ -191,16 +161,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
 
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "test-trace",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
-
       // Create observation with JSON input/output
       const jsonInput = JSON.stringify({ question: "What is 2+2?" });
       const jsonOutput = JSON.stringify({ answer: 4 });
@@ -244,16 +204,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const observationId = randomUUID();
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
-
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "test-trace",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
 
       // Create observation with JSON input/output
       const inputData = { question: "What is 2+2?" };
@@ -321,16 +271,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
 
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "test-trace",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
-
       // Create observation with specific attributes
       const observation = createEvent({
         id: observationId,
@@ -366,16 +306,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const traceId = randomUUID();
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
-
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "cursor-test-trace",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
 
       // Create 3 observations
       const observations = [];
@@ -416,16 +346,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
 
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "cursor-test-no-cursor",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
-
       // Create only 2 observations
       const observations = [];
       for (let i = 0; i < 2; i++) {
@@ -463,16 +383,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const traceId = randomUUID();
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
-
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "cursor-pagination-test",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
 
       // Create 5 observations with distinct timestamps
       const observations = [];
@@ -552,28 +462,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const timeValue = timestamp.getTime() * 1000;
       const userId = randomUUID();
 
-      // Create traces
-      await createTracesCh([
-        createTrace({
-          id: traceId1,
-          name: "trace-1",
-          timestamp: timestamp.getTime(),
-          project_id: projectId,
-        }),
-        createTrace({
-          id: traceId2,
-          name: "trace-2",
-          timestamp: timestamp.getTime(),
-          project_id: projectId,
-        }),
-        createTrace({
-          id: traceId3,
-          name: "trace-3",
-          timestamp: timestamp.getTime(),
-          project_id: projectId,
-        }),
-      ]);
-
       // Create observations with SAME start_time but different trace_ids
       // This tests the xxHash32(trace_id) ordering component
       const obs1 = createEvent({
@@ -647,16 +535,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const traceId = randomUUID();
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
-
-      // Create trace
-      const createdTrace = createTrace({
-        id: traceId,
-        name: "cursor-filter-test",
-        timestamp: timestamp.getTime(),
-        project_id: projectId,
-      });
-
-      await createTracesCh([createdTrace]);
 
       // Create observations with specific type
       const observations = [];
