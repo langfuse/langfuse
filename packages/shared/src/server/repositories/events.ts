@@ -611,6 +611,11 @@ type PublicApiObservationsQuery = {
   environment?: string | string[];
   advancedFilters?: FilterState;
   parseIoAsJson?: boolean;
+  withCursor?: {
+    lastStartTimeTo: Date;
+    lastTraceId: string;
+    lastId: string;
+  };
 };
 
 /**
@@ -669,9 +674,35 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
     .where(appliedFilter);
 
   if (opts.select === "rows") {
+    // Determine if this is cursor-based pagination (v2) or page-based (v1)
+    // v2 API always passes page=0, v1 API passes actual page numbers
+    const isCursorPagination = page === 0 || opts.withCursor !== undefined;
+
     queryBuilder
-      .orderBy("ORDER BY e.start_time DESC")
-      .limit(limit, (page - 1) * limit);
+      // Apply cursor filter if provided
+      .when(Boolean(opts.withCursor), (b) => {
+        const cursor = opts.withCursor!;
+        return b.whereRaw(
+          "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
+          {
+            lastStartTime: convertDateToClickhouseDateTime(
+              cursor.lastStartTimeTo,
+            ),
+            lastTraceId: cursor.lastTraceId,
+            lastId: cursor.lastId,
+          },
+        );
+      })
+      // Order by start_time, xxHash32(trace_id), span_id to match table ordering
+      .orderBy(
+        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
+      )
+      // When cursor pagination (v2): fetch limit+1 to detect if there are more results
+      // When page-based (v1): use offset pagination
+      .limit(
+        isCursorPagination ? limit + 1 : limit,
+        isCursorPagination ? 0 : (page - 1) * limit,
+      );
   }
 
   const { query, params } = queryBuilder.buildWithParams();

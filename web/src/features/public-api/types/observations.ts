@@ -212,6 +212,62 @@ export const GetObservationV1Query = z.object({
 });
 export const GetObservationV1Response = APIObservation;
 
+/**
+ * Cursor schema for v2 observations pagination
+ * Encodes the position in the result set using the table's ordering:
+ * (start_time, xxHash32(trace_id), span_id)
+ */
+export const ObservationsCursorV2 = z.object({
+  lastStartTimeTo: z.coerce.date(),
+  lastTraceId: z.string(),
+  lastId: z.string(),
+});
+
+export type ObservationsCursorV2Type = z.infer<typeof ObservationsCursorV2>;
+
+/**
+ * Schema for base64-encoded cursor string
+ * Used in API responses - just a plain string, no transformation
+ */
+export const EncodedObservationsCursorV2String = z
+  .string()
+  .describe("Base64-encoded cursor for pagination");
+
+/**
+ * Schema for base64-encoded cursor in API requests
+ * Decodes and validates the cursor structure
+ */
+export const EncodedObservationsCursorV2 = z
+  .string()
+  .transform((val) => {
+    try {
+      const decoded = Buffer.from(val, "base64").toString("utf-8");
+      const parsed = JSON.parse(decoded);
+      return parsed;
+    } catch (e) {
+      throw new InvalidRequestError("Invalid cursor format");
+    }
+  })
+  .pipe(ObservationsCursorV2);
+
+/**
+ * Encodes a cursor object to base64 string for API response
+ */
+export const encodeCursor = (
+  cursor: ObservationsCursorV2Type,
+): z.infer<typeof EncodedObservationsCursorV2String> => {
+  return Buffer.from(
+    JSON.stringify({
+      lastStartTimeTo:
+        cursor.lastStartTimeTo instanceof Date
+          ? cursor.lastStartTimeTo.toISOString()
+          : cursor.lastStartTimeTo,
+      lastTraceId: cursor.lastTraceId,
+      lastId: cursor.lastId,
+    }),
+  ).toString("base64");
+};
+
 // GET /v2/observations
 export const GetObservationsV2Query = z.object({
   // Required fields parameter
@@ -221,6 +277,7 @@ export const GetObservationsV2Query = z.object({
     .pipe(z.array(z.string()).min(1)),
   // Pagination
   limit: z.coerce.number().nonnegative().lte(10000).default(50),
+  withCursor: EncodedObservationsCursorV2.optional(),
   // Parsing behavior
   parseIoAsJson: z
     .union([z.literal("true"), z.literal("false")])
@@ -260,7 +317,9 @@ export const GetObservationsV2Query = z.object({
 export const GetObservationsV2Response = z
   .object({
     data: z.array(z.record(z.string(), z.any())), // Field-filtered observations
-    meta: z.object({}), // TODO Empty for now, will add cursor later
+    meta: z.object({
+      cursor: EncodedObservationsCursorV2String.optional(),
+    }),
   })
   .strict();
 
