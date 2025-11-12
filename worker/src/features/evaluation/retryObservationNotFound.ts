@@ -8,7 +8,7 @@ import {
   DatasetRunItemUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import type { ObservationNotFoundError } from "./evalService";
+import type { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 
 const MAX_RETRY_ATTEMPTS = 5; // Initial attempt + 4 retries
 const MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes

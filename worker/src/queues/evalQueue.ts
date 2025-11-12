@@ -11,15 +11,12 @@ import {
   getCurrentSpan,
   isLLMCompletionError,
 } from "@langfuse/shared/src/server";
-import {
-  createEvalJobs,
-  evaluate,
-  isObservationNotFoundError,
-} from "../features/evaluation/evalService";
+import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
+import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
