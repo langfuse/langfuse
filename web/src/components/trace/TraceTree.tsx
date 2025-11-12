@@ -1,7 +1,7 @@
 import { type TreeNode } from "./lib/types";
 import { cn } from "@/src/utils/tailwind";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
@@ -16,11 +16,7 @@ import {
 } from "@/src/components/trace/lib/helpers";
 import type Decimal from "decimal.js";
 import { SpanItem } from "@/src/components/trace/SpanItem";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { api } from "@/src/utils/api";
 
 export const TraceTree = ({
@@ -30,7 +26,8 @@ export const TraceTree = ({
   displayScores: scores,
   currentNodeId,
   setCurrentNodeId,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   nodeCommentCounts,
@@ -46,10 +43,11 @@ export const TraceTree = ({
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
   // Note: displayScores are merged with client-side score cache; handling optimistic updates
-  displayScores: APIScoreV2[];
+  displayScores: WithStringifiedMetadata<ScoreDomain>[];
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   nodeCommentCounts?: Map<string, number>;
@@ -114,7 +112,8 @@ export const TraceTree = ({
         indentationLevel={0}
         currentNodeId={currentNodeId}
         setCurrentNodeId={setCurrentNodeId}
-        showMetrics={showMetrics}
+        showDuration={showDuration}
+        showCostTokens={showCostTokens}
         showScores={showScores}
         colorCodeMetrics={colorCodeMetrics}
         parentTotalCost={totalCost}
@@ -151,12 +150,13 @@ type TreeNodeComponentProps = {
   node: TreeNode;
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
   indentationLevel: number;
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   parentTotalCost?: Decimal;
@@ -176,7 +176,8 @@ const UnmemoizedTreeNodeComponent = ({
   indentationLevel,
   currentNodeId,
   setCurrentNodeId,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   parentTotalCost,
@@ -277,43 +278,38 @@ const UnmemoizedTreeNodeComponent = ({
           </div>
 
           {/* 4. Content button: just the text/metrics content */}
-          <Tooltip delayDuration={750}>
-            <TooltipTrigger asChild>
-              {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
-              <button
-                type="button"
-                aria-selected={isSelected}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
-                }}
-                onMouseEnter={() => onObservationHover(node)}
-                className={cn(
-                  "peer relative flex min-w-0 flex-1 items-start rounded-md py-1.5 pl-2 pr-2 text-left",
-                )}
-                ref={currentNodeRef}
-              >
-                <SpanItem
-                  node={node}
-                  scores={scores}
-                  comments={comments}
-                  showMetrics={showMetrics}
-                  showScores={showScores}
-                  colorCodeMetrics={colorCodeMetrics}
-                  parentTotalCost={parentTotalCost}
-                  parentTotalDuration={parentTotalDuration}
-                  showComments={showComments}
-                />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" align="start">
-              <p className="max-w-md break-words">{node.name}</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
+          <button
+            type="button"
+            aria-selected={isSelected}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
+            }}
+            onMouseEnter={() => onObservationHover(node)}
+            title={node.name}
+            className={cn(
+              "peer relative flex min-w-0 flex-1 items-start rounded-md py-0.5 pl-1 pr-2 text-left",
+            )}
+            ref={currentNodeRef}
+          >
+            <SpanItem
+              node={node}
+              scores={scores}
+              comments={comments}
+              showDuration={showDuration}
+              showCostTokens={showCostTokens}
+              showScores={showScores}
+              colorCodeMetrics={colorCodeMetrics}
+              parentTotalCost={parentTotalCost}
+              parentTotalDuration={parentTotalDuration}
+              showComments={showComments}
+            />
+          </button>
 
           {/* 5. Expand/Collapse button */}
           {node.children.length > 0 && (
-            <div className="flex items-center justify-end py-1 pr-2">
+            <div className="flex items-center justify-end py-1 pr-1">
               <Button
                 data-expand-button
                 size="icon"
@@ -365,7 +361,8 @@ const UnmemoizedTreeNodeComponent = ({
                   indentationLevel={indentationLevel + 1}
                   currentNodeId={currentNodeId}
                   setCurrentNodeId={setCurrentNodeId}
-                  showMetrics={showMetrics}
+                  showDuration={showDuration}
+                  showCostTokens={showCostTokens}
                   showScores={showScores}
                   colorCodeMetrics={colorCodeMetrics}
                   parentTotalCost={parentTotalCost}

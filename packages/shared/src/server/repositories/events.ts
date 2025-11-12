@@ -232,7 +232,7 @@ const getObservationsFromEventsTableInternal = async <T>(
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
   const hasScoresFilter = filter.some((f) =>
-    f.column.toLowerCase().includes("scores"),
+    f.column.toLowerCase().includes("score"),
   );
   const appliedObservationsFilter = observationsFilter.apply();
   const search = clickhouseSearchCondition(

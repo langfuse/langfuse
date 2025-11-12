@@ -2,8 +2,8 @@ import {
   type ScoreTarget,
   type ScoreTargetTrace,
   type ScoreTargetSession,
+  ScoreSourceEnum,
 } from "@langfuse/shared";
-import { ScoreSource } from "@langfuse/shared";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { isTraceScore } from "@/src/features/scores/lib/helpers";
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
@@ -11,7 +11,7 @@ import { type z } from "zod/v4";
 import { type AnnotationScore } from "@/src/features/scores/types";
 
 const isAnnotationScore = (score: AnnotationScore) =>
-  score.source === ScoreSource.ANNOTATION;
+  score.source === ScoreSourceEnum.ANNOTATION;
 
 const filterTraceAnnotationScores =
   ({ traceId, observationId }: ScoreTargetTrace) =>
