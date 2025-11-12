@@ -29,6 +29,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -137,7 +138,30 @@ export function Trace(props: {
     );
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [searchInputValue, setSearchInputValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // debounce search query text input by 500ms to ensure smooth UI updates.
+  // otherwise, it's very laggy to type.
+  // can be skipped by pressing ENTER, then search immediately.
+  const debouncedSetSearchQuery = useDebounce(setSearchQuery, 500, false);
+
+  const handleSearchInputChange = useCallback(
+    (value: string) => {
+      setSearchInputValue(value);
+      debouncedSetSearchQuery(value);
+    },
+    [debouncedSetSearchQuery],
+  );
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        setSearchQuery(searchInputValue);
+      }
+    },
+    [searchInputValue],
+  );
 
   const panelGroupId = `trace-panel-group-${context}`;
   const panelState = usePanelState(
@@ -331,7 +355,10 @@ export function Trace(props: {
       showScores={scoresOnObservationTree}
       colorCodeMetrics={colorCodeMetricsOnObservationTree}
       showComments={showComments}
-      onClearSearch={() => setSearchQuery("")}
+      onClearSearch={() => {
+        setSearchInputValue("");
+        setSearchQuery("");
+      }}
     />
   ) : (
     <TraceTree
@@ -402,8 +429,9 @@ export function Trace(props: {
                       showBorder={false}
                       placeholder="Search"
                       className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
-                      value={searchQuery}
-                      onValueChange={setSearchQuery}
+                      value={searchInputValue}
+                      onValueChange={handleSearchInputChange}
+                      onKeyDown={handleSearchKeyDown}
                     />
                   )}
                   {viewType === "detailed" && (
@@ -644,8 +672,9 @@ export function Trace(props: {
                           showBorder={false}
                           placeholder="Search"
                           className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
-                          value={searchQuery}
-                          onValueChange={setSearchQuery}
+                          value={searchInputValue}
+                          onValueChange={handleSearchInputChange}
+                          onKeyDown={handleSearchKeyDown}
                         />
                       )}
                       {viewType === "detailed" && (
