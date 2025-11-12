@@ -26,6 +26,4 @@ export const APIScoreSchemaV1 = ScoreFoundationSchemaV1.and(
   z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
 );
 
-// this needs to be fixed and omit the datasetRunId and sessionId fields AND traceId must be required
-
 export type APIScoreV1 = z.infer<typeof APIScoreSchemaV1>;

@@ -48,7 +48,6 @@ export const ScoreSchemaExclReferencesAndDates = z.object({
   // Score data
   name: z.string(),
   value: z.number(),
-  stringValue: z.string().nullable(),
   source: ScoreSourceDomain,
   authorUserId: z.string().nullable(),
   comment: z.string().nullable(),
