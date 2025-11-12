@@ -28,7 +28,7 @@ jest.mock("@langfuse/shared", () => {
   };
 });
 
-import { normalizeInput } from "./adapters";
+import { normalizeInput, normalizeOutput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
 import { extractTools } from "./extractTools";
 
@@ -777,5 +777,61 @@ describe("Playground Jump Full Pipeline", () => {
 
     // Verify tools extracted
     expect(extractTools(input)).toHaveLength(1);
+  });
+
+  it("should handle stringified tools in metadata (like from vercel AI SDK v5 + bedrock)", () => {
+    // metadata contains stringified tools instead of actual objects, causing flattenToolDefinition to return {}
+    // and ChatML validation to fail with "normalizeInput success: false"
+
+    const input = [
+      {
+        role: "system",
+        content: "You are a helpful assistant.",
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "Test" }],
+      },
+    ];
+
+    // metadata.tools array has STRINGIFIED elements
+    const metadata = {
+      tools: [
+        JSON.stringify({
+          type: "function",
+          name: "get_weather",
+          description: "Get weather info",
+          inputSchema: {
+            type: "object",
+            properties: { city: { type: "string" } },
+            required: ["city"],
+          },
+        }),
+        JSON.stringify({
+          type: "function",
+          name: "search_web",
+          description: "Search the web",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+          },
+        }),
+      ],
+      scope: { name: "ai" },
+    };
+
+    const inResult = normalizeInput(input, { metadata });
+
+    // Should succeed (flattenToolDefinition parses strings)
+    expect(inResult.success).toBe(true);
+    expect(inResult.data).toBeDefined();
+    expect(inResult.data!.length).toBeGreaterThan(0);
+
+    // Verify tools are attached to messages
+    const firstMessage = inResult.data![0];
+    expect(firstMessage.tools).toBeDefined();
+    expect(firstMessage.tools!.length).toBe(2);
+    expect(firstMessage.tools![0].name).toBe("get_weather");
+    expect(firstMessage.tools![1].name).toBe("search_web");
   });
 });

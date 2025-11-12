@@ -268,6 +268,7 @@ const parseGeneration = (
     generation.output,
     generation.metadata,
   );
+
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
