@@ -45,13 +45,14 @@ import {
   ObservationTableQuery,
 } from "./observations";
 import {
-  convertObservation,
   convertEventsObservation,
+  convertObservation,
 } from "./observations_converters";
 import {
   EventsQueryBuilder,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
+  FieldSetName,
 } from "../queries/clickhouse-sql/event-query-builder";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
@@ -59,49 +60,98 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
 
+// TODO
+type ObservationV2 = Partial<EventsObservation & ObservationPriceFields> &
+  Pick<
+    Observation,
+    "id" | "traceId" | "startTime" | "projectId" | "parentObservationId"
+  >;
+
 /**
  * Internal helper: enrich observations with model pricing data
  * Uses events-specific converter to include userId and sessionId
+ * Supports both V1 (complete observations) and V2 (partial observations with field groups)
+ *
+ * @param observationRecords - Raw observation records from ClickHouse
+ * @param projectId - Project ID for model lookup
+ * @param parseIoAsJson - Whether to parse input/output as JSON
+ * @param requestedFields - Field groups for V2 API (undefined/null = V1 API, returns complete observations)
  */
-const enrichObservationsWithModelData = async (
+async function enrichObservationsWithModelData<
+  F extends ObservationFieldGroup[] | null,
+  E extends F extends ObservationFieldGroup[]
+    ? Partial<EventsObservation>
+    : EventsObservation,
+>(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
-  parseIoAsJson: boolean = false,
-): Promise<Array<EventsObservation & ObservationPriceFields>> => {
-  const uniqueModels: string[] = Array.from(
-    new Set(
-      observationRecords
-        .map((r) => r.internal_model_id)
-        .filter((r): r is string => Boolean(r)),
-    ),
-  );
+  parseIoAsJson: boolean,
+  requestedFields?: F,
+): Promise<Array<E & ObservationPriceFields>> {
+  // Determine if this is V1 (complete) or V2 (partial) API
+  const isV2 = Array.isArray(requestedFields);
 
-  const models =
-    uniqueModels.length > 0
-      ? await prisma.model.findMany({
-          where: {
-            id: {
-              in: uniqueModels,
-            },
-            OR: [{ projectId: projectId }, { projectId: null }],
-          },
-          include: {
-            Price: true,
-          },
-        })
-      : [];
+  // Determine if model enrichment is needed
+  // V1 API: always enrich
+  // V2 API: only enrich if "model" field group is requested
+  const shouldEnrichModel = !isV2 || requestedFields.includes("model");
+
+  // Fetch model data if needed
+  const models = shouldEnrichModel
+    ? await (async () => {
+        const uniqueModels: string[] = Array.from(
+          new Set(
+            observationRecords
+              .map((r) => r.internal_model_id)
+              .filter((r): r is string => Boolean(r)),
+          ),
+        );
+
+        return uniqueModels.length > 0
+          ? await prisma.model.findMany({
+              where: {
+                id: {
+                  in: uniqueModels,
+                },
+                OR: [{ projectId: projectId }, { projectId: null }],
+              },
+              include: {
+                Price: true,
+              },
+            })
+          : [];
+      })()
+    : [];
 
   return observationRecords.map((o) => {
-    const model = models.find((m) => m.id === o.internal_model_id);
-    return {
-      ...convertEventsObservation(o, {
+    const model = shouldEnrichModel
+      ? models.find((m) => m.id === o.internal_model_id)
+      : null;
+
+    const converted: E = convertEventsObservation(
+      o,
+      {
         shouldJsonParse: parseIoAsJson,
         truncated: false,
-      }),
-      latency: o.latency ? Number(o.latency) / 1000 : null,
-      timeToFirstToken: o.time_to_first_token
-        ? Number(o.time_to_first_token) / 1000
-        : null,
+      },
+      !isV2, // V1 API: complete=true, V2 API: complete=false
+    );
+    const enriched = {
+      ...converted,
+      // Use ClickHouse-calculated latency/timeToFirstToken if available, otherwise use what converter calculated
+      latency:
+        o.latency !== undefined
+          ? o.latency
+            ? Number(o.latency) / 1000
+            : null
+          : (converted.latency ?? null),
+      timeToFirstToken:
+        o.time_to_first_token !== undefined
+          ? o.time_to_first_token
+            ? Number(o.time_to_first_token) / 1000
+            : null
+          : (converted.timeToFirstToken ?? null),
+      // Add model pricing fields (null if not fetched)
       modelId: model?.id ?? null,
       inputPrice:
         model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
@@ -110,12 +160,14 @@ const enrichObservationsWithModelData = async (
       totalPrice:
         model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
     };
-  });
-};
 
-const enrichObservationsWithTraceFields = async (
+    return enriched;
+  });
+}
+
+async function enrichObservationsWithTraceFields(
   observationRecords: Array<EventsObservation & ObservationPriceFields>,
-): Promise<FullEventsObservations> => {
+): Promise<FullEventsObservations> {
   return observationRecords.map((o) => {
     return {
       ...o,
@@ -124,17 +176,17 @@ const enrichObservationsWithTraceFields = async (
       traceTimestamp: null,
     };
   });
-};
+}
 
 /**
  * Internal helper: extract and convert time filter from FilterList
  * Common pattern: find time filter and convert to ClickHouse DateTime format
  */
-const extractTimeFilter = (
+function extractTimeFilter(
   filter: FilterList,
   tableName: "events" | "traces" = "events",
   fieldName: "start_time" | "timestamp" = "start_time",
-): string | null => {
+): string | null {
   const timeFilter = filter.find(
     (f) =>
       f.clickhouseTable === tableName &&
@@ -145,7 +197,7 @@ const extractTimeFilter = (
   return timeFilter
     ? convertDateToClickhouseDateTime((timeFilter as DateTimeFilter).value)
     : null;
-};
+}
 
 /**
  * Column mapping for public API filters on events table (observations)
@@ -234,17 +286,23 @@ export const getObservationsWithModelDataFromEventsTable = async (
       },
     );
 
-  return enrichObservationsWithTraceFields(
-    await enrichObservationsWithModelData(observationRecords, opts.projectId),
-  );
+  const withModelData: Array<EventsObservation & ObservationPriceFields> =
+    await enrichObservationsWithModelData(
+      observationRecords,
+      opts.projectId,
+      false,
+      null, // V1 path: always enrich all fields
+    );
+
+  return enrichObservationsWithTraceFields(withModelData);
 };
 
-const getObservationsFromEventsTableInternal = async <T>(
+async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
     select: "count" | "rows";
     tags: Record<string, string>;
   },
-): Promise<Array<T>> => {
+): Promise<Array<T>> {
   const {
     projectId,
     filter,
@@ -362,7 +420,7 @@ const getObservationsFromEventsTableInternal = async <T>(
       });
     },
   });
-};
+}
 
 export const getObservationByIdFromEventsTable = async ({
   id,
@@ -421,7 +479,7 @@ export const getObservationByIdFromEventsTable = async ({
   return mapped.shift();
 };
 
-const getObservationByIdFromEventsTableInternal = async ({
+async function getObservationByIdFromEventsTableInternal({
   id,
   projectId,
   fetchWithInputOutput = false,
@@ -439,7 +497,7 @@ const getObservationByIdFromEventsTableInternal = async ({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
-}) => {
+}) {
   const queryBuilder = new EventsQueryBuilder({ projectId })
     .selectFieldSet("byIdBase", "byIdModel", "byIdPrompt", "byIdTimestamps")
     .when(fetchWithInputOutput, (b) =>
@@ -474,7 +532,7 @@ const getObservationByIdFromEventsTableInternal = async ({
     },
     preferredClickhouseService,
   });
-};
+}
 
 /**
  * Get a trace by ID from the events table.
@@ -595,6 +653,26 @@ export const getTraceByIdFromEventsTable = async ({
   return res.shift();
 };
 
+/**
+ * Field groups for selective field fetching in v2 observations API
+ *
+ * - core: Always included (cursor-required fields)
+ * - basic, time, io, metadata, model, usage, prompt, metrics: Optional groups
+ */
+export const OBSERVATION_FIELD_GROUPS = [
+  "core", // Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type
+  "basic", // name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
+  "time", // completionStartTime, createdAt, updatedAt
+  "io", // input, output
+  "metadata", // metadata
+  "model", // providedModelName, internalModelId, modelParameters
+  "usage", // usageDetails, costDetails, totalCost, providedUsageDetails, providedCostDetails
+  "prompt", // promptId, promptName, promptVersion
+  "metrics", // latency, timeToFirstToken
+] as const;
+
+export type ObservationFieldGroup = (typeof OBSERVATION_FIELD_GROUPS)[number];
+
 type PublicApiObservationsQuery = {
   projectId: string;
   page: number;
@@ -616,15 +694,16 @@ type PublicApiObservationsQuery = {
     lastTraceId: string;
     lastId: string;
   };
+  fields?: ObservationFieldGroup[] | null;
 };
 
 /**
- * Internal implementation for public API observations queries.
- * Consolidates count and list queries into a single implementation.
+ * Helper function to setup observations query builder with filters and common CTEs.
+ * Combines filter preparation and query builder setup for both count and rows queries.
  */
-const getObservationsFromEventsTableForPublicApiInternal = async <T>(
-  opts: PublicApiObservationsQuery & { select: "rows" | "count" },
-): Promise<Array<T>> => {
+function buildObservationsQueryBase(
+  opts: PublicApiObservationsQuery,
+): EventsQueryBuilder {
   const { projectId, page, limit, advancedFilters, ...filterParams } = opts;
 
   // Convert and merge simple and advanced filters
@@ -645,20 +724,12 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
     (f) => f.clickhouseTable === "traces",
   );
 
-  // Extract time filter using helper
+  // Extract time filter and apply filters
   const startTimeFrom = extractTimeFilter(filteredObservationsFilter);
   const appliedFilter = filteredObservationsFilter.apply();
 
-  // Build query using EventsQueryBuilder
-  const queryBuilder = new EventsQueryBuilder({ projectId });
-
-  if (opts.select === "count") {
-    queryBuilder.selectFieldSet("count");
-  } else {
-    queryBuilder.selectFieldSet("base", "calculated", "io", "metadata");
-  }
-
-  queryBuilder
+  // Build query with common CTE, joins, and filters
+  const queryBuilder = new EventsQueryBuilder({ projectId })
     .when(hasTraceFilter, (b) =>
       b.withCTE(
         "traces",
@@ -673,49 +744,119 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
     )
     .where(appliedFilter);
 
-  if (opts.select === "rows") {
-    // Determine if this is cursor-based pagination (v2) or page-based (v1)
-    // v2 API always passes page=0, v1 API passes actual page numbers
-    const isCursorPagination = page === 0 || opts.withCursor !== undefined;
+  return queryBuilder;
+}
 
-    queryBuilder
-      // Apply cursor filter if provided
-      .when(Boolean(opts.withCursor), (b) => {
-        const cursor = opts.withCursor!;
-        return b.whereRaw(
-          "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
-          {
-            lastStartTime: convertDateToClickhouseDateTime(
-              cursor.lastStartTimeTo,
-            ),
-            lastTraceId: cursor.lastTraceId,
-            lastId: cursor.lastId,
-          },
-        );
-      })
-      // Order by start_time, xxHash32(trace_id), span_id to match table ordering
-      .orderBy(
-        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
-      )
-      // When cursor pagination (v2): fetch limit+1 to detect if there are more results
-      // When page-based (v1): use offset pagination
-      .limit(
-        isCursorPagination ? limit + 1 : limit,
-        isCursorPagination ? 0 : (page - 1) * limit,
-      );
-  }
+/**
+ * Internal function to get count of observations from events table for public API.
+ */
+async function getObservationsCountFromEventsTableForPublicApiInternal(
+  opts: PublicApiObservationsQuery,
+): Promise<Array<{ count: string }>> {
+  const { projectId } = opts;
+
+  // Build query with filters and common CTEs
+  const queryBuilder = buildObservationsQueryBase(opts);
+
+  // Select count field set
+  queryBuilder.selectFieldSet("count");
 
   const { query, params } = queryBuilder.buildWithParams();
 
   const result = await measureAndReturn({
-    operationName: `getObservationsFromEventsTableForPublicApi_${opts.select}`,
+    operationName: "getObservationsFromEventsTableForPublicApi_count",
     projectId,
     input: {
       params,
       tags: {
         feature: "tracing",
         type: "events",
-        kind: opts.select === "count" ? "publicApiCount" : "publicApiRows",
+        kind: "publicApiCount",
+        projectId,
+      },
+    },
+    fn: async (input) => {
+      return await queryClickhouse<{ count: string }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      });
+    },
+  });
+
+  return result;
+}
+
+/**
+ * Internal function to get observations rows from events table for public API.
+ */
+async function getObservationsRowsFromEventsTableForPublicApiInternal<T>(
+  opts: PublicApiObservationsQuery,
+): Promise<Array<T>> {
+  const { projectId, page, limit } = opts;
+
+  // Build query with filters and common CTEs
+  const queryBuilder = buildObservationsQueryBase(opts);
+
+  // Determine which field groups to include
+  // If fields are not specified (null), include all groups
+  const requestedFields = opts.fields ?? [...OBSERVATION_FIELD_GROUPS];
+
+  // Core fields are always included (required for cursor pagination)
+  queryBuilder.selectFieldSet("publicApiCore");
+
+  // Conditionally add other field sets based on requested groups
+  for (const fieldGroup of requestedFields) {
+    if (fieldGroup !== "core") {
+      // core already selected above
+      const fieldSetName =
+        `publicApi${fieldGroup.charAt(0).toUpperCase()}${fieldGroup.slice(1)}` as FieldSetName;
+      queryBuilder.selectFieldSet(fieldSetName);
+    }
+  }
+
+  // Determine if this is cursor-based pagination (v2) or page-based (v1)
+  // v2 API always passes page=0, v1 API passes actual page numbers
+  const isCursorPagination = page === 0 || opts.withCursor !== undefined;
+
+  queryBuilder
+    // Apply cursor filter if provided
+    .when(Boolean(opts.withCursor), (b) => {
+      const cursor = opts.withCursor!;
+      return b.whereRaw(
+        "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
+        {
+          lastStartTime: convertDateToClickhouseDateTime(
+            cursor.lastStartTimeTo,
+          ),
+          lastTraceId: cursor.lastTraceId,
+          lastId: cursor.lastId,
+        },
+      );
+    })
+    // Order by start_time, xxHash32(trace_id), span_id to match table ordering
+    .orderBy(
+      "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
+    )
+    // When cursor pagination (v2): fetch limit+1 to detect if there are more results
+    // When page-based (v1): use offset pagination
+    .limit(
+      isCursorPagination ? limit + 1 : limit,
+      isCursorPagination ? 0 : (page - 1) * limit,
+    );
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const result = await measureAndReturn({
+    operationName: "getObservationsFromEventsTableForPublicApi_rows",
+    projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "events",
+        kind: "publicApiRows",
         projectId,
       },
     },
@@ -730,27 +871,47 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
   });
 
   return result;
-};
+}
 
 /**
- * Get observations list from events table for public API.
- * Includes model enrichment and supports public API filter format.
+ * V1 API: Get observations list from events table for public API
+ * Returns complete observations with all fields for transformDbToApiObservation
  */
 export const getObservationsFromEventsTableForPublicApi = async (
-  opts: PublicApiObservationsQuery,
+  opts: Omit<PublicApiObservationsQuery, "fields">,
 ): Promise<Array<Observation & ObservationPriceFields>> => {
   const observationRecords =
-    await getObservationsFromEventsTableForPublicApiInternal<ObservationsTableQueryResultWitouhtTraceFields>(
-      {
-        ...opts,
-        select: "rows",
-      },
+    await getObservationsRowsFromEventsTableForPublicApiInternal<ObservationsTableQueryResultWitouhtTraceFields>(
+      opts,
     );
-  return enrichObservationsWithModelData(
+
+  return (await enrichObservationsWithModelData(
     observationRecords,
     opts.projectId,
     Boolean(opts.parseIoAsJson),
-  );
+    null, // V1 API: no field groups, return complete observations
+  )) as Array<Observation & ObservationPriceFields>;
+};
+
+/**
+ * V2 API: Get observations list from events table for public API
+ * Returns partial observations based on requested field groups
+ * Field filtering happens at query time in ClickHouse
+ */
+export const getObservationsV2FromEventsTableForPublicApi = async (
+  opts: PublicApiObservationsQuery & { fields: ObservationFieldGroup[] },
+): Promise<Array<ObservationV2>> => {
+  const observationRecords =
+    await getObservationsRowsFromEventsTableForPublicApiInternal<ObservationsTableQueryResultWitouhtTraceFields>(
+      opts,
+    );
+
+  return (await enrichObservationsWithModelData(
+    observationRecords,
+    opts.projectId,
+    Boolean(opts.parseIoAsJson),
+    opts.fields, // V2 API: field groups specified, return partial observations
+  )) as Array<ObservationV2>;
 };
 
 /**
@@ -759,12 +920,8 @@ export const getObservationsFromEventsTableForPublicApi = async (
 export const getObservationsCountFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
 ): Promise<number> => {
-  const countResult = await getObservationsFromEventsTableForPublicApiInternal<{
-    count: string;
-  }>({
-    ...opts,
-    select: "count",
-  });
+  const countResult =
+    await getObservationsCountFromEventsTableForPublicApiInternal(opts);
   return Number(countResult[0].count);
 };
 
@@ -791,9 +948,9 @@ type PublicApiTracesQuery = {
  * Uses eventsTracesAggregation to create a traces CTE that
  * behaves similarly to the old traces table.
  */
-const getTracesFromEventsTableForPublicApiInternal = async <T>(
+async function getTracesFromEventsTableForPublicApiInternal<T>(
   opts: PublicApiTracesQuery & { select: "rows" | "count" },
-): Promise<Array<T>> => {
+): Promise<Array<T>> {
   const {
     projectId,
     page,
@@ -953,7 +1110,7 @@ const getTracesFromEventsTableForPublicApiInternal = async <T>(
   });
 
   return result;
-};
+}
 
 /**
  * Get traces list from events table for public API.

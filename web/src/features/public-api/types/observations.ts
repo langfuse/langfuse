@@ -12,9 +12,14 @@ import {
   reduceUsageOrCostDetails,
   stringDateTime,
   type ObservationPriceFields,
+  OBSERVATION_FIELD_GROUPS,
+  type ObservationFieldGroup,
 } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { useEventsTableSchema } from "../../query/types";
+
+// Re-export for convenience
+export { OBSERVATION_FIELD_GROUPS, type ObservationFieldGroup };
 
 /**
  * Objects
@@ -270,11 +275,20 @@ export const encodeCursor = (
 
 // GET /v2/observations
 export const GetObservationsV2Query = z.object({
-  // Required fields parameter
+  // Field groups parameter (optional - defaults to all groups)
   fields: z
-    .union([z.array(z.string()), z.string()])
-    .transform((val) => (typeof val === "string" ? val.split(",") : val))
-    .pipe(z.array(z.string()).min(1)),
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      return v
+        .split(",")
+        .map((f) => f.trim())
+        .filter((f) =>
+          OBSERVATION_FIELD_GROUPS.includes(f as ObservationFieldGroup),
+        );
+    })
+    .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
   // Pagination
   limit: z.coerce.number().nonnegative().lte(10000).default(50),
   withCursor: EncodedObservationsCursorV2.optional(),
@@ -316,27 +330,9 @@ export const GetObservationsV2Query = z.object({
 
 export const GetObservationsV2Response = z
   .object({
-    data: z.array(z.record(z.string(), z.any())), // Field-filtered observations
+    data: z.array(z.record(z.string(), z.any())), // Field-group-filtered observations
     meta: z.object({
       cursor: EncodedObservationsCursorV2String.optional(),
     }),
   })
   .strict();
-
-/**
- * Filters an observation object to only include requested fields
- */
-// TODO this was my original design but we decided to go with groups of fields,
-// but more granular than before. Also this only makes sense for SELECT, post filtering is useless
-export const filterObservationByFields = (
-  observation: z.infer<typeof APIObservation>,
-  fields: string[],
-): Record<string, any> => {
-  const filtered: Record<string, any> = {};
-  for (const field of fields) {
-    if (field in observation) {
-      filtered[field] = observation[field as keyof typeof observation];
-    }
-  }
-  return filtered;
-};

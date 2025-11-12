@@ -1,4 +1,4 @@
-import { getObservationsFromEventsTableForPublicApi } from "@langfuse/shared/src/server";
+import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -6,8 +6,6 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   GetObservationsV2Query,
   GetObservationsV2Response,
-  transformDbToApiObservation,
-  filterObservationByFields,
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
 
@@ -39,28 +37,25 @@ export default withMiddlewares({
         advancedFilters: query.filter,
         parseIoAsJson: query.parseIoAsJson ?? false,
         withCursor: query.withCursor ?? undefined,
+        fields: query.fields ?? undefined,
       };
 
-      // Fetch observations from events table
-      const items =
-        await getObservationsFromEventsTableForPublicApi(filterProps);
+      // Fetch observations from events table with field groups applied at query time
+      const items = await getObservationsV2FromEventsTableForPublicApi({
+        ...filterProps,
+        fields: filterProps.fields ?? [], // V2 requires fields array
+      });
 
       // Determine if there are more results (we fetched limit+1)
       const hasMore = items.length > query.limit;
       const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
 
-      // Transform observations and apply field filtering
+      // Convert empty parent_observation_id to null for consistency with v1
       const transformedItems = dataToReturn.map((item) => {
-        // Transform to API format
-        let observation = transformDbToApiObservation(item);
-
-        // Convert empty parent_observation_id to null for consistency with v1
-        if (observation.parentObservationId === "") {
-          observation = { ...observation, parentObservationId: null };
+        if (item.parentObservationId === "") {
+          return { ...item, parentObservationId: null };
         }
-
-        // Filter to only include requested fields
-        return filterObservationByFields(observation, query.fields);
+        return item;
       });
 
       // Generate cursor if there are more results

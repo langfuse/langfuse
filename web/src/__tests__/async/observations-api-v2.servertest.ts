@@ -7,7 +7,7 @@ const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("/api/public/v2/observations API Endpoint", () => {
   describe("GET /api/public/v2/observations", () => {
-    it("should fetch observations with only requested fields", async () => {
+    it("should fetch observations with only requested field groups", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
       const timestamp = new Date();
@@ -34,12 +34,11 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation]);
 
-      // Request only specific fields
-      const requestedFields = ["id", "name", "type", "traceId"];
+      // Request only basic field group (core is always included)
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=${requestedFields.join(",")}`,
+        `/api/public/v2/observations?fields=basic`,
       );
 
       expect(response.status).toBe(200);
@@ -53,21 +52,23 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
       expect(createdObs).toBeDefined();
 
-      // Verify only requested fields are present
-      const returnedFields = Object.keys(createdObs || {});
-      expect(returnedFields.sort()).toEqual(requestedFields.sort());
-
-      // Verify field values
+      // Verify core fields are always present
       expect(createdObs?.id).toBe(observationId);
-      expect(createdObs?.name).toBe("test-observation");
-      expect(createdObs?.type).toBe("GENERATION");
       expect(createdObs?.traceId).toBe(traceId);
+      expect(createdObs?.type).toBe("GENERATION");
+      expect(createdObs?.startTime).toBeDefined();
+      expect(createdObs?.endTime).toBeDefined();
+      expect(createdObs?.projectId).toBe(projectId);
 
-      // Verify fields not requested are not present
+      // Verify basic fields are present
+      expect(createdObs?.name).toBe("test-observation");
+      expect(createdObs?.level).toBe("DEFAULT");
+
+      // Verify fields from non-requested groups are not present
       expect(createdObs?.input).toBeUndefined();
       expect(createdObs?.output).toBeUndefined();
       expect(createdObs?.metadata).toBeUndefined();
-      expect(createdObs?.model).toBeUndefined();
+      expect(createdObs?.providedModelName).toBeUndefined();
     });
 
     it("should filter to only top-level observations when topLevelOnly=true", async () => {
@@ -115,7 +116,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const allResponse = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,name,parentObservationId&traceId=${traceId}`,
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}`,
       );
 
       expect(allResponse.status).toBe(200);
@@ -130,7 +131,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,name,parentObservationId&topLevelOnly=true&traceId=${traceId}`,
+        `/api/public/v2/observations?fields=basic&topLevelOnly=true&traceId=${traceId}`,
       );
 
       expect(response.status).toBe(200);
@@ -185,7 +186,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,input,output&traceId=${traceId}&parseIoAsJson=false`,
+        `/api/public/v2/observations?fields=io&traceId=${traceId}&parseIoAsJson=false`,
       );
 
       expect(response.status).toBe(200);
@@ -229,7 +230,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,input,output&traceId=${traceId}&parseIoAsJson=true`,
+        `/api/public/v2/observations?fields=io&traceId=${traceId}&parseIoAsJson=true`,
       );
 
       expect(response.status).toBe(200);
@@ -248,7 +249,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response1 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        "/api/public/v2/observations?fields=id",
+        "/api/public/v2/observations",
       );
 
       expect(response1.status).toBe(200);
@@ -258,7 +259,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response2 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        "/api/public/v2/observations?fields=id&limit=5",
+        "/api/public/v2/observations?limit=5",
       );
 
       expect(response2.status).toBe(200);
@@ -289,7 +290,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,name,type,level&name=unique-observation-name`,
+        `/api/public/v2/observations?fields=basic&name=unique-observation-name`,
       );
 
       expect(response.status).toBe(200);
@@ -332,7 +333,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2`,
+        `/api/public/v2/observations?traceId=${traceId}&limit=2`,
       );
 
       expect(response.status).toBe(200);
@@ -371,7 +372,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=5`,
+        `/api/public/v2/observations?traceId=${traceId}&limit=5`,
       );
 
       expect(response.status).toBe(200);
@@ -409,7 +410,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page1 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2`,
+        `/api/public/v2/observations?traceId=${traceId}&limit=2`,
       );
 
       expect(page1.status).toBe(200);
@@ -422,7 +423,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page2 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2&withCursor=${page1.body.meta.cursor}`,
+        `/api/public/v2/observations?traceId=${traceId}&limit=2&withCursor=${page1.body.meta.cursor}`,
       );
 
       expect(page2.status).toBe(200);
@@ -439,7 +440,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page3 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2&withCursor=${page2.body.meta.cursor}`,
+        `/api/public/v2/observations?traceId=${traceId}&limit=2&withCursor=${page2.body.meta.cursor}`,
       );
 
       expect(page3.status).toBe(200);
@@ -501,7 +502,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page1 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,startTime,traceId&userId=${userId}&limit=2&fromStartTime=${new Date(timeValue / 1000).toISOString()}&toStartTime=${new Date(timeValue / 1000 + 1000).toISOString()}`,
+        `/api/public/v2/observations?userId=${userId}&limit=2&fromStartTime=${new Date(timeValue / 1000).toISOString()}&toStartTime=${new Date(timeValue / 1000 + 1000).toISOString()}`,
       );
 
       expect(page1.status).toBe(200);
@@ -513,7 +514,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page2 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,startTime,traceId&userId=${userId}&limit=2&withCursor=${page1.body.meta.cursor}`,
+        `/api/public/v2/observations?userId=${userId}&limit=2&withCursor=${page1.body.meta.cursor}`,
       );
 
       expect(page2.status).toBe(200);
@@ -561,7 +562,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page1 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,type,traceId&traceId=${traceId}&type=SPAN&limit=2`,
+        `/api/public/v2/observations?traceId=${traceId}&type=SPAN&limit=2`,
       );
 
       expect(page1.status).toBe(200);
@@ -575,7 +576,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page2 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?fields=id,type,traceId&traceId=${traceId}&type=SPAN&limit=2&withCursor=${page1.body.meta.cursor}`,
+        `/api/public/v2/observations?traceId=${traceId}&type=SPAN&limit=2&withCursor=${page1.body.meta.cursor}`,
       );
 
       expect(page2.status).toBe(200);

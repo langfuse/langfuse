@@ -134,7 +134,44 @@ const FIELD_SETS = {
   ],
   byIdPrompt: ["promptId", "promptName", "promptVersion"],
   byIdTimestamps: ["createdAt", "updatedAt", "eventTs"],
+
+  // Public API v2 field sets (field groups for selective fetching)
+  publicApiCore: [
+    "id",
+    "traceId",
+    "startTime",
+    "endTime",
+    "projectId",
+    "parentObservationId",
+    "type",
+  ],
+  publicApiBasic: [
+    "name",
+    "level",
+    "statusMessage",
+    "version",
+    "environment",
+    "bookmarked",
+    "public",
+    "userId",
+    "sessionId",
+  ],
+  publicApiTime: ["completionStartTime", "createdAt", "updatedAt"],
+  publicApiIo: ["input", "output"],
+  publicApiMetadata: ["metadata"],
+  publicApiModel: ["providedModelName", "internalModelId", "modelParameters"],
+  publicApiUsage: [
+    "usageDetails",
+    "costDetails",
+    "totalCost",
+    "providedUsageDetails",
+    "providedCostDetails",
+  ],
+  publicApiPrompt: ["promptId", "promptName", "promptVersion"],
+  publicApiMetrics: ["latency", "timeToFirstToken"],
 } as const;
+
+export type FieldSetName = keyof typeof FIELD_SETS;
 
 /**
  * Aggregation fields for trace-level queries
@@ -483,7 +520,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   /**
    * Add SELECT fields from predefined field sets
    */
-  selectFieldSet(...setNames: Array<keyof typeof FIELD_SETS>): this {
+  selectFieldSet(...setNames: Array<FieldSetName>): this {
     setNames
       .flatMap((s) => {
         return FIELD_SETS[s];
