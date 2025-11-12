@@ -7,6 +7,8 @@ import {
 export interface ObjectDataHook<TData> {
   data: TData | undefined;
   isLoading: boolean;
+  isError: boolean;
+  errorCode?: string;
 }
 
 export const useAnnotationObjectData = (
@@ -23,7 +25,11 @@ export const useAnnotationObjectData = (
         (item.objectType === AnnotationQueueObjectType.TRACE ||
           item.objectType === AnnotationQueueObjectType.OBSERVATION),
       retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
         return failureCount < 3;
       },
     },
@@ -51,6 +57,7 @@ export const useAnnotationObjectData = (
     return {
       data: undefined,
       isLoading: false,
+      isError: false,
     };
   }
 
@@ -60,11 +67,15 @@ export const useAnnotationObjectData = (
       return {
         data: traceQuery.data,
         isLoading: traceQuery.isLoading,
+        isError: traceQuery.isError,
+        errorCode: traceQuery.error?.data?.code,
       };
     case AnnotationQueueObjectType.SESSION:
       return {
         data: sessionQuery.data,
         isLoading: sessionQuery.isLoading,
+        isError: sessionQuery.isError,
+        errorCode: sessionQuery.error?.data?.code,
       };
     default:
       // This should never happen as it's a DB enum
