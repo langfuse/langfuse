@@ -244,6 +244,12 @@ export function useSidebarFilterState(
   >,
   projectId?: string,
   loading?: boolean,
+  /**
+   * If true, prevents filter state from being persisted to/read from URL query params.
+   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
+   * the parent page's URL with filters that don't apply to the parent context.
+   */
+  disableUrlPersistence?: boolean,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -268,15 +274,19 @@ export function useSidebarFilterState(
   );
 
   const filterState: FilterState = useMemo(() => {
+    // If URL persistence is disabled, return empty filter state
+    if (disableUrlPersistence) return [];
     return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
-  }, [filtersQuery, config.columnDefinitions]);
+  }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
+      // Don't modify URL if persistence is disabled
+      if (disableUrlPersistence) return;
       const encoded = encodeFiltersGeneric(newFilters);
       setFiltersQuery(encoded || null);
     },
-    [setFiltersQuery],
+    [setFiltersQuery, disableUrlPersistence],
   );
 
   // track if defaults have been applied before, versioned to support future changes
@@ -291,6 +301,8 @@ export function useSidebarFilterState(
 
   // init default env filters on first load to deselect envs prefixed with "langfuse-"
   useEffect(() => {
+    // Skip auto-applying defaults for embedded tables
+    if (disableUrlPersistence) return;
     if (filterState.length > 0 || defaultsApplied) return;
 
     // only if there is an environment facet
@@ -330,6 +342,7 @@ export function useSidebarFilterState(
     defaultsApplied,
     config.facets,
     options,
+    disableUrlPersistence,
     setFilterState,
     setDefaultsApplied,
   ]);

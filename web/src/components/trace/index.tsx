@@ -89,8 +89,10 @@ export function Trace(props: {
     StringParam,
   );
   const [viewTab] = useQueryParam("view", StringParam);
-  const [metricsOnObservationTree, setMetricsOnObservationTree] =
-    useLocalStorage("metricsOnObservationTree", true);
+  const [durationOnObservationTree, setDurationOnObservationTree] =
+    useLocalStorage("durationOnObservationTree", true);
+  const [costTokensOnObservationTree, setCostTokensOnObservationTree] =
+    useLocalStorage("costTokensOnObservationTree", true);
   const [scoresOnObservationTree, setScoresOnObservationTree] = useLocalStorage(
     "scoresOnObservationTree",
     true,
@@ -324,7 +326,8 @@ export function Trace(props: {
       displayScores={displayScores}
       onSelect={setCurrentObservationId}
       comments={commentsMap}
-      showMetrics={metricsOnObservationTree}
+      showDuration={durationOnObservationTree}
+      showCostTokens={costTokensOnObservationTree}
       showScores={scoresOnObservationTree}
       colorCodeMetrics={colorCodeMetricsOnObservationTree}
       showComments={showComments}
@@ -338,7 +341,8 @@ export function Trace(props: {
       displayScores={displayScores}
       currentNodeId={currentObservationId ?? undefined}
       setCurrentNodeId={setCurrentObservationId}
-      showMetrics={metricsOnObservationTree}
+      showDuration={durationOnObservationTree}
+      showCostTokens={costTokensOnObservationTree}
       showScores={scoresOnObservationTree}
       showComments={showComments}
       colorCodeMetrics={colorCodeMetricsOnObservationTree}
@@ -481,9 +485,15 @@ export function Trace(props: {
                         setShowComments={setShowComments}
                         scoresOnObservationTree={scoresOnObservationTree}
                         setScoresOnObservationTree={setScoresOnObservationTree}
-                        metricsOnObservationTree={metricsOnObservationTree}
-                        setMetricsOnObservationTree={
-                          setMetricsOnObservationTree
+                        durationOnObservationTree={durationOnObservationTree}
+                        setDurationOnObservationTree={
+                          setDurationOnObservationTree
+                        }
+                        costTokensOnObservationTree={
+                          costTokensOnObservationTree
+                        }
+                        setCostTokensOnObservationTree={
+                          setCostTokensOnObservationTree
                         }
                         colorCodeMetricsOnObservationTree={
                           colorCodeMetricsOnObservationTree
@@ -547,7 +557,8 @@ export function Trace(props: {
                         setCurrentObservationId={setCurrentObservationId}
                         expandedItems={expandedItems}
                         setExpandedItems={setExpandedItems}
-                        showMetrics={metricsOnObservationTree}
+                        showDuration={durationOnObservationTree}
+                        showCostTokens={costTokensOnObservationTree}
                         showScores={scoresOnObservationTree}
                         showComments={showComments}
                         colorCodeMetrics={colorCodeMetricsOnObservationTree}
@@ -727,9 +738,17 @@ export function Trace(props: {
                             setScoresOnObservationTree={
                               setScoresOnObservationTree
                             }
-                            metricsOnObservationTree={metricsOnObservationTree}
-                            setMetricsOnObservationTree={
-                              setMetricsOnObservationTree
+                            durationOnObservationTree={
+                              durationOnObservationTree
+                            }
+                            setDurationOnObservationTree={
+                              setDurationOnObservationTree
+                            }
+                            costTokensOnObservationTree={
+                              costTokensOnObservationTree
+                            }
+                            setCostTokensOnObservationTree={
+                              setCostTokensOnObservationTree
                             }
                             colorCodeMetricsOnObservationTree={
                               colorCodeMetricsOnObservationTree
@@ -835,7 +854,8 @@ export function Trace(props: {
                                   }
                                   expandedItems={expandedItems}
                                   setExpandedItems={setExpandedItems}
-                                  showMetrics={metricsOnObservationTree}
+                                  showDuration={durationOnObservationTree}
+                                  showCostTokens={costTokensOnObservationTree}
                                   showScores={scoresOnObservationTree}
                                   showComments={showComments}
                                   colorCodeMetrics={
@@ -876,7 +896,8 @@ export function Trace(props: {
                                 }
                                 expandedItems={expandedItems}
                                 setExpandedItems={setExpandedItems}
-                                showMetrics={metricsOnObservationTree}
+                                showDuration={durationOnObservationTree}
+                                showCostTokens={costTokensOnObservationTree}
                                 showScores={scoresOnObservationTree}
                                 showComments={showComments}
                                 colorCodeMetrics={
