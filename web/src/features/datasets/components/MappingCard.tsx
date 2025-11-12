@@ -30,7 +30,7 @@ function SchemaKeyDropZone({
         "min-h-[52px] rounded-md border border-dashed text-sm transition-colors",
         isOver &&
           mappedColumns.length === 0 &&
-          "border-2 border-solid border-primary bg-background",
+          "border-solid border-primary bg-background",
         mappedColumns.length > 0 &&
           "border-solid border-accent-dark-blue bg-light-blue/40",
       )}
