@@ -381,10 +381,6 @@ export const getObservationStream = async (props: {
           // Process each row in the buffer
           for (const bufferedRow of rowBuffer) {
             recordsProcessed++;
-            if (recordsProcessed % 10000 === 0)
-              logger.info(
-                `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
-              );
 
             yield await processObservationRow(
               bufferedRow,
@@ -408,11 +404,6 @@ export const getObservationStream = async (props: {
 
         for (const bufferedRow of rowBuffer) {
           recordsProcessed++;
-          if (recordsProcessed % 10000 === 0)
-            logger.info(
-              `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
-            );
-
           yield await processObservationRow(bufferedRow, commentsByObservation);
         }
       }
