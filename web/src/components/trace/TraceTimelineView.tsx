@@ -668,7 +668,8 @@ export function TraceTimelineView({
                       type="TRACE"
                       hasChildren={!!nestedObservations.length}
                       isSelected={currentObservationId === null}
-                      showMetrics={showMetrics}
+                      showDuration={showDuration}
+                      showCostTokens={showCostTokens}
                       showScores={showScores}
                       showComments={showComments}
                       colorCodeMetrics={colorCodeMetrics}
