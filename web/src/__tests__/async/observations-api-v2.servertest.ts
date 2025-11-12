@@ -360,4 +360,372 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.level).toBe("WARNING");
     });
   });
+
+  describe("Cursor-based pagination", () => {
+    it("should return cursor when results equal limit", async () => {
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create trace
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "cursor-test-trace",
+        timestamp: timestamp.getTime(),
+        project_id: projectId,
+      });
+
+      await createTracesCh([createdTrace]);
+
+      // Create 3 observations
+      const observations = [];
+      for (let i = 0; i < 3; i++) {
+        const obsId = randomUUID();
+        observations.push(
+          createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `cursor-test-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: timeValue + i * 1000 * 1000, // 1 second apart
+          }),
+        );
+      }
+
+      await createEventsCh(observations);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Fetch with limit=2 (should have cursor since we have 3 observations)
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBe(2);
+      expect(response.body.meta.cursor).toBeDefined();
+      expect(typeof response.body.meta.cursor).toBe("string");
+    });
+
+    it("should not return cursor when results less than limit", async () => {
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create trace
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "cursor-test-no-cursor",
+        timestamp: timestamp.getTime(),
+        project_id: projectId,
+      });
+
+      await createTracesCh([createdTrace]);
+
+      // Create only 2 observations
+      const observations = [];
+      for (let i = 0; i < 2; i++) {
+        const obsId = randomUUID();
+        observations.push(
+          createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `no-cursor-test-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: timeValue + i * 1000 * 1000,
+          }),
+        );
+      }
+
+      await createEventsCh(observations);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Fetch with limit=5 (should not have cursor since we only have 2)
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=5`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBe(2);
+      expect(response.body.meta.cursor).toBeUndefined();
+    });
+
+    it("should paginate correctly using cursor without overlap", async () => {
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create trace
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "cursor-pagination-test",
+        timestamp: timestamp.getTime(),
+        project_id: projectId,
+      });
+
+      await createTracesCh([createdTrace]);
+
+      // Create 5 observations with distinct timestamps
+      const observations = [];
+      for (let i = 0; i < 5; i++) {
+        const obsId = randomUUID();
+        observations.push(
+          createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `pagination-test-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: timeValue + i * 1000 * 1000, // 1 second apart
+          }),
+        );
+      }
+
+      await createEventsCh(observations);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Fetch first page with limit=2
+      const page1 = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2`,
+      );
+
+      expect(page1.status).toBe(200);
+      expect(page1.body.data.length).toBe(2);
+      expect(page1.body.meta.cursor).toBeDefined();
+
+      const page1Ids = page1.body.data.map((obs: any) => obs.id);
+
+      // Fetch second page using cursor
+      const page2 = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2&withCursor=${page1.body.meta.cursor}`,
+      );
+
+      expect(page2.status).toBe(200);
+      expect(page2.body.data.length).toBe(2);
+      expect(page2.body.meta.cursor).toBeDefined(); // Should have cursor for third page
+
+      const page2Ids = page2.body.data.map((obs: any) => obs.id);
+
+      // Verify no overlap between pages
+      const overlap = page1Ids.filter((id: string) => page2Ids.includes(id));
+      expect(overlap.length).toBe(0);
+
+      // Fetch third page
+      const page3 = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,startTime,traceId&traceId=${traceId}&limit=2&withCursor=${page2.body.meta.cursor}`,
+      );
+
+      expect(page3.status).toBe(200);
+      expect(page3.body.data.length).toBe(1); // Only 1 remaining
+      expect(page3.body.meta.cursor).toBeUndefined(); // No more pages
+
+      const page3Ids = page3.body.data.map((obs: any) => obs.id);
+
+      // Verify all observations retrieved exactly once
+      const allIds = [...page1Ids, ...page2Ids, ...page3Ids];
+      expect(allIds.length).toBe(5);
+      expect(new Set(allIds).size).toBe(5); // All unique
+    });
+
+    it("should handle cursor with observations having same start_time", async () => {
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+      const traceId3 = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+      const userId = randomUUID();
+
+      // Create traces
+      await createTracesCh([
+        createTrace({
+          id: traceId1,
+          name: "trace-1",
+          timestamp: timestamp.getTime(),
+          project_id: projectId,
+        }),
+        createTrace({
+          id: traceId2,
+          name: "trace-2",
+          timestamp: timestamp.getTime(),
+          project_id: projectId,
+        }),
+        createTrace({
+          id: traceId3,
+          name: "trace-3",
+          timestamp: timestamp.getTime(),
+          project_id: projectId,
+        }),
+      ]);
+
+      // Create observations with SAME start_time but different trace_ids
+      // This tests the xxHash32(trace_id) ordering component
+      const obs1 = createEvent({
+        trace_id: traceId1,
+        project_id: projectId,
+        name: "same-time-obs-1",
+        type: "GENERATION",
+        level: "DEFAULT",
+        user_id: userId,
+        start_time: timeValue,
+      });
+
+      const obs2 = createEvent({
+        trace_id: traceId2,
+        project_id: projectId,
+        name: "same-time-obs-2",
+        type: "GENERATION",
+        level: "DEFAULT",
+        user_id: userId,
+        start_time: timeValue, // Same time
+      });
+
+      const obs3 = createEvent({
+        trace_id: traceId3,
+        project_id: projectId,
+        name: "same-time-obs-3",
+        type: "GENERATION",
+        level: "DEFAULT",
+        user_id: userId,
+        start_time: timeValue, // Same time
+      });
+
+      await createEventsCh([obs1, obs2, obs3]);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Fetch first page
+      const page1 = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,startTime,traceId&userId=${userId}&limit=2&fromStartTime=${new Date(timeValue / 1000).toISOString()}&toStartTime=${new Date(timeValue / 1000 + 1000).toISOString()}`,
+      );
+
+      expect(page1.status).toBe(200);
+      expect(page1.body.data.length).toBe(2);
+
+      const page1Ids = page1.body.data.map((obs: any) => obs.id);
+
+      // Fetch second page using cursor
+      const page2 = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,startTime,traceId&userId=${userId}&limit=2&withCursor=${page1.body.meta.cursor}`,
+      );
+
+      expect(page2.status).toBe(200);
+      expect(page2.body.data.length).toBeGreaterThan(0);
+
+      const page2Ids = page2.body.data.map((obs: any) => obs.id);
+
+      // Verify no overlap (tests that xxHash32 ordering works)
+      const overlap = page1Ids.filter((id: string) => page2Ids.includes(id));
+      expect(overlap.length).toBe(0);
+
+      // Verify that all events were fetched
+      expect([...page1Ids, ...page2Ids].sort()).toEqual(
+        [obs1, obs2, obs3].map((o) => o.span_id).sort(),
+      );
+    });
+
+    it("should work with cursor and other filters", async () => {
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create trace
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "cursor-filter-test",
+        timestamp: timestamp.getTime(),
+        project_id: projectId,
+      });
+
+      await createTracesCh([createdTrace]);
+
+      // Create observations with specific type
+      const observations = [];
+      for (let i = 0; i < 4; i++) {
+        const obsId = randomUUID();
+        observations.push(
+          createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `cursor-filter-obs-${i}`,
+            type: "SPAN", // All same type
+            level: "DEFAULT",
+            start_time: timeValue + i * 1000 * 1000,
+          }),
+        );
+      }
+
+      await createEventsCh(observations);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Fetch first page with type filter
+      const page1 = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,type,traceId&traceId=${traceId}&type=SPAN&limit=2`,
+      );
+
+      expect(page1.status).toBe(200);
+      expect(page1.body.data.length).toBe(2);
+      expect(page1.body.data.every((obs: any) => obs.type === "SPAN")).toBe(
+        true,
+      );
+      expect(page1.body.meta.cursor).toBeDefined();
+
+      // Fetch second page with same filter and cursor
+      const page2 = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?fields=id,type,traceId&traceId=${traceId}&type=SPAN&limit=2&withCursor=${page1.body.meta.cursor}`,
+      );
+
+      expect(page2.status).toBe(200);
+      expect(page2.body.data.length).toBe(2);
+      expect(page2.body.data.every((obs: any) => obs.type === "SPAN")).toBe(
+        true,
+      );
+
+      // Verify no overlap
+      const page1Ids = page1.body.data.map((obs: any) => obs.id);
+      const page2Ids = page2.body.data.map((obs: any) => obs.id);
+      const overlap = page1Ids.filter((id: string) => page2Ids.includes(id));
+      expect(overlap.length).toBe(0);
+    });
+
+    it("should reject invalid cursor format", async () => {
+      const { makeAPICall } = await import("@/src/__tests__/test-utils");
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/observations?fields=id&withCursor=invalid-base64-string`,
+      );
+
+      // Should fail validation
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("message");
+      expect((response.body as { message: string }).message).toContain(
+        "Invalid cursor format",
+      );
+    });
+  });
 });

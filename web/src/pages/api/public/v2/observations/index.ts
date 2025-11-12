@@ -8,6 +8,7 @@ import {
   GetObservationsV2Response,
   transformDbToApiObservation,
   filterObservationByFields,
+  encodeCursor,
 } from "@/src/features/public-api/types/observations";
 
 export default withMiddlewares({
@@ -37,14 +38,19 @@ export default withMiddlewares({
         version: query.version ?? undefined,
         advancedFilters: query.filter,
         parseIoAsJson: query.parseIoAsJson ?? false,
+        withCursor: query.withCursor ?? undefined,
       };
 
       // Fetch observations from events table
       const items =
         await getObservationsFromEventsTableForPublicApi(filterProps);
 
+      // Determine if there are more results (we fetched limit+1)
+      const hasMore = items.length > query.limit;
+      const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
+
       // Transform observations and apply field filtering
-      const transformedItems = items.map((item) => {
+      const transformedItems = dataToReturn.map((item) => {
         // Transform to API format
         let observation = transformDbToApiObservation(item);
 
@@ -57,9 +63,22 @@ export default withMiddlewares({
         return filterObservationByFields(observation, query.fields);
       });
 
+      // Generate cursor if there are more results
+      const lastItemIdx = dataToReturn.length - 1;
+      const meta =
+        hasMore && dataToReturn.length > 0
+          ? {
+              cursor: encodeCursor({
+                lastStartTimeTo: dataToReturn[lastItemIdx].startTime,
+                lastTraceId: dataToReturn[lastItemIdx].traceId ?? "",
+                lastId: dataToReturn[lastItemIdx].id,
+              }),
+            }
+          : {};
+
       return {
         data: transformedItems,
-        meta: {}, // TODO Empty meta for now, cursor pagination will be added later
+        meta,
       };
     },
   }),
