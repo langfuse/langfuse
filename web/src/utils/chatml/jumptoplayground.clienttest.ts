@@ -28,7 +28,7 @@ jest.mock("@langfuse/shared", () => {
   };
 });
 
-import { normalizeInput, normalizeOutput } from "./adapters";
+import { normalizeInput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
 import { extractTools } from "./extractTools";
 
