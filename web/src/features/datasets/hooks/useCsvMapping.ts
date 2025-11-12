@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { findDefaultColumn } from "../lib/findDefaultColumn";
 import {
-  CsvColumnPreview,
-  CsvMapping,
-  FieldMapping,
   FieldMappingType,
-  FreeformField,
-  SchemaField,
+  type CsvColumnPreview,
+  type CsvMapping,
+  type FieldMapping,
+  type FreeformField,
+  type SchemaField,
 } from "@/src/features/datasets/lib/csv/types";
 import { isFreeformField } from "@/src/features/datasets/lib/csv/helpers";
 

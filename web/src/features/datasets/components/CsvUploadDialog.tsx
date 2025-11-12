@@ -7,7 +7,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
-import { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
+import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 import {
   Tooltip,
   TooltipContent,

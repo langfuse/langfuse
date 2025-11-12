@@ -8,8 +8,8 @@ import { cn } from "@/src/utils/tailwind";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { X } from "lucide-react";
 import {
-  CsvColumnPreview,
-  FieldMapping,
+  type CsvColumnPreview,
+  type FieldMapping,
 } from "@/src/features/datasets/lib/csv/types";
 import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
 

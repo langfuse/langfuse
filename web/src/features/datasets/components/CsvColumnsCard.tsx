@@ -4,10 +4,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { type CsvColumnPreview } from "@/src/features/datasets/lib/csvHelpers";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
+import type { CsvColumnPreview } from "@/src/features/datasets/lib/csv/types";
 
 function DraggableColumn({ column }: { column: CsvColumnPreview }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({

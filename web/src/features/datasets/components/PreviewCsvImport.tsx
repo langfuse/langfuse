@@ -25,7 +25,7 @@ import { useCsvMapping } from "@/src/features/datasets/hooks/useCsvMapping";
 import { useCsvDragAndDrop } from "@/src/features/datasets/hooks/useCsvDragAndDrop";
 import { useCsvImport } from "@/src/features/datasets/hooks/useCsvImport";
 import { createPortal } from "react-dom";
-import { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
+import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 
 // Helper to extract schema keys from object schema
 function extractSchemaKeys(schema: unknown): string[] | null {

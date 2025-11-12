@@ -9,9 +9,9 @@ import {
   parseColumns,
   buildSchemaObject,
 } from "@/src/features/datasets/lib/csv/helpers";
-import {
+import type {
   CsvColumnPreview,
-  type FieldMapping,
+  FieldMapping,
 } from "@/src/features/datasets/lib/csv/types";
 
 const MIN_CHUNK_SIZE = 1;

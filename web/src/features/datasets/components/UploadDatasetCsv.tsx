@@ -13,7 +13,7 @@ import {
   Dropzone,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
-import { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
+import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;
