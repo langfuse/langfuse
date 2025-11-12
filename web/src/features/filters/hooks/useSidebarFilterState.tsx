@@ -342,6 +342,7 @@ export function useSidebarFilterState(
     defaultsApplied,
     config.facets,
     options,
+    disableUrlPersistence,
     setFilterState,
     setDefaultsApplied,
   ]);
