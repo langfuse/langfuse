@@ -217,7 +217,7 @@ export const NewDatasetItemForm = (props: {
       onError: (error) => {
         if (error.message.includes("Body exc")) {
           setFormError(
-            "Data exceeds maximum size (4.5MB). Please attempt to create dataset item via CSV upload or programmatically.",
+            "Data exceeds maximum size (4.5MB). Please attempt to create dataset item programmatically.",
           );
         } else {
           setFormError(error.message);
