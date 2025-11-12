@@ -1,0 +1,64 @@
+[package]
+name = "clickhouse-backfill-rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["Langfuse Team"]
+description = "High-performance Rust implementation of ClickHouse backfill script"
+
+[[bin]]
+name = "clickhouse-backfill-rust"
+path = "src/main.rs"
+
+[dependencies]
+# ClickHouse client
+clickhouse = { version = "0.12", features = ["inserter"] }
+
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Decimal handling
+rust_decimal = { version = "1.36", features = ["serde-float"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI parsing
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Environment variables
+dotenvy = "0.15"
+
+# DateTime handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Progress bars
+indicatif = { version = "0.17", features = ["tokio"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# Concurrent collections
+dashmap = "6.1"
+
+# Utilities
+uuid = { version = "1.11", features = ["v4", "serde"] }
+futures = "0.3"
+
+[dev-dependencies]
+tempfile = "3.13"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true

@@ -1,0 +1,26 @@
+# Rust
+target/
+Cargo.lock
+
+# Environment
+.env
+
+# Checkpoint files
+cursor_state*.json
+
+# Logs
+*.log
+backfill.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+!.env.example
