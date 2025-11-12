@@ -256,6 +256,15 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
 }
 
 function flattenToolDefinition(tool: unknown): Record<string, unknown> {
+  // handle stringified tools (e.g. from metadata.tools with bedrock)
+  if (typeof tool === "string") {
+    try {
+      tool = JSON.parse(tool);
+    } catch {
+      return {};
+    }
+  }
+
   if (typeof tool !== "object" || !tool) return {};
 
   const t = tool as Record<string, unknown>;
