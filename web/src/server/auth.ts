@@ -394,7 +394,9 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
       },
-      ...(env.AUTH_COGNITO_CHECKS ? { checks: env.AUTH_COGNITO_CHECKS } : {}),
+      ...(env.AUTH_COGNITO_CHECKS
+        ? { checks: env.AUTH_COGNITO_CHECKS }
+        : { checks: "nonce" }),
     }),
   );
 
