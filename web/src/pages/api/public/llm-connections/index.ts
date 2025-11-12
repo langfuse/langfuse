@@ -74,7 +74,7 @@ export default withMiddlewares({
     bodySchema: PutLlmConnectionV1Body,
     responseSchema: PutLlmConnectionV1Response,
     isAdminApiKeyAuthAllowed: true,
-    fn: async ({ body, auth, res }) => {
+    fn: async ({ body, auth, res, req }) => {
       const projectId = auth.scope.projectId;
 
       const existingConnection = await prisma.llmApiKeys.findUnique({
@@ -144,6 +144,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
+        req,
       });
 
       // Transform and validate through strict schema

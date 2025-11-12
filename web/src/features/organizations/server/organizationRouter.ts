@@ -100,7 +100,7 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "organization",
         resourceId: input.orgId,
         action: "update",
@@ -166,7 +166,7 @@ export const organizationsRouter = createTRPCRouter({
       );
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "organization",
         resourceId: input.orgId,
         action: "delete",

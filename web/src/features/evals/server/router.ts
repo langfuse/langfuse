@@ -700,7 +700,7 @@ export const evalRouter = createTRPCRouter({
 
       const jobId = uuidv4();
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "job",
         resourceId: jobId,
         action: "create",
@@ -925,7 +925,7 @@ export const evalRouter = createTRPCRouter({
          */
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "evalTemplate",
           resourceId: evalTemplate.id,
           action: "create",
@@ -1059,7 +1059,7 @@ export const evalRouter = createTRPCRouter({
       }
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "job",
         resourceId: evalConfigId,
         action: "update",
@@ -1141,7 +1141,7 @@ export const evalRouter = createTRPCRouter({
       }
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "job",
         resourceId: evalConfigId,
         action: "delete",

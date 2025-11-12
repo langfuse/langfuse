@@ -178,7 +178,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "llmApiKey",
           resourceId: key.id,
           action: "create",
@@ -247,7 +247,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "llmApiKey",
           resourceId: input.id,
           before: llmApiKey,
@@ -504,7 +504,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "llmApiKey",
           resourceId: key.id,
           action: "update",

@@ -26,6 +26,7 @@ export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
+export * from "./utils/ipUtils";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";

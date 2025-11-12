@@ -257,6 +257,8 @@ export type AuditLog = {
   user_project_role: string | null;
   resource_type: string;
   resource_id: string;
+  client_ip: string | null;
+  ip_chain: string[];
   action: string;
   before: string | null;
   after: string | null;

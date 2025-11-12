@@ -141,6 +141,7 @@ export async function handleDeleteProject(
       resourceId: projectId,
       before: project,
       action: "delete",
+      req,
     });
 
     // Queue project deletion job

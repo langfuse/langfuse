@@ -47,10 +47,9 @@ export const batchExportRouter = createTRPCRouter({
 
         // Create audit log
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "batchExport",
           resourceId: exportJob.id,
-          projectId,
           action: "create",
           after: exportJob,
         });

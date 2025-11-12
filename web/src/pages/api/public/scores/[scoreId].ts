@@ -50,7 +50,7 @@ export default withMiddlewares({
     querySchema: DeleteScoreQueryV1,
     responseSchema: DeleteScoreResponseV1,
     successStatusCode: 202,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, req }) => {
       const { scoreId } = query;
 
       const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
@@ -65,6 +65,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
+        req,
       });
 
       await scoreDeleteQueue.add(QueueJobs.ScoreDelete, {

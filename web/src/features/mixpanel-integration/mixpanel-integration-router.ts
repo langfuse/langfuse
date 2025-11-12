@@ -68,7 +68,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         }
       }
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         action: "update",
         resourceType: "mixpanelIntegration",
         resourceId: input.projectId,
@@ -104,7 +104,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           scope: "integrations:CRUD",
         });
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           action: "delete",
           resourceType: "mixpanelIntegration",
           resourceId: input.projectId,

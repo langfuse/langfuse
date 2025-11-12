@@ -1,7 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
 import {
-  type Role,
   type BatchExportTableName,
   type BatchActionQuery,
   type ActionId,
@@ -13,21 +12,14 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 
 type CreateBatchActionJob = {
   projectId: string;
   actionId: ActionId;
   tableName: BatchExportTableName;
   actionType: BatchActionType;
-  session: {
-    user: {
-      id: string;
-    };
-    orgId: string;
-    orgRole: Role;
-    projectId?: string;
-    projectRole?: Role;
-  };
+  trpcCtx: ProjectAuthedContext;
   query: BatchActionQuery;
   targetId?: string;
 };
@@ -40,7 +32,7 @@ export const createBatchActionJob = async ({
   actionId,
   tableName,
   actionType,
-  session,
+  trpcCtx,
   query,
   targetId,
 }: CreateBatchActionJob) => {
@@ -57,10 +49,9 @@ export const createBatchActionJob = async ({
 
   // Create audit log >> generate based on actionId
   await auditLog({
-    session,
+    trpcCtx,
     resourceType: "batchAction",
     resourceId: batchActionId,
-    projectId: projectId,
     action: actionType as string,
   });
 

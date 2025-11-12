@@ -98,7 +98,7 @@ export const commentsRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "comment",
         resourceId: comment.id,
         action: "create",
@@ -173,7 +173,7 @@ export const commentsRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "comment",
         resourceId: comment.id,
         action: "delete",

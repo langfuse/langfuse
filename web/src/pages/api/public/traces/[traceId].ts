@@ -147,7 +147,7 @@ export default withMiddlewares({
     name: "Delete Single Trace",
     querySchema: DeleteTraceV1Query,
     responseSchema: DeleteTraceV1Response,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, req }) => {
       const { traceId } = query;
 
       await auditLog({
@@ -157,6 +157,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         apiKeyId: auth.scope.apiKeyId,
         orgId: auth.scope.orgId,
+        req,
       });
 
       await traceDeletionProcessor(auth.scope.projectId, [traceId]);

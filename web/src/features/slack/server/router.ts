@@ -115,7 +115,7 @@ export const slackRouter = createTRPCRouter({
         const channels = await slackService.getChannels(client);
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "slackIntegration",
           resourceId: integration.id,
           action: "read",
@@ -168,7 +168,7 @@ export const slackRouter = createTRPCRouter({
         await SlackService.getInstance().deleteIntegration(input.projectId);
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "slackIntegration",
           resourceId: integration.id,
           action: "delete",
@@ -290,7 +290,7 @@ export const slackRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "slackIntegration",
           resourceId: integration.id,
           action: "create",

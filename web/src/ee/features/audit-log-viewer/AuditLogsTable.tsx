@@ -99,6 +99,23 @@ export function AuditLogsTable(props: { projectId: string }) {
       header: "Action",
     },
     {
+      accessorKey: "clientIp",
+      header: "Client IP",
+      cell: (row) => {
+        const value = row.getValue() as string | null;
+        return value ?? null;
+      },
+    },
+    {
+      accessorKey: "ipChain",
+      header: "IP Chain",
+      cell: (row) => {
+        const value = row.getValue() as string[] | null;
+        if (!value || value.length === 0) return null;
+        return value.join(", ");
+      },
+    },
+    {
       accessorKey: "before",
       header: "Before",
       size: 300,

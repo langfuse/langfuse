@@ -38,6 +38,7 @@ export const promptVersionHandler = withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         after: prompt,
+        req,
       });
 
       logger.info(`Prompt updated ${JSON.stringify(prompt)}`);

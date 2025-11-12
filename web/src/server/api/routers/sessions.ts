@@ -393,7 +393,7 @@ export const sessionRouter = createTRPCRouter({
         });
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "session",
           resourceId: input.sessionId,
           action: "bookmark",
@@ -444,7 +444,7 @@ export const sessionRouter = createTRPCRouter({
         scope: "objects:publish",
       });
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "session",
         resourceId: input.sessionId,
         action: "publish",

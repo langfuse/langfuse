@@ -67,7 +67,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           scope: "integrations:CRUD",
         });
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           action: "update",
           resourceType: "blobStorageIntegration",
           resourceId: input.projectId,
@@ -192,7 +192,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           scope: "integrations:CRUD",
         });
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           action: "delete",
           resourceType: "blobStorageIntegration",
           resourceId: input.projectId,

@@ -598,8 +598,8 @@ model Dataset {
   metadata                Json?
   remoteExperimentUrl     String?       @map("remote_experiment_url")
   remoteExperimentPayload Json?         @map("remote_experiment_payload")
-  inputSchema             Json?   @db.Json @map("input_schema")
-  expectedOutputSchema    Json?   @db.Json @map("expected_output_schema")
+  inputSchema             Json?         @map("input_schema") @db.Json
+  expectedOutputSchema    Json?         @map("expected_output_schema") @db.Json
   project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @default(now()) @updatedAt @map("updated_at")
@@ -870,6 +870,8 @@ model AuditLog {
   userProjectRole String?            @map("user_project_role")
   resourceType    String             @map("resource_type")
   resourceId      String             @map("resource_id")
+  clientIp        String?            @map("client_ip")
+  ipChain         String[]           @map("ip_chain")
   action          String
   before          String? // stringified JSON
   after           String? // stringified JSON

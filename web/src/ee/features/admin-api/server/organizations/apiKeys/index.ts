@@ -78,8 +78,8 @@ export async function handleCreateApiKey(
     resourceId: apiKeyMeta.id,
     action: "create",
     orgId: organizationId,
-    orgRole: "ADMIN",
     apiKeyId: "ADMIN_KEY",
+    req,
   });
 
   logger.info(

@@ -387,7 +387,7 @@ export const scoresRouter = createTRPCRouter({
           actionId: "score-delete",
           actionType: BatchActionType.Delete,
           tableName: BatchExportTableName.Scores,
-          session: ctx.session,
+          trpcCtx: ctx,
           query: input.query,
         });
       }
@@ -406,7 +406,7 @@ export const scoresRouter = createTRPCRouter({
               resourceType: "score",
               resourceId: scoreId,
               action: "delete",
-              session: ctx.session,
+              trpcCtx: ctx,
             }),
           ),
         );
@@ -545,7 +545,7 @@ export const scoresRouter = createTRPCRouter({
       });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "score",
         resourceId: score.id,
         action: "create",
@@ -690,7 +690,7 @@ export const scoresRouter = createTRPCRouter({
         };
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "score",
           resourceId: input.id,
           action: "update",
@@ -760,7 +760,7 @@ export const scoresRouter = createTRPCRouter({
         };
 
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "score",
           resourceId: input.id,
           action: "update",
@@ -805,7 +805,7 @@ export const scoresRouter = createTRPCRouter({
       }
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "score",
         resourceId: input.id,
         action: "delete",

@@ -57,8 +57,8 @@ export async function handleDeleteApiKey(
     action: "delete",
     orgId: orgId,
     projectId: projectId,
-    orgRole: "ADMIN",
     apiKeyId: "ORG_KEY",
+    req,
   });
 
   logger.info(

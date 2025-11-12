@@ -67,7 +67,7 @@ export default withMiddlewares({
     querySchema: DeleteDatasetRunV1Query,
     responseSchema: DeleteDatasetRunV1Response,
     rateLimitResource: "datasets",
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, req }) => {
       // First get the dataset run to check if it exists
       const datasetRuns = await prisma.datasetRuns.findMany({
         where: {
@@ -108,6 +108,7 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         before: datasetRun,
+        req,
       });
 
       // Trigger async delete of dataset run items

@@ -87,8 +87,7 @@ export const cloudBillingRouter = createTRPCRouter({
       );
 
       void auditLog({
-        session: ctx.session,
-        orgId: input.orgId,
+        trpcCtx: ctx,
         resourceType: "organization",
         resourceId: input.orgId,
         action: "BillingService.createStripeCheckoutSession",

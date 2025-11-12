@@ -305,7 +305,7 @@ export const queueItemRouter = createTRPCRouter({
             actionId,
             actionType: BatchActionType.Create,
             tableName,
-            session: ctx.session,
+            trpcCtx: ctx,
             query: input.query,
             targetId: input.queueId,
           });
@@ -334,7 +334,7 @@ export const queueItemRouter = createTRPCRouter({
           for (const item of createdItems) {
             await auditLog(
               {
-                session: ctx.session,
+                trpcCtx: ctx,
                 resourceType: "annotationQueueItem",
                 resourceId: item.id,
                 action: "create",
@@ -402,7 +402,7 @@ export const queueItemRouter = createTRPCRouter({
             resourceId: item.id,
             before: item,
             action: "delete",
-            session: ctx.session,
+            trpcCtx: ctx,
           });
         }
 
@@ -462,7 +462,7 @@ export const queueItemRouter = createTRPCRouter({
           resourceId: item.id,
           action: "complete",
           after: item,
-          session: ctx.session,
+          trpcCtx: ctx,
         });
 
         return item;

@@ -250,7 +250,7 @@ export const membersRouter = createTRPCRouter({
 
             // audit log
             await auditLog({
-              session: ctx.session,
+              trpcCtx: ctx,
               resourceType: "projectMembership",
               resourceId: project.id + "--" + user.id,
               action: "create",
@@ -274,7 +274,7 @@ export const membersRouter = createTRPCRouter({
           },
         });
         await auditLog({
-          session: ctx.session,
+          trpcCtx: ctx,
           resourceType: "orgMembership",
           resourceId: orgMembership.id,
           action: "create",
@@ -290,7 +290,7 @@ export const membersRouter = createTRPCRouter({
             },
           });
           await auditLog({
-            session: ctx.session,
+            trpcCtx: ctx,
             resourceType: "projectMembership",
             resourceId:
               projectMembership.projectId + "--" + projectMembership.userId,
@@ -327,7 +327,7 @@ export const membersRouter = createTRPCRouter({
           });
 
           await auditLog({
-            session: ctx.session,
+            trpcCtx: ctx,
             resourceType: "membershipInvitation",
             resourceId: invitation.id,
             action: "create",
@@ -421,7 +421,7 @@ export const membersRouter = createTRPCRouter({
       }
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "orgMembership",
         resourceId: orgMembership.id,
         action: "delete",
@@ -477,7 +477,7 @@ export const membersRouter = createTRPCRouter({
         });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "membershipInvitation",
         resourceId: invitation.id,
         action: "delete",
@@ -546,7 +546,7 @@ export const membersRouter = createTRPCRouter({
       }
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "orgMembership",
         resourceId: membership.id,
         action: "update",
@@ -646,7 +646,7 @@ export const membersRouter = createTRPCRouter({
           });
 
           await auditLog({
-            session: ctx.session,
+            trpcCtx: ctx,
             resourceType: "projectMembership",
             resourceId: `${input.orgMembershipId}--${input.projectId}`,
             action: "delete",
@@ -687,7 +687,7 @@ export const membersRouter = createTRPCRouter({
         });
 
       await auditLog({
-        session: ctx.session,
+        trpcCtx: ctx,
         resourceType: "projectMembership",
         resourceId: input.projectId + "--" + input.userId,
         action: "update",

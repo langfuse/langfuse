@@ -78,6 +78,7 @@ const postPromptsHandler = async (
     orgId: authCheck.scope.orgId,
     apiKeyId: authCheck.scope.apiKeyId,
     after: createdPrompt,
+    req,
   });
 
   return res.status(201).json(createdPrompt);
