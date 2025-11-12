@@ -269,6 +269,10 @@ export const getTracesCountForPublicApi = async ({
   props: TraceQueryType;
   advancedFilters?: FilterState;
 }) => {
+  // ClickHouse query optimizations - match main query
+  const propagateObservationsTimeBounds =
+    env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS === "true";
+
   let filter = deriveFilters(
     props,
     filterParams,
@@ -321,6 +325,8 @@ export const getTracesCountForPublicApi = async ({
       FROM observations
       WHERE project_id = {projectId: String}
       ${fromTimeFilter ? `AND start_time >= {cteFromTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${toTimeFilter && propagateObservationsTimeBounds ? `AND start_time <= {cteToTimeFilter: DateTime64(3)} + ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${toTimeFilter && propagateObservationsTimeBounds ? `AND end_time <= {cteToTimeFilter: DateTime64(3)} + ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
     )`);
@@ -370,6 +376,13 @@ export const getTracesCountForPublicApi = async ({
           ? {
               cteFromTimeFilter: convertDateToClickhouseDateTime(
                 fromTimeFilter.value,
+              ),
+            }
+          : {}),
+        ...(toTimeFilter && propagateObservationsTimeBounds
+          ? {
+              cteToTimeFilter: convertDateToClickhouseDateTime(
+                toTimeFilter.value,
               ),
             }
           : {}),
