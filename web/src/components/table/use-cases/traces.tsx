@@ -278,6 +278,7 @@ export default function TracesTable({
     filterOptions,
     projectId,
     traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
+    hideControls, // Disable URL persistence for embedded preview tables
   );
 
   const combinedFilterState = queryFilter.filterState.concat(
