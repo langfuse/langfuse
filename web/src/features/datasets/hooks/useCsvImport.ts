@@ -179,7 +179,9 @@ export function useCsvImport(options: UseCsvImportOptions) {
               }
 
               const itemMetadata =
-                parseColumns(metadataColumns, row, headerMap) ?? undefined;
+                parseColumns(metadataColumns, row, headerMap, {
+                  wrapSingleColumn,
+                }) ?? undefined;
 
               items.push({
                 input: JSON.stringify(itemInput),
