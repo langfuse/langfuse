@@ -4,10 +4,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { type CsvColumnPreview } from "@/src/features/datasets/lib/csvHelpers";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { X } from "lucide-react";
+import {
+  CsvColumnPreview,
+  FieldMapping,
+} from "@/src/features/datasets/lib/csv/types";
+import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
 
 function SchemaKeyDropZone({
   schemaKey,
@@ -136,45 +140,22 @@ function MappedColumnBadge({
 }
 
 type MappingCardProps = {
-  // Schema keys
-  inputSchemaKeys?: string[];
-  expectedOutputSchemaKeys?: string[];
-
-  // Schema mappings (now supports multiple columns per key)
-  inputSchemaMapping?: Map<string, CsvColumnPreview[]>;
-  expectedOutputSchemaMapping?: Map<string, CsvColumnPreview[]>;
-
-  // Freeform columns
-  inputColumns: CsvColumnPreview[];
-  expectedColumns: CsvColumnPreview[];
-  metadataColumns: CsvColumnPreview[];
-
-  // Remove handlers
-  onRemoveInputColumn: (columnName: string) => void;
-  onRemoveExpectedColumn: (columnName: string) => void;
+  input: FieldMapping;
+  expectedOutput: FieldMapping;
+  metadata: CsvColumnPreview[];
+  onRemoveInputColumn: (columnName: string, key?: string) => void;
+  onRemoveExpectedColumn: (columnName: string, key?: string) => void;
   onRemoveMetadataColumn: (columnName: string) => void;
-  onRemoveInputSchemaColumn: (schemaKey: string, columnName: string) => void;
-  onRemoveExpectedSchemaColumn: (schemaKey: string, columnName: string) => void;
 };
 
 export function MappingCard({
-  inputSchemaKeys,
-  expectedOutputSchemaKeys,
-  inputSchemaMapping,
-  expectedOutputSchemaMapping,
-  inputColumns,
-  expectedColumns,
-  metadataColumns,
+  input,
+  expectedOutput,
+  metadata,
   onRemoveInputColumn,
   onRemoveExpectedColumn,
   onRemoveMetadataColumn,
-  onRemoveInputSchemaColumn,
-  onRemoveExpectedSchemaColumn,
 }: MappingCardProps) {
-  const hasInputSchema = inputSchemaKeys && inputSchemaKeys.length > 0;
-  const hasExpectedSchema =
-    expectedOutputSchemaKeys && expectedOutputSchemaKeys.length > 0;
-
   return (
     <Card className="flex h-full flex-col overflow-hidden">
       <CardHeader className="shrink-0 border-b p-3">
@@ -188,16 +169,16 @@ export function MappingCard({
           <h3 className="text-sm font-semibold tracking-wide text-muted-foreground">
             Input
           </h3>
-          {hasInputSchema ? (
+          {isSchemaField(input) ? (
             <div className="space-y-2">
-              {inputSchemaKeys.map((schemaKey) => (
+              {input.entries.map((entry) => (
                 <SchemaKeyDropZone
-                  key={schemaKey}
-                  schemaKey={schemaKey}
-                  mappedColumns={inputSchemaMapping?.get(schemaKey) ?? []}
+                  key={entry.key}
+                  schemaKey={entry.key}
+                  mappedColumns={entry.columns}
                   parentId="input"
                   onRemove={(columnName) =>
-                    onRemoveInputSchemaColumn(schemaKey, columnName)
+                    onRemoveInputColumn(columnName, entry.key)
                   }
                 />
               ))}
@@ -205,7 +186,7 @@ export function MappingCard({
           ) : (
             <FreeformDropZone
               id="input"
-              columns={inputColumns}
+              columns={input.columns}
               onRemove={onRemoveInputColumn}
             />
           )}
@@ -216,18 +197,16 @@ export function MappingCard({
           <h3 className="text-sm font-semibold tracking-wide text-muted-foreground">
             Output
           </h3>
-          {hasExpectedSchema ? (
+          {expectedOutput.type === "schema" ? (
             <div className="space-y-2">
-              {expectedOutputSchemaKeys.map((schemaKey) => (
+              {expectedOutput.entries.map((entry) => (
                 <SchemaKeyDropZone
-                  key={schemaKey}
-                  schemaKey={schemaKey}
-                  mappedColumns={
-                    expectedOutputSchemaMapping?.get(schemaKey) ?? []
-                  }
+                  key={entry.key}
+                  schemaKey={entry.key}
+                  mappedColumns={entry.columns}
                   parentId="expectedOutput"
                   onRemove={(columnName) =>
-                    onRemoveExpectedSchemaColumn(schemaKey, columnName)
+                    onRemoveExpectedColumn(columnName, entry.key)
                   }
                 />
               ))}
@@ -235,7 +214,7 @@ export function MappingCard({
           ) : (
             <FreeformDropZone
               id="expected"
-              columns={expectedColumns}
+              columns={expectedOutput.columns}
               onRemove={onRemoveExpectedColumn}
             />
           )}
@@ -248,7 +227,7 @@ export function MappingCard({
           </h3>
           <FreeformDropZone
             id="metadata"
-            columns={metadataColumns}
+            columns={metadata}
             onRemove={onRemoveMetadataColumn}
           />
         </div>

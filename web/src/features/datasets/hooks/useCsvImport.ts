@@ -8,8 +8,11 @@ import {
   parseCsvClient,
   parseColumns,
   buildSchemaObject,
-  type CsvColumnPreview,
-} from "@/src/features/datasets/lib/csvHelpers";
+} from "@/src/features/datasets/lib/csv/helpers";
+import {
+  CsvColumnPreview,
+  type FieldMapping,
+} from "@/src/features/datasets/lib/csv/types";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -57,12 +60,9 @@ type UseCsvImportOptions = {
   projectId: string;
   datasetId: string;
   csvFile: File | null;
-  isSchemaMode: boolean;
-  selectedInputColumn: Set<string>;
-  selectedExpectedColumn: Set<string>;
-  selectedMetadataColumn: Set<string>;
-  inputSchemaMapping: Map<string, CsvColumnPreview[]>;
-  expectedOutputSchemaMapping: Map<string, CsvColumnPreview[]>;
+  input: FieldMapping;
+  expectedOutput: FieldMapping;
+  metadata: CsvColumnPreview[];
 };
 
 export function useCsvImport(options: UseCsvImportOptions) {
@@ -80,7 +80,8 @@ export function useCsvImport(options: UseCsvImportOptions) {
     api.datasets.createManyDatasetItems.useMutation({});
 
   const execute = async (wrapSingleColumn: boolean) => {
-    const { csvFile, projectId, datasetId, isSchemaMode } = options;
+    const { csvFile, projectId, datasetId, input, expectedOutput, metadata } =
+      options;
 
     if (!csvFile) return;
     if (csvFile.size > MAX_FILE_SIZE_BYTES) {
@@ -96,25 +97,36 @@ export function useCsvImport(options: UseCsvImportOptions) {
     const items: RouterInputs["datasets"]["createManyDatasetItems"]["items"] =
       [];
 
-    // Prepare column lists or mappings based on mode
-    const input = Array.from(options.selectedInputColumn);
-    const expected = Array.from(options.selectedExpectedColumn);
-    const metadata = Array.from(options.selectedMetadataColumn);
+    // Prepare mappings based on field type
+    const inputMapping =
+      input.type === "schema"
+        ? Object.fromEntries(
+            input.entries.map((entry) => [
+              entry.key,
+              entry.columns.map((c) => c.name),
+            ]),
+          )
+        : undefined;
 
-    const inputMapping = isSchemaMode
-      ? Object.fromEntries(
-          Array.from(options.inputSchemaMapping.entries()).map(
-            ([key, cols]) => [key, cols.map((c) => c.name)],
-          ),
-        )
-      : undefined;
-    const expectedOutputMapping = isSchemaMode
-      ? Object.fromEntries(
-          Array.from(options.expectedOutputSchemaMapping.entries()).map(
-            ([key, cols]) => [key, cols.map((c) => c.name)],
-          ),
-        )
-      : undefined;
+    const inputColumns =
+      input.type === "freeform" ? input.columns.map((c) => c.name) : [];
+
+    const expectedOutputMapping =
+      expectedOutput.type === "schema"
+        ? Object.fromEntries(
+            expectedOutput.entries.map((entry) => [
+              entry.key,
+              entry.columns.map((c) => c.name),
+            ]),
+          )
+        : undefined;
+
+    const expectedOutputColumns =
+      expectedOutput.type === "freeform"
+        ? expectedOutput.columns.map((c) => c.name)
+        : [];
+
+    const metadataColumns = metadata.map((c) => c.name);
 
     try {
       await parseCsvClient(csvFile, {
@@ -126,9 +138,9 @@ export function useCsvImport(options: UseCsvImportOptions) {
             const allColumns = [
               ...Object.values(inputMapping ?? {}).flat(),
               ...Object.values(expectedOutputMapping ?? {}).flat(),
-              ...input,
-              ...expected,
-              ...metadata,
+              ...inputColumns,
+              ...expectedOutputColumns,
+              ...metadataColumns,
             ];
             const missingColumns = allColumns.filter(
               (col) => !headerMap.has(col),
@@ -142,45 +154,32 @@ export function useCsvImport(options: UseCsvImportOptions) {
               let itemInput: unknown;
               let itemExpected: unknown;
 
-              if (isSchemaMode) {
-                // Input: use schema mapping if available, else freeform
-                if (inputMapping && Object.keys(inputMapping).length > 0) {
-                  itemInput = buildSchemaObject(inputMapping, row, headerMap);
-                } else {
-                  itemInput =
-                    parseColumns(input, row, headerMap, { wrapSingleColumn }) ??
-                    undefined;
-                }
-
-                // Expected output: use schema mapping if available, else freeform
-                if (
-                  expectedOutputMapping &&
-                  Object.keys(expectedOutputMapping).length > 0
-                ) {
-                  itemExpected = buildSchemaObject(
-                    expectedOutputMapping,
-                    row,
-                    headerMap,
-                  );
-                } else {
-                  itemExpected =
-                    parseColumns(expected, row, headerMap, {
-                      wrapSingleColumn,
-                    }) ?? undefined;
-                }
+              // Process input
+              if (input.type === "schema" && inputMapping) {
+                itemInput = buildSchemaObject(inputMapping, row, headerMap);
               } else {
-                // Pure freeform mode
                 itemInput =
-                  parseColumns(input, row, headerMap, { wrapSingleColumn }) ??
-                  undefined;
+                  parseColumns(inputColumns, row, headerMap, {
+                    wrapSingleColumn,
+                  }) ?? undefined;
+              }
+
+              // Process expected output
+              if (expectedOutput.type === "schema" && expectedOutputMapping) {
+                itemExpected = buildSchemaObject(
+                  expectedOutputMapping,
+                  row,
+                  headerMap,
+                );
+              } else {
                 itemExpected =
-                  parseColumns(expected, row, headerMap, {
+                  parseColumns(expectedOutputColumns, row, headerMap, {
                     wrapSingleColumn,
                   }) ?? undefined;
               }
 
               const itemMetadata =
-                parseColumns(metadata, row, headerMap) ?? undefined;
+                parseColumns(metadataColumns, row, headerMap) ?? undefined;
 
               items.push({
                 input: JSON.stringify(itemInput),

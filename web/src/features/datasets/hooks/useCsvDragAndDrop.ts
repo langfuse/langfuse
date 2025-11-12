@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { type DragEndEvent } from "@dnd-kit/core";
-import { type CsvColumnPreview } from "@/src/features/datasets/lib/csvHelpers";
+import { type CsvColumnPreview } from "@/src/features/datasets/lib/csv/types";
 
 type DragHandlers = {
   onAddToInputColumn: (columnName: string) => void;

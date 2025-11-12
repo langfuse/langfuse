@@ -1,47 +1,16 @@
 import { parse } from "csv-parse";
 import { type Prisma } from "@langfuse/shared";
+import type {
+  ParseOptions,
+  CsvPreviewResult,
+  ColumnType,
+  FieldMapping,
+  FreeformField,
+  SchemaField,
+} from "./types";
 
 const MAX_PREVIEW_ROWS = 10;
 const PREVIEW_FILE_SIZE_BYTES = 1024 * 1024 * 2; // 2MB
-
-type ColumnType =
-  | "string"
-  | "number"
-  | "boolean"
-  | "null"
-  | "json"
-  | "array"
-  | "unknown"
-  | "mixed";
-
-export type CsvColumnPreview = {
-  name: string;
-  samples: string[];
-  inferredType: ColumnType;
-};
-
-// Shared types
-export type CsvPreviewResult = {
-  fileName?: string;
-  columns: CsvColumnPreview[];
-  previewRows: string[][];
-  totalColumns: number;
-};
-
-type RowProcessor = {
-  onHeader?: (headers: string[]) => void | Promise<void>;
-  onRow?: (
-    row: string[],
-    headers: string[],
-    index: number,
-  ) => void | Promise<void>;
-};
-
-type ParseOptions = {
-  isPreview?: boolean;
-  collectSamples?: boolean;
-  processor?: RowProcessor;
-};
 
 // Shared parser configuration
 const getParserConfig = (options: ParseOptions) => ({
@@ -262,4 +231,13 @@ export function buildSchemaObject(
       }
     }),
   );
+}
+
+// Type guard helpers
+export function isFreeformField(field: FieldMapping): field is FreeformField {
+  return field.type === "freeform";
+}
+
+export function isSchemaField(field: FieldMapping): field is SchemaField {
+  return field.type === "schema";
 }

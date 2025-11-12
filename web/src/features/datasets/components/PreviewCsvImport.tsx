@@ -7,7 +7,6 @@ import {
   DragOverlay,
 } from "@dnd-kit/core";
 import { useState } from "react";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Progress } from "@/src/components/ui/progress";
@@ -26,6 +25,7 @@ import { useCsvMapping } from "@/src/features/datasets/hooks/useCsvMapping";
 import { useCsvDragAndDrop } from "@/src/features/datasets/hooks/useCsvDragAndDrop";
 import { useCsvImport } from "@/src/features/datasets/hooks/useCsvImport";
 import { createPortal } from "react-dom";
+import { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 
 // Helper to extract schema keys from object schema
 function extractSchemaKeys(schema: unknown): string[] | null {
@@ -65,47 +65,36 @@ export function PreviewCsvImport({
   const expectedOutputSchemaKeys = extractSchemaKeys(
     dataset?.expectedOutputSchema,
   );
-  const isSchemaMode =
-    (!!inputSchemaKeys && inputSchemaKeys.length > 0) ||
-    (!!expectedOutputSchemaKeys && expectedOutputSchemaKeys.length > 0);
 
   // Mapping state
   const mapping = useCsvMapping({
     preview,
-    isSchemaMode,
+    inputSchemaKeys: inputSchemaKeys ?? undefined,
+    expectedOutputSchemaKeys: expectedOutputSchemaKeys ?? undefined,
   });
 
   // Drag and drop
   const dragAndDrop = useCsvDragAndDrop({
     handlers: {
       onAddToInputColumn: (columnName) => {
-        mapping.setSelectedInputColumn(
-          new Set([...mapping.selectedInputColumn, columnName]),
-        );
+        const column = preview.columns.find((c) => c.name === columnName);
+        if (column) mapping.addColumnToInput(column);
       },
       onAddToExpectedColumn: (columnName) => {
-        mapping.setSelectedExpectedColumn(
-          new Set([...mapping.selectedExpectedColumn, columnName]),
-        );
+        const column = preview.columns.find((c) => c.name === columnName);
+        if (column) mapping.addColumnToExpectedOutput(column);
       },
       onAddToMetadataColumn: (columnName) => {
-        mapping.setSelectedMetadataColumn(
-          new Set([...mapping.selectedMetadataColumn, columnName]),
-        );
+        const column = preview.columns.find((c) => c.name === columnName);
+        if (column) mapping.addColumnToMetadata(column);
       },
       onAddToInputSchemaKey: (schemaKey, column) => {
-        const newMapping = new Map(mapping.inputSchemaMapping);
-        const existing = newMapping.get(schemaKey) ?? [];
-        newMapping.set(schemaKey, [...existing, column]);
-        mapping.setInputSchemaMapping(newMapping);
+        mapping.addColumnToInput(column, schemaKey);
       },
       onAddToExpectedSchemaKey: (schemaKey, column) => {
-        const newMapping = new Map(mapping.expectedOutputSchemaMapping);
-        const existing = newMapping.get(schemaKey) ?? [];
-        newMapping.set(schemaKey, [...existing, column]);
-        mapping.setExpectedOutputSchemaMapping(newMapping);
+        mapping.addColumnToExpectedOutput(column, schemaKey);
       },
-      onRemoveFromAllMappings: mapping.removeFromAllMappings,
+      onRemoveFromAllMappings: mapping.removeColumnFromAll,
     },
   });
 
@@ -114,12 +103,9 @@ export function PreviewCsvImport({
     projectId,
     datasetId,
     csvFile,
-    isSchemaMode,
-    selectedInputColumn: mapping.selectedInputColumn,
-    selectedExpectedColumn: mapping.selectedExpectedColumn,
-    selectedMetadataColumn: mapping.selectedMetadataColumn,
-    inputSchemaMapping: mapping.inputSchemaMapping,
-    expectedOutputSchemaMapping: mapping.expectedOutputSchemaMapping,
+    input: mapping.input,
+    expectedOutput: mapping.expectedOutput,
+    metadata: mapping.metadata,
   });
 
   // Wrapping checkbox (only shown in freeform mode)
@@ -143,6 +129,9 @@ export function PreviewCsvImport({
     csvImport.reset();
   };
 
+  const isSchemaMode =
+    mapping.input.type === "schema" || mapping.expectedOutput.type === "schema";
+
   return (
     <>
       <DialogBody className="border-t">
@@ -163,76 +152,12 @@ export function PreviewCsvImport({
                 columnCount={preview.totalColumns}
               />
               <MappingCard
-                inputSchemaKeys={inputSchemaKeys ?? undefined}
-                expectedOutputSchemaKeys={expectedOutputSchemaKeys ?? undefined}
-                inputSchemaMapping={mapping.inputSchemaMapping}
-                expectedOutputSchemaMapping={
-                  mapping.expectedOutputSchemaMapping
-                }
-                inputColumns={preview.columns.filter((col) =>
-                  mapping.selectedInputColumn.has(col.name),
-                )}
-                expectedColumns={preview.columns.filter((col) =>
-                  mapping.selectedExpectedColumn.has(col.name),
-                )}
-                metadataColumns={preview.columns.filter((col) =>
-                  mapping.selectedMetadataColumn.has(col.name),
-                )}
-                onRemoveInputColumn={(columnName) => {
-                  mapping.setSelectedInputColumn(
-                    new Set(
-                      [...mapping.selectedInputColumn].filter(
-                        (col) => col !== columnName,
-                      ),
-                    ),
-                  );
-                }}
-                onRemoveExpectedColumn={(columnName) => {
-                  mapping.setSelectedExpectedColumn(
-                    new Set(
-                      [...mapping.selectedExpectedColumn].filter(
-                        (col) => col !== columnName,
-                      ),
-                    ),
-                  );
-                }}
-                onRemoveMetadataColumn={(columnName) => {
-                  mapping.setSelectedMetadataColumn(
-                    new Set(
-                      [...mapping.selectedMetadataColumn].filter(
-                        (col) => col !== columnName,
-                      ),
-                    ),
-                  );
-                }}
-                onRemoveInputSchemaColumn={(schemaKey, columnName) => {
-                  const newMapping = new Map(mapping.inputSchemaMapping);
-                  const existing = newMapping.get(schemaKey) ?? [];
-                  const filtered = existing.filter(
-                    (c) => c.name !== columnName,
-                  );
-                  if (filtered.length === 0) {
-                    newMapping.delete(schemaKey);
-                  } else {
-                    newMapping.set(schemaKey, filtered);
-                  }
-                  mapping.setInputSchemaMapping(newMapping);
-                }}
-                onRemoveExpectedSchemaColumn={(schemaKey, columnName) => {
-                  const newMapping = new Map(
-                    mapping.expectedOutputSchemaMapping,
-                  );
-                  const existing = newMapping.get(schemaKey) ?? [];
-                  const filtered = existing.filter(
-                    (c) => c.name !== columnName,
-                  );
-                  if (filtered.length === 0) {
-                    newMapping.delete(schemaKey);
-                  } else {
-                    newMapping.set(schemaKey, filtered);
-                  }
-                  mapping.setExpectedOutputSchemaMapping(newMapping);
-                }}
+                input={mapping.input}
+                expectedOutput={mapping.expectedOutput}
+                metadata={mapping.metadata}
+                onRemoveInputColumn={mapping.removeColumnFromInput}
+                onRemoveExpectedColumn={mapping.removeColumnFromExpectedOutput}
+                onRemoveMetadataColumn={mapping.removeColumnFromMetadata}
               />
             </div>
             {createPortal(
@@ -302,15 +227,7 @@ export function PreviewCsvImport({
         </Button>
         <Button
           disabled={
-            (isSchemaMode
-              ? mapping.inputSchemaMapping.size === 0 &&
-                mapping.expectedOutputSchemaMapping.size === 0 &&
-                mapping.selectedInputColumn.size === 0 &&
-                mapping.selectedExpectedColumn.size === 0
-              : mapping.selectedInputColumn.size === 0 &&
-                mapping.selectedExpectedColumn.size === 0 &&
-                mapping.selectedMetadataColumn.size === 0) ||
-            csvImport.progress.status === "processing"
+            mapping.isEmpty() || csvImport.progress.status === "processing"
           }
           loading={csvImport.progress.status === "processing"}
           onClick={handleImport}
