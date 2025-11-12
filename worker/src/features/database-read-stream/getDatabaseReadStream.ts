@@ -583,9 +583,9 @@ export const getDatabaseReadStreamPaginated = async ({
 export function prepareScoresForOutput(
   scores: {
     name: string;
-    stringValue: string | null;
+    stringValue?: string | null;
     dataType: ScoreDataType;
-    value: number | null;
+    value: number;
   }[],
 ): Record<string, string[] | number[]> {
   return scores.reduce(
