@@ -543,11 +543,8 @@ export const scoresRouter = createTRPCRouter({
         data_type: input.dataType,
         string_value: input.stringValue,
         queue_id: input.queueId,
-        dataset_run_id: null,
-        execution_trace_id: null,
         created_at: convertDateToClickhouseDateTime(score.createdAt),
         updated_at: convertDateToClickhouseDateTime(score.updatedAt),
-        is_deleted: 0,
         metadata: score.metadata as Record<string, string>,
       });
 
@@ -670,11 +667,8 @@ export const scoresRouter = createTRPCRouter({
           data_type: input.dataType,
           string_value: input.stringValue,
           queue_id: input.queueId,
-          dataset_run_id: null,
-          execution_trace_id: null,
           created_at: convertDateToClickhouseDateTime(new Date()),
           updated_at: convertDateToClickhouseDateTime(new Date()),
-          is_deleted: 0,
           metadata: {},
         });
 
@@ -775,11 +769,8 @@ export const scoresRouter = createTRPCRouter({
           observation_id: score.observationId,
           session_id: score.sessionId,
           environment: score.environment,
-          dataset_run_id: null,
-          execution_trace_id: null,
           created_at: convertDateToClickhouseDateTime(score.createdAt),
           updated_at: convertDateToClickhouseDateTime(score.updatedAt),
-          is_deleted: 0,
           metadata: score.metadata as Record<string, string>,
         });
 
