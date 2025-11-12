@@ -1,23 +1,33 @@
 /**
- * Safely gets a number value from a Map, returning undefined if the key doesn't exist.
- * Specifically typed for Maps that return numbers.
+ * Safely gets a number value from a Map or Record object, returning undefined if the key doesn't exist.
+ * Supports both Map and plain object (Record) types for backward compatibility.
  */
 export function getNumberFromMap(
-  map: Map<any, any> | undefined,
+  mapOrRecord: Map<any, any> | Record<string, number> | undefined,
   key: any,
 ): number | undefined {
-  return map?.get(key) as number | undefined;
+  if (!mapOrRecord) return undefined;
+  if (mapOrRecord instanceof Map) {
+    return mapOrRecord.get(key) as number | undefined;
+  }
+  return mapOrRecord[key];
 }
 
 /**
- * Type-casts a Map with unknown generic types to a Map<string, number>.
- * Useful to handle Maps returned from tRPC queries where TypeScript
+ * Type-casts a Map or Record with unknown generic types to the appropriate number type.
+ * Useful to handle Maps/Records returned from tRPC queries where TypeScript
  * can't properly infer the generic types.
  */
 export function castToNumberMap(
-  map: Map<unknown, unknown> | undefined,
+  mapOrRecord: Map<unknown, unknown> | Record<string, unknown> | undefined,
 ): Map<string, number> | undefined {
-  return map as Map<string, number> | undefined;
+  if (!mapOrRecord) return undefined;
+  if (mapOrRecord instanceof Map) {
+    return mapOrRecord as Map<string, number>;
+  }
+  return new Map(
+    Object.entries(mapOrRecord).map(([key, value]) => [key, Number(value)]),
+  );
 }
 
 /**

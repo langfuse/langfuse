@@ -34,10 +34,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import {
-  buildTraceUiData,
-  downloadTraceAsJson as downloadTraceUtil,
-} from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -197,11 +194,6 @@ export function Trace(props: {
       objectType: "OBSERVATION",
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
       enabled: isAuthenticatedAndProjectMember,
     },
@@ -214,11 +206,6 @@ export function Trace(props: {
       objectType: "TRACE",
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
       enabled: isAuthenticatedAndProjectMember,
     },
@@ -289,13 +276,36 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDownloadTrace = useCallback(() => {
-    downloadTraceUtil({
+  const traceComments = api.comments.getByObjectId.useQuery({
+    projectId: props.projectId,
+    objectId: props.trace.id,
+    objectType: "TRACE",
+  });
+
+  const downloadTraceAsJson = useCallback(async () => {
+    // Fetch fresh comments data
+    const comments = await traceComments.refetch();
+
+    const exportData = {
       trace: props.trace,
       observations: props.observations,
-    });
+      comments: comments.data ?? [],
+    };
+
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `trace-${props.trace.id}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
     capture("trace_detail:download_button_click");
-  }, [props.trace, props.observations, capture]);
+  }, [props.trace, props.observations, capture, traceComments]);
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
@@ -537,7 +547,7 @@ export function Trace(props: {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={handleDownloadTrace}
+                        onClick={downloadTraceAsJson}
                         title="Download trace as JSON"
                         className="h-7 w-7"
                       >
@@ -791,7 +801,7 @@ export function Trace(props: {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={handleDownloadTrace}
+                            onClick={downloadTraceAsJson}
                             title="Download trace as JSON"
                             className="h-7 w-7"
                           >
