@@ -33,10 +33,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import {
-  buildTraceUiData,
-  downloadTraceAsJson as downloadTraceUtil,
-} from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
   ResizablePanel,
