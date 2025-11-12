@@ -66,6 +66,7 @@ import {
   isNumericDataType,
   isTraceScore,
 } from "@/src/features/scores/lib/helpers";
+import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -295,10 +296,7 @@ export const scoresRouter = createTRPCRouter({
           message: `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
         });
       }
-      return {
-        ...score,
-        metadata: score.metadata ? JSON.stringify(score.metadata) : null,
-      };
+      return toDomainWithStringifiedMetadata(score);
     }),
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)

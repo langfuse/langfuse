@@ -5,12 +5,13 @@ import {
   decomposeAggregateScoreKey,
   normalizeScoreName,
 } from "@/src/features/scores/lib/aggregateScores";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**
  * Transform flat merged scores to annotation scores (Trace/Observation/Session Detail)
  */
 export function transformToAnnotationScores(
-  mergedScores: ScoreDomain[],
+  mergedScores: WithStringifiedMetadata<ScoreDomain>[],
   configs: ScoreConfigDomain[],
 ): AnnotationScore[];
 
@@ -34,7 +35,7 @@ export function transformToAnnotationScores(
  * Filters to ANNOTATION source only and excludes multi-value aggregates.
  */
 export function transformToAnnotationScores(
-  input: ScoreDomain[] | ScoreAggregate,
+  input: WithStringifiedMetadata<ScoreDomain>[] | ScoreAggregate,
   configs: ScoreConfigDomain[],
   traceId?: string,
   observationId?: string,
@@ -58,7 +59,7 @@ export function transformToAnnotationScores(
  * Used for trace/observation/session detail annotation drawer
  */
 function transformFlatScores(
-  mergedScores: ScoreDomain[],
+  mergedScores: WithStringifiedMetadata<ScoreDomain>[],
   configs: ScoreConfigDomain[],
 ): AnnotationScore[] {
   return mergedScores

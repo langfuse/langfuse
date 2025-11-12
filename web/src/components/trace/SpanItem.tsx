@@ -13,10 +13,11 @@ import {
 import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import React from "react";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export interface SpanItemProps {
   node: TreeNode;
-  scores: ScoreDomain[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
   showMetrics: boolean;
   showScores: boolean;

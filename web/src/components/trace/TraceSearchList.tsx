@@ -10,6 +10,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import { type TreeNode } from "./lib/types";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export interface TraceSearchListItem {
   node: TreeNode;
@@ -20,7 +21,7 @@ export interface TraceSearchListItem {
 
 export interface TraceSearchListProps {
   items: TraceSearchListItem[];
-  displayScores: ScoreDomain[];
+  displayScores: WithStringifiedMetadata<ScoreDomain>[];
   onSelect: (observationId: string | undefined) => void;
   comments?: Map<string, number>;
   showMetrics: boolean;

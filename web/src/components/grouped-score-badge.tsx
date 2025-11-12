@@ -13,8 +13,11 @@ import {
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
-const partitionScores = <T extends ScoreDomain | LastUserScore>(
+const partitionScores = <
+  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+>(
   scores: Record<string, T[]>,
   maxVisible?: number,
 ) => {
@@ -28,7 +31,9 @@ const partitionScores = <T extends ScoreDomain | LastUserScore>(
   return { visibleScores, hiddenScores };
 };
 
-const hasMetadata = (score: ScoreDomain | LastUserScore) => {
+const hasMetadata = (
+  score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+) => {
   if (!score.metadata) return false;
   try {
     const metadata =
@@ -41,7 +46,9 @@ const hasMetadata = (score: ScoreDomain | LastUserScore) => {
   }
 };
 
-const ScoreGroupBadge = <T extends ScoreDomain | LastUserScore>({
+const ScoreGroupBadge = <
+  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+>({
   name,
   scores,
   compact,
@@ -113,7 +120,9 @@ const ScoreGroupBadge = <T extends ScoreDomain | LastUserScore>({
   );
 };
 
-export const GroupedScoreBadges = <T extends ScoreDomain | LastUserScore>({
+export const GroupedScoreBadges = <
+  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+>({
   scores,
   maxVisible,
   compact,
