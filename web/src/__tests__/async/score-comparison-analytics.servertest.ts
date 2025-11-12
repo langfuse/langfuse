@@ -52,6 +52,7 @@ describe("Score Comparison Analytics tRPC", () => {
       admin: true,
     },
     environment: {} as any,
+    expires: new Date().toISOString(),
   };
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
@@ -98,7 +99,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([score1, score2]);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName1,
@@ -161,7 +162,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const fromTimestamp = new Date("2020-01-01");
       const toTimestamp = new Date("2020-01-02");
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: "nonexistent1",
@@ -200,7 +201,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const now = new Date();
 
       await expect(
-        caller.scores.getScoreComparisonAnalytics({
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: {
             name: "score1",
@@ -220,7 +221,7 @@ describe("Score Comparison Analytics tRPC", () => {
       ).rejects.toThrow();
 
       await expect(
-        caller.scores.getScoreComparisonAnalytics({
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: {
             name: "score1",
@@ -280,7 +281,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([score1, score2]);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName1,
@@ -393,7 +394,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName1,
@@ -530,7 +531,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName1,
@@ -655,7 +656,7 @@ describe("Score Comparison Analytics tRPC", () => {
       await createTracesCh(tracesBatch);
       await createScoresCh([...score1Batch, ...score2Batch]);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName1,
@@ -760,7 +761,7 @@ describe("Score Comparison Analytics tRPC", () => {
       console.log(`Inserted ${batchSize} traces and scores`);
 
       // Compare score to itself
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName,
@@ -795,12 +796,12 @@ describe("Score Comparison Analytics tRPC", () => {
       // Verify all heatmap points are on the diagonal (bin1Index === bin2Index)
       // For identical scores, every point should have the same bin for both axes
       const offDiagonalPoints = result.heatmap.filter(
-        (point) => point.bin1Index !== point.bin2Index,
+        (point) => point.binX !== point.binY,
       );
       expect(offDiagonalPoints.length).toBe(0); // No points off diagonal
 
       // Verify correlation is skipped for identical scores (as per existing logic)
-      expect(result.statistics.spearmanCorrelation).toBeNull();
+      expect(result.statistics?.spearmanCorrelation).toBeNull();
     }, 180000); // 3 minute timeout for large data insertion
 
     // Test 9: Calculates counts correctly with partial matches
@@ -868,7 +869,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -926,7 +927,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -984,7 +985,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1057,7 +1058,7 @@ describe("Score Comparison Analytics tRPC", () => {
       await createScoresCh(scores);
 
       // Test with 5 bins
-      const result5 = await caller.scores.getScoreComparisonAnalytics({
+      const result5 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1073,7 +1074,7 @@ describe("Score Comparison Analytics tRPC", () => {
       });
 
       // Test with 20 bins
-      const result20 = await caller.scores.getScoreComparisonAnalytics({
+      const result20 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1133,7 +1134,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1197,7 +1198,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "BOOLEAN", source: "API" },
         score2: { name: scoreName2, dataType: "BOOLEAN", source: "API" },
@@ -1271,7 +1272,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -1348,7 +1349,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1409,7 +1410,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1504,7 +1505,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([...scores, ...matchedScores]);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1586,7 +1587,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1646,28 +1647,30 @@ describe("Score Comparison Analytics tRPC", () => {
       await createScoresCh(scores);
 
       // Test 7-day interval (week equivalent)
-      const weekResult = await caller.scores.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 7, unit: "day" },
-        nBins: 10,
-      });
+      const weekResult =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          projectId,
+          score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
+          score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
+          fromTimestamp,
+          toTimestamp,
+          interval: { count: 7, unit: "day" },
+          nBins: 10,
+        });
 
       expect(weekResult.timeSeries.length).toBeGreaterThan(0);
 
       // Test month interval
-      const monthResult = await caller.scores.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "month" },
-        nBins: 10,
-      });
+      const monthResult =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          projectId,
+          score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
+          score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
+          fromTimestamp,
+          toTimestamp,
+          interval: { count: 1, unit: "month" },
+          nBins: 10,
+        });
 
       expect(monthResult.timeSeries.length).toBeGreaterThan(0);
     });
@@ -1712,7 +1715,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1779,7 +1782,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1853,7 +1856,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1935,7 +1938,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1995,7 +1998,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2089,7 +2092,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2152,7 +2155,7 @@ describe("Score Comparison Analytics tRPC", () => {
       );
       const toTimestamp = new Date(monday.getTime() + 24 * 60 * 60 * 1000); // Day after Monday
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2249,7 +2252,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const fromTimestamp = new Date(day.getTime() - 24 * 60 * 60 * 1000); // Day before
       const toTimestamp = new Date(day.getTime() + 2 * 24 * 60 * 60 * 1000); // Day after
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2371,7 +2374,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const fromTimestamp = new Date("2025-10-01T00:00:00.000Z"); // Oct 1
       const toTimestamp = new Date("2025-12-01T00:00:00.000Z"); // Dec 1
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2467,7 +2470,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2549,7 +2552,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2667,7 +2670,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2746,7 +2749,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2837,7 +2840,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2916,7 +2919,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -2974,7 +2977,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -3114,7 +3117,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3238,7 +3241,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3346,7 +3349,7 @@ describe("Score Comparison Analytics tRPC", () => {
       await createScoresCh(scores);
 
       // Query with same score for both score1 and score2 (single-score mode)
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName, dataType: "NUMERIC", source: "API" },
@@ -3406,7 +3409,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3493,7 +3496,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3553,7 +3556,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3612,7 +3615,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName, dataType: "NUMERIC", source: "API" },
@@ -3683,7 +3686,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3758,7 +3761,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "BOOLEAN", source: "API" },
         score2: { name: scoreName2, dataType: "BOOLEAN", source: "API" },
@@ -3838,7 +3841,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -3951,7 +3954,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "BOOLEAN", source: "API" },
         score2: { name: scoreName2, dataType: "BOOLEAN", source: "API" },
@@ -4041,7 +4044,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -4195,48 +4198,52 @@ describe("Score Comparison Analytics tRPC", () => {
       };
 
       // Test 1: objectType = "all" should return all 4 matched pairs
-      const resultAll = await caller.scores.getScoreComparisonAnalytics({
-        ...baseParams,
-        objectType: "all",
-      });
+      const resultAll = await caller.scoreAnalytics.getScoreComparisonAnalytics(
+        {
+          ...baseParams,
+          objectType: "all",
+        },
+      );
       expect(resultAll.counts.matchedCount).toBe(4);
       expect(resultAll.counts.score1Total).toBe(4);
       expect(resultAll.counts.score2Total).toBe(4);
 
       // Test 2: objectType = "trace" should return only trace-level scores (1 pair)
-      const resultTrace = await caller.scores.getScoreComparisonAnalytics({
-        ...baseParams,
-        objectType: "trace",
-      });
+      const resultTrace =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "trace",
+        });
       expect(resultTrace.counts.matchedCount).toBe(1);
       expect(resultTrace.counts.score1Total).toBe(1);
       expect(resultTrace.counts.score2Total).toBe(1);
 
       // Test 3: objectType = "observation" should return only observation-level scores (1 pair)
-      const resultObservation = await caller.scores.getScoreComparisonAnalytics(
-        {
+      const resultObservation =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
           ...baseParams,
           objectType: "observation",
-        },
-      );
+        });
       expect(resultObservation.counts.matchedCount).toBe(1);
       expect(resultObservation.counts.score1Total).toBe(1);
       expect(resultObservation.counts.score2Total).toBe(1);
 
       // Test 4: objectType = "session" should return only session-level scores (1 pair)
-      const resultSession = await caller.scores.getScoreComparisonAnalytics({
-        ...baseParams,
-        objectType: "session",
-      });
+      const resultSession =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "session",
+        });
       expect(resultSession.counts.matchedCount).toBe(1);
       expect(resultSession.counts.score1Total).toBe(1);
       expect(resultSession.counts.score2Total).toBe(1);
 
       // Test 5: objectType = "dataset_run" should return only dataset_run-level scores (1 pair)
-      const resultDatasetRun = await caller.scores.getScoreComparisonAnalytics({
-        ...baseParams,
-        objectType: "dataset_run",
-      });
+      const resultDatasetRun =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "dataset_run",
+        });
       expect(resultDatasetRun.counts.matchedCount).toBe(1);
       expect(resultDatasetRun.counts.score1Total).toBe(1);
       expect(resultDatasetRun.counts.score2Total).toBe(1);

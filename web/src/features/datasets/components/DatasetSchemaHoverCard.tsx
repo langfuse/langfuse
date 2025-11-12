@@ -56,7 +56,10 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
           {showLabel && <span>Schema enforced</span>}
         </Button>
       </HoverCardTrigger>
-      <HoverCardContent className="max-h-[600px] w-[400px] overflow-auto">
+      <HoverCardContent
+        className="max-h-[80vh] w-[400px] overflow-auto"
+        collisionPadding={20}
+      >
         <p className="text-sm font-medium">{title}</p>
         <p className="pt-2 text-sm text-muted-foreground">
           Learn more about{" "}
