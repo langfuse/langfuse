@@ -1,7 +1,7 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   AnnotationQueueObjectType,
-  type APIScoreV2,
+  type ScoreDomain,
   isGenerationLike,
 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
@@ -39,6 +39,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export const ObservationPreview = ({
   observations,
@@ -53,7 +54,7 @@ export const ObservationPreview = ({
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  serverScores: APIScoreV2[];
+  serverScores: WithStringifiedMetadata<ScoreDomain>[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -87,12 +88,17 @@ export const ObservationPreview = ({
     (s) => s.observationId === currentObservationId,
   );
 
-  const observationWithInputAndOutput = api.observations.byId.useQuery({
-    observationId: currentObservationId,
-    startTime: currentObservation?.startTime,
-    traceId: traceId,
-    projectId: projectId,
-  });
+  const observationWithInputAndOutput = api.observations.byId.useQuery(
+    {
+      observationId: currentObservationId,
+      startTime: currentObservation?.startTime,
+      traceId: traceId,
+      projectId: projectId,
+    },
+    {
+      staleTime: 5 * 60 * 1000, // 5 minutes - matches prefetch staleTime
+    },
+  );
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -133,7 +139,7 @@ export const ObservationPreview = ({
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
+        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={preloadedObservation.type} isSmall />

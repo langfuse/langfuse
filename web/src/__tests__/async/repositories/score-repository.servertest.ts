@@ -3,6 +3,10 @@ import {
   createScoresCh,
   getScoreById,
   getScoresGroupedByNameSourceType,
+  getScoresUiTable,
+  getScoresForTraces,
+  getScoresForObservations,
+  getScoresForSessions,
   createTracesCh,
   createObservationsCh,
   createTrace,
@@ -394,6 +398,404 @@ describe("Clickhouse Scores Repository Test", () => {
         source: "EVAL",
         dataType: "CATEGORICAL",
       });
+    });
+  });
+
+  describe("getScoresUiTable", () => {
+    it("should return empty array when no scores match filter", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return scores with trace metadata", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const userId = "test-user";
+      const traceName = "test-trace";
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+        user_id: userId,
+        name: traceName,
+        tags: ["tag1", "tag2"],
+      });
+      await createTracesCh([trace]);
+
+      const score = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId,
+        name: "accuracy",
+        value: 0.95,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+      await createScoresCh([score]);
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: score.id,
+        name: "accuracy",
+        value: 0.95,
+        traceUserId: userId,
+        traceName: traceName,
+        traceTags: ["tag1", "tag2"],
+      });
+    });
+
+    it("should filter scores by name", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const score1 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: v4(),
+        name: "accuracy",
+        source: "API",
+      });
+      const score2 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: v4(),
+        name: "precision",
+        source: "API",
+      });
+      await createScoresCh([score1, score2]);
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [
+          {
+            column: "name",
+            operator: "=",
+            value: "accuracy",
+            type: "string",
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("accuracy");
+    });
+
+    it("should exclude metadata when flag is set", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const score = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: v4(),
+        name: "test",
+        metadata: { key: "value" },
+      });
+      await createScoresCh([score]);
+
+      const result = await getScoresUiTable({
+        projectId: isolatedProjectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        limit: 10,
+        offset: 0,
+        excludeMetadata: true,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].metadata).toEqual({});
+    });
+  });
+
+  describe("getScoresForTraces", () => {
+    it("should return empty array when no scores exist for traces", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const result = await getScoresForTraces({
+        projectId: isolatedProjectId,
+        traceIds: [v4()],
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return scores for given trace ids", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const traceId1 = v4();
+      const traceId2 = v4();
+
+      const trace1 = createTrace({
+        id: traceId1,
+        project_id: isolatedProjectId,
+      });
+      const trace2 = createTrace({
+        id: traceId2,
+        project_id: isolatedProjectId,
+      });
+      await createTracesCh([trace1, trace2]);
+
+      const score1 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId1,
+        name: "score1",
+        value: 0.8,
+      });
+      const score2 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId2,
+        name: "score2",
+        value: 0.9,
+      });
+      const score3 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: v4(),
+        name: "score3",
+      });
+      await createScoresCh([score1, score2, score3]);
+
+      const result = await getScoresForTraces({
+        projectId: isolatedProjectId,
+        traceIds: [traceId1, traceId2],
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.map((s) => s.name).sort()).toEqual(["score1", "score2"]);
+    });
+
+    it("should exclude metadata when excludeMetadata is true", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const traceId = v4();
+
+      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      await createTracesCh([trace]);
+
+      const score = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId,
+        metadata: { key: "value" },
+      });
+      await createScoresCh([score]);
+
+      const result = await getScoresForTraces({
+        projectId: isolatedProjectId,
+        traceIds: [traceId],
+        excludeMetadata: true,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].metadata).toEqual({});
+    });
+
+    it("should include hasMetadata flag when includeHasMetadata is true", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const traceId = v4();
+
+      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      await createTracesCh([trace]);
+
+      const scoreWithMeta = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId,
+        metadata: { key: "value" },
+      });
+      await createScoresCh([scoreWithMeta]);
+
+      const result = await getScoresForTraces({
+        projectId: isolatedProjectId,
+        traceIds: [traceId],
+        includeHasMetadata: true,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toHaveProperty("hasMetadata", true);
+    });
+  });
+
+  describe("getScoresForObservations", () => {
+    it("should return empty array when no scores exist for observations", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const result = await getScoresForObservations({
+        projectId: isolatedProjectId,
+        observationIds: [v4()],
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return scores for given observation ids", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const obsId1 = v4();
+      const obsId2 = v4();
+
+      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      await createTracesCh([trace]);
+
+      const obs1 = createObservation({
+        id: obsId1,
+        trace_id: traceId,
+        project_id: isolatedProjectId,
+      });
+      const obs2 = createObservation({
+        id: obsId2,
+        trace_id: traceId,
+        project_id: isolatedProjectId,
+      });
+      await createObservationsCh([obs1, obs2]);
+
+      const score1 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId,
+        observation_id: obsId1,
+        name: "obs_score1",
+      });
+      const score2 = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId,
+        observation_id: obsId2,
+        name: "obs_score2",
+      });
+      await createScoresCh([score1, score2]);
+
+      const result = await getScoresForObservations({
+        projectId: isolatedProjectId,
+        observationIds: [obsId1],
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("obs_score1");
+    });
+
+    it("should exclude metadata when excludeMetadata is true", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const obsId = v4();
+
+      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      await createTracesCh([trace]);
+
+      const obs = createObservation({
+        id: obsId,
+        trace_id: traceId,
+        project_id: isolatedProjectId,
+      });
+      await createObservationsCh([obs]);
+
+      const score = createTraceScore({
+        project_id: isolatedProjectId,
+        trace_id: traceId,
+        observation_id: obsId,
+        metadata: { key: "value" },
+      });
+      await createScoresCh([score]);
+
+      const result = await getScoresForObservations({
+        projectId: isolatedProjectId,
+        observationIds: [obsId],
+        excludeMetadata: true,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].metadata).toEqual({});
+    });
+  });
+
+  describe("getScoresForSessions", () => {
+    it("should return empty array when no scores exist for sessions", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+
+      const result = await getScoresForSessions({
+        projectId: isolatedProjectId,
+        sessionIds: [v4()],
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return scores for given session ids", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const sessionId1 = v4();
+      const sessionId2 = v4();
+
+      const score1 = createSessionScore({
+        project_id: isolatedProjectId,
+        session_id: sessionId1,
+        name: "session_score1",
+        value: 0.7,
+      });
+      const score2 = createSessionScore({
+        project_id: isolatedProjectId,
+        session_id: sessionId2,
+        name: "session_score2",
+        value: 0.85,
+      });
+      const score3 = createSessionScore({
+        project_id: isolatedProjectId,
+        session_id: v4(),
+        name: "session_score3",
+      });
+      await createScoresCh([score1, score2, score3]);
+
+      const result = await getScoresForSessions({
+        projectId: isolatedProjectId,
+        sessionIds: [sessionId1, sessionId2],
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.map((s) => s.name).sort()).toEqual([
+        "session_score1",
+        "session_score2",
+      ]);
+    });
+
+    it("should exclude metadata when excludeMetadata is true", async () => {
+      const { projectId: isolatedProjectId } =
+        await createOrgProjectAndApiKey();
+      const sessionId = v4();
+
+      const score = createSessionScore({
+        project_id: isolatedProjectId,
+        session_id: sessionId,
+        metadata: { key: "value" },
+      });
+      await createScoresCh([score]);
+
+      const result = await getScoresForSessions({
+        projectId: isolatedProjectId,
+        sessionIds: [sessionId],
+        excludeMetadata: true,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].metadata).toEqual({});
     });
   });
 });

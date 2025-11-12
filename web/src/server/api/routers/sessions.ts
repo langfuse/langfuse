@@ -39,6 +39,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -113,7 +114,9 @@ const handleGetSessionById = async (input: {
     ...postgresSession,
     traces: clickhouseTraces.map((t) => ({
       ...t,
-      scores: validatedScores.filter((s) => s.traceId === t.id),
+      scores: toDomainArrayWithStringifiedMetadata(
+        validatedScores.filter((s) => s.traceId === t.id),
+      ),
     })),
     totalCost: costData ?? 0,
     users: [
@@ -373,7 +376,7 @@ export const sessionRouter = createTRPCRouter({
 
       return {
         ...session,
-        scores: validatedScores,
+        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };
     }),
   bookmark: protectedProjectProcedure

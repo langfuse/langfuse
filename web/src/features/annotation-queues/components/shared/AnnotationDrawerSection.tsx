@@ -2,13 +2,14 @@ import { Card } from "@/src/components/ui/card";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import {
   type AnnotationQueueItem,
-  type APIScoreV2,
+  type ScoreDomain,
   isPresent,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 interface AnnotationDrawerSectionProps {
   item: AnnotationQueueItem & {
@@ -16,7 +17,7 @@ interface AnnotationDrawerSectionProps {
     lockedByUser: { name: string | null | undefined } | null;
   };
   scoreTarget: ScoreTarget;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   configs: ScoreConfigDomain[];
   environment?: string;
 }

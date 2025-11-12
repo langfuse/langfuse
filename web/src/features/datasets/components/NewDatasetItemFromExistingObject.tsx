@@ -17,13 +17,13 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { type Prisma } from "@langfuse/shared/src/db";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised } from "@langfuse/shared";
 import { ActionButton } from "@/src/components/ActionButton";
+import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 
 /**
  * Component for creating a new dataset item from an existing object.
@@ -41,7 +41,7 @@ export const NewDatasetItemFromExistingObject = (props: {
   fromDatasetId?: string;
   input: string | null;
   output: string | null;
-  metadata: Prisma.JsonValue;
+  metadata: MetadataDomainClient;
   isCopyItem?: boolean;
   buttonVariant?: "outline" | "secondary";
 }) => {

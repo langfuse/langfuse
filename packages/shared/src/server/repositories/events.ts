@@ -232,7 +232,7 @@ const getObservationsFromEventsTableInternal = async <T>(
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
   const hasScoresFilter = filter.some((f) =>
-    f.column.toLowerCase().includes("scores"),
+    f.column.toLowerCase().includes("score"),
   );
   const appliedObservationsFilter = observationsFilter.apply();
   const search = clickhouseSearchCondition(
@@ -257,22 +257,10 @@ const getObservationsFromEventsTableInternal = async <T>(
   const needsTraceJoin =
     traceTableFilter.length > 0 || orderByTraces || search.query;
 
-  // When we have default ordering by time, we order by (e.start_time_unix)
-  // This way, clickhouse is able to read more efficiently directly from disk without ordering
-  const newDefaultOrder =
-    orderBy?.column === "startTime"
-      ? [{ column: "order_by_unix", order: orderBy.order }]
-      : [orderBy ?? null];
-
-  const chOrderBy = orderByToClickhouseSql(newDefaultOrder, [
-    ...eventsTableUiColumnDefinitions,
-    {
-      uiTableName: "order_by_unix",
-      uiTableId: "order_by_unix",
-      clickhouseTableName: "events",
-      clickhouseSelect: "e.start_time_unix",
-    },
-  ]);
+  const chOrderBy = orderByToClickhouseSql(
+    [orderBy ?? null],
+    eventsTableUiColumnDefinitions,
+  );
 
   // Build query using EventsQueryBuilder
   const queryBuilder = new EventsQueryBuilder({ projectId });
@@ -439,7 +427,7 @@ const getObservationByIdFromEventsTableInternal = async ({
     .when(Boolean(traceId), (b) =>
       b.whereRaw("trace_id = {traceId: String}", { traceId }),
     )
-    .orderBy("ORDER BY start_time_unix DESC, event_ts DESC")
+    .orderBy("ORDER BY start_time DESC, event_ts DESC")
     .limit(1, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -643,7 +631,7 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
 
   if (opts.select === "rows") {
     queryBuilder
-      .orderBy("ORDER BY e.start_time_unix DESC")
+      .orderBy("ORDER BY e.start_time DESC")
       .limit(limit, (page - 1) * limit);
   }
 

@@ -265,9 +265,7 @@ const UsersTable = () => {
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        if (typeof value === "string") {
-          return <>{value}</>;
-        }
+        return typeof value === "string" ? value : undefined;
       },
     },
     {
@@ -282,9 +280,7 @@ const UsersTable = () => {
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        if (typeof value === "string") {
-          return <>{value}</>;
-        }
+        return typeof value === "string" ? value : undefined;
       },
     },
     {
@@ -301,9 +297,7 @@ const UsersTable = () => {
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        if (typeof value === "string") {
-          return <>{value}</>;
-        }
+        return typeof value === "string" ? value : undefined;
       },
     },
     {
@@ -320,9 +314,7 @@ const UsersTable = () => {
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        if (typeof value === "string") {
-          return <>{value}</>;
-        }
+        return typeof value === "string" ? value : undefined;
       },
     },
     {
@@ -338,9 +330,7 @@ const UsersTable = () => {
         if (!userMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
-        if (typeof value === "string") {
-          return <>{value}</>;
-        }
+        return typeof value === "string" ? value : undefined;
       },
     },
   ];

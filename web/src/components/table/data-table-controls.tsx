@@ -6,7 +6,8 @@ import {
   useRef,
   useCallback,
 } from "react";
-import useLocalStorage from "@/src/components/useLocalStorage";
+import { useMediaQuery } from "react-responsive";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { Accordion } from "@/src/components/ui/accordion";
@@ -22,6 +23,7 @@ import {
 import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { X as IconX, Search, WandSparkles } from "lucide-react";
 import type {
   UIFilter,
@@ -43,6 +45,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 interface ControlsContextType {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  tableName?: string;
 }
 
 export const ControlsContext = createContext<ControlsContextType | null>(null);
@@ -56,14 +59,15 @@ export function DataTableControlsProvider({
   tableName?: string;
   defaultSidebarCollapsed?: boolean;
 }) {
+  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const storageKey = tableName
     ? `data-table-controls-${tableName}`
     : "data-table-controls";
-  const defaultOpen = !defaultSidebarCollapsed;
-  const [open, setOpen] = useLocalStorage(storageKey, defaultOpen);
+  const defaultOpen = isDesktop ? !defaultSidebarCollapsed : false;
+  const [open, setOpen] = useSessionStorage(storageKey, defaultOpen);
 
   return (
-    <ControlsContext.Provider value={{ open, setOpen }}>
+    <ControlsContext.Provider value={{ open, setOpen, tableName }}>
       <div
         // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
         className="group/controls contents"
@@ -80,7 +84,7 @@ export function useDataTableControls() {
 
   if (!context) {
     // Return default values when not in a provider (e.g., tables without the new sidebar)
-    return { open: false, setOpen: () => {} };
+    return { open: false, setOpen: () => {}, tableName: undefined };
   }
 
   return context as ControlsContextType;
@@ -131,33 +135,31 @@ export function DataTableControls({
   return (
     <div
       className={cn(
-        "h-full w-full border-r border-t bg-background sm:block sm:min-w-52 sm:max-w-52 md:min-w-64 md:max-w-64",
+        "flex h-full w-full flex-col overflow-auto border-t bg-background",
         "group-data-[expanded=false]/controls:hidden",
       )}
     >
-      <div className="flex h-full flex-col overflow-auto pb-10">
-        <div className="mb-2 flex h-10 shrink-0 items-center justify-between border-b px-3">
-          <span className="text-sm font-medium">Filters</span>
-          {filterWithAI && isLangfuseCloud && (
-            <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <WandSparkles className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Filter with AI</TooltipContent>
-              </Tooltip>
-              <PopoverContent align="center" className="w-[400px]">
-                <DataTableAIFilters
-                  onFiltersGenerated={handleFiltersGenerated}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
+      <div className="sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
+        <span className="text-sm font-medium">Filters</span>
+        {filterWithAI && isLangfuseCloud && (
+          <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <WandSparkles className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Filter with AI</TooltipContent>
+            </Tooltip>
+            <PopoverContent align="center" className="w-[400px]">
+              <DataTableAIFilters onFiltersGenerated={handleFiltersGenerated} />
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+      <div className="pb-10">
         <Accordion
           type="multiple"
           className="w-full"
@@ -359,7 +361,7 @@ const FilterAccordionTrigger = ({
   children,
   ...props
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>) => (
-  <AccordionPrimitive.Header className="flex">
+  <AccordionPrimitive.Header className="sticky top-10 z-10 flex bg-background">
     <AccordionPrimitive.Trigger
       className={cn(
         "flex flex-1 items-center justify-between font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
@@ -402,7 +404,7 @@ export function FilterAccordionItem({
 }: FilterAccordionItemProps) {
   return (
     <FilterAccordionItemPrimitive value={filterKey} className="border-none">
-      <FilterAccordionTrigger className="px-4 py-2 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
+      <FilterAccordionTrigger className="px-3 py-1.5 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline">
         <div className="flex grow items-center gap-1.5 pr-2">
           <span className="flex grow items-baseline gap-1">
             {label}
@@ -573,11 +575,21 @@ export function CategoricalFacet({
 
             {/* Loading / Empty / Options */}
             {loading ? (
-              <div className="pl-4 text-sm text-muted-foreground">
-                Loading...
-              </div>
+              <>
+                {[1, 2].map((i) => (
+                  <div key={i} className="relative flex items-center px-2">
+                    <div className="group/checkbox flex items-center rounded-sm p-1">
+                      <Skeleton className="h-4 w-4 rounded-sm" />
+                    </div>
+                    <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="ml-auto h-3 w-8" />
+                    </div>
+                  </div>
+                ))}
+              </>
             ) : options.length === 0 ? (
-              <div className="py-1 text-center text-sm text-muted-foreground">
+              <div className="py-1 text-center text-xs text-muted-foreground">
                 No options found
               </div>
             ) : (
@@ -624,14 +636,16 @@ export function CategoricalFacet({
                       />
                     ))}
                     {hasMoreFilteredOptions && !showAll && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowAll(true)}
-                        className="text-normal mt-1 h-auto justify-start px-2 py-1 pl-8 text-xs"
-                      >
-                        Show more values
-                      </Button>
+                      <div className="px-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowAll(true)}
+                          className="text-normal mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                        >
+                          Show more values
+                        </Button>
+                      </div>
                     )}
                   </>
                 )}
@@ -1008,13 +1022,13 @@ interface FilterModeTabsProps {
 
 function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 px-4">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 px-4 @container">
       <span className="text-[10px] text-muted-foreground/80">Mode:</span>
-      <div className="inline-flex flex-1 rounded border border-input/50 bg-background text-[10px]">
+      <div className="flex flex-1 flex-col rounded border border-input/50 bg-background text-[10px] @[7.5rem]:min-w-[140px] @[7.5rem]:flex-row">
         <button
           onClick={() => onModeChange("select")}
           className={cn(
-            "flex-1 rounded-l px-3 py-0.5 transition-colors",
+            "flex-1 rounded-t px-3 py-0.5 transition-colors @[7.5rem]:rounded-l @[7.5rem]:rounded-tr-none",
             mode === "select"
               ? "bg-accent font-medium text-accent-foreground"
               : "text-muted-foreground hover:text-foreground",
@@ -1022,11 +1036,11 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
         >
           SELECT
         </button>
-        <div className="w-px bg-border/50" />
+        <div className="h-px bg-border/50 @[7.5rem]:h-auto @[7.5rem]:w-px" />
         <button
           onClick={() => onModeChange("text")}
           className={cn(
-            "flex-1 rounded-r px-3 py-0.5 transition-colors",
+            "flex-1 rounded-b px-3 py-0.5 transition-colors @[7.5rem]:rounded-r @[7.5rem]:rounded-bl-none",
             mode === "text"
               ? "bg-accent font-medium text-accent-foreground"
               : "text-muted-foreground hover:text-foreground",
@@ -1130,7 +1144,10 @@ function TextFilterSection({
               <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
                 {f.operator === "contains" ? "contains" : "does not contain"}
               </span>
-              <span className="min-w-0 flex-1 truncate font-medium">
+              <span
+                className="min-w-0 flex-1 truncate font-medium"
+                title={f.value}
+              >
                 {f.value}
               </span>
               <Button
@@ -1199,7 +1216,9 @@ export function FilterValueCheckbox({
         )}
         onClick={onLabelClick}
       >
-        <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-xs" title={label}>
+          {label}
+        </span>
 
         {/* "Only" or "All" indicator when hovering label */}
         {onLabelClick && !disabled && (

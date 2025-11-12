@@ -38,10 +38,25 @@ export type CachedScore = Pick<
 };
 
 type ScoreCacheContextValue = {
+  /** Add or update a score in the cache (for optimistic updates) */
   set: (id: string, score: CachedScore) => void;
+
+  /** Retrieve a score from the cache */
   get: (id: string) => CachedScore | undefined;
+
+  /** Mark a score as deleted (user-initiated delete, adds to deletedIds Set + removes from cache Map) */
   delete: (id: string) => void;
+
+  /** Rollback a failed optimistic set/update (removes from cache without marking as deleted) */
+  rollbackSet: (id: string) => void;
+
+  /** Rollback a failed delete (removes from deletedIds Set, optionally restores to cache Map if score provided) */
+  rollbackDelete: (id: string, score?: CachedScore) => void;
+
+  /** Check if a score is marked as deleted */
   isDeleted: (id: string) => boolean;
+
+  /** Clear all cached scores and deletedIds */
   clear: () => void;
 
   getAllForTarget: (
@@ -99,6 +114,33 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
       newCache.delete(id);
       return newCache;
     });
+  }, []);
+
+  const rollbackSet = useCallback((id: string) => {
+    // Remove from cache without marking as deleted
+    setCache((prev) => {
+      if (!prev.has(id)) return prev;
+      const newCache = new Map(prev);
+      newCache.delete(id);
+      return newCache;
+    });
+  }, []);
+
+  const rollbackDelete = useCallback((id: string, score?: CachedScore) => {
+    setDeletedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const newSet = new Set(prev);
+      newSet.delete(id);
+      return newSet;
+    });
+
+    if (score) {
+      setCache((prev) => {
+        const newCache = new Map(prev);
+        newCache.set(id, score);
+        return newCache;
+      });
+    }
   }, []);
 
   const isDeleted = useCallback(
@@ -175,6 +217,8 @@ export function ScoreCacheProvider({ children }: { children: ReactNode }) {
         set,
         get,
         delete: deleteScore,
+        rollbackSet,
+        rollbackDelete,
         isDeleted,
         clear,
         getAllForTarget,

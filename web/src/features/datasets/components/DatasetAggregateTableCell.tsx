@@ -16,13 +16,13 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
 import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
-import { Card } from "@/src/components/ui/card";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { useMemo } from "react";
 import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
+import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -154,13 +154,10 @@ const DatasetAggregateCellContent = ({
         )}
       >
         {isSilentError ? (
-          <Card className="flex h-full w-full flex-col items-center justify-center">
-            <h2 className="mb-2 text-lg font-bold">Not found</h2>
-            <p className="mb-6 text-center">
-              The {value.observation ? "observation" : "trace"} is either still
-              being processed or has been deleted.
-            </p>
-          </Card>
+          <NotFoundCard
+            itemType={value.observation ? "observation" : "trace"}
+            singleLine={false}
+          />
         ) : (
           <MemoizedIOTableCell
             isLoading={isLoading || !data}
