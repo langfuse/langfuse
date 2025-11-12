@@ -34,7 +34,7 @@ export enum MediaContentType {
   MP4 = "video/mp4",
   WEBM = "video/webm",
   VIDEO_OGG = "video/ogg",
-  MPEG = "video/mpgeg",
+  MPEG = "video/mpeg",
   MOV = "video/quicktime",
   AVI = "video/x-msvideo",
   MKV = "video/x-matroska",

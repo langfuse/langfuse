@@ -146,8 +146,8 @@ types:
         name: VIDEO_WEBM
       - value: video/ogg
         name: VIDEO_OGG
-      - value: video/mpgeg
-        name: VIDEO_MPGEG
+      - value: video/mpeg
+        name: VIDEO_MPEG
       - value: video/quicktime
         name: VIDEO_QUICKTIME
       - value: video/x-msvideo
