@@ -1,0 +1,17 @@
+lz4-4.4.5.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+lz4-4.4.5.dist-info/METADATA,sha256=CGaN_fEyhe_bKiuDwc4GzuGLscVCZiw1Hz2lbjrGC5o,3838
+lz4-4.4.5.dist-info/RECORD,,
+lz4-4.4.5.dist-info/WHEEL,sha256=V1loQ6TpxABu1APUg0MoTRBOzSKT5xVc3skizX-ovCU,136
+lz4-4.4.5.dist-info/licenses/LICENSE,sha256=4qxD1uuA605SFBgXyBJDfguYGx17LcfMhsfvVSQETG8,1495
+lz4-4.4.5.dist-info/top_level.txt,sha256=cX6_gxFUdNSo40TfxrGpTCgu7epGm3yW3m2k7irTDzI,4
+lz4/__init__.py,sha256=etsV-XG9vgCn-EKrFpzWJsGIp-VUtH-tpNrQmMmDECU,627
+lz4/__pycache__/__init__.cpython-312.pyc,,
+lz4/__pycache__/version.cpython-312.pyc,,
+lz4/_version.cpython-312-darwin.so,sha256=43xvx1e0zidj7F4D047AAKRai0XerwnYuTSJ4xBL6Ao,124400
+lz4/block/__init__.py,sha256=KsSQGgaPpJtVPJ5QfMadVGFduMy0hSetJHWGNmOvpso,70
+lz4/block/__pycache__/__init__.cpython-312.pyc,,
+lz4/block/_block.cpython-312-darwin.so,sha256=eikwp07MwQTgwnPHLwpiTlU6jNJQ66wUmkZ5uIR1RvE,196848
+lz4/frame/__init__.py,sha256=RlTfZBNjvi9D1VKA0uuUCtABmy3VgORRxqTaKlowcCQ,31165
+lz4/frame/__pycache__/__init__.cpython-312.pyc,,
+lz4/frame/_frame.cpython-312-darwin.so,sha256=3thV3blMCRcSjpyAedh3EY25_k7acRvMYbvgE1IKZn0,239840
+lz4/version.py,sha256=WkA0S29KaJ-cd_1Xo9b_Acds7UNp4LH2JZMSyDV5iMA,712

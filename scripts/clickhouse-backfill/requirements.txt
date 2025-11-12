@@ -1,0 +1,4 @@
+clickhouse-connect==0.7.19
+python-dotenv==1.0.1
+tqdm==4.66.5
+psutil==6.1.0

@@ -1,0 +1,3 @@
+[sqlalchemy.dialects]
+clickhousedb = clickhouse_connect.cc_sqlalchemy.dialect:ClickHouseDialect
+clickhousedb.connect = clickhouse_connect.cc_sqlalchemy.dialect:ClickHouseDialect
