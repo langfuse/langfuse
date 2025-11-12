@@ -9,11 +9,11 @@ import {
   type IntervalConfig,
   type TimeRange,
 } from "@/src/utils/date-range-utils";
-import { formatChartTimestamp } from "../../libs/chart-formatters";
-import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
+import { formatChartTimestamp } from "../../lib/chart-formatters";
+import { ScoreChartTooltip } from "../../lib/ScoreChartTooltip";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 
-export interface CategoricalTimeSeriesChartProps {
+export interface BooleanTimeSeriesChartProps {
   data: Array<{
     timestamp: Date;
     category: string;
@@ -27,18 +27,19 @@ export interface CategoricalTimeSeriesChartProps {
 }
 
 /**
- * Categorical time series chart component
+ * Boolean time series chart component
  * Renders line charts showing counts for each category over time
  * One line per category with dynamic colors
+ * Uses the same logic as CategoricalTimeSeriesChart
  */
-export function ScoreTimeSeriesCategoricalChart({
+export function ScoreTimeSeriesBooleanChart({
   data,
   score1Name: _score1Name,
   score2Name: _score2Name,
   interval,
   timeRange,
   colors,
-}: CategoricalTimeSeriesChartProps) {
+}: BooleanTimeSeriesChartProps) {
   // Transform categorical data into pivot format for Recharts
   const { chartData, categories } = useMemo(() => {
     // Group by timestamp and collect all categories

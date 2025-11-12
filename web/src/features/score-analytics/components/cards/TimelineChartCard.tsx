@@ -10,11 +10,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { ScoreTimeSeriesChart } from "../charts/ScoreTimeSeriesChart";
-import { SamplingDetailsHoverCard } from "../ScoreAnalyticsNoticeBanner";
+import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import {
   getScoreCategoryColors,
   getScoreBooleanColors,
-} from "@/src/features/scores/components/score-analytics/libs/color-scales";
+} from "@/src/features/score-analytics/lib/color-scales";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";
 

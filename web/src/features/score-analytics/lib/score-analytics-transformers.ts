@@ -8,7 +8,7 @@ import type { RouterOutputs } from "@/src/utils/api";
 import {
   generateNumericHeatmapData,
   generateConfusionMatrixData,
-} from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
+} from "@/src/features/score-analytics/lib/heatmap-utils";
 
 // Type aliases for cleaner code
 type ConfusionMatrixRow = {
@@ -214,7 +214,7 @@ export function calculateModeMetrics(params: {
  * ```
  */
 export function transformHeatmapData(params: {
-  apiData: RouterOutputs["scores"]["getScoreComparisonAnalytics"];
+  apiData: RouterOutputs["scoreAnalytics"]["getScoreComparisonAnalytics"];
   dataType: DataType;
   parsedScore1: { name: string; dataType: string; source: string };
 }):

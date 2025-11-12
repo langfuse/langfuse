@@ -11,7 +11,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { HelpCircle, AlertCircle } from "lucide-react";
-import type { InterpretationResult } from "@/src/features/scores/components/score-analytics/libs/statistics-utils";
+import type { InterpretationResult } from "@/src/features/score-analytics/lib/statistics-utils";
 
 interface MetricCardProps {
   label: string;

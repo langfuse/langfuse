@@ -7,7 +7,7 @@ import {
 } from "@/src/components/ui/chart";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
+import { ScoreChartTooltip } from "../../lib/ScoreChartTooltip";
 
 interface NumericChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;

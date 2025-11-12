@@ -10,8 +10,8 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { formatChartTimestamp } from "../../libs/chart-formatters";
-import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
+import { formatChartTimestamp } from "../../lib/chart-formatters";
+import { ScoreChartTooltip } from "../../lib/ScoreChartTooltip";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
 
 export interface NumericTimeSeriesChartProps {

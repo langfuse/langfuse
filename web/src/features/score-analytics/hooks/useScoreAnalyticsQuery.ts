@@ -11,7 +11,7 @@ import {
   calculateModeMetrics,
   transformHeatmapData,
   generateBinLabels,
-} from "../transformers/scoreAnalyticsTransformers";
+} from "../lib/score-analytics-transformers";
 
 // ============================================================================
 // Type Definitions
@@ -217,7 +217,7 @@ export function useScoreAnalyticsQuery(
     data: apiData,
     isLoading,
     error,
-  } = api.scores.getScoreComparisonAnalytics.useQuery(
+  } = api.scoreAnalytics.getScoreComparisonAnalytics.useQuery(
     {
       projectId,
       score1,

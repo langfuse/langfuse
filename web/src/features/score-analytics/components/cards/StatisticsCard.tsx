@@ -8,7 +8,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { MetricCard } from "../charts/MetricCard";
-import { SamplingDetailsHoverCard } from "../ScoreAnalyticsNoticeBanner";
+import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import {
   calculateCohensKappa,
   calculateWeightedF1Score,
@@ -20,7 +20,7 @@ import {
   interpretOverallAgreement,
   interpretMAE,
   interpretRMSE,
-} from "@/src/features/scores/components/score-analytics/libs/statistics-utils";
+} from "@/src/features/score-analytics/lib/statistics-utils";
 
 /**
  * StatisticsCard - Smart card component for displaying score statistics

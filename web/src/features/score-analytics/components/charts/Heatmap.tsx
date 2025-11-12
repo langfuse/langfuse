@@ -1,5 +1,5 @@
 import { useMemo, useLayoutEffect, useState, useRef } from "react";
-import { type HeatmapCell } from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
+import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { HeatmapCellComponent } from "./HeatmapCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {

@@ -10,11 +10,11 @@ import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { Heatmap } from "../charts/Heatmap";
 import { HeatmapLegend } from "../charts/HeatmapLegend";
 import { HeatmapSkeleton } from "../charts/HeatmapSkeleton";
-import { getHeatmapCellColor } from "@/src/features/scores/components/score-analytics/libs/color-scales";
-import { type HeatmapCell } from "@/src/features/scores/components/score-analytics/libs/heatmap-utils";
+import { getHeatmapCellColor } from "@/src/features/score-analytics/lib/color-scales";
+import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { useCallback } from "react";
 import type { ScoreDataType } from "@langfuse/shared";
-import { SamplingDetailsHoverCard } from "../ScoreAnalyticsNoticeBanner";
+import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;

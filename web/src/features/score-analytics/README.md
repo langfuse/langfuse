@@ -15,13 +15,21 @@ Score Analytics provides a comprehensive dashboard for analyzing score data with
 ## Folder Structure
 
 ```
-/score-analytics/
+/web/src/features/score-analytics/
+├── /server/
+│   └── scoreAnalyticsRouter.ts         # tRPC router with 3 procedures:
+│                                        #   - getScoreIdentifiers
+│                                        #   - estimateScoreComparisonSize
+│                                        #   - getScoreComparisonAnalytics
+│
 ├── /components/
 │   ├── /cards/                          # Smart cards (consume context)
 │   │   ├── StatisticsCard.tsx          # Summary metrics
 │   │   ├── TimelineChartCard.tsx       # Time series trends
 │   │   ├── DistributionChartCard.tsx   # Score distributions
-│   │   └── HeatmapCard.tsx             # Score comparisons (heatmap/confusion matrix)
+│   │   ├── HeatmapCard.tsx             # Score comparisons (heatmap/confusion matrix)
+│   │   ├── EstimateLoadingCard.tsx     # Loading state during estimation
+│   │   └── SamplingBadge.tsx           # Badge showing sampling status
 │   │
 │   ├── /charts/                         # Reusable chart components (presentation only)
 │   │   ├── ScoreDistribution*.tsx      # Distribution charts (Numeric/Boolean/Categorical)
@@ -38,8 +46,14 @@ Score Analytics provides a comprehensive dashboard for analyzing score data with
 ├── /hooks/
 │   └── useScoreAnalyticsQuery.ts       # Data fetching + transformation hook
 │
-├── /transformers/
-│   └── scoreAnalyticsTransformers.ts   # Pure transformation functions
+├── /lib/                                # Utility functions and transformers
+│   ├── scoreAnalyticsTransformers.ts   # Pure transformation functions
+│   ├── analytics-url-state.ts          # URL state management hook
+│   ├── clickhouse-time-utils.ts        # ClickHouse time interval utilities
+│   ├── color-scales.ts                 # Color scheme generation
+│   ├── heatmap-utils.ts                # Heatmap data processing
+│   ├── score-formatter.ts              # Score value formatting
+│   └── statistics-utils.ts             # Statistical calculations
 │
 └── README.md                            # This file
 ```
@@ -50,10 +64,14 @@ Score Analytics provides a comprehensive dashboard for analyzing score data with
 Page (analytics.tsx)
   ↓
 ScoreAnalyticsProvider (wraps dashboard)
+  ↓ (runs estimate query first)
+  ↓ api.scoreAnalytics.estimateScoreComparisonSize
+  ↓ (then runs main query)
   ↓
 useScoreAnalyticsQuery hook
   ↓ (fetches data via tRPC)
-  ↓ (transforms using pure functions)
+  ↓ api.scoreAnalytics.getScoreComparisonAnalytics
+  ↓ (transforms using pure functions from /lib/)
   ↓ (returns structured data)
   ↓
 React Context
@@ -94,8 +112,8 @@ Chart Components (receive props)
 **Purpose**: Fetches data from API and transforms it ONCE using pure functions.
 
 **Responsibilities**:
-- Fetch data via tRPC (`api.scores.getScoreComparisonAnalytics`)
-- Transform data using functions from `scoreAnalyticsTransformers.ts`:
+- Fetch data via tRPC (`api.scoreAnalytics.getScoreComparisonAnalytics`)
+- Transform data using functions from `/lib/scoreAnalyticsTransformers.ts`:
   - Extract categories (categorical/boolean only)
   - Fill distribution bins (ensure all bins have data)
   - Generate bin labels (numeric only)
@@ -175,7 +193,7 @@ export function ExampleChart({ data, dataType, score1Name, score2Name }: ChartPr
 }
 ```
 
-### 5. Transformers (`/transformers/scoreAnalyticsTransformers.ts`)
+### 5. Transformers (`/lib/scoreAnalyticsTransformers.ts`)
 
 **Purpose**: Pure functions for data transformation (no side effects).
 
@@ -191,6 +209,37 @@ export function ExampleChart({ data, dataType, score1Name, score2Name }: ChartPr
 - No side effects
 - Fully typed
 - JSDoc documented
+
+### 6. Utilities (`/lib/`)
+
+**Purpose**: Helper functions for specific domains:
+
+- **`analytics-url-state.ts`**: Manages URL query parameters for filters and selections
+- **`clickhouse-time-utils.ts`**: ClickHouse interval normalization and time bucketing
+- **`color-scales.ts`**: Generates consistent color schemes for charts
+- **`heatmap-utils.ts`**: Heatmap-specific data processing and calculations
+- **`score-formatter.ts`**: Formats score values for display
+- **`statistics-utils.ts`**: Statistical calculations (correlation, Cohen's Kappa, F1, etc.)
+
+### 7. Server Router (`/server/scoreAnalyticsRouter.ts`)
+
+**Purpose**: tRPC router exposing score analytics API endpoints.
+
+**Procedures**:
+- **`getScoreIdentifiers`**: Returns all available scores in a project (name, dataType, source)
+- **`estimateScoreComparisonSize`**: Estimates query size and determines if sampling is needed
+  - Returns: score counts, estimated matched count, willSample flag, estimatedQueryTime
+  - Used to show loading states and sampling badges
+- **`getScoreComparisonAnalytics`**: Main analytics query with adaptive optimizations
+  - Hash-based sampling for large datasets (>100k matches)
+  - Adaptive FINAL optimization (skipped for >70k scores)
+  - Returns: statistics, distributions, time series, heatmap data
+
+**ClickHouse Optimizations**:
+- Uses `cityHash64` for consistent sampling
+- Dynamic FINAL application based on dataset size
+- Proper time interval alignment (ISO 8601 weeks, calendar months)
+- Efficient aggregation queries for statistics and distributions
 
 ## Data Types Supported
 
@@ -248,7 +297,7 @@ export function ExampleChart({ data, dataType, score1Name, score2Name }: ChartPr
 
 ### Add a New Transformation
 
-1. Add pure function to `/transformers/scoreAnalyticsTransformers.ts`
+1. Add pure function to `/lib/scoreAnalyticsTransformers.ts`
 2. Call it in `useScoreAnalyticsQuery` hook's `useMemo`
 3. Add to return object interface
 
@@ -305,15 +354,26 @@ if (isSingleScoreColors(colors)) {
 
 **Page**: `/web/src/pages/project/[projectId]/scores/analytics.tsx`
 
+**Feature Directory**: `/web/src/features/score-analytics/`
+
+**Server (tRPC)**:
+- Router: `/web/src/features/score-analytics/server/scoreAnalyticsRouter.ts`
+- Registered as: `api.scoreAnalytics.*`
+- Root registration: `/web/src/server/api/root.ts`
+
 **Utilities**:
-- Color scales: `/web/src/features/scores/lib/color-scales.ts`
-- Statistics utils: `/web/src/features/scores/lib/statistics-utils.ts`
-- Heatmap utils: `/web/src/features/scores/lib/heatmap-utils.ts`
+- All utilities: `/web/src/features/score-analytics/lib/`
+  - `scoreAnalyticsTransformers.ts` - Pure transformation functions
+  - `analytics-url-state.ts` - URL state management
+  - `clickhouse-time-utils.ts` - ClickHouse time utilities
+  - `color-scales.ts` - Color scheme generation
+  - `heatmap-utils.ts` - Heatmap processing
+  - `score-formatter.ts` - Score formatting
+  - `statistics-utils.ts` - Statistical calculations
 - Time series gap filling: `/web/src/utils/fill-time-series-gaps.ts`
 
-**API**:
-- tRPC route: `/web/src/server/api/routers/scores.ts`
-- Backend: `/packages/shared/src/server/repositories/score-analytics.ts`
+**Backend Repositories**:
+- Score analytics queries: `/packages/shared/src/server/repositories/score-analytics.ts`
 
 ## Performance Considerations
 
@@ -331,6 +391,14 @@ Test coverage:
 - All modes (single, two-score, same-score-twice)
 - Edge cases (empty data, missing bins, timezone handling)
 - Statistical calculations (correlation, Cohen's Kappa, F1, etc.)
+- Adaptive FINAL optimization (small vs large datasets)
+- Hash-based sampling (consistent sampling for large datasets)
+- Object type filtering (trace, observation, session, dataset_run)
+
+Run tests:
+```bash
+pnpm --filter=web test -- --testPathPattern="score-comparison-analytics"
+```
 
 ## Troubleshooting
 
@@ -340,6 +408,6 @@ Test coverage:
 
 **Type errors**: Check interfaces in `useScoreAnalyticsQuery.ts` and `ScoreAnalyticsProvider.tsx`
 
-**Color issues**: Check `color-scales.ts` and color assignment in `ScoreAnalyticsProvider.tsx`
+**Color issues**: Check `/lib/color-scales.ts` and color assignment in `ScoreAnalyticsProvider.tsx`
 
-**Category collisions in timeline**: Check namespace logic in `useScoreAnalyticsQuery.ts` (lines 376-412)
+**Category collisions in timeline**: Check namespace logic in `useScoreAnalyticsQuery.ts` (categorical time series transformation)

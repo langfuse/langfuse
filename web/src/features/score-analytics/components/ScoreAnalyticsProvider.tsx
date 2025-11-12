@@ -9,7 +9,7 @@ import {
   getTwoScoreColors,
   getScoreNumericColor,
   buildColorMappings,
-} from "@/src/features/scores/components/score-analytics/libs/color-scales";
+} from "@/src/features/score-analytics/lib/color-scales";
 import { api } from "@/src/utils/api";
 
 // Re-export types for convenience
@@ -116,7 +116,7 @@ export function ScoreAnalyticsProvider({
   // Determine mode: "single" when only score1 selected, "two" when score2 explicitly provided
   const mode: "single" | "two" = params.score2 === undefined ? "single" : "two";
 
-  const estimateQuery = api.scores.estimateScoreComparisonSize.useQuery(
+  const estimateQuery = api.scoreAnalytics.estimateScoreComparisonSize.useQuery(
     {
       projectId: params.projectId,
       score1: params.score1 ?? { name: "", dataType: "", source: "" },

@@ -3,6 +3,7 @@ import { traceRouter } from "./routers/traces";
 import { generationsRouter } from "./routers/generations";
 import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { scoresRouter } from "./routers/scores";
+import { scoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
 import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
@@ -67,6 +68,7 @@ export const appRouter = createTRPCRouter({
   generations: generationsRouter,
   events: eventsRouter,
   scores: scoresRouter,
+  scoreAnalytics: scoreAnalyticsRouter,
   scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   organizations: organizationsRouter,

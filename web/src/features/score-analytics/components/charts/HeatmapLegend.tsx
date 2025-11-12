@@ -1,4 +1,4 @@
-import { getHeatmapCellColor } from "@/src/features/scores/components/score-analytics/libs/color-scales";
+import { getHeatmapCellColor } from "@/src/features/score-analytics/lib/color-scales";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import chroma from "chroma-js";

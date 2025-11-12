@@ -6,7 +6,7 @@ import {
   type ChartConfig,
 } from "@/src/components/ui/chart";
 import { ScoreChartLegendContent } from "./ScoreChartLegendContent";
-import { ScoreChartTooltip } from "../../libs/ScoreChartTooltip";
+import { ScoreChartTooltip } from "../../lib/ScoreChartTooltip";
 
 interface BooleanChartProps {
   distribution1: Array<{ binIndex: number; count: number }>;
