@@ -113,7 +113,15 @@ export const DatasetItemsOnboarding = ({
               hasAccess={hasProjectAccess}
             />
           </DialogTrigger>
-          <DialogContent size="lg">
+          <DialogContent className="flex h-[80dvh] max-w-7xl flex-col overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>
+                Upload CSV
+                <span className="text-lg font-normal text-muted-foreground">
+                  {csvFile ? ` - ${csvFile.name}` : ""}
+                </span>
+              </DialogTitle>
+            </DialogHeader>
             {preview ? (
               <PreviewCsvImport
                 preview={preview}

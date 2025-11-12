@@ -236,7 +236,7 @@ export function parseColumns(
 
 // Helper to build object from schema key mapping
 export function buildSchemaObject(
-  mapping: Record<string, string>, // {schemaKey: csvColumn}
+  mapping: Record<string, string[]>, // {schemaKey: [csvColumn1, csvColumn2, ...]}
   row: string[],
   headerMap: Map<string, number>,
 ): Prisma.JsonValue {
@@ -244,9 +244,22 @@ export function buildSchemaObject(
   if (entries.length === 0) return null;
 
   return Object.fromEntries(
-    entries.map(([schemaKey, csvColumn]) => [
-      schemaKey,
-      parseValue(row[headerMap.get(csvColumn)!]),
-    ]),
+    entries.map(([schemaKey, csvColumns]) => {
+      if (csvColumns.length === 1) {
+        // Single column: use the raw value
+        return [schemaKey, parseValue(row[headerMap.get(csvColumns[0]!)!])];
+      } else {
+        // Multiple columns: create an object
+        return [
+          schemaKey,
+          Object.fromEntries(
+            csvColumns.map((csvColumn) => [
+              csvColumn,
+              parseValue(row[headerMap.get(csvColumn)!]),
+            ]),
+          ),
+        ];
+      }
+    }),
   );
 }

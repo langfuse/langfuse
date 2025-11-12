@@ -42,9 +42,14 @@ export const UploadDatasetCsvButton = (props: {
           Upload CSV
         </ActionButton>
       </DialogTrigger>
-      <DialogContent className="flex h-[80dvh] max-w-[80dvw] flex-col overflow-hidden">
+      <DialogContent className="flex h-[80dvh] max-w-7xl flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Upload CSV</DialogTitle>
+          <DialogTitle>
+            Upload CSV
+            <span className="text-lg font-normal text-muted-foreground">
+              {csvFile ? ` - ${csvFile.name}` : ""}
+            </span>
+          </DialogTitle>
         </DialogHeader>
         {preview ? (
           <PreviewCsvImport
