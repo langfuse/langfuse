@@ -3,12 +3,11 @@ import {
   observationRetryDelayInMs,
   retryObservationNotFound,
 } from "../features/evaluation/retryObservationNotFound";
-import { ObservationNotFoundError } from "../features/evaluation/evalService";
 import {
   DatasetRunItemUpsertQueue,
-  QueueName,
   RetryBaggage,
 } from "@langfuse/shared/src/server";
+import { ObservationNotFoundError } from "../errors/ObservationNotFoundError";
 
 // Mock the queue
 vi.mock("@langfuse/shared/src/server", async () => {
