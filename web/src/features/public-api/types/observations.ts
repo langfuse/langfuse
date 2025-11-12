@@ -211,3 +211,73 @@ export const GetObservationV1Query = z.object({
   useEventsTable: useEventsTableSchema,
 });
 export const GetObservationV1Response = APIObservation;
+
+// GET /v2/observations
+export const GetObservationsV2Query = z.object({
+  // Required fields parameter
+  fields: z
+    .union([z.array(z.string()), z.string()])
+    .transform((val) => (typeof val === "string" ? val.split(",") : val))
+    .pipe(z.array(z.string()).min(1)),
+  // Pagination
+  limit: z.coerce.number().nonnegative().lte(10000).default(50),
+  // Parsing behavior
+  parseIoAsJson: z
+    .union([z.literal("true"), z.literal("false")])
+    .transform((val) => val === "true")
+    .default(false),
+  // Filters
+  topLevelOnly: z
+    .union([z.literal("true"), z.literal("false")])
+    .optional()
+    .transform((val) => (val === undefined ? undefined : val === "true")),
+  type: ObservationType.nullish(),
+  name: z.string().nullish(),
+  userId: z.string().nullish(),
+  level: z.enum(ObservationLevel).nullish(),
+  traceId: z.string().nullish(),
+  version: z.string().nullish(),
+  parentObservationId: z.string().nullish(),
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
+  fromStartTime: stringDateTime.optional(),
+  toStartTime: stringDateTime.optional(),
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
+});
+
+export const GetObservationsV2Response = z
+  .object({
+    data: z.array(z.record(z.string(), z.any())), // Field-filtered observations
+    meta: z.object({}), // TODO Empty for now, will add cursor later
+  })
+  .strict();
+
+/**
+ * Filters an observation object to only include requested fields
+ */
+// TODO this was my original design but we decided to go with groups of fields,
+// but more granular than before. Also this only makes sense for SELECT, post filtering is useless
+export const filterObservationByFields = (
+  observation: z.infer<typeof APIObservation>,
+  fields: string[],
+): Record<string, any> => {
+  const filtered: Record<string, any> = {};
+  for (const field of fields) {
+    if (field in observation) {
+      filtered[field] = observation[field as keyof typeof observation];
+    }
+  }
+  return filtered;
+};

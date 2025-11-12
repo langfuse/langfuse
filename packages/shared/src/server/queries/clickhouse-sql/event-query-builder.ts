@@ -260,10 +260,13 @@ abstract class AbstractQueryBuilder {
    * Add LIMIT and OFFSET
    */
   limit(limit?: number, offset?: number): this {
-    if (limit !== undefined && offset !== undefined) {
+    if (limit !== undefined && offset !== undefined && offset > 0) {
       this.limitClause = "LIMIT {limit: Int32} OFFSET {offset: Int32}";
       this.params.limit = limit;
       this.params.offset = offset;
+    } else if (limit !== undefined) {
+      this.limitClause = "LIMIT {limit: Int32}";
+      this.params.limit = limit;
     } else {
       this.limitClause = "";
     }
