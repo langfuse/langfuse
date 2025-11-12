@@ -6,7 +6,13 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { ImportCard } from "./ImportCard";
-import { DndContext, closestCenter } from "@dnd-kit/core";
+import {
+  DndContext,
+  closestCenter,
+  DragOverlay,
+  MeasuringStrategy,
+} from "@dnd-kit/core";
+import { createPortal } from "react-dom";
 import { findDefaultColumn } from "../lib/findDefaultColumn";
 import { type DragEndEvent } from "@dnd-kit/core";
 import { z } from "zod/v4";
@@ -14,6 +20,7 @@ import { useEffect, useState } from "react";
 import {
   parseCsvClient,
   parseColumns,
+  buildSchemaObject,
   type CsvPreviewResult,
 } from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
@@ -26,6 +33,8 @@ import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import { chunk } from "lodash";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { Label } from "@/src/components/ui/label";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -99,6 +108,14 @@ function moveColumn(
   setters[toId](new Set(sets[toId]));
 }
 
+// Helper to extract schema keys from object schema
+function extractSchemaKeys(schema: unknown): string[] | null {
+  if (!schema || typeof schema !== "object") return null;
+  const schemaObj = schema as Record<string, unknown>;
+  if (schemaObj.type !== "object" || !schemaObj.properties) return null;
+  return Object.keys(schemaObj.properties as Record<string, unknown>);
+}
+
 export function PreviewCsvImport({
   preview,
   csvFile,
@@ -117,6 +134,23 @@ export function PreviewCsvImport({
   setOpen?: (open: boolean) => void;
 }) {
   const capture = usePostHogClientCapture();
+
+  // Fetch dataset schema
+  const { data: dataset } = api.datasets.byId.useQuery({
+    projectId,
+    datasetId,
+  });
+
+  // Parse schemas
+  const inputSchemaKeys = extractSchemaKeys(dataset?.inputSchema);
+  const expectedOutputSchemaKeys = extractSchemaKeys(
+    dataset?.expectedOutputSchema,
+  );
+  const isSchemaMode =
+    (inputSchemaKeys && inputSchemaKeys.length > 0) ||
+    (expectedOutputSchemaKeys && expectedOutputSchemaKeys.length > 0);
+
+  // Freeform mode state
   const [selectedInputColumn, setSelectedInputColumn] = useState<Set<string>>(
     new Set(),
   );
@@ -129,6 +163,23 @@ export function PreviewCsvImport({
   const [excludedColumns, setExcludedColumns] = useState<Set<string>>(
     new Set(),
   );
+
+  // Schema mode state
+  const [inputSchemaMapping, setInputSchemaMapping] = useState<
+    Map<string, string>
+  >(new Map());
+  const [expectedOutputSchemaMapping, setExpectedOutputSchemaMapping] =
+    useState<Map<string, string>>(new Map());
+  const [unmappedColumns, setUnmappedColumns] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Wrapping checkbox
+  const [wrapSingleColumn, setWrapSingleColumn] = useState(false);
+
+  // Drag state for overlay
+  const [activeColumn, setActiveColumn] = useState<string | null>(null);
+
   const [progress, setProgress] = useState<ImportProgress>({
     totalItems: 0,
     processedItems: 0,
@@ -143,8 +194,8 @@ export function PreviewCsvImport({
     api.datasets.createManyDatasetItems.useMutation({});
 
   useEffect(() => {
-    if (preview) {
-      // Only set defaults if no columns are currently selected
+    if (preview && !isSchemaMode) {
+      // Freeform mode: set defaults only if no columns selected
       if (
         selectedInputColumn.size === 0 &&
         selectedExpectedColumn.size === 0 &&
@@ -162,14 +213,12 @@ export function PreviewCsvImport({
           2,
         );
 
-        // Set default columns based on names
         defaultInput && setSelectedInputColumn(new Set([defaultInput]));
         defaultExpected &&
           setSelectedExpectedColumn(new Set([defaultExpected]));
         defaultMetadata &&
           setSelectedMetadataColumn(new Set([defaultMetadata]));
 
-        // Update excluded columns based on current selections
         const newExcluded = new Set(
           preview.columns
             .filter(
@@ -183,44 +232,164 @@ export function PreviewCsvImport({
 
         setExcludedColumns(newExcluded);
       }
+    } else if (preview && isSchemaMode) {
+      // Schema mode: initialize unmapped columns
+      if (unmappedColumns.size === 0) {
+        setUnmappedColumns(new Set(preview.columns.map((col) => col.name)));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview]); // Only depend on preview changes
+  }, [preview, isSchemaMode]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveColumn(null);
 
     if (!over) return;
 
     const columnName = active.id as string;
     const fromCardId = active.data.current?.fromCardId;
-    const toCardId = over.id;
+    const toId = over.id as string;
 
-    if (fromCardId === toCardId) return;
+    if (isSchemaMode) {
+      // Mixed/Schema mode: handle drops onto schema keys OR freeform fields
+      if (toId.includes(":")) {
+        // Drop on schema key: format is "input:country" or "expectedOutput:city"
+        const [cardType, schemaKey] = toId.split(":");
+        if (!schemaKey) return;
 
-    const parsedFromCardId = CardIdSchema.safeParse(fromCardId);
-    const parsedToCardId = CardIdSchema.safeParse(toCardId);
+        // Remove from previous location
+        if (fromCardId === "input") {
+          // Check if it was in schema mapping or freeform
+          const newMapping = new Map(inputSchemaMapping);
+          let wasInMapping = false;
+          for (const [key, col] of newMapping.entries()) {
+            if (col === columnName) {
+              newMapping.delete(key);
+              wasInMapping = true;
+              break;
+            }
+          }
+          if (wasInMapping) {
+            setInputSchemaMapping(newMapping);
+          } else {
+            selectedInputColumn.delete(columnName);
+            setSelectedInputColumn(new Set(selectedInputColumn));
+          }
+        } else if (fromCardId === "expectedOutput") {
+          const newMapping = new Map(expectedOutputSchemaMapping);
+          let wasInMapping = false;
+          for (const [key, col] of newMapping.entries()) {
+            if (col === columnName) {
+              newMapping.delete(key);
+              wasInMapping = true;
+              break;
+            }
+          }
+          if (wasInMapping) {
+            setExpectedOutputSchemaMapping(newMapping);
+          } else {
+            selectedExpectedColumn.delete(columnName);
+            setSelectedExpectedColumn(new Set(selectedExpectedColumn));
+          }
+        } else if (fromCardId === "unmapped") {
+          unmappedColumns.delete(columnName);
+          setUnmappedColumns(new Set(unmappedColumns));
+        }
 
-    if (!parsedFromCardId.success || !parsedToCardId.success) return;
+        // Add to new mapping
+        if (cardType === "input") {
+          const newMapping = new Map(inputSchemaMapping);
+          newMapping.set(schemaKey, columnName);
+          setInputSchemaMapping(newMapping);
+        } else if (cardType === "expectedOutput") {
+          const newMapping = new Map(expectedOutputSchemaMapping);
+          newMapping.set(schemaKey, columnName);
+          setExpectedOutputSchemaMapping(newMapping);
+        }
+      } else if (
+        toId === "input" ||
+        toId === "expectedOutput" ||
+        toId === "unmapped"
+      ) {
+        // Drop on freeform card or unmapped
+        // Remove from previous location
+        if (fromCardId === "input") {
+          const newMapping = new Map(inputSchemaMapping);
+          let wasInMapping = false;
+          for (const [key, col] of newMapping.entries()) {
+            if (col === columnName) {
+              newMapping.delete(key);
+              wasInMapping = true;
+              break;
+            }
+          }
+          if (wasInMapping) {
+            setInputSchemaMapping(newMapping);
+          } else {
+            selectedInputColumn.delete(columnName);
+            setSelectedInputColumn(new Set(selectedInputColumn));
+          }
+        } else if (fromCardId === "expectedOutput") {
+          const newMapping = new Map(expectedOutputSchemaMapping);
+          let wasInMapping = false;
+          for (const [key, col] of newMapping.entries()) {
+            if (col === columnName) {
+              newMapping.delete(key);
+              wasInMapping = true;
+              break;
+            }
+          }
+          if (wasInMapping) {
+            setExpectedOutputSchemaMapping(newMapping);
+          } else {
+            selectedExpectedColumn.delete(columnName);
+            setSelectedExpectedColumn(new Set(selectedExpectedColumn));
+          }
+        } else if (fromCardId === "unmapped") {
+          unmappedColumns.delete(columnName);
+          setUnmappedColumns(new Set(unmappedColumns));
+        }
 
-    // Handle moving column between cards
-    moveColumn(
-      parsedFromCardId.data,
-      parsedToCardId.data,
-      columnName,
-      {
-        input: selectedInputColumn,
-        expected: selectedExpectedColumn,
-        metadata: selectedMetadataColumn,
-        unmapped: excludedColumns,
-      },
-      {
-        input: setSelectedInputColumn,
-        expected: setSelectedExpectedColumn,
-        metadata: setSelectedMetadataColumn,
-        unmapped: setExcludedColumns,
-      },
-    );
+        // Add to new location
+        if (toId === "input") {
+          selectedInputColumn.add(columnName);
+          setSelectedInputColumn(new Set(selectedInputColumn));
+        } else if (toId === "expectedOutput") {
+          selectedExpectedColumn.add(columnName);
+          setSelectedExpectedColumn(new Set(selectedExpectedColumn));
+        } else if (toId === "unmapped") {
+          unmappedColumns.add(columnName);
+          setUnmappedColumns(new Set(unmappedColumns));
+        }
+      }
+    } else {
+      // Pure freeform mode
+      if (fromCardId === toId) return;
+
+      const parsedFromCardId = CardIdSchema.safeParse(fromCardId);
+      const parsedToCardId = CardIdSchema.safeParse(toId);
+
+      if (!parsedFromCardId.success || !parsedToCardId.success) return;
+
+      moveColumn(
+        parsedFromCardId.data,
+        parsedToCardId.data,
+        columnName,
+        {
+          input: selectedInputColumn,
+          expected: selectedExpectedColumn,
+          metadata: selectedMetadataColumn,
+          unmapped: excludedColumns,
+        },
+        {
+          input: setSelectedInputColumn,
+          expected: setSelectedExpectedColumn,
+          metadata: setSelectedMetadataColumn,
+          unmapped: setExcludedColumns,
+        },
+      );
+    }
   };
 
   const handleImport = async () => {
@@ -239,9 +408,19 @@ export function PreviewCsvImport({
 
     const items: RouterInputs["datasets"]["createManyDatasetItems"]["items"] =
       [];
+
+    // Prepare column lists or mappings based on mode
+    // In schema mode, still use freeform columns for fields without schema
     const input = Array.from(selectedInputColumn);
     const expected = Array.from(selectedExpectedColumn);
     const metadata = Array.from(selectedMetadataColumn);
+
+    const inputMapping = isSchemaMode
+      ? Object.fromEntries(inputSchemaMapping)
+      : undefined;
+    const expectedOutputMapping = isSchemaMode
+      ? Object.fromEntries(expectedOutputSchemaMapping)
+      : undefined;
 
     try {
       await parseCsvClient(csvFile, {
@@ -249,8 +428,15 @@ export function PreviewCsvImport({
           onHeader: (headers) => {
             headerMap = new Map(headers.map((h, i) => [h, i]));
 
-            // Validate columns exist
-            const missingColumns = [...input, ...expected, ...metadata].filter(
+            // Validate columns exist (check both schema mappings and freeform columns)
+            const allColumns = [
+              ...Object.values(inputMapping ?? {}),
+              ...Object.values(expectedOutputMapping ?? {}),
+              ...input,
+              ...expected,
+              ...metadata,
+            ];
+            const missingColumns = allColumns.filter(
               (col) => !headerMap.has(col),
             );
             if (missingColumns.length > 0) {
@@ -259,11 +445,47 @@ export function PreviewCsvImport({
           },
           onRow: (row, _, index) => {
             try {
-              // Process all column mappings
-              const itemInput =
-                parseColumns(input, row, headerMap) ?? undefined;
-              const itemExpected =
-                parseColumns(expected, row, headerMap) ?? undefined;
+              // Process based on mode (mixed mode: some fields have schemas, some don't)
+              let itemInput: unknown;
+              let itemExpected: unknown;
+
+              if (isSchemaMode) {
+                // Input: use schema mapping if available, else freeform
+                if (inputMapping && Object.keys(inputMapping).length > 0) {
+                  itemInput = buildSchemaObject(inputMapping, row, headerMap);
+                } else {
+                  itemInput =
+                    parseColumns(input, row, headerMap, { wrapSingleColumn }) ??
+                    undefined;
+                }
+
+                // Expected output: use schema mapping if available, else freeform
+                if (
+                  expectedOutputMapping &&
+                  Object.keys(expectedOutputMapping).length > 0
+                ) {
+                  itemExpected = buildSchemaObject(
+                    expectedOutputMapping,
+                    row,
+                    headerMap,
+                  );
+                } else {
+                  itemExpected =
+                    parseColumns(expected, row, headerMap, {
+                      wrapSingleColumn,
+                    }) ?? undefined;
+                }
+              } else {
+                // Pure freeform mode
+                itemInput =
+                  parseColumns(input, row, headerMap, { wrapSingleColumn }) ??
+                  undefined;
+                itemExpected =
+                  parseColumns(expected, row, headerMap, {
+                    wrapSingleColumn,
+                  }) ?? undefined;
+              }
+
               const itemMetadata =
                 parseColumns(metadata, row, headerMap) ?? undefined;
 
@@ -357,106 +579,185 @@ export function PreviewCsvImport({
           <CardHeader className="shrink-0 text-center">
             <CardTitle className="text-lg">Import {preview.fileName}</CardTitle>
             <CardDescription>
-              Map your CSV columns to dataset fields. The CSV file must have
-              column headers in the first row.
+              {isSchemaMode
+                ? "Drag CSV columns to the schema fields below to map them."
+                : "Map your CSV columns to dataset fields. The CSV file must have column headers in the first row."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-0 w-full flex-1 flex-col p-2">
-            <div className="min-h-0 flex-1">
-              <DndContext
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-4">
-                  <ImportCard
-                    id="input"
-                    title="Input"
-                    columns={preview.columns.filter((col) =>
-                      selectedInputColumn.has(col.name),
-                    )}
-                    onColumnSelect={(columnName) => {
-                      setSelectedInputColumn(
-                        new Set([...selectedInputColumn, columnName]),
-                      );
-                    }}
-                    onColumnRemove={(columnName) => {
-                      setSelectedInputColumn(
-                        new Set(
-                          [...selectedInputColumn].filter(
-                            (col) => col !== columnName,
+          <CardContent className="flex min-h-0 w-full flex-1 flex-col gap-3 p-2">
+            <DndContext
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+              onDragStart={(event) =>
+                setActiveColumn(event.active.id as string)
+              }
+              measuring={{
+                droppable: {
+                  strategy: MeasuringStrategy.Always,
+                },
+              }}
+            >
+              <div className="min-h-0 flex-1">
+                {isSchemaMode ? (
+                  // Schema mode layout (mixed mode: some fields have schemas, some don't)
+                  <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-3">
+                    <ImportCard
+                      id="input"
+                      title="Input"
+                      columns={
+                        inputSchemaKeys && inputSchemaKeys.length > 0
+                          ? []
+                          : preview.columns.filter((col) =>
+                              selectedInputColumn.has(col.name),
+                            )
+                      }
+                      schemaKeys={inputSchemaKeys ?? undefined}
+                      schemaKeyMapping={inputSchemaMapping}
+                      onColumnSelect={() => {}}
+                      onColumnRemove={() => {}}
+                    />
+                    <ImportCard
+                      id="expectedOutput"
+                      title="Expected Output"
+                      columns={
+                        expectedOutputSchemaKeys &&
+                        expectedOutputSchemaKeys.length > 0
+                          ? []
+                          : preview.columns.filter((col) =>
+                              selectedExpectedColumn.has(col.name),
+                            )
+                      }
+                      schemaKeys={expectedOutputSchemaKeys ?? undefined}
+                      schemaKeyMapping={expectedOutputSchemaMapping}
+                      onColumnSelect={() => {}}
+                      onColumnRemove={() => {}}
+                    />
+                    <ImportCard
+                      id="unmapped"
+                      title="Available Columns"
+                      info="Drag these columns to schema fields to map them."
+                      columns={preview.columns.filter((col) =>
+                        unmappedColumns.has(col.name),
+                      )}
+                      onColumnSelect={() => {}}
+                      onColumnRemove={() => {}}
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                ) : (
+                  // Freeform mode layout
+                  <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-4">
+                    <ImportCard
+                      id="input"
+                      title="Input"
+                      columns={preview.columns.filter((col) =>
+                        selectedInputColumn.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setSelectedInputColumn(
+                          new Set([...selectedInputColumn, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setSelectedInputColumn(
+                          new Set(
+                            [...selectedInputColumn].filter(
+                              (col) => col !== columnName,
+                            ),
                           ),
-                        ),
-                      );
-                    }}
-                  />
-                  <ImportCard
-                    id="expected"
-                    title="Expected Output"
-                    columns={preview.columns.filter((col) =>
-                      selectedExpectedColumn.has(col.name),
-                    )}
-                    onColumnSelect={(columnName) => {
-                      setSelectedExpectedColumn(
-                        new Set([...selectedExpectedColumn, columnName]),
-                      );
-                    }}
-                    onColumnRemove={(columnName) => {
-                      setSelectedExpectedColumn(
-                        new Set(
-                          [...selectedExpectedColumn].filter(
-                            (col) => col !== columnName,
+                        );
+                      }}
+                    />
+                    <ImportCard
+                      id="expected"
+                      title="Expected Output"
+                      columns={preview.columns.filter((col) =>
+                        selectedExpectedColumn.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setSelectedExpectedColumn(
+                          new Set([...selectedExpectedColumn, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setSelectedExpectedColumn(
+                          new Set(
+                            [...selectedExpectedColumn].filter(
+                              (col) => col !== columnName,
+                            ),
                           ),
-                        ),
-                      );
-                    }}
-                  />
-                  <ImportCard
-                    id="metadata"
-                    title="Metadata"
-                    columns={preview.columns.filter((col) =>
-                      selectedMetadataColumn.has(col.name),
-                    )}
-                    onColumnSelect={(columnName) => {
-                      setSelectedMetadataColumn(
-                        new Set([...selectedMetadataColumn, columnName]),
-                      );
-                    }}
-                    onColumnRemove={(columnName) => {
-                      setSelectedMetadataColumn(
-                        new Set(
-                          [...selectedMetadataColumn].filter(
-                            (col) => col !== columnName,
+                        );
+                      }}
+                    />
+                    <ImportCard
+                      id="metadata"
+                      title="Metadata"
+                      columns={preview.columns.filter((col) =>
+                        selectedMetadataColumn.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setSelectedMetadataColumn(
+                          new Set([...selectedMetadataColumn, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setSelectedMetadataColumn(
+                          new Set(
+                            [...selectedMetadataColumn].filter(
+                              (col) => col !== columnName,
+                            ),
                           ),
-                        ),
-                      );
-                    }}
-                  />
-                  <ImportCard
-                    id="unmapped"
-                    title="Not mapped"
-                    info="These columns from your CSV will not be imported. Drag them to a field to include them."
-                    columns={preview.columns.filter((col) =>
-                      excludedColumns.has(col.name),
-                    )}
-                    onColumnSelect={(columnName) => {
-                      setExcludedColumns(
-                        new Set([...excludedColumns, columnName]),
-                      );
-                    }}
-                    onColumnRemove={(columnName) => {
-                      setExcludedColumns(
-                        new Set(
-                          [...excludedColumns].filter(
-                            (col) => col !== columnName,
+                        );
+                      }}
+                    />
+                    <ImportCard
+                      id="unmapped"
+                      title="Not mapped"
+                      info="These columns from your CSV will not be imported. Drag them to a field to include them."
+                      columns={preview.columns.filter((col) =>
+                        excludedColumns.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setExcludedColumns(
+                          new Set([...excludedColumns, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setExcludedColumns(
+                          new Set(
+                            [...excludedColumns].filter(
+                              (col) => col !== columnName,
+                            ),
                           ),
-                        ),
-                      );
-                    }}
-                    className="bg-secondary/50"
-                  />
-                </div>
-              </DndContext>
-            </div>
+                        );
+                      }}
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                )}
+              </div>
+              {createPortal(
+                <DragOverlay dropAnimation={null} adjustScale={false}>
+                  {activeColumn ? (
+                    <div className="cursor-grabbing rounded-md border bg-background p-2 shadow-xl ring-2 ring-primary">
+                      <div className="flex items-center justify-between space-x-2">
+                        <span className="text-sm font-medium">
+                          {activeColumn}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {
+                            preview.columns.find(
+                              (col) => col.name === activeColumn,
+                            )?.inferredType
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body,
+              )}
+            </DndContext>
           </CardContent>
         </Card>
         {validationErrors.length > 0 && (
@@ -464,6 +765,27 @@ export function PreviewCsvImport({
         )}
       </DialogBody>
       <DialogFooter>
+        {/* {!isSchemaMode && ( */}
+        <div className="flex w-full flex-1 items-start gap-2">
+          <Checkbox
+            id="wrapSingleColumn"
+            checked={wrapSingleColumn}
+            onCheckedChange={(checked) => setWrapSingleColumn(checked === true)}
+          />
+          <div className="grid">
+            <Label
+              htmlFor="wrapSingleColumn"
+              className="-mt-1 cursor-pointer text-sm font-normal"
+            >
+              Force Objects
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Wrap single column values as objects (e.g., {`{"col": "value"}`}{" "}
+              instead of {`"value"`})
+            </p>
+          </div>
+        </div>
+        {/* )} */}
         <Button
           variant="outline"
           onClick={() => {
@@ -472,6 +794,9 @@ export function PreviewCsvImport({
             setSelectedExpectedColumn(new Set());
             setSelectedMetadataColumn(new Set());
             setExcludedColumns(new Set());
+            setInputSchemaMapping(new Map());
+            setExpectedOutputSchemaMapping(new Map());
+            setUnmappedColumns(new Set());
             setCsvFile(null);
             setValidationErrors([]);
           }}
@@ -480,9 +805,14 @@ export function PreviewCsvImport({
         </Button>
         <Button
           disabled={
-            (selectedInputColumn.size === 0 &&
-              selectedExpectedColumn.size === 0 &&
-              selectedMetadataColumn.size === 0) ||
+            (isSchemaMode
+              ? inputSchemaMapping.size === 0 &&
+                expectedOutputSchemaMapping.size === 0 &&
+                selectedInputColumn.size === 0 &&
+                selectedExpectedColumn.size === 0
+              : selectedInputColumn.size === 0 &&
+                selectedExpectedColumn.size === 0 &&
+                selectedMetadataColumn.size === 0) ||
             progress.status === "processing"
           }
           loading={progress.status === "processing"}

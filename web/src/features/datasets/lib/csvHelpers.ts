@@ -212,18 +212,41 @@ export function parseColumns(
   columnNames: string[],
   row: string[],
   headerMap: Map<string, number>,
+  options?: { wrapSingleColumn?: boolean },
 ): Prisma.JsonValue {
   if (columnNames.length === 0) return null;
 
-  // Single column: do not nest columns into json objects
+  // Single column: wrap if requested, else return raw value
   if (columnNames.length === 1) {
     const col = columnNames[0];
     const rawValue = row[headerMap.get(col)!];
-    return parseValue(rawValue);
+    const parsedValue = parseValue(rawValue);
+
+    if (options?.wrapSingleColumn) {
+      return { [col]: parsedValue };
+    }
+    return parsedValue;
   }
 
   // Multiple columns: nest columns into json objects
   return Object.fromEntries(
     columnNames.map((col) => [col, parseValue(row[headerMap.get(col)!])]),
+  );
+}
+
+// Helper to build object from schema key mapping
+export function buildSchemaObject(
+  mapping: Record<string, string>, // {schemaKey: csvColumn}
+  row: string[],
+  headerMap: Map<string, number>,
+): Prisma.JsonValue {
+  const entries = Object.entries(mapping);
+  if (entries.length === 0) return null;
+
+  return Object.fromEntries(
+    entries.map(([schemaKey, csvColumn]) => [
+      schemaKey,
+      parseValue(row[headerMap.get(csvColumn)!]),
+    ]),
   );
 }
