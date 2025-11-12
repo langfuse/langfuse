@@ -15,8 +15,9 @@ import json
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from dotenv import load_dotenv
 import clickhouse_connect
@@ -45,8 +46,9 @@ class Config:
         self.max_retries = int(os.getenv("MAX_RETRIES", "3"))
         self.exclude_dataset_items = os.getenv("EXCLUDE_DATASET_ITEMS", "true").lower() == "true"
 
-        # State file for resumability
-        self.state_file = f"backfill_state_{self.partition}.json"
+        # Cursor state management
+        self.cursor_state_dir = Path(os.getenv("CURSOR_STATE_DIR", "."))
+        self.cursor_file = self.cursor_state_dir / os.getenv("CURSOR_FILE", "cursor_state.json")
 
     def __str__(self):
         return (
@@ -56,6 +58,7 @@ class Config:
             f"Batch size: {self.batch_size}\n"
             f"Stream block size: {self.stream_block_size}\n"
             f"Dry run: {self.dry_run}\n"
+            f"Cursor file: {self.cursor_file}\n"
             f"Exclude dataset items: {self.exclude_dataset_items}"
         )
 
@@ -68,6 +71,7 @@ class ClickHouseBackfill:
         self.client: Optional[Client] = None
         self.insert_client: Optional[Client] = None  # Separate client for inserts
         self.trace_attrs: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        self.current_cursor: Optional[Tuple[str, str, date, str]] = None  # Track current cursor for interrupt handling
         self.stats = {
             "trace_attrs_loaded": 0,
             "observations_processed": 0,
@@ -78,6 +82,82 @@ class ClickHouseBackfill:
             "streaming_time": 0,
             "insert_time": 0,
         }
+
+    def get_minimum_cursor(self) -> Tuple[str, str, date, str]:
+        """Return minimum cursor values for starting from the beginning"""
+        return ("", "", date(1970, 1, 1), "")
+
+    def load_cursor(self) -> Tuple[str, str, date, str]:
+        """Load cursor from JSON file for current partition"""
+        cursor_file = self.config.cursor_file
+
+        if not cursor_file.exists():
+            print(f"No cursor file found at {cursor_file}, starting from beginning")
+            return self.get_minimum_cursor()
+
+        try:
+            with open(cursor_file, 'r') as f:
+                cursor_data = json.load(f)
+
+            partition_cursor = cursor_data.get(self.config.partition)
+            if not partition_cursor:
+                print(f"No cursor found for partition {self.config.partition}, starting from beginning")
+                return self.get_minimum_cursor()
+
+            # Parse cursor from JSON
+            project_id = partition_cursor.get("project_id", "")
+            obs_type = partition_cursor.get("type", "")
+            date_str = partition_cursor.get("date", "1970-01-01")
+            obs_id = partition_cursor.get("id", "")
+
+            # Convert date string to date object
+            cursor_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+
+            print(f"Loaded cursor for partition {self.config.partition}:")
+            print(f"  project_id: {project_id}")
+            print(f"  type: {obs_type}")
+            print(f"  date: {cursor_date}")
+            print(f"  id: {obs_id}")
+
+            return (project_id, obs_type, cursor_date, obs_id)
+
+        except Exception as e:
+            print(f"⚠ Error loading cursor from {cursor_file}: {e}")
+            print("Starting from beginning")
+            return self.get_minimum_cursor()
+
+    def save_cursor(self, cursor: Tuple[str, str, date, str]):
+        """Save cursor to JSON file for current partition"""
+        cursor_file = self.config.cursor_file
+        project_id, obs_type, cursor_date, obs_id = cursor
+
+        # Ensure directory exists
+        cursor_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Load existing cursor data
+        cursor_data = {}
+        if cursor_file.exists():
+            try:
+                with open(cursor_file, 'r') as f:
+                    cursor_data = json.load(f)
+            except Exception as e:
+                print(f"⚠ Error loading existing cursor file: {e}")
+
+        # Update cursor for current partition
+        cursor_data[self.config.partition] = {
+            "project_id": project_id,
+            "type": obs_type,
+            "date": cursor_date.strftime("%Y-%m-%d"),
+            "id": obs_id,
+            "updated_at": datetime.utcnow().isoformat() + "Z"
+        }
+
+        # Write back to file
+        try:
+            with open(cursor_file, 'w') as f:
+                json.dump(cursor_data, f, indent=2)
+        except Exception as e:
+            print(f"⚠ Error saving cursor to {cursor_file}: {e}")
 
     def connect(self):
         """Establish ClickHouse connection"""
@@ -91,6 +171,7 @@ class ClickHouseBackfill:
         self.client = clickhouse_connect.get_client(
             host=host,
             port=int(port),
+            verify=False,
             username=self.config.clickhouse_user,
             password=self.config.clickhouse_password,
             database=self.config.clickhouse_db,
@@ -103,6 +184,7 @@ class ClickHouseBackfill:
         self.insert_client = clickhouse_connect.get_client(
             host=host,
             port=int(port),
+            verify=False,
             username=self.config.clickhouse_user,
             password=self.config.clickhouse_password,
             database=self.config.clickhouse_db,
@@ -188,14 +270,19 @@ class ClickHouseBackfill:
         return result.result_rows[0][0]
 
     def stream_observations(self):
-        """Stream observations and transform to events"""
+        """Stream observations and transform to events using cursor-based pagination"""
         print(f"\n{'='*80}")
-        print(f"Phase 2: Streaming observations from partition {self.config.partition}")
+        print(f"Phase 2: Processing observations from partition {self.config.partition}")
         print(f"{'='*80}")
+
+        # Load cursor
+        cursor = self.load_cursor()
+        cursor_project_id, cursor_type, cursor_date, cursor_id = cursor
 
         # Get total count for progress bar
         total_count = self.get_observation_count()
         print(f"Total observations to process: {total_count:,}")
+        print(f"Processing in chunks of {self.config.batch_size}")
 
         query = """
             SELECT
@@ -231,41 +318,68 @@ class ClickHouseBackfill:
             FROM observations
             WHERE _partition_id = {partition:String}
               AND is_deleted = 0
+              AND (project_id, type, toDate(start_time), id) >= ({cursor_project_id:String}, {cursor_type:String}, {cursor_date:Date}, {cursor_id:String})
+            ORDER BY project_id, type, toDate(start_time), id
+            LIMIT {limit:UInt32}
         """
 
         start_time = time.time()
-        batch = []
+        current_cursor = cursor
 
-        print(f"Streaming observations (block size: {self.config.stream_block_size})...")
+        print(f"Processing observations in batches...")
 
         with tqdm(total=total_count, desc="Processing observations", unit=" obs") as pbar:
-            # Stream results - must use context manager
-            with self.client.query_row_block_stream(
-                query,
-                parameters={"partition": self.config.partition}
-            ) as result:
-                for block in result:
-                    for row in block:
-                        try:
-                            event = self.transform_observation_to_event(row)
-                            batch.append(event)
-                            self.stats["observations_processed"] += 1
+            while True:
+                # Query next chunk
+                cursor_project_id, cursor_type, cursor_date, cursor_id = current_cursor
 
-                            # Insert batch when full
-                            if len(batch) >= self.config.batch_size:
-                                self.insert_events_batch(batch)
-                                batch = []
+                result = self.client.query(
+                    query,
+                    parameters={
+                        "partition": self.config.partition,
+                        "cursor_project_id": cursor_project_id,
+                        "cursor_type": cursor_type,
+                        "cursor_date": cursor_date,
+                        "cursor_id": cursor_id,
+                        "limit": self.config.batch_size
+                    }
+                )
 
-                            pbar.update(1)
+                rows = result.result_rows
+                if not rows:
+                    # No more rows to process
+                    break
 
-                        except Exception as e:
-                            self.stats["errors"] += 1
-                            print(f"\n⚠ Error processing observation: {e}")
-                            continue
+                # Process batch
+                batch = []
+                for row in rows:
+                    try:
+                        event = self.transform_observation_to_event(row)
+                        batch.append(event)
+                        self.stats["observations_processed"] += 1
 
-        # Insert remaining batch
-        if batch:
-            self.insert_events_batch(batch)
+                        # Update current cursor from this row
+                        # row[0] = project_id, row[1] = id, row[7] = type, row[4] = start_time
+                        current_cursor = (row[0], row[7], row[4].date() if row[4] else date(1970, 1, 1), row[1])
+
+                        pbar.update(1)
+
+                    except Exception as e:
+                        self.stats["errors"] += 1
+                        print(f"\n⚠ Error processing observation: {e}")
+                        continue
+
+                # Insert batch
+                if batch:
+                    self.insert_events_batch(batch)
+                    # Save cursor after successful batch insert
+                    self.current_cursor = current_cursor
+                    self.save_cursor(current_cursor)
+                    print(f"\n✓ Checkpoint saved at {datetime.now().strftime('%H:%M:%S')}: {len(batch)} events inserted")
+
+                # If we got fewer rows than the limit, we're done
+                if len(rows) < self.config.batch_size:
+                    break
 
         self.stats["streaming_time"] = time.time() - start_time
 
@@ -526,6 +640,11 @@ class ClickHouseBackfill:
 
         except KeyboardInterrupt:
             print("\n\n✗ Interrupted by user")
+            # Save cursor on interrupt if we have one
+            if self.current_cursor:
+                print(f"Saving cursor on interrupt...")
+                self.save_cursor(self.current_cursor)
+                print(f"✓ Cursor saved, you can resume from this point")
             self.print_summary()
             sys.exit(1)
 
