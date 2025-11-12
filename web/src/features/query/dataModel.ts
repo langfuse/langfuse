@@ -524,6 +524,12 @@ export const scoresNumericView: ViewDeclarationType = {
       type: "string",
       description: "Month of the score timestamp in YYYY-MM format.",
     },
+    timestampDay: {
+      sql: "formatDateTime(scores_numeric.timestamp, '%Y-%m-%d')",
+      alias: "timestampDay",
+      type: "string",
+      description: "Day of the score timestamp in YYYY-MM-DD format.",
+    },
     observationId: {
       sql: "scores_numeric.observation_id",
       alias: "observationId",
@@ -633,6 +639,12 @@ export const scoresCategoricalView: ViewDeclarationType = {
       alias: "timestampMonth",
       type: "string",
       description: "Month of the score timestamp in YYYY-MM format.",
+    },
+    timestampDay: {
+      sql: "formatDateTime(scores_categorical.timestamp, '%Y-%m-%d')",
+      alias: "timestampDay",
+      type: "string",
+      description: "Day of the score timestamp in YYYY-MM-DD format.",
     },
     observationId: {
       sql: "scores_categorical.observation_id",
