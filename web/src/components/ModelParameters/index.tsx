@@ -17,7 +17,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   type JSONObject,
   JSONObjectSchema,
-  LLMAdapter,
+  type LLMAdapter,
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
