@@ -112,7 +112,7 @@ export const generateTracesForPublicApi = async ({
   if (includeObservations || includeMetrics || filtersRequireObservations) {
     // Conditionally add FINAL based on env var and whether metrics are requested
     const shouldUseFinal = includeMetrics && !disableObservationsFinal;
-    
+
     // Include metrics in CTE if requested OR if filters require them
     const shouldIncludeMetricsInCTE = includeMetrics || filtersRequireObservations;
 
