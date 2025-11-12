@@ -437,7 +437,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
     <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
       <ResizablePanel ref={mainPanelRef} defaultSize={100} minSize={30}>
         <main
-          className="relative h-full w-full"
+          className="relative h-full w-full overflow-scroll"
           style={{ overscrollBehaviorY: "none" }}
         >
           {children}
