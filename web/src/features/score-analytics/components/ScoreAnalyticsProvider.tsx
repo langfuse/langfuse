@@ -137,9 +137,22 @@ export function ScoreAnalyticsProvider({
 
   // Step 2: Only run main query after estimate succeeds
   // This applies to both single-score and two-score modes now
-  const queryResult = useScoreAnalyticsQuery(params, {
-    enabled: !canEstimate || estimateQuery.isSuccess,
-  });
+  // Pass estimate results to avoid duplicate preflight query
+  const queryResult = useScoreAnalyticsQuery(
+    {
+      ...params,
+      estimateResults: estimateQuery.data
+        ? {
+            score1Count: estimateQuery.data.score1Count,
+            score2Count: estimateQuery.data.score2Count,
+            estimatedMatchedCount: estimateQuery.data.estimatedMatchedCount,
+          }
+        : undefined,
+    },
+    {
+      enabled: !canEstimate || estimateQuery.isSuccess,
+    },
+  );
 
   // Determine color scheme based on mode
   const colors = useMemo(() => {
