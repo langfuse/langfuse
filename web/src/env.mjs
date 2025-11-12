@@ -182,6 +182,7 @@ export const env = createEnv({
       .default(30 * 24 * 60), // default to 30 days
     AUTH_HTTP_PROXY: z.string().url().optional(),
     AUTH_HTTPS_PROXY: z.string().url().optional(),
+    AUTH_SSO_TIMEOUT: z.number().optional(),
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),

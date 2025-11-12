@@ -1,8 +1,16 @@
 diff --git a/core/lib/oauth/client.js b/core/lib/oauth/client.js
-index 52c51eb6ff422dc0899ccec31baf3fa39e42eeae..c1f377a1c00111d5a8d78f14a9fb1201caba2648 100644
+index 52c51eb6ff422dc0899ccec31baf3fa39e42eeae..a921531be5aac7af5123745f69ba7ff7eae64929 100644
 --- a/core/lib/oauth/client.js
 +++ b/core/lib/oauth/client.js
-@@ -7,7 +7,24 @@ exports.openidClient = openidClient;
+@@ -1,5 +1,7 @@
+ "use strict";
+ 
++var HttpsProxyAgent = require('https-proxy-agent').HttpsProxyAgent;
++
+ Object.defineProperty(exports, "__esModule", {
+   value: true
+ });
+@@ -7,7 +9,24 @@ exports.openidClient = openidClient;
  var _openidClient = require("openid-client");
  async function openidClient(options) {
    const provider = options.provider;
