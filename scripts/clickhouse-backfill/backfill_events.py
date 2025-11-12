@@ -396,8 +396,8 @@ class ClickHouseBackfill:
             "input": input_text or "",
             "output": output_text or "",
             # "metadata": safe_dict(merged_metadata),
-            # "metadata_names": list(merged_metadata.keys()) if merged_metadata else [],
-            # "metadata_raw_values": list(str(v) for v in merged_metadata.values()) if merged_metadata else [],
+            "metadata_names": list(merged_metadata.keys()) if merged_metadata else [],
+            "metadata_raw_values": list(str(v) for v in merged_metadata.values()) if merged_metadata else [],
             "source": source,
             "event_bytes": 0,  # Will be calculated by ClickHouse
             "created_at": created_at,
