@@ -208,6 +208,14 @@ export const scoreAnalyticsRouter = createTRPCRouter({
         objectType: z
           .enum(["all", "trace", "session", "observation", "dataset_run"])
           .default("all"),
+        // Optional: Pass estimate results from client to avoid duplicate preflight query
+        estimateResults: z
+          .object({
+            score1Count: z.number(),
+            score2Count: z.number(),
+            estimatedMatchedCount: z.number(),
+          })
+          .optional(),
       }),
     )
     .query(async ({ input }) => {
@@ -234,19 +242,22 @@ export const scoreAnalyticsRouter = createTRPCRouter({
         score1.source === score2.source &&
         score1.dataType === score2.dataType;
 
-      // Run preflight query to estimate data size and determine optimization strategy
-      const estimates = await buildEstimateQuery({
-        projectId,
-        score1Name: score1.name,
-        score1Source: score1.source,
-        score1DataType: score1.dataType,
-        score2Name: score2.name,
-        score2Source: score2.source,
-        score2DataType: score2.dataType,
-        fromTimestamp,
-        toTimestamp,
-        objectType,
-      });
+      // Use estimate results passed from client if available, otherwise run preflight query
+      // This avoids duplicate estimate queries when client already called estimateScoreComparisonSize
+      const estimates =
+        input.estimateResults ??
+        (await buildEstimateQuery({
+          projectId,
+          score1Name: score1.name,
+          score1Source: score1.source,
+          score1DataType: score1.dataType,
+          score2Name: score2.name,
+          score2Source: score2.source,
+          score2DataType: score2.dataType,
+          fromTimestamp,
+          toTimestamp,
+          objectType,
+        }));
 
       // Adaptive FINAL logic: Only use FINAL for small datasets to avoid expensive merge
       // For large datasets, skip FINAL to improve performance (scores can be updated, so accuracy matters for recent data)

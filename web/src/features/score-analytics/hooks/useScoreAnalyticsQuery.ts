@@ -47,6 +47,12 @@ export interface ScoreAnalyticsQueryParams {
   interval: IntervalConfig;
   objectType?: ObjectType;
   nBins?: number; // Default: 10
+  // Optional: Pass estimate results to avoid duplicate preflight query
+  estimateResults?: {
+    score1Count: number;
+    score2Count: number;
+    estimatedMatchedCount: number;
+  };
 }
 
 /**
@@ -207,6 +213,7 @@ export function useScoreAnalyticsQuery(
     interval,
     objectType,
     nBins = 10,
+    estimateResults,
   } = params;
 
   // Determine mode: "single" when only score1 selected, "two" when score2 explicitly provided
@@ -227,6 +234,7 @@ export function useScoreAnalyticsQuery(
       toTimestamp,
       interval,
       objectType,
+      estimateResults, // Pass estimate results to avoid duplicate preflight query
     },
     {
       enabled: (options?.enabled ?? true) && !!(projectId && score1),
