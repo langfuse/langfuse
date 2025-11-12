@@ -709,7 +709,7 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,
-          excludeMetadata: false,
+          excludeMetadata: true,
         }),
       ]);
 

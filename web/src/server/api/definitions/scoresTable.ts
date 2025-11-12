@@ -1,9 +1,9 @@
 import {
   type ColumnDefinition,
-  ScoreSource,
-  ScoreDataType,
   formatColumnOptions,
   type SingleValueOption,
+  ScoreSourceArray,
+  ScoreDataTypeArray,
 } from "@langfuse/shared";
 
 export const scoresTableCols: ColumnDefinition[] = [
@@ -45,14 +45,14 @@ export const scoresTableCols: ColumnDefinition[] = [
     id: "source",
     type: "stringOptions",
     internal: 's."source"::text',
-    options: Object.values(ScoreSource).map((value) => ({ value })),
+    options: ScoreSourceArray.map((value) => ({ value })),
   },
   {
     name: "Data Type",
     id: "dataType",
     type: "stringOptions",
     internal: 's."data_type"::text',
-    options: Object.values(ScoreDataType).map((value) => ({ value })),
+    options: ScoreDataTypeArray.map((value) => ({ value })),
   },
   {
     name: "Name",

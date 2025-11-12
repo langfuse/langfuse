@@ -1,7 +1,7 @@
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import {
   isPresent,
-  type APIScoreV2,
+  type ScoreDomain,
   type TraceDomain,
   ObservationLevel,
   type ObservationLevelType,
@@ -33,6 +33,7 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap, castToNumberMap } from "@/src/utils/map-utils";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 900;
@@ -85,7 +86,7 @@ function TreeItemInner({
   showScores?: boolean;
   showComments?: boolean;
   colorCodeMetrics?: boolean;
-  scores?: APIScoreV2[];
+  scores?: WithStringifiedMetadata<ScoreDomain>[];
   commentCount?: number;
   parentTotalDuration?: number;
   totalCost?: Decimal;
@@ -284,7 +285,7 @@ function TraceTreeItem({
   traceStartTime: Date;
   totalScaleSpan: number;
   projectId: string;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   observations: Array<ObservationReturnTypeWithMetadata>;
   cardWidth: number;
   commentCounts?: Map<string, number>;
@@ -420,15 +421,14 @@ export function TraceTimelineView({
   setMinLevel,
   containerWidth,
 }: {
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
     input: string | null;
     output: string | null;
-    metadata: string | null;
   };
   observations: Array<ObservationReturnTypeWithMetadata>;
   projectId: string;
-  displayScores: APIScoreV2[];
+  displayScores: WithStringifiedMetadata<ScoreDomain>[];
   currentObservationId: string | null;
   setCurrentObservationId: (id: string | null) => void;
   expandedItems: string[];

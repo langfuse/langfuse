@@ -23,8 +23,9 @@ import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScoreV2, ObservationLevel } from "@langfuse/shared";
+import { type ScoreDomain, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
@@ -62,12 +63,11 @@ const getNestedObservationKeys = (
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   };
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   projectId: string;
   viewType?: "detailed" | "focused";
   context?: "peek" | "fullscreen"; // are we in peek or fullscreen mode?

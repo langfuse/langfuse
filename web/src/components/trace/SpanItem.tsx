@@ -10,13 +10,14 @@ import {
   heatMapTextColor,
   unnestObservation,
 } from "@/src/components/trace/lib/helpers";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import React from "react";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export interface SpanItemProps {
   node: TreeNode;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
   showDuration: boolean;
   showCostTokens: boolean;

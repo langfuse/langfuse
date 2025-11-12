@@ -1,7 +1,7 @@
 import { type TreeNode } from "./lib/types";
 import { cn } from "@/src/utils/tailwind";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
@@ -16,6 +16,7 @@ import {
 } from "@/src/components/trace/lib/helpers";
 import type Decimal from "decimal.js";
 import { SpanItem } from "@/src/components/trace/SpanItem";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { api } from "@/src/utils/api";
 
 export const TraceTree = ({
@@ -42,7 +43,7 @@ export const TraceTree = ({
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
   // Note: displayScores are merged with client-side score cache; handling optimistic updates
-  displayScores: APIScoreV2[];
+  displayScores: WithStringifiedMetadata<ScoreDomain>[];
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
   showDuration: boolean;
@@ -149,7 +150,7 @@ type TreeNodeComponentProps = {
   node: TreeNode;
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
   indentationLevel: number;
   currentNodeId: string | undefined;

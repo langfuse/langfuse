@@ -6149,16 +6149,16 @@ components:
         value:
           type: number
           format: double
-          nullable: true
           description: >-
-            Only defined if a config is linked. Represents the numeric category
-            mapping of the stringValue
+            Represents the numeric category mapping of the stringValue. If no
+            config is linked, defaults to 0.
         stringValue:
           type: string
           description: >-
             The string representation of the score value. If no config is
             linked, can be any string. Otherwise, must map to a config category
       required:
+        - value
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScoreV1'
@@ -6303,16 +6303,16 @@ components:
         value:
           type: number
           format: double
-          nullable: true
           description: >-
-            Only defined if a config is linked. Represents the numeric category
-            mapping of the stringValue
+            Represents the numeric category mapping of the stringValue. If no
+            config is linked, defaults to 0.
         stringValue:
           type: string
           description: >-
             The string representation of the score value. If no config is
             linked, can be any string. Otherwise, must map to a config category
       required:
+        - value
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScore'
@@ -9081,6 +9081,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         environment:
           type: string
