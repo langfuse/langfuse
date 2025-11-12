@@ -223,7 +223,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
   columnMapping.forEach((columnMapping) => {
     const value = filter[columnMapping.id as keyof BaseQueryType];
 
-    if (value) {
+    if (value !== undefined) {
       let filterInstance;
       switch (columnMapping.filterType) {
         case "DateTimeFilter": {
