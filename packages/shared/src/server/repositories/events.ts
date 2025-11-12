@@ -62,6 +62,7 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
 const enrichObservationsWithModelData = async (
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
+  parseIoAsJson: boolean = false,
 ): Promise<Array<Observation & ObservationPriceFields>> => {
   const uniqueModels: string[] = Array.from(
     new Set(
@@ -89,7 +90,10 @@ const enrichObservationsWithModelData = async (
   return observationRecords.map((o) => {
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservation(o),
+      ...convertObservation(o, {
+        shouldJsonParse: parseIoAsJson,
+        truncated: false,
+      }),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -579,6 +583,7 @@ type PublicApiObservationsQuery = {
   version?: string;
   environment?: string | string[];
   advancedFilters?: FilterState;
+  parseIoAsJson?: boolean;
 };
 
 /**
@@ -676,7 +681,11 @@ export const getObservationsFromEventsTableForPublicApi = async (
         select: "rows",
       },
     );
-  return enrichObservationsWithModelData(observationRecords, opts.projectId);
+  return enrichObservationsWithModelData(
+    observationRecords,
+    opts.projectId,
+    Boolean(opts.parseIoAsJson),
+  );
 };
 
 /**
