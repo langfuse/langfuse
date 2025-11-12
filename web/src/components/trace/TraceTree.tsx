@@ -1,7 +1,7 @@
 import { type TreeNode } from "./lib/types";
 import { cn } from "@/src/utils/tailwind";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
@@ -16,6 +16,7 @@ import {
 } from "@/src/components/trace/lib/helpers";
 import type Decimal from "decimal.js";
 import { SpanItem } from "@/src/components/trace/SpanItem";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { api } from "@/src/utils/api";
 
 export const TraceTree = ({
@@ -25,7 +26,8 @@ export const TraceTree = ({
   displayScores: scores,
   currentNodeId,
   setCurrentNodeId,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   nodeCommentCounts,
@@ -41,10 +43,11 @@ export const TraceTree = ({
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
   // Note: displayScores are merged with client-side score cache; handling optimistic updates
-  displayScores: APIScoreV2[];
+  displayScores: WithStringifiedMetadata<ScoreDomain>[];
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   nodeCommentCounts?: Map<string, number>;
@@ -109,7 +112,8 @@ export const TraceTree = ({
         indentationLevel={0}
         currentNodeId={currentNodeId}
         setCurrentNodeId={setCurrentNodeId}
-        showMetrics={showMetrics}
+        showDuration={showDuration}
+        showCostTokens={showCostTokens}
         showScores={showScores}
         colorCodeMetrics={colorCodeMetrics}
         parentTotalCost={totalCost}
@@ -146,12 +150,13 @@ type TreeNodeComponentProps = {
   node: TreeNode;
   collapsedNodes: string[];
   toggleCollapsedNode: (id: string) => void;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
   indentationLevel: number;
   currentNodeId: string | undefined;
   setCurrentNodeId: (id: string | undefined) => void;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   parentTotalCost?: Decimal;
@@ -171,7 +176,8 @@ const UnmemoizedTreeNodeComponent = ({
   indentationLevel,
   currentNodeId,
   setCurrentNodeId,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   parentTotalCost,
@@ -291,7 +297,8 @@ const UnmemoizedTreeNodeComponent = ({
               node={node}
               scores={scores}
               comments={comments}
-              showMetrics={showMetrics}
+              showDuration={showDuration}
+              showCostTokens={showCostTokens}
               showScores={showScores}
               colorCodeMetrics={colorCodeMetrics}
               parentTotalCost={parentTotalCost}
@@ -354,7 +361,8 @@ const UnmemoizedTreeNodeComponent = ({
                   indentationLevel={indentationLevel + 1}
                   currentNodeId={currentNodeId}
                   setCurrentNodeId={setCurrentNodeId}
-                  showMetrics={showMetrics}
+                  showDuration={showDuration}
+                  showCostTokens={showCostTokens}
                   showScores={showScores}
                   colorCodeMetrics={colorCodeMetrics}
                   parentTotalCost={parentTotalCost}

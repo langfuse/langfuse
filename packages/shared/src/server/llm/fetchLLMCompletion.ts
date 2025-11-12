@@ -353,6 +353,9 @@ export async function fetchLLMCompletion(
         projectId: credentials.project_id,
         credentials,
       },
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
@@ -363,6 +366,9 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else {
     // eslint-disable-next-line no-unused-vars

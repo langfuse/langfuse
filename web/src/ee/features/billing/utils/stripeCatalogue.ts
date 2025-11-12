@@ -16,6 +16,10 @@ type StripeProduct = {
     price: string;
     usagePrice: string;
     mainFeatures: string[];
+    cta?: {
+      label: string;
+      href: string;
+    };
   } | null;
 };
 
@@ -104,6 +108,10 @@ export const stripeProducts: StripeProduct[] = [
         "Support SLA",
         "Dedicated support engineer",
       ],
+      cta: {
+        label: "Contact Sales",
+        href: "https://langfuse.com/talk-to-us",
+      },
     },
   },
 ];

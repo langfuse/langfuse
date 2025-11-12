@@ -1,5 +1,6 @@
 import type { AnnotationScore, ScoreTarget } from "@/src/features/scores/types";
-import type { APIScoreV2 } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { type ScoreDomain } from "@langfuse/shared";
 
 /**
  * Filter scores to match exact target based on mode
@@ -9,7 +10,9 @@ import type { APIScoreV2 } from "@langfuse/shared";
  * @param mode - Filter mode: "target-scores-only" for exact match, "target-and-child-scores" for all
  * @returns Filtered scores matching the target
  */
-export function filterScoresByTarget<T extends APIScoreV2 | AnnotationScore>(
+export function filterScoresByTarget<
+  T extends WithStringifiedMetadata<ScoreDomain> | AnnotationScore,
+>(
   scores: T[],
   target: ScoreTarget,
   mode: "target-and-child-scores" | "target-scores-only",

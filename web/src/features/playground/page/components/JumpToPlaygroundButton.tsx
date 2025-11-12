@@ -40,6 +40,10 @@ import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverte
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import {
+  type MetadataDomainClient,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -49,10 +53,12 @@ type JumpToPlaygroundButtonProps = (
     }
   | {
       source: "generation";
-      generation: Omit<Observation, "input" | "output" | "metadata"> & {
+      generation: Omit<
+        WithStringifiedMetadata<Observation>,
+        "input" | "output"
+      > & {
         input: string | null;
         output: string | null;
-        metadata: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
@@ -248,10 +254,9 @@ const parsePrompt = (
 };
 
 const parseGeneration = (
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
   modelToProviderMap: Record<string, string>,
 ): PlaygroundCache => {
@@ -454,7 +459,7 @@ function parseModelParams(
 function parseTools(
   inputString: string | null,
   outputString: string | null,
-  metadataString: string | null,
+  metadataString: MetadataDomainClient,
 ): PlaygroundTool[] {
   if (!inputString && !outputString && !metadataString) return [];
 
@@ -478,10 +483,9 @@ function parseTools(
 }
 
 function parseStructuredOutputSchema(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
 ): PlaygroundSchema | null {
   try {
@@ -550,10 +554,9 @@ function parseStructuredOutputSchema(
  * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
  */
 function parseLitellmMetadataFromGeneration(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
 ): UIModelParams["providerOptions"]["value"] | undefined {
   let metadata: unknown = generation.metadata;

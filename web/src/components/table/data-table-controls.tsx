@@ -1144,7 +1144,10 @@ function TextFilterSection({
               <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
                 {f.operator === "contains" ? "contains" : "does not contain"}
               </span>
-              <span className="min-w-0 flex-1 truncate font-medium">
+              <span
+                className="min-w-0 flex-1 truncate font-medium"
+                title={f.value}
+              >
                 {f.value}
               </span>
               <Button
@@ -1213,7 +1216,9 @@ export function FilterValueCheckbox({
         )}
         onClick={onLabelClick}
       >
-        <span className="min-w-0 flex-1 truncate text-xs">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-xs" title={label}>
+          {label}
+        </span>
 
         {/* "Only" or "All" indicator when hovering label */}
         {onLabelClick && !disabled && (
