@@ -146,7 +146,12 @@ const createTraceWithObservations = async (
   } else {
     // For observations table: just create observations
     const data = observations.map((obs) =>
-      createObservationOrEvent(useEventsTable, obs),
+      createObservationOrEvent(useEventsTable, {
+        ...obs,
+        environment: trace.environment,
+        user_id: trace.user_id,
+        session_id: trace.session_id,
+      }),
     );
     await createObservationsCh(data as any);
   }
