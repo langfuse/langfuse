@@ -10,7 +10,11 @@ import {
   UpdateTableViewPresetsInput,
   UpdateTableViewPresetsNameInput,
 } from "@langfuse/shared/src/server";
-import { TableViewPresetTableName } from "@langfuse/shared";
+import {
+  LangfuseConflictError,
+  Prisma,
+  TableViewPresetTableName,
+} from "@langfuse/shared";
 
 export const TableViewPresetsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -22,15 +26,27 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:CUD",
       });
 
-      const view = await TableViewService.createTableViewPresets(
-        input,
-        ctx.session.user?.id,
-      );
+      try {
+        const view = await TableViewService.createTableViewPresets(
+          input,
+          ctx.session.user?.id,
+        );
 
-      return {
-        success: true,
-        view,
-      };
+        return {
+          success: true,
+          view,
+        };
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new LangfuseConflictError(
+            "Table view preset with this name already exists. Please choose a different name.",
+          );
+        }
+        throw error;
+      }
     }),
 
   update: protectedProjectProcedure

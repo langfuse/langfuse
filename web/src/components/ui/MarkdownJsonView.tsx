@@ -14,6 +14,7 @@ import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 
 type MarkdownJsonViewHeaderProps = {
   title: string;
+  titleIcon?: React.ReactNode;
   handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   canEnableMarkdown?: boolean;
@@ -22,6 +23,7 @@ type MarkdownJsonViewHeaderProps = {
 
 export function MarkdownJsonViewHeader({
   title,
+  titleIcon,
   handleOnValueChange: _handleOnValueChange,
   handleOnCopy,
   canEnableMarkdown: _canEnableMarkdown = true,
@@ -30,8 +32,11 @@ export function MarkdownJsonViewHeader({
   const [isCopied, setIsCopied] = useState(false);
 
   return (
-    <div className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize">
-      {title}
+    <div className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors group-hover:bg-muted/80">
+      <div className="flex items-center gap-2">
+        {titleIcon}
+        {title}
+      </div>
       <div className="mr-1 flex min-w-0 flex-shrink flex-row items-center gap-1">
         {controlButtons}
         <Button
@@ -77,17 +82,21 @@ const isSupportedMarkdownFormat = (
 export function MarkdownJsonView({
   content,
   title,
+  titleIcon,
   className,
   customCodeHeaderClassName,
   audio,
   media,
+  controlButtons,
 }: {
   content?: unknown;
   title?: string;
+  titleIcon?: React.ReactNode;
   className?: string;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
+  controlButtons?: React.ReactNode;
 }) {
   const stringOrValidatedMarkdown = useMemo(
     () => StringOrMarkdownSchema.safeParse(content),
@@ -109,17 +118,21 @@ export function MarkdownJsonView({
         <MarkdownView
           markdown={stringOrValidatedMarkdown.data ?? content}
           title={title}
+          titleIcon={titleIcon}
           customCodeHeaderClassName={customCodeHeaderClassName}
           audio={audio}
           media={media}
+          controlButtons={controlButtons}
         />
       ) : (
         <PrettyJsonView
           json={content ?? (audio ? { audio } : null)}
           title={title}
+          titleIcon={titleIcon}
           className={className}
           media={media}
           currentView="pretty"
+          controlButtons={controlButtons}
         />
       )}
     </>

@@ -281,8 +281,8 @@ types:
     extends: BaseScoreV1
     properties:
       value:
-        type: optional<double>
-        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
+        type: double
+        docs: Represents the numeric category mapping of the stringValue. If no config is linked, defaults to 0.
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
@@ -342,8 +342,8 @@ types:
     extends: BaseScore
     properties:
       value:
-        type: optional<double>
-        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
+        type: double
+        docs: Represents the numeric category mapping of the stringValue. If no config is linked, defaults to 0.
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
@@ -384,6 +384,12 @@ types:
       name: string
       description: optional<string>
       metadata: optional<unknown>
+      inputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item inputs
+      expectedOutputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime
       updatedAt: datetime

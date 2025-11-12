@@ -3,6 +3,10 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
+import {
+  getScoresTabs,
+  SCORES_TABS,
+} from "@/src/features/navigation/utils/scores-tabs";
 
 export default function ScoresPage() {
   const router = useRouter();
@@ -32,6 +36,10 @@ export default function ScoresPage() {
           description:
             "A scores is an evaluation of a traces or observations. It can be created from user feedback, model-based evaluations, or manual review. See docs to learn more.",
           href: "https://langfuse.com/docs/evaluation/overview",
+        },
+        tabsProps: {
+          tabs: getScoresTabs(projectId),
+          activeTab: SCORES_TABS.SCORES,
         },
       }}
       scrollable={showOnboarding}

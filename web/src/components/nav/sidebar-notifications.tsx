@@ -30,6 +30,42 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw4-1",
+    title: "Launch Week 4: Day 1",
+    description:
+      "New Filters for Tables and Public API to query Traces and Observations.",
+    link: "https://langfuse.com/blog/2025-10-29-launch-week-4",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-03",
+  },
+  {
+    id: "lw4-2",
+    title: "Launch Week 4: Day 2",
+    description:
+      "Collaborate with your team in Langfuse with @mentions & emoji reactions for comments.",
+    link: "https://langfuse.com/changelog/2025-11-04-comment-mentions-and-reactions",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-04",
+  },
+  {
+    id: "lw4-3",
+    title: "Launch Week 4: Day 3",
+    description:
+      "Available and used LLM tools are rendered in the UI for debugging. Log view & agent graphs GA.",
+    link: "https://langfuse.com/changelog/2025-11-05-langfuse-for-agents",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-05",
+  },
+  {
+    id: "lw4-4",
+    title: "Launch Week 4: Day 4",
+    description:
+      "New for Experiments: Annotations in the compare view, set a Baseline to view score differences, and filters for outliers",
+    link: "https://langfuse.com/blog/2025-10-29-launch-week-4#day-4-experiments-in-langfuse",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-06",
+  },
+  {
     id: "js-sdk-v4",
     title: "New JS/TS SDK v4",
     description:
@@ -43,7 +79,7 @@ const notifications: SidebarNotification[] = [
     title: "New Python SDK v3",
     description:
       "Python SDK V3 offers significant improvements in developer experience, performance, and integrations.",
-    link: "https://langfuse.com/docs/sdk/python/sdk-v3#upgrade-from-v2",
+    link: "https://langfuse.com/docs/observability/sdk/python/upgrade-path",
     linkTitle: "Upgrade to v3",
     createdAt: "2025-06-27",
   },
@@ -172,7 +208,7 @@ export function SidebarNotifications() {
       <Button
         variant="ghost"
         size="sm"
-        className="absolute right-2 top-2 h-6 w-6 p-0"
+        className="absolute right-1.5 top-2.5 h-5 w-5 p-0"
         onClick={() => {
           capture("notification:dismiss_notification", {
             notification_id: currentNotification.id,
@@ -181,13 +217,15 @@ export function SidebarNotifications() {
         }}
         title="Dismiss"
       >
-        <X className="h-4 w-4" />
+        <X className="h-3.5 w-3.5" />
       </Button>
-      <CardHeader className="p-4 pb-0">
+      <CardHeader className="px-3 pb-0 pr-6 pt-2.5">
         <CardTitle className="text-sm">{currentNotification.title}</CardTitle>
-        <CardDescription>{currentNotification.description}</CardDescription>
+        <CardDescription className="mt-1">
+          {currentNotification.description}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="p-4 pt-2">
+      <CardContent className="px-3 pb-2.5 pt-1.5">
         {currentNotification.link &&
           (currentNotification.linkContent ? (
             <Link
@@ -202,7 +240,7 @@ export function SidebarNotifications() {
               {currentNotification.linkContent}
             </Link>
           ) : (
-            <Button variant="secondary" size="sm" asChild>
+            <Button variant="secondary" size="sm" className="w-full" asChild>
               <Link
                 href={currentNotification.link}
                 target="_blank"

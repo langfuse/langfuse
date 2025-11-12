@@ -3,13 +3,13 @@ import {
   mergeAggregatesWithCache,
   mergeAnnotationScoresWithCache,
 } from "@/src/features/scores/lib/mergeScoresWithCache";
-import { type APIScoreV2, type ScoreAggregate } from "@langfuse/shared";
+import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
 import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type AnnotationScore } from "@/src/features/scores/types";
 
 describe("mergeScoresWithCache", () => {
   it("should return server scores when cache is empty", () => {
-    const serverScores: APIScoreV2[] = [
+    const serverScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -29,6 +29,9 @@ describe("mergeScoresWithCache", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        metadata: {},
+        executionTraceId: null,
       },
     ];
 
@@ -39,7 +42,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should filter out deleted server scores", () => {
-    const serverScores: APIScoreV2[] = [
+    const serverScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -59,6 +62,9 @@ describe("mergeScoresWithCache", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        metadata: {},
+        executionTraceId: null,
       },
       {
         id: "score-2",
@@ -79,6 +85,9 @@ describe("mergeScoresWithCache", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        metadata: {},
+        executionTraceId: null,
       },
     ];
 
@@ -91,7 +100,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should overlay cached scores onto server scores", () => {
-    const serverScores: APIScoreV2[] = [
+    const serverScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -111,6 +120,9 @@ describe("mergeScoresWithCache", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        metadata: {},
+        executionTraceId: null,
       },
     ];
 
@@ -127,6 +139,9 @@ describe("mergeScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -138,7 +153,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should add cache-only scores", () => {
-    const serverScores: APIScoreV2[] = [
+    const serverScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -158,6 +173,9 @@ describe("mergeScoresWithCache", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        metadata: {},
+        executionTraceId: null,
       },
     ];
 
@@ -168,12 +186,15 @@ describe("mergeScoresWithCache", () => {
         dataType: "CATEGORICAL",
         source: "ANNOTATION",
         configId: "config-2",
-        value: null,
+        value: 0,
         stringValue: "positive",
         comment: null,
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -186,7 +207,7 @@ describe("mergeScoresWithCache", () => {
   });
 
   it("should handle both delete and cache overlay", () => {
-    const serverScores: APIScoreV2[] = [
+    const serverScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -206,6 +227,9 @@ describe("mergeScoresWithCache", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        metadata: {},
+        executionTraceId: null,
       },
       {
         id: "score-2",
@@ -226,6 +250,9 @@ describe("mergeScoresWithCache", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        metadata: {},
+        executionTraceId: null,
       },
     ];
 
@@ -242,6 +269,9 @@ describe("mergeScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -326,6 +356,9 @@ describe("mergeAggregatesWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -363,12 +396,15 @@ describe("mergeAggregatesWithCache", () => {
         dataType: "CATEGORICAL",
         source: "ANNOTATION",
         configId: "config-2",
-        value: null,
+        value: 0,
         stringValue: "positive",
         comment: "Changed",
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -412,6 +448,9 @@ describe("mergeAggregatesWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
       {
         id: "score-3",
@@ -425,6 +464,9 @@ describe("mergeAggregatesWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -539,6 +581,9 @@ describe("mergeAnnotationScoresWithCache", () => {
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -577,12 +622,15 @@ describe("mergeAnnotationScoresWithCache", () => {
         dataType: "CATEGORICAL",
         source: "ANNOTATION",
         configId: "config-2",
-        value: null,
+        value: 0,
         stringValue: "positive",
         comment: "New",
         traceId: "trace-1",
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
+        sessionId: null,
+        observationId: null,
       },
     ];
 
@@ -613,9 +661,10 @@ describe("mergeAnnotationScoresWithCache", () => {
         comment: "Test",
         traceId: "trace-1",
         observationId: "obs-1",
-        sessionId: undefined,
+        sessionId: null,
         projectId: "project-1",
         environment: "production",
+        timestamp: new Date(),
       },
     ];
 
@@ -638,6 +687,7 @@ describe("mergeAnnotationScoresWithCache", () => {
       traceId: "trace-1",
       observationId: "obs-1",
       sessionId: null,
+      timestamp: expect.any(Date),
     });
   });
 });

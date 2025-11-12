@@ -12,9 +12,10 @@ import {
 import {
   type DatasetItem,
   LangfuseNotFoundError,
+  InvalidRequestError,
   Prisma,
 } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, validateDatasetItemData } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -48,12 +49,42 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
           name: datasetName,
         },
+        select: {
+          id: true,
+          name: true,
+          inputSchema: true,
+          expectedOutputSchema: true,
+        },
       });
       if (!dataset) {
         throw new LangfuseNotFoundError("Dataset not found");
       }
 
       const itemId = id ?? uuidv4();
+
+      // Validate input and expectedOutput against schemas before upsert
+      // For UPSERT (which handles both CREATE and UPDATE), we validate as CREATE
+      // because the data is always being set (not partial update)
+      const validationResult = validateDatasetItemData({
+        input: input ?? undefined,
+        expectedOutput: expectedOutput ?? undefined,
+        inputSchema: dataset.inputSchema as Record<string, unknown> | null,
+        expectedOutputSchema: dataset.expectedOutputSchema as Record<
+          string,
+          unknown
+        > | null,
+        normalizeUndefinedToNull: true, // UPSERT behaves like CREATE for validation
+      });
+
+      if (!validationResult.isValid) {
+        const errorDetails = {
+          inputErrors: validationResult.inputErrors,
+          expectedOutputErrors: validationResult.expectedOutputErrors,
+        };
+        throw new InvalidRequestError(
+          `Dataset item validation failed: ${JSON.stringify(errorDetails)}`,
+        );
+      }
 
       let item: DatasetItem;
       try {

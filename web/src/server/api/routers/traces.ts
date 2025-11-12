@@ -41,6 +41,7 @@ import {
   tracesTableUiColumnDefinitions,
   getTracesGroupedByUsers,
   getTracesGroupedBySessionId,
+  updateEvents,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -49,6 +50,11 @@ import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
+import { env } from "@/src/env.mjs";
+import {
+  toDomainWithStringifiedMetadata,
+  toDomainArrayWithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -314,22 +320,15 @@ export const traceRouter = createTRPCRouter({
           : undefined;
 
       return {
-        ...ctx.trace,
-        metadata: ctx.trace.metadata
-          ? JSON.stringify(ctx.trace.metadata)
-          : null,
+        ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: validatedScores.map((s) => ({
-          ...s,
-          metadata: s.metadata ? JSON.stringify(s.metadata) : undefined,
-        })),
+        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
-          ...o,
+          ...toDomainWithStringifiedMetadata(o),
           output: undefined,
           input: undefined, // this is not queried above.
-          metadata: o.metadata ? JSON.stringify(o.metadata) : undefined,
         })) as ObservationReturnTypeWithMetadata[],
       };
     }),
@@ -412,7 +411,19 @@ export const traceRouter = createTRPCRouter({
         if (clickhouseTrace) {
           trace = clickhouseTrace;
           clickhouseTrace.bookmarked = input.bookmarked;
-          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+          const promises = [
+            upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+          ];
+          if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+            promises.push(
+              updateEvents(
+                input.projectId,
+                { traceIds: [clickhouseTrace.id], rootOnly: true },
+                { bookmarked: input.bookmarked },
+              ),
+            );
+          }
+          await Promise.all(promises);
         } else {
           logger.error(
             `Trace not found in Clickhouse: ${input.traceId}. Skipping bookmark.`,
@@ -465,7 +476,19 @@ export const traceRouter = createTRPCRouter({
           });
         }
         clickhouseTrace.public = input.public;
-        await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        const promises = [
+          upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+        ];
+        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+          promises.push(
+            updateEvents(
+              input.projectId,
+              { traceIds: [clickhouseTrace.id] },
+              { public: input.public },
+            ),
+          );
+        }
+        await Promise.all(promises);
         return clickhouseTrace;
       } catch (error) {
         logger.error("Failed to call traces.publish", error);

@@ -349,6 +349,10 @@ export async function queryClickhouse<T>(opts: {
       // Retry logic for socket hang up and other network errors
       return await backOff(
         async () => {
+          // same logic as for prisma. we want to see queries in development
+          if (env.NODE_ENV === "development") {
+            logger.info(`clickhouse:query ${opts.query}`);
+          }
           const res = await clickhouseClient(
             opts.clickhouseConfigs,
             opts.preferredClickhouseService,
@@ -357,15 +361,12 @@ export async function queryClickhouse<T>(opts: {
             format: "JSONEachRow",
             query_params: opts.params,
             clickhouse_settings: {
+              asterisk_include_alias_columns: 1,
+              asterisk_include_materialized_columns: 1,
               ...opts.clickhouseSettings,
               log_comment: JSON.stringify(opts.tags ?? {}),
             },
           });
-
-          // same logic as for prisma. we want to see queries in development
-          if (env.NODE_ENV === "development") {
-            logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
-          }
 
           span.setAttribute("ch.queryId", res.query_id);
 

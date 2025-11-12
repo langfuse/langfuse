@@ -16,6 +16,7 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  FilterIcon,
   Info,
   Plus,
   WandSparkles,
@@ -63,6 +64,7 @@ export function PopoverFilterBuilder({
   onChange,
   columnsWithCustomSelect = [],
   filterWithAI = false,
+  buttonType = "default",
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
@@ -71,6 +73,7 @@ export function PopoverFilterBuilder({
     | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
+  buttonType?: "default" | "icon";
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -125,27 +128,47 @@ export function PopoverFilterBuilder({
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="outline" type="button">
-            <span>Filters</span>
-            {filterState.length > 0 && filterState.length < 3 ? (
-              <InlineFilterState
-                filterState={filterState}
-                className="hidden @6xl:block"
-              />
-            ) : null}
-            {filterState.length > 0 ? (
-              <span
-                className={cn(
-                  "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
-                  filterState.length > 2 && "@6xl:inline",
-                )}
-              >
-                {filterState.length}
-              </span>
-            ) : (
-              <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
-            )}
-          </Button>
+          {buttonType === "default" ? (
+            <Button variant="outline" type="button">
+              <span>Filters</span>
+              {filterState.length > 0 && filterState.length < 3 ? (
+                <InlineFilterState
+                  filterState={filterState}
+                  className="hidden @6xl:block"
+                />
+              ) : null}
+              {filterState.length > 0 ? (
+                <span
+                  className={cn(
+                    "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
+                    filterState.length > 2 && "@6xl:inline",
+                  )}
+                >
+                  {filterState.length}
+                </span>
+              ) : (
+                <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+              )}
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              type="button"
+              variant="ghost"
+              className="relative"
+            >
+              <FilterIcon className="h-4 w-4" />
+              {filterState.length > 0 && (
+                <span
+                  className={cn(
+                    "absolute -right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-sm bg-input px-1 text-xs shadow-sm",
+                  )}
+                >
+                  {filterState.length}
+                </span>
+              )}
+            </Button>
+          )}
         </PopoverTrigger>
         <PopoverContent
           className="w-fit max-w-[90vw] overflow-x-auto"
@@ -161,15 +184,27 @@ export function PopoverFilterBuilder({
         </PopoverContent>
       </Popover>
       {filterState.length > 0 ? (
-        <Button
-          onClick={() => setWipFilterState([])}
-          variant="ghost"
-          type="button"
-          size="icon"
-          className="ml-0.5"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        buttonType === "default" ? (
+          <Button
+            onClick={() => setWipFilterState([])}
+            variant="ghost"
+            type="button"
+            size="icon"
+            className="ml-0.5"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={() => setWipFilterState([])}
+            variant="ghost"
+            type="button"
+            size="icon-xs"
+            className="ml-0.5 hover:bg-background"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )
       ) : null}
     </div>
   );

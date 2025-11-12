@@ -271,20 +271,49 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     deleteMutation.isPending,
   ]);
 
+  const rollbackDeleteError = (
+    index: number,
+    field: (typeof controlledFields)[number],
+    previousScore: {
+      id: string | null;
+      value?: number | null;
+      stringValue?: string | null;
+      comment?: string | null;
+      timestamp?: Date | null;
+    },
+  ) => {
+    // Rollback field array
+    update(index, {
+      name: field.name,
+      dataType: field.dataType,
+      configId: field.configId,
+      ...previousScore,
+    });
+    // Rollback form values directly to ensure sync
+    form.setValue(`scoreData.${index}.id`, previousScore.id);
+    form.setValue(`scoreData.${index}.value`, previousScore.value);
+    form.setValue(`scoreData.${index}.stringValue`, previousScore.stringValue);
+    form.setValue(`scoreData.${index}.comment`, previousScore.comment);
+    form.setValue(`scoreData.${index}.timestamp`, previousScore.timestamp);
+    form.setError(`scoreData.${index}.value`, {
+      type: "server",
+      message: "Failed to delete score",
+    });
+  };
+
   const handleDeleteScore = (index: number) => {
     const field = controlledFields[index];
 
-    if (field.id) {
-      deleteMutation.mutate({
-        id: field.id,
-        projectId: scoreMetadata.projectId,
-      });
-    }
+    // Capture previous state for rollback
+    const previousScore = {
+      id: field.id,
+      value: field.value,
+      stringValue: field.stringValue,
+      comment: field.comment,
+      timestamp: field.timestamp,
+    };
 
-    // Capture delete event
-    capture("score:delete", analyticsData);
-
-    // Remove from form
+    // Optimistically clear form
     form.clearErrors(`scoreData.${index}.value`);
     update(index, {
       name: field.name,
@@ -294,6 +323,52 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       value: null,
       stringValue: null,
       comment: null,
+    });
+
+    // Fire mutation with rollback
+    if (previousScore.id) {
+      deleteMutation.mutate(
+        {
+          id: previousScore.id,
+          projectId: scoreMetadata.projectId,
+        },
+        {
+          onError: () => rollbackDeleteError(index, field, previousScore),
+        },
+      );
+    }
+
+    // Capture delete event
+    capture("score:delete", analyticsData);
+  };
+
+  const rollbackUpdateError = (
+    index: number,
+    previousValue?: number | null,
+    previousStringValue?: string | null,
+  ) => {
+    form.setValue(`scoreData.${index}.value`, previousValue);
+    form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
+    form.setError(`scoreData.${index}.value`, {
+      type: "server",
+      message: "Failed to update score",
+    });
+  };
+
+  const rollbackCreateError = (
+    index: number,
+    previousValue?: number | null,
+    previousStringValue?: string | null,
+    previousId?: string | null,
+    previousTimestamp?: Date | null,
+  ) => {
+    form.setValue(`scoreData.${index}.id`, previousId);
+    form.setValue(`scoreData.${index}.timestamp`, previousTimestamp);
+    form.setValue(`scoreData.${index}.value`, previousValue);
+    form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
+    form.setError(`scoreData.${index}.value`, {
+      type: "server",
+      message: "Failed to create score",
     });
   };
 
@@ -305,18 +380,26 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const field = controlledFields[index];
     if (!field) return;
 
-    // Clear errors
-    form.clearErrors(`scoreData.${index}.value`);
+    // Capture previous form state for rollback
+    const previousValue = field.value;
+    const previousStringValue = field.stringValue;
+    const previousId = field.id;
+    const previousTimestamp = field.timestamp;
 
-    // Keep form state in sync - update both value and stringValue
+    // Clear errors and update form optimistically
+    form.clearErrors(`scoreData.${index}.value`);
     form.setValue(`scoreData.${index}.value`, value);
     form.setValue(`scoreData.${index}.stringValue`, stringValue);
 
     // Fire mutation
-    const { id: scoreId, ...fieldWithoutId } = field;
+    const {
+      id: scoreId,
+      timestamp: scoreTimestamp,
+      ...fieldWithoutIdAndTimestamp
+    } = field;
 
     const baseScoreData = {
-      ...fieldWithoutId,
+      ...fieldWithoutIdAndTimestamp,
       ...scoreMetadata,
       value,
       stringValue,
@@ -324,18 +407,39 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     };
 
     if (scoreId) {
-      updateMutation.mutate({
-        ...baseScoreData,
-        id: scoreId,
-      } as UpdateAnnotationScoreData);
+      updateMutation.mutate(
+        {
+          ...baseScoreData,
+          id: scoreId,
+          timestamp: scoreTimestamp ?? undefined,
+        } as UpdateAnnotationScoreData,
+        {
+          onError: () =>
+            rollbackUpdateError(index, previousValue, previousStringValue),
+        },
+      );
     } else {
       const id = uuid();
-      // Update scoreId in form for future updates
+      const timestamp = new Date();
       form.setValue(`scoreData.${index}.id`, id);
-      createMutation.mutate({
-        ...baseScoreData,
-        id,
-      } as CreateAnnotationScoreData);
+      form.setValue(`scoreData.${index}.timestamp`, timestamp);
+      createMutation.mutate(
+        {
+          ...baseScoreData,
+          id,
+          timestamp,
+        } as CreateAnnotationScoreData,
+        {
+          onError: () =>
+            rollbackCreateError(
+              index,
+              previousValue,
+              previousStringValue,
+              previousId,
+              previousTimestamp,
+            ),
+        },
+      );
     }
   };
 
@@ -344,6 +448,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const config = configs.find((c) => c.id === field.configId);
 
     if (!config || !field) return;
+
+    if (field.value === null || field.value === undefined) {
+      return; // Don't create/update score with empty value
+    }
 
     // Client-side validation - don't fire mutation if invalid
     const errorMessage = validateNumericScore({
@@ -379,23 +487,45 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     handleUpsert(index, numericCategoryValue, stringValue);
   };
 
+  const rollbackCommentError = (
+    index: number,
+    field: (typeof controlledFields)[number],
+    previousComment?: string | null,
+  ) => {
+    update(index, {
+      ...field,
+      comment: previousComment,
+    });
+    form.setError(`scoreData.${index}.comment`, {
+      type: "server",
+      message: "Failed to update comment",
+    });
+  };
+
   const handleCommentUpdate = (index: number, newComment: string | null) => {
     const field = controlledFields[index];
     if (!field || !field.id) return;
 
-    // Update form with the new comment value
+    const previousComment = field.comment;
+
+    // Optimistically update form
     update(index, {
       ...field,
       comment: newComment,
     });
 
-    // Fire mutation with new comment (only pass necessary fields)
-    updateMutation.mutate({
-      ...field,
-      ...scoreMetadata,
-      scoreTarget,
-      comment: newComment,
-    } as UpdateAnnotationScoreData);
+    // Fire mutation
+    updateMutation.mutate(
+      {
+        ...field,
+        ...scoreMetadata,
+        scoreTarget,
+        comment: newComment,
+      } as UpdateAnnotationScoreData,
+      {
+        onError: () => rollbackCommentError(index, field, previousComment),
+      },
+    );
   };
 
   return (
@@ -773,6 +903,7 @@ export function AnnotationForm<Target extends ScoreTarget>({
       value: score.value,
       stringValue: score.stringValue,
       comment: score.comment,
+      timestamp: score.timestamp,
     });
   });
 
@@ -788,6 +919,7 @@ export function AnnotationForm<Target extends ScoreTarget>({
         value: null,
         stringValue: null,
         comment: null,
+        timestamp: null,
       });
     }
   });

@@ -28,13 +28,14 @@ import {
 } from "@/src/components/ui/popover";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Label } from "@/src/components/ui/label";
-import { AnnotationQueueObjectType, type APIScoreV2 } from "@langfuse/shared";
+import { AnnotationQueueObjectType, type ScoreDomain } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { TablePeekView } from "@/src/components/table/peek";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -130,7 +131,11 @@ export function SessionUsers({
   );
 }
 
-const SessionScores = ({ scores }: { scores: APIScoreV2[] }) => {
+const SessionScores = ({
+  scores,
+}: {
+  scores: WithStringifiedMetadata<ScoreDomain>[];
+}) => {
   return (
     <div className="flex flex-wrap gap-1">
       <GroupedScoreBadges scores={scores} />
@@ -333,14 +338,7 @@ export const SessionPage: React.FC<{
                   type: "session",
                   sessionId,
                 }}
-                scores={
-                  session.data?.scores?.map((score) => ({
-                    ...score,
-                    timestamp: new Date(score.timestamp),
-                    createdAt: new Date(score.createdAt),
-                    updatedAt: new Date(score.updatedAt),
-                  })) ?? []
-                }
+                scores={session.data?.scores ?? []}
                 scoreMetadata={{
                   projectId: projectId,
                   environment: session.data?.environment,
@@ -371,16 +369,7 @@ export const SessionPage: React.FC<{
               Total cost: {usdFormatter(session.data.totalCost, 2)}
             </Badge>
           )}
-          <SessionScores
-            scores={
-              session.data?.scores?.map((score) => ({
-                ...score,
-                timestamp: new Date(score.timestamp),
-                createdAt: new Date(score.createdAt),
-                updatedAt: new Date(score.updatedAt),
-              })) ?? []
-            }
-          />
+          <SessionScores scores={session.data?.scores ?? []} />
         </div>
         <div className="flex flex-col gap-4 p-4">
           {session.data?.traces.slice(0, visibleTraces).map((trace) => (

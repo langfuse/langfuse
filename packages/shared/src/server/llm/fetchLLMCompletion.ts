@@ -52,6 +52,7 @@ const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
   LLMAdapter.Anthropic,
 ];
 
@@ -332,6 +333,9 @@ export async function fetchLLMCompletion(
         projectId: credentials.project_id,
         credentials,
       },
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
@@ -342,6 +346,9 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else {
     // eslint-disable-next-line no-unused-vars

@@ -1,6 +1,42 @@
 import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
+// attempts to parse Python dict/list string to JSON object
+// LangChain/LangGraph v1 tool calls are logged as python dicts for example
+function tryParsePythonDict(str: string): unknown {
+  // performance: early terminate unless has single quotes AND dict/list structure chars
+  if (!str.includes("'") || !(str.includes("{") || str.includes("["))) {
+    return str;
+  }
+
+  if (str.length > 1_000_000) {
+    return str;
+  }
+
+  const trimmed = str.trim();
+  if (trimmed[0] !== "{" && trimmed[0] !== "[") {
+    return str;
+  }
+
+  try {
+    // Convert Python syntax to JSON:
+    // 1. Replace Python boolean/null literals (with word boundaries)
+    // 2. Replace single quotes with double quotes
+    const jsonStr = trimmed
+      .replace(/\bTrue\b/g, "true")
+      .replace(/\bFalse\b/g, "false")
+      .replace(/\bNone\b/g, "null")
+      // NOTE: this converts all ' indiscriminately and might break some JSONs with escaped '
+      // not that bad, because we only call this function, after JSON.parse has already failed
+      // therefore, the failure case is the default already.
+      .replace(/'/g, '"');
+
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    return str;
+  }
+}
+
 /**
  * Deeply parses a JSON string or object for nested stringified JSON
  * @param json JSON string or object to parse
@@ -13,6 +49,10 @@ export function deepParseJson(json: unknown): unknown {
       if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
       return deepParseJson(parsed); // Recursively parse parsed value
     } catch (e) {
+      const pythonParsed = tryParsePythonDict(json);
+      if (pythonParsed !== json) {
+        return deepParseJson(pythonParsed);
+      }
       return json; // If it's not a valid JSON string, just return the original string
     }
   } else if (typeof json === "object" && json !== null) {

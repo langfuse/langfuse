@@ -13,8 +13,8 @@ import {
 import { z } from "zod/v4";
 import {
   type EnrichedDatasetRunItem,
-  getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
+  getObservationsGroupedByTraceId,
   getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
   traceException,
@@ -22,6 +22,7 @@ import {
 import Decimal from "decimal.js";
 import { groupBy } from "lodash";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { calculateRecursiveMetricsForRunItems } from "./utils";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -204,28 +205,37 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
   const filterTimestamp = minTimestamp
     ? new Date(minTimestamp.getTime() - 24 * 60 * 60 * 1000)
     : undefined;
-  const [traceScores, observationAggregates, traceAggregate] =
+  const traceIds = runItems.map((ri) => ri.traceId);
+  const observationLevelRunItems = runItems.filter(
+    (ri) => ri.observationId !== null,
+  );
+
+  const [traceScores, observationsByTraceId, traceAggregate] =
     await Promise.all([
       getScoresForTraces({
         projectId,
-        traceIds: runItems.map((ri) => ri.traceId),
+        traceIds,
         timestamp: filterTimestamp,
         includeHasMetadata: true,
         excludeMetadata: true,
       }),
-      getLatencyAndTotalCostForObservations(
+      getObservationsGroupedByTraceId(
         projectId,
-        runItems
-          .filter((ri) => ri.observationId !== null)
-          .map((ri) => ri.observationId) as string[],
+        observationLevelRunItems.map((ri) => ri.traceId),
         filterTimestamp,
       ),
       getLatencyAndTotalCostForObservationsByTraces(
         projectId,
-        runItems.map((ri) => ri.traceId),
+        traceIds,
         filterTimestamp,
       ),
     ]);
+
+  // Calculate recursive metrics for observation-level run items
+  const observationAggregates = calculateRecursiveMetricsForRunItems<WithIO>(
+    observationLevelRunItems,
+    observationsByTraceId,
+  );
 
   const validatedTraceScores = filterAndValidateDbScoreList({
     scores: traceScores,

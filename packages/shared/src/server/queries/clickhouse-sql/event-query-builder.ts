@@ -19,6 +19,10 @@ const EVENTS_FIELDS = {
   level: "e.level as level",
   statusMessage: 'e.status_message as "status_message"',
   version: "e.version as version",
+  bookmarked: "e.bookmarked as bookmarked",
+  public: "e.public as public",
+  userId: 'e.user_id as "user_id"',
+  sessionId: 'e.session_id as "session_id"',
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
@@ -48,13 +52,13 @@ const EVENTS_FIELDS = {
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
-  metadata: "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
+  metadata: "mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata",
 
   // Calculated fields
   latency:
-    "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency",
+    "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency",
   timeToFirstToken:
-    "if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as \"time_to_first_token\"",
+    "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as \"time_to_first_token\"",
 } as const;
 
 /**
@@ -149,8 +153,12 @@ const EVENTS_AGGREGATION_FIELDS = {
   user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
   input: "argMaxIf(input, event_ts, parent_span_id = '') AS input",
   output: "argMaxIf(output, event_ts, parent_span_id = '') AS output",
+  input_truncated:
+    "argMaxIf(input_truncated, event_ts, parent_span_id = '') AS input_truncated",
+  output_truncated:
+    "argMaxIf(output_truncated, event_ts, parent_span_id = '') AS output_truncated",
   metadata:
-    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_values), event_ts, parent_span_id = '') AS metadata",
+    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_prefixes), event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
@@ -159,10 +167,11 @@ const EVENTS_AGGREGATION_FIELDS = {
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
 
+  bookmarked:
+    "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
+  public: "max(public) AS public",
   // Legacy fields for backward compatibility
   tags: "array() AS tags",
-  bookmarked: "false AS bookmarked",
-  public: "false AS public",
   release: "'' AS release",
 } as const;
 
@@ -799,6 +808,87 @@ export class CTEQueryBuilder<
     if (this.whereClauses.length > 0) {
       parts.push(`WHERE ${this.whereClauses.join("\n  AND ")}`);
     }
+
+    // ORDER BY
+    if (this.orderByClause) {
+      parts.push(this.orderByClause);
+    }
+
+    // LIMIT
+    const limitSection = this.buildLimitSection();
+    if (limitSection) {
+      parts.push(limitSection);
+    }
+
+    return parts.join("\n");
+  }
+}
+
+/**
+ * Query builder for observation-level aggregation queries on events table.
+ * Similar to EventsAggregationQueryBuilder but for grouping by observation columns.
+ * Used for filter options queries.
+ *
+ * @example
+ * const builder = new EventsAggQueryBuilder({
+ *   projectId: "abc123",
+ *   groupByColumn: "e.provided_model_name",
+ *   selectExpression: "e.provided_model_name as name"
+ * })
+ *   .whereRaw("e.type = 'GENERATION'")
+ *   .orderBy("ORDER BY count() DESC")
+ *   .limit(1000, 0);
+ */
+export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
+  private projectId: string;
+  private groupByColumn: string;
+  private selectExpression: string;
+
+  constructor(options: {
+    projectId: string;
+    groupByColumn: string;
+    selectExpression: string;
+  }) {
+    super();
+    this.projectId = options.projectId;
+    this.groupByColumn = options.groupByColumn;
+    this.selectExpression = options.selectExpression;
+    this.params.projectId = options.projectId;
+  }
+
+  /**
+   * Build the final query
+   */
+  protected buildQuery(): string {
+    const parts: string[] = [];
+
+    // CTEs
+    const cteSection = this.buildCTESection();
+    if (cteSection) {
+      parts.push(cteSection);
+    }
+
+    // SELECT
+    parts.push(`SELECT ${this.selectExpression}`);
+
+    // FROM
+    parts.push("FROM events e");
+
+    // JOINs
+    const joinSection = this.buildJoinSection();
+    if (joinSection) {
+      parts.push(joinSection);
+    }
+
+    // WHERE - project_id filter added automatically
+    const allWhereClauses = [
+      "e.project_id = {projectId: String}",
+      ...this.whereClauses,
+    ];
+    parts.push(`WHERE ${allWhereClauses.join("\n  AND ")}`);
+
+    // GROUP BY
+    parts.push(`GROUP BY ${this.groupByColumn}`);
 
     // ORDER BY
     if (this.orderByClause) {

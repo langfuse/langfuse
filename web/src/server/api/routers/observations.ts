@@ -9,6 +9,7 @@ import {
   getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
+import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export const observationsRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
@@ -43,10 +44,9 @@ export const observationsRouter = createTRPCRouter({
         );
       }
       return {
-        ...obs,
+        ...toDomainWithStringifiedMetadata(obs),
         input: obs.input as string,
         output: obs.output as string,
-        metadata: obs.metadata != null ? JSON.stringify(obs.metadata) : null,
         internalModel: obs?.internalModelId,
       };
     }),

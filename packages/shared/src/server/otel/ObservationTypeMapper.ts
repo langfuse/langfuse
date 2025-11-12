@@ -117,6 +117,31 @@ function hasMeaningfulValue(value: unknown): boolean {
   return true;
 }
 
+// for Vercel AI SDK checks attributes operation.name with startsWith and ai.operationId with equals
+function matchesVercelAiSdkOperation(
+  attributes: Record<string, unknown>,
+  prefixes: string[],
+): boolean {
+  const operationName = attributes["operation.name"];
+  const operationId = attributes["ai.operationId"];
+
+  if (hasMeaningfulValue(operationName)) {
+    const opNameStr = operationName as string;
+    if (prefixes.some((prefix) => opNameStr.startsWith(prefix))) {
+      return true;
+    }
+  }
+
+  if (hasMeaningfulValue(operationId)) {
+    const opIdStr = operationId as string;
+    if (prefixes.includes(opIdStr)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Registry to manage observation type mappers with a unified interface to map
  * span attributes to observation types.
@@ -226,36 +251,60 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
+    // Priority 4: Vercel AI SDK generation/embedding operations (require model information)
     new CustomAttributeMapper(
-      "Vercel_AI_SDK_Operation",
+      // NAME
+      "Vercel_AI_SDK_Operation_Generation_Like",
+      // PRIORITY
       4,
-      (attributes) => hasMeaningfulValue(attributes["operation.name"]),
+      // CANMAP?
       (attributes) => {
-        const operationName = attributes["operation.name"] as string;
-        // Format:
-        // Vercel AI SDK Value: Langfuse ObservationType
-        // IMPORTANT: prefixes inversely ordered by length to avoid false matches
-        // AI SDK may append function ID after operation name (e.g., "ai.embed my-function"), first seen on 2025-10-29 in SDK v5
-        const prefixMappings: Array<[string, LangfuseObservationType]> = [
-          ["ai.generateText.doGenerate", "GENERATION"],
-          ["ai.generateText", "GENERATION"],
-          ["ai.streamText.doStream", "GENERATION"],
-          ["ai.streamText", "GENERATION"],
-          ["ai.generateObject.doGenerate", "GENERATION"],
-          ["ai.generateObject", "GENERATION"],
-          ["ai.streamObject.doStream", "GENERATION"],
-          ["ai.streamObject", "GENERATION"],
-          ["ai.embed.doEmbed", "EMBEDDING"],
-          ["ai.embedMany.doEmbed", "EMBEDDING"],
-          ["ai.embedMany", "EMBEDDING"],
-          ["ai.embed", "EMBEDDING"],
-          ["ai.toolCall", "TOOL"],
+        const modelKeys = [
+          LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+          "gen_ai.request.model",
+          "gen_ai.response.model",
+        ];
+        const hasModelInformation = modelKeys.some((key) =>
+          hasMeaningfulValue(attributes[key]),
+        );
+
+        // Only handle generation and embedding operations
+        const generationEmbeddingPrefixes = [
+          "ai.generateText",
+          "ai.streamText",
+          "ai.generateObject",
+          "ai.streamObject",
+          "ai.embed",
         ];
 
-        // Check if operation.name starts with any known operation prefix
-        // instead of checking for exact match due to the potentially added functionId
-        for (const [prefix, type] of prefixMappings) {
-          if (operationName.startsWith(prefix)) {
+        const isGenerationOrEmbedding = matchesVercelAiSdkOperation(
+          attributes,
+          generationEmbeddingPrefixes,
+        );
+
+        return hasModelInformation && isGenerationOrEmbedding;
+      },
+      // MAPPER
+      (attributes) => {
+        // IMPORTANT: prefixes inversely ordered by length to avoid false matches
+        // AI SDK may append function ID after operation name (e.g., "ai.embed my-function")
+        const prefixMappings: Array<[string[], LangfuseObservationType]> = [
+          [["ai.generateText.doGenerate"], "GENERATION"],
+          [["ai.generateText"], "GENERATION"],
+          [["ai.streamText.doStream"], "GENERATION"],
+          [["ai.streamText"], "GENERATION"],
+          [["ai.generateObject.doGenerate"], "GENERATION"],
+          [["ai.generateObject"], "GENERATION"],
+          [["ai.streamObject.doStream"], "GENERATION"],
+          [["ai.streamObject"], "GENERATION"],
+          [["ai.embed.doEmbed"], "EMBEDDING"],
+          [["ai.embedMany.doEmbed"], "EMBEDDING"],
+          [["ai.embedMany"], "EMBEDDING"],
+          [["ai.embed"], "EMBEDDING"],
+        ];
+
+        for (const [prefixes, type] of prefixMappings) {
+          if (matchesVercelAiSdkOperation(attributes, prefixes)) {
             return type;
           }
         }
@@ -264,9 +313,59 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
+    // Priority 5: Vercel AI SDK span-like operations (no model info)
+    new CustomAttributeMapper(
+      // NAME
+      "Vercel_AI_SDK_Operation_Span_Like",
+      // PRIORITY
+      5,
+      // CANMAP?
+      (attributes) => {
+        // Check if it's a Vercel AI SDK operation (starts with "ai.")
+        const operationName = attributes["operation.name"];
+        const operationId = attributes["ai.operationId"];
+
+        const hasAiOperation =
+          (hasMeaningfulValue(operationName) &&
+            (operationName as string).startsWith("ai.")) ||
+          (hasMeaningfulValue(operationId) &&
+            (operationId as string).startsWith("ai."));
+
+        if (!hasAiOperation) {
+          return false;
+        }
+
+        // Exclude generation and embedding operations (handled by Generation_Like mapper)
+        // technically, not required here because the generation-like mapper has higher priority
+        // but to keep them interchangeable, we reject them here
+        const generationEmbeddingPrefixes = [
+          "ai.generateText",
+          "ai.streamText",
+          "ai.generateObject",
+          "ai.streamObject",
+          "ai.embed",
+        ];
+
+        const isGenerationOrEmbedding = matchesVercelAiSdkOperation(
+          attributes,
+          generationEmbeddingPrefixes,
+        );
+
+        return !isGenerationOrEmbedding;
+      },
+      // MAPPER
+      (attributes) => {
+        // for now, there are only tools. further mappings should be added here
+        if (matchesVercelAiSdkOperation(attributes, ["ai.toolCall"])) {
+          return "TOOL";
+        }
+        return null;
+      },
+    ),
+
     new CustomAttributeMapper(
       "ModelBased",
-      5,
+      6,
       (attributes, _resourceAttributes, _scopeData) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,

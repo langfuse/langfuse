@@ -1,9 +1,9 @@
 import {
   type ColumnDefinition,
-  ScoreSource,
-  ScoreDataType,
   formatColumnOptions,
   type SingleValueOption,
+  ScoreSourceArray,
+  ScoreDataTypeArray,
 } from "@langfuse/shared";
 
 export const scoresTableCols: ColumnDefinition[] = [
@@ -22,6 +22,13 @@ export const scoresTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 's."environment"',
+    options: [], // to be added at runtime
+  },
+  {
     name: "Observation ID",
     id: "observationId",
     type: "string",
@@ -38,14 +45,14 @@ export const scoresTableCols: ColumnDefinition[] = [
     id: "source",
     type: "stringOptions",
     internal: 's."source"::text',
-    options: Object.values(ScoreSource).map((value) => ({ value })),
+    options: ScoreSourceArray.map((value) => ({ value })),
   },
   {
     name: "Data Type",
     id: "dataType",
     type: "stringOptions",
     internal: 's."data_type"::text',
-    options: Object.values(ScoreDataType).map((value) => ({ value })),
+    options: ScoreDataTypeArray.map((value) => ({ value })),
   },
   {
     name: "Name",
@@ -55,6 +62,14 @@ export const scoresTableCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
   },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
+  {
+    name: "String Value",
+    id: "stringValue",
+    type: "stringOptions",
+    internal: 's."string_value"',
+    options: [], // to be added at runtime
+    nullable: true,
+  },
   {
     name: "User ID",
     id: "userId",
@@ -78,6 +93,7 @@ export type ScoreOptions = {
   tags: Array<SingleValueOption>;
   traceName: Array<SingleValueOption>;
   userId: Array<SingleValueOption>;
+  stringValue: Array<SingleValueOption>;
 };
 
 export function scoresTableColsWithOptions(
@@ -95,6 +111,9 @@ export function scoresTableColsWithOptions(
     }
     if (col.id === "userId") {
       return formatColumnOptions(col, options?.userId ?? []);
+    }
+    if (col.id === "stringValue") {
+      return formatColumnOptions(col, options?.stringValue ?? []);
     }
     return col;
   });

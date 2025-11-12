@@ -11,11 +11,15 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
+import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
+import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
+import { generateSchemaExample } from "../lib/generateSchemaExample";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -122,11 +126,89 @@ export const NewDatasetItemForm = (props: {
     },
   });
 
-  const selectedDatasetCount = form.watch("datasetIds").length;
+  const selectedDatasetIds = form.watch("datasetIds");
+  const selectedDatasetCount = selectedDatasetIds.length;
+  const inputValue = form.watch("input");
+  const expectedOutputValue = form.watch("expectedOutput");
+
+  const hasInitialValues = Boolean(
+    props.input || props.output || props.metadata,
+  );
+
+  // Track if fields have been touched or modified
+  const { touchedFields, dirtyFields } = form.formState;
+  const hasInteractedWithInput = touchedFields.input || dirtyFields.input;
+  const hasInteractedWithExpectedOutput =
+    touchedFields.expectedOutput || dirtyFields.expectedOutput;
 
   const datasets = api.datasets.allDatasetMeta.useQuery({
     projectId: props.projectId,
   });
+
+  // Get selected datasets with their schemas
+  const selectedDatasets = useMemo(() => {
+    if (!datasets.data) return [];
+    return datasets.data.filter((d) => selectedDatasetIds.includes(d.id));
+  }, [datasets.data, selectedDatasetIds]);
+
+  // Validate against all selected dataset schemas
+  const validation = useDatasetItemValidation(
+    inputValue,
+    expectedOutputValue,
+    selectedDatasets,
+  );
+
+  // Check if any selected dataset has schemas
+  const hasInputSchema = selectedDatasets.some((d) => d.inputSchema);
+  const hasOutputSchema = selectedDatasets.some((d) => d.expectedOutputSchema);
+
+  // Filter validation errors by field
+  const inputErrors = validation.errors.filter((e) => e.field === "input");
+  const expectedOutputErrors = validation.errors.filter(
+    (e) => e.field === "expectedOutput",
+  );
+
+  // Generate placeholders from schema when dataset is selected
+  useEffect(() => {
+    // Only generate if form has no initial values
+    if (hasInitialValues) return;
+
+    // Only generate if single dataset selected
+    if (selectedDatasets.length !== 1) return;
+
+    const dataset = selectedDatasets[0];
+    if (!dataset) return;
+
+    // Generate input placeholder if schema exists and field is empty
+    if (dataset.inputSchema && !inputValue) {
+      const placeholder = generateSchemaExample(dataset.inputSchema);
+      if (placeholder) {
+        form.setValue("input", placeholder, {
+          shouldValidate: false,
+          shouldDirty: false,
+          shouldTouch: false,
+        });
+      }
+    }
+
+    // Generate expectedOutput placeholder if schema exists and field is empty
+    if (dataset.expectedOutputSchema && !expectedOutputValue) {
+      const placeholder = generateSchemaExample(dataset.expectedOutputSchema);
+      if (placeholder) {
+        form.setValue("expectedOutput", placeholder, {
+          shouldValidate: false,
+          shouldDirty: false,
+          shouldTouch: false,
+        });
+      }
+    }
+  }, [
+    selectedDatasets,
+    hasInitialValues,
+    inputValue,
+    expectedOutputValue,
+    form,
+  ]);
 
   const utils = api.useUtils();
   const createManyDatasetItemsMutation =
@@ -156,9 +238,18 @@ export const NewDatasetItemForm = (props: {
           sourceObservationId: props.observationId,
         })),
       })
-      .then(() => {
-        props.onFormSuccess?.();
-        form.reset();
+      .then((result) => {
+        if (result.success) {
+          props.onFormSuccess?.();
+          form.reset();
+
+          return;
+        }
+
+        setFormError(
+          `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
+        );
+        console.error(result.validationErrors);
       })
       .catch((error) => {
         console.error(error);
@@ -272,7 +363,20 @@ export const NewDatasetItemForm = (props: {
                 name="input"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
-                    <FormLabel>Input</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Input</FormLabel>
+                      {hasInputSchema &&
+                        selectedDatasets
+                          .filter((d) => d.inputSchema)
+                          .map((dataset) => (
+                            <DatasetSchemaHoverCard
+                              key={dataset.id}
+                              schema={dataset.inputSchema!}
+                              schemaType="input"
+                              showLabel
+                            />
+                          ))[0]}
+                    </div>
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
@@ -285,6 +389,14 @@ export const NewDatasetItemForm = (props: {
                       />
                     </FormControl>
                     <FormMessage />
+                    {validation.hasSchemas &&
+                      inputErrors.length > 0 &&
+                      (hasInitialValues || hasInteractedWithInput) && (
+                        <DatasetItemFieldSchemaErrors
+                          errors={inputErrors}
+                          showDatasetName={selectedDatasets.length > 1}
+                        />
+                      )}
                   </FormItem>
                 )}
               />
@@ -293,7 +405,20 @@ export const NewDatasetItemForm = (props: {
                 name="expectedOutput"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
-                    <FormLabel>Expected output</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Expected output</FormLabel>
+                      {hasOutputSchema &&
+                        selectedDatasets
+                          .filter((d) => d.expectedOutputSchema)
+                          .map((dataset) => (
+                            <DatasetSchemaHoverCard
+                              key={dataset.id}
+                              schema={dataset.expectedOutputSchema!}
+                              schemaType="expectedOutput"
+                              showLabel
+                            />
+                          ))[0]}
+                    </div>
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
@@ -306,10 +431,19 @@ export const NewDatasetItemForm = (props: {
                       />
                     </FormControl>
                     <FormMessage />
+                    {validation.hasSchemas &&
+                      expectedOutputErrors.length > 0 &&
+                      (hasInitialValues || hasInteractedWithExpectedOutput) && (
+                        <DatasetItemFieldSchemaErrors
+                          errors={expectedOutputErrors}
+                          showDatasetName={selectedDatasets.length > 1}
+                        />
+                      )}
                   </FormItem>
                 )}
               />
             </div>
+
             <FormField
               control={form.control}
               name="metadata"
@@ -336,7 +470,10 @@ export const NewDatasetItemForm = (props: {
               type="submit"
               loading={createManyDatasetItemsMutation.isPending}
               className="w-full"
-              disabled={selectedDatasetCount === 0}
+              disabled={
+                selectedDatasetCount === 0 ||
+                (validation.hasSchemas && !validation.isValid)
+              }
             >
               Add
               {selectedDatasetCount > 1

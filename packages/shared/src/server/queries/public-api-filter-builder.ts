@@ -124,24 +124,6 @@ export function createPublicApiTracesColumnMapping(
 }
 
 /**
- * Convenience function: Get just the UI column definitions for advanced filters
- */
-export function createTracesUiColumnDefinitions(
-  tableName: "traces" | "events",
-  tablePrefix: "t" | "e",
-) {
-  return TRACES_COLUMN_DEFINITIONS.map((def) => {
-    return {
-      uiTableName: def.name,
-      uiTableId: def.id,
-      clickhouseTableName: tableName,
-      clickhouseSelect: def.column,
-      queryPrefix: tablePrefix,
-    };
-  });
-}
-
-/**
  * Factory function to create public API column mappings for events/observations tables.
  * Eliminates duplication between events and observations filter mappings.
  */
@@ -241,7 +223,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
   columnMapping.forEach((columnMapping) => {
     const value = filter[columnMapping.id as keyof BaseQueryType];
 
-    if (value) {
+    if (value !== undefined) {
       let filterInstance;
       switch (columnMapping.filterType) {
         case "DateTimeFilter": {
