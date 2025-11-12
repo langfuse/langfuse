@@ -106,9 +106,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           e.preventDefault();
         }}
         side="right"
-        className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden rounded-l-xl p-0"
+        className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden p-0"
       >
-        <SheetHeader className="flex min-h-12 flex-row flex-nowrap items-center justify-between rounded-tl-xl bg-header px-2">
+        <SheetHeader className="flex min-h-12 flex-row flex-nowrap items-center justify-between bg-header px-2">
           <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
             <ItemBadge type={peekView.itemType} showLabel />
             <span

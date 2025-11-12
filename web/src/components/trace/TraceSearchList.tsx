@@ -24,7 +24,8 @@ export interface TraceSearchListProps {
   displayScores: WithStringifiedMetadata<ScoreDomain>[];
   onSelect: (observationId: string | undefined) => void;
   comments?: Map<string, number>;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   showComments?: boolean;
@@ -37,7 +38,8 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
   displayScores: scores,
   onSelect,
   comments,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   showComments = true,
@@ -64,7 +66,8 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
                       node={node}
                       scores={scores}
                       comments={comments}
-                      showMetrics={showMetrics}
+                      showDuration={showDuration}
+                      showCostTokens={showCostTokens}
                       showScores={showScores}
                       colorCodeMetrics={colorCodeMetrics}
                       parentTotalCost={parentTotalCost}

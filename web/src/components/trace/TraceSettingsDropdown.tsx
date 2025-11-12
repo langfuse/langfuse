@@ -24,8 +24,10 @@ export interface TraceSettingsDropdownProps {
   setShowComments: (value: boolean) => void;
   scoresOnObservationTree: boolean;
   setScoresOnObservationTree: (value: boolean) => void;
-  metricsOnObservationTree: boolean;
-  setMetricsOnObservationTree: (value: boolean) => void;
+  durationOnObservationTree: boolean;
+  setDurationOnObservationTree: (value: boolean) => void;
+  costTokensOnObservationTree: boolean;
+  setCostTokensOnObservationTree: (value: boolean) => void;
   colorCodeMetricsOnObservationTree: boolean;
   setColorCodeMetricsOnObservationTree: (value: boolean) => void;
   minObservationLevel: ObservationLevelType;
@@ -40,8 +42,10 @@ export const TraceSettingsDropdown = ({
   setShowComments,
   scoresOnObservationTree,
   setScoresOnObservationTree,
-  metricsOnObservationTree,
-  setMetricsOnObservationTree,
+  durationOnObservationTree,
+  setDurationOnObservationTree,
+  costTokensOnObservationTree,
+  setCostTokensOnObservationTree,
   colorCodeMetricsOnObservationTree,
   setColorCodeMetricsOnObservationTree,
   minObservationLevel,
@@ -103,15 +107,20 @@ export const TraceSettingsDropdown = ({
 
           <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
             <div className="flex w-full items-center justify-between">
-              <span className="mr-2">Show Metrics</span>
+              <span className="mr-2">Show Duration</span>
               <Switch
-                checked={metricsOnObservationTree}
-                onCheckedChange={(e) => {
-                  capture("trace_detail:observation_tree_toggle_metrics", {
-                    show: e,
-                  });
-                  setMetricsOnObservationTree(e);
-                }}
+                checked={durationOnObservationTree}
+                onCheckedChange={setDurationOnObservationTree}
+              />
+            </div>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
+            <div className="flex w-full items-center justify-between">
+              <span className="mr-2">Show Cost/Tokens</span>
+              <Switch
+                checked={costTokensOnObservationTree}
+                onCheckedChange={setCostTokensOnObservationTree}
               />
             </div>
           </DropdownMenuItem>
@@ -119,19 +128,29 @@ export const TraceSettingsDropdown = ({
           <DropdownMenuItem
             asChild
             onSelect={(e) => e.preventDefault()}
-            disabled={!metricsOnObservationTree}
-            className={cn(!metricsOnObservationTree && "cursor-not-allowed")}
+            disabled={
+              !durationOnObservationTree && !costTokensOnObservationTree
+            }
+            className={cn(
+              !durationOnObservationTree &&
+                !costTokensOnObservationTree &&
+                "cursor-not-allowed",
+            )}
           >
             <div
               className={cn(
                 "flex w-full items-center justify-between",
-                !metricsOnObservationTree && "cursor-not-allowed",
+                !durationOnObservationTree &&
+                  !costTokensOnObservationTree &&
+                  "cursor-not-allowed",
               )}
             >
               <span
                 className={cn(
                   "mr-2",
-                  !metricsOnObservationTree && "cursor-not-allowed",
+                  !durationOnObservationTree &&
+                    !costTokensOnObservationTree &&
+                    "cursor-not-allowed",
                 )}
               >
                 Color Code Metrics
@@ -139,9 +158,13 @@ export const TraceSettingsDropdown = ({
               <Switch
                 checked={colorCodeMetricsOnObservationTree}
                 onCheckedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
-                disabled={!metricsOnObservationTree}
+                disabled={
+                  !durationOnObservationTree && !costTokensOnObservationTree
+                }
                 className={cn(
-                  !metricsOnObservationTree && "cursor-not-allowed",
+                  !durationOnObservationTree &&
+                    !costTokensOnObservationTree &&
+                    "cursor-not-allowed",
                 )}
               />
             </div>

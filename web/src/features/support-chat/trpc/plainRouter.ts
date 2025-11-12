@@ -31,6 +31,7 @@ import {
   type SessionUser,
   type Organization,
 } from "../plain/plainClient";
+import { PLAIN_MAX_FILE_SIZE_BYTES } from "../plain/plainConstants";
 
 // =========================
 // Input Schemas
@@ -57,7 +58,22 @@ const PrepareAttachmentUploadsInput = z.object({
         fileSizeBytes: z.number().int().positive(),
       }),
     )
-    .max(100)
+    .max(
+      5,
+      `Maximum 5 files allowed (each ≤ ${(PLAIN_MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB)`,
+    )
+    .refine(
+      (files) =>
+        files.every((f) => f.fileSizeBytes <= PLAIN_MAX_FILE_SIZE_BYTES),
+      {
+        message: `Each file must be ≤ ${(PLAIN_MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB`,
+      },
+    )
+    .refine(
+      (files) =>
+        files.reduce((sum, f) => sum + f.fileSizeBytes, 0) <= 50 * 1024 * 1024,
+      { message: "Total attachment size must be ≤ 50MB" },
+    )
     .optional()
     .default([]),
 });

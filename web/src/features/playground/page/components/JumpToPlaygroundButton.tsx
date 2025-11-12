@@ -34,7 +34,7 @@ import {
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
-import { normalizeInput } from "@/src/utils/chatml";
+import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
 import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
@@ -263,7 +263,11 @@ const parseGeneration = (
   if (!isGenerationLike(generation.type)) return null;
 
   let modelParams = parseModelParams(generation, modelToProviderMap);
-  const tools = parseTools(generation.input, generation.metadata);
+  const tools = parseTools(
+    generation.input,
+    generation.output,
+    generation.metadata,
+  );
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
@@ -339,7 +343,7 @@ const parseGeneration = (
 
       const inResult = normalizeInput(input, ctx);
 
-      const messages = inResult.success
+      let messages = inResult.success
         ? inResult.data
             .map(convertChatMlToPlayground)
             .filter(
@@ -347,12 +351,59 @@ const parseGeneration = (
             )
         : [];
 
+      // process output for final assistant message
+      // this doesn't make that much sense, because the output is already the LLM result
+      // but some people wanted to have the entire thing, so that they can then iterate
+      // on the final result (e.g. ask it questions).
+      // NOTE: will probably remove later at some point on next playground release
+      let output = generation.output?.valueOf();
+      if (output && typeof output === "string") {
+        try {
+          output = JSON.parse(output);
+        } catch {
+          // ignore parse errors
+        }
+      }
+
+      if (output && typeof output === "object") {
+        try {
+          const outResult = normalizeOutput(output, ctx);
+          const outputMessages = outResult.success
+            ? outResult.data
+                .map(convertChatMlToPlayground)
+                .filter(
+                  (msg): msg is ChatMessage | PlaceholderMessage =>
+                    msg !== null,
+                )
+                // Filter tool calls without results (i.e. assistant messages with tool_calls but no results)
+                // here, a tool was just selected by an LLM but not called yet.
+                // we don't want this in the playground, because we a) cannot run the playground
+                // and b) if we jump to the playground, we exactly want to test if the LLM selects the tool
+                .filter((msg) => msg.type !== ChatMessageType.AssistantToolCall)
+            : [];
+
+          // Append output messages to input messages
+          messages = [...messages, ...outputMessages];
+        } catch {
+          // ignore output processing errors
+        }
+      }
+
       if (messages.length === 0) return null;
+
+      // Extract tools from normalized ChatML messages (they may have tools attached)
+      const normalizedTools =
+        inResult.success && inResult.data
+          ? extractTools(inResult.data, ctx.metadata)
+          : [];
+
+      // Merge with tools from input/metadata, prefer normalized tools
+      const mergedTools = normalizedTools.length > 0 ? normalizedTools : tools;
 
       return {
         messages,
         modelParams,
-        tools,
+        tools: mergedTools,
         structuredOutputSchema,
       };
     } catch {
@@ -407,14 +458,25 @@ function parseModelParams(
 
 function parseTools(
   inputString: string | null,
+  outputString: string | null,
   metadataString: MetadataDomainClient,
 ): PlaygroundTool[] {
-  if (!inputString && !metadataString) return [];
+  if (!inputString && !outputString && !metadataString) return [];
 
   try {
     const input = inputString ? JSON.parse(inputString) : null;
+    const output = outputString ? JSON.parse(outputString) : null;
     const metadata = metadataString ? JSON.parse(metadataString) : null;
-    return extractTools(input, metadata);
+
+    const inputTools = extractTools(input, metadata);
+    if (inputTools.length > 0) return inputTools;
+
+    // also check the output for tools, e.g. if a user jumps from the last generation
+    if (output) {
+      return extractTools(output, metadata);
+    }
+
+    return [];
   } catch {
     return [];
   }

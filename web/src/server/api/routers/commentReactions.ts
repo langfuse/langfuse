@@ -43,6 +43,8 @@ export const commentReactionsRouter = createTRPCRouter({
         }
 
         // Upsert reaction (idempotent)
+        // Use comment.projectId (verified DB record) instead of input.projectId
+        // to guard against edge cases where input could be undefined despite validation
         const reaction = await ctx.prisma.commentReaction.upsert({
           where: {
             commentId_userId_emoji: {
@@ -52,7 +54,7 @@ export const commentReactionsRouter = createTRPCRouter({
             },
           },
           create: {
-            projectId: input.projectId,
+            projectId: comment.projectId,
             commentId: input.commentId,
             userId: ctx.session.user.id,
             emoji: input.emoji,
@@ -105,12 +107,13 @@ export const commentReactionsRouter = createTRPCRouter({
         }
 
         // Delete reaction with project safety check
+        // Use comment.projectId (verified DB record) instead of input.projectId
         const deletedReaction = await ctx.prisma.commentReaction.deleteMany({
           where: {
             commentId: input.commentId,
             userId: ctx.session.user.id,
             emoji: input.emoji,
-            projectId: input.projectId,
+            projectId: comment.projectId,
           },
         });
 

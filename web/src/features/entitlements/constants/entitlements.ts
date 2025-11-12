@@ -72,7 +72,11 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:pro": {
-    entitlements: [...cloudAllPlansEntitlements, "cloud-spend-alerts"],
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "cloud-spend-alerts",
+      "data-retention",
+    ],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,

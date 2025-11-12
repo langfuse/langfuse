@@ -62,7 +62,8 @@ function TreeItemInner({
   name,
   hasChildren,
   isSelected,
-  showMetrics = true,
+  showDuration = true,
+  showCostTokens = true,
   showScores = true,
   showComments = true,
   colorCodeMetrics = false,
@@ -80,7 +81,8 @@ function TreeItemInner({
   name?: string | null;
   hasChildren: boolean;
   isSelected: boolean;
-  showMetrics?: boolean;
+  showDuration?: boolean;
+  showCostTokens?: boolean;
   showScores?: boolean;
   showComments?: boolean;
   colorCodeMetrics?: boolean;
@@ -143,7 +145,7 @@ function TreeItemInner({
                   {showComments && commentCount ? (
                     <CommentCountIcon count={commentCount} />
                   ) : null}
-                  {showMetrics && isPresent(latency) && (
+                  {showDuration && isPresent(latency) && (
                     <span
                       className={cn(
                         "text-xs text-muted-foreground",
@@ -159,7 +161,7 @@ function TreeItemInner({
                       {formatIntervalSeconds(latency)}
                     </span>
                   )}
-                  {showMetrics && totalCost && (
+                  {showCostTokens && totalCost && (
                     <span
                       className={cn(
                         "text-xs text-muted-foreground",
@@ -212,7 +214,7 @@ function TreeItemInner({
                   {showComments && commentCount ? (
                     <CommentCountIcon count={commentCount} />
                   ) : null}
-                  {showMetrics && isPresent(latency) && (
+                  {showDuration && isPresent(latency) && (
                     <span
                       className={cn(
                         "text-xs text-muted-foreground",
@@ -228,7 +230,7 @@ function TreeItemInner({
                       {formatIntervalSeconds(latency)}
                     </span>
                   )}
-                  {showMetrics && totalCost && (
+                  {showCostTokens && totalCost && (
                     <span
                       className={cn(
                         "text-xs text-muted-foreground",
@@ -270,7 +272,8 @@ function TraceTreeItem({
   commentCounts,
   currentObservationId,
   setCurrentObservationId,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   showComments,
   colorCodeMetrics,
@@ -288,7 +291,8 @@ function TraceTreeItem({
   commentCounts?: Map<string, number>;
   currentObservationId: string | null;
   setCurrentObservationId: (id: string | null) => void;
-  showMetrics?: boolean;
+  showDuration?: boolean;
+  showCostTokens?: boolean;
   showScores?: boolean;
   showComments?: boolean;
   colorCodeMetrics?: boolean;
@@ -356,7 +360,8 @@ function TraceTreeItem({
           totalScaleSpan={totalScaleSpan}
           hasChildren={!!observation.children?.length}
           isSelected={observation.id === currentObservationId}
-          showMetrics={showMetrics}
+          showDuration={showDuration}
+          showCostTokens={showCostTokens}
           showScores={showScores}
           showComments={showComments}
           colorCodeMetrics={colorCodeMetrics}
@@ -383,7 +388,8 @@ function TraceTreeItem({
               commentCounts={commentCounts}
               currentObservationId={currentObservationId}
               setCurrentObservationId={setCurrentObservationId}
-              showMetrics={showMetrics}
+              showDuration={showDuration}
+              showCostTokens={showCostTokens}
               showScores={showScores}
               showComments={showComments}
               colorCodeMetrics={colorCodeMetrics}
@@ -406,7 +412,8 @@ export function TraceTimelineView({
   setCurrentObservationId,
   expandedItems,
   setExpandedItems,
-  showMetrics = true,
+  showDuration = true,
+  showCostTokens = true,
   showScores = true,
   showComments = true,
   colorCodeMetrics = true,
@@ -426,7 +433,8 @@ export function TraceTimelineView({
   setCurrentObservationId: (id: string | null) => void;
   expandedItems: string[];
   setExpandedItems: (items: string[]) => void;
-  showMetrics?: boolean;
+  showDuration?: boolean;
+  showCostTokens?: boolean;
   showScores?: boolean;
   showComments?: boolean;
   colorCodeMetrics?: boolean;
@@ -660,7 +668,8 @@ export function TraceTimelineView({
                       type="TRACE"
                       hasChildren={!!nestedObservations.length}
                       isSelected={currentObservationId === null}
-                      showMetrics={showMetrics}
+                      showDuration={showDuration}
+                      showCostTokens={showCostTokens}
                       showScores={showScores}
                       showComments={showComments}
                       colorCodeMetrics={colorCodeMetrics}
@@ -690,7 +699,8 @@ export function TraceTimelineView({
                           )}
                           currentObservationId={currentObservationId}
                           setCurrentObservationId={setCurrentObservationId}
-                          showMetrics={showMetrics}
+                          showDuration={showDuration}
+                          showCostTokens={showCostTokens}
                           showScores={showScores}
                           showComments={showComments}
                           colorCodeMetrics={colorCodeMetrics}

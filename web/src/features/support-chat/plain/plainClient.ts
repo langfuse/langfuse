@@ -6,6 +6,10 @@ import {
 } from "@team-plain/typescript-sdk";
 import { TRPCError } from "@trpc/server";
 import { logger } from "@langfuse/shared/src/server";
+import { PLAIN_MAX_FILE_SIZE_BYTES } from "./plainConstants";
+
+// Re-export for backward compatibility
+export { PLAIN_MAX_FILE_SIZE_BYTES };
 
 // ===== App-level types exported for router use =====
 export type Project = { id: string };
@@ -66,6 +70,63 @@ function describeSdkError(err: unknown) {
     fields: e?.fields,
     errorDetails: e?.errorDetails,
     status: e?.status,
+  };
+}
+
+/**
+ * Formats Plain API errors into user-friendly messages
+ * @returns User-friendly error message and appropriate HTTP status code
+ */
+function formatPlainError(error: unknown): {
+  message: string;
+  code: "BAD_REQUEST" | "INTERNAL_SERVER_ERROR";
+} {
+  const e = error as any;
+  const errorMessage =
+    e?.message || e?.errorDetails?.message || String(error) || "";
+  const msg = errorMessage.toLowerCase();
+
+  // File size errors
+  if (
+    msg.includes("file size") ||
+    msg.includes("too large") ||
+    msg.includes(">6mb") ||
+    msg.includes("larger than")
+  ) {
+    return {
+      message: `File is too large. Maximum file size is ${(PLAIN_MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB per file.`,
+      code: "BAD_REQUEST",
+    };
+  }
+
+  // File type errors
+  if (msg.includes("file type") || msg.includes("not supported")) {
+    return {
+      message: "File type not supported. Please select a different file.",
+      code: "BAD_REQUEST",
+    };
+  }
+
+  // Rate limit errors
+  if (msg.includes("rate limit") || msg.includes("too many requests")) {
+    return {
+      message: "Too many requests. Please try again in a moment.",
+      code: "BAD_REQUEST",
+    };
+  }
+
+  // Extract original message if available and meaningful
+  if (errorMessage && errorMessage.length > 0 && errorMessage.length < 200) {
+    return {
+      message: errorMessage,
+      code: "BAD_REQUEST",
+    };
+  }
+
+  // Fallback for unknown errors
+  return {
+    message: "Failed to prepare file upload. Please try again.",
+    code: "INTERNAL_SERVER_ERROR",
   };
 }
 
@@ -140,11 +201,32 @@ export async function createAttachmentUploadUrls(
       attachmentType: AttachmentType.Email,
     });
 
-    const data = unwrap("createAttachmentUploadUrl", r); // throws on error
+    // Handle Plain API errors with user-friendly messages
+    if (r.error) {
+      const formatted = formatPlainError(r.error);
+      logger.error(
+        "createAttachmentUploadUrl failed",
+        describeSdkError(r.error),
+      );
+      throw new TRPCError({
+        code: formatted.code,
+        message: formatted.message,
+        cause: r.error,
+      });
+    }
+
+    if (!r.data) {
+      logger.error("createAttachmentUploadUrl returned no data", r);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Plain Client: createAttachmentUploadUrl returned no data",
+      });
+    }
+
     out.push({
-      attachmentId: data.attachment.id,
-      uploadFormUrl: data.uploadFormUrl,
-      uploadFormData: data.uploadFormData,
+      attachmentId: r.data.attachment.id,
+      uploadFormUrl: r.data.uploadFormUrl,
+      uploadFormData: r.data.uploadFormData,
       fileName: f.fileName,
       fileSizeBytes: f.fileSizeBytes,
     });

@@ -89,8 +89,10 @@ export function Trace(props: {
     StringParam,
   );
   const [viewTab] = useQueryParam("view", StringParam);
-  const [metricsOnObservationTree, setMetricsOnObservationTree] =
-    useLocalStorage("metricsOnObservationTree", true);
+  const [durationOnObservationTree, setDurationOnObservationTree] =
+    useLocalStorage("durationOnObservationTree", true);
+  const [costTokensOnObservationTree, setCostTokensOnObservationTree] =
+    useLocalStorage("costTokensOnObservationTree", true);
   const [scoresOnObservationTree, setScoresOnObservationTree] = useLocalStorage(
     "scoresOnObservationTree",
     true,
@@ -324,7 +326,8 @@ export function Trace(props: {
       displayScores={displayScores}
       onSelect={setCurrentObservationId}
       comments={commentsMap}
-      showMetrics={metricsOnObservationTree}
+      showDuration={durationOnObservationTree}
+      showCostTokens={costTokensOnObservationTree}
       showScores={scoresOnObservationTree}
       colorCodeMetrics={colorCodeMetricsOnObservationTree}
       showComments={showComments}
@@ -338,7 +341,8 @@ export function Trace(props: {
       displayScores={displayScores}
       currentNodeId={currentObservationId ?? undefined}
       setCurrentNodeId={setCurrentObservationId}
-      showMetrics={metricsOnObservationTree}
+      showDuration={durationOnObservationTree}
+      showCostTokens={costTokensOnObservationTree}
       showScores={scoresOnObservationTree}
       showComments={showComments}
       colorCodeMetrics={colorCodeMetricsOnObservationTree}
@@ -346,6 +350,8 @@ export function Trace(props: {
       hiddenObservationsCount={hiddenObservationsCount}
       minLevel={minObservationLevel}
       setMinLevel={setMinObservationLevel}
+      projectId={props.projectId}
+      traceId={props.trace.id}
     />
   );
 
@@ -384,11 +390,11 @@ export function Trace(props: {
         {isMobile && (
           <div className="flex h-full w-full flex-col overflow-y-auto md:hidden">
             {/* Tree Panel - Mobile */}
-            <div className="flex-shrink-0 border-b pb-4">
-              <Command className="mt-2 flex flex-col gap-2 overflow-hidden rounded-none border-0">
-                <div className="flex flex-row justify-between px-3 pl-5">
+            <div className="flex-shrink-0 border-b pb-2">
+              <Command className="mt-1 flex flex-col gap-1 overflow-hidden rounded-none border-0">
+                <div className="flex flex-row justify-between pl-1 pr-2">
                   {props.selectedTab?.includes("timeline") ? (
-                    <span className="whitespace-nowrap px-1 py-2 text-sm text-muted-foreground">
+                    <span className="whitespace-nowrap px-1 py-1.5 text-sm text-muted-foreground">
                       Node display
                     </span>
                   ) : (
@@ -401,7 +407,7 @@ export function Trace(props: {
                     />
                   )}
                   {viewType === "detailed" && (
-                    <div className="flex flex-row items-center gap-2">
+                    <div className="flex flex-row items-center gap-0.5">
                       {/* Expand/Collapse All Button */}
                       {props.selectedTab?.includes("timeline") ? (
                         <Button
@@ -425,11 +431,12 @@ export function Trace(props: {
                               ? "Collapse all"
                               : "Expand all"
                           }
+                          className="h-7 w-7"
                         >
                           {expandedItems.includes(`trace-${props.trace.id}`) ? (
-                            <FoldVertical className="h-4 w-4" />
+                            <FoldVertical className="h-3.5 w-3.5" />
                           ) : (
-                            <UnfoldVertical className="h-4 w-4" />
+                            <UnfoldVertical className="h-3.5 w-3.5" />
                           )}
                         </Button>
                       ) : (
@@ -457,13 +464,14 @@ export function Trace(props: {
                               ? "Expand all"
                               : "Collapse all"
                           }
+                          className="h-7 w-7"
                         >
                           {collapsedNodes.includes(
                             `trace-${props.trace.id}`,
                           ) ? (
-                            <UnfoldVertical className="h-4 w-4" />
+                            <UnfoldVertical className="h-3.5 w-3.5" />
                           ) : (
-                            <FoldVertical className="h-4 w-4" />
+                            <FoldVertical className="h-3.5 w-3.5" />
                           )}
                         </Button>
                       )}
@@ -477,9 +485,15 @@ export function Trace(props: {
                         setShowComments={setShowComments}
                         scoresOnObservationTree={scoresOnObservationTree}
                         setScoresOnObservationTree={setScoresOnObservationTree}
-                        metricsOnObservationTree={metricsOnObservationTree}
-                        setMetricsOnObservationTree={
-                          setMetricsOnObservationTree
+                        durationOnObservationTree={durationOnObservationTree}
+                        setDurationOnObservationTree={
+                          setDurationOnObservationTree
+                        }
+                        costTokensOnObservationTree={
+                          costTokensOnObservationTree
+                        }
+                        setCostTokensOnObservationTree={
+                          setCostTokensOnObservationTree
                         }
                         colorCodeMetricsOnObservationTree={
                           colorCodeMetricsOnObservationTree
@@ -497,8 +511,9 @@ export function Trace(props: {
                         size="icon"
                         onClick={handleDownloadTrace}
                         title="Download trace as JSON"
+                        className="h-7 w-7"
                       >
-                        <Download className="h-4 w-4" />
+                        <Download className="h-3.5 w-3.5" />
                       </Button>
 
                       {/* Timeline Toggle Button */}
@@ -518,11 +533,12 @@ export function Trace(props: {
                           )
                         }
                         className={cn(
+                          "h-7 px-2 text-xs",
                           props.selectedTab?.includes("timeline") &&
                             "bg-primary text-primary-foreground",
                         )}
                       >
-                        <span className="text-sm">Timeline</span>
+                        <span className="text-xs">Timeline</span>
                       </Button>
                       {/* Note: No panel collapse button on mobile */}
                     </div>
@@ -541,7 +557,8 @@ export function Trace(props: {
                         setCurrentObservationId={setCurrentObservationId}
                         expandedItems={expandedItems}
                         setExpandedItems={setExpandedItems}
-                        showMetrics={metricsOnObservationTree}
+                        showDuration={durationOnObservationTree}
+                        showCostTokens={costTokensOnObservationTree}
                         showScores={scoresOnObservationTree}
                         showComments={showComments}
                         colorCodeMetrics={colorCodeMetricsOnObservationTree}
@@ -616,23 +633,23 @@ export function Trace(props: {
                     </Button>
                   </div>
                 ) : (
-                  <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
-                    <div className="flex flex-row justify-between px-3 pl-5">
+                  <Command className="mt-1 flex h-full flex-col gap-1 overflow-hidden rounded-none border-0">
+                    <div className="flex flex-row justify-between pl-1 pr-2">
                       {props.selectedTab?.includes("timeline") ? (
-                        <span className="whitespace-nowrap px-1 py-3 text-sm text-muted-foreground">
+                        <span className="whitespace-nowrap px-1 py-1.5 text-sm text-muted-foreground">
                           Node display
                         </span>
                       ) : (
                         <CommandInput
                           showBorder={false}
                           placeholder="Search"
-                          className="h-9 min-w-20 border-0 pr-0 focus:ring-0"
+                          className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
                           value={searchQuery}
                           onValueChange={setSearchQuery}
                         />
                       )}
                       {viewType === "detailed" && (
-                        <div className="flex flex-row items-center gap-2">
+                        <div className="flex flex-row items-center gap-0.5">
                           {props.selectedTab?.includes("timeline") ? (
                             <Button
                               onClick={() => {
@@ -660,13 +677,14 @@ export function Trace(props: {
                                   ? "Collapse all"
                                   : "Expand all"
                               }
+                              className="h-7 w-7"
                             >
                               {expandedItems.includes(
                                 `trace-${props.trace.id}`,
                               ) ? (
-                                <FoldVertical className="h-4 w-4" />
+                                <FoldVertical className="h-3.5 w-3.5" />
                               ) : (
-                                <UnfoldVertical className="h-4 w-4" />
+                                <UnfoldVertical className="h-3.5 w-3.5" />
                               )}
                             </Button>
                           ) : (
@@ -699,11 +717,12 @@ export function Trace(props: {
                                       ? "Expand all"
                                       : "Collapse all"
                                   }
+                                  className="h-7 w-7"
                                 >
                                   {isEverythingCollapsed ? (
-                                    <UnfoldVertical className="h-4 w-4" />
+                                    <UnfoldVertical className="h-3.5 w-3.5" />
                                   ) : (
-                                    <FoldVertical className="h-4 w-4" />
+                                    <FoldVertical className="h-3.5 w-3.5" />
                                   )}
                                 </Button>
                               );
@@ -719,9 +738,17 @@ export function Trace(props: {
                             setScoresOnObservationTree={
                               setScoresOnObservationTree
                             }
-                            metricsOnObservationTree={metricsOnObservationTree}
-                            setMetricsOnObservationTree={
-                              setMetricsOnObservationTree
+                            durationOnObservationTree={
+                              durationOnObservationTree
+                            }
+                            setDurationOnObservationTree={
+                              setDurationOnObservationTree
+                            }
+                            costTokensOnObservationTree={
+                              costTokensOnObservationTree
+                            }
+                            setCostTokensOnObservationTree={
+                              setCostTokensOnObservationTree
                             }
                             colorCodeMetricsOnObservationTree={
                               colorCodeMetricsOnObservationTree
@@ -737,8 +764,9 @@ export function Trace(props: {
                             size="icon"
                             onClick={handleDownloadTrace}
                             title="Download trace as JSON"
+                            className="h-7 w-7"
                           >
-                            <Download className="h-4 w-4" />
+                            <Download className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             variant={
@@ -756,11 +784,12 @@ export function Trace(props: {
                               )
                             }
                             className={cn(
+                              "h-7 px-2 text-xs",
                               props.selectedTab?.includes("timeline") &&
                                 "bg-primary text-primary-foreground",
                             )}
                           >
-                            <span className="text-sm">Timeline</span>
+                            <span className="text-xs">Timeline</span>
                           </Button>
                           <Button
                             variant="ghost"
@@ -782,12 +811,15 @@ export function Trace(props: {
                                 ? "Show trace tree"
                                 : "Hide trace tree"
                             }
-                            className={cn(shouldPulseToggle && "animate-pulse")}
+                            className={cn(
+                              "h-7 w-7",
+                              shouldPulseToggle && "animate-pulse",
+                            )}
                           >
                             {isTreePanelCollapsed ? (
-                              <PanelLeftOpen className="h-4 w-4" />
+                              <PanelLeftOpen className="h-3.5 w-3.5" />
                             ) : (
-                              <PanelLeftClose className="h-4 w-4" />
+                              <PanelLeftClose className="h-3.5 w-3.5" />
                             )}
                           </Button>
                         </div>
@@ -822,7 +854,8 @@ export function Trace(props: {
                                   }
                                   expandedItems={expandedItems}
                                   setExpandedItems={setExpandedItems}
-                                  showMetrics={metricsOnObservationTree}
+                                  showDuration={durationOnObservationTree}
+                                  showCostTokens={costTokensOnObservationTree}
                                   showScores={scoresOnObservationTree}
                                   showComments={showComments}
                                   colorCodeMetrics={
@@ -863,7 +896,8 @@ export function Trace(props: {
                                 }
                                 expandedItems={expandedItems}
                                 setExpandedItems={setExpandedItems}
-                                showMetrics={metricsOnObservationTree}
+                                showDuration={durationOnObservationTree}
+                                showCostTokens={costTokensOnObservationTree}
                                 showScores={scoresOnObservationTree}
                                 showComments={showComments}
                                 colorCodeMetrics={
@@ -887,7 +921,7 @@ export function Trace(props: {
                                 defaultSize={treeGraphSizes[0]}
                                 minSize={5}
                                 maxSize={95}
-                                className="flex flex-col overflow-hidden px-2"
+                                className="flex flex-col overflow-hidden pl-0 pr-2"
                               >
                                 <div className="min-h-0 flex-1 overflow-y-auto pb-2">
                                   {treeOrSearchContent}
@@ -909,7 +943,7 @@ export function Trace(props: {
                               </ResizablePanel>
                             </ResizablePanelGroup>
                           ) : (
-                            <div className="flex h-full w-full flex-col overflow-hidden px-2">
+                            <div className="flex h-full w-full flex-col overflow-hidden pl-0 pr-2">
                               <div className="min-h-0 flex-1 overflow-y-auto pb-2">
                                 {treeOrSearchContent}
                               </div>
