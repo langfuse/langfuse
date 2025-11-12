@@ -1580,6 +1580,124 @@ describe("/api/public/traces API Endpoint", () => {
           expect(matchingTrace2).toBeTruthy();
           expect(matchingTrace2?.version).toBe("2.0");
         });
+
+        it("should filter by latency without requesting metrics field group", async () => {
+          // Reproduce bug: https://github.com/langfuse/langfuse/pull/10029#issuecomment-3521986232
+          // Filtering by latency should work even without requesting the "metrics" field group
+          const baseTimestamp = Date.now();
+          const traceWithLatency1 = randomUUID();
+          const traceWithLatency2 = randomUUID();
+          const traceWithLatency3 = randomUUID();
+
+          // Create trace 1 with observations that result in ~0.5 second latency
+          const trace1 = createTrace({
+            id: traceWithLatency1,
+            name: "trace-latency-1",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+            environment: "test-latency",
+          });
+
+          const observations1: ObservationEventData[] = [
+            {
+              trace_id: traceWithLatency1,
+              project_id: projectId,
+              name: "obs-1",
+              start_time: baseTimestamp,
+              end_time: baseTimestamp + 500, // 0.5 seconds
+            },
+          ];
+
+          // Create trace 2 with observations that result in ~1.5 second latency
+          const trace2 = createTrace({
+            id: traceWithLatency2,
+            name: "trace-latency-2",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+            environment: "test-latency",
+          });
+
+          const observations2: ObservationEventData[] = [
+            {
+              trace_id: traceWithLatency2,
+              project_id: projectId,
+              name: "obs-2",
+              start_time: baseTimestamp,
+              end_time: baseTimestamp + 1500, // 1.5 seconds
+            },
+          ];
+
+          // Create trace 3 with observations that result in ~2.5 second latency
+          const trace3 = createTrace({
+            id: traceWithLatency3,
+            name: "trace-latency-3",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+            environment: "test-latency",
+          });
+
+          const observations3: ObservationEventData[] = [
+            {
+              trace_id: traceWithLatency3,
+              project_id: projectId,
+              name: "obs-3",
+              start_time: baseTimestamp,
+              end_time: baseTimestamp + 2500, // 2.5 seconds
+            },
+          ];
+
+          await createTraceWithObservations(useEventsTable, trace1, observations1);
+          await createTraceWithObservations(useEventsTable, trace2, observations2);
+          await createTraceWithObservations(useEventsTable, trace3, observations3);
+
+          // Simple wait to ensure data is available
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
+          // Test filtering by latency range (>= 0 and <= 1.9 seconds)
+          // This should return trace1 and trace2, but not trace3
+          // Note: We're NOT requesting the "metrics" field group
+          const filterParam = JSON.stringify([
+            {
+              type: "number",
+              column: "latency",
+              operator: ">=",
+              value: 0,
+            },
+            {
+              type: "number",
+              column: "latency",
+              operator: "<=",
+              value: 1.9,
+            },
+          ]);
+
+          const traces = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`environment=test-latency&fields=core&filter=${encodeURIComponent(filterParam)}`),
+          );
+
+          expect(traces.status).toBe(200);
+          const trace1Result = traces.body.data.find((t) => t.id === traceWithLatency1);
+          const trace2Result = traces.body.data.find((t) => t.id === traceWithLatency2);
+          const trace3Result = traces.body.data.find((t) => t.id === traceWithLatency3);
+
+          // Trace 1 (0.5s) and Trace 2 (1.5s) should be found
+          expect(trace1Result).toBeTruthy();
+          expect(trace2Result).toBeTruthy();
+          // Trace 3 (2.5s) should NOT be found
+          expect(trace3Result).toBeUndefined();
+
+          // Verify the count endpoint also works with latency filters
+          const countResponse = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`environment=test-latency&filter=${encodeURIComponent(filterParam)}`),
+          );
+
+          expect(countResponse.status).toBe(200);
+          expect(countResponse.body.meta.totalItems).toBeGreaterThanOrEqual(2);
+        });
       });
     };
 

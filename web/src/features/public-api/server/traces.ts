@@ -101,19 +101,27 @@ export const generateTracesForPublicApi = async ({
       ),
   );
 
-  // Build CTEs conditionally based on requested fields
+  // Check if any filters reference the observations table
+  const filtersRequireObservations = filter.some(
+    (f) => f.clickhouseTable === "observations",
+  );
+
+  // Build CTEs conditionally based on requested fields and filters
   const ctes = [];
 
-  if (includeObservations || includeMetrics) {
+  if (includeObservations || includeMetrics || filtersRequireObservations) {
     // Conditionally add FINAL based on env var and whether metrics are requested
     const shouldUseFinal = includeMetrics && !disableObservationsFinal;
+    
+    // Include metrics in CTE if requested OR if filters require them
+    const shouldIncludeMetricsInCTE = includeMetrics || filtersRequireObservations;
 
     ctes.push(`
     observation_stats AS (
       SELECT
         trace_id,
         project_id,
-         ${includeMetrics ? "sum(total_cost) as total_cost, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds, " : ""}
+         ${shouldIncludeMetricsInCTE ? "sum(total_cost) as total_cost, date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds, " : ""}
         groupUniqArray(id) as observation_ids
       FROM observations ${shouldUseFinal ? "FINAL" : ""}
       WHERE project_id = {projectId: String}
@@ -221,7 +229,7 @@ export const generateTracesForPublicApi = async ({
           -- Metrics (conditional)
           ${includeMetrics ? ", COALESCE(o.latency_milliseconds / 1000, 0) as latency, COALESCE(o.total_cost, 0) as totalCost" : ""}
         FROM traces t ${shouldUseSkipIndexes ? "" : "FINAL"}
-        ${includeObservations || includeMetrics ? "LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+        ${includeObservations || includeMetrics || filtersRequireObservations ? "LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${includeScores ? "LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
         WHERE t.project_id = {projectId: String}
         ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
@@ -269,10 +277,80 @@ export const getTracesCountForPublicApi = async ({
   );
   const appliedFilter = filter.apply();
 
+  // Check if any filters reference the observations table
+  const filtersRequireObservations = filter.some(
+    (f) => f.clickhouseTable === "observations",
+  );
+
+  // Check if any filters reference the scores table
+  const filtersRequireScores = filter.some(
+    (f) => f.clickhouseTable === "scores",
+  );
+
+  // Build CTEs if needed for filtering
+  const ctes = [];
+  const fromTimeFilter = filter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field.includes("timestamp") &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+  const toTimeFilter = filter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field.includes("timestamp") &&
+      (f.operator === "<=" || f.operator === "<"),
+  ) as DateTimeFilter | undefined;
+
+  const environmentFilter = filter
+    .filter((f) => f.field === "environment")
+    .map((f) => {
+      f.tablePrefix = undefined;
+      return f;
+    });
+  const appliedEnvironmentFilter = environmentFilter.apply();
+
+  if (filtersRequireObservations) {
+    ctes.push(`
+    observation_stats AS (
+      SELECT
+        trace_id,
+        project_id,
+        sum(total_cost) as total_cost,
+        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
+      FROM observations
+      WHERE project_id = {projectId: String}
+      ${fromTimeFilter ? `AND start_time >= {cteFromTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
+      GROUP BY project_id, trace_id
+    )`);
+  }
+
+  if (filtersRequireScores) {
+    ctes.push(`
+    score_stats AS (
+      SELECT
+        trace_id,
+        project_id
+      FROM scores
+      WHERE project_id = {projectId: String}
+      AND session_id IS NULL
+      AND dataset_run_id IS NULL
+      ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
+      ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
+      GROUP BY project_id, trace_id
+    )`);
+  }
+
+  const withClause = ctes.length > 0 ? `WITH ${ctes.join(", ")}` : "";
+
   const query = `
+    ${withClause}
     SELECT count() as count
     FROM __TRACE_TABLE__ t
-    WHERE project_id = {projectId: String}
+    ${filtersRequireObservations ? "LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+    ${filtersRequireScores ? "LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
+    WHERE t.project_id = {projectId: String}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
   `;
 
@@ -284,7 +362,18 @@ export const getTracesCountForPublicApi = async ({
     operationName: "getTracesCountForPublicApi",
     projectId: props.projectId,
     input: {
-      params: { ...appliedFilter.params, projectId: props.projectId },
+      params: {
+        ...appliedEnvironmentFilter.params,
+        ...appliedFilter.params,
+        projectId: props.projectId,
+        ...(fromTimeFilter
+          ? {
+              cteFromTimeFilter: convertDateToClickhouseDateTime(
+                fromTimeFilter.value,
+              ),
+            }
+          : {}),
+      },
       tags: {
         feature: "tracing",
         type: "trace",
