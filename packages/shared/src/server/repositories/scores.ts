@@ -1042,6 +1042,55 @@ export const getScoreNames = async (
   }));
 };
 
+export const getScoreStringValues = async (
+  projectId: string,
+  timestampFilter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(
+      timestampFilter,
+      scoresTableUiColumnDefinitions,
+    ),
+  );
+  const timestampFilterRes = chFilter.apply();
+
+  const query = `
+      select
+        string_value,
+        count(*) as count
+      from scores s
+      WHERE s.project_id = {projectId: String}
+      AND string_value IS NOT NULL
+      AND string_value != ''
+      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+      GROUP BY string_value
+      ORDER BY count() desc
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    string_value: string;
+    count: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    value: row.string_value,
+    count: Number(row.count),
+  }));
+};
+
 export const deleteScores = async (projectId: string, scoreIds: string[]) => {
   const query = `
     DELETE FROM scores

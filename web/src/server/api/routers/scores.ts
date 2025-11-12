@@ -37,6 +37,7 @@ import {
   getScoresUiCount,
   getScoresUiTable,
   getScoreNames,
+  getScoreStringValues,
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
@@ -82,6 +83,135 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
   hasMetadata: boolean;
   executionTraceId: string | null;
 };
+
+/**
+ * Threshold for adaptive FINAL optimization
+ * Use FINAL for datasets smaller than this to ensure accuracy (scores can be updated)
+ * Skip FINAL for larger datasets to avoid expensive merge overhead
+ */
+const ADAPTIVE_FINAL_THRESHOLD = 100_000;
+
+/**
+ * Hash-based sampling thresholds
+ * - SAMPLING_THRESHOLD: Sample when either score table exceeds this count
+ * - TARGET_SAMPLE_SIZE: Target number of rows to sample from each table
+ */
+const SAMPLING_THRESHOLD = 100_000; // Start sampling if either table > 100k
+const TARGET_SAMPLE_SIZE = 100_000; // Aim for 100k samples from each table
+
+/**
+ * Helper function: Estimate score match count using lightweight preflight query
+ * Uses 1% hash sample for fast approximation without FINAL merge overhead
+ * Returns estimates for score1 count, score2 count, and matched count
+ */
+async function estimateScoreMatchCount(params: {
+  projectId: string;
+  score1Name: string;
+  score1Source: string;
+  score1DataType: string;
+  score2Name: string;
+  score2Source: string;
+  score2DataType: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  objectTypeFilter: string;
+}): Promise<{
+  score1Count: number;
+  score2Count: number;
+  estimatedMatchedCount: number;
+}> {
+  const {
+    projectId,
+    score1Name,
+    score1Source,
+    score1DataType,
+    score2Name,
+    score2Source,
+    score2DataType,
+    fromTimestamp,
+    toTimestamp,
+    objectTypeFilter,
+  } = params;
+
+  // Use 1% hash sample for fast count estimation
+  // cityHash64 provides uniform distribution for sampling
+  const samplingExpression = `
+    cityHash64(
+      coalesce(trace_id, ''),
+      coalesce(observation_id, ''),
+      coalesce(session_id, ''),
+      coalesce(dataset_run_id, '')
+    ) % 100 < 1
+  `;
+
+  const preflightQuery = `
+    WITH
+      score1_sample AS (
+        SELECT trace_id, observation_id, session_id, dataset_run_id
+        FROM scores
+        PREWHERE project_id = {projectId: String}
+          AND name = {score1Name: String}
+        WHERE source = {score1Source: String}
+          AND data_type = {score1DataType: String}
+          AND timestamp >= {fromTimestamp: DateTime64(3)}
+          AND timestamp <= {toTimestamp: DateTime64(3)}
+          AND is_deleted = 0
+          AND ${samplingExpression}
+          ${objectTypeFilter}
+      ),
+      score2_sample AS (
+        SELECT trace_id, observation_id, session_id, dataset_run_id
+        FROM scores
+        PREWHERE project_id = {projectId: String}
+          AND name = {score2Name: String}
+        WHERE source = {score2Source: String}
+          AND data_type = {score2DataType: String}
+          AND timestamp >= {fromTimestamp: DateTime64(3)}
+          AND timestamp <= {toTimestamp: DateTime64(3)}
+          AND is_deleted = 0
+          AND ${samplingExpression}
+          ${objectTypeFilter}
+      )
+    SELECT
+      (SELECT count() FROM score1_sample) * 100 as score1_count,
+      (SELECT count() FROM score2_sample) * 100 as score2_count,
+      (
+        SELECT count() * 100
+        FROM score1_sample s1
+        INNER JOIN score2_sample s2
+          ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
+          AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
+          AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
+          AND ifNull(s1.dataset_run_id, '') = ifNull(s2.dataset_run_id, '')
+      ) as estimated_matched_count
+  `;
+
+  const result = await queryClickhouse<{
+    score1_count: string;
+    score2_count: string;
+    estimated_matched_count: string;
+  }>({
+    query: preflightQuery,
+    params: {
+      projectId,
+      score1Name,
+      score1Source,
+      score1DataType: score1DataType,
+      score2Name,
+      score2Source,
+      score2DataType: score2DataType,
+      fromTimestamp,
+      toTimestamp,
+    },
+  });
+
+  const row = result[0];
+  return {
+    score1Count: parseInt(row?.score1_count ?? "0", 10),
+    score2Count: parseInt(row?.score2_count ?? "0", 10),
+    estimatedMatchedCount: parseInt(row?.estimated_matched_count ?? "0", 10),
+  };
+}
 
 export const scoresRouter = createTRPCRouter({
   /**
@@ -192,25 +322,27 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       const { timestampFilter } = input;
-      const [names, tags, traceNames, userIds] = await Promise.all([
-        getScoreNames(input.projectId, timestampFilter ?? []),
-        getTracesGroupedByTags({
-          projectId: input.projectId,
-          filter: timestampFilter ?? [],
-        }),
-        getTracesGroupedByName(
-          input.projectId,
-          tracesTableUiColumnDefinitions,
-          timestampFilter ?? [],
-        ),
-        getTracesGroupedByUsers(
-          input.projectId,
-          timestampFilter ?? [],
-          undefined,
-          100, // limit to top 100 users
-          0,
-        ),
-      ]);
+      const [names, tags, traceNames, userIds, stringValues] =
+        await Promise.all([
+          getScoreNames(input.projectId, timestampFilter ?? []),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ?? [],
+          }),
+          getTracesGroupedByName(
+            input.projectId,
+            tracesTableUiColumnDefinitions,
+            timestampFilter ?? [],
+          ),
+          getTracesGroupedByUsers(
+            input.projectId,
+            timestampFilter ?? [],
+            undefined,
+            100, // limit to top 100 users
+            0,
+          ),
+          getScoreStringValues(input.projectId, timestampFilter ?? []),
+        ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
@@ -220,6 +352,7 @@ export const scoresRouter = createTRPCRouter({
           count: tn.count,
         })),
         userId: userIds.map((u) => ({ value: u.user, count: u.count })),
+        stringValue: stringValues,
       };
     }),
   deleteMany: protectedProjectProcedure
@@ -780,6 +913,100 @@ export const scoresRouter = createTRPCRouter({
     }),
 
   /**
+   * Estimate score comparison size for UI loading indicators
+   * Returns quick estimates without running full analytics query
+   */
+  estimateScoreComparisonSize: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        score1: z.object({
+          name: z.string(),
+          dataType: z.string(),
+          source: z.string(),
+        }),
+        score2: z.object({
+          name: z.string(),
+          dataType: z.string(),
+          source: z.string(),
+        }),
+        fromTimestamp: z.date(),
+        toTimestamp: z.date(),
+        objectType: z
+          .enum(["all", "trace", "session", "observation", "dataset_run"])
+          .default("all"),
+        mode: z.enum(["single", "two"]).optional(), // Frontend passes "single" when only score1 selected
+      }),
+    )
+    .query(async ({ input }) => {
+      const {
+        projectId,
+        score1,
+        score2,
+        fromTimestamp,
+        toTimestamp,
+        objectType,
+      } = input;
+
+      // Build object type filter
+      const objectTypeFilter =
+        objectType === "all"
+          ? ""
+          : objectType === "trace"
+            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND dataset_run_id IS NULL"
+            : objectType === "session"
+              ? "AND session_id IS NOT NULL"
+              : objectType === "observation"
+                ? "AND observation_id IS NOT NULL"
+                : objectType === "dataset_run"
+                  ? "AND dataset_run_id IS NOT NULL"
+                  : "";
+
+      // Run preflight estimate (uses 1% sampling)
+      const estimates = await estimateScoreMatchCount({
+        projectId,
+        score1Name: score1.name,
+        score1Source: score1.source,
+        score1DataType: score1.dataType,
+        score2Name: score2.name,
+        score2Source: score2.source,
+        score2DataType: score2.dataType,
+        fromTimestamp,
+        toTimestamp,
+        objectTypeFilter,
+      });
+
+      // Determine if sampling and FINAL will be used
+      const willSample =
+        estimates.score1Count > SAMPLING_THRESHOLD ||
+        estimates.score2Count > SAMPLING_THRESHOLD;
+
+      const willSkipFinal =
+        estimates.score1Count >= ADAPTIVE_FINAL_THRESHOLD ||
+        estimates.score2Count >= ADAPTIVE_FINAL_THRESHOLD;
+
+      // Estimate query time based on dataset size
+      const estimatedQueryTime =
+        estimates.estimatedMatchedCount > 1_000_000
+          ? "30-60s"
+          : estimates.estimatedMatchedCount > 500_000
+            ? "15-30s"
+            : estimates.estimatedMatchedCount > 100_000
+              ? "10-20s"
+              : "<10s";
+
+      return {
+        score1Count: estimates.score1Count,
+        score2Count: estimates.score2Count,
+        estimatedMatchedCount: estimates.estimatedMatchedCount,
+        willSample,
+        willSkipFinal,
+        estimatedQueryTime,
+        mode: input.mode ?? "two", // Echo back the mode from frontend
+      };
+    }),
+
+  /**
    * Get comprehensive score comparison analytics using single UNION ALL query
    * Returns counts, heatmap, confusion matrix, statistics, time series, and distributions
    */
@@ -797,6 +1024,7 @@ export const scoresRouter = createTRPCRouter({
           dataType: z.string(),
           source: z.string(),
         }),
+        mode: z.enum(["single", "two"]).optional(), // Frontend passes "single" when only score1 selected
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
         interval: z
@@ -847,7 +1075,6 @@ export const scoresRouter = createTRPCRouter({
           )
           .default({ count: 1, unit: "day" }),
         nBins: z.number().int().min(5).max(50).default(10),
-        maxMatchedScoresLimit: z.number().int().default(100000),
         objectType: z
           .enum(["all", "trace", "session", "observation", "dataset_run"])
           .default("all"),
@@ -862,7 +1089,6 @@ export const scoresRouter = createTRPCRouter({
         toTimestamp,
         interval,
         nBins,
-        maxMatchedScoresLimit,
         objectType,
       } = input;
 
@@ -903,14 +1129,57 @@ export const scoresRouter = createTRPCRouter({
         objectType === "all"
           ? ""
           : objectType === "trace"
-            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND run_id IS NULL"
+            ? "AND trace_id IS NOT NULL AND observation_id IS NULL AND session_id IS NULL AND dataset_run_id IS NULL"
             : objectType === "observation"
               ? "AND observation_id IS NOT NULL"
               : objectType === "session"
-                ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND run_id IS NULL"
+                ? "AND session_id IS NOT NULL AND observation_id IS NULL AND trace_id IS NULL AND dataset_run_id IS NULL"
                 : objectType === "dataset_run"
-                  ? "AND run_id IS NOT NULL"
+                  ? "AND dataset_run_id IS NOT NULL"
                   : "";
+
+      // Run preflight query to estimate data size and determine optimization strategy
+      const estimates = await estimateScoreMatchCount({
+        projectId,
+        score1Name: score1.name,
+        score1Source: score1.source,
+        score1DataType: score1.dataType,
+        score2Name: score2.name,
+        score2Source: score2.source,
+        score2DataType: score2.dataType,
+        fromTimestamp,
+        toTimestamp,
+        objectTypeFilter,
+      });
+
+      // Adaptive FINAL logic: Only use FINAL for small datasets to avoid expensive merge
+      // For large datasets, skip FINAL to improve performance (scores can be updated, so accuracy matters for recent data)
+      const shouldUseFinal =
+        estimates.score1Count < ADAPTIVE_FINAL_THRESHOLD &&
+        estimates.score2Count < ADAPTIVE_FINAL_THRESHOLD;
+
+      // Hash-based sampling decision: Sample when either score table exceeds threshold
+      const shouldSample =
+        estimates.score1Count > SAMPLING_THRESHOLD ||
+        estimates.score2Count > SAMPLING_THRESHOLD;
+
+      // Calculate rate based on larger table to ensure both tables sample to ~100k rows
+      const maxCount = Math.max(estimates.score1Count, estimates.score2Count);
+      const samplingRate = shouldSample
+        ? Math.min(1.0, TARGET_SAMPLE_SIZE / maxCount)
+        : 1.0;
+      const samplingPercent = Math.round(samplingRate * 100); // Convert to 0-100 for modulo
+
+      // Sampling expression using cityHash64 on composite key (trace_id, observation_id, session_id, dataset_run_id)
+      // This ensures deterministic pseudo-random sampling that preserves matched pairs
+      const samplingExpression = shouldSample
+        ? `cityHash64(
+            coalesce(trace_id, ''),
+            coalesce(observation_id, ''),
+            coalesce(session_id, ''),
+            coalesce(dataset_run_id, '')
+          ) % 100 < ${samplingPercent}`
+        : null;
 
       // Determine if this is a single-score or two-score query
       const isSingleScore =
@@ -1224,60 +1493,91 @@ export const scoresRouter = createTRPCRouter({
       const query = `
         WITH
           -- CTE 1: Filter score 1
+          -- PREWHERE optimization: Apply most selective filters (project_id, name) early
+          -- to reduce data read from disk before applying other filters
+          -- Adaptive FINAL: Only use FINAL for small datasets (<100k) to balance accuracy vs performance
+          -- Hash-based sampling: Applied when estimated matched count exceeds threshold
           score1_filtered AS (
             SELECT
               id, value, string_value,
               trace_id, observation_id, session_id, dataset_run_id as run_id,
               timestamp
-            FROM scores FINAL
-            WHERE project_id = {projectId: String}
+            FROM scores ${shouldUseFinal ? "FINAL" : ""}
+            PREWHERE project_id = {projectId: String}
               AND name = {score1Name: String}
-              AND source = {score1Source: String}
+            WHERE source = {score1Source: String}
               AND data_type = {dataType1: String}
               AND timestamp >= {fromTimestamp: DateTime64(3)}
               AND timestamp <= {toTimestamp: DateTime64(3)}
               AND is_deleted = 0
               ${objectTypeFilter}
+              ${shouldSample ? `AND ${samplingExpression}` : ""}
           ),
 
           -- CTE 2: Filter score 2
+          -- PREWHERE optimization: Apply most selective filters (project_id, name) early
+          -- Adaptive FINAL: Only use FINAL for small datasets (<100k)
+          -- Hash-based sampling: Applied when estimated matched count exceeds threshold
+          -- Special case: When comparing identical scores, reuse score1_filtered to ensure perfect correlation
           score2_filtered AS (
-            SELECT
-              id, value, string_value,
-              trace_id, observation_id, session_id, dataset_run_id as run_id,
-              timestamp
-            FROM scores FINAL
-            WHERE project_id = {projectId: String}
-              AND name = {score2Name: String}
-              AND source = {score2Source: String}
-              AND data_type = {dataType2: String}
-              AND timestamp >= {fromTimestamp: DateTime64(3)}
-              AND timestamp <= {toTimestamp: DateTime64(3)}
-              AND is_deleted = 0
-              ${objectTypeFilter}
+            ${
+              isIdenticalScores
+                ? `SELECT * FROM score1_filtered`
+                : `SELECT
+                     id, value, string_value,
+                     trace_id, observation_id, session_id, dataset_run_id as run_id,
+                     timestamp
+                   FROM scores ${shouldUseFinal ? "FINAL" : ""}
+                   PREWHERE project_id = {projectId: String}
+                     AND name = {score2Name: String}
+                   WHERE source = {score2Source: String}
+                     AND data_type = {dataType2: String}
+                     AND timestamp >= {fromTimestamp: DateTime64(3)}
+                     AND timestamp <= {toTimestamp: DateTime64(3)}
+                     AND is_deleted = 0
+                     ${objectTypeFilter}
+                     ${shouldSample ? `AND ${samplingExpression}` : ""}`
+            }
           ),
 
           -- CTE 3: Match scores - must have exact same attachment (trace/obs/session/run)
           -- NULL-safe comparison: convert NULL to empty string for comparison
+          -- Special case: For identical scores, use self-join on ID to ensure perfect pairing
+          -- Note: No LIMIT needed - sampling already ensures score1_filtered and score2_filtered are ~100k rows max
           matched_scores AS (
             SELECT
               s1.value as value1,
               s1.string_value as string_value1,
-              s2.value as value2,
-              s2.string_value as string_value2,
+              ${isIdenticalScores ? "s1.value" : "s2.value"} as value2,
+              ${isIdenticalScores ? "s1.string_value" : "s2.string_value"} as string_value2,
               s1.timestamp as timestamp1,
-              s2.timestamp as timestamp2,
-              coalesce(s1.trace_id, s2.trace_id) as trace_id,
-              coalesce(s1.observation_id, s2.observation_id) as observation_id,
-              coalesce(s1.session_id, s2.session_id) as session_id,
-              coalesce(s1.run_id, s2.run_id) as run_id
+              ${isIdenticalScores ? "s1.timestamp" : "s2.timestamp"} as timestamp2,
+              ${isIdenticalScores ? "s1.trace_id" : "coalesce(s1.trace_id, s2.trace_id)"} as trace_id,
+              ${isIdenticalScores ? "s1.observation_id" : "coalesce(s1.observation_id, s2.observation_id)"} as observation_id,
+              ${isIdenticalScores ? "s1.session_id" : "coalesce(s1.session_id, s2.session_id)"} as session_id,
+              ${isIdenticalScores ? "s1.run_id" : "coalesce(s1.run_id, s2.run_id)"} as run_id
             FROM score1_filtered s1
-            INNER JOIN score2_filtered s2
-              ON ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
+            INNER JOIN ${isIdenticalScores ? "score1_filtered" : "score2_filtered"} s2
+              ON ${
+                isIdenticalScores
+                  ? "s1.id = s2.id"
+                  : `ifNull(s1.trace_id, '') = ifNull(s2.trace_id, '')
               AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
               AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
-              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
-            LIMIT {maxMatchedScoresLimit: UInt32}
+              AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')`
+              }
+            LIMIT 1000000 -- Safety limit to prevent Cartesian product explosions when multiple scores of same name/source exist on one attachment point (trace/observation/session/run)
+          ),
+
+          -- CTE 3a: Count all matched score pairs
+          -- Counts all rows in matched_scores (not unique attachment points).
+          -- NOTE: When multiple scores of same name/source exist on one attachment point,
+          -- matched count can exceed both score1Total and score2Total due to Cartesian product.
+          -- Example: 2 "gpt4" scores + 3 "gemini" scores on same trace = 6 matched pairs (2 × 3 = 6).
+          -- This is correct behavior - each score pair combination is a valid match.
+          matched_count AS (
+            SELECT count(*) as cnt
+            FROM matched_scores
           ),
 
           -- CTE 4: Bounds (for numeric heatmap and distribution binning)
@@ -1336,7 +1636,7 @@ export const scoresRouter = createTRPCRouter({
               AND ifNull(s1.observation_id, '') = ifNull(s2.observation_id, '')
               AND ifNull(s1.session_id, '') = ifNull(s2.session_id, '')
               AND ifNull(s1.run_id, '') = ifNull(s2.run_id, '')
-            LIMIT {maxMatchedScoresLimit: UInt32}
+            LIMIT 1000000  -- Safety limit for categorical LEFT JOIN (more prone to expansion than INNER JOIN)
           ),
 
           -- CTE 6b: Stacked distribution (score1 categories with score2 breakdowns)
@@ -1386,17 +1686,22 @@ export const scoresRouter = createTRPCRouter({
           ),
 
           -- CTE 8: Statistics
+          -- IMPORTANT: Calculate mean/std from individual filtered scores, NOT matched_scores
+          -- This ensures statistics are available even when matchedCount = 0
+          -- Comparison metrics (mae/rmse/correlations) still use matched_scores since they require pairs
           stats AS (
             SELECT
-              count() as matched_count,
+              (SELECT count() FROM matched_scores) as matched_count,
               ${
                 isNumeric
-                  ? `avg(value1) as mean1,
-              avg(value2) as mean2,
-              stddevPop(value1) as std1,
-              stddevPop(value2) as std2,
-              avg(abs(value1 - value2)) as mae,
-              sqrt(avg(pow(value1 - value2, 2))) as rmse,
+                  ? `-- Individual score statistics from filtered tables (not matched pairs)
+              (SELECT avg(value) FROM score1_filtered) as mean1,
+              (SELECT avg(value) FROM score2_filtered) as mean2,
+              (SELECT stddevPop(value) FROM score1_filtered) as std1,
+              (SELECT stddevPop(value) FROM score2_filtered) as std2,
+              -- Comparison metrics require matched pairs
+              (SELECT avg(abs(value1 - value2)) FROM matched_scores) as mae,
+              (SELECT sqrt(avg(pow(value1 - value2, 2))) FROM matched_scores) as rmse,
               -- Conditional correlation: only execute subquery if safe
               -- Uses short-circuit evaluation to prevent errors with insufficient data
               ${
@@ -1427,7 +1732,6 @@ export const scoresRouter = createTRPCRouter({
               NULL as mae,
               NULL as rmse`
               }
-            FROM matched_scores
           ),
 
           ${timeseriesCTE},
@@ -1459,7 +1763,7 @@ export const scoresRouter = createTRPCRouter({
           'counts' as result_type,
           CAST((SELECT count() FROM score1_filtered) AS Float64) as col1,
           CAST((SELECT count() FROM score2_filtered) AS Float64) as col2,
-          CAST((SELECT count() FROM matched_scores) AS Float64) as col3,
+          CAST((SELECT cnt FROM matched_count) AS Float64) as col3,
           CAST(NULL AS Nullable(Float64)) as col4,
           CAST(NULL AS Nullable(Float64)) as col5,
           CAST(NULL AS Nullable(Float64)) as col6,
@@ -1828,7 +2132,6 @@ export const scoresRouter = createTRPCRouter({
           fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
           toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
           nBins,
-          maxMatchedScoresLimit,
         },
         tags: {
           feature: "scores",
@@ -2006,6 +2309,34 @@ export const scoresRouter = createTRPCRouter({
             count: row.col4 ?? 0,
           }),
         ),
+        // Sampling metadata for transparency
+        samplingMetadata: {
+          isSampled: shouldSample,
+          samplingMethod: shouldSample ? ("hash" as const) : ("none" as const),
+          samplingRate,
+          estimatedTotalMatches: estimates.estimatedMatchedCount,
+          actualSampleSize: countsRow?.col3 ?? 0,
+          samplingExpression,
+          // Include preflight estimates for testing and transparency
+          preflightEstimates: {
+            score1Count: estimates.score1Count,
+            score2Count: estimates.score2Count,
+            estimatedMatchedCount: estimates.estimatedMatchedCount,
+          },
+          // Include adaptive FINAL decision for testing and transparency
+          adaptiveFinal: {
+            usedFinal: shouldUseFinal,
+            reason: shouldUseFinal
+              ? "Small dataset - using FINAL for accuracy"
+              : "Large dataset - skipping FINAL for performance",
+          },
+        },
+        // Metadata about query mode and score comparison
+        metadata: {
+          mode: input.mode ?? "two", // Echo back the mode from frontend
+          isSameScore: isIdenticalScores,
+          dataType: score1.dataType,
+        },
       };
     }),
 });

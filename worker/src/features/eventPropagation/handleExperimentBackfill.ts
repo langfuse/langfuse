@@ -179,8 +179,8 @@ export async function getRelevantObservations(
         WHEN o.id = concat('t-', o.trace_id) THEN ''
         ELSE coalesce(o.parent_observation_id, concat('t-', o.trace_id))
       END AS parent_span_id,
-      greatest(o.start_time, toDateTime64('1970-01-01', 3)) AS start_time,
-      o.end_time AS end_time,
+      o.start_time,
+      o.end_time,
       o.name,
       o.type,
       coalesce(o.environment, '') AS environment,
@@ -196,7 +196,7 @@ export async function getRelevantObservations(
       o.prompt_version AS prompt_version,
       coalesce(o.internal_model_id, '') AS model_id,
       coalesce(o.provided_model_name, '') AS provided_model_name,
-      coalesce(o.model_parameters, '') AS model_parameters,
+      coalesce(o.model_parameters, '{}') AS model_parameters,
       o.provided_usage_details AS provided_usage_details,
       o.usage_details AS usage_details,
       o.provided_cost_details AS provided_cost_details,

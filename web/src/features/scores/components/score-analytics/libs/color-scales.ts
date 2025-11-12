@@ -404,6 +404,11 @@ export function getMonochromeScale(
 /**
  * Get monochrome color mapping for categorical values
  * All categories of the same score use shades of the same base color
+ *
+ * IMPORTANT: Sorts categories alphabetically before assigning colors to ensure
+ * stable color assignment regardless of category order in the input array.
+ * This prevents colors from shifting when categories are hidden/shown.
+ *
  * @param scoreNumber - Which score (1 or 2)
  * @param categories - Array of category names
  * @param options - Optional configuration
@@ -417,17 +422,21 @@ export function getScoreCategoryColors(
   const baseColor =
     scoreNumber === 1 ? SCORE_BASE_COLORS.score1 : SCORE_BASE_COLORS.score2;
 
+  // Sort categories alphabetically for stable color assignment
+  // This ensures the same category always gets the same color
+  const sortedCategories = [...categories].sort();
+
   // Generate scale with even distribution across percentage range
   // Wider range (20%-100%) for better distinction between categories
-  const steps = Math.max(categories.length, 2);
+  const steps = Math.max(sortedCategories.length, 2);
   const colors = getMonochromeScale(baseColor, steps, "white", 0.2, 1.0);
 
   // Reverse if requested (for different visual ordering)
   const colorArray = options?.reverse ? [...colors].reverse() : colors;
 
-  // Map categories to colors
+  // Map categories to colors using sorted order
   const mapping: Record<string, string> = {};
-  categories.forEach((category, index) => {
+  sortedCategories.forEach((category, index) => {
     mapping[category] = colorArray[index] || colorArray[0];
   });
 

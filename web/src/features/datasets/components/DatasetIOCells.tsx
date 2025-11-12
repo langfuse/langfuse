@@ -2,6 +2,8 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { useTrpcError } from "@/src/hooks/useTrpcError";
+import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 
 export const DatasetItemIOCell = ({
   projectId,
@@ -45,6 +47,8 @@ export const DatasetItemIOCell = ({
   );
 };
 
+const silentHttpCodes = [404];
+
 export const TraceObservationIOCell = ({
   traceId,
   projectId,
@@ -72,6 +76,7 @@ export const TraceObservationIOCell = ({
       enabled: observationId === undefined,
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes },
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -84,16 +89,27 @@ export const TraceObservationIOCell = ({
       enabled: observationId !== undefined,
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes },
     },
+  );
+
+  const isLoading = !!observationId ? observation.isLoading : trace.isLoading;
+
+  const { isSilentError } = useTrpcError(
+    !!observationId ? observation.error : trace.error,
+    silentHttpCodes,
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
 
-  return (
+  return isSilentError ? (
+    <NotFoundCard
+      itemType={!!observationId ? "observation" : "trace"}
+      singleLine={singleLine}
+    />
+  ) : (
     <MemoizedIOTableCell
-      isLoading={
-        (!!observationId ? observation.isLoading : trace.isLoading) || !data
-      }
+      isLoading={isLoading || !data}
       data={io === "output" ? data?.output : data?.input}
       className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
