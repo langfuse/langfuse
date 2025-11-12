@@ -1,11 +1,5 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import { ImportCard } from "./ImportCard";
+import { CsvColumnsCard } from "./CsvColumnsCard";
+import { MappingCard } from "./MappingCard";
 import {
   DndContext,
   closestCenter,
@@ -15,7 +9,6 @@ import {
 import { createPortal } from "react-dom";
 import { findDefaultColumn } from "../lib/findDefaultColumn";
 import { type DragEndEvent } from "@dnd-kit/core";
-import { z } from "zod/v4";
 import { useEffect, useState } from "react";
 import {
   parseCsvClient,
@@ -35,6 +28,12 @@ import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import { chunk } from "lodash";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Label } from "@/src/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { InfoIcon, GripVertical } from "lucide-react";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -71,9 +70,6 @@ function getOptimalChunkSize(items: any[], startSize: number): number {
   return best;
 }
 
-const CardIdSchema = z.enum(["input", "expected", "metadata", "unmapped"]);
-type CardId = z.infer<typeof CardIdSchema>;
-
 type ImportProgress = {
   totalItems: number;
   processedItems: number;
@@ -82,30 +78,6 @@ type ImportProgress = {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function moveColumn(
-  fromId: CardId,
-  toId: CardId,
-  columnName: string,
-  sets: {
-    input: Set<string>;
-    expected: Set<string>;
-    metadata: Set<string>;
-    unmapped: Set<string>;
-  },
-  setters: {
-    input: (s: Set<string>) => void;
-    expected: (s: Set<string>) => void;
-    metadata: (s: Set<string>) => void;
-    unmapped: (s: Set<string>) => void;
-  },
-) {
-  sets[fromId].delete(columnName);
-  setters[fromId](new Set(sets[fromId]));
-
-  sets[toId].add(columnName);
-  setters[toId](new Set(sets[toId]));
 }
 
 // Helper to extract schema keys from object schema
@@ -160,16 +132,16 @@ export function PreviewCsvImport({
   const [selectedMetadataColumn, setSelectedMetadataColumn] = useState<
     Set<string>
   >(new Set());
-  const [excludedColumns, setExcludedColumns] = useState<Set<string>>(
+  const [_excludedColumns, setExcludedColumns] = useState<Set<string>>(
     new Set(),
   );
 
-  // Schema mode state
+  // Schema mode state (now supports multiple columns per schema key)
   const [inputSchemaMapping, setInputSchemaMapping] = useState<
-    Map<string, string>
+    Map<string, CsvColumnPreview[]>
   >(new Map());
   const [expectedOutputSchemaMapping, setExpectedOutputSchemaMapping] =
-    useState<Map<string, string>>(new Map());
+    useState<Map<string, CsvColumnPreview[]>>(new Map());
   const [unmappedColumns, setUnmappedColumns] = useState<Set<string>>(
     new Set(),
   );
@@ -247,148 +219,101 @@ export function PreviewCsvImport({
 
     if (!over) return;
 
-    const columnName = active.id as string;
+    const activeId = active.id as string;
     const fromCardId = active.data.current?.fromCardId;
+    const column = active.data.current?.column as CsvColumnPreview;
     const toId = over.id as string;
 
-    if (isSchemaMode) {
-      // Mixed/Schema mode: handle drops onto schema keys OR freeform fields
-      if (toId.includes(":")) {
-        // Drop on schema key: format is "input:country" or "expectedOutput:city"
-        const [cardType, schemaKey] = toId.split(":");
-        if (!schemaKey) return;
+    if (!column) return;
 
-        // Remove from previous location
-        if (fromCardId === "input") {
-          // Check if it was in schema mapping or freeform
-          const newMapping = new Map(inputSchemaMapping);
-          let wasInMapping = false;
-          for (const [key, col] of newMapping.entries()) {
-            if (col === columnName) {
-              newMapping.delete(key);
-              wasInMapping = true;
-              break;
-            }
-          }
-          if (wasInMapping) {
-            setInputSchemaMapping(newMapping);
-          } else {
-            selectedInputColumn.delete(columnName);
-            setSelectedInputColumn(new Set(selectedInputColumn));
-          }
-        } else if (fromCardId === "expectedOutput") {
-          const newMapping = new Map(expectedOutputSchemaMapping);
-          let wasInMapping = false;
-          for (const [key, col] of newMapping.entries()) {
-            if (col === columnName) {
-              newMapping.delete(key);
-              wasInMapping = true;
-              break;
-            }
-          }
-          if (wasInMapping) {
-            setExpectedOutputSchemaMapping(newMapping);
-          } else {
-            selectedExpectedColumn.delete(columnName);
-            setSelectedExpectedColumn(new Set(selectedExpectedColumn));
-          }
-        } else if (fromCardId === "unmapped") {
-          unmappedColumns.delete(columnName);
-          setUnmappedColumns(new Set(unmappedColumns));
-        }
+    // Only proceed if dropping on a valid drop zone
+    const isValidDropZone =
+      toId.includes(":") || // schema key drop zones
+      toId === "input" ||
+      toId === "expected" ||
+      toId === "metadata";
 
-        // Add to new mapping
-        if (cardType === "input") {
-          const newMapping = new Map(inputSchemaMapping);
-          newMapping.set(schemaKey, columnName);
-          setInputSchemaMapping(newMapping);
-        } else if (cardType === "expectedOutput") {
-          const newMapping = new Map(expectedOutputSchemaMapping);
-          newMapping.set(schemaKey, columnName);
-          setExpectedOutputSchemaMapping(newMapping);
-        }
-      } else if (
-        toId === "input" ||
-        toId === "expectedOutput" ||
-        toId === "unmapped"
-      ) {
-        // Drop on freeform card or unmapped
-        // Remove from previous location
-        if (fromCardId === "input") {
-          const newMapping = new Map(inputSchemaMapping);
-          let wasInMapping = false;
-          for (const [key, col] of newMapping.entries()) {
-            if (col === columnName) {
-              newMapping.delete(key);
-              wasInMapping = true;
-              break;
-            }
-          }
-          if (wasInMapping) {
-            setInputSchemaMapping(newMapping);
-          } else {
-            selectedInputColumn.delete(columnName);
-            setSelectedInputColumn(new Set(selectedInputColumn));
-          }
-        } else if (fromCardId === "expectedOutput") {
-          const newMapping = new Map(expectedOutputSchemaMapping);
-          let wasInMapping = false;
-          for (const [key, col] of newMapping.entries()) {
-            if (col === columnName) {
-              newMapping.delete(key);
-              wasInMapping = true;
-              break;
-            }
-          }
-          if (wasInMapping) {
-            setExpectedOutputSchemaMapping(newMapping);
-          } else {
-            selectedExpectedColumn.delete(columnName);
-            setSelectedExpectedColumn(new Set(selectedExpectedColumn));
-          }
-        } else if (fromCardId === "unmapped") {
-          unmappedColumns.delete(columnName);
-          setUnmappedColumns(new Set(unmappedColumns));
-        }
+    if (!isValidDropZone) return;
 
-        // Add to new location
-        if (toId === "input") {
-          selectedInputColumn.add(columnName);
-          setSelectedInputColumn(new Set(selectedInputColumn));
-        } else if (toId === "expectedOutput") {
-          selectedExpectedColumn.add(columnName);
-          setSelectedExpectedColumn(new Set(selectedExpectedColumn));
-        } else if (toId === "unmapped") {
-          unmappedColumns.add(columnName);
-          setUnmappedColumns(new Set(unmappedColumns));
+    // Helper to remove column from all mappings
+    const removeFromAllMappings = () => {
+      // Remove from input schema mapping
+      const inputMapping = new Map(inputSchemaMapping);
+      for (const [key, cols] of inputMapping.entries()) {
+        const filtered = cols.filter((c) => c.name !== column.name);
+        if (filtered.length === 0) {
+          inputMapping.delete(key);
+        } else if (filtered.length !== cols.length) {
+          inputMapping.set(key, filtered);
         }
       }
-    } else {
-      // Pure freeform mode
-      if (fromCardId === toId) return;
+      setInputSchemaMapping(inputMapping);
 
-      const parsedFromCardId = CardIdSchema.safeParse(fromCardId);
-      const parsedToCardId = CardIdSchema.safeParse(toId);
+      // Remove from expected schema mapping
+      const expectedMapping = new Map(expectedOutputSchemaMapping);
+      for (const [key, cols] of expectedMapping.entries()) {
+        const filtered = cols.filter((c) => c.name !== column.name);
+        if (filtered.length === 0) {
+          expectedMapping.delete(key);
+        } else if (filtered.length !== cols.length) {
+          expectedMapping.set(key, filtered);
+        }
+      }
+      setExpectedOutputSchemaMapping(expectedMapping);
 
-      if (!parsedFromCardId.success || !parsedToCardId.success) return;
+      // Remove from freeform selections
+      selectedInputColumn.delete(column.name);
+      setSelectedInputColumn(new Set(selectedInputColumn));
+      selectedExpectedColumn.delete(column.name);
+      setSelectedExpectedColumn(new Set(selectedExpectedColumn));
+      selectedMetadataColumn.delete(column.name);
+      setSelectedMetadataColumn(new Set(selectedMetadataColumn));
+    };
 
-      moveColumn(
-        parsedFromCardId.data,
-        parsedToCardId.data,
-        columnName,
-        {
-          input: selectedInputColumn,
-          expected: selectedExpectedColumn,
-          metadata: selectedMetadataColumn,
-          unmapped: excludedColumns,
-        },
-        {
-          input: setSelectedInputColumn,
-          expected: setSelectedExpectedColumn,
-          metadata: setSelectedMetadataColumn,
-          unmapped: setExcludedColumns,
-        },
-      );
+    // Handle schema key drops (format: "input:key" or "expectedOutput:key")
+    if (toId.includes(":")) {
+      const [cardType, schemaKey] = toId.split(":");
+      if (!schemaKey) return;
+
+      // Remove from previous mappings
+      if (fromCardId === "mapped") {
+        removeFromAllMappings();
+      }
+
+      // Add to new mapping
+      if (cardType === "input") {
+        const newMapping = new Map(inputSchemaMapping);
+        const existing = newMapping.get(schemaKey) ?? [];
+        newMapping.set(schemaKey, [...existing, column]);
+        setInputSchemaMapping(newMapping);
+      } else if (cardType === "expectedOutput") {
+        const newMapping = new Map(expectedOutputSchemaMapping);
+        const existing = newMapping.get(schemaKey) ?? [];
+        newMapping.set(schemaKey, [...existing, column]);
+        setExpectedOutputSchemaMapping(newMapping);
+      }
+      return;
+    }
+
+    // Handle freeform drops (input, expected, metadata)
+    if (toId === "input" || toId === "expected" || toId === "metadata") {
+      // Remove from previous mappings if exists
+      if (fromCardId === "mapped") {
+        removeFromAllMappings();
+      }
+
+      // Add to new location
+      if (toId === "input") {
+        setSelectedInputColumn(new Set([...selectedInputColumn, column.name]));
+      } else if (toId === "expected") {
+        setSelectedExpectedColumn(
+          new Set([...selectedExpectedColumn, column.name]),
+        );
+      } else if (toId === "metadata") {
+        setSelectedMetadataColumn(
+          new Set([...selectedMetadataColumn, column.name]),
+        );
+      }
     }
   };
 
@@ -416,10 +341,19 @@ export function PreviewCsvImport({
     const metadata = Array.from(selectedMetadataColumn);
 
     const inputMapping = isSchemaMode
-      ? Object.fromEntries(inputSchemaMapping)
+      ? Object.fromEntries(
+          Array.from(inputSchemaMapping.entries()).map(([key, cols]) => [
+            key,
+            cols.map((c) => c.name),
+          ]),
+        )
       : undefined;
     const expectedOutputMapping = isSchemaMode
-      ? Object.fromEntries(expectedOutputSchemaMapping)
+      ? Object.fromEntries(
+          Array.from(expectedOutputSchemaMapping.entries()).map(
+            ([key, cols]) => [key, cols.map((c) => c.name)],
+          ),
+        )
       : undefined;
 
     try {
@@ -430,8 +364,8 @@ export function PreviewCsvImport({
 
             // Validate columns exist (check both schema mappings and freeform columns)
             const allColumns = [
-              ...Object.values(inputMapping ?? {}),
-              ...Object.values(expectedOutputMapping ?? {}),
+              ...Object.values(inputMapping ?? {}).flat(),
+              ...Object.values(expectedOutputMapping ?? {}).flat(),
               ...input,
               ...expected,
               ...metadata,
@@ -575,176 +509,104 @@ export function PreviewCsvImport({
   return (
     <>
       <DialogBody className="border-t">
-        <Card className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden border-none pb-4">
-          <CardHeader className="shrink-0 text-center">
-            <CardTitle className="text-lg">Import {preview.fileName}</CardTitle>
-            <CardDescription>
-              {isSchemaMode
-                ? "Drag CSV columns to the schema fields below to map them."
-                : "Map your CSV columns to dataset fields. The CSV file must have column headers in the first row."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex min-h-0 w-full flex-1 flex-col gap-3 p-2">
-            <DndContext
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-              onDragStart={(event) =>
-                setActiveColumn(event.active.id as string)
-              }
-              measuring={{
-                droppable: {
-                  strategy: MeasuringStrategy.Always,
-                },
-              }}
-            >
-              <div className="min-h-0 flex-1">
-                {isSchemaMode ? (
-                  // Schema mode layout (mixed mode: some fields have schemas, some don't)
-                  <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-3">
-                    <ImportCard
-                      id="input"
-                      title="Input"
-                      columns={
-                        inputSchemaKeys && inputSchemaKeys.length > 0
-                          ? []
-                          : preview.columns.filter((col) =>
-                              selectedInputColumn.has(col.name),
-                            )
-                      }
-                      schemaKeys={inputSchemaKeys ?? undefined}
-                      schemaKeyMapping={inputSchemaMapping}
-                      onColumnSelect={() => {}}
-                      onColumnRemove={() => {}}
-                    />
-                    <ImportCard
-                      id="expectedOutput"
-                      title="Expected Output"
-                      columns={
-                        expectedOutputSchemaKeys &&
-                        expectedOutputSchemaKeys.length > 0
-                          ? []
-                          : preview.columns.filter((col) =>
-                              selectedExpectedColumn.has(col.name),
-                            )
-                      }
-                      schemaKeys={expectedOutputSchemaKeys ?? undefined}
-                      schemaKeyMapping={expectedOutputSchemaMapping}
-                      onColumnSelect={() => {}}
-                      onColumnRemove={() => {}}
-                    />
-                    <ImportCard
-                      id="unmapped"
-                      title="Available Columns"
-                      info="Drag these columns to schema fields to map them."
-                      columns={preview.columns.filter((col) =>
-                        unmappedColumns.has(col.name),
-                      )}
-                      onColumnSelect={() => {}}
-                      onColumnRemove={() => {}}
-                      className="bg-secondary/50"
-                    />
-                  </div>
-                ) : (
-                  // Freeform mode layout
-                  <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-4">
-                    <ImportCard
-                      id="input"
-                      title="Input"
-                      columns={preview.columns.filter((col) =>
-                        selectedInputColumn.has(col.name),
-                      )}
-                      onColumnSelect={(columnName) => {
-                        setSelectedInputColumn(
-                          new Set([...selectedInputColumn, columnName]),
-                        );
-                      }}
-                      onColumnRemove={(columnName) => {
-                        setSelectedInputColumn(
-                          new Set(
-                            [...selectedInputColumn].filter(
-                              (col) => col !== columnName,
-                            ),
-                          ),
-                        );
-                      }}
-                    />
-                    <ImportCard
-                      id="expected"
-                      title="Expected Output"
-                      columns={preview.columns.filter((col) =>
-                        selectedExpectedColumn.has(col.name),
-                      )}
-                      onColumnSelect={(columnName) => {
-                        setSelectedExpectedColumn(
-                          new Set([...selectedExpectedColumn, columnName]),
-                        );
-                      }}
-                      onColumnRemove={(columnName) => {
-                        setSelectedExpectedColumn(
-                          new Set(
-                            [...selectedExpectedColumn].filter(
-                              (col) => col !== columnName,
-                            ),
-                          ),
-                        );
-                      }}
-                    />
-                    <ImportCard
-                      id="metadata"
-                      title="Metadata"
-                      columns={preview.columns.filter((col) =>
-                        selectedMetadataColumn.has(col.name),
-                      )}
-                      onColumnSelect={(columnName) => {
-                        setSelectedMetadataColumn(
-                          new Set([...selectedMetadataColumn, columnName]),
-                        );
-                      }}
-                      onColumnRemove={(columnName) => {
-                        setSelectedMetadataColumn(
-                          new Set(
-                            [...selectedMetadataColumn].filter(
-                              (col) => col !== columnName,
-                            ),
-                          ),
-                        );
-                      }}
-                    />
-                    <ImportCard
-                      id="unmapped"
-                      title="Not mapped"
-                      info="These columns from your CSV will not be imported. Drag them to a field to include them."
-                      columns={preview.columns.filter((col) =>
-                        excludedColumns.has(col.name),
-                      )}
-                      onColumnSelect={(columnName) => {
-                        setExcludedColumns(
-                          new Set([...excludedColumns, columnName]),
-                        );
-                      }}
-                      onColumnRemove={(columnName) => {
-                        setExcludedColumns(
-                          new Set(
-                            [...excludedColumns].filter(
-                              (col) => col !== columnName,
-                            ),
-                          ),
-                        );
-                      }}
-                      className="bg-secondary/50"
-                    />
-                  </div>
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-3 px-2 py-1">
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            onDragStart={(event) => setActiveColumn(event.active.id as string)}
+            measuring={{
+              droppable: {
+                strategy: MeasuringStrategy.Always,
+              },
+            }}
+          >
+            <div className="grid min-h-0 flex-1 grid-cols-[1fr,2fr] gap-4">
+              <CsvColumnsCard
+                columns={preview.columns}
+                columnCount={preview.totalColumns}
+              />
+              <MappingCard
+                inputSchemaKeys={inputSchemaKeys ?? undefined}
+                expectedOutputSchemaKeys={expectedOutputSchemaKeys ?? undefined}
+                inputSchemaMapping={inputSchemaMapping}
+                expectedOutputSchemaMapping={expectedOutputSchemaMapping}
+                inputColumns={preview.columns.filter((col) =>
+                  selectedInputColumn.has(col.name),
                 )}
-              </div>
-              {createPortal(
-                <DragOverlay dropAnimation={null} adjustScale={false}>
-                  {activeColumn ? (
-                    <div className="cursor-grabbing rounded-md border bg-background p-2 shadow-xl ring-2 ring-primary">
-                      <div className="flex items-center justify-between space-x-2">
-                        <span className="text-sm font-medium">
-                          {activeColumn}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
+                expectedColumns={preview.columns.filter((col) =>
+                  selectedExpectedColumn.has(col.name),
+                )}
+                metadataColumns={preview.columns.filter((col) =>
+                  selectedMetadataColumn.has(col.name),
+                )}
+                onRemoveInputColumn={(columnName) => {
+                  setSelectedInputColumn(
+                    new Set(
+                      [...selectedInputColumn].filter(
+                        (col) => col !== columnName,
+                      ),
+                    ),
+                  );
+                }}
+                onRemoveExpectedColumn={(columnName) => {
+                  setSelectedExpectedColumn(
+                    new Set(
+                      [...selectedExpectedColumn].filter(
+                        (col) => col !== columnName,
+                      ),
+                    ),
+                  );
+                }}
+                onRemoveMetadataColumn={(columnName) => {
+                  setSelectedMetadataColumn(
+                    new Set(
+                      [...selectedMetadataColumn].filter(
+                        (col) => col !== columnName,
+                      ),
+                    ),
+                  );
+                }}
+                onRemoveInputSchemaColumn={(schemaKey, columnName) => {
+                  const newMapping = new Map(inputSchemaMapping);
+                  const existing = newMapping.get(schemaKey) ?? [];
+                  const filtered = existing.filter(
+                    (c) => c.name !== columnName,
+                  );
+                  if (filtered.length === 0) {
+                    newMapping.delete(schemaKey);
+                  } else {
+                    newMapping.set(schemaKey, filtered);
+                  }
+                  setInputSchemaMapping(newMapping);
+                }}
+                onRemoveExpectedSchemaColumn={(schemaKey, columnName) => {
+                  const newMapping = new Map(expectedOutputSchemaMapping);
+                  const existing = newMapping.get(schemaKey) ?? [];
+                  const filtered = existing.filter(
+                    (c) => c.name !== columnName,
+                  );
+                  if (filtered.length === 0) {
+                    newMapping.delete(schemaKey);
+                  } else {
+                    newMapping.set(schemaKey, filtered);
+                  }
+                  setExpectedOutputSchemaMapping(newMapping);
+                }}
+              />
+            </div>
+            {createPortal(
+              <DragOverlay dropAnimation={null} adjustScale={false}>
+                {activeColumn ? (
+                  activeColumn.startsWith("mapped-") ? (
+                    <div className="cursor-grabbing rounded-md bg-accent-dark-blue px-2 py-1 text-sm font-medium text-muted-foreground shadow-xl">
+                      {activeColumn.replace("mapped-", "")}
+                    </div>
+                  ) : (
+                    <div className="flex cursor-grabbing items-center gap-2 rounded-md border bg-background p-2 shadow-xl">
+                      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/70" />
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                        <span className="truncate text-sm">{activeColumn}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
                           {
                             preview.columns.find(
                               (col) => col.name === activeColumn,
@@ -753,39 +615,41 @@ export function PreviewCsvImport({
                         </span>
                       </div>
                     </div>
-                  ) : null}
-                </DragOverlay>,
-                document.body,
-              )}
-            </DndContext>
-          </CardContent>
-        </Card>
+                  )
+                ) : null}
+              </DragOverlay>,
+              document.body,
+            )}
+          </DndContext>
+        </div>
         {validationErrors.length > 0 && (
           <CsvImportValidationError errors={validationErrors} />
         )}
       </DialogBody>
       <DialogFooter>
-        {/* {!isSchemaMode && ( */}
-        <div className="flex w-full flex-1 items-start gap-2">
+        <div className="flex items-center gap-2">
           <Checkbox
             id="wrapSingleColumn"
             checked={wrapSingleColumn}
             onCheckedChange={(checked) => setWrapSingleColumn(checked === true)}
           />
-          <div className="grid">
-            <Label
-              htmlFor="wrapSingleColumn"
-              className="-mt-1 cursor-pointer text-sm font-normal"
-            >
-              Force Objects
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              Wrap single column values as objects (e.g., {`{"col": "value"}`}{" "}
-              instead of {`"value"`})
-            </p>
-          </div>
+          <Label
+            htmlFor="wrapSingleColumn"
+            className="cursor-pointer text-sm font-normal"
+          >
+            Force Objects
+          </Label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <InfoIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[300px]">
+              When a single csv column is mapped to a dataset item field, wrap
+              its value in an object instead of using the raw value. Example:{" "}
+              {`{"columnName": "value"}`} instead of {`"value"`}
+            </TooltipContent>
+          </Tooltip>
         </div>
-        {/* )} */}
         <Button
           variant="outline"
           onClick={() => {
