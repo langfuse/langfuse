@@ -1,6 +1,6 @@
-export const stringify = (data: any, key?: string): string => {
-  // For comment fields, use pretty-print formatting for better readability
-  const indent = key === "comments" ? 2 : undefined;
+export const stringify = (data: any): string => {
+  // Use pretty-print formatting for all nested objects for better readability in CSV exports
+  const indent = 2;
 
   return JSON.stringify(
     data,
