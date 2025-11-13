@@ -1,15 +1,14 @@
 use anyhow::Result;
-use dashmap::DashMap;
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::types::{Event, Observation, TraceAttrs, extract_metadata_arrays};
+use crate::types::{extract_metadata_arrays, Event, Observation, TraceAttrs};
 
 /// Transform an observation into an event with trace enrichment
 pub fn transform_observation_to_event(
     obs: &Observation,
-    trace_attrs_map: &Arc<DashMap<(String, String), TraceAttrs>>,
+    trace_attrs_map: &Arc<HashMap<(String, String), TraceAttrs>>,
 ) -> Result<Event> {
     let trace_key = (obs.project_id.clone(), obs.trace_id.clone());
 
@@ -17,7 +16,8 @@ pub fn transform_observation_to_event(
     let trace_attrs = trace_attrs_map.get(&trace_key);
 
     // Calculate parent_span_id
-    let parent_span_id = calculate_parent_span_id(&obs.id, &obs.trace_id, &obs.parent_observation_id);
+    let parent_span_id =
+        calculate_parent_span_id(&obs.id, &obs.trace_id, &obs.parent_observation_id);
 
     // Determine if this is a root observation (no parent)
     let is_root = obs.parent_observation_id.is_none();
@@ -32,9 +32,7 @@ pub fn transform_observation_to_event(
     // Merge metadata: observation metadata + trace metadata
     let merged_metadata = merge_metadata(
         &obs.metadata,
-        &trace_attrs.as_ref()
-            .map(|t| &t.metadata)
-            .unwrap_or(&vec![])
+        &trace_attrs.as_ref().map(|t| &t.metadata).unwrap_or(&vec![]),
     );
 
     // Detect source
@@ -57,12 +55,21 @@ pub fn transform_observation_to_event(
         metadata: merged_metadata.to_string(),
         metadata_names,
         metadata_raw_values,
-        tags: trace_attrs.as_ref().map(|t| t.tags.clone()).unwrap_or_default(),
+        tags: trace_attrs
+            .as_ref()
+            .map(|t| t.tags.clone())
+            .unwrap_or_default(),
         level: obs.level.clone(),
         status_message: obs.status_message.clone().unwrap_or_default(),
         version: obs.version.clone().unwrap_or_default(),
-        user_id: trace_attrs.as_ref().and_then(|t| t.user_id.clone()).unwrap_or_default(),
-        session_id: trace_attrs.as_ref().and_then(|t| t.session_id.clone()).unwrap_or_default(),
+        user_id: trace_attrs
+            .as_ref()
+            .and_then(|t| t.user_id.clone())
+            .unwrap_or_default(),
+        session_id: trace_attrs
+            .as_ref()
+            .and_then(|t| t.session_id.clone())
+            .unwrap_or_default(),
         prompt_id: obs.prompt_id.clone().unwrap_or_default(),
         prompt_name: obs.prompt_name.clone().unwrap_or_default(),
         prompt_version: obs.prompt_version.clone(),
@@ -76,7 +83,10 @@ pub fn transform_observation_to_event(
         input: obs.input.clone().unwrap_or_default(),
         output: obs.output.clone().unwrap_or_default(),
         environment: obs.environment.clone(),
-        release: trace_attrs.as_ref().and_then(|t| t.release.clone()).unwrap_or_default(),
+        release: trace_attrs
+            .as_ref()
+            .and_then(|t| t.release.clone())
+            .unwrap_or_default(),
         public: trace_attrs.as_ref().map(|t| t.public).unwrap_or(false),
         bookmarked,
         source,
@@ -110,7 +120,11 @@ pub fn transform_observation_to_event(
 }
 
 /// Calculate parent_span_id from observation relationships
-fn calculate_parent_span_id(obs_id: &str, trace_id: &str, parent_observation_id: &Option<String>) -> String {
+fn calculate_parent_span_id(
+    obs_id: &str,
+    trace_id: &str,
+    parent_observation_id: &Option<String>,
+) -> String {
     // If this is a root observation (id == "t-{trace_id}"), parent is empty
     if obs_id == format!("t-{}", trace_id) {
         return String::new();
@@ -123,7 +137,10 @@ fn calculate_parent_span_id(obs_id: &str, trace_id: &str, parent_observation_id:
 }
 
 /// Merge observation metadata with trace metadata
-fn merge_metadata(obs_metadata: &Vec<(String, String)>, trace_metadata: &Vec<(String, String)>) -> JsonValue {
+fn merge_metadata(
+    obs_metadata: &Vec<(String, String)>,
+    trace_metadata: &Vec<(String, String)>,
+) -> JsonValue {
     let mut merged: HashMap<String, JsonValue> = HashMap::new();
 
     // Start with trace metadata as base (Vec<(String, String)> from ClickHouse)
@@ -158,7 +175,7 @@ fn detect_source(metadata: &Option<JsonValue>) -> String {
 /// Transform a batch of observations to events in parallel
 pub fn transform_batch(
     observations: Vec<Observation>,
-    trace_attrs_map: &Arc<DashMap<(String, String), TraceAttrs>>,
+    trace_attrs_map: &Arc<HashMap<(String, String), TraceAttrs>>,
 ) -> Result<Vec<Event>> {
     observations
         .iter()

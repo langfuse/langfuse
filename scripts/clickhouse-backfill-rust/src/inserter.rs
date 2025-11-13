@@ -61,9 +61,10 @@ impl EventInserter {
         }
 
         // All retries exhausted
-        Err(last_error
-            .unwrap()
-            .context(format!("Failed to insert batch after {} attempts", self.max_retries)))
+        Err(last_error.unwrap().context(format!(
+            "Failed to insert batch after {} attempts",
+            self.max_retries
+        )))
     }
 
     /// Attempt to insert events (single try)

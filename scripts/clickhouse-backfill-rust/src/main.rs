@@ -46,11 +46,20 @@ async fn main() -> Result<()> {
     clickhouse::verify_tables(&read_client).await?;
 
     // Get partition statistics
-    let obs_count = clickhouse::get_partition_row_count(&read_client, "observations", &config.partition).await?;
-    tracing::info!("Partition {} contains {} observations to backfill", config.partition, obs_count);
+    let obs_count =
+        clickhouse::get_partition_row_count(&read_client, "observations", &config.partition)
+            .await?;
+    tracing::info!(
+        "Partition {} contains {} observations to backfill",
+        config.partition,
+        obs_count
+    );
 
     if obs_count == 0 {
-        tracing::warn!("No observations found in partition {}. Exiting.", config.partition);
+        tracing::warn!(
+            "No observations found in partition {}. Exiting.",
+            config.partition
+        );
         return Ok(());
     }
 
@@ -62,9 +71,8 @@ async fn main() -> Result<()> {
 
     // Set up checkpoint manager
     let checkpoint_path = config.partition_cursor_file_path();
-    let checkpoint_manager = Arc::new(
-        CheckpointManager::load(checkpoint_path, config.partition.clone()).await?,
-    );
+    let checkpoint_manager =
+        Arc::new(CheckpointManager::load(checkpoint_path, config.partition.clone()).await?);
 
     // Set up signal handler for graceful shutdown
     setup_signal_handler(checkpoint_manager.clone()).await;
@@ -90,11 +98,7 @@ async fn main() -> Result<()> {
     );
 
     // Create event inserter
-    let inserter = EventInserter::new(
-        write_client,
-        config.max_retries,
-        config.dry_run,
-    );
+    let inserter = EventInserter::new(write_client, config.max_retries, config.dry_run);
 
     // Set up progress bar
     let pb = ProgressBar::new(obs_count);

@@ -155,7 +155,10 @@ impl ObservationStreamer {
         }
 
         if filtered_count > 0 {
-            tracing::debug!("Filtered out {} observations matching dataset_run_items", filtered_count);
+            tracing::debug!(
+                "Filtered out {} observations matching dataset_run_items",
+                filtered_count
+            );
         }
 
         if observations.is_empty() {

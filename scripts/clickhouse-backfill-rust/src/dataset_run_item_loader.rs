@@ -8,9 +8,7 @@ use crate::types::DatasetRunItem;
 
 /// Load all dataset run items into memory
 /// Returns a HashSet of (project_id, trace_id) tuples for efficient O(1) lookups
-pub async fn load_dataset_run_items(
-    client: &Client,
-) -> Result<Arc<HashSet<(String, String)>>> {
+pub async fn load_dataset_run_items(client: &Client) -> Result<Arc<HashSet<(String, String)>>> {
     tracing::info!("Loading dataset run items...");
 
     let query = r#"

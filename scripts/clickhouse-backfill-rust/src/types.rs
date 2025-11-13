@@ -1,8 +1,8 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use clickhouse::Row;
+use fixnum::{typenum::U12, FixedPoint};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use fixnum::{FixedPoint, typenum::U12};
 
 // For Decimal(18, 12) - 12 decimal places
 pub type Decimal18_12 = FixedPoint<i64, U12>;
@@ -45,7 +45,7 @@ pub struct Observation {
     pub end_time: Option<DateTime<Utc>>,
     #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
     pub completion_start_time: Option<DateTime<Utc>>,
-    pub metadata:  Vec<(String, String)>,
+    pub metadata: Vec<(String, String)>,
     pub level: String,
     pub status_message: Option<String>,
     pub version: Option<String>,
@@ -54,8 +54,8 @@ pub struct Observation {
     pub internal_model_id: Option<String>,
     pub provided_model_name: Option<String>,
     pub model_parameters: Option<String>,
-    pub provided_usage_details:  Vec<(String, u64)>,
-    pub usage_details:  Vec<(String, u64)>,
+    pub provided_usage_details: Vec<(String, u64)>,
+    pub usage_details: Vec<(String, u64)>,
     pub provided_cost_details: Vec<(String, Decimal18_12)>,
     pub cost_details: Vec<(String, Decimal18_12)>,
     pub prompt_id: Option<String>,

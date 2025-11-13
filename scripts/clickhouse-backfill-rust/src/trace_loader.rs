@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clickhouse::Client;
-use dashmap::DashMap;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::types::TraceAttrs;
@@ -10,7 +10,7 @@ use crate::types::TraceAttrs;
 pub async fn load_trace_attributes(
     client: &Client,
     partition: &str,
-) -> Result<Arc<DashMap<(String, String), TraceAttrs>>> {
+) -> Result<Arc<HashMap<(String, String), TraceAttrs>>> {
     tracing::info!("Loading trace attributes for partition {}...", partition);
 
     let query = r#"
@@ -51,13 +51,15 @@ pub async fn load_trace_attributes(
     let pb = ProgressBar::new(total_traces);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} traces ({per_sec}) ETA: {eta}")
+            .template(
+                "[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} traces ({per_sec}) ETA: {eta}",
+            )
             .unwrap()
             .progress_chars("=>-"),
     );
 
-    // Create the DashMap to store trace attributes
-    let trace_attrs: Arc<DashMap<(String, String), TraceAttrs>> = Arc::new(DashMap::new());
+    // Create the HashMap to store trace attributes
+    let mut trace_attrs: HashMap<(String, String), TraceAttrs> = HashMap::new();
 
     // Stream traces and populate the map
     let mut cursor = client.query(query).bind(partition).fetch::<TraceAttrs>()?;
@@ -109,7 +111,7 @@ pub async fn load_trace_attributes(
         estimated_mb
     );
 
-    Ok(trace_attrs)
+    Ok(Arc::new(trace_attrs))
 }
 
 #[cfg(test)]

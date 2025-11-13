@@ -73,11 +73,7 @@ pub async fn verify_tables(client: &Client) -> Result<()> {
 }
 
 /// Get row count for a partition
-pub async fn get_partition_row_count(
-    client: &Client,
-    table: &str,
-    partition: &str,
-) -> Result<u64> {
+pub async fn get_partition_row_count(client: &Client, table: &str, partition: &str) -> Result<u64> {
     let count: u64 = client
         .query(&format!(
             "SELECT count() FROM {} WHERE _partition_id = ? AND is_deleted = 0",

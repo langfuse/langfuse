@@ -33,11 +33,11 @@ impl CheckpointManager {
         if file_path.exists() {
             tracing::info!("Loading checkpoint from: {:?}", file_path);
 
-            let content = fs::read_to_string(&file_path)
-                .context("Failed to read checkpoint file")?;
+            let content =
+                fs::read_to_string(&file_path).context("Failed to read checkpoint file")?;
 
-            let state: CheckpointState = serde_json::from_str(&content)
-                .context("Failed to parse checkpoint file")?;
+            let state: CheckpointState =
+                serde_json::from_str(&content).context("Failed to parse checkpoint file")?;
 
             // Verify partition matches
             if state.partition != partition {
@@ -100,16 +100,11 @@ impl CheckpointManager {
 
         // Atomic write: write to temp file, then rename
         let temp_path = self.file_path.with_extension("tmp");
-        fs::write(&temp_path, content)
-            .context("Failed to write checkpoint to temp file")?;
+        fs::write(&temp_path, content).context("Failed to write checkpoint to temp file")?;
 
-        fs::rename(&temp_path, &self.file_path)
-            .context("Failed to rename temp checkpoint file")?;
+        fs::rename(&temp_path, &self.file_path).context("Failed to rename temp checkpoint file")?;
 
-        tracing::debug!(
-            "Saved checkpoint: {} rows processed",
-            state.rows_processed
-        );
+        tracing::debug!("Saved checkpoint: {} rows processed", state.rows_processed);
 
         Ok(())
     }

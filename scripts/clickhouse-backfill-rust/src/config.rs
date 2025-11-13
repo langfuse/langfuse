@@ -104,10 +104,7 @@ impl Config {
         tracing::info!("  Dry Run: {}", self.dry_run);
         tracing::info!("  Max Retries: {}", self.max_retries);
         tracing::info!("  Parallel Workers: {}", self.parallel_workers);
-        tracing::info!(
-            "  Cursor File: {:?}",
-            self.partition_cursor_file_path()
-        );
+        tracing::info!("  Cursor File: {:?}", self.partition_cursor_file_path());
     }
 }
 
