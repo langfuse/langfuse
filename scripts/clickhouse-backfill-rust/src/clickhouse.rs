@@ -11,7 +11,11 @@ pub fn create_read_client(config: &Config) -> Result<Client> {
         .with_password(&config.clickhouse_password)
         .with_database(&config.clickhouse_db)
         .with_option("max_execution_time", "3600") // 1 hour timeout
-        .with_option("max_block_size", &config.stream_block_size.to_string());
+        .with_option("max_block_size", &config.stream_block_size.to_string())
+        .with_option("send_timeout", "120")
+        .with_option("receive_timeout", "120")
+        .with_option("http_send_timeout", "120")
+        .with_option("http_receive_timeout", "120");
 
     tracing::debug!("Created ClickHouse read client");
     Ok(client)
@@ -24,12 +28,16 @@ pub fn create_write_client(config: &Config) -> Result<Client> {
         .with_user(&config.clickhouse_user)
         .with_password(&config.clickhouse_password)
         .with_database(&config.clickhouse_db)
-        .with_option("async_insert", "1")
-        .with_option("wait_for_async_insert", "1")
+        // .with_option("async_insert", "1")
+        // .with_option("wait_for_async_insert", "1")
         .with_option("async_insert_max_data_size", "10485760") // 10MB
         .with_option("async_insert_busy_timeout_ms", "1000")
         .with_option("input_format_binary_read_json_as_string", "1")
-        .with_option("output_format_binary_write_json_as_string", "1");
+        .with_option("output_format_binary_write_json_as_string", "1")
+        .with_option("send_timeout", "120")
+        .with_option("receive_timeout", "120")
+        .with_option("http_send_timeout", "120")
+        .with_option("http_receive_timeout", "120");
 
     tracing::debug!("Created ClickHouse write client with async insert settings");
     Ok(client)
