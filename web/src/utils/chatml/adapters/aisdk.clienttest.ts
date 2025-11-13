@@ -1,13 +1,32 @@
-jest.mock("@langfuse/shared", () => ({
-  ChatMessageRole: {
-    System: "system",
-    Developer: "developer",
-    User: "user",
-    Assistant: "assistant",
-    Tool: "tool",
-    Model: "model",
-  },
-}));
+// BaseChatMlMessageSchema was extracted to shared package in IO read-time extraction
+// now ChatMlSchema.ts imports it, so our test import chain pulls it in:
+// aisdk.clienttest → adapters/index → core → ChatMlSchema → @langfuse/shared
+jest.mock("@langfuse/shared", () => {
+  const { z } = require("zod/v4");
+
+  return {
+    ChatMessageRole: {
+      System: "system",
+      Developer: "developer",
+      User: "user",
+      Assistant: "assistant",
+      Tool: "tool",
+      Model: "model",
+    },
+    BaseChatMlMessageSchema: z
+      .object({
+        role: z.string().optional(),
+        name: z.string().optional(),
+        content: z
+          .union([z.record(z.string(), z.any()), z.string(), z.array(z.any())])
+          .optional(),
+        tool_calls: z.array(z.any()).optional(),
+        tool_call_id: z.string().optional(),
+        additional_kwargs: z.record(z.string(), z.any()).optional(),
+      })
+      .passthrough(),
+  };
+});
 
 import { normalizeInput } from "./index";
 import { aisdkAdapter } from "./aisdk";
@@ -445,6 +464,125 @@ describe("AI SDK Adapter", () => {
       expect(result.data?.length).toBe(2);
       expect(result.data?.[0].content).toBe("Hello");
       expect(result.data?.[1].tool_calls).toBeDefined();
+    });
+  });
+
+  describe("raw tool call array handling (OUTPUT format)", () => {
+    it("should convert raw tool call array to assistant message with tool_calls", () => {
+      // This is the OUTPUT format from ai.generateText.doGenerate when model makes tool calls
+      const rawToolCallArray = [
+        {
+          toolCallId: "call_abc",
+          toolName: "get_weather",
+          input: { city: "NYC" },
+        },
+        {
+          toolCallId: "call_xyz",
+          toolName: "get_time",
+          input: { timezone: "EST" },
+        },
+      ];
+
+      const result = normalizeInput(rawToolCallArray, { framework: "aisdk" });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.length).toBe(1);
+
+      // Should be assistant message
+      const msg = result.data?.[0];
+      expect(msg?.role).toBe("assistant");
+      expect(msg?.content).toBe("");
+
+      // Should have tool_calls array
+      expect(msg?.tool_calls).toBeDefined();
+      expect(msg?.tool_calls?.length).toBe(2);
+
+      // Verify first tool call structure
+      expect(msg?.tool_calls?.[0].id).toBe("call_abc");
+      expect(msg?.tool_calls?.[0].name).toBe("get_weather");
+      expect(msg?.tool_calls?.[0].arguments).toBe('{"city":"NYC"}');
+      expect(msg?.tool_calls?.[0].type).toBe("function");
+
+      // Verify second tool call
+      expect(msg?.tool_calls?.[1].id).toBe("call_xyz");
+      expect(msg?.tool_calls?.[1].name).toBe("get_time");
+      expect(msg?.tool_calls?.[1].arguments).toBe('{"timezone":"EST"}');
+    });
+
+    it("should handle Bedrock's args field (instead of input)", () => {
+      const bedrockToolCallArray = [
+        {
+          toolCallId: "tooluse_123",
+          toolName: "agentResponse",
+          args: {
+            response: "Processing your request",
+            reasoning: "Need to respond to user",
+          },
+        },
+      ];
+
+      const result = normalizeInput(bedrockToolCallArray, {
+        framework: "aisdk",
+      });
+
+      expect(result.success).toBe(true);
+      const msg = result.data?.[0];
+
+      expect(msg?.tool_calls?.length).toBe(1);
+      expect(msg?.tool_calls?.[0].id).toBe("tooluse_123");
+      expect(msg?.tool_calls?.[0].name).toBe("agentResponse");
+      expect(msg?.tool_calls?.[0].arguments).toContain("response");
+      expect(msg?.tool_calls?.[0].arguments).toContain("reasoning");
+    });
+
+    it("should attach tools from metadata context to raw tool call array", () => {
+      const rawToolCallArray = [
+        {
+          toolCallId: "call_123",
+          toolName: "calculator",
+          input: { operation: "add", a: 1, b: 2 },
+        },
+      ];
+
+      const metadata = {
+        tools: [
+          {
+            type: "function",
+            name: "calculator",
+            description: "Perform math operations",
+            inputSchema: {
+              type: "object",
+              properties: {
+                operation: { type: "string" },
+                a: { type: "number" },
+                b: { type: "number" },
+              },
+            },
+          },
+        ],
+        scope: {
+          name: "ai",
+        },
+      };
+
+      const result = normalizeInput(rawToolCallArray, {
+        metadata,
+        framework: "aisdk",
+      });
+
+      expect(result.success).toBe(true);
+      const msg = result.data?.[0];
+
+      // Tools should be attached from metadata
+      expect(msg?.tools).toBeDefined();
+      expect(msg?.tools?.length).toBe(1);
+      expect(msg?.tools?.[0].name).toBe("calculator");
+      expect(msg?.tools?.[0].description).toBe("Perform math operations");
+      expect(msg?.tools?.[0].parameters).toBeDefined();
+
+      // Tool call should still be present
+      expect(msg?.tool_calls?.length).toBe(1);
+      expect(msg?.tool_calls?.[0].name).toBe("calculator");
     });
   });
 });

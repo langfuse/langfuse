@@ -324,16 +324,18 @@ export function CommentList({
   });
 
   const commentsWithFormattedTimestamp = useMemo(() => {
-    return comments.data?.map((comment) => ({
-      ...comment,
-      timestamp: getRelativeTimestampFromNow(comment.createdAt),
-      strippedLower: stripMarkdown(comment.content).toLowerCase(),
-      authorLower: (
-        comment.authorUserName ||
-        comment.authorUserId ||
-        ""
-      ).toLowerCase(),
-    }));
+    return comments.data
+      ?.map((comment) => ({
+        ...comment,
+        timestamp: getRelativeTimestampFromNow(comment.createdAt),
+        strippedLower: stripMarkdown(comment.content).toLowerCase(),
+        authorLower: (
+          comment.authorUserName ||
+          comment.authorUserId ||
+          ""
+        ).toLowerCase(),
+      }))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }, [comments.data]);
 
   // stripMarkdown imported from utils

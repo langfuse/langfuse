@@ -252,7 +252,7 @@ export const traceRouter = createTRPCRouter({
         projectId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
-        truncated: z.boolean().default(false), // used to truncate the input and output
+        verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
     )
     .query(async ({ ctx }) => {

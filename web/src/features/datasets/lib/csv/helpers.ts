@@ -1,47 +1,16 @@
 import { parse } from "csv-parse";
 import { type Prisma } from "@langfuse/shared";
+import type {
+  ParseOptions,
+  CsvPreviewResult,
+  ColumnType,
+  FieldMapping,
+  FreeformField,
+  SchemaField,
+} from "./types";
 
 const MAX_PREVIEW_ROWS = 10;
 const PREVIEW_FILE_SIZE_BYTES = 1024 * 1024 * 2; // 2MB
-
-type ColumnType =
-  | "string"
-  | "number"
-  | "boolean"
-  | "null"
-  | "json"
-  | "array"
-  | "unknown"
-  | "mixed";
-
-export type CsvColumnPreview = {
-  name: string;
-  samples: string[];
-  inferredType: ColumnType;
-};
-
-// Shared types
-export type CsvPreviewResult = {
-  fileName?: string;
-  columns: CsvColumnPreview[];
-  previewRows: string[][];
-  totalColumns: number;
-};
-
-type RowProcessor = {
-  onHeader?: (headers: string[]) => void | Promise<void>;
-  onRow?: (
-    row: string[],
-    headers: string[],
-    index: number,
-  ) => void | Promise<void>;
-};
-
-type ParseOptions = {
-  isPreview?: boolean;
-  collectSamples?: boolean;
-  processor?: RowProcessor;
-};
 
 // Shared parser configuration
 const getParserConfig = (options: ParseOptions) => ({
@@ -212,18 +181,63 @@ export function parseColumns(
   columnNames: string[],
   row: string[],
   headerMap: Map<string, number>,
+  options?: { wrapSingleColumn?: boolean },
 ): Prisma.JsonValue {
   if (columnNames.length === 0) return null;
 
-  // Single column: do not nest columns into json objects
+  // Single column: wrap if requested, else return raw value
   if (columnNames.length === 1) {
     const col = columnNames[0];
     const rawValue = row[headerMap.get(col)!];
-    return parseValue(rawValue);
+    const parsedValue = parseValue(rawValue);
+
+    if (options?.wrapSingleColumn) {
+      return { [col]: parsedValue };
+    }
+    return parsedValue;
   }
 
   // Multiple columns: nest columns into json objects
   return Object.fromEntries(
     columnNames.map((col) => [col, parseValue(row[headerMap.get(col)!])]),
   );
+}
+
+// Helper to build object from schema key mapping
+export function buildSchemaObject(
+  mapping: Record<string, string[]>, // {schemaKey: [csvColumn1, csvColumn2, ...]}
+  row: string[],
+  headerMap: Map<string, number>,
+): Prisma.JsonValue {
+  const entries = Object.entries(mapping);
+  if (entries.length === 0) return null;
+
+  return Object.fromEntries(
+    entries.map(([schemaKey, csvColumns]) => {
+      if (csvColumns.length === 1) {
+        // Single column: use the raw value
+        return [schemaKey, parseValue(row[headerMap.get(csvColumns[0]!)!])];
+      } else {
+        // Multiple columns: create an object
+        return [
+          schemaKey,
+          Object.fromEntries(
+            csvColumns.map((csvColumn) => [
+              csvColumn,
+              parseValue(row[headerMap.get(csvColumn)!]),
+            ]),
+          ),
+        ];
+      }
+    }),
+  );
+}
+
+// Type guard helpers
+export function isFreeformField(field: FieldMapping): field is FreeformField {
+  return field.type === "freeform";
+}
+
+export function isSchemaField(field: FieldMapping): field is SchemaField {
+  return field.type === "schema";
 }
