@@ -884,7 +884,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
   return (await enrichObservationsWithModelData(
     observationRecords,
     opts.projectId,
-    Boolean(opts.parseIoAsJson),
+    opts.parseIoAsJson ?? true, // V1 API: default to parsing JSON (backwards compatibility)
     null, // V1 API: no field groups, return complete observations
   )) as Array<Observation & ObservationPriceFields>;
 };
