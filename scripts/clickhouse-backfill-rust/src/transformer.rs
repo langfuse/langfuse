@@ -4,7 +4,7 @@ use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::types::{Event, Observation, TraceAttrs, extract_metadata_arrays, parse_json_to_map};
+use crate::types::{Event, Observation, TraceAttrs, extract_metadata_arrays};
 
 /// Transform an observation into an event with trace enrichment
 pub fn transform_observation_to_event(
@@ -30,7 +30,7 @@ pub fn transform_observation_to_event(
     };
 
     // Merge metadata: observation metadata + trace metadata
-    let merged_metadata = merge_metadata(&obs.metadata, trace_attrs.as_ref().map(|v| &**v));
+    let merged_metadata = merge_metadata(&obs.metadata, &trace_attrs.as_ref().unwrap().metadata);
 
     // Detect source
     let source = detect_source(&merged_metadata);
@@ -38,34 +38,22 @@ pub fn transform_observation_to_event(
     // Extract metadata arrays
     let (metadata_names, metadata_raw_values) = extract_metadata_arrays(&merged_metadata);
 
-    // Parse usage and cost details from JSON strings to Maps
-    let provided_usage_details = parse_json_to_map(obs.provided_usage_details.as_deref());
-    let usage_details = parse_json_to_map(obs.usage_details.as_deref());
-    let provided_cost_details = parse_json_to_map(obs.provided_cost_details.as_deref());
-    let cost_details = parse_json_to_map(obs.cost_details.as_deref());
-
-    // Serialize maps to JSON strings for Map columns
-    let provided_usage_details_str = serde_json::to_string(&provided_usage_details)?;
-    let usage_details_str = serde_json::to_string(&usage_details)?;
-    let provided_cost_details_str = serde_json::to_string(&provided_cost_details)?;
-    let cost_details_str = serde_json::to_string(&cost_details)?;
-
     // Build the event
     let event = Event {
         project_id: obs.project_id.clone(),
         trace_id: obs.trace_id.clone(),
         span_id: obs.id.clone(),
         parent_span_id,
-        name: obs.name.clone().unwrap_or_default(),
+        name: obs.name.clone(),
         r#type: obs.r#type.clone(),
         start_time: obs.start_time,
         end_time: obs.end_time,
         completion_start_time: obs.completion_start_time,
-        metadata: merged_metadata.as_ref().map(|m| m.to_string()),
+        metadata: merged_metadata.to_string(),
         metadata_names,
         metadata_raw_values,
         tags: trace_attrs.as_ref().map(|t| t.tags.clone()).unwrap_or_default(),
-        level: obs.level.clone().unwrap_or_default(),
+        level: obs.level.clone(),
         status_message: obs.status_message.clone().unwrap_or_default(),
         version: obs.version.clone().unwrap_or_default(),
         user_id: trace_attrs.as_ref().and_then(|t| t.user_id.clone()).unwrap_or_default(),
@@ -76,10 +64,10 @@ pub fn transform_observation_to_event(
         model_id: obs.internal_model_id.clone().unwrap_or_default(),
         provided_model_name: obs.provided_model_name.clone().unwrap_or_default(),
         model_parameters: obs.model_parameters.clone().unwrap_or_default(),
-        provided_usage_details: provided_usage_details_str,
-        usage_details: usage_details_str,
-        provided_cost_details: provided_cost_details_str,
-        cost_details: cost_details_str,
+        provided_usage_details: obs.provided_usage_details.clone(),
+        usage_details: obs.usage_details.clone(),
+        provided_cost_details: obs.provided_cost_details.clone(),
+        cost_details: obs.cost_details.clone(),
         input: obs.input.clone().unwrap_or_default(),
         output: obs.output.clone().unwrap_or_default(),
         environment: String::new(), // Not in observations table
@@ -133,45 +121,31 @@ fn calculate_parent_span_id(obs_id: &str, trace_id: &str, parent_observation_id:
 }
 
 /// Merge observation metadata with trace metadata
-fn merge_metadata(obs_metadata_str: &Option<String>, trace_attrs: Option<&TraceAttrs>) -> Option<JsonValue> {
+fn merge_metadata(obs_metadata: &Vec<(String, String)>, trace_metadata: &Vec<(String, String)>) -> JsonValue {
     let mut merged: HashMap<String, JsonValue> = HashMap::new();
 
-    // Start with trace metadata if available (Vec<(String, String)> from ClickHouse)
-    if let Some(attrs) = trace_attrs {
-        if !attrs.metadata.is_empty() {
-            for (k, v) in &attrs.metadata {
-                // Parse the string value as JSON if possible, otherwise keep as string
-                let json_val = serde_json::from_str(v).unwrap_or_else(|_| JsonValue::String(v.clone()));
-                merged.insert(k.clone(), json_val);
-            }
-        }
+    // Start with trace metadata as base (Vec<(String, String)> from ClickHouse)
+    for (k, v) in trace_metadata {
+        // Parse the string value as JSON if possible, otherwise keep as string
+        let json_val = serde_json::from_str(v).unwrap_or_else(|_| JsonValue::String(v.clone()));
+        merged.insert(k.clone(), json_val);
     }
 
     // Overlay observation metadata (takes precedence)
-    if let Some(obs_meta_str) = obs_metadata_str {
-        if let Ok(obs_meta) = serde_json::from_str::<JsonValue>(obs_meta_str) {
-            if let Some(obj) = obs_meta.as_object() {
-                for (k, v) in obj.iter() {
-                    merged.insert(k.clone(), v.clone());
-                }
-            }
-        }
+    for (k, v) in obs_metadata {
+        // Parse the string value as JSON if possible, otherwise keep as string
+        let json_val = serde_json::from_str(v).unwrap_or_else(|_| JsonValue::String(v.clone()));
+        merged.insert(k.clone(), json_val);
     }
 
-    if merged.is_empty() {
-        None
-    } else {
-        Some(json!(merged))
-    }
+    json!(merged)
 }
 
 /// Detect ingestion source (otel vs ingestion-api)
-fn detect_source(metadata: &Option<JsonValue>) -> String {
-    if let Some(meta) = metadata {
-        if let Some(obj) = meta.as_object() {
-            if obj.contains_key("resourceAttributes") {
-                return "otel".to_string();
-            }
+fn detect_source(metadata: &JsonValue) -> String {
+    if let Some(obj) = metadata.as_object() {
+        if obj.contains_key("resourceAttributes") {
+            return "otel".to_string();
         }
     }
     "ingestion-api".to_string()

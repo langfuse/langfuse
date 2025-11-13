@@ -2,7 +2,6 @@ use chrono::{DateTime, NaiveDate, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
 
 /// Trace-level attributes loaded into memory for enrichment
 #[derive(Debug, Clone, Row, Deserialize)]
@@ -15,6 +14,7 @@ pub struct TraceAttrs {
     pub tags: Vec<String>,
     pub public: u8,
     pub bookmarked: u8,
+    pub version: Option<String>,
     pub release: Option<String>,
 }
 
@@ -26,12 +26,12 @@ pub struct Observation {
     pub trace_id: String,
     pub r#type: String,
     pub parent_observation_id: Option<String>,
-    pub name: Option<String>,
+    pub name: String,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
     pub completion_start_time: Option<DateTime<Utc>>,
-    pub metadata: Option<String>,
-    pub level: Option<String>,
+    pub metadata:  Vec<(String, String)>,
+    pub level: String,
     pub status_message: Option<String>,
     pub version: Option<String>,
     pub input: Option<String>,
@@ -39,10 +39,10 @@ pub struct Observation {
     pub internal_model_id: Option<String>,
     pub provided_model_name: Option<String>,
     pub model_parameters: Option<String>,
-    pub provided_usage_details: Option<String>,
-    pub usage_details: Option<String>,
-    pub provided_cost_details: Option<String>,
-    pub cost_details: Option<String>,
+    pub provided_usage_details:  Vec<(String, u64)>,
+    pub usage_details:  Vec<(String, u64)>,
+    pub provided_cost_details: Vec<(String, String)>, // Decimal64 as String
+    pub cost_details: Vec<(String, String)>, // Decimal64 as String
     pub prompt_id: Option<String>,
     pub prompt_name: Option<String>,
     pub prompt_version: Option<i32>,
@@ -64,7 +64,7 @@ pub struct Event {
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
     pub completion_start_time: Option<DateTime<Utc>>,
-    pub metadata: Option<String>,
+    pub metadata: String,
     pub metadata_names: Vec<String>,
     pub metadata_raw_values: Vec<String>,
     pub tags: Vec<String>,
@@ -79,10 +79,10 @@ pub struct Event {
     pub model_id: String,
     pub provided_model_name: String,
     pub model_parameters: String,
-    pub provided_usage_details: String,
-    pub usage_details: String,
-    pub provided_cost_details: String,
-    pub cost_details: String,
+    pub provided_usage_details: Vec<(String, u64)>,
+    pub usage_details: Vec<(String, u64)>,
+    pub provided_cost_details: Vec<(String, String)>,
+    pub cost_details: Vec<(String, String)>,
     pub input: String,
     pub output: String,
     pub environment: String,
@@ -152,12 +152,12 @@ pub struct CheckpointState {
     pub last_updated: DateTime<Utc>,
 }
 
-/// Helper function to parse JSON string to HashMap
-pub fn parse_json_to_map(json_str: Option<&str>) -> HashMap<String, JsonValue> {
-    json_str
-        .and_then(|s| serde_json::from_str(s).ok())
-        .unwrap_or_default()
-}
+// /// Helper function to parse JSON string to HashMap
+// pub fn parse_json_to_map(json_str: Option<&str>) -> HashMap<String, JsonValue> {
+//     json_str
+//         .and_then(|s| serde_json::from_str(s).ok())
+//         .unwrap_or_default()
+// }
 
 // /// Helper function to parse JSON string to Value
 // pub fn parse_json_to_value(json_str: Option<&str>) -> Option<JsonValue> {
@@ -170,9 +170,9 @@ pub fn parse_json_to_map(json_str: Option<&str>) -> HashMap<String, JsonValue> {
 // }
 
 /// Helper function to extract metadata names and raw values
-pub fn extract_metadata_arrays(metadata: &Option<JsonValue>) -> (Vec<String>, Vec<String>) {
+pub fn extract_metadata_arrays(metadata: &JsonValue) -> (Vec<String>, Vec<String>) {
     match metadata {
-        Some(JsonValue::Object(map)) => {
+        JsonValue::Object(map) => {
             let mut names = Vec::new();
             let mut values = Vec::new();
             for (key, value) in map.iter() {

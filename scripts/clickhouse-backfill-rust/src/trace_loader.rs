@@ -23,6 +23,7 @@ pub async fn load_trace_attributes(
             tags,
             public,
             bookmarked,
+            version,
             release
         FROM traces
         WHERE _partition_id = ?
@@ -81,6 +82,7 @@ pub async fn load_trace_attributes(
             tags: trace.tags,
             public: trace.public,
             bookmarked: trace.bookmarked,
+            version: trace.version,
             release: trace.release,
         };
 
