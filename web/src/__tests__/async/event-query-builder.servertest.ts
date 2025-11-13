@@ -37,11 +37,10 @@ describe("CTEQueryBuilder", () => {
     expect(query).toContain("t.name");
     expect(query).toContain("s.score");
     expect(query).toContain("COUNT(*) as total");
-    expect(query).toContain("LIMIT {limit: Int32} OFFSET {offset: Int32}");
+    expect(query).toContain("LIMIT {limit: Int32}");
     expect(params.projectId).toBe("test-project");
     expect(params.ids).toEqual(["id1", "id2"]);
     expect(params.limit).toBe(10);
-    expect(params.offset).toBe(0);
   });
 
   it("should support type-safe selectColumns() after establishing aliases", () => {

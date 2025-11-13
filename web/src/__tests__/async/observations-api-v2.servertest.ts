@@ -2,11 +2,22 @@ import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
+import { env } from "@/src/env.mjs";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
+const maybe =
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+    ? describe
+    : describe.skip;
+
 describe("/api/public/v2/observations API Endpoint", () => {
-  describe("GET /api/public/v2/observations", () => {
+  it("should kill redis connection", () => {
+    // we need at least one test case to avoid hanging
+    // redis connection when everything else is skipped.
+  });
+
+  maybe("GET /api/public/v2/observations", () => {
     it("should fetch observations with only requested field groups", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -302,7 +313,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
   });
 
-  describe("Cursor-based pagination", () => {
+  maybe("Cursor-based pagination", () => {
     it("should return cursor when results equal limit", async () => {
       const traceId = randomUUID();
       const timestamp = new Date();
