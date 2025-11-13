@@ -114,8 +114,6 @@ pub async fn load_trace_attributes(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_trace_attrs_memory_estimate() {
         // Test that our memory estimation is reasonable

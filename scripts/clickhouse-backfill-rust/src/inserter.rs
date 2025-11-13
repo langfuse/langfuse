@@ -119,8 +119,6 @@ impl EventInserter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_exponential_backoff_calculation() {
         // Test that backoff calculation is correct

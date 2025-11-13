@@ -33,7 +33,7 @@ pub fn transform_observation_to_event(
     let merged_metadata = merge_metadata(&obs.metadata, &trace_attrs.as_ref().unwrap().metadata);
 
     // Detect source
-    let source = detect_source(&merged_metadata);
+    let source = detect_source(&Some(merged_metadata.clone()));
 
     // Extract metadata arrays
     let (metadata_names, metadata_raw_values) = extract_metadata_arrays(&merged_metadata);
@@ -142,10 +142,12 @@ fn merge_metadata(obs_metadata: &Vec<(String, String)>, trace_metadata: &Vec<(St
 }
 
 /// Detect ingestion source (otel vs ingestion-api)
-fn detect_source(metadata: &JsonValue) -> String {
-    if let Some(obj) = metadata.as_object() {
-        if obj.contains_key("resourceAttributes") {
-            return "otel".to_string();
+fn detect_source(metadata: &Option<JsonValue>) -> String {
+    if let Some(meta) = metadata {
+        if let Some(obj) = meta.as_object() {
+            if obj.contains_key("resourceAttributes") {
+                return "otel".to_string();
+            }
         }
     }
     "ingestion-api".to_string()
@@ -165,7 +167,6 @@ pub fn transform_batch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
 
     #[test]
     fn test_calculate_parent_span_id() {
@@ -216,17 +217,19 @@ mod tests {
             tags: vec![],
             public: 0,
             bookmarked: 0,
+            version: None,
             release: None,
         };
 
-        let obs_metadata = Some(r#"{"obs_key": "obs_value", "shared_key": "from_obs"}"#.to_string());
+        let obs_metadata = vec![
+            ("obs_key".to_string(), "obs_value".to_string()),
+            ("shared_key".to_string(), "from_obs".to_string()),
+        ];
 
-        let merged = merge_metadata(&obs_metadata, Some(&trace_attrs));
+        let merged = merge_metadata(&obs_metadata, &trace_attrs.metadata);
 
-        assert!(merged.is_some());
-        let obj = merged.unwrap();
-        assert_eq!(obj["trace_key"], "trace_value");
-        assert_eq!(obj["obs_key"], "obs_value");
-        assert_eq!(obj["shared_key"], "from_obs"); // Observation takes precedence
+        assert_eq!(merged["trace_key"], "trace_value");
+        assert_eq!(merged["obs_key"], "obs_value");
+        assert_eq!(merged["shared_key"], "from_obs"); // Observation takes precedence
     }
 }
