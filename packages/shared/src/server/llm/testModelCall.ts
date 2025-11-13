@@ -27,7 +27,9 @@ export const testModelCall = async ({
     messages: [
       {
         role: ChatMessageRole.User,
-        content: prompt ?? "mock content",
+        content:
+          prompt ??
+          'Extract a score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
         type: ChatMessageType.User,
       },
     ],
