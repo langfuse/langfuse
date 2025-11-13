@@ -1667,6 +1667,14 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
+
+      if (runIds.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+        };
+      }
+
       // Step 1: Return dataset item ids for which the run items match the filters
       const datasetItemIds = await getDatasetItemIdsWithRunData({
         projectId: input.projectId,

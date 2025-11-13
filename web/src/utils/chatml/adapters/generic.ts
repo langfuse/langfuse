@@ -15,10 +15,18 @@ function normalizeGoogleMessage(msg: unknown): Record<string, unknown> {
   if (message.parts && Array.isArray(message.parts)) {
     // Check if parts contain function_call, function_response, or Microsoft Agent tool calls
     const hasFunctionCall = message.parts.some((p: unknown) => {
+      // Null guard: ensure p exists and is an object before accessing properties
+      if (!p || typeof p !== "object") {
+        return false;
+      }
       const part = p as Record<string, unknown>;
       return part.function_call || part.type === "tool_call";
     });
     const hasFunctionResponse = message.parts.some((p: unknown) => {
+      // Null guard: ensure p exists and is an object before accessing properties
+      if (!p || typeof p !== "object") {
+        return false;
+      }
       const part = p as Record<string, unknown>;
       return part.function_response || part.type === "tool_call_response";
     });

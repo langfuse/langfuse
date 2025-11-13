@@ -81,3 +81,6 @@ export * from "./interfaces/search";
 
 // domain
 export * from "./domain";
+
+// io representation
+export * from "./utils/IORepresentation";

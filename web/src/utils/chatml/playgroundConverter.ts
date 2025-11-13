@@ -1,11 +1,9 @@
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import {
-  isOpenAITextContentPart,
-  isOpenAIImageContentPart,
-} from "@/src/components/schemas/ChatMlSchema";
-import {
   ChatMessageRole,
   ChatMessageType,
+  isOpenAITextContentPart,
+  isOpenAIImageContentPart,
   type ChatMessage,
   type PlaceholderMessage,
 } from "@langfuse/shared";

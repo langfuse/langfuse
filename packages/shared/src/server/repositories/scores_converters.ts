@@ -37,8 +37,12 @@ export const convertClickhouseScoreToDomain = <ExcludeMetadata extends boolean>(
     dataType: record.data_type as ScoreDataType,
     queueId: record.queue_id ?? null,
     executionTraceId: record.execution_trace_id ?? null,
-    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
+    createdAt: record.created_at
+      ? parseClickhouseUTCDateTimeFormat(record.created_at)
+      : new Date(),
+    updatedAt: record.updated_at
+      ? parseClickhouseUTCDateTimeFormat(record.updated_at)
+      : new Date(),
     metadata: (includeMetadataPayload
       ? (parseMetadataCHRecordToDomain(record.metadata ?? {}) ?? {})
       : {}) as ExcludeMetadata extends true

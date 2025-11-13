@@ -73,6 +73,20 @@ const AISDKMessagesArraySchema = z
     { message: "Must have AI SDK v5 tool-call or tool-result patterns" },
   );
 
+// Array of raw tool call objects, format as seen on OUTPUTs
+// Example: [{toolCallId: "...", toolName: "...", input: {...}}, ...]
+const AISDKRawToolCallArraySchema = z
+  .array(
+    z.looseObject({
+      toolCallId: z.string(),
+      toolName: z.string(),
+      // Can have either 'input' (OpenAI) or 'args' (Bedrock)
+    }),
+  )
+  .refine((arr) => arr.length > 0, {
+    message: "Must have at least one tool call",
+  });
+
 // normalize a single AI SDK v5 message to ChatML format
 // we don't want additional fields here to get clean rendering
 function normalizeMessage(msg: unknown): Record<string, unknown> {
@@ -256,6 +270,15 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
 }
 
 function flattenToolDefinition(tool: unknown): Record<string, unknown> {
+  // handle stringified tools (e.g. from metadata.tools with bedrock)
+  if (typeof tool === "string") {
+    try {
+      tool = JSON.parse(tool);
+    } catch {
+      return {};
+    }
+  }
+
   if (typeof tool !== "object" || !tool) return {};
 
   const t = tool as Record<string, unknown>;
@@ -362,6 +385,40 @@ function preprocessData(data: unknown, ctx?: NormalizerContext): unknown {
   }
 
   if (Array.isArray(data)) {
+    // is an array of raw tool call objects?
+    // Example: [{toolCallId: "...", toolName: "...", input: {...}}, ...]
+    const rawToolCallArrayResult = AISDKRawToolCallArraySchema.safeParse(data);
+
+    if (rawToolCallArrayResult.success) {
+      // Convert raw tool calls into a single assistant message with tool_calls
+      const toolCalls = data.map((item) => {
+        const tc = item as Record<string, unknown>;
+        const args = tc.args ?? tc.input;
+
+        return {
+          id: tc.toolCallId,
+          name: tc.toolName,
+          arguments:
+            typeof args === "string" ? args : JSON.stringify(args ?? {}),
+          type: "function",
+        };
+      });
+
+      const assistantMessage: Record<string, unknown> = {
+        role: "assistant",
+        content: "",
+        tool_calls: toolCalls,
+      };
+
+      // Attach tools from context if available
+      if (toolsFromContext && toolsFromContext.length > 0) {
+        assistantMessage.tools = toolsFromContext;
+      }
+
+      return [assistantMessage];
+    }
+
+    // otherwise it's an array of messages
     const normalized = data.map(normalizeMessage);
     const split = splitToolResultMessages(normalized);
 
@@ -421,6 +478,9 @@ export const aisdkAdapter: ProviderAdapter = {
     if (AISDKToolCallMessageSchema.safeParse(ctx.data).success) return true;
     if (AISDKToolResultMessageSchema.safeParse(ctx.data).success) return true;
     if (AISDKMessagesArraySchema.safeParse(ctx.data).success) return true;
+
+    // Raw tool call array detection (OUTPUT format)
+    if (AISDKRawToolCallArraySchema.safeParse(ctx.data).success) return true;
 
     return false;
   },

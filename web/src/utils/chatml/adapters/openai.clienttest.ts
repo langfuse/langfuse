@@ -1,13 +1,36 @@
-jest.mock("@langfuse/shared", () => ({
-  ChatMessageRole: {
-    System: "system",
-    Developer: "developer",
-    User: "user",
-    Assistant: "assistant",
-    Tool: "tool",
-    Model: "model",
-  },
-}));
+jest.mock("@langfuse/shared", () => {
+  const { z } = require("zod/v4");
+
+  return {
+    ChatMessageRole: {
+      System: "system",
+      Developer: "developer",
+      User: "user",
+      Assistant: "assistant",
+      Tool: "tool",
+      Model: "model",
+    },
+    BaseChatMlMessageSchema: z
+      .object({
+        role: z.string().optional(),
+        name: z.string().optional(),
+        content: z
+          .union([
+            z.record(z.string(), z.any()),
+            z.string(),
+            z.array(z.any()),
+            z.any(), // Simplified - was OpenAIContentSchema
+          ])
+          .nullish(),
+        audio: z.any().optional(),
+        additional_kwargs: z.record(z.string(), z.any()).optional(),
+        tools: z.array(z.any()).optional(),
+        tool_calls: z.array(z.any()).optional(),
+        tool_call_id: z.string().optional(),
+      })
+      .passthrough(),
+  };
+});
 
 import { normalizeInput, normalizeOutput } from "./index";
 import { openAIAdapter } from "./openai";
@@ -86,6 +109,25 @@ describe("OpenAI Adapter", () => {
 
       // Should also reject when passed as data
       expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
+    });
+
+    it("should not crash when detecting messages array with null items", () => {
+      // tests for bug when detection code tried to access .type on null items
+      const messagesWithNull = {
+        messages: [
+          { role: "user", content: "Hello" },
+          null, // This null item should not crash detection
+          { role: "assistant", content: "Hi there!" },
+        ],
+      };
+
+      // Should not throw TypeError when detecting
+      expect(() =>
+        openAIAdapter.detect({ metadata: messagesWithNull }),
+      ).not.toThrow();
+
+      // Should still successfully detect as OpenAI format despite null items
+      expect(openAIAdapter.detect({ metadata: messagesWithNull })).toBe(true);
     });
   });
 

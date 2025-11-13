@@ -1,6 +1,23 @@
 // Mock the problematic @langfuse/shared import before importing our functions
 jest.mock("@langfuse/shared", () => {
   const { z } = require("zod/v4");
+
+  const OpenAITextContentPart = z.object({
+    type: z.literal("text"),
+    text: z.string(),
+  });
+
+  const OpenAIImageContentPart = z.object({
+    type: z.literal("image_url"),
+    image_url: z.union([
+      z.string(),
+      z.object({
+        url: z.string(),
+        detail: z.enum(["auto", "low", "high"]).optional(),
+      }),
+    ]),
+  });
+
   return {
     ChatMessageRole: {
       System: "system",
@@ -25,6 +42,31 @@ jest.mock("@langfuse/shared", () => {
         parameters: z.any().optional(),
       }),
     }),
+    BaseChatMlMessageSchema: z
+      .object({
+        role: z.string().optional(),
+        name: z.string().optional(),
+        content: z
+          .union([
+            z.record(z.string(), z.any()),
+            z.string(),
+            z.array(z.any()),
+            z.any(), // Simplified - was OpenAIContentSchema
+          ])
+          .nullish(),
+        audio: z.any().optional(),
+        additional_kwargs: z.record(z.string(), z.any()).optional(),
+        tools: z.array(z.any()).optional(),
+        tool_calls: z.array(z.any()).optional(),
+        tool_call_id: z.string().optional(),
+      })
+      .passthrough(),
+    isOpenAITextContentPart: (content: any) => {
+      return OpenAITextContentPart.safeParse(content).success;
+    },
+    isOpenAIImageContentPart: (content: any) => {
+      return OpenAIImageContentPart.safeParse(content).success;
+    },
   };
 });
 
@@ -777,5 +819,61 @@ describe("Playground Jump Full Pipeline", () => {
 
     // Verify tools extracted
     expect(extractTools(input)).toHaveLength(1);
+  });
+
+  it("should handle stringified tools in metadata (like from vercel AI SDK v5 + bedrock)", () => {
+    // metadata contains stringified tools instead of actual objects, causing flattenToolDefinition to return {}
+    // and ChatML validation to fail with "normalizeInput success: false"
+
+    const input = [
+      {
+        role: "system",
+        content: "You are a helpful assistant.",
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "Test" }],
+      },
+    ];
+
+    // metadata.tools array has STRINGIFIED elements
+    const metadata = {
+      tools: [
+        JSON.stringify({
+          type: "function",
+          name: "get_weather",
+          description: "Get weather info",
+          inputSchema: {
+            type: "object",
+            properties: { city: { type: "string" } },
+            required: ["city"],
+          },
+        }),
+        JSON.stringify({
+          type: "function",
+          name: "search_web",
+          description: "Search the web",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+          },
+        }),
+      ],
+      scope: { name: "ai" },
+    };
+
+    const inResult = normalizeInput(input, { metadata });
+
+    // Should succeed (flattenToolDefinition parses strings)
+    expect(inResult.success).toBe(true);
+    expect(inResult.data).toBeDefined();
+    expect(inResult.data!.length).toBeGreaterThan(0);
+
+    // Verify tools are attached to messages
+    const firstMessage = inResult.data![0];
+    expect(firstMessage.tools).toBeDefined();
+    expect(firstMessage.tools!.length).toBe(2);
+    expect(firstMessage.tools![0].name).toBe("get_weather");
+    expect(firstMessage.tools![1].name).toBe("search_web");
   });
 });

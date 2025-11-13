@@ -29,14 +29,12 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
-import {
-  buildTraceUiData,
-  downloadTraceAsJson as downloadTraceUtil,
-} from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -137,7 +135,30 @@ export function Trace(props: {
     );
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [searchInputValue, setSearchInputValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // debounce search query text input by 500ms to ensure smooth UI updates.
+  // otherwise, it's very laggy to type.
+  // can be skipped by pressing ENTER, then search immediately.
+  const debouncedSetSearchQuery = useDebounce(setSearchQuery, 500, false);
+
+  const handleSearchInputChange = useCallback(
+    (value: string) => {
+      setSearchInputValue(value);
+      debouncedSetSearchQuery(value);
+    },
+    [debouncedSetSearchQuery],
+  );
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        setSearchQuery(searchInputValue);
+      }
+    },
+    [searchInputValue],
+  );
 
   const panelGroupId = `trace-panel-group-${context}`;
   const panelState = usePanelState(
@@ -173,11 +194,6 @@ export function Trace(props: {
       objectType: "OBSERVATION",
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
       enabled: isAuthenticatedAndProjectMember,
     },
@@ -190,11 +206,6 @@ export function Trace(props: {
       objectType: "TRACE",
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       refetchOnMount: false, // prevents refetching loops
       enabled: isAuthenticatedAndProjectMember,
     },
@@ -265,13 +276,36 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDownloadTrace = useCallback(() => {
-    downloadTraceUtil({
+  const traceComments = api.comments.getByObjectId.useQuery({
+    projectId: props.projectId,
+    objectId: props.trace.id,
+    objectType: "TRACE",
+  });
+
+  const downloadTraceAsJson = useCallback(async () => {
+    // Fetch fresh comments data
+    const comments = await traceComments.refetch();
+
+    const exportData = {
       trace: props.trace,
       observations: props.observations,
-    });
+      comments: comments.data ?? [],
+    };
+
+    const jsonString = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `trace-${props.trace.id}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
     capture("trace_detail:download_button_click");
-  }, [props.trace, props.observations, capture]);
+  }, [props.trace, props.observations, capture, traceComments]);
 
   const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
     `${props.trace.id}-expanded`,
@@ -331,7 +365,10 @@ export function Trace(props: {
       showScores={scoresOnObservationTree}
       colorCodeMetrics={colorCodeMetricsOnObservationTree}
       showComments={showComments}
-      onClearSearch={() => setSearchQuery("")}
+      onClearSearch={() => {
+        setSearchInputValue("");
+        setSearchQuery("");
+      }}
     />
   ) : (
     <TraceTree
@@ -402,8 +439,9 @@ export function Trace(props: {
                       showBorder={false}
                       placeholder="Search"
                       className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
-                      value={searchQuery}
-                      onValueChange={setSearchQuery}
+                      value={searchInputValue}
+                      onValueChange={handleSearchInputChange}
+                      onKeyDown={handleSearchKeyDown}
                     />
                   )}
                   {viewType === "detailed" && (
@@ -509,7 +547,7 @@ export function Trace(props: {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={handleDownloadTrace}
+                        onClick={downloadTraceAsJson}
                         title="Download trace as JSON"
                         className="h-7 w-7"
                       >
@@ -644,8 +682,9 @@ export function Trace(props: {
                           showBorder={false}
                           placeholder="Search"
                           className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
-                          value={searchQuery}
-                          onValueChange={setSearchQuery}
+                          value={searchInputValue}
+                          onValueChange={handleSearchInputChange}
+                          onKeyDown={handleSearchKeyDown}
                         />
                       )}
                       {viewType === "detailed" && (
@@ -762,7 +801,7 @@ export function Trace(props: {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={handleDownloadTrace}
+                            onClick={downloadTraceAsJson}
                             title="Download trace as JSON"
                             className="h-7 w-7"
                           >

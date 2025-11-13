@@ -56,7 +56,7 @@ export function useScoreMutations({
         value: variables.value ?? null,
         stringValue: variables.stringValue ?? null,
         comment: variables.comment ?? null,
-        timestamp: variables.timestamp ?? new Date(),
+        timestamp: (variables.timestamp as Date | undefined) ?? new Date(),
       });
 
       return { scoreId: variables.id! };
@@ -91,7 +91,7 @@ export function useScoreMutations({
           value: variables.value ?? null,
           stringValue: variables.stringValue ?? null,
           comment: variables.comment ?? null,
-          timestamp: variables.timestamp ?? new Date(),
+          timestamp: (variables.timestamp as Date | undefined) ?? new Date(),
         });
       } else {
         // Merge update into existing cache entry

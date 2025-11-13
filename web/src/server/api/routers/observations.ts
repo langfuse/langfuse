@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError, parseIO } from "@langfuse/shared";
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
@@ -19,7 +19,7 @@ export const observationsRouter = createTRPCRouter({
         traceId: z.string(), // required for protectedGetTraceProcedure
         projectId: z.string(), // required for protectedGetTraceProcedure
         startTime: z.date().nullish(),
-        truncated: z.boolean().default(false), // used to truncate the input and output
+        verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
     )
     .query(async ({ input }) => {
@@ -30,7 +30,7 @@ export const observationsRouter = createTRPCRouter({
         traceId: input.traceId,
         startTime: input.startTime ?? undefined,
         renderingProps: {
-          truncated: input.truncated,
+          truncated: input.verbosity === "truncated",
           shouldJsonParse: false,
         },
       };
@@ -45,8 +45,8 @@ export const observationsRouter = createTRPCRouter({
       }
       return {
         ...toDomainWithStringifiedMetadata(obs),
-        input: obs.input as string,
-        output: obs.output as string,
+        input: parseIO(obs.input, input.verbosity) as string,
+        output: parseIO(obs.output, input.verbosity) as string,
         internalModel: obs?.internalModelId,
       };
     }),
