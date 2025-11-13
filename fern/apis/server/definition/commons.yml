@@ -287,17 +287,11 @@ types:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
   ScoreV1:
-    discriminant: "dataType"
+    discriminated: false
     union:
-      NUMERIC:
-        type: NumericScoreV1
-        docs: "Score with NUMERIC data type"
-      CATEGORICAL:
-        type: CategoricalScoreV1
-        docs: "Score with CATEGORICAL data type"
-      BOOLEAN:
-        type: BooleanScoreV1
-        docs: "Score with BOOLEAN data type"
+      - NumericScoreV1
+      - CategoricalScoreV1
+      - BooleanScoreV1
 
   BaseScore:
     properties:

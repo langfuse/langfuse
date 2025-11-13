@@ -6165,39 +6165,9 @@ components:
     ScoreV1:
       title: ScoreV1
       oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                dataType:
-                  type: string
-                  enum:
-                    - NUMERIC
-            - $ref: '#/components/schemas/NumericScoreV1'
-          required:
-            - dataType
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                dataType:
-                  type: string
-                  enum:
-                    - CATEGORICAL
-            - $ref: '#/components/schemas/CategoricalScoreV1'
-          required:
-            - dataType
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                dataType:
-                  type: string
-                  enum:
-                    - BOOLEAN
-            - $ref: '#/components/schemas/BooleanScoreV1'
-          required:
-            - dataType
+        - $ref: '#/components/schemas/NumericScoreV1'
+        - $ref: '#/components/schemas/CategoricalScoreV1'
+        - $ref: '#/components/schemas/BooleanScoreV1'
     BaseScore:
       title: BaseScore
       type: object
@@ -8501,28 +8471,8 @@ components:
     ChatMessageWithPlaceholders:
       title: ChatMessageWithPlaceholders
       oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - chatmessage
-            - $ref: '#/components/schemas/ChatMessage'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - placeholder
-            - $ref: '#/components/schemas/PlaceholderMessage'
-          required:
-            - type
+        - $ref: '#/components/schemas/ChatMessage'
+        - $ref: '#/components/schemas/PlaceholderMessage'
     ChatMessage:
       title: ChatMessage
       type: object
@@ -8540,8 +8490,11 @@ components:
       properties:
         name:
           type: string
+        type:
+          type: string
       required:
         - name
+        - type
     TextPrompt:
       title: TextPrompt
       type: object

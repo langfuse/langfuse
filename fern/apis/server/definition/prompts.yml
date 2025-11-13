@@ -141,9 +141,10 @@ types:
         docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
 
   ChatMessageWithPlaceholders:
+    discriminated: false
     union:
-      chatmessage: ChatMessage
-      placeholder: PlaceholderMessage
+      - ChatMessage
+      - PlaceholderMessage
 
   ChatMessage:
     properties:
@@ -155,6 +156,8 @@ types:
   PlaceholderMessage:
     properties:
       name:
+        type: string
+      type:
         type: string
 
   TextPrompt:
