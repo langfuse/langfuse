@@ -1,3 +1,6 @@
+// BaseChatMlMessageSchema was extracted to shared package in IO read-time extraction
+// now ChatMlSchema.ts imports it, so our test import chain pulls it in:
+// aisdk.clienttest → adapters/index → core → ChatMlSchema → @langfuse/shared
 jest.mock("@langfuse/shared", () => {
   const { z } = require("zod/v4");
 
@@ -15,18 +18,11 @@ jest.mock("@langfuse/shared", () => {
         role: z.string().optional(),
         name: z.string().optional(),
         content: z
-          .union([
-            z.record(z.string(), z.any()),
-            z.string(),
-            z.array(z.any()),
-            z.any(), // Simplified - was OpenAIContentSchema
-          ])
-          .nullish(),
-        audio: z.any().optional(),
-        additional_kwargs: z.record(z.string(), z.any()).optional(),
-        tools: z.array(z.any()).optional(),
+          .union([z.record(z.string(), z.any()), z.string(), z.array(z.any())])
+          .optional(),
         tool_calls: z.array(z.any()).optional(),
         tool_call_id: z.string().optional(),
+        additional_kwargs: z.record(z.string(), z.any()).optional(),
       })
       .passthrough(),
   };
