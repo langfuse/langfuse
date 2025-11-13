@@ -30,7 +30,12 @@ pub fn transform_observation_to_event(
     };
 
     // Merge metadata: observation metadata + trace metadata
-    let merged_metadata = merge_metadata(&obs.metadata, &trace_attrs.as_ref().unwrap().metadata);
+    let merged_metadata = merge_metadata(
+        &obs.metadata,
+        &trace_attrs.as_ref()
+            .map(|t| &t.metadata)
+            .unwrap_or(&vec![])
+    );
 
     // Detect source
     let source = detect_source(&Some(merged_metadata.clone()));

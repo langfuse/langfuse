@@ -1,6 +1,7 @@
 mod checkpoint;
 mod clickhouse;
 mod config;
+mod dataset_run_item_loader;
 mod inserter;
 mod observation_streamer;
 mod trace_loader;
@@ -14,6 +15,7 @@ use std::time::Instant;
 
 use checkpoint::{setup_signal_handler, CheckpointManager};
 use config::Config;
+use dataset_run_item_loader::load_dataset_run_items;
 use inserter::EventInserter;
 use observation_streamer::ObservationStreamer;
 use trace_loader::load_trace_attributes;
@@ -55,6 +57,9 @@ async fn main() -> Result<()> {
     // Load trace attributes into memory
     let trace_attrs = load_trace_attributes(&read_client, &config.partition).await?;
 
+    // Load dataset run items into memory for filtering
+    let dataset_run_items = load_dataset_run_items(&read_client).await?;
+
     // Set up checkpoint manager
     let checkpoint_path = config.partition_cursor_file_path();
     let checkpoint_manager = Arc::new(
@@ -81,6 +86,7 @@ async fn main() -> Result<()> {
         config.partition.clone(),
         config.stream_block_size,
         starting_cursor,
+        dataset_run_items,
     );
 
     // Create event inserter

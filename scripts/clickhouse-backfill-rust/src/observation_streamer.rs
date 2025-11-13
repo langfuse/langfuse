@@ -1,5 +1,7 @@
 use anyhow::Result;
 use clickhouse::Client;
+use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::types::{Cursor, Observation};
 
@@ -9,6 +11,7 @@ pub struct ObservationStreamer {
     partition: String,
     stream_block_size: usize,
     cursor: Cursor,
+    dataset_run_items: Arc<HashSet<(String, String)>>,
 }
 
 impl ObservationStreamer {
@@ -17,12 +20,14 @@ impl ObservationStreamer {
         partition: String,
         stream_block_size: usize,
         cursor: Cursor,
+        dataset_run_items: Arc<HashSet<(String, String)>>,
     ) -> Self {
         Self {
             client,
             partition,
             stream_block_size,
             cursor,
+            dataset_run_items,
         }
     }
 
@@ -66,7 +71,7 @@ impl ObservationStreamer {
                 FROM observations
                 WHERE _partition_id = '{}'
                   AND is_deleted = 0
-                ORDER BY project_id, type, toDate(start_time), id
+                ORDER BY project_id, type, start_time, id
                 LIMIT {}
                 "#,
                 self.partition, self.stream_block_size
@@ -115,7 +120,7 @@ impl ObservationStreamer {
                     (project_id = '{}' AND type = '{}' AND toDate(start_time) > '{}') OR
                     (project_id = '{}' AND type = '{}' AND toDate(start_time) = '{}' AND id > '{}')
                   )
-                ORDER BY project_id, type, toDate(start_time), id
+                ORDER BY project_id, type, start_time, id
                 LIMIT {}
                 "#,
                 self.partition,
@@ -136,8 +141,21 @@ impl ObservationStreamer {
         let mut cursor = self.client.query(&query).fetch::<Observation>()?;
 
         let mut observations = Vec::new();
+        let mut filtered_count = 0usize;
+
         while let Some(obs) = cursor.next().await? {
+            // Filter out observations that match dataset_run_items
+            let key = (obs.project_id.clone(), obs.trace_id.clone());
+            if self.dataset_run_items.contains(&key) {
+                filtered_count += 1;
+                continue;
+            }
+
             observations.push(obs);
+        }
+
+        if filtered_count > 0 {
+            tracing::debug!("Filtered out {} observations matching dataset_run_items", filtered_count);
         }
 
         if observations.is_empty() {

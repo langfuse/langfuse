@@ -22,6 +22,13 @@ pub struct TraceAttrs {
     pub release: Option<String>,
 }
 
+/// Dataset run item identifiers loaded into memory for filtering
+#[derive(Debug, Clone, Row, Deserialize)]
+pub struct DatasetRunItem {
+    pub project_id: String,
+    pub trace_id: String,
+}
+
 /// Observation record from source table
 #[derive(Debug, Clone, Row, Deserialize)]
 pub struct Observation {
