@@ -2501,14 +2501,6 @@ paths:
             keys.
 
 
-            ### Scores (requires join with scores table)
-
-            - `scores_avg` (number) - Average of numeric scores (alias:
-            `scores`)
-
-            - `score_categories` (categoryOptions) - Categorical score values
-
-
             ### Associated Trace Fields (requires join with traces table)
 
             - `userId` (string) - User ID from associated trace

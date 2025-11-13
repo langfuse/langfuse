@@ -172,6 +172,17 @@ const EVENTS_AGGREGATION_FIELDS = {
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
   public: "max(public) AS public",
+
+  // Observation-level aggregations for filtering support
+  usage_details: "sumMap(usage_details) as usage_details",
+  cost_details: "sumMap(cost_details) as cost_details",
+  aggregated_level:
+    "multiIf(arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR', arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING', arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT', 'DEBUG') AS aggregated_level",
+  warning_count: "countIf(level = 'WARNING') as warning_count",
+  error_count: "countIf(level = 'ERROR') as error_count",
+  default_count: "countIf(level = 'DEFAULT') as default_count",
+  debug_count: "countIf(level = 'DEBUG') as debug_count",
+
   // Legacy fields for backward compatibility
   tags: "array() AS tags",
   release: "'' AS release",
