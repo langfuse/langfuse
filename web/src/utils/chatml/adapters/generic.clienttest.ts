@@ -97,4 +97,53 @@ describe("Generic Adapter", () => {
     expect(messages[0].content).toBe("Hello World");
     expect(messages[0].parts).toBeUndefined();
   });
+
+  it("should not crash when parts array contains null items", () => {
+    // Bug: hasFunctionCall/hasFunctionResponse checked properties without null guards
+    const input = [
+      {
+        role: "user",
+        parts: [
+          { type: "text", content: "Hello" },
+          null, // This null item should not crash
+          { type: "text", content: "World" },
+        ],
+      },
+    ];
+
+    // Should not throw TypeError
+    expect(() => genericAdapter.preprocess(input, "input", {})).not.toThrow();
+
+    const preprocessed = genericAdapter.preprocess(input, "input", {});
+    const messages = preprocessed as any[];
+    expect(messages[0].content).toContain("Hello");
+    expect(messages[0].content).toContain("World");
+  });
+
+  it("should not crash when parts has null before function_call", () => {
+    // Test hasFunctionCall code path with null
+    const input = [
+      {
+        role: "assistant",
+        parts: [
+          null, // Null before function check
+          { function_call: { name: "test", arguments: "{}" } },
+        ],
+      },
+    ];
+
+    expect(() => genericAdapter.preprocess(input, "input", {})).not.toThrow();
+  });
+
+  it("should not crash when parts has null before tool_call", () => {
+    // Test Microsoft Agent tool_call type with null
+    const input = [
+      {
+        role: "assistant",
+        parts: [null, { type: "tool_call", id: "123", name: "test" }],
+      },
+    ];
+
+    expect(() => genericAdapter.preprocess(input, "input", {})).not.toThrow();
+  });
 });
