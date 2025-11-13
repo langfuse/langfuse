@@ -67,7 +67,11 @@ export type PageProps = {
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
-    keycloak: boolean;
+    keycloak:
+      | {
+          name: string;
+        }
+      | boolean;
     workos:
       | {
           organizationId: string;
@@ -136,7 +140,11 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         keycloak:
           env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
           env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
-          env.AUTH_KEYCLOAK_ISSUER !== undefined,
+          env.AUTH_KEYCLOAK_ISSUER !== undefined
+            ? env.AUTH_KEYCLOAK_NAME !== undefined
+              ? { name: env.AUTH_KEYCLOAK_NAME }
+              : true
+            : false,
         workos:
           env.AUTH_WORKOS_CLIENT_ID !== undefined &&
           env.AUTH_WORKOS_CLIENT_SECRET !== undefined
@@ -340,7 +348,11 @@ export function SSOButtons({
           {authProviders.keycloak && (
             <AuthProviderButton
               icon={<SiKeycloak className="mr-3" size={18} />}
-              label="Keycloak"
+              label={
+                typeof authProviders.keycloak === "object"
+                  ? authProviders.keycloak.name
+                  : "Keycloak"
+              }
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
                 onProviderSelect?.("keycloak");
