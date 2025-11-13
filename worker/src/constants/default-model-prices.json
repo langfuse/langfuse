@@ -2137,5 +2137,17 @@
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
+  },
+  {
+    "id": "xct3pic0l4d1txf690k7i8qr",
+    "model_name": "gemini-embedding-001",
+    "match_pattern": "(?i)^(gemini-embedding-001)(@[a-zA-Z0-9]+)?$",
+    "created_at": "2025-10-27T09:00:00.000Z",
+    "updated_at": "2025-10-27T09:00:00.000Z",
+    "prices": {
+      "total": 1.5e-7
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
   }
 ]
