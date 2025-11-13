@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType, availableDataTypes } from "@langfuse/shared";
+import { ScoreDataType, ScoreDataTypeArray } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -197,7 +197,7 @@ export function UpsertScoreConfigDialog({
                         defaultValue={field.value}
                         onValueChange={(value) => {
                           field.onChange(
-                            value as (typeof availableDataTypes)[number],
+                            value as (typeof ScoreDataTypeArray)[number],
                           );
                           form.clearErrors();
                           if (isNumericDataType(value as ScoreDataType)) {
@@ -222,7 +222,7 @@ export function UpsertScoreConfigDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {availableDataTypes.map((role) => (
+                          {ScoreDataTypeArray.map((role) => (
                             <SelectItem value={role} key={role}>
                               {role}
                             </SelectItem>

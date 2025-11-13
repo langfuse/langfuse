@@ -1,7 +1,7 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   AnnotationQueueObjectType,
-  type APIScoreV2,
+  type ScoreDomain,
   isGenerationLike,
 } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
@@ -39,6 +39,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export const ObservationPreview = ({
   observations,
@@ -53,7 +54,7 @@ export const ObservationPreview = ({
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
-  serverScores: APIScoreV2[];
+  serverScores: WithStringifiedMetadata<ScoreDomain>[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;

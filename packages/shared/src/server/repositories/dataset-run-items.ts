@@ -542,6 +542,10 @@ const getQualifyingDatasetItems = async <T>(opts: {
   const { select, projectId, datasetId, runIds, runFilters, limit, offset } =
     opts;
 
+  if (runIds.length === 0) {
+    return [];
+  }
+
   // Build base filter (project + dataset only)
   const { datasetRunItemsFilter: baseDatasetRunItemsFilter } =
     getProjectDatasetIdDefaultFilter(projectId, datasetId);

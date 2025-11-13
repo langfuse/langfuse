@@ -278,6 +278,7 @@ export default function TracesTable({
     filterOptions,
     projectId,
     traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
+    hideControls, // Disable URL persistence for embedded preview tables
   );
 
   const combinedFilterState = queryFilter.filterState.concat(
@@ -1295,7 +1296,7 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, timestamp, truncated: true },
+    { traceId, projectId, timestamp, verbosity: "compact" },
     {
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute

@@ -1,7 +1,7 @@
 import {
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
-} from "@/src/components/schemas/ChatMlSchema";
+} from "@langfuse/shared";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";

@@ -1,16 +1,17 @@
-import { type APIScoreV2, type ScoreConfigDomain } from "@langfuse/shared";
+import { type ScoreDomain, type ScoreConfigDomain } from "@langfuse/shared";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { type AnnotationScore } from "@/src/features/scores/types";
 import {
   decomposeAggregateScoreKey,
   normalizeScoreName,
 } from "@/src/features/scores/lib/aggregateScores";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**
  * Transform flat merged scores to annotation scores (Trace/Observation/Session Detail)
  */
 export function transformToAnnotationScores(
-  mergedScores: APIScoreV2[],
+  mergedScores: WithStringifiedMetadata<ScoreDomain>[],
   configs: ScoreConfigDomain[],
 ): AnnotationScore[];
 
@@ -28,13 +29,13 @@ export function transformToAnnotationScores(
  * Transform merged scores (flat or aggregate) to annotation scores
  *
  * Handles two input formats:
- * - APIScoreV2[] (flat scores from trace detail)
+ * - ScoreDomain[] (flat scores from trace detail)
  * - ScoreAggregate (aggregated scores from compare view)
  *
  * Filters to ANNOTATION source only and excludes multi-value aggregates.
  */
 export function transformToAnnotationScores(
-  input: APIScoreV2[] | ScoreAggregate,
+  input: WithStringifiedMetadata<ScoreDomain>[] | ScoreAggregate,
   configs: ScoreConfigDomain[],
   traceId?: string,
   observationId?: string,
@@ -58,7 +59,7 @@ export function transformToAnnotationScores(
  * Used for trace/observation/session detail annotation drawer
  */
 function transformFlatScores(
-  mergedScores: APIScoreV2[],
+  mergedScores: WithStringifiedMetadata<ScoreDomain>[],
   configs: ScoreConfigDomain[],
 ): AnnotationScore[] {
   return mergedScores

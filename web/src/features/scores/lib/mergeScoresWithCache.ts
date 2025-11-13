@@ -1,10 +1,11 @@
-import { type APIScoreV2, type ScoreAggregate } from "@langfuse/shared";
+import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
 import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type AnnotationScore } from "@/src/features/scores/types";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**
- * Pure function: Merge APIScoreV2[] with cache
+ * Pure function: Merge ScoreDomain[] with cache
  *
  * Applies cache operations while preserving complete server objects:
  * - Update existing: Overlays only editable fields (value, stringValue, comment)
@@ -17,11 +18,11 @@ import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateSco
  * @returns Merged scores with cache overlay
  */
 export function mergeScoresWithCache(
-  serverScores: APIScoreV2[],
+  serverScores: WithStringifiedMetadata<ScoreDomain>[],
   cachedScores: CachedScore[],
   deletedIds: Set<string>,
-): APIScoreV2[] {
-  const merged = new Map<string, APIScoreV2>();
+): WithStringifiedMetadata<ScoreDomain>[] {
+  const merged = new Map<string, WithStringifiedMetadata<ScoreDomain>>();
 
   // Start with server scores (filter out deleted ones)
   serverScores.forEach((s) => {
@@ -41,10 +42,10 @@ export function mergeScoresWithCache(
         value: cached.value,
         stringValue: cached.stringValue,
         comment: cached.comment,
-      } as APIScoreV2);
+      } as WithStringifiedMetadata<ScoreDomain>);
     } else {
       // New score: only exists in cache (incomplete but OK for optimistic UI)
-      merged.set(cached.id, cached as APIScoreV2);
+      merged.set(cached.id, cached as WithStringifiedMetadata<ScoreDomain>);
     }
   });
 

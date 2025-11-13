@@ -1,11 +1,12 @@
 import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
 import { type AnnotateFormSchema } from "@/src/features/scores/schema";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
   type ScoreDataType,
-  type APIScoreV2,
   type ScoreAggregate,
   type ScoreConfigDomain,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import { type z } from "zod/v4";
 
@@ -79,7 +80,7 @@ type AnalyticsData = {
 export type AnnotateDrawerProps<Target extends ScoreTarget> = {
   projectId: string;
   scoreTarget: Target;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   analyticsData?: AnalyticsData;
   scoreMetadata: {
     projectId: string;
@@ -107,7 +108,7 @@ export type ScoreConfigSelection =
 
 export type AnnotationForm<Target extends ScoreTarget> = {
   scoreTarget: Target;
-  serverScores: APIScoreV2[] | ScoreAggregate;
+  serverScores: WithStringifiedMetadata<ScoreDomain>[] | ScoreAggregate;
   scoreMetadata: {
     projectId: string;
     queueId?: string;

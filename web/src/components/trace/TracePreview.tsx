@@ -1,6 +1,6 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   type TraceDomain,
   AnnotationQueueObjectType,
   isGenerationLike,
@@ -56,6 +56,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
 const LOG_VIEW_DISABLED_THRESHOLD = 350;
@@ -68,14 +69,13 @@ export const TracePreview = ({
   viewType = "detailed",
   showCommentButton = false,
 }: {
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
     input: string | null;
     output: string | null;
-    metadata: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  serverScores: APIScoreV2[];
+  serverScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
   showCommentButton?: boolean;
