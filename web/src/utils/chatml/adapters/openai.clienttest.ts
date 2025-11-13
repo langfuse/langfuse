@@ -110,6 +110,25 @@ describe("OpenAI Adapter", () => {
       // Should also reject when passed as data
       expect(openAIAdapter.detect({ metadata: {}, data: input })).toBe(false);
     });
+
+    it("should not crash when detecting messages array with null items", () => {
+      // tests for bug when detection code tried to access .type on null items
+      const messagesWithNull = {
+        messages: [
+          { role: "user", content: "Hello" },
+          null, // This null item should not crash detection
+          { role: "assistant", content: "Hi there!" },
+        ],
+      };
+
+      // Should not throw TypeError when detecting
+      expect(() =>
+        openAIAdapter.detect({ metadata: messagesWithNull }),
+      ).not.toThrow();
+
+      // Should still successfully detect as OpenAI format despite null items
+      expect(openAIAdapter.detect({ metadata: messagesWithNull })).toBe(true);
+    });
   });
 
   it("should normalize tool_calls arguments to JSON strings", () => {
