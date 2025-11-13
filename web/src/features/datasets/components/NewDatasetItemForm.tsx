@@ -214,7 +214,15 @@ export const NewDatasetItemForm = (props: {
   const createManyDatasetItemsMutation =
     api.datasets.createManyDatasetItems.useMutation({
       onSuccess: () => utils.datasets.invalidate(),
-      onError: (error) => setFormError(error.message),
+      onError: (error) => {
+        if (error.message.includes("Body exc")) {
+          setFormError(
+            "Data exceeds maximum size (4.5MB). Please attempt to create dataset item programmatically.",
+          );
+        } else {
+          setFormError(error.message);
+        }
+      },
     });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
