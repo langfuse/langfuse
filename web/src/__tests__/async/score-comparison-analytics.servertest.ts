@@ -12,6 +12,7 @@ import {
   createObservation,
   createObservationsCh,
   createSessionScore,
+  createDatasetRunScore,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -51,6 +52,7 @@ describe("Score Comparison Analytics tRPC", () => {
       admin: true,
     },
     environment: {} as any,
+    expires: new Date().toISOString(),
   };
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
@@ -97,7 +99,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([score1, score2]);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName1,
@@ -142,6 +144,17 @@ describe("Score Comparison Analytics tRPC", () => {
 
       expect(result.distribution2).toBeDefined();
       expect(Array.isArray(result.distribution2)).toBe(true);
+
+      // Verify sampling metadata is present
+      expect(result.samplingMetadata).toBeDefined();
+      expect(result.samplingMetadata.isSampled).toBe(false); // No sampling for small dataset
+      expect(result.samplingMetadata.samplingMethod).toBe("none");
+      expect(result.samplingMetadata.samplingRate).toBe(1.0);
+      expect(
+        result.samplingMetadata.estimatedTotalMatches,
+      ).toBeGreaterThanOrEqual(0);
+      expect(result.samplingMetadata.actualSampleSize).toBe(1); // Matches matchedCount
+      expect(result.samplingMetadata.samplingExpression).toBeNull();
     });
 
     // Test 2: Returns empty results when no scores exist
@@ -149,7 +162,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const fromTimestamp = new Date("2020-01-01");
       const toTimestamp = new Date("2020-01-02");
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: "nonexistent1",
@@ -175,6 +188,12 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(result.timeSeries).toEqual([]);
       expect(result.distribution1).toEqual([]);
       expect(result.distribution2).toEqual([]);
+
+      // Verify sampling metadata even when no data
+      expect(result.samplingMetadata).toBeDefined();
+      expect(result.samplingMetadata.isSampled).toBe(false);
+      expect(result.samplingMetadata.samplingMethod).toBe("none");
+      expect(result.samplingMetadata.actualSampleSize).toBe(0);
     });
 
     // Test 3: Validates input schema
@@ -182,7 +201,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const now = new Date();
 
       await expect(
-        caller.scores.getScoreComparisonAnalytics({
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: {
             name: "score1",
@@ -202,7 +221,7 @@ describe("Score Comparison Analytics tRPC", () => {
       ).rejects.toThrow();
 
       await expect(
-        caller.scores.getScoreComparisonAnalytics({
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: {
             name: "score1",
@@ -222,7 +241,570 @@ describe("Score Comparison Analytics tRPC", () => {
       ).rejects.toThrow();
     });
 
-    // Test 4: Calculates counts correctly with partial matches
+    // Test 4: Adaptive FINAL optimization with small dataset
+    // For datasets with estimated counts < 100k: uses FINAL for accuracy
+    // For datasets with estimated counts >= 100k: skips FINAL for performance
+    it("should use FINAL for small datasets (adaptive FINAL)", async () => {
+      const traceId = v4();
+      const trace = createTrace({ id: traceId, project_id: projectId });
+      await createTracesCh([trace]);
+
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-adaptive-score1-${v4()}`;
+      const scoreName2 = `test-adaptive-score2-${v4()}`;
+
+      // Create a small dataset (will use FINAL)
+      const score1 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: null,
+        name: scoreName1,
+        source: "ANNOTATION",
+        data_type: "NUMERIC",
+        value: 0.5,
+        timestamp: now.getTime(),
+      });
+
+      const score2 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: null,
+        name: scoreName2,
+        source: "ANNOTATION",
+        data_type: "NUMERIC",
+        value: 0.6,
+        timestamp: now.getTime(),
+      });
+
+      await createScoresCh([score1, score2]);
+
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        score2: {
+          name: scoreName2,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+      expect(result.counts.matchedCount).toBe(1);
+
+      // Verify adaptive FINAL decision via samplingMetadata
+      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
+      expect(result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(true);
+      expect(result.samplingMetadata.adaptiveFinal?.reason).toContain(
+        "Small dataset - using FINAL for accuracy",
+      );
+
+      // Verify preflight estimates are included
+      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
+      expect(
+        result.samplingMetadata.preflightEstimates?.score1Count,
+      ).toBeLessThan(100_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.score2Count,
+      ).toBeLessThan(100_000);
+    });
+
+    // Test 5: Adaptive FINAL skips FINAL for large datasets (>100k scores)
+    it("should skip FINAL for large datasets to improve performance", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-large-score1-${v4()}`;
+      const scoreName2 = `test-large-score2-${v4()}`;
+
+      // Create 101k scores for score1 and 101k for score2
+      // This exceeds ADAPTIVE_FINAL_THRESHOLD (100k)
+      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
+      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 101_000; // Exceed threshold
+
+      console.log(
+        `Creating ${batchSize} scores for adaptive FINAL test (this may take a moment)...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+
+        // Create trace
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime(),
+          }),
+        );
+
+        // Create score1
+        score1Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName1,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+
+        // Create score2
+        score2Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName2,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+      }
+
+      // Insert in batches to avoid memory issues
+      const insertBatchSize = 10_000;
+      for (let i = 0; i < batchSize; i += insertBatchSize) {
+        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
+        await createScoresCh([
+          ...score1Batch.slice(i, i + insertBatchSize),
+          ...score2Batch.slice(i, i + insertBatchSize),
+        ]);
+      }
+
+      console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
+
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        score2: {
+          name: scoreName2,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+
+      // Note: With 101k scores, sampling may or may not trigger depending on
+      // preflight variance (1% sample of 101k = ~1010 samples, extrapolated = 95k-105k)
+      // If sampling triggers: ~100k rows each (rate ≈ 99%)
+      // If no sampling: full 101k rows each
+      // Hash-based sampling (cityHash64) provides uniform distribution on average,
+      // but can have ~6% variance. With 101k scores, actual results range 94k-106k.
+      // Using 90k threshold (not 95k) to account for this probabilistic variance.
+      expect(result.counts.score1Total).toBeGreaterThan(90_000);
+      expect(result.counts.score2Total).toBeGreaterThan(90_000);
+
+      // matchedCount should be close to score totals (all scores match in this test)
+      // Same 90k threshold to account for hash sampling variance
+      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
+      expect(result.counts.matchedCount).toBeLessThanOrEqual(101_000);
+
+      // Verify preflight estimates via samplingMetadata
+      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
+      // Preflight uses 1% sampling, so estimates may have variance
+      // For 101k scores, 1% sample could estimate anywhere from ~95k-105k
+      expect(
+        result.samplingMetadata.preflightEstimates?.score1Count,
+      ).toBeGreaterThan(90_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.score2Count,
+      ).toBeGreaterThan(90_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
+      ).toBeGreaterThan(90_000);
+
+      // Verify adaptive FINAL decision via samplingMetadata
+      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
+      // The decision logic should evaluate based on estimates
+      // If estimates are >= 100k threshold, usedFinal = false
+      // If estimates are < 100k threshold, usedFinal = true
+      // Both outcomes are valid for this test - what matters is the query completes successfully
+      expect(typeof result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(
+        "boolean",
+      );
+      expect(result.samplingMetadata.adaptiveFinal?.reason).toBeDefined();
+    }, 120000); // 2 minute timeout for large data insertion
+
+    // Test 6: Adaptive FINAL with 150k scores - should definitively skip FINAL
+    it("should skip FINAL for 150k+ scores with high confidence", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-xlarge-score1-${v4()}`;
+      const scoreName2 = `test-xlarge-score2-${v4()}`;
+
+      // Create 150k scores for score1 and 150k for score2
+      // This is well above ADAPTIVE_FINAL_THRESHOLD (100k)
+      // Even with 1% sampling variance, should reliably estimate >100k
+      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
+      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 150_000; // Well above threshold
+
+      console.log(
+        `Creating ${batchSize} scores for large-scale adaptive FINAL test (this may take a moment)...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+
+        // Create trace
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime(),
+          }),
+        );
+
+        // Create score1
+        score1Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName1,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+
+        // Create score2
+        score2Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName2,
+            source: "ANNOTATION",
+            data_type: "NUMERIC",
+            value: Math.random(),
+            timestamp: now.getTime(),
+          }),
+        );
+      }
+
+      // Insert in batches to avoid memory issues
+      const insertBatchSize = 10_000;
+      for (let i = 0; i < batchSize; i += insertBatchSize) {
+        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
+        await createScoresCh([
+          ...score1Batch.slice(i, i + insertBatchSize),
+          ...score2Batch.slice(i, i + insertBatchSize),
+        ]);
+      }
+
+      console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
+
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        score2: {
+          name: scoreName2,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+
+      // Note: With 150k scores in each table, sampling will trigger (threshold = 100k)
+      // Sampling rate = 100k / 150k = 67%, so we expect ~100k from each table
+      // Allow variance due to hash distribution
+      expect(result.counts.score1Total).toBeGreaterThan(90_000);
+      expect(result.counts.score1Total).toBeLessThan(110_000);
+      expect(result.counts.score2Total).toBeGreaterThan(90_000);
+      expect(result.counts.score2Total).toBeLessThan(110_000);
+
+      // matchedCount should be similar to sample size (not the full 150k)
+      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
+      expect(result.counts.matchedCount).toBeLessThan(110_000);
+
+      // Verify preflight estimates via samplingMetadata
+      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
+      // For 150k scores, even with 1% sampling variance, should reliably estimate >100k
+      // 150k * 1% = 1500 sampled → extrapolated estimate should be 140k-160k range
+      expect(
+        result.samplingMetadata.preflightEstimates?.score1Count,
+      ).toBeGreaterThan(100_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.score2Count,
+      ).toBeGreaterThan(100_000);
+      expect(
+        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
+      ).toBeGreaterThan(100_000);
+
+      // Verify adaptive FINAL decision via samplingMetadata
+      // For 150k scores, should definitively skip FINAL for performance
+      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
+      expect(result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(false);
+      expect(result.samplingMetadata.adaptiveFinal?.reason).toContain(
+        "Large dataset - skipping FINAL for performance",
+      );
+
+      // Verify sampling was applied (150k > 100k threshold)
+      expect(result.samplingMetadata.isSampled).toBe(true);
+      expect(result.samplingMetadata.samplingMethod).toBe("hash");
+      expect(result.samplingMetadata.samplingRate).toBeCloseTo(0.67, 1); // 100k/150k ≈ 0.67
+    }, 180000); // 3 minute timeout for large data insertion
+
+    // Test 7: Hash-based sampling for datasets with >100k estimated matched scores
+    it("should apply hash-based sampling when estimated matched count exceeds threshold", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-hash-sample-s1-${v4()}`;
+      const scoreName2 = `test-hash-sample-s2-${v4()}`;
+
+      // Create 120k matched scores (both scores on same traces)
+      // This should trigger hash-based sampling (threshold = 100k)
+      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
+      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 120_000;
+
+      console.log(
+        `Creating ${batchSize} matched scores for hash-based sampling test...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+        const scoreTimestamp =
+          now.getTime() - Math.floor(Math.random() * 3600000);
+
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime(),
+          }),
+        );
+
+        score1Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName1,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+
+        score2Batch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName2,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+      }
+
+      await createTracesCh(tracesBatch);
+      await createScoresCh([...score1Batch, ...score2Batch]);
+
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName1,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        score2: {
+          name: scoreName2,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "hour" as const },
+        objectType: "all",
+      });
+
+      // Verify query succeeded
+      expect(result.counts).toBeDefined();
+
+      // Verify sampling was applied
+      expect(result.samplingMetadata.isSampled).toBe(true);
+      expect(result.samplingMetadata.samplingMethod).toBe("hash");
+      expect(result.samplingMetadata.samplingRate).toBeLessThan(1.0);
+      expect(result.samplingMetadata.samplingRate).toBeGreaterThan(0);
+      expect(result.samplingMetadata.samplingExpression).toContain(
+        "cityHash64",
+      );
+
+      // Verify preflight estimates triggered sampling
+      expect(
+        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
+      ).toBeGreaterThan(100_000);
+
+      // Verify actualSampleSize is approximately TARGET_SAMPLE_SIZE (100k)
+      // Allow for variance due to hash distribution
+      expect(result.samplingMetadata.actualSampleSize).toBeGreaterThan(80_000);
+      expect(result.samplingMetadata.actualSampleSize).toBeLessThan(120_000);
+
+      // Verify counts reflect sampling
+      expect(result.counts.matchedCount).toBe(
+        result.samplingMetadata.actualSampleSize,
+      );
+
+      // Verify data quality - all result arrays should have data
+      expect(result.heatmap.length).toBeGreaterThan(0);
+      expect(result.timeSeries.length).toBeGreaterThan(0);
+    }, 180000); // 3 minute timeout for large data insertion
+
+    // Test 8: Identical scores with sampling show perfect correlation
+    it("should return perfect correlation for identical scores with sampling", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName = `test-identical-${v4()}`;
+
+      // Create 150k scores (exceeds sampling threshold)
+      const scoreBatch: ReturnType<typeof createTraceScore>[] = [];
+      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+
+      const batchSize = 150_000;
+
+      console.log(
+        `Creating ${batchSize} identical scores for perfect correlation test...`,
+      );
+
+      for (let i = 0; i < batchSize; i++) {
+        const traceId = v4();
+        const scoreTimestamp =
+          now.getTime() - Math.floor(Math.random() * 3600000);
+
+        tracesBatch.push(
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: now.getTime(),
+          }),
+        );
+
+        scoreBatch.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+      }
+
+      // Insert in batches
+      const insertBatchSize = 10_000;
+      for (let i = 0; i < batchSize; i += insertBatchSize) {
+        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
+        await createScoresCh(scoreBatch.slice(i, i + insertBatchSize));
+      }
+
+      console.log(`Inserted ${batchSize} traces and scores`);
+
+      // Compare score to itself
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+        projectId,
+        score1: {
+          name: scoreName,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        score2: {
+          name: scoreName,
+          source: "ANNOTATION",
+          dataType: "NUMERIC",
+        },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "hour" as const },
+        objectType: "all",
+      });
+
+      // Verify sampling occurred (150k > 100k threshold)
+      expect(result.samplingMetadata.isSampled).toBe(true);
+      expect(result.samplingMetadata.samplingMethod).toBe("hash");
+
+      // CRITICAL: For identical scores, score1Total === score2Total === matchedCount
+      // This ensures the same sample was used for both CTEs
+      expect(result.counts.score1Total).toBe(result.counts.score2Total);
+      expect(result.counts.matchedCount).toBe(result.counts.score1Total);
+      expect(result.counts.matchedCount).toBe(result.counts.score2Total);
+
+      // Verify sample size is within expected range (~100k)
+      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
+      expect(result.counts.matchedCount).toBeLessThan(110_000);
+
+      // Verify all heatmap points are on the diagonal (bin1Index === bin2Index)
+      // For identical scores, every point should have the same bin for both axes
+      const offDiagonalPoints = result.heatmap.filter(
+        (point) => point.binX !== point.binY,
+      );
+      expect(offDiagonalPoints.length).toBe(0); // No points off diagonal
+
+      // Verify correlation is skipped for identical scores (as per existing logic)
+      expect(result.statistics?.spearmanCorrelation).toBeNull();
+    }, 180000); // 3 minute timeout for large data insertion
+
+    // Test 9: Calculates counts correctly with partial matches
     it("should calculate counts correctly with partial matches", async () => {
       const trace1 = v4();
       const trace2 = v4();
@@ -287,7 +869,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -345,7 +927,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -403,7 +985,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -476,7 +1058,7 @@ describe("Score Comparison Analytics tRPC", () => {
       await createScoresCh(scores);
 
       // Test with 5 bins
-      const result5 = await caller.scores.getScoreComparisonAnalytics({
+      const result5 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -492,7 +1074,7 @@ describe("Score Comparison Analytics tRPC", () => {
       });
 
       // Test with 20 bins
-      const result20 = await caller.scores.getScoreComparisonAnalytics({
+      const result20 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -552,7 +1134,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -616,7 +1198,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "BOOLEAN", source: "API" },
         score2: { name: scoreName2, dataType: "BOOLEAN", source: "API" },
@@ -690,7 +1272,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -767,7 +1349,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -828,7 +1410,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -923,7 +1505,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([...scores, ...matchedScores]);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1005,7 +1587,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1065,28 +1647,30 @@ describe("Score Comparison Analytics tRPC", () => {
       await createScoresCh(scores);
 
       // Test 7-day interval (week equivalent)
-      const weekResult = await caller.scores.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 7, unit: "day" },
-        nBins: 10,
-      });
+      const weekResult =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          projectId,
+          score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
+          score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
+          fromTimestamp,
+          toTimestamp,
+          interval: { count: 7, unit: "day" },
+          nBins: 10,
+        });
 
       expect(weekResult.timeSeries.length).toBeGreaterThan(0);
 
       // Test month interval
-      const monthResult = await caller.scores.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "month" },
-        nBins: 10,
-      });
+      const monthResult =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          projectId,
+          score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
+          score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
+          fromTimestamp,
+          toTimestamp,
+          interval: { count: 1, unit: "month" },
+          nBins: 10,
+        });
 
       expect(monthResult.timeSeries.length).toBeGreaterThan(0);
     });
@@ -1131,7 +1715,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1198,7 +1782,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1272,7 +1856,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1354,7 +1938,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1414,7 +1998,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1426,61 +2010,6 @@ describe("Score Comparison Analytics tRPC", () => {
 
       // Only session1 should match
       expect(result.counts.matchedCount).toBe(1);
-    });
-
-    // Test 21: Enforces max matched scores limit
-    it("should enforce maxMatchedScoresLimit", async () => {
-      const traces = Array.from({ length: 150 }, () => v4());
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
-
-      const now = new Date();
-      const fromTimestamp = new Date(now.getTime() - 3600000);
-      const toTimestamp = new Date(now.getTime() + 3600000);
-
-      const scoreName1 = `test21-limit1-${v4()}`;
-      const scoreName2 = `test21-limit2-${v4()}`;
-
-      // Create 150 matched pairs
-      const scores = traces.flatMap((traceId) => [
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 1,
-          timestamp: now.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traceId,
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 2,
-          timestamp: now.getTime(),
-        }),
-      ]);
-
-      await createScoresCh(scores);
-
-      const result = await caller.scores.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 10,
-        maxMatchedScoresLimit: 100,
-      });
-
-      // Matched count should be limited to 100
-      expect(result.counts.matchedCount).toBeLessThanOrEqual(100);
     });
 
     // Test 22: Handles out-of-order timestamps
@@ -1563,7 +2092,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1626,7 +2155,7 @@ describe("Score Comparison Analytics tRPC", () => {
       );
       const toTimestamp = new Date(monday.getTime() + 24 * 60 * 60 * 1000); // Day after Monday
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1723,7 +2252,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const fromTimestamp = new Date(day.getTime() - 24 * 60 * 60 * 1000); // Day before
       const toTimestamp = new Date(day.getTime() + 2 * 24 * 60 * 60 * 1000); // Day after
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1845,7 +2374,7 @@ describe("Score Comparison Analytics tRPC", () => {
       const fromTimestamp = new Date("2025-10-01T00:00:00.000Z"); // Oct 1
       const toTimestamp = new Date("2025-12-01T00:00:00.000Z"); // Dec 1
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1941,7 +2470,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2023,7 +2552,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2141,7 +2670,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2220,7 +2749,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2311,7 +2840,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2390,7 +2919,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -2448,7 +2977,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -2588,7 +3117,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2712,7 +3241,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2820,7 +3349,7 @@ describe("Score Comparison Analytics tRPC", () => {
       await createScoresCh(scores);
 
       // Query with same score for both score1 and score2 (single-score mode)
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName, dataType: "NUMERIC", source: "API" },
@@ -2880,7 +3409,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -2967,7 +3496,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3027,7 +3556,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3086,7 +3615,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName, dataType: "NUMERIC", source: "API" },
@@ -3157,7 +3686,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -3232,7 +3761,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "BOOLEAN", source: "API" },
         score2: { name: scoreName2, dataType: "BOOLEAN", source: "API" },
@@ -3312,7 +3841,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -3425,7 +3954,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "BOOLEAN", source: "API" },
         score2: { name: scoreName2, dataType: "BOOLEAN", source: "API" },
@@ -3515,7 +4044,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      const result = await caller.scores.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "CATEGORICAL", source: "API" },
         score2: { name: scoreName2, dataType: "CATEGORICAL", source: "API" },
@@ -3539,6 +4068,185 @@ describe("Score Comparison Analytics tRPC", () => {
       result.timeSeriesCategorical1.forEach((entry) => {
         expect(entry.count).toBe(2);
       });
+    });
+
+    // Test: ObjectType filtering works correctly for all types
+    it("should filter scores correctly by objectType (trace, observation, session, dataset_run)", async () => {
+      const traceId = v4();
+      const observationId = v4();
+      const sessionId = v4();
+      const datasetRunId = v4();
+
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `objectType-test-score1-${v4()}`;
+      const scoreName2 = `objectType-test-score2-${v4()}`;
+
+      // Create trace for trace-level scores
+      const trace = createTrace({ id: traceId, project_id: projectId });
+      await createTracesCh([trace]);
+
+      // Create observation for observation-level scores
+      const observation = createObservation({
+        id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+      });
+      await createObservationsCh([observation]);
+
+      const scores = [
+        // Trace-level scores (2 pairs)
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          session_id: null,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 1.0,
+          timestamp: now.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          session_id: null,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 2.0,
+          timestamp: now.getTime(),
+        }),
+
+        // Observation-level scores (2 pairs)
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          session_id: null,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 3.0,
+          timestamp: now.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          session_id: null,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 4.0,
+          timestamp: now.getTime(),
+        }),
+
+        // Session-level scores (2 pairs)
+        createSessionScore({
+          project_id: projectId,
+          session_id: sessionId,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 5.0,
+          timestamp: now.getTime(),
+        }),
+        createSessionScore({
+          project_id: projectId,
+          session_id: sessionId,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 6.0,
+          timestamp: now.getTime(),
+        }),
+
+        // Dataset run-level scores (2 pairs)
+        createDatasetRunScore({
+          project_id: projectId,
+          dataset_run_id: datasetRunId,
+          name: scoreName1,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 7.0,
+          timestamp: now.getTime(),
+        }),
+        createDatasetRunScore({
+          project_id: projectId,
+          dataset_run_id: datasetRunId,
+          name: scoreName2,
+          source: "API",
+          data_type: "NUMERIC",
+          value: 8.0,
+          timestamp: now.getTime(),
+        }),
+      ];
+
+      await createScoresCh(scores);
+
+      const baseParams = {
+        projectId,
+        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
+        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "hour" as const },
+      };
+
+      // Test 1: objectType = "all" should return all 4 matched pairs
+      const resultAll = await caller.scoreAnalytics.getScoreComparisonAnalytics(
+        {
+          ...baseParams,
+          objectType: "all",
+        },
+      );
+      expect(resultAll.counts.matchedCount).toBe(4);
+      expect(resultAll.counts.score1Total).toBe(4);
+      expect(resultAll.counts.score2Total).toBe(4);
+
+      // Test 2: objectType = "trace" should return only trace-level scores (1 pair)
+      const resultTrace =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "trace",
+        });
+      expect(resultTrace.counts.matchedCount).toBe(1);
+      expect(resultTrace.counts.score1Total).toBe(1);
+      expect(resultTrace.counts.score2Total).toBe(1);
+
+      // Test 3: objectType = "observation" should return only observation-level scores (1 pair)
+      const resultObservation =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "observation",
+        });
+      expect(resultObservation.counts.matchedCount).toBe(1);
+      expect(resultObservation.counts.score1Total).toBe(1);
+      expect(resultObservation.counts.score2Total).toBe(1);
+
+      // Test 4: objectType = "session" should return only session-level scores (1 pair)
+      const resultSession =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "session",
+        });
+      expect(resultSession.counts.matchedCount).toBe(1);
+      expect(resultSession.counts.score1Total).toBe(1);
+      expect(resultSession.counts.score2Total).toBe(1);
+
+      // Test 5: objectType = "dataset_run" should return only dataset_run-level scores (1 pair)
+      const resultDatasetRun =
+        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "dataset_run",
+        });
+      expect(resultDatasetRun.counts.matchedCount).toBe(1);
+      expect(resultDatasetRun.counts.score1Total).toBe(1);
+      expect(resultDatasetRun.counts.score2Total).toBe(1);
     });
   });
 });

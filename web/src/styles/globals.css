@@ -177,6 +177,7 @@
     --color-4: oklch(80.2% 0.134 225);
     --color-5: oklch(90.7% 0.231 133);
   }
+
   .theme {
     --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   }
@@ -185,6 +186,7 @@
 @layer base {
   * {
     @apply border-border;
+    overscroll-behavior-y: none;
   }
 
   body {
@@ -240,6 +242,7 @@
     0% {
       background-position: 0%;
     }
+
     100% {
       background-position: 200%;
     }

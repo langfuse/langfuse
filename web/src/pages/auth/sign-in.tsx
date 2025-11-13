@@ -208,19 +208,24 @@ export function SSOButtons({
       });
   };
 
+  // Only show separator if credentials are enabled (for sign-in) or if action is sign-up (which always has the form)
+  const showSeparator = authProviders.credentials || action !== "sign in";
+
   return (
     // any authprovider from props is enabled
     Object.entries(authProviders).some(
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        {action === "sign in" ? (
-          <div className="my-6 border-t border-border"></div>
-        ) : (
-          <div className="my-6 text-center text-xs text-muted-foreground">
-            or {action} with
-          </div>
-        )}
+        {showSeparator ? (
+          action === "sign in" ? (
+            <div className="my-6 border-t border-border"></div>
+          ) : (
+            <div className="my-6 text-center text-xs text-muted-foreground">
+              or {action} with
+            </div>
+          )
+        ) : null}
         <div className="flex flex-row flex-wrap items-center justify-center gap-2">
           {authProviders.google && (
             <AuthProviderButton

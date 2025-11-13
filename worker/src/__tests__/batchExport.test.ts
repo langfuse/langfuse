@@ -830,6 +830,7 @@ describe("batch export test suite", () => {
         observation_id: observation.id,
         name: "category",
         string_value: "excellent",
+        data_type: "CATEGORICAL",
       }),
       createTraceScore({
         project_id: projectId,
@@ -837,6 +838,7 @@ describe("batch export test suite", () => {
         observation_id: observation.id,
         name: "feedback",
         string_value: "The response was very helpful and accurate.",
+        data_type: "CATEGORICAL",
       }),
     ];
 

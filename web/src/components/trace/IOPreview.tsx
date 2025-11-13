@@ -129,12 +129,13 @@ export const IOPreview: React.FC<{
 
         for (const toolCall of message.tool_calls) {
           if (toolCall.name && typeof toolCall.name === "string") {
-            toolCallCounts.set(
-              toolCall.name,
-              (toolCallCounts.get(toolCall.name) || 0) + 1,
-            );
-
+            // count tool calls from OUTPUT messages only, only those were called
+            // in this generation
             if (isOutputMessage) {
+              toolCallCounts.set(
+                toolCall.name,
+                (toolCallCounts.get(toolCall.name) || 0) + 1,
+              );
               toolCallCounter++;
               messageToolNumbers.push(toolCallCounter);
             }
@@ -458,10 +459,7 @@ export const OpenAiMessageView: React.FC<{
                 <>
                   <div
                     key={originalIndex}
-                    className={cn(
-                      "transition-colors hover:bg-muted",
-                      !isShowingTable && "group",
-                    )}
+                    className={cn("transition-colors hover:bg-muted")}
                   >
                     {isPlaceholderMessage(message) ? (
                       <>

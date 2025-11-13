@@ -1,6 +1,6 @@
 import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   type ScoreAggregate,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
@@ -34,7 +34,7 @@ const mockConfigs: ScoreConfigDomain[] = [
 
 describe("transformToAnnotationScores - flat scores", () => {
   it("should transform flat annotation scores correctly", () => {
-    const flatScores: APIScoreV2[] = [
+    const flatScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -54,6 +54,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
       {
         id: "score-2",
@@ -74,6 +77,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
     ];
 
@@ -111,7 +117,7 @@ describe("transformToAnnotationScores - flat scores", () => {
   });
 
   it("should filter out non-ANNOTATION scores", () => {
-    const flatScores: APIScoreV2[] = [
+    const flatScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -131,6 +137,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: null,
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
       {
         id: "score-2",
@@ -151,6 +160,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
     ];
 
@@ -162,7 +174,7 @@ describe("transformToAnnotationScores - flat scores", () => {
   });
 
   it("should filter out scores without matching config", () => {
-    const flatScores: APIScoreV2[] = [
+    const flatScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "unknown",
@@ -182,6 +194,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
     ];
 

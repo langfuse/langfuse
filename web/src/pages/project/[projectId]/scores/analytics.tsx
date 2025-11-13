@@ -5,8 +5,8 @@ import {
   getScoresTabs,
   SCORES_TABS,
 } from "@/src/features/navigation/utils/scores-tabs";
-import { useAnalyticsUrlState } from "@/src/features/scores/components/score-analytics/libs/analytics-url-state";
-import { type ScoreOption } from "@/src/features/scores/components/score-analytics/components/charts/ScoreCombobox";
+import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
+import { type ScoreOption } from "@/src/features/score-analytics/components/charts/ScoreCombobox";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,
@@ -17,9 +17,9 @@ import { api } from "@/src/utils/api";
 import {
   ScoreAnalyticsProvider,
   type DataType,
-} from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsProvider";
-import { ScoreAnalyticsHeader } from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsHeader";
-import { ScoreAnalyticsDashboard } from "@/src/features/scores/components/score-analytics/components/ScoreAnalyticsDashboard";
+} from "@/src/features/score-analytics/components/ScoreAnalyticsProvider";
+import { ScoreAnalyticsHeader } from "@/src/features/score-analytics/components/ScoreAnalyticsHeader";
+import { ScoreAnalyticsDashboard } from "@/src/features/score-analytics/components/ScoreAnalyticsDashboard";
 
 /**
  * Score Analytics V2 - Refactored Architecture
@@ -34,12 +34,6 @@ import { ScoreAnalyticsDashboard } from "@/src/features/scores/components/score-
  *   - DistributionChartCard: Score distributions
  *   - HeatmapCard: Score comparison heatmaps
  *
- * Benefits over old implementation:
- * - Single data fetch (no prop drilling)
- * - Eliminated ~400 lines of duplicated code
- * - Type-safe with proper interfaces
- * - Clean separation of concerns
- * - Easy to test and maintain
  */
 export default function ScoresAnalyticsV2Page() {
   const router = useRouter();
@@ -55,7 +49,7 @@ export default function ScoresAnalyticsV2Page() {
     data: scoresData,
     isLoading: scoresLoading,
     error: scoresError,
-  } = api.scores.getScoreIdentifiers.useQuery(
+  } = api.scoreAnalytics.getScoreIdentifiers.useQuery(
     { projectId },
     { enabled: !!projectId },
   );

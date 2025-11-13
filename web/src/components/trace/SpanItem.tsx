@@ -10,15 +10,17 @@ import {
   heatMapTextColor,
   unnestObservation,
 } from "@/src/components/trace/lib/helpers";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import React from "react";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export interface SpanItemProps {
   node: TreeNode;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   parentTotalCost?: Decimal;
@@ -31,7 +33,8 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   node,
   scores,
   comments,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   parentTotalCost,
@@ -60,23 +63,23 @@ export const SpanItem: React.FC<SpanItemProps> = ({
         ? node.latency * 1000
         : undefined;
 
-  const shouldRenderMetrics =
-    showMetrics &&
+  const shouldRenderDuration =
+    showDuration && Boolean(duration || node.latency);
+
+  const shouldRenderCostTokens =
+    showCostTokens &&
     Boolean(
-      node.inputUsage ||
-        node.outputUsage ||
-        node.totalUsage ||
-        duration ||
-        totalCost ||
-        node.latency,
+      node.inputUsage || node.outputUsage || node.totalUsage || totalCost,
     );
+
+  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
       <div className="flex min-w-0 items-center gap-2 overflow-hidden">
         <span className="flex-shrink truncate text-xs">{node.name}</span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-x-2">
           {comments && showComments ? (
             <CommentCountIcon count={comments.get(node.id)} />
           ) : null}
@@ -96,9 +99,9 @@ export const SpanItem: React.FC<SpanItemProps> = ({
         </div>
       </div>
 
-      {shouldRenderMetrics && (
-        <div className="flex flex-wrap gap-2">
-          {duration || node.latency ? (
+      {shouldRenderAnyMetrics && (
+        <div className="flex flex-wrap gap-x-2">
+          {shouldRenderDuration && (duration || node.latency) ? (
             <span
               title={
                 node.children.length > 0 || node.type === "TRACE"
@@ -120,7 +123,8 @@ export const SpanItem: React.FC<SpanItemProps> = ({
               )}
             </span>
           ) : null}
-          {node.inputUsage || node.outputUsage || node.totalUsage ? (
+          {shouldRenderCostTokens &&
+          (node.inputUsage || node.outputUsage || node.totalUsage) ? (
             <span className="text-xs text-muted-foreground">
               {formatTokenCounts(
                 node.inputUsage,
@@ -129,7 +133,7 @@ export const SpanItem: React.FC<SpanItemProps> = ({
               )}
             </span>
           ) : null}
-          {totalCost ? (
+          {shouldRenderCostTokens && totalCost ? (
             <span
               title={
                 node.children.length > 0 || node.type === "TRACE"

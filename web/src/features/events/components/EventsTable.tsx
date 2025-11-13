@@ -5,6 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -246,22 +247,22 @@ export default function ObservationsEventsTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
 
     return {
-      environment: filterOptions.data?.environment ?? [],
-      name: filterOptions.data?.name ?? [],
-      type: filterOptions.data?.type ?? [],
-      level: filterOptions.data?.level ?? [],
-      providedModelName: filterOptions.data?.providedModelName ?? [],
-      modelId: filterOptions.data?.modelId ?? [],
-      promptName: filterOptions.data?.promptName ?? [],
-      traceTags: filterOptions.data?.traceTags ?? [],
-      userId: filterOptions.data?.userId ?? [],
-      sessionId: filterOptions.data?.sessionId ?? [],
-      version: filterOptions.data?.version ?? [],
+      environment: filterOptions.data?.environment ?? undefined,
+      name: filterOptions.data?.name ?? undefined,
+      type: filterOptions.data?.type ?? undefined,
+      level: filterOptions.data?.level ?? undefined,
+      providedModelName: filterOptions.data?.providedModelName ?? undefined,
+      modelId: filterOptions.data?.modelId ?? undefined,
+      promptName: filterOptions.data?.promptName ?? undefined,
+      traceTags: filterOptions.data?.traceTags ?? undefined,
+      userId: filterOptions.data?.userId ?? undefined,
+      sessionId: filterOptions.data?.sessionId ?? undefined,
+      version: filterOptions.data?.version ?? undefined,
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -280,6 +281,7 @@ export default function ObservationsEventsTable({
     observationEventsFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -444,11 +446,7 @@ export default function ObservationsEventsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: EventsTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {
@@ -1092,7 +1090,7 @@ export default function ObservationsEventsTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -1174,7 +1172,7 @@ export default function ObservationsEventsTable({
               }}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

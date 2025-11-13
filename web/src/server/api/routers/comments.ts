@@ -195,6 +195,7 @@ export const commentsRouter = createTRPCRouter({
         scope: "comments:read",
       });
 
+      // For single object view, we want DESC order (most recent first)
       const comments = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
@@ -214,13 +215,13 @@ export const commentsRouter = createTRPCRouter({
           u.image AS "authorUserImage",
           u.name AS "authorUserName"
         FROM comments c
-        LEFT JOIN users u ON u.id = c.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
+        LEFT JOIN users u ON u.id = c.author_user_id
         WHERE
           c."project_id" = ${input.projectId}
           AND c."object_id" = ${input.objectId}
           AND c."object_type"::text = ${input.objectType}
         ORDER BY
-          c.created_at ASC
+          c.created_at DESC
         `,
       );
 
@@ -337,6 +338,12 @@ export const commentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
+
       const clickhouseTraces = await getTracesIdentifierForSession(
         input.projectId,
         input.sessionId,
@@ -358,5 +365,73 @@ export const commentsRouter = createTRPCRouter({
           .filter((c) => traceIds.has(c.objectId))
           .map(({ objectId, count }) => [objectId, Number(count)]),
       );
+    }),
+  getTraceCommentsBySessionId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "comments:read",
+      });
+
+      const clickhouseTraces = await getTracesIdentifierForSession(
+        input.projectId,
+        input.sessionId,
+      );
+
+      const traceIds = clickhouseTraces.map((t) => t.id);
+
+      if (traceIds.length === 0) {
+        return {};
+      }
+
+      // Fetch all comments for the traces with user information (ASC order for chronological listing)
+      const enrichedComments = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          objectId: string;
+          content: string;
+          createdAt: Date;
+          authorUserId: string | null;
+          authorUserImage: string | null;
+          authorUserName: string | null;
+        }>
+      >(
+        Prisma.sql`
+          SELECT
+            c.id,
+            c.object_id AS "objectId",
+            c.content,
+            c.created_at AS "createdAt",
+            u.id AS "authorUserId",
+            u.image AS "authorUserImage",
+            u.name AS "authorUserName"
+          FROM comments c
+          LEFT JOIN users u ON u.id = c.author_user_id
+          WHERE
+            c."project_id" = ${input.projectId}
+            AND c."object_type"::text = 'TRACE'
+            AND c."object_id" = ANY(${traceIds}::text[])
+          ORDER BY
+            c.created_at ASC
+        `,
+      );
+
+      // Group comments by trace ID
+      const commentsByTrace: Record<string, typeof enrichedComments> = {};
+      for (const comment of enrichedComments) {
+        if (!commentsByTrace[comment.objectId]) {
+          commentsByTrace[comment.objectId] = [];
+        }
+        commentsByTrace[comment.objectId].push(comment);
+      }
+
+      return commentsByTrace;
     }),
 });

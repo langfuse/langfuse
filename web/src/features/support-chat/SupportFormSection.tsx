@@ -42,10 +42,111 @@ import {
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
 import { Paperclip, Loader2, Trash2 } from "lucide-react";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { PLAIN_MAX_FILE_SIZE_BYTES } from "./plain/plainConstants";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
 type SupportFormValues = z.output<typeof SupportFormSchema>;
+
+/**
+ * File upload constraints - single source of truth for validation
+ * Uses Plain API's file size limit
+ */
+const FILE_UPLOAD_CONSTRAINTS = {
+  maxFiles: 5,
+  maxFileSizeBytes: PLAIN_MAX_FILE_SIZE_BYTES, // 6MB (Plain API limit)
+  maxCombinedBytes: 50 * 1024 * 1024, // 50MB
+} as const;
+
+/**
+ * Validates files against upload constraints
+ * @returns {isValid: boolean, error?: string}
+ */
+function validateFiles(files: File[] | undefined): {
+  isValid: boolean;
+  error?: string;
+} {
+  if (!files || files.length === 0) {
+    return { isValid: true };
+  }
+
+  const { maxFiles, maxFileSizeBytes, maxCombinedBytes } =
+    FILE_UPLOAD_CONSTRAINTS;
+
+  // Check file count
+  if (files.length > maxFiles) {
+    return {
+      isValid: false,
+      error: `Please upload at most ${maxFiles} files.`,
+    };
+  }
+
+  // Check individual file sizes
+  const oversizedFile = files.find((f) => f.size > maxFileSizeBytes);
+  if (oversizedFile) {
+    const maxMB = (maxFileSizeBytes / (1024 * 1024)).toFixed(0);
+    return {
+      isValid: false,
+      error: `File "${oversizedFile.name}" is too large. Maximum file size is ${maxMB}MB per file.`,
+    };
+  }
+
+  // Check combined size
+  const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+  if (totalSize > maxCombinedBytes) {
+    const totalMB = (totalSize / (1024 * 1024)).toFixed(2);
+    const maxMB = (maxCombinedBytes / (1024 * 1024)).toFixed(0);
+    return {
+      isValid: false,
+      error: `Total attachment size (${totalMB}MB) exceeds the limit of ${maxMB}MB.`,
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Converts technical file error messages to user-friendly ones
+ */
+function formatFileError(error: Error): string {
+  const msg = error.message.toLowerCase();
+  const { maxFiles, maxFileSizeBytes, maxCombinedBytes } =
+    FILE_UPLOAD_CONSTRAINTS;
+  const maxMB = (maxFileSizeBytes / (1024 * 1024)).toFixed(0);
+  const maxCombinedMB = (maxCombinedBytes / (1024 * 1024)).toFixed(0);
+
+  // File size errors
+  if (
+    msg.includes("larger than") ||
+    msg.includes("10485760") ||
+    msg.includes("10mb") ||
+    msg.includes("too large")
+  ) {
+    return `File is too large. Maximum file size is ${maxMB}MB per file.`;
+  }
+
+  // File count errors
+  if (
+    msg.includes("too many") ||
+    msg.includes("maxfiles") ||
+    msg.includes("5 files")
+  ) {
+    return `Too many files. Maximum ${maxFiles} files allowed.`;
+  }
+
+  // Combined size errors
+  if (msg.includes("total") && (msg.includes("50mb") || msg.includes("size"))) {
+    return `Total attachment size exceeds limit. Maximum combined size is ${maxCombinedMB}MB.`;
+  }
+
+  // File type errors
+  if (msg.includes("file type") || msg.includes("accept")) {
+    return "File type not supported. Please select a different file.";
+  }
+
+  return error.message || "File upload failed. Please try again.";
+}
 
 export function SupportFormSection({
   onCancel,
@@ -103,7 +204,14 @@ export function SupportFormSection({
   });
 
   const prepareUploads = api.plainRouter.prepareAttachmentUploads.useMutation({
-    onError: () => setIsSubmittingLocal(false),
+    onError: (error) => {
+      setIsSubmittingLocal(false);
+      showErrorToast(
+        "Upload Preparation Failed",
+        error.message || "Failed to prepare file uploads. Please try again.",
+        "ERROR",
+      );
+    },
   });
 
   async function uploadToPlainS3(
@@ -135,18 +243,10 @@ export function SupportFormSection({
     try {
       setIsSubmittingLocal(true);
 
-      // UI-side constraints
-      const maxFiles = 5;
-      const maxFileSize = 10 * 1024 * 1024;
-      const maxCombined = 50 * 1024 * 1024;
-      if ((files?.length ?? 0) > maxFiles) {
-        throw new Error(`Please upload at most ${maxFiles} files.`);
-      }
-      if ((files ?? []).some((f) => f.size > maxFileSize)) {
-        throw new Error("Each file must be ≤ 10MB.");
-      }
-      if (totalUploadBytes > maxCombined) {
-        throw new Error("Total attachment size must be ≤ 50MB.");
+      // Validate files using centralized validation function
+      const validation = validateFiles(files);
+      if (!validation.isValid) {
+        throw new Error(validation.error);
       }
 
       // 1) Request presigned S3 upload forms
@@ -404,10 +504,13 @@ export function SupportFormSection({
 
                 <Dropzone
                   className="mt-1 border-none p-0 text-left"
-                  maxFiles={5}
-                  maxSize={1024 * 1024 * 10}
+                  maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
+                  maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
                   onDrop={(accepted) => setFiles(accepted)}
-                  onError={console.error}
+                  onError={(error) => {
+                    const userMessage = formatFileError(error);
+                    showErrorToast("File Upload Error", userMessage, "WARNING");
+                  }}
                   src={files}
                 >
                   {/* Small, single-line trigger */}

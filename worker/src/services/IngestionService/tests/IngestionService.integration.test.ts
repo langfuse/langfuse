@@ -20,7 +20,7 @@ import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
-import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
+import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
 import { Cluster } from "ioredis";
 import { env } from "../../../env";
 
@@ -529,7 +529,7 @@ describe("Ingestion end-to-end tests", () => {
             dataType: "NUMERIC",
             name: "score-name",
             value: 100.5,
-            source: ScoreSource.EVAL,
+            source: ScoreSourceEnum.EVAL,
             traceId: traceId,
             environment,
           },
@@ -619,7 +619,7 @@ describe("Ingestion end-to-end tests", () => {
       expect(score.name).toBe("score-name");
       expect(score.value).toBe(100.5);
       expect(score.observation_id).toBeNull();
-      expect(score.source).toBe(ScoreSource.EVAL);
+      expect(score.source).toBe(ScoreSourceEnum.EVAL);
       expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     }, 10_000);
   });
@@ -1031,7 +1031,7 @@ describe("Ingestion end-to-end tests", () => {
           configId: scoreConfigId,
           name: "score-name",
           traceId: traceId,
-          source: ScoreSource.API,
+          source: ScoreSourceEnum.API,
           value: 100.5,
           observationId: generationId,
           queueId,
@@ -1192,7 +1192,7 @@ describe("Ingestion end-to-end tests", () => {
               dataType: "NUMERIC",
               name: "valid-config",
               value: 85.5, // Within range 0-100
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               traceId: traceId,
               environment,
               configId: validScoreConfigId,
@@ -1217,7 +1217,7 @@ describe("Ingestion end-to-end tests", () => {
               configId: validScoreConfigId,
               name: "valid-config",
               traceId: traceId,
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               value: 150, // Outside range 0-100, should fail validation
               environment,
             },
@@ -1233,7 +1233,7 @@ describe("Ingestion end-to-end tests", () => {
               configId: validScoreConfigId,
               name: "archived-config",
               traceId: traceId,
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               value: 50,
               environment,
             },
@@ -1249,7 +1249,7 @@ describe("Ingestion end-to-end tests", () => {
               configId: archivedScoreConfigId,
               name: "archived-config",
               traceId: traceId,
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               value: 50, // Valid value but config is archived
               environment,
             },

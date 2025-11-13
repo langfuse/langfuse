@@ -310,7 +310,7 @@ const Integrations = (props: { projectId: string }) => {
             </ActionButton>
             <Button asChild variant="ghost">
               <Link
-                href="https://langfuse.com/docs/integrations/mixpanel"
+                href="https://langfuse.com/integrations/analytics/mixpanel"
                 target="_blank"
               >
                 Integration Docs ↗

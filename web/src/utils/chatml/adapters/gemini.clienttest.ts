@@ -70,7 +70,7 @@ describe("geminiAdapter", () => {
       expect(result[1].tool_call_id).toBe("call_123");
     });
 
-    it("should stringify object content in tool result messages", () => {
+    it("should stringify simple object content in tool result messages (1-2 scalar keys)", () => {
       const input = [
         {
           role: "model",
@@ -79,9 +79,8 @@ describe("geminiAdapter", () => {
         {
           role: "tool",
           content: {
-            ok: true,
-            data: { userId: 12345 },
-            request: { unitId: 1, name: "Test User" },
+            temperature: 72,
+            conditions: "sunny",
           },
           tool_call_id: "call_xyz789",
         },
@@ -91,16 +90,45 @@ describe("geminiAdapter", () => {
 
       expect(result.length).toBe(2);
       expect(result[1].role).toBe("tool");
-      // Tool result content should be stringified
+      // Simple objects (1-2 scalar keys) get stringified
       expect(typeof result[1].content).toBe("string");
       expect(result[1].content).toBe(
         JSON.stringify({
-          ok: true,
-          data: { userId: 12345 },
-          request: { unitId: 1, name: "Test User" },
+          temperature: 72,
+          conditions: "sunny",
         }),
       );
       expect(result[1].tool_call_id).toBe("call_xyz789");
+    });
+
+    it("should spread rich object content (3+ keys or nested) in tool result messages", () => {
+      const input = [
+        {
+          role: "model",
+          content: [{ type: "text", text: "Let me check." }],
+        },
+        {
+          role: "tool",
+          content: {
+            PatientNo: "123",
+            Firstname: "John",
+            Lastname: "Doe",
+            Email: "john@example.com",
+            Mobile: "1234567890",
+          },
+          tool_call_id: "call_abc123",
+        },
+      ];
+
+      const result = geminiAdapter.preprocess(input, "input", {}) as any[];
+
+      expect(result.length).toBe(2);
+      expect(result[1].role).toBe("tool");
+      // Rich objects get spread into message
+      expect(result[1].content).toBeUndefined();
+      expect(result[1].PatientNo).toBe("123");
+      expect(result[1].Firstname).toBe("John");
+      expect(result[1].tool_call_id).toBe("call_abc123");
     });
 
     it("should normalize tool_calls from Gemini format to flat ChatML format", () => {
