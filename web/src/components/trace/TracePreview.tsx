@@ -215,7 +215,7 @@ export const TracePreview = ({
             )}
           </div>
         </div>
-        <div className="grid w-full min-w-0 items-center justify-between">
+        <div className="grid w-full min-w-0 items-center justify-between px-2">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
             <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
               <LocalIsoDate
