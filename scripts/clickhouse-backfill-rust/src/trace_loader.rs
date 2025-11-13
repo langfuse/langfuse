@@ -59,7 +59,8 @@ pub async fn load_trace_attributes(
     );
 
     // Create the HashMap to store trace attributes
-    let mut trace_attrs: HashMap<(String, String), TraceAttrs> = HashMap::new();
+    let mut trace_attrs: HashMap<(String, String), TraceAttrs> =
+        HashMap::with_capacity(total_traces as usize);
 
     // Stream traces and populate the map
     let mut cursor = client.query(query).bind(partition).fetch::<TraceAttrs>()?;
