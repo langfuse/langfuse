@@ -45,6 +45,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 # Concurrent collections
 dashmap = "6.1"
 
+# Fast hashing
+ahash = "0.8"
+
 [dev-dependencies]
 tempfile = "3.13"
 

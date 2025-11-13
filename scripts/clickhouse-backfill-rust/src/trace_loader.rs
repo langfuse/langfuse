@@ -1,7 +1,7 @@
+use ahash::AHashMap;
 use anyhow::{Context, Result};
 use clickhouse::Client;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::types::TraceAttrs;
@@ -10,7 +10,7 @@ use crate::types::TraceAttrs;
 pub async fn load_trace_attributes(
     client: &Client,
     partition: &str,
-) -> Result<Arc<HashMap<(String, String), TraceAttrs>>> {
+) -> Result<Arc<AHashMap<(String, String), TraceAttrs>>> {
     tracing::info!("Loading trace attributes for partition {}...", partition);
 
     let query = r#"
@@ -58,9 +58,9 @@ pub async fn load_trace_attributes(
             .progress_chars("=>-"),
     );
 
-    // Create the HashMap to store trace attributes
-    let mut trace_attrs: HashMap<(String, String), TraceAttrs> =
-        HashMap::with_capacity(total_traces as usize);
+    // Create the AHashMap to store trace attributes
+    let mut trace_attrs: AHashMap<(String, String), TraceAttrs> =
+        AHashMap::with_capacity(total_traces as usize);
 
     // Stream traces and populate the map
     let mut cursor = client.query(query).bind(partition).fetch::<TraceAttrs>()?;

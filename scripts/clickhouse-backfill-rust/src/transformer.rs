@@ -1,3 +1,4 @@
+use ahash::AHashMap;
 use anyhow::Result;
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
@@ -8,7 +9,7 @@ use crate::types::{extract_metadata_arrays, Event, Observation, TraceAttrs};
 /// Transform an observation into an event with trace enrichment
 pub fn transform_observation_to_event(
     obs: &Observation,
-    trace_attrs_map: &Arc<HashMap<(String, String), TraceAttrs>>,
+    trace_attrs_map: &Arc<AHashMap<(String, String), TraceAttrs>>,
 ) -> Result<Event> {
     let trace_key = (obs.project_id.clone(), obs.trace_id.clone());
 
@@ -175,7 +176,7 @@ fn detect_source(metadata: &Option<JsonValue>) -> String {
 /// Transform a batch of observations to events in parallel
 pub fn transform_batch(
     observations: Vec<Observation>,
-    trace_attrs_map: &Arc<HashMap<(String, String), TraceAttrs>>,
+    trace_attrs_map: &Arc<AHashMap<(String, String), TraceAttrs>>,
 ) -> Result<Vec<Event>> {
     observations
         .iter()
