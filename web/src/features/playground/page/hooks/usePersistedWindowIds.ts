@@ -20,6 +20,7 @@ export function usePersistedWindowIds() {
 
   // Load window IDs from storage on initial mount
   useEffect(() => {
+    // Normal initialization
     const savedWindowIds = getWindowIds();
     setWindowIds(savedWindowIds ?? [uuidv4()]);
     setIsLoaded(true);
