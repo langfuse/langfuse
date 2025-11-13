@@ -503,6 +503,7 @@ types:
       - optional<string>
       - optional<integer>
       - optional<boolean>
+      - optional<float>
       - optional<list<string>>
   CommentObjectType:
     enum:
