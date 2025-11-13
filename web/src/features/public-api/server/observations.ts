@@ -171,8 +171,13 @@ const generateFilter = (query: QueryType) => {
     observationsTableUiColumnDefinitions,
   );
 
+  // Remove score filters since observations don't support scores in response
+  const filteredChFilter = chFilter.filter(
+    (f) => f.clickhouseTable !== "scores",
+  );
+
   // Add project filter
-  chFilter.push(
+  filteredChFilter.push(
     new StringFilter({
       clickhouseTable: "observations",
       field: "project_id",
@@ -180,5 +185,5 @@ const generateFilter = (query: QueryType) => {
       value: query.projectId,
     }),
   );
-  return chFilter;
+  return filteredChFilter;
 };
