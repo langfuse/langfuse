@@ -70,7 +70,7 @@ jest.mock("@langfuse/shared", () => {
   };
 });
 
-import { normalizeInput } from "./adapters";
+import { normalizeInput, normalizeOutput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
 import { extractTools } from "./extractTools";
 
@@ -875,5 +875,63 @@ describe("Playground Jump Full Pipeline", () => {
     expect(firstMessage.tools!.length).toBe(2);
     expect(firstMessage.tools![0].name).toBe("get_weather");
     expect(firstMessage.tools![1].name).toBe("search_web");
+  });
+
+  it("should NOT include generation output assistant message in playground per default", () => {
+    // This test reproduces the bug where generation output is added to playground
+    // Expected: Playground should only contain INPUT messages for testing
+    // Actual: Playground contains input + output, causing weird behavior when re-run
+
+    const input = {
+      messages: [
+        { role: "system", content: "You are a helpful sales assistant." },
+        { role: "user", content: "What can you help me with?" },
+      ],
+    };
+
+    // The LLM's previous response (from the generation output)
+    const output = {
+      role: "assistant",
+      content: "😊",
+    };
+
+    const ctx = {
+      metadata: {},
+      observationName: "test-generation",
+    };
+
+    // Simulate parseGeneration flow from JumpToPlaygroundButton.tsx
+
+    // Step 1: Process input messages (lines 345-353)
+    const inResult = normalizeInput(input, ctx);
+    expect(inResult.success).toBe(true);
+
+    let messages = inResult.success
+      ? inResult
+          .data!.map(convertChatMlToPlayground)
+          .filter((msg) => msg !== null)
+      : [];
+
+    const inputMessageCount = messages.length;
+    expect(inputMessageCount).toBe(2); // system + user
+
+    // Step 2: Process output messages
+    if (output && typeof output === "object") {
+      const outResult = normalizeOutput(output, ctx);
+      const outputMessages = outResult.success
+        ? outResult
+            .data!.map(convertChatMlToPlayground)
+            .filter((msg) => msg !== null)
+            .filter((msg) => msg.type !== "assistant-tool-call")
+        : [];
+
+      messages = [...messages, ...outputMessages];
+    }
+
+    // Playground should only contain input messages for testing, not output
+    expect(messages.length).toBe(inputMessageCount);
+
+    const lastMessage = messages[messages.length - 1];
+    expect(lastMessage?.role).not.toBe("assistant");
   });
 });
