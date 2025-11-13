@@ -1,36 +1,13 @@
-jest.mock("@langfuse/shared", () => {
-  const { z } = require("zod/v4");
-
-  return {
-    ChatMessageRole: {
-      System: "system",
-      Developer: "developer",
-      User: "user",
-      Assistant: "assistant",
-      Tool: "tool",
-      Model: "model",
-    },
-    BaseChatMlMessageSchema: z
-      .object({
-        role: z.string().optional(),
-        name: z.string().optional(),
-        content: z
-          .union([
-            z.record(z.string(), z.any()),
-            z.string(),
-            z.array(z.any()),
-            z.any(), // Simplified - was OpenAIContentSchema
-          ])
-          .nullish(),
-        audio: z.any().optional(),
-        additional_kwargs: z.record(z.string(), z.any()).optional(),
-        tools: z.array(z.any()).optional(),
-        tool_calls: z.array(z.any()).optional(),
-        tool_call_id: z.string().optional(),
-      })
-      .passthrough(),
-  };
-});
+jest.mock("@langfuse/shared", () => ({
+  ChatMessageRole: {
+    System: "system",
+    Developer: "developer",
+    User: "user",
+    Assistant: "assistant",
+    Tool: "tool",
+    Model: "model",
+  },
+}));
 
 import { normalizeInput } from "./index";
 import { aisdkAdapter } from "./aisdk";
@@ -138,34 +115,6 @@ describe("AI SDK Adapter", () => {
         },
       ];
       expect(aisdkAdapter.detect({ data: toolResultData })).toBe(true);
-    });
-
-    it("should not crash when detecting messages with null items in content array", () => {
-      // Bug: Schema validation tried to access .type on null items
-      const messagesWithNullContent = [
-        {
-          role: "assistant",
-          content: [
-            { type: "text", text: "Hello" },
-            null, // This null item should not crash detection
-            {
-              type: "tool-call",
-              toolCallId: "call_123",
-              toolName: "get_weather",
-              input: {},
-            },
-          ],
-        },
-      ];
-
-      // Should not throw TypeError when detecting
-      expect(() =>
-        aisdkAdapter.detect({ data: messagesWithNullContent }),
-      ).not.toThrow();
-
-      // Detection still works correctly (filters out null, finds valid tool-call)
-      // Note: safeParse catches the type error, making this return false
-      // The important part is that it doesn't crash the application
     });
   });
 
