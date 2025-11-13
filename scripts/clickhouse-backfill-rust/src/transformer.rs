@@ -24,9 +24,9 @@ pub fn transform_observation_to_event(
 
     // Get bookmarked status (only for root observations)
     let bookmarked = if is_root {
-        trace_attrs.as_ref().map(|t| t.bookmarked).unwrap_or(0)
+        trace_attrs.as_ref().map(|t| t.bookmarked).unwrap_or(false)
     } else {
-        0
+        false
     };
 
     // Merge metadata: observation metadata + trace metadata
@@ -60,19 +60,19 @@ pub fn transform_observation_to_event(
         session_id: trace_attrs.as_ref().and_then(|t| t.session_id.clone()).unwrap_or_default(),
         prompt_id: obs.prompt_id.clone().unwrap_or_default(),
         prompt_name: obs.prompt_name.clone().unwrap_or_default(),
-        prompt_version: obs.prompt_version.unwrap_or(0),
+        prompt_version: obs.prompt_version.clone(),
         model_id: obs.internal_model_id.clone().unwrap_or_default(),
         provided_model_name: obs.provided_model_name.clone().unwrap_or_default(),
-        model_parameters: obs.model_parameters.clone().unwrap_or_default(),
+        model_parameters: obs.model_parameters.clone().unwrap_or("{}".to_string()),
         provided_usage_details: obs.provided_usage_details.clone(),
         usage_details: obs.usage_details.clone(),
         provided_cost_details: obs.provided_cost_details.clone(),
         cost_details: obs.cost_details.clone(),
         input: obs.input.clone().unwrap_or_default(),
         output: obs.output.clone().unwrap_or_default(),
-        environment: String::new(), // Not in observations table
+        environment: obs.environment.clone(),
         release: trace_attrs.as_ref().and_then(|t| t.release.clone()).unwrap_or_default(),
-        public: trace_attrs.as_ref().map(|t| t.public).unwrap_or(0),
+        public: trace_attrs.as_ref().map(|t| t.public).unwrap_or(false),
         bookmarked,
         source,
         service_name: String::new(),
@@ -84,18 +84,15 @@ pub fn transform_observation_to_event(
         telemetry_sdk_version: String::new(),
         experiment_id: String::new(),
         experiment_name: String::new(),
-        experiment_metadata: String::new(),
         experiment_metadata_names: Vec::new(),
-        experiment_metadata_raw_values: Vec::new(),
+        experiment_metadata_values: Vec::new(),
+        experiment_description: String::new(),
+        experiment_dataset_id: String::new(),
         experiment_item_id: String::new(),
-        experiment_item_metadata: String::new(),
+        experiment_item_expected_output: String::new(),
         experiment_item_metadata_names: Vec::new(),
-        experiment_item_metadata_raw_values: Vec::new(),
-        experiment_run_id: String::new(),
-        experiment_run_name: String::new(),
-        experiment_run_metadata: String::new(),
-        experiment_run_metadata_names: Vec::new(),
-        experiment_run_metadata_raw_values: Vec::new(),
+        experiment_item_metadata_values: Vec::new(),
+        experiment_item_root_span_id: String::new(),
         blob_storage_file_path: String::new(),
         event_bytes: 0,
         created_at: obs.created_at,
@@ -215,8 +212,8 @@ mod tests {
             session_id: None,
             metadata: metadata_vec,
             tags: vec![],
-            public: 0,
-            bookmarked: 0,
+            public: false,
+            bookmarked: false,
             version: None,
             release: None,
         };

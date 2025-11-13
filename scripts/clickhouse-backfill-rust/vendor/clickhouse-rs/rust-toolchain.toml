@@ -1,0 +1,3 @@
+[toolchain]
+channel = "1.89.0"
+profile = "minimal" # Don't download docs, sources, etc. on CI

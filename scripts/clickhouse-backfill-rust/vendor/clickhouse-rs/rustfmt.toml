@@ -1,0 +1,2 @@
+edition = "2021"
+merge_derives = false

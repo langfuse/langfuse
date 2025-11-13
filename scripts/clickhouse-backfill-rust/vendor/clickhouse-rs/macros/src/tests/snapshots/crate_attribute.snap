@@ -1,0 +1,20 @@
+---
+source: derive/src/tests/cases.rs
+assertion_line: 125
+---
+#[derive(Row)]
+#[clickhouse(crate = "foo")]
+struct Foo {
+    a: u32,
+    b: u32,
+}
+
+/****** GENERATED ******/
+#[automatically_derived]
+impl foo::Row for Foo {
+    const NAME: &'static str = stringify!(Foo);
+    const COLUMN_NAMES: &'static [&'static str] = &["a", "b"];
+    const COLUMN_COUNT: usize = <Self as foo::Row>::COLUMN_NAMES.len();
+    const KIND: foo::_priv::RowKind = foo::_priv::RowKind::Struct;
+    type Value<'__v> = Self;
+}

@@ -27,7 +27,9 @@ pub fn create_write_client(config: &Config) -> Result<Client> {
         .with_option("async_insert", "1")
         .with_option("wait_for_async_insert", "1")
         .with_option("async_insert_max_data_size", "10485760") // 10MB
-        .with_option("async_insert_busy_timeout_ms", "1000");
+        .with_option("async_insert_busy_timeout_ms", "1000")
+        .with_option("input_format_binary_read_json_as_string", "1")
+        .with_option("output_format_binary_write_json_as_string", "1");
 
     tracing::debug!("Created ClickHouse write client with async insert settings");
     Ok(client)

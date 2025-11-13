@@ -1,0 +1,5 @@
+error: `Row` cannot be derived for structs with multiple lifetimes
+ --> tests/ui/row_many_lifetimes.rs:2:16
+  |
+2 | struct Row<'a, 'b> {
+  |                ^^

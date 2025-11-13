@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  RUST_BACKTRACE: 1
+  # note: MSRV now tracked in `rust-toolchain.toml`
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain -v
+      - run: cargo build --all-targets
+      - run: cargo build --all-targets --no-default-features
+      - run: cargo build --all-targets --all-features
+
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain -v
+      - run: rustup component add rustfmt
+      - run: cargo fmt --version
+      - run: cargo fmt -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain -v
+      - run: rustup component add clippy
+      - run: cargo clippy --version
+      - run: cargo clippy
+      - run: cargo clippy --all-targets --no-default-features
+      - run: cargo clippy --all-targets --all-features
+
+      # TLS
+      - run: cargo clippy --features native-tls
+      - run: cargo clippy --features rustls-tls
+      - run: cargo clippy --features rustls-tls-ring,rustls-tls-webpki-roots
+      - run: cargo clippy --features rustls-tls-ring,rustls-tls-native-roots
+      - run: cargo clippy --features rustls-tls-aws-lc,rustls-tls-webpki-roots
+      - run: cargo clippy --features rustls-tls-aws-lc,rustls-tls-native-roots
+
+  docs:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly
+      - run: rustup override set nightly
+      - run: rustup show active-toolchain -v
+      # Serde 1.0.227 fails to build with `--cfg docsrs`, only pass it to our own packages
+      - run: cargo rustdoc -p clickhouse-macros --all-features -- -D warnings --cfg docsrs
+      - run: cargo rustdoc -p clickhouse-types --all-features -- -D warnings --cfg docsrs
+      - run: cargo rustdoc -p clickhouse --all-features -- -D warnings --cfg docsrs
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Start ClickHouse in Docker
+        uses: hoverkraft-tech/compose-action@v2.2.0
+        with:
+          compose-file: 'docker-compose.yml'
+          down-flags: '--volumes'
+
+      - run: rustup show active-toolchain -v
+      # TODO: --workspace won't be required after splitting workspace and the main crate
+      - name: Run tests
+        run: cargo llvm-cov test --workspace --no-report
+      - name: Run tests without default features
+        run: cargo llvm-cov test --workspace --no-report --no-default-features
+      - name: Run tests with all features
+        run: cargo llvm-cov test --workspace --no-report --all-features
+
+      - name: Check access to GitHub secrets
+        id: check-secrets-access
+        run: |
+          if [[ "${{ github.actor }}" == "loyd" ]]; then
+            echo "has-access=true" >> $GITHUB_OUTPUT
+            echo "Paul Loyd is our VIP"
+          elif gh api orgs/ClickHouse/members/${{ github.actor }} --silent; then
+            echo "has-access=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-access=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Run tests with ClickHouse Cloud
+        if: steps.check-secrets-access.outputs.has-access == 'true'
+        env:
+          CLICKHOUSE_TEST_ENVIRONMENT: cloud
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST_SMT }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD_SMT }}
+          CLICKHOUSE_CLOUD_JWT_ACCESS_TOKEN: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_JWT_DESERT_VM_43 }}
+        # Temporary runs tests with `cloud_` prefix only until we validate that the rest of the tests are working
+        # `https_errors` should assert ClickHouse Cloud connection errors without enabled TLS features
+        run: |
+          cargo llvm-cov test cloud_ --no-report --features rustls-tls -- --nocapture
+          cargo llvm-cov test https_errors --no-report -- --nocapture
+
+      - name: Generate code coverage
+        if: steps.check-secrets-access.outputs.has-access == 'true'
+        run: cargo llvm-cov report --codecov --output-path codecov.json
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: steps.check-secrets-access.outputs.has-access == 'true'
+        with:
+          files: codecov.json
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: ClickHouse/clickhouse-rs
+          fail_ci_if_error: true
+
+  miri:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly --component miri
+      - run: rustup override set nightly
+      - run: rustup show active-toolchain -v
+      - run: cargo miri setup
+      - run: cargo miri test --all-features -- _miri

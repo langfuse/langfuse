@@ -2,6 +2,10 @@ use chrono::{DateTime, NaiveDate, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use fixnum::{FixedPoint, typenum::U12};
+
+// For Decimal(18, 12) - 12 decimal places
+pub type Decimal18_12 = FixedPoint<i64, U12>;
 
 /// Trace-level attributes loaded into memory for enrichment
 #[derive(Debug, Clone, Row, Deserialize)]
@@ -12,8 +16,8 @@ pub struct TraceAttrs {
     pub session_id: Option<String>,
     pub metadata: Vec<(String, String)>,
     pub tags: Vec<String>,
-    pub public: u8,
-    pub bookmarked: u8,
+    pub public: bool,
+    pub bookmarked: bool,
     pub version: Option<String>,
     pub release: Option<String>,
 }
@@ -27,6 +31,7 @@ pub struct Observation {
     pub r#type: String,
     pub parent_observation_id: Option<String>,
     pub name: String,
+    pub environment: String,
     #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub start_time: DateTime<Utc>,
     #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
@@ -44,11 +49,11 @@ pub struct Observation {
     pub model_parameters: Option<String>,
     pub provided_usage_details:  Vec<(String, u64)>,
     pub usage_details:  Vec<(String, u64)>,
-    pub provided_cost_details: Vec<(String, f64)>, // Decimal64 as Float64
-    pub cost_details: Vec<(String, f64)>, // Decimal64 as Float64
+    pub provided_cost_details: Vec<(String, Decimal18_12)>,
+    pub cost_details: Vec<(String, Decimal18_12)>,
     pub prompt_id: Option<String>,
     pub prompt_name: Option<String>,
-    pub prompt_version: Option<i32>,
+    pub prompt_version: Option<u16>,
     #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub created_at: DateTime<Utc>,
     #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
@@ -84,20 +89,20 @@ pub struct Event {
     pub session_id: String,
     pub prompt_id: String,
     pub prompt_name: String,
-    pub prompt_version: i32,
+    pub prompt_version: Option<u16>,
     pub model_id: String,
     pub provided_model_name: String,
     pub model_parameters: String,
     pub provided_usage_details: Vec<(String, u64)>,
     pub usage_details: Vec<(String, u64)>,
-    pub provided_cost_details: Vec<(String, f64)>,
-    pub cost_details: Vec<(String, f64)>,
+    pub provided_cost_details: Vec<(String, Decimal18_12)>,
+    pub cost_details: Vec<(String, Decimal18_12)>,
     pub input: String,
     pub output: String,
     pub environment: String,
     pub release: String,
-    pub public: u8,
-    pub bookmarked: u8,
+    pub public: bool,
+    pub bookmarked: bool,
     pub source: String,
     pub service_name: String,
     pub service_version: String,
@@ -108,18 +113,15 @@ pub struct Event {
     pub telemetry_sdk_version: String,
     pub experiment_id: String,
     pub experiment_name: String,
-    pub experiment_metadata: String,
     pub experiment_metadata_names: Vec<String>,
-    pub experiment_metadata_raw_values: Vec<String>,
+    pub experiment_metadata_values: Vec<String>,
+    pub experiment_description: String,
+    pub experiment_dataset_id: String,
     pub experiment_item_id: String,
-    pub experiment_item_metadata: String,
+    pub experiment_item_expected_output: String,
     pub experiment_item_metadata_names: Vec<String>,
-    pub experiment_item_metadata_raw_values: Vec<String>,
-    pub experiment_run_id: String,
-    pub experiment_run_name: String,
-    pub experiment_run_metadata: String,
-    pub experiment_run_metadata_names: Vec<String>,
-    pub experiment_run_metadata_raw_values: Vec<String>,
+    pub experiment_item_metadata_values: Vec<String>,
+    pub experiment_item_root_span_id: String,
     pub blob_storage_file_path: String,
     pub event_bytes: u64,
     #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]

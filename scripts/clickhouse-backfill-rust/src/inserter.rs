@@ -68,7 +68,7 @@ impl EventInserter {
 
     /// Attempt to insert events (single try)
     async fn try_insert(&self, events: &[Event]) -> Result<()> {
-        let mut insert = self.client.insert("events")?;
+        let mut insert = self.client.insert::<Event>("events").await?;
 
         for event in events {
             insert.write(event).await.context("Failed to write event")?;

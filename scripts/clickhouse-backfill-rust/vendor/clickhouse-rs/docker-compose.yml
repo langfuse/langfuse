@@ -1,0 +1,18 @@
+name: clickhouse-rs
+services:
+  clickhouse:
+    # Note: use of a fully qualified url makes Podman happy without need for further configuration.
+    image: 'docker.io/clickhouse/clickhouse-server:${CLICKHOUSE_VERSION-latest-alpine}'
+    container_name: 'clickhouse-rs-clickhouse-server'
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: 1
+    ports:
+      - '8123:8123'
+      - '9000:9000'
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - './.docker/clickhouse/single_node/config.xml:/etc/clickhouse-server/config.xml'
+      - './.docker/clickhouse/users.xml:/etc/clickhouse-server/users.xml'

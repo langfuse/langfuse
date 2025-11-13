@@ -1,0 +1,17 @@
+[package]
+name = "clickhouse-types"
+description = "Data types utils to use with Native and RowBinary(WithNamesAndTypes) formats in ClickHouse"
+version = "0.1.0"
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints.rust]
+missing_docs = "warn"
+
+[dependencies]
+thiserror = "2.0"
+bytes = "1.10.1"

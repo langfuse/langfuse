@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 # ClickHouse client
-clickhouse = { version = "0.14", features = ["inserter", "chrono"] }
+clickhouse = { path = "./vendor/clickhouse-rs", features = ["inserter", "chrono"] }
 
 # Async runtime
 tokio = { version = "1.42", features = ["full"] }
@@ -21,11 +21,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Decimal handling
-rust_decimal = { version = "1.36", features = ["serde-float"] }
+fixnum = { version = "0.9.2", features = ["serde", "i32", "i64", "i128"] }
 
 # Error handling
 anyhow = "1.0"
-thiserror = "1.0"
 
 # CLI parsing
 clap = { version = "4.5", features = ["derive", "env"] }

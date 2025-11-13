@@ -1,0 +1,18 @@
+---
+source: derive/src/tests/cases.rs
+---
+#[derive(Row)]
+struct Sample<'a> {
+    a: i32,
+    b: &'a str,
+}
+
+/****** GENERATED ******/
+#[automatically_derived]
+impl<'a> clickhouse::Row for Sample<'a> {
+    const NAME: &'static str = stringify!(Sample);
+    const COLUMN_NAMES: &'static [&'static str] = &["a", "b"];
+    const COLUMN_COUNT: usize = <Self as clickhouse::Row>::COLUMN_NAMES.len();
+    const KIND: clickhouse::_priv::RowKind = clickhouse::_priv::RowKind::Struct;
+    type Value<'__v> = Sample<'__v>;
+}

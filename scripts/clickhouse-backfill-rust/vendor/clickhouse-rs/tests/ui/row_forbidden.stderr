@@ -1,0 +1,23 @@
+error: `Row` can only be derived for structs
+ --> tests/ui/row_forbidden.rs:2:6
+  |
+2 | enum Enum {
+  |      ^^^^
+
+error: `Row` can only be derived for structs
+ --> tests/ui/row_forbidden.rs:8:7
+  |
+8 | union Union {
+  |       ^^^^^
+
+error: `Row` cannot be derived for unit or empty structs
+  --> tests/ui/row_forbidden.rs:14:12
+   |
+14 | pub struct UnitStruct;
+   |            ^^^^^^^^^^
+
+error: `Row` cannot be derived for unit or empty structs
+  --> tests/ui/row_forbidden.rs:17:12
+   |
+17 | pub struct EmptyStruct {}
+   |            ^^^^^^^^^^^

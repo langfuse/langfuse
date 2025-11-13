@@ -1,0 +1,21 @@
+---
+source: derive/src/tests/cases.rs
+---
+#[derive(Row)]
+struct Sample {
+    a: i32,
+    #[serde(rename = "items.a")]
+    items_a: Vec<String>,
+    #[serde(rename = "items.b")]
+    items_b: Vec<u32>,
+}
+
+/****** GENERATED ******/
+#[automatically_derived]
+impl clickhouse::Row for Sample {
+    const NAME: &'static str = stringify!(Sample);
+    const COLUMN_NAMES: &'static [&'static str] = &["a", "items.a", "items.b"];
+    const COLUMN_COUNT: usize = <Self as clickhouse::Row>::COLUMN_NAMES.len();
+    const KIND: clickhouse::_priv::RowKind = clickhouse::_priv::RowKind::Struct;
+    type Value<'__v> = Self;
+}
