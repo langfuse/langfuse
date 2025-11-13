@@ -332,6 +332,10 @@ export const openAIAdapter: ProviderAdapter = {
         const messages = (ctx.metadata as Record<string, unknown>).messages;
         if (Array.isArray(messages)) {
           const hasLangChainType = messages.some((msg: unknown) => {
+            // Null guard: ensure msg exists and is an object before accessing properties
+            if (!msg || typeof msg !== "object") {
+              return false;
+            }
             const message = msg as Record<string, unknown>;
             return (
               message.type &&
