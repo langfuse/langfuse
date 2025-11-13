@@ -19,7 +19,7 @@ pub async fn load_trace_attributes(
             id,
             user_id,
             session_id,
-            metadata,
+            mapFilter((k, v) -> k != 'attributes', metadata) AS metadata,
             tags,
             public,
             bookmarked,
