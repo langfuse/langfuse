@@ -196,22 +196,138 @@ async function executeWebhookAction({
             await validateWebhookURL(webhookConfig.url);
           }
 
-          const res = await fetch(webhookConfig.url, {
-            method: "POST",
-            body: webhookPayload,
-            headers: requestHeaders,
-            signal: abortController.signal,
-          });
+          // Fetch with manual redirect handling to prevent SSRF
+          let currentUrl = webhookConfig.url;
+          let redirectCount = 0;
+          const MAX_REDIRECTS = 5;
+          let res: Response;
+
+          while (true) {
+            logger.debug(
+              `Fetching webhook URL: ${currentUrl} (redirect ${redirectCount}/${MAX_REDIRECTS})`,
+            );
+
+            res = await fetch(currentUrl, {
+              method: "POST",
+              body: webhookPayload,
+              headers: requestHeaders,
+              signal: abortController.signal,
+              redirect: "manual", // Handle redirects manually for security
+            });
+
+            // Check if response is a redirect (3xx status)
+            if (res.status >= 300 && res.status < 400) {
+              const location = res.headers.get("location");
+
+              if (!location) {
+                throw new Error(
+                  `Webhook returned redirect status ${res.status} without Location header for url ${currentUrl}`,
+                );
+              }
+
+              // Resolve relative URLs against the current URL
+              const redirectUrl = new URL(location, currentUrl).href;
+
+              logger.info(
+                `Webhook redirect detected: ${currentUrl} -> ${redirectUrl} (attempt ${redirectCount + 1}/${MAX_REDIRECTS})`,
+              );
+
+              // Check redirect depth limit
+              redirectCount++;
+              if (redirectCount > MAX_REDIRECTS) {
+                throw new Error(
+                  `Webhook exceeded maximum redirect limit of ${MAX_REDIRECTS} for url ${webhookConfig.url}`,
+                );
+              }
+
+              // Validate the redirect destination URL to prevent SSRF
+              if (!skipValidation) {
+                // Full validation including DNS resolution (production)
+                try {
+                  await validateWebhookURL(redirectUrl);
+                } catch (validationError) {
+                  logger.error(
+                    `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
+                    validationError,
+                  );
+                  throw new Error(
+                    `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
+                  );
+                }
+              } else {
+                // In test mode, perform basic SSRF checks without DNS (for MSW compatibility)
+                try {
+                  const redirectUrlObj = new URL(redirectUrl);
+                  const hostname = redirectUrlObj.hostname.toLowerCase();
+
+                  // Check for obviously blocked hostnames
+                  const blockedHostnames = [
+                    "localhost",
+                    "127.0.0.1",
+                    "0.0.0.0",
+                    "169.254.169.254", // AWS metadata
+                    "metadata.google.internal",
+                    "169.254.169.253", // Alibaba Cloud
+                    "100.100.100.200", // Alibaba Cloud DNS
+                    "instance-data",
+                    "fd00:ec2::254", // AWS IPv6 metadata
+                  ];
+
+                  // Check hostname against blocklist
+                  if (blockedHostnames.includes(hostname)) {
+                    throw new Error(`Blocked hostname detected: ${hostname}`);
+                  }
+
+                  // Check for private IP patterns in hostname
+                  if (
+                    hostname.startsWith("10.") ||
+                    hostname.startsWith("192.168.") ||
+                    hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+                    hostname.startsWith("fc00:") ||
+                    hostname.startsWith("fe80:") ||
+                    hostname.startsWith("::1")
+                  ) {
+                    throw new Error(`Private IP address detected: ${hostname}`);
+                  }
+
+                  logger.debug(
+                    `Webhook redirect (basic validation in test mode): ${currentUrl} -> ${redirectUrl}`,
+                  );
+                } catch (validationError) {
+                  logger.error(
+                    `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
+                    validationError,
+                  );
+                  throw new Error(
+                    `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
+                  );
+                }
+              }
+
+              // Update current URL and continue loop
+              currentUrl = redirectUrl;
+              continue;
+            }
+
+            // Not a redirect, break the loop
+            break;
+          }
 
           httpStatus = res.status;
           responseBody = await res.text();
 
           if (!res.ok) {
             logger.warn(
-              `Webhook does not return 2xx status: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}. Body: ${responseBody}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${currentUrl} and project ${projectId}. Body: ${responseBody}`,
             );
             throw new Error(
-              `Webhook does not return 2xx status: failed with status ${res.status} for url ${webhookConfig.url} and project ${projectId}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${currentUrl} and project ${projectId}`,
+            );
+          }
+
+          if (redirectCount > 0) {
+            logger.info(
+              `Webhook successfully followed ${redirectCount} redirect(s) from ${webhookConfig.url} to ${currentUrl}`,
             );
           }
         } catch (error) {
