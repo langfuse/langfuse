@@ -52,7 +52,6 @@ import {
   EventsQueryBuilder,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
-  FieldSetName,
 } from "../queries/clickhouse-sql/event-query-builder";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
@@ -804,17 +803,14 @@ async function getObservationsRowsFromEventsTableForPublicApiInternal<T>(
   const requestedFields = opts.fields ?? [...OBSERVATION_FIELD_GROUPS];
 
   // Core fields are always included (required for cursor pagination)
-  queryBuilder.selectFieldSet("publicApiCore");
+  queryBuilder.selectFieldSet("core");
 
   // Conditionally add other field sets based on requested groups
-  for (const fieldGroup of requestedFields) {
-    if (fieldGroup !== "core") {
-      // core already selected above
-      const fieldSetName =
-        `publicApi${fieldGroup.charAt(0).toUpperCase()}${fieldGroup.slice(1)}` as FieldSetName;
-      queryBuilder.selectFieldSet(fieldSetName);
-    }
-  }
+  requestedFields
+    .filter((fg) => fg !== "core")
+    .forEach((fieldGroup) => {
+      queryBuilder.selectFieldSet(fieldGroup);
+    });
 
   // Determine if this is cursor-based pagination (v2) or page-based (v1)
   // v2 API always passes page=0, v1 API passes actual page numbers

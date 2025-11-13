@@ -136,7 +136,7 @@ const FIELD_SETS = {
   byIdTimestamps: ["createdAt", "updatedAt", "eventTs"],
 
   // Public API v2 field sets (field groups for selective fetching)
-  publicApiCore: [
+  core: [
     "id",
     "traceId",
     "startTime",
@@ -145,7 +145,7 @@ const FIELD_SETS = {
     "parentObservationId",
     "type",
   ],
-  publicApiBasic: [
+  basic: [
     "name",
     "level",
     "statusMessage",
@@ -156,19 +156,17 @@ const FIELD_SETS = {
     "userId",
     "sessionId",
   ],
-  publicApiTime: ["completionStartTime", "createdAt", "updatedAt"],
-  publicApiIo: ["input", "output"],
-  publicApiMetadata: ["metadata"],
-  publicApiModel: ["providedModelName", "internalModelId", "modelParameters"],
-  publicApiUsage: [
+  time: ["completionStartTime", "createdAt", "updatedAt"],
+  model: ["providedModelName", "internalModelId", "modelParameters"],
+  usage: [
     "usageDetails",
     "costDetails",
     "totalCost",
     "providedUsageDetails",
     "providedCostDetails",
   ],
-  publicApiPrompt: ["promptId", "promptName", "promptVersion"],
-  publicApiMetrics: ["latency", "timeToFirstToken"],
+  prompt: ["promptId", "promptName", "promptVersion"],
+  metrics: ["latency", "timeToFirstToken"],
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
