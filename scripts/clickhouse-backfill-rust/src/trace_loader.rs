@@ -68,19 +68,12 @@ pub async fn load_trace_attributes(
     while let Some(trace) = cursor.next().await? {
         let key = (trace.project_id.clone(), trace.id.clone());
 
-        // If trace has tags, add them to metadata
-        let mut metadata = trace.metadata.clone();
-        if !trace.tags.is_empty() {
-            let tags_json = serde_json::to_string(&trace.tags).unwrap_or_else(|_| "[]".to_string());
-            metadata.push(("trace_tags".to_string(), tags_json));
-        }
-
         let attrs = TraceAttrs {
             project_id: trace.project_id,
             id: trace.id,
             user_id: trace.user_id,
             session_id: trace.session_id,
-            metadata,
+            metadata: trace.metadata,
             tags: trace.tags,
             public: trace.public,
             bookmarked: trace.bookmarked,
