@@ -27,8 +27,11 @@ pub struct Observation {
     pub r#type: String,
     pub parent_observation_id: Option<String>,
     pub name: String,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub start_time: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
     pub end_time: Option<DateTime<Utc>>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
     pub completion_start_time: Option<DateTime<Utc>>,
     pub metadata:  Vec<(String, String)>,
     pub level: String,
@@ -41,13 +44,16 @@ pub struct Observation {
     pub model_parameters: Option<String>,
     pub provided_usage_details:  Vec<(String, u64)>,
     pub usage_details:  Vec<(String, u64)>,
-    pub provided_cost_details: Vec<(String, String)>, // Decimal64 as String
-    pub cost_details: Vec<(String, String)>, // Decimal64 as String
+    pub provided_cost_details: Vec<(String, f64)>, // Decimal64 as Float64
+    pub cost_details: Vec<(String, f64)>, // Decimal64 as Float64
     pub prompt_id: Option<String>,
     pub prompt_name: Option<String>,
     pub prompt_version: Option<i32>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub updated_at: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub event_ts: DateTime<Utc>,
     pub is_deleted: u8,
 }
@@ -61,8 +67,11 @@ pub struct Event {
     pub parent_span_id: String,
     pub name: String,
     pub r#type: String,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub start_time: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
     pub end_time: Option<DateTime<Utc>>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
     pub completion_start_time: Option<DateTime<Utc>>,
     pub metadata: String,
     pub metadata_names: Vec<String>,
@@ -81,8 +90,8 @@ pub struct Event {
     pub model_parameters: String,
     pub provided_usage_details: Vec<(String, u64)>,
     pub usage_details: Vec<(String, u64)>,
-    pub provided_cost_details: Vec<(String, String)>,
-    pub cost_details: Vec<(String, String)>,
+    pub provided_cost_details: Vec<(String, f64)>,
+    pub cost_details: Vec<(String, f64)>,
     pub input: String,
     pub output: String,
     pub environment: String,
@@ -113,8 +122,11 @@ pub struct Event {
     pub experiment_run_metadata_raw_values: Vec<String>,
     pub blob_storage_file_path: String,
     pub event_bytes: u64,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub updated_at: DateTime<Utc>,
+    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
     pub event_ts: DateTime<Utc>,
     pub is_deleted: u8,
 }
@@ -151,23 +163,6 @@ pub struct CheckpointState {
     pub rows_processed: u64,
     pub last_updated: DateTime<Utc>,
 }
-
-// /// Helper function to parse JSON string to HashMap
-// pub fn parse_json_to_map(json_str: Option<&str>) -> HashMap<String, JsonValue> {
-//     json_str
-//         .and_then(|s| serde_json::from_str(s).ok())
-//         .unwrap_or_default()
-// }
-
-// /// Helper function to parse JSON string to Value
-// pub fn parse_json_to_value(json_str: Option<&str>) -> Option<JsonValue> {
-//     json_str.and_then(|s| serde_json::from_str(s).ok())
-// }
-
-// /// Helper function to convert HashMap to JSON string
-// pub fn map_to_json_string(map: &HashMap<String, JsonValue>) -> String {
-//     serde_json::to_string(map).unwrap_or_else(|_| "{}".to_string())
-// }
 
 /// Helper function to extract metadata names and raw values
 pub fn extract_metadata_arrays(metadata: &JsonValue) -> (Vec<String>, Vec<String>) {

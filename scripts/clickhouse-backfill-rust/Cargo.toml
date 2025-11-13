@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 # ClickHouse client
-clickhouse = { version = "0.12", features = ["inserter"] }
+clickhouse = { version = "0.14", features = ["inserter", "chrono"] }
 
 # Async runtime
 tokio = { version = "1.42", features = ["full"] }
@@ -45,10 +45,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # Concurrent collections
 dashmap = "6.1"
-
-# Utilities
-uuid = { version = "1.11", features = ["v4", "serde"] }
-futures = "0.3"
 
 [dev-dependencies]
 tempfile = "3.13"
