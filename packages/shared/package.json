@@ -62,7 +62,7 @@
     "@aws-sdk/lib-storage": "^3.675.0",
     "@aws-sdk/s3-request-presigner": "^3.679.0",
     "@azure/storage-blob": "^12.26.0",
-    "@clickhouse/client": "^1.12.1",
+    "@clickhouse/client": "^1.13.0",
     "@google-cloud/storage": "^7.17.0",
     "@langchain/anthropic": "^0.3.32",
     "@langchain/aws": "^0.1.15",
