@@ -7,8 +7,28 @@ jest.mock("@langfuse/shared", () => ({
     Tool: "tool",
     Model: "model",
   },
+  BaseChatMlMessageSchema: z
+    .object({
+      role: z.string().optional(),
+      name: z.string().optional(),
+      content: z
+        .union([
+          z.record(z.string(), z.any()),
+          z.string(),
+          z.array(z.any()),
+          z.any(), // Simplified - was OpenAIContentSchema
+        ])
+        .nullish(),
+      audio: z.any().optional(),
+      additional_kwargs: z.record(z.string(), z.any()).optional(),
+      tools: z.array(z.any()).optional(),
+      tool_calls: z.array(z.any()).optional(),
+      tool_call_id: z.string().optional(),
+    })
+    .passthrough(),
 }));
 
+import z from "zod/v4";
 import { normalizeInput, normalizeOutput } from "./index";
 import { microsoftAgentAdapter } from "./microsoft-agent";
 
