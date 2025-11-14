@@ -21,6 +21,8 @@ export default withMiddlewares({
         name: query.name ?? undefined,
         configId: query.configId ?? undefined,
         sessionId: query.sessionId ?? undefined,
+        traceId: query.traceId ?? undefined,
+        datasetRunId: query.datasetRunId ?? undefined,
         queueId: query.queueId ?? undefined,
         traceTags: query.traceTags ?? undefined,
         dataType: query.dataType ?? undefined,

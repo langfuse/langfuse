@@ -261,6 +261,7 @@ export class ObservationTypeMapperRegistry {
       (attributes) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+          "ai.model.id",
           "gen_ai.request.model",
           "gen_ai.response.model",
         ];

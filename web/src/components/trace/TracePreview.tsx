@@ -155,8 +155,8 @@ export const TracePreview = ({
 
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
-      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
+      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden @container">
+        <div className="mt-2 grid w-full grid-cols-1 items-start gap-2 px-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
@@ -166,7 +166,7 @@ export const TracePreview = ({
             </span>
             <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
+          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             <NewDatasetItemFromExistingObject
               traceId={trace.id}
               projectId={trace.projectId}
@@ -174,6 +174,7 @@ export const TracePreview = ({
               output={trace.output}
               metadata={trace.metadata}
               key={trace.id}
+              size="sm"
             />
             {viewType === "detailed" && (
               <>
@@ -190,11 +191,13 @@ export const TracePreview = ({
                       projectId: trace.projectId,
                       environment: trace.environment,
                     }}
+                    size="sm"
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}
                     objectId={trace.id}
                     objectType={AnnotationQueueObjectType.TRACE}
+                    size="sm"
                   />
                 </div>
                 <CommentDrawerButton
@@ -202,6 +205,7 @@ export const TracePreview = ({
                   objectId={trace.id}
                   objectType="TRACE"
                   count={commentCounts?.get(trace.id)}
+                  size="sm"
                 />
               </>
             )}
@@ -211,11 +215,12 @@ export const TracePreview = ({
                 objectId={trace.id}
                 objectType="TRACE"
                 count={commentCounts?.get(trace.id)}
+                size="sm"
               />
             )}
           </div>
         </div>
-        <div className="grid w-full min-w-0 items-center justify-between">
+        <div className="grid w-full min-w-0 items-center justify-between px-2">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
             <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
               <LocalIsoDate
@@ -384,7 +389,7 @@ export const TracePreview = ({
           {/* show preview always if not detailed view */}
           <TabsBarContent
             value="preview"
-            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-2"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
               <IOPreview
@@ -404,24 +409,26 @@ export const TracePreview = ({
                 }
               />
 
-              <div className="text-sm font-medium">{"Tags"}</div>
-              <div className="flex flex-wrap gap-x-1 gap-y-1">
+              <div className="px-2 text-sm font-medium">{"Tags"}</div>
+              <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
                 <TagList selectedTags={trace.tags} isLoading={false} />
               </div>
 
-              <PrettyJsonView
-                key={trace.id + "-metadata"}
-                title="Metadata"
-                json={trace.metadata}
-                media={
-                  traceMedia.data?.filter((m) => m.field === "metadata") ?? []
-                }
-                currentView={currentView}
-                externalExpansionState={expansionState.metadata}
-                onExternalExpansionChange={(expansion) =>
-                  setFieldExpansion("metadata", expansion)
-                }
-              />
+              <div className="px-2">
+                <PrettyJsonView
+                  key={trace.id + "-metadata"}
+                  title="Metadata"
+                  json={trace.metadata}
+                  media={
+                    traceMedia.data?.filter((m) => m.field === "metadata") ?? []
+                  }
+                  currentView={currentView}
+                  externalExpansionState={expansionState.metadata}
+                  onExternalExpansionChange={(expansion) =>
+                    setFieldExpansion("metadata", expansion)
+                  }
+                />
+              </div>
             </div>
           </TabsBarContent>
           <TabsBarContent value="log">

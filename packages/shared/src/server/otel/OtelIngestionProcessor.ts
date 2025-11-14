@@ -1211,7 +1211,8 @@ export class OtelIngestionProcessor {
               : undefined;
 
       output =
-        "ai.response.text" in attributes
+        "ai.response.text" in attributes &&
+        Boolean(attributes["ai.response.text"])
           ? attributes["ai.response.text"]
           : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
             ? attributes["ai.result.text"]

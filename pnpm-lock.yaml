@@ -11,6 +11,11 @@ overrides:
   rollup@^4.0.0: ^4.22.4
   '@types/node-fetch': ^2.6.13
 
+patchedDependencies:
+  next-auth@4.24.12:
+    hash: x447yy4qrylml2g7vrfko5ivki
+    path: patches/next-auth@4.24.12.patch
+
 importers:
 
   .:
@@ -53,7 +58,7 @@ importers:
         version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       zod:
         specifier: ^3.25.62
         version: 3.25.62
@@ -145,8 +150,8 @@ importers:
         specifier: ^12.26.0
         version: 12.26.0
       '@clickhouse/client':
-        specifier: ^1.12.1
-        version: 1.12.1
+        specifier: ^1.13.0
+        version: 1.13.0
       '@google-cloud/storage':
         specifier: ^7.17.0
         version: 7.17.0
@@ -242,7 +247,7 @@ importers:
         version: 4.1.1
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       nodemailer:
         specifier: ^7.0.10
         version: 7.0.10
@@ -399,7 +404,7 @@ importers:
         version: 8.17.0(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react@19.2.0))(@mui/material@7.3.1(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(@mui/system@7.3.1(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react@19.2.0))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@next-auth/prisma-adapter':
         specifier: ^1.0.7
-        version: 1.0.7(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
+        version: 1.0.7(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -645,7 +650,7 @@ importers:
         version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-query-params:
         specifier: ^5.1.0
         version: 5.1.0(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(use-query-params@2.2.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
@@ -2120,11 +2125,11 @@ packages:
   '@chevrotain/utils@11.0.3':
     resolution: {integrity: sha512-YslZMgtJUyuMbZ+aKvfF3x1f5liK4mWNxghFRv7jqRR9C3R3fAOGTTKvxXDa2Y1s9zSbcpuO0cAxDYsc9SrXoQ==}
 
-  '@clickhouse/client-common@1.12.1':
-    resolution: {integrity: sha512-ccw1N6hB4+MyaAHIaWBwGZ6O2GgMlO99FlMj0B0UEGfjxM9v5dYVYql6FpP19rMwrVAroYs/IgX2vyZEBvzQLg==}
+  '@clickhouse/client-common@1.13.0':
+    resolution: {integrity: sha512-QlGUMd3EaKkIRLCv0WW8Rw9cOlqhwQPT+ucNWY8eC4UALsMhJLpa0H7Cd7MYc9CEtTv/xlr3IcYw5Tdho4Hr2g==}
 
-  '@clickhouse/client@1.12.1':
-    resolution: {integrity: sha512-7ORY85rphRazqHzImNXMrh4vsaPrpetFoTWpZYueCO2bbO6PXYDXp/GQ4DgxnGIqbWB/Di1Ai+Xuwq2o7DJ36A==}
+  '@clickhouse/client@1.13.0':
+    resolution: {integrity: sha512-uK+zqPaJnAoq3QIOvUNbHtbWUhyg2A/aSbdJtrY2+kawp4SMBLcfIbB9ucRv5Yht1CAa3b24CiUlypkmgarukg==}
     engines: {node: '>=16'}
 
   '@codemirror/autocomplete@6.17.0':
@@ -16226,11 +16231,11 @@ snapshots:
 
   '@chevrotain/utils@11.0.3': {}
 
-  '@clickhouse/client-common@1.12.1': {}
+  '@clickhouse/client-common@1.13.0': {}
 
-  '@clickhouse/client@1.12.1':
+  '@clickhouse/client@1.13.0':
     dependencies:
-      '@clickhouse/client-common': 1.12.1
+      '@clickhouse/client-common': 1.13.0
 
   '@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.2)(@codemirror/state@6.5.2)(@codemirror/view@6.38.1)(@lezer/common@1.3.0)':
     dependencies:
@@ -17711,10 +17716,10 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))':
+  '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))':
     dependencies:
       '@prisma/client': 6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2)
-      next-auth: 4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      next-auth: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
 
   '@next/bundle-analyzer@15.5.4':
     dependencies:
@@ -27181,7 +27186,7 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.12(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  next-auth@4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
       '@babel/runtime': 7.28.4
       '@panva/hkdf': 1.2.1

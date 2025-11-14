@@ -70,7 +70,7 @@ jest.mock("@langfuse/shared", () => {
   };
 });
 
-import { normalizeInput } from "./adapters";
+import { normalizeInput, normalizeOutput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
 import { extractTools } from "./extractTools";
 
@@ -875,5 +875,46 @@ describe("Playground Jump Full Pipeline", () => {
     expect(firstMessage.tools!.length).toBe(2);
     expect(firstMessage.tools![0].name).toBe("get_weather");
     expect(firstMessage.tools![1].name).toBe("search_web");
+  });
+
+  it("should respect includeOutput flag when jumping to playground, default to no output added", () => {
+    // kinda a bad test mocking UI behavior and not really testing the UI.
+    // but it should illustrate that the default behavior is to not include output! and document that.
+    const input = {
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "What can you help me with?" },
+      ],
+    };
+    const output = {
+      role: "assistant",
+      content: "I can help with many tasks!",
+    };
+    const ctx = {};
+
+    // Process input (always happens)
+    const inputMessages = normalizeInput(input, ctx)
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Test 1: Default behavior (includeOutput=false) - only input passed to the playground
+    expect(inputMessages.length).toBe(2);
+    const secondMsg = inputMessages[1];
+    if (secondMsg && "role" in secondMsg) {
+      expect(secondMsg.role).toBe("user");
+    }
+
+    // Test 2: With includeOutput=true - input + output
+    const outputMessages = normalizeOutput(output, ctx)
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null && msg.type !== "assistant-tool-call");
+
+    const withOutput = [...inputMessages, ...outputMessages];
+    expect(withOutput.length).toBe(3);
+    const thirdMsg = withOutput[2];
+    if (thirdMsg && "role" in thirdMsg) {
+      expect(thirdMsg.role).toBe("assistant");
+      expect(thirdMsg.content).toBe("I can help with many tasks!");
+    }
   });
 });

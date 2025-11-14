@@ -21,6 +21,7 @@ export function CommentDrawerButton({
   count,
   variant = "secondary",
   className,
+  size = "default",
 }: {
   projectId: string;
   objectId: string;
@@ -28,6 +29,7 @@ export function CommentDrawerButton({
   count?: number;
   variant?: "secondary" | "outline";
   className?: string;
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
 }) {
   const router = useRouter();
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
@@ -89,8 +91,20 @@ export function CommentDrawerButton({
 
   if (!hasReadAccess || (!hasWriteAccess && !count))
     return (
-      <Button type="button" variant="secondary" className={className} disabled>
-        <MessageCircleOff className="h-4 w-4 text-muted-foreground" />
+      <Button
+        type="button"
+        variant="secondary"
+        size={size}
+        className={className}
+        disabled
+      >
+        <MessageCircleOff
+          className={
+            size === "sm"
+              ? "h-3.5 w-3.5 text-muted-foreground"
+              : "h-4 w-4 text-muted-foreground"
+          }
+        />
       </Button>
     );
 
@@ -130,18 +144,23 @@ export function CommentDrawerButton({
         <Button
           type="button"
           variant={variant}
+          size={size}
           className={className}
           id="comment-drawer-button"
         >
           {!!count ? (
             <div className="flex items-center gap-1">
-              <MessageCircleIcon className="h-4 w-4" />
+              <MessageCircleIcon
+                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+              />
               <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
                 {count > 99 ? "99+" : count}
               </span>
             </div>
           ) : (
-            <MessageCircleIcon className="h-4 w-4" />
+            <MessageCircleIcon
+              className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+            />
           )}
         </Button>
       </DrawerTrigger>

@@ -7,7 +7,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
-import { Label } from "@/src/components/ui/label";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 interface IdItem {
@@ -62,45 +61,40 @@ export const CopyIdsPopover = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="max-h-[50vh] w-auto min-w-[300px] overflow-y-auto p-0"
+        className="max-h-[50vh] w-auto min-w-[280px] overflow-y-auto p-1"
         align="start"
       >
-        <Label className="p-2 text-base capitalize">Copy IDs</Label>
-        <div className="bg-card text-card-foreground shadow-sm">
-          <div className="flex flex-col">
-            {idItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between border-b p-2 last:border-0"
-              >
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {item.name}
-                  </span>
-                  <div className="flex items-center">
-                    <span
-                      className="mr-2 max-w-[250px] truncate font-mono text-sm"
-                      title={item.id}
-                    >
-                      {item.id}
-                    </span>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => handleCopy(item.id)}
+        <div className="flex flex-col gap-0.5">
+          {idItems.map((item) => (
+            <div
+              key={item.id}
+              className="group flex items-center justify-between gap-2 rounded-sm px-2 py-1.5 transition-colors hover:bg-muted/50"
+            >
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {item.name}
+                </span>
+                <span
+                  className="max-w-[220px] truncate font-mono text-xs"
+                  title={item.id}
                 >
-                  {copiedId === item.id ? (
-                    <CheckIcon className="h-3 w-3 text-muted-green" />
-                  ) : (
-                    <CopyIcon className="h-3 w-3" />
-                  )}
-                </Button>
+                  {item.id}
+                </span>
               </div>
-            ))}
-          </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0 opacity-70 transition-opacity group-hover:opacity-100"
+                onClick={() => handleCopy(item.id)}
+              >
+                {copiedId === item.id ? (
+                  <CheckIcon className="h-3 w-3 text-muted-green" />
+                ) : (
+                  <CopyIcon className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+          ))}
         </div>
       </PopoverContent>
     </Popover>
