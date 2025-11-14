@@ -442,7 +442,9 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_JUMPCLOUD_CHECKS,
+      ...(env.AUTH_JUMPCLOUD_CHECKS
+        ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
+        : {}),
     }),
   );
 
