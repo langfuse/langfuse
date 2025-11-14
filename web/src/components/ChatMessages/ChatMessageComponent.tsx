@@ -55,7 +55,7 @@ const getRoleNamePlaceholder = (role: string) => {
     case ChatMessageRole.Tool:
       return "a tool response message";
     case "placeholder":
-      return "placeholder name (e.g. msg_history)";
+      return "placeholder name (e.g. chat_history)";
     default:
       return `a ${role}`;
   }
