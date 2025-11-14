@@ -172,7 +172,7 @@ export async function handleDeleteOrganization(
     return res.status(400).json({
       error: "Cannot delete organization with existing projects",
       message:
-        "Please delete or transfer all projects before deleting the organization.",
+        "Please delete or transfer all projects before deleting the organization. Project deletion may take a moment, please try again later.",
     });
   }
 

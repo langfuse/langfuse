@@ -134,7 +134,7 @@ export const organizationsRouter = createTRPCRouter({
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
-            "Please delete or transfer all projects before deleting the organization.",
+            "Please delete or transfer all projects before deleting the organization. Project deletion may take a moment, please try again later.",
         });
       }
 
