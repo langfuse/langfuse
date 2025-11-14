@@ -42,7 +42,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."environment"',
   },
   {
-    uiTableName: "type",
+    uiTableName: "Type",
     uiTableId: "type",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."type"',
@@ -52,24 +52,6 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "id",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."span_id"',
-  },
-  {
-    uiTableName: "Span ID",
-    uiTableId: "spanId",
-    clickhouseTableName: "events",
-    clickhouseSelect: 'e."span_id"',
-  },
-  {
-    uiTableName: "Parent Span ID",
-    uiTableId: "parentSpanId",
-    clickhouseTableName: "events",
-    clickhouseSelect: 'e."parent_span_id"',
-  },
-  {
-    uiTableName: "Type",
-    uiTableId: "type",
-    clickhouseTableName: "events",
-    clickhouseSelect: 'e."type"',
   },
   {
     uiTableName: "Name",
@@ -95,12 +77,6 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "endTime",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."end_time"',
-  },
-  {
-    uiTableName: "Completion Start Time",
-    uiTableId: "completionStartTime",
-    clickhouseTableName: "events",
-    clickhouseSelect: 'e."completion_start_time"',
   },
   {
     uiTableName: "Time To First Token (s)",
@@ -243,28 +219,10 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."version"',
   },
   {
-    uiTableName: "Prompt ID",
-    uiTableId: "promptId",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.prompt_id",
-  },
-  {
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
     clickhouseTableName: "events",
     clickhouseSelect: "e.prompt_name",
-  },
-  {
-    uiTableName: "Prompt Version",
-    uiTableId: "promptVersion",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.prompt_version",
-  },
-  {
-    uiTableName: "Model Parameters",
-    uiTableId: "modelParameters",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.model_parameters",
   },
   {
     uiTableName: "Input",
@@ -277,42 +235,6 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "output",
     clickhouseTableName: "events",
     clickhouseSelect: "e.output",
-  },
-  {
-    uiTableName: "Service Version",
-    uiTableId: "serviceVersion",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.service_version",
-  },
-  {
-    uiTableName: "Scope Name",
-    uiTableId: "scopeName",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.scope_name",
-  },
-  {
-    uiTableName: "Scope Version",
-    uiTableId: "scopeVersion",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.scope_version",
-  },
-  {
-    uiTableName: "Telemetry SDK Language",
-    uiTableId: "telemetrySdkLanguage",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.telemetry_sdk_language",
-  },
-  {
-    uiTableName: "Telemetry SDK Name",
-    uiTableId: "telemetrySdkName",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.telemetry_sdk_name",
-  },
-  {
-    uiTableName: "Telemetry SDK Version",
-    uiTableId: "telemetrySdkVersion",
-    clickhouseTableName: "events",
-    clickhouseSelect: "e.telemetry_sdk_version",
   },
   {
     uiTableName: "User ID",
