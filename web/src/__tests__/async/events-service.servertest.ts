@@ -24,80 +24,317 @@ describe("Events Service", () => {
     // redis connection when everything else is skipped.
   });
   maybe("getEventList", () => {
-    it("should sort events by providedModelName", async () => {
-      const projectId = v4();
-      const traceId = v4();
-      const timestamp = new Date("2024-01-01T00:00:00.000Z");
+    it.each([
+      {
+        column: "startTime",
+        field: "startTime",
+        eventConfigs: [
+          { start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000 },
+          { start_time: new Date("2024-01-02T00:00:00.000Z").getTime() * 1000 },
+          { start_time: new Date("2024-01-03T00:00:00.000Z").getTime() * 1000 },
+        ],
+        expectedDescOrder: [2, 1, 0], // indices for DESC order
+        expectedAscOrder: [0, 1, 2], // indices for ASC order
+      },
+      {
+        column: "endTime",
+        field: "endTime",
+        eventConfigs: [
+          { end_time: new Date("2024-01-01T01:00:00.000Z").getTime() * 1000 },
+          { end_time: new Date("2024-01-02T01:00:00.000Z").getTime() * 1000 },
+          { end_time: new Date("2024-01-03T01:00:00.000Z").getTime() * 1000 },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "type",
+        field: "type",
+        eventConfigs: [
+          { type: "EVENT" as const },
+          { type: "GENERATION" as const },
+          { type: "SPAN" as const },
+        ],
+        expectedDescOrder: [2, 1, 0], // SPAN > GENERATION > EVENT
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "name",
+        field: "name",
+        eventConfigs: [
+          { name: "alpha-event" },
+          { name: "beta-event" },
+          { name: "gamma-event" },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "level",
+        field: "level",
+        eventConfigs: [
+          { level: "DEFAULT" },
+          { level: "ERROR" },
+          { level: "WARNING" },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "providedModelName",
+        field: "model",
+        eventConfigs: [
+          { provided_model_name: "claude-3" },
+          { provided_model_name: "gpt-3.5-turbo" },
+          { provided_model_name: "gpt-4" },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "promptName",
+        field: "promptName",
+        eventConfigs: [
+          { prompt_name: "prompt-a" },
+          { prompt_name: "prompt-b" },
+          { prompt_name: "prompt-c" },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "version",
+        field: "version",
+        eventConfigs: [
+          { version: "v1.0" },
+          { version: "v2.0" },
+          { version: "v3.0" },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "traceId",
+        field: "traceId",
+        eventConfigs: [
+          { trace_id: "00000000-0000-0000-0000-000000000001" },
+          { trace_id: "00000000-0000-0000-0000-000000000002" },
+          { trace_id: "00000000-0000-0000-0000-000000000003" },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "latency",
+        field: "latency",
+        eventConfigs: [
+          {
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            end_time: new Date("2024-01-01T00:00:01.000Z").getTime() * 1000, // 1s
+          },
+          {
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            end_time: new Date("2024-01-01T00:00:03.000Z").getTime() * 1000, // 3s
+          },
+          {
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            end_time: new Date("2024-01-01T00:00:05.000Z").getTime() * 1000, // 5s
+          },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "timeToFirstToken",
+        field: "timeToFirstToken",
+        eventConfigs: [
+          {
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            completion_start_time:
+              new Date("2024-01-01T00:00:00.500Z").getTime() * 1000, // 0.5s
+          },
+          {
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            completion_start_time:
+              new Date("2024-01-01T00:00:01.500Z").getTime() * 1000, // 1.5s
+          },
+          {
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            completion_start_time:
+              new Date("2024-01-01T00:00:02.500Z").getTime() * 1000, // 2.5s
+          },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "inputTokens",
+        field: "inputTokens",
+        eventConfigs: [
+          { usage_details: { input: 100 } },
+          { usage_details: { input: 200 } },
+          { usage_details: { input: 300 } },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "outputTokens",
+        field: "outputTokens",
+        eventConfigs: [
+          { usage_details: { output: 50 } },
+          { usage_details: { output: 150 } },
+          { usage_details: { output: 250 } },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "totalTokens",
+        field: "totalTokens",
+        eventConfigs: [
+          { usage_details: { total: 150 } },
+          { usage_details: { total: 350 } },
+          { usage_details: { total: 550 } },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "inputCost",
+        field: "inputCost",
+        eventConfigs: [
+          { cost_details: { input: 0.001 } },
+          { cost_details: { input: 0.002 } },
+          { cost_details: { input: 0.003 } },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "outputCost",
+        field: "outputCost",
+        eventConfigs: [
+          { cost_details: { output: 0.005 } },
+          { cost_details: { output: 0.01 } },
+          { cost_details: { output: 0.015 } },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "totalCost",
+        field: "totalCost",
+        eventConfigs: [
+          { cost_details: { total: 0.006 } },
+          { cost_details: { total: 0.012 } },
+          { cost_details: { total: 0.018 } },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+      {
+        column: "tokensPerSecond",
+        field: "tokensPerSecond",
+        eventConfigs: [
+          {
+            usage_details: { output: 100 },
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            end_time: new Date("2024-01-01T00:00:10.000Z").getTime() * 1000, // 10 tokens/s
+          },
+          {
+            usage_details: { output: 200 },
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            end_time: new Date("2024-01-01T00:00:10.000Z").getTime() * 1000, // 20 tokens/s
+          },
+          {
+            usage_details: { output: 300 },
+            start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
+            end_time: new Date("2024-01-01T00:00:10.000Z").getTime() * 1000, // 30 tokens/s
+          },
+        ],
+        expectedDescOrder: [2, 1, 0],
+        expectedAscOrder: [0, 1, 2],
+      },
+    ])(
+      "should sort events by $column",
+      async ({
+        column,
+        field,
+        eventConfigs,
+        expectedDescOrder,
+        expectedAscOrder,
+      }) => {
+        const projectId = v4();
+        const baseTraceId = v4();
+        const baseTimestamp = new Date("2024-01-01T00:00:00.000Z");
 
-      // Create events with different model names
-      const events = [
-        createEvent({
-          span_id: v4(),
-          id: v4(),
-          trace_id: traceId,
-          type: "GENERATION",
-          name: "event-1",
-          start_time: timestamp.getTime() * 1000,
-          project_id: projectId,
-          provided_model_name: "gpt-4",
-        }),
-        createEvent({
-          span_id: v4(),
-          id: v4(),
-          trace_id: traceId,
-          type: "GENERATION",
-          name: "event-2",
-          start_time: (timestamp.getTime() + 1000) * 1000,
-          project_id: projectId,
-          provided_model_name: "claude-3",
-        }),
-        createEvent({
-          span_id: v4(),
-          id: v4(),
-          trace_id: traceId,
-          type: "GENERATION",
-          name: "event-3",
-          start_time: (timestamp.getTime() + 2000) * 1000,
-          project_id: projectId,
-          provided_model_name: "gpt-3.5-turbo",
-        }),
-      ];
+        // Create events with specific configurations for each test case
+        const eventIds = [v4(), v4(), v4()];
+        const events = eventConfigs.map((config, index) => {
+          const baseConfig = {
+            span_id: eventIds[index],
+            id: eventIds[index],
+            trace_id: config.trace_id || baseTraceId,
+            type: config.type || ("GENERATION" as const),
+            name: config.name || `event-${index}`,
+            start_time:
+              config.start_time ||
+              (baseTimestamp.getTime() + index * 1000) * 1000,
+            project_id: projectId,
+            level: config.level || "DEFAULT",
+          };
 
-      await createEventsCh(events);
-      await waitForClickHouse();
+          return createEvent({
+            ...baseConfig,
+            ...config,
+          });
+        });
 
-      // Test sorting DESC
-      const resultDesc = await getEventList({
-        projectId,
-        filter: [],
-        searchType: [],
-        orderBy: { column: "providedModelName", order: "DESC" },
-        page: 0,
-        limit: 10,
-      });
+        await createEventsCh(events);
+        await waitForClickHouse();
 
-      expect(resultDesc.observations).toBeDefined();
-      expect(resultDesc.observations.length).toBe(3);
-      expect(resultDesc.observations[0].model).toBe("gpt-4");
-      expect(resultDesc.observations[1].model).toBe("gpt-3.5-turbo");
-      expect(resultDesc.observations[2].model).toBe("claude-3");
+        // Test sorting DESC
+        const resultDesc = await getEventList({
+          projectId,
+          filter: [],
+          searchType: [],
+          orderBy: { column, order: "DESC" },
+          page: 0,
+          limit: 10,
+        });
 
-      // Test sorting ASC
-      const resultAsc = await getEventList({
-        projectId,
-        filter: [],
-        searchType: [],
-        orderBy: { column: "providedModelName", order: "ASC" },
-        page: 0,
-        limit: 10,
-      });
+        expect(resultDesc.observations).toBeDefined();
+        expect(resultDesc.observations.length).toBe(3);
 
-      expect(resultAsc.observations).toBeDefined();
-      expect(resultAsc.observations.length).toBe(3);
-      expect(resultAsc.observations[0].model).toBe("claude-3");
-      expect(resultAsc.observations[1].model).toBe("gpt-3.5-turbo");
-      expect(resultAsc.observations[2].model).toBe("gpt-4");
-    });
+        // Verify DESC order by checking event IDs
+        expectedDescOrder.forEach((expectedIndex, position) => {
+          expect(resultDesc.observations[position].id).toBe(
+            eventIds[expectedIndex],
+          );
+        });
+
+        // Test sorting ASC
+        const resultAsc = await getEventList({
+          projectId,
+          filter: [],
+          searchType: [],
+          orderBy: { column, order: "ASC" },
+          page: 0,
+          limit: 10,
+        });
+
+        expect(resultAsc.observations).toBeDefined();
+        expect(resultAsc.observations.length).toBe(3);
+
+        // Verify ASC order by checking event IDs
+        expectedAscOrder.forEach((expectedIndex, position) => {
+          expect(resultAsc.observations[position].id).toBe(
+            eventIds[expectedIndex],
+          );
+        });
+      },
+    );
 
     it("should return paginated list of events", async () => {
       const projectId = v4();
