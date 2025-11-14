@@ -27,6 +27,34 @@ import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 
+/**
+ * Detects if a URL is a GitHub Actions repository dispatch endpoint
+ */
+function isGitHubActionsUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    // GitHub Actions dispatch URLs follow the pattern:
+    // https://api.github.com/repos/{owner}/{repo}/dispatches
+    return (
+      urlObj.hostname === "api.github.com" &&
+      /^\/repos\/[^/]+\/[^/]+\/dispatches\/?$/.test(urlObj.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Transforms the Langfuse webhook payload to GitHub Actions repository dispatch format
+ */
+function transformToGitHubActionsPayload(langfusePayload: string): string {
+  const payload = JSON.parse(langfusePayload);
+  return JSON.stringify({
+    event_type: "langfuse-prompt-update",
+    client_payload: payload,
+  });
+}
+
 // Handles both webhook and slack actions
 export const webhookProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.WebhookQueue]>,
@@ -143,10 +171,16 @@ async function executeWebhookAction({
 
     // Prepare webhook payload with prompt always last
     const { prompt, ...otherFields } = validatedPayload.data;
-    const webhookPayload = JSON.stringify({
+    let webhookPayload = JSON.stringify({
       ...otherFields,
       prompt,
     });
+
+    // Transform payload for GitHub Actions if needed
+    const isGitHubActions = isGitHubActionsUrl(webhookConfig.url);
+    if (isGitHubActions) {
+      webhookPayload = transformToGitHubActionsPayload(webhookPayload);
+    }
 
     // Prepare headers with signature if secret exists
     const requestHeaders: Record<string, string> = {};
@@ -163,16 +197,23 @@ async function executeWebhookAction({
       requestHeaders[key] = value;
     }
 
-    try {
-      const decryptedSecret = decrypt(webhookConfig.secretKey);
-      const signature = createSignatureHeader(webhookPayload, decryptedSecret);
-      requestHeaders["x-langfuse-signature"] = signature;
-    } catch (error) {
-      logger.error(
-        "Failed to decrypt webhook secret or generate signature",
-        error,
-      );
-      throw new InternalServerError("Failed to generate webhook signature");
+    // Only add signature for non-GitHub Actions webhooks
+    // GitHub Actions uses Bearer token authentication via headers
+    if (!isGitHubActions) {
+      try {
+        const decryptedSecret = decrypt(webhookConfig.secretKey);
+        const signature = createSignatureHeader(
+          webhookPayload,
+          decryptedSecret,
+        );
+        requestHeaders["x-langfuse-signature"] = signature;
+      } catch (error) {
+        logger.error(
+          "Failed to decrypt webhook secret or generate signature",
+          error,
+        );
+        throw new InternalServerError("Failed to generate webhook signature");
+      }
     }
 
     // Execute webhook with retries
