@@ -62,6 +62,7 @@ arrow = { version = "53.3" }
 
 # Stream utilities
 futures = "0.3"
+async-stream = "0.3"
 
 # Bytes handling
 bytes = "1.9"

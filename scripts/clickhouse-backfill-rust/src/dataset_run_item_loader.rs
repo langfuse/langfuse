@@ -63,7 +63,7 @@ pub async fn load_dataset_run_items(client: &Client) -> Result<Arc<HashSet<(Stri
         "Successfully loaded {} dataset run items into memory",
         dataset_run_items.len()
     );
-    
+
     Ok(Arc::new(dataset_run_items))
 }
 

@@ -8,9 +8,7 @@ mod transformer;
 mod types;
 
 use anyhow::{Context, Result};
-use aws_config::BehaviorVersion;
-use aws_credential_types::provider::ProvideCredentials;
-use aws_sdk_s3::Client as S3Client;
+use futures::StreamExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use object_store::aws::AmazonS3Builder;
 use object_store::ObjectStore;
@@ -75,47 +73,22 @@ async fn main() -> Result<()> {
         dataset_run_items.len()
     );
 
-    // Create S3 client with AWS SDK configuration
-    tracing::info!("Initializing S3 client...");
-    let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest());
-
-    // Apply custom region if specified
-    if let Some(ref region) = config.s3_region {
-        tracing::info!("Using custom S3 region: {}", region);
-        aws_config_loader = aws_config_loader.region(aws_config::Region::new(region.clone()));
-    }
-
-    let aws_config = aws_config_loader.load().await;
-
     // Create ObjectStore for streaming parquet access
     tracing::info!("Creating ObjectStore for streaming S3 access...");
     let mut s3_builder = AmazonS3Builder::new().with_bucket_name(&config.s3_bucket);
-
-    // Apply region if specified
     if let Some(ref region) = config.s3_region {
         s3_builder = s3_builder.with_region(region);
     }
 
-    // Apply endpoint if specified
-    if let Some(ref endpoint) = config.s3_endpoint {
-        s3_builder = s3_builder.with_endpoint(endpoint);
-    }
-
-    // Try to use credentials from AWS config, but fall back to environment/default chain
-    if let Some(credentials) = aws_config.credentials_provider() {
-        // Use the trait from aws_credential_types
-        if let Ok(creds) = credentials.provide_credentials().await {
-            s3_builder = s3_builder
-                .with_access_key_id(creds.access_key_id())
-                .with_secret_access_key(creds.secret_access_key());
-
-            if let Some(token) = creds.session_token() {
-                s3_builder = s3_builder.with_token(token);
-            }
-            tracing::debug!("Using AWS credentials from config");
-        }
+    // Add explicit credentials if provided
+    if let (Some(ref access_key), Some(ref secret_key)) =
+        (&config.aws_access_key_id, &config.aws_secret_access_key) {
+        tracing::info!("Using explicit AWS credentials from config");
+        s3_builder = s3_builder
+            .with_access_key_id(access_key)
+            .with_secret_access_key(secret_key);
     } else {
-        tracing::debug!("Using AWS credentials from environment/default chain");
+        tracing::info!("Using default AWS credential chain");
     }
 
     let object_store: Arc<dyn ObjectStore> = Arc::new(s3_builder.build()?);
@@ -190,29 +163,32 @@ async fn main() -> Result<()> {
                 config.stream_block_size,
             );
 
-            // Stream all observations from this partition
+            // Stream observations from this partition incrementally
             tracing::debug!(
                 partition_id = partition_id,
                 bucket = %config.s3_bucket,
                 prefix = %config.s3_prefix,
                 "Starting to stream observations from S3"
             );
-            let result = reader.stream_all_observations().await;
 
-            match result {
-                Ok(batches) => {
-                    partition_pb.set_message(format!("Processing {} batches", batches.len()));
+            let mut stream = reader.stream_observations();
+            let mut batch_idx = 0usize;
 
-                    for (batch_idx, observations) in batches.into_iter().enumerate() {
-                        // Check shutdown flag
-                        if shutdown_flag.load(Ordering::SeqCst) {
-                            partition_pb.finish_with_message("Interrupted");
-                            return Ok(());
-                        }
+            // Process each batch as it arrives from the stream
+            while let Some(result) = stream.next().await {
+                // Check shutdown flag
+                if shutdown_flag.load(Ordering::SeqCst) {
+                    partition_pb.finish_with_message("Interrupted");
+                    return Ok(());
+                }
+
+                match result {
+                    Ok(observations) => {
+                        batch_idx += 1;
 
                         partition_pb.set_message(format!(
                             "Batch {}: transforming {} observations",
-                            batch_idx + 1,
+                            batch_idx,
                             observations.len()
                         ));
 
@@ -237,33 +213,33 @@ async fn main() -> Result<()> {
 
                         partition_pb.set_message(format!(
                             "Batch {} complete ({} events)",
-                            batch_idx + 1,
-                            event_count
+                            batch_idx, event_count
                         ));
                     }
-
-                    // Signal completion
-                    let _ = tx
-                        .send(CoordinatorMessage::PartitionComplete(partition_id))
-                        .await;
-                    partition_pb.finish_with_message("Complete");
-                    Ok(())
-                }
-                Err(e) => {
-                    // Log with full error chain for debugging
-                    let error_chain = format!("{:#}", e);
-                    tracing::error!(
-                        partition_id = partition_id,
-                        bucket = %config.s3_bucket,
-                        prefix = %config.s3_prefix,
-                        error = %error_chain,
-                        "Partition failed to process - full error details above"
-                    );
-                    partition_pb.finish_with_message(format!("Failed: {}", e));
-                    let _ = tx.send(CoordinatorMessage::Error(e)).await;
-                    Err(anyhow::anyhow!("Partition {} failed", partition_id))
+                    Err(e) => {
+                        // Log with full error chain for debugging
+                        let error_chain = format!("{:#}", e);
+                        tracing::error!(
+                            partition_id = partition_id,
+                            batch_num = batch_idx,
+                            bucket = %config.s3_bucket,
+                            prefix = %config.s3_prefix,
+                            error = %error_chain,
+                            "Partition failed to process - full error details above"
+                        );
+                        partition_pb.finish_with_message(format!("Failed: {}", e));
+                        let _ = tx.send(CoordinatorMessage::Error(e)).await;
+                        return Err(anyhow::anyhow!("Partition {} failed", partition_id));
+                    }
                 }
             }
+
+            // All batches processed successfully - signal completion
+            let _ = tx
+                .send(CoordinatorMessage::PartitionComplete(partition_id))
+                .await;
+            partition_pb.finish_with_message("Complete");
+            Ok(())
         });
 
         reader_handles.push(handle);

@@ -96,9 +96,13 @@ mod tests {
             stream_block_size: 50000,
             dry_run: false,
             max_retries: 3,
-            cursor_state_dir: std::path::PathBuf::from("."),
-            cursor_file: "cursor_state.json".to_string(),
-            parallel_workers: 4,
+            s3_bucket: "test-bucket".to_string(),
+            s3_prefix: "exports/observations/2025/10".to_string(),
+            s3_region: None,
+            aws_access_key_id: None,
+            aws_secret_access_key: None,
+            partition_count: 30,
+            event_flush_threshold: 100000,
         };
 
         let read_client = create_read_client(&config);

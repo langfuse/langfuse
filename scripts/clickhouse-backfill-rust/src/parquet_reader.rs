@@ -1,10 +1,12 @@
 use anyhow::{Context, Result};
 use arrow::array::*;
+use futures::stream::Stream;
 use futures::StreamExt;
 use object_store::{path::Path as ObjectPath, ObjectStore};
 use parquet::arrow::async_reader::ParquetObjectReader;
 use parquet::arrow::ParquetRecordBatchStreamBuilder;
 use std::collections::HashSet;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::types::Observation;
@@ -35,162 +37,154 @@ impl ParquetPartitionReader {
         }
     }
 
-    /// Read a single parquet file from S3 and convert to observations using streaming
-    async fn read_parquet_file(&self) -> Result<Vec<Observation>> {
-        // Construct object path
-        let key = if self.prefix.ends_with('/') {
-            format!("{}observations_{}.parquet", self.prefix, self.partition_id)
-        } else {
-            format!("{}/observations_{}.parquet", self.prefix, self.partition_id)
-        };
+    /// Stream observations from the parquet file, yielding batches as they're processed
+    pub fn stream_observations(
+        &self,
+    ) -> Pin<Box<dyn Stream<Item = Result<Vec<Observation>>> + Send + '_>> {
+        Box::pin(async_stream::stream! {
+            let key = format!("{}observations_{}.parquet", self.prefix, self.partition_id);
 
-        tracing::info!(
-            partition_id = self.partition_id,
-            key = %key,
-            "Attempting to stream parquet file from S3"
-        );
-
-        let object_path = ObjectPath::from(key.clone());
-
-        // Get object metadata to check if file exists
-        let meta = match self.object_store.head(&object_path).await {
-            Ok(meta) => {
-                tracing::debug!(
-                    partition_id = self.partition_id,
-                    key = %key,
-                    size = meta.size,
-                    "Found parquet file in S3"
-                );
-                meta
-            }
-            Err(err) => {
-                // Check if file doesn't exist (NotFound error)
-                if err.to_string().contains("404") || err.to_string().contains("NoSuchKey") {
-                    tracing::info!(
-                        partition_id = self.partition_id,
-                        key = %key,
-                        "Parquet file does not exist, skipping partition"
-                    );
-                    return Ok(Vec::new());
-                }
-
-                tracing::error!(
-                    partition_id = self.partition_id,
-                    key = %key,
-                    error = %err,
-                    "Failed to get object metadata"
-                );
-                // TODO: Improve error handling - for now return empty to avoid blocking
-                return Ok(Vec::new());
-            }
-        };
-
-        // Check if file is empty
-        if meta.size == 0 {
             tracing::info!(
                 partition_id = self.partition_id,
                 key = %key,
-                "Parquet file is empty, skipping partition"
-            );
-            return Ok(Vec::new());
-        }
-
-        // Create ParquetObjectReader for streaming access
-        let object_reader = ParquetObjectReader::new(Arc::clone(&self.object_store), meta);
-
-        // Build async parquet stream
-        let builder = ParquetRecordBatchStreamBuilder::new(object_reader)
-            .await
-            .context(format!(
-                "Failed to create parquet stream builder for {}",
-                key
-            ))?;
-
-        let mut stream = builder
-            .with_batch_size(self.batch_size)
-            .build()
-            .context("Failed to build parquet stream")?;
-
-        tracing::debug!(
-            partition_id = self.partition_id,
-            "Starting to stream parquet batches"
-        );
-
-        // Stream through record batches
-        let mut observations = Vec::new();
-        let mut filtered_count = 0usize;
-        let mut batch_count = 0usize;
-
-        while let Some(batch_result) = stream.next().await {
-            batch_count += 1;
-            let batch = batch_result.context("Failed to read record batch from stream")?;
-
-            tracing::debug!(
-                partition_id = self.partition_id,
-                batch_num = batch_count,
-                rows = batch.num_rows(),
-                "Processing record batch"
+                "Starting to stream parquet file from S3"
             );
 
-            // Convert arrow record batch to Observation structs
-            let batch_observations = convert_record_batch_to_observations(&batch).context(
-                format!("Failed to convert batch {} to observations", batch_count),
-            )?;
+            let object_path = ObjectPath::from(key.clone());
 
-            // Filter out dataset_run_items
-            for obs in batch_observations {
-                let filter_key = (obs.project_id.clone(), obs.trace_id.clone());
-                if self.dataset_run_items.contains(&filter_key) {
-                    filtered_count += 1;
-                    continue;
+            // Get object metadata to check if file exists
+            let meta = match self.object_store.head(&object_path).await {
+                Ok(meta) => {
+                    tracing::debug!(
+                        partition_id = self.partition_id,
+                        key = %key,
+                        size = meta.size,
+                        "Found parquet file in S3"
+                    );
+
+                    // Check if file is empty
+                    if meta.size == 0 {
+                        tracing::info!(
+                            partition_id = self.partition_id,
+                            key = %key,
+                            "Parquet file is empty, skipping partition"
+                        );
+                        return;
+                    }
+                    meta
                 }
-                observations.push(obs);
-            }
-        }
+                Err(err) => {
+                    // Check if file doesn't exist (NotFound error)
+                    if err.to_string().contains("404") || err.to_string().contains("NoSuchKey") {
+                        tracing::info!(
+                            partition_id = self.partition_id,
+                            key = %key,
+                            "Parquet file does not exist, skipping partition"
+                        );
+                        return;
+                    }
 
-        tracing::info!(
-            partition_id = self.partition_id,
-            key = %key,
-            batches = batch_count,
-            observations = observations.len(),
-            filtered = filtered_count,
-            "Successfully streamed parquet file"
-        );
+                    tracing::error!(
+                        partition_id = self.partition_id,
+                        key = %key,
+                        error = %err,
+                        "Failed to get object metadata"
+                    );
+                    yield Err(anyhow::anyhow!("Failed to get object metadata: {}", err));
+                    return;
+                }
+            };
 
-        Ok(observations)
-    }
+            // Create ParquetObjectReader for streaming access
+            let object_reader = ParquetObjectReader::new(Arc::clone(&self.object_store), meta);
 
-    /// Stream all observations from all files in this partition
-    pub async fn stream_all_observations(&self) -> Result<Vec<Vec<Observation>>> {
-        tracing::debug!(
-            partition_id = self.partition_id,
-            "Starting stream_all_observations"
-        );
+            // Build async parquet stream
+            let builder = match ParquetRecordBatchStreamBuilder::new(object_reader).await {
+                Ok(b) => b,
+                Err(e) => {
+                    yield Err(anyhow::anyhow!("Failed to create parquet stream builder for {}: {}", key, e));
+                    return;
+                }
+            };
 
-        // Process files sequentially to avoid overwhelming memory
-        // Each file is read in parallel with parquet decoding on thread pool
-        let mut all_batches = Vec::new();
+            let mut stream = match builder.with_batch_size(self.batch_size).build() {
+                Ok(s) => s,
+                Err(e) => {
+                    yield Err(anyhow::anyhow!("Failed to build parquet stream: {}", e));
+                    return;
+                }
+            };
 
-        let observations = self.read_parquet_file().await.context(format!(
-            "Failed to read parquet file for partition {}",
-            self.partition_id
-        ))?;
-
-        if !observations.is_empty() {
             tracing::debug!(
                 partition_id = self.partition_id,
-                observations = observations.len(),
-                "Adding observations batch"
+                "Starting to stream parquet batches"
             );
-            all_batches.push(observations);
-        } else {
+
+            let mut batch_count = 0usize;
+            let mut filtered_count = 0usize;
+            let mut total_observations = 0usize;
+
+            // Stream through record batches and yield each batch immediately
+            while let Some(batch_result) = stream.next().await {
+                batch_count += 1;
+
+                let batch = match batch_result {
+                    Ok(b) => b,
+                    Err(e) => {
+                        yield Err(anyhow::anyhow!("Failed to read record batch {} from stream: {}", batch_count, e));
+                        return;
+                    }
+                };
+
+                tracing::debug!(
+                    partition_id = self.partition_id,
+                    batch_num = batch_count,
+                    rows = batch.num_rows(),
+                    "Processing record batch"
+                );
+
+                // Convert arrow record batch to Observation structs
+                let batch_observations = match convert_record_batch_to_observations(&batch) {
+                    Ok(obs) => obs,
+                    Err(e) => {
+                        yield Err(anyhow::anyhow!("Failed to convert batch {} to observations: {}", batch_count, e));
+                        return;
+                    }
+                };
+
+                // Filter out dataset_run_items and collect this batch only
+                let mut observations = Vec::new();
+                for obs in batch_observations {
+                    let filter_key = (obs.project_id.clone(), obs.trace_id.clone());
+                    if self.dataset_run_items.contains(&filter_key) {
+                        filtered_count += 1;
+                        continue;
+                    }
+                    observations.push(obs);
+                }
+
+                // Yield this batch immediately if not empty
+                if !observations.is_empty() {
+                    total_observations += observations.len();
+                    tracing::debug!(
+                        partition_id = self.partition_id,
+                        batch_num = batch_count,
+                        observations = observations.len(),
+                        "Yielding observation batch"
+                    );
+                    yield Ok(observations);
+                }
+            }
+
             tracing::info!(
                 partition_id = self.partition_id,
-                "No observations found for partition (file may not exist or is empty)"
+                key = %key,
+                batches = batch_count,
+                observations = total_observations,
+                filtered = filtered_count,
+                "Successfully streamed parquet file"
             );
-        }
-
-        Ok(all_batches)
+        })
     }
 }
 
@@ -454,7 +448,7 @@ fn get_optional_u16_array<'a>(
 // Map/complex type extractors (simplified - these need actual implementation based on parquet schema)
 fn get_map_array(
     batch: &arrow::record_batch::RecordBatch,
-    column_name: &str,
+    _column_name: &str,
 ) -> Result<Vec<Vec<(String, String)>>> {
     // TODO: Implement based on actual parquet map encoding
     // For now, return empty vectors as placeholder
@@ -463,7 +457,7 @@ fn get_map_array(
 
 fn get_map_u64_array(
     batch: &arrow::record_batch::RecordBatch,
-    column_name: &str,
+    _column_name: &str,
 ) -> Result<Vec<Vec<(String, u64)>>> {
     // TODO: Implement based on actual parquet map encoding
     Ok(vec![Vec::new(); batch.num_rows()])
@@ -471,7 +465,7 @@ fn get_map_u64_array(
 
 fn get_map_decimal_array(
     batch: &arrow::record_batch::RecordBatch,
-    column_name: &str,
+    _column_name: &str,
 ) -> Result<Vec<Vec<(String, crate::types::Decimal18_12)>>> {
     // TODO: Implement based on actual parquet map encoding
     Ok(vec![Vec::new(); batch.num_rows()])
