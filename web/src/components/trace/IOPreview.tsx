@@ -197,13 +197,18 @@ export const IOPreview: React.FC<{
     <>
       {/* Show tools at the top if available */}
       {allTools.length > 0 && (
-        <div className="mb-4 border-b border-border pb-4">
-          <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
-          <ToolCallDefinitionCard
-            tools={allTools}
-            toolCallCounts={toolCallCounts}
-            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-          />
+        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+          <div className="mb-4 border-b border-border pb-4">
+            <div className="io-message-header px-1 py-1 text-sm font-medium capitalize">
+              Tools
+            </div>
+            <ToolCallDefinitionCard
+              tools={allTools}
+              toolCallCounts={toolCallCounts}
+              toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+              className="px-2"
+            />
+          </div>
         </div>
       )}
 
@@ -238,20 +243,22 @@ export const IOPreview: React.FC<{
             style={{ display: selectedView === "pretty" ? "block" : "none" }}
           >
             {canDisplayAsChat ? (
-              <OpenAiMessageView
-                messages={allMessages}
-                shouldRenderMarkdown={shouldRenderMarkdownSafely}
-                additionalInput={
-                  Object.keys(additionalInput ?? {}).length > 0
-                    ? additionalInput
-                    : undefined
-                }
-                media={media ?? []}
-                currentView={selectedView}
-                messageToToolCallNumbers={messageToToolCallNumbers}
-              />
+              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+                <OpenAiMessageView
+                  messages={allMessages}
+                  shouldRenderMarkdown={shouldRenderMarkdownSafely}
+                  additionalInput={
+                    Object.keys(additionalInput ?? {}).length > 0
+                      ? additionalInput
+                      : undefined
+                  }
+                  media={media ?? []}
+                  currentView={selectedView}
+                  messageToToolCallNumbers={messageToToolCallNumbers}
+                />
+              </div>
             ) : (
-              <>
+              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
                 {!(hideIfNull && !input) && !hideInput ? (
                   <PrettyJsonView
                     title="Input"
@@ -274,38 +281,40 @@ export const IOPreview: React.FC<{
                     onExternalExpansionChange={onOutputExpansionChange}
                   />
                 ) : null}
-              </>
+              </div>
             )}
           </div>
 
           {/* JSON view content */}
           <div style={{ display: selectedView === "json" ? "block" : "none" }}>
-            {!(hideIfNull && !input) && !hideInput ? (
-              <PrettyJsonView
-                title="Input"
-                json={input ?? null}
-                isLoading={isLoading}
-                media={media?.filter((m) => m.field === "input") ?? []}
-                currentView={selectedView}
-                externalExpansionState={inputExpansionState}
-                onExternalExpansionChange={onInputExpansionChange}
-              />
-            ) : null}
-            {!(hideIfNull && !output) && !hideOutput ? (
-              <PrettyJsonView
-                title="Output"
-                json={output}
-                isLoading={isLoading}
-                media={media?.filter((m) => m.field === "output") ?? []}
-                currentView={selectedView}
-                externalExpansionState={outputExpansionState}
-                onExternalExpansionChange={onOutputExpansionChange}
-              />
-            ) : null}
+            <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+              {!(hideIfNull && !input) && !hideInput ? (
+                <PrettyJsonView
+                  title="Input"
+                  json={input ?? null}
+                  isLoading={isLoading}
+                  media={media?.filter((m) => m.field === "input") ?? []}
+                  currentView={selectedView}
+                  externalExpansionState={inputExpansionState}
+                  onExternalExpansionChange={onInputExpansionChange}
+                />
+              ) : null}
+              {!(hideIfNull && !output) && !hideOutput ? (
+                <PrettyJsonView
+                  title="Output"
+                  json={output}
+                  isLoading={isLoading}
+                  media={media?.filter((m) => m.field === "output") ?? []}
+                  currentView={selectedView}
+                  externalExpansionState={outputExpansionState}
+                  onExternalExpansionChange={onOutputExpansionChange}
+                />
+              ) : null}
+            </div>
           </div>
         </>
       ) : (
-        <>
+        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
           {!(hideIfNull && !input) && !hideInput ? (
             <PrettyJsonView
               title="Input"
@@ -328,7 +337,7 @@ export const IOPreview: React.FC<{
               onExternalExpansionChange={onOutputExpansionChange}
             />
           ) : null}
-        </>
+        </div>
       )}
     </>
   );

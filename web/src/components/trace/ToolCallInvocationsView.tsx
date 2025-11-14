@@ -40,7 +40,7 @@ export function ToolCallInvocationsView({
           <div
             key={`${toolCall.id}-${index}`}
             className={cn(
-              "w-full border-t px-1 py-2",
+              "w-full border-t px-2 py-2",
               (message.role === "assistant" ||
                 message.name === "Output" ||
                 message.name === "Model") &&
@@ -69,7 +69,7 @@ export function ToolCallInvocationsView({
             </div>
 
             {/* Arguments view */}
-            <div className="py-2">
+            <div className="py-2 [&_.io-message-content]:px-0">
               <div className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Arguments
               </div>

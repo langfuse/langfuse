@@ -210,7 +210,7 @@ const UnmemoizedTreeNodeComponent = ({
     <Fragment>
       <div
         className={cn(
-          "relative flex w-full cursor-pointer rounded-md px-0 hover:rounded-lg",
+          "relative flex w-full cursor-pointer rounded-md px-0",
           isSelected ? "bg-muted" : "hover:bg-muted/50",
         )}
         style={{
