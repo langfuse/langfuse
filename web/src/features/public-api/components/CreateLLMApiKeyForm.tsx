@@ -584,6 +584,18 @@ export function CreateLLMApiKeyForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>AWS Region</FormLabel>
+                    <FormDescription>
+                      {mode === "update" &&
+                        existingKey?.config &&
+                        (existingKey.config as BedrockConfig).region && (
+                          <span className="text-sm">
+                            Current:{" "}
+                            <code className="rounded bg-muted px-1 py-0.5">
+                              {(existingKey.config as BedrockConfig).region}
+                            </code>
+                          </span>
+                        )}
+                    </FormDescription>
                     <FormControl>
                       <Input
                         {...field}
@@ -591,7 +603,7 @@ export function CreateLLMApiKeyForm({
                           mode === "update" && existingKey?.config
                             ? ((existingKey.config as BedrockConfig).region ??
                               "")
-                            : undefined
+                            : "e.g., us-east-1"
                         }
                         data-1p-ignore
                       />
@@ -625,13 +637,14 @@ export function CreateLLMApiKeyForm({
                       <Input
                         {...field}
                         placeholder={
-                          mode === "update" &&
-                          existingKey?.displaySecretKey &&
-                          existingKey.displaySecretKey !==
-                            "Default AWS credentials"
-                            ? "••••••••"
+                          mode === "update"
+                            ? existingKey?.displaySecretKey ===
+                              "Default AWS credentials"
+                              ? "Using default AWS credentials"
+                              : "•••••••• (existing credentials preserved if empty)"
                             : undefined
                         }
+                        autoComplete="off"
                         data-1p-ignore
                       />
                     </FormControl>
@@ -658,13 +671,16 @@ export function CreateLLMApiKeyForm({
                         {...field}
                         type="password"
                         placeholder={
-                          mode === "update" &&
-                          existingKey?.displaySecretKey &&
-                          existingKey.displaySecretKey !==
-                            "Default AWS credentials"
-                            ? "••••••••"
+                          mode === "update"
+                            ? existingKey?.displaySecretKey ===
+                              "Default AWS credentials"
+                              ? "Using default AWS credentials"
+                              : existingKey?.displaySecretKey
+                                ? `${existingKey.displaySecretKey} (preserved if empty)`
+                                : "•••••••• (existing credentials preserved if empty)"
                             : undefined
                         }
+                        autoComplete="new-password"
                         data-1p-ignore
                       />
                     </FormControl>
