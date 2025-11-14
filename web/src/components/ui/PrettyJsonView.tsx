@@ -1047,30 +1047,34 @@ export function PrettyJsonView(props: {
   const body = (
     <>
       {emptyValueDisplay && isPrettyView ? (
-        <div
-          className={cn(
-            "flex items-center",
-            getContainerClasses(
-              props.title,
-              props.scrollable,
-              props.codeClassName,
-            ),
-          )}
-        >
+        <div className="io-message-content">
+          <div
+            className={cn(
+              "flex items-center",
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+              ),
+            )}
+          >
+            {props.isLoading ? (
+              <Skeleton className="h-3 w-3/4" />
+            ) : (
+              <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
+                {emptyValueDisplay}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : isMarkdownMode ? (
+        <div className="io-message-content">
           {props.isLoading ? (
             <Skeleton className="h-3 w-3/4" />
           ) : (
-            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
-              {emptyValueDisplay}
-            </span>
+            <MarkdownView markdown={markdownContent || ""} />
           )}
         </div>
-      ) : isMarkdownMode ? (
-        props.isLoading ? (
-          <Skeleton className="h-3 w-3/4" />
-        ) : (
-          <MarkdownView markdown={markdownContent || ""} />
-        )
       ) : (
         <>
           {/* Always render JsonPrettyTable to preserve internal React Table state */}
