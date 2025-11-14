@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { diffLines as calculateDiffLines, diffWords } from "diff";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 type DiffSegmentPart = {
   value: string;
@@ -14,6 +15,12 @@ type DiffSegment = {
   parts?: DiffSegmentPart[];
 };
 
+type DiffRow = {
+  left?: DiffSegment;
+  right?: DiffSegment;
+  combined?: DiffSegment;
+};
+
 type DiffViewerProps = {
   oldString: string;
   newString: string;
@@ -22,6 +29,8 @@ type DiffViewerProps = {
   oldSubLabel?: string;
   newSubLabel?: string;
   className?: string;
+  viewType?: "split" | "combined";
+  size?: "xs" | "sm" | "md" | "lg";
 };
 
 const DIFF_COLORS = {
@@ -89,6 +98,41 @@ const calculateSegmentDiff = (oldString: string, newString: string) => {
   return { leftWords, rightWords };
 };
 
+const transformToRows = (
+  left: DiffSegment[],
+  right: DiffSegment[],
+  viewType: "split" | "combined",
+): DiffRow[] => {
+  if (viewType === "split") {
+    return left.map((leftSeg, idx) => ({
+      left: leftSeg,
+      right: right[idx],
+    }));
+  }
+
+  // Combined mode: sequential rows, skip empty segments
+  const rows: DiffRow[] = [];
+  for (let i = 0; i < left.length; i++) {
+    const leftSeg = left[i];
+    const rightSeg = right[i];
+
+    if (leftSeg.type !== "empty") {
+      rows.push({ combined: leftSeg });
+    }
+    if (rightSeg.type !== "empty" && rightSeg.type !== leftSeg.type) {
+      rows.push({ combined: rightSeg });
+    }
+  }
+  return rows;
+};
+
+const SIZE_MAP = {
+  xs: "max-h-[400px]",
+  sm: "max-h-[600px]",
+  md: "max-h-[800px]",
+  lg: "max-h-[1000px]",
+} as const;
+
 const DiffViewer: React.FC<DiffViewerProps> = ({
   oldString,
   newString,
@@ -97,11 +141,15 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   oldSubLabel,
   newSubLabel,
   className,
+  viewType = "split",
+  size = "sm",
 }) => {
   const [diffLines, setDiffLines] = useState<{
     left: DiffSegment[];
     right: DiffSegment[];
   }>({ left: [], right: [] });
+
+  const parentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const left: DiffSegment[] = [];
@@ -146,49 +194,75 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
     setDiffLines({ left, right });
   }, [oldString, newString]);
 
-  const DiffRow: React.FC<{
-    leftLine: DiffSegment;
-    rightLine: DiffSegment;
-  }> = ({ leftLine, rightLine }) => {
-    const typeClasses = {
-      unchanged: "",
-      removed: DIFF_COLORS.removed.line,
-      added: DIFF_COLORS.added.line,
-      empty: DIFF_COLORS.empty,
-    };
+  const rows = useMemo(
+    () => transformToRows(diffLines.left, diffLines.right, viewType),
+    [diffLines, viewType],
+  );
 
-    const renderContent = (line: DiffSegment) =>
-      line.parts
-        ? line.parts.map((part, idx) => (
-            <span
-              key={idx}
-              className={part.type ? DIFF_COLORS[part.type].text : undefined}
-            >
-              {part.value}
-            </span>
-          ))
-        : line.text || "\u00A0";
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 24,
+    overscan: 10,
+  });
 
-    return (
-      <div className="grid grid-cols-2">
-        <div
-          className={cn(
-            "whitespace-pre-wrap break-words border-r px-4 py-1 font-mono text-xs",
-            typeClasses[leftLine.type],
-          )}
-        >
-          {renderContent(leftLine)}
+  const typeClasses = {
+    unchanged: "",
+    removed: DIFF_COLORS.removed.line,
+    added: DIFF_COLORS.added.line,
+    empty: DIFF_COLORS.empty,
+  };
+
+  const renderContent = (line: DiffSegment) =>
+    line.parts
+      ? line.parts.map((part, idx) => (
+          <span
+            key={idx}
+            className={part.type ? DIFF_COLORS[part.type].text : undefined}
+          >
+            {part.value}
+          </span>
+        ))
+      : line.text || "\u00A0";
+
+  const renderRow = (row: DiffRow) => {
+    if (viewType === "split" && row.left && row.right) {
+      return (
+        <div className="grid grid-cols-2">
+          <div
+            className={cn(
+              "whitespace-pre-wrap break-words border-r px-4 py-1 font-mono text-xs",
+              typeClasses[row.left.type],
+            )}
+          >
+            {renderContent(row.left)}
+          </div>
+          <div
+            className={cn(
+              "whitespace-pre-wrap break-words px-4 py-1 font-mono text-xs",
+              typeClasses[row.right.type],
+            )}
+          >
+            {renderContent(row.right)}
+          </div>
         </div>
+      );
+    }
+
+    if (viewType === "combined" && row.combined) {
+      return (
         <div
           className={cn(
             "whitespace-pre-wrap break-words px-4 py-1 font-mono text-xs",
-            typeClasses[rightLine.type],
+            typeClasses[row.combined.type],
           )}
         >
-          {renderContent(rightLine)}
+          {renderContent(row.combined)}
         </div>
-      </div>
-    );
+      );
+    }
+
+    return null;
   };
 
   if (oldString === newString) {
@@ -199,38 +273,60 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
     <div className={cn("w-full", className)}>
       <Card>
         <CardContent className="p-0">
-          <div className="grid grid-cols-2">
-            <div className="flex flex-row gap-1 border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
-              {oldLabel}
-              {oldSubLabel && (
-                <div
-                  className="truncate text-xs text-muted-foreground"
-                  title={oldSubLabel}
-                >
-                  {oldSubLabel}
-                </div>
-              )}
+          {viewType === "split" ? (
+            <div className="grid grid-cols-2">
+              <div className="flex flex-row gap-1 border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
+                {oldLabel}
+                {oldSubLabel && (
+                  <div
+                    className="truncate text-xs text-muted-foreground"
+                    title={oldSubLabel}
+                  >
+                    {oldSubLabel}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
+                {newLabel}
+                {newSubLabel && (
+                  <div
+                    className="truncate text-xs text-muted-foreground"
+                    title={newSubLabel}
+                  >
+                    {newSubLabel}
+                  </div>
+                )}
+              </div>
             </div>
+          ) : (
             <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
-              {newLabel}
-              {newSubLabel && (
-                <div
-                  className="truncate text-xs text-muted-foreground"
-                  title={newSubLabel}
-                >
-                  {newSubLabel}
-                </div>
-              )}
+              {oldLabel} → {newLabel}
             </div>
-          </div>
-          <div>
-            {diffLines.left.map((leftLine, idx) => (
-              <DiffRow
-                key={idx}
-                leftLine={leftLine}
-                rightLine={diffLines.right[idx]}
-              />
-            ))}
+          )}
+          <div ref={parentRef} className={cn(SIZE_MAP[size], "overflow-auto")}>
+            <div
+              style={{
+                height: `${virtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {virtualizer.getVirtualItems().map((virtualItem) => (
+                <div
+                  key={virtualItem.key}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {renderRow(rows[virtualItem.index])}
+                </div>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>

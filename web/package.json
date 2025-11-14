@@ -91,6 +91,7 @@
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^5.85.1",
     "@tanstack/react-table": "^8.20.5",
+    "@tanstack/react-virtual": "^3.13.12",
     "@team-plain/typescript-sdk": "^5.10.3",
     "@tremor/react": "4.0.0-beta-tremor-v4.4",
     "@trpc/client": "^11.4.4",
