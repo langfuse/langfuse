@@ -16,6 +16,7 @@ import { SsoProviderSchema } from "./types";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
+  JumpCloudProvider,
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -226,6 +227,15 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       clientSecret: decrypt(provider.authConfig.clientSecret),
       enterprise: {
         baseUrl: provider.authConfig.enterprise.baseUrl,
+      },
+    });
+  else if (provider.authProvider === "jumpcloud")
+    return JumpCloudProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      authorization: {
+        params: { scope: provider.authConfig.scope ?? "openid profile email" },
       },
     });
   else {

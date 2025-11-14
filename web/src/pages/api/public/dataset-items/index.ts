@@ -117,20 +117,27 @@ export default withMiddlewares({
           },
         });
       } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === "P2025"
-        ) {
-          // this case happens when a dataset item was created for a different dataset.
-          // In the database, the uniqueness constraint is on (id, projectId) only.
-          // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
-          // If this record does not exist, the database will throw an error.
-          logger.warn(
-            `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
-          );
-          throw new LangfuseNotFoundError(
-            `The dataset item with id ${itemId} already exists in a dataset other than ${dataset.name}`,
-          );
+        if (e instanceof Prisma.PrismaClientKnownRequestError) {
+          if (e.code === "P2025") {
+            // this case happens when a dataset item was created for a different dataset.
+            // In the database, the uniqueness constraint is on (id, projectId) only.
+            // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
+            // If this record does not exist, the database will throw an error.
+            logger.warn(
+              `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
+            );
+            throw new LangfuseNotFoundError(
+              `The dataset item with id ${itemId} already exists in a dataset other than ${dataset.name}`,
+            );
+          } else if (e.code === "22P05") {
+            // Input includes control characters incompatible with postgres.
+            logger.warn(
+              `Failed to upsert dataset item. Unsupported unicode escape sequence.`,
+            );
+            throw new InvalidRequestError(
+              `The dataset item with id ${itemId} contains unsupported unicode escape sequences`,
+            );
+          }
         }
         throw e;
       }

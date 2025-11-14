@@ -234,21 +234,41 @@ export async function fetchLLMCompletion(
     | ChatVertexAI
     | ChatGoogleGenerativeAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    chatModel = new ChatAnthropic({
+    const isClaude45Family =
+      modelParams.model?.includes("claude-sonnet-4-5") ||
+      modelParams.model?.includes("claude-opus-4-1") ||
+      modelParams.model?.includes("claude-haiku-4-5");
+
+    const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
-      temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
         timeout: timeoutMs,
         ...(proxyAgent && { httpAgent: proxyAgent }),
       },
+      temperature: modelParams.temperature,
+      topP: modelParams.top_p,
       invocationKwargs: modelParams.providerOptions,
-    });
+    };
+    chatModel = new ChatAnthropic(chatOptions);
+    if (isClaude45Family) {
+      if (
+        modelParams.temperature !== undefined &&
+        modelParams.top_p === undefined
+      ) {
+        chatModel.topP = undefined;
+      }
+      if (
+        modelParams.top_p !== undefined &&
+        modelParams.temperature === undefined
+      ) {
+        chatModel.temperature = undefined;
+      }
+    }
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
