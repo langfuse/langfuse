@@ -75,6 +75,7 @@ import {
   TooltipContent,
 } from "@/src/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
+import { JsonPathInputWithSuggestions } from "@/src/features/evals/components/json-path-input";
 
 // Lazy load TracesTable
 const TracesTable = lazy(
@@ -88,6 +89,70 @@ const fieldHasJsonSelectorOption = (
   selectedColumnId === "output" ||
   selectedColumnId === "metadata" ||
   selectedColumnId === "expected_output";
+
+function MappingJsonPathField(props: {
+  projectId: string;
+  disabled?: boolean;
+  target: string | undefined;
+  traceWithObservations: Record<string, unknown> | undefined;
+  langfuseObject: string | undefined;
+  objectName: string | null | undefined;
+  selectedColumnId: string | undefined;
+  value: string | null | undefined;
+  onChange: (v: string) => void;
+}) {
+  const isTraceTargetSelected = props.target === "trace";
+
+  // Find observation summary by name when needed
+  const observationSummary =
+    isTraceTargetSelected && props.objectName
+      ? (props.traceWithObservations as any)?.observations?.find(
+          (o: any) => o?.name === props.objectName,
+        )
+      : undefined;
+
+  const observationDetails = api.observations.byId.useQuery(
+    {
+      observationId: (observationSummary?.id as string) || "",
+      startTime: (observationSummary?.startTime as Date | null) || null,
+      traceId: (props.traceWithObservations as any)?.id as string,
+      projectId: props.projectId,
+    },
+    {
+      enabled:
+        Boolean(observationSummary?.id) &&
+        isTraceTargetSelected &&
+        props.langfuseObject !== "trace",
+    },
+  );
+
+  let sampleValue: unknown = undefined;
+  let isLoadingSample = false;
+
+  if (isTraceTargetSelected && props.traceWithObservations) {
+    if (props.langfuseObject === "trace") {
+      sampleValue = (props.traceWithObservations as any)?.[
+        props.selectedColumnId as string
+      ];
+    } else {
+      isLoadingSample = observationDetails.isLoading;
+      const data = observationDetails.data as any;
+      if (data && props.selectedColumnId) {
+        sampleValue = data[props.selectedColumnId];
+      }
+    }
+  }
+
+  return (
+    <JsonPathInputWithSuggestions
+      value={props.value}
+      onChange={props.onChange}
+      disabled={props.disabled}
+      sampleValue={sampleValue}
+      isLoadingSample={isLoadingSample}
+    />
+  );
+}
 
 const TracesPreview = memo(
   ({
@@ -1097,11 +1162,24 @@ export const InnerEvaluatorForm = (props: {
                                 />
                                 <FormItem className="w-2/3">
                                   <FormControl>
-                                    <Input
-                                      {...field}
-                                      value={field.value ?? ""}
+                                    <MappingJsonPathField
+                                      projectId={props.projectId}
                                       disabled={props.disabled}
-                                      placeholder="Optional"
+                                      target={form.watch("target")}
+                                      traceWithObservations={
+                                        traceWithObservations as any
+                                      }
+                                      langfuseObject={form.watch(
+                                        `mapping.${index}.langfuseObject`,
+                                      )}
+                                      objectName={form.watch(
+                                        `mapping.${index}.objectName`,
+                                      )}
+                                      selectedColumnId={form.watch(
+                                        `mapping.${index}.selectedColumnId`,
+                                      )}
+                                      value={field.value}
+                                      onChange={field.onChange}
                                     />
                                   </FormControl>
                                   <FormMessage />
