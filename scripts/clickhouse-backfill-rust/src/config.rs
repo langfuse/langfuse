@@ -53,6 +53,30 @@ pub struct Config {
     /// Number of parallel workers for processing
     #[arg(long, env = "PARALLEL_WORKERS", default_value = "4")]
     pub parallel_workers: usize,
+
+    /// S3 bucket name for parquet files
+    #[arg(long, env = "S3_BUCKET")]
+    pub s3_bucket: String,
+
+    /// S3 prefix for parquet files (e.g., "exports/observations/2025/10")
+    #[arg(long, env = "S3_PREFIX")]
+    pub s3_prefix: String,
+
+    /// S3 endpoint URL (optional, for MinIO or custom S3-compatible services)
+    #[arg(long, env = "S3_ENDPOINT")]
+    pub s3_endpoint: Option<String>,
+
+    /// S3 region (optional, defaults to AWS SDK's default region resolution)
+    #[arg(long, env = "S3_REGION")]
+    pub s3_region: Option<String>,
+
+    /// Number of trace_modulo partitions
+    #[arg(long, env = "PARTITION_COUNT", default_value = "30")]
+    pub partition_count: u32,
+
+    /// Flush events to ClickHouse every N events
+    #[arg(long, env = "EVENT_FLUSH_THRESHOLD", default_value = "100000")]
+    pub event_flush_threshold: usize,
 }
 
 impl Config {
@@ -82,17 +106,6 @@ impl Config {
         Ok(config)
     }
 
-    // /// Get full path to cursor state file
-    // pub fn cursor_file_path(&self) -> PathBuf {
-    //     self.cursor_state_dir.join(&self.cursor_file)
-    // }
-
-    /// Get partition-specific cursor file path
-    pub fn partition_cursor_file_path(&self) -> PathBuf {
-        let filename = format!("cursor_state_{}.json", self.partition);
-        self.cursor_state_dir.join(filename)
-    }
-
     /// Print configuration summary
     pub fn print_summary(&self) {
         tracing::info!("Configuration:");
@@ -104,7 +117,16 @@ impl Config {
         tracing::info!("  Dry Run: {}", self.dry_run);
         tracing::info!("  Max Retries: {}", self.max_retries);
         tracing::info!("  Parallel Workers: {}", self.parallel_workers);
-        tracing::info!("  Cursor File: {:?}", self.partition_cursor_file_path());
+        tracing::info!("  S3 Bucket: {}", self.s3_bucket);
+        tracing::info!("  S3 Prefix: {}", self.s3_prefix);
+        if let Some(ref endpoint) = self.s3_endpoint {
+            tracing::info!("  S3 Endpoint: {}", endpoint);
+        }
+        if let Some(ref region) = self.s3_region {
+            tracing::info!("  S3 Region: {}", region);
+        }
+        tracing::info!("  Partition Count: {}", self.partition_count);
+        tracing::info!("  Event Flush Threshold: {}", self.event_flush_threshold);
     }
 }
 
@@ -127,6 +149,12 @@ mod tests {
             cursor_state_dir: PathBuf::from("."),
             cursor_file: "cursor_state.json".to_string(),
             parallel_workers: 4,
+            s3_bucket: "test-bucket".to_string(),
+            s3_prefix: "exports/observations/2025/10".to_string(),
+            s3_endpoint: None,
+            s3_region: None,
+            partition_count: 30,
+            event_flush_threshold: 100000,
         };
 
         assert_eq!(config.partition, "202511");

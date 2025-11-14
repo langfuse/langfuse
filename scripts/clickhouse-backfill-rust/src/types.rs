@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use fixnum::{typenum::U12, FixedPoint};
 use serde::{Deserialize, Serialize};
@@ -79,11 +79,11 @@ pub struct Event {
     pub parent_span_id: String,
     pub name: String,
     pub r#type: String,
-    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
+    #[serde(with = "clickhouse::serde::chrono::datetime64::micros")]
     pub start_time: DateTime<Utc>,
-    #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
+    #[serde(with = "clickhouse::serde::chrono::datetime64::micros::option")]
     pub end_time: Option<DateTime<Utc>>,
-    #[serde(with = "clickhouse::serde::chrono::datetime64::millis::option")]
+    #[serde(with = "clickhouse::serde::chrono::datetime64::micros::option")]
     pub completion_start_time: Option<DateTime<Utc>>,
     pub metadata: String,
     pub metadata_names: Vec<String>,
@@ -131,46 +131,13 @@ pub struct Event {
     pub experiment_item_root_span_id: String,
     pub blob_storage_file_path: String,
     pub event_bytes: u64,
-    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
+    #[serde(with = "clickhouse::serde::chrono::datetime64::micros")]
     pub created_at: DateTime<Utc>,
-    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
+    #[serde(with = "clickhouse::serde::chrono::datetime64::micros")]
     pub updated_at: DateTime<Utc>,
-    #[serde(with = "clickhouse::serde::chrono::datetime64::millis")]
+    #[serde(with = "clickhouse::serde::chrono::datetime64::micros")]
     pub event_ts: DateTime<Utc>,
     pub is_deleted: u8,
-}
-
-/// Cursor for resumable streaming
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Cursor {
-    pub project_id: String,
-    pub r#type: String,
-    pub date: NaiveDate,
-    pub id: String,
-}
-
-impl Cursor {
-    pub fn new(project_id: String, r#type: String, date: NaiveDate, id: String) -> Self {
-        Self {
-            project_id,
-            r#type,
-            date,
-            id,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.project_id.is_empty() && self.r#type.is_empty() && self.id.is_empty()
-    }
-}
-
-/// Checkpoint state persisted to disk
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct CheckpointState {
-    pub partition: String,
-    pub cursor: Cursor,
-    pub rows_processed: u64,
-    pub last_updated: DateTime<Utc>,
 }
 
 /// Helper function to extract metadata names and raw values

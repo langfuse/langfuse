@@ -17,7 +17,7 @@ const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
 const EXPERIMENT_BACKFILL_LOCK_KEY = "langfuse:experiment-backfill:lock";
 const LOCK_TTL_SECONDS = 300; // 5 minutes
 
-interface DatasetRunItem {
+export interface DatasetRunItem {
   id: string;
   project_id: string;
   trace_id: string;
@@ -33,7 +33,7 @@ interface DatasetRunItem {
   created_at: string;
 }
 
-interface SpanRecord {
+export interface SpanRecord {
   project_id: string;
   trace_id: string;
   span_id: string;
@@ -71,7 +71,7 @@ interface SpanRecord {
   session_id: string;
 }
 
-interface EnrichedSpan extends SpanRecord {
+export interface EnrichedSpan extends SpanRecord {
   experiment_id: string;
   experiment_name: string;
   experiment_metadata_names: string[];
@@ -85,7 +85,7 @@ interface EnrichedSpan extends SpanRecord {
   experiment_item_metadata_values: Array<string | null | undefined>;
 }
 
-interface TraceProperties {
+export interface TraceProperties {
   userId: string;
   sessionId: string;
   version: string;

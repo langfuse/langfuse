@@ -48,6 +48,24 @@ dashmap = "6.1"
 # Fast hashing
 ahash = "0.8"
 
+# AWS S3
+aws-config = { version = "1.5", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.63"
+aws-credential-types = "1.2"
+
+# Object store for streaming S3 access
+object_store = { version = "0.11", features = ["aws"] }
+
+# Parquet reading with async support
+parquet = { version = "53.3", features = ["async", "object_store"] }
+arrow = { version = "53.3" }
+
+# Stream utilities
+futures = "0.3"
+
+# Bytes handling
+bytes = "1.9"
+
 [dev-dependencies]
 tempfile = "3.13"
 

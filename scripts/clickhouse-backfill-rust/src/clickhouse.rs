@@ -80,24 +80,6 @@ pub async fn verify_tables(client: &Client) -> Result<()> {
     Ok(())
 }
 
-/// Get row count for a partition
-pub async fn get_partition_row_count(client: &Client, table: &str, partition: &str) -> Result<u64> {
-    let count: u64 = client
-        .query(&format!(
-            "SELECT count() FROM {} WHERE _partition_id = ? AND is_deleted = 0",
-            table
-        ))
-        .bind(partition)
-        .fetch_one()
-        .await
-        .context(format!(
-            "Failed to get row count for partition {} in table {}",
-            partition, table
-        ))?;
-
-    Ok(count)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
