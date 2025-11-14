@@ -63,17 +63,7 @@ pub async fn load_dataset_run_items(client: &Client) -> Result<Arc<HashSet<(Stri
         "Successfully loaded {} dataset run items into memory",
         dataset_run_items.len()
     );
-
-    // Estimate memory usage (rough approximation)
-    // Each entry is approximately: 2 x (String pointer + capacity) + hash overhead
-    // Assuming average project_id + trace_id is ~80 bytes
-    let estimated_bytes = dataset_run_items.len() * 80;
-    let estimated_mb = estimated_bytes / 1024 / 1024;
-    tracing::info!(
-        "Estimated memory usage for dataset run items: ~{}MB",
-        estimated_mb
-    );
-
+    
     Ok(Arc::new(dataset_run_items))
 }
 

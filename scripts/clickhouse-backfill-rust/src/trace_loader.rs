@@ -97,14 +97,6 @@ pub async fn load_trace_attributes(
         trace_attrs.len()
     );
 
-    // Estimate memory usage (rough approximation)
-    let estimated_bytes = trace_attrs.len() * 100; // ~100 bytes per trace on average
-    let estimated_mb = estimated_bytes / 1024 / 1024;
-    tracing::info!(
-        "Estimated memory usage for trace attributes: ~{}MB",
-        estimated_mb
-    );
-
     Ok(Arc::new(trace_attrs))
 }
 
