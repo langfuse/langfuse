@@ -16,7 +16,7 @@ export function JumpCloudProvider<P extends JumpCloudProfile>(
     id: "jumpcloud",
     name: "JumpCloud",
     type: "oauth",
-    wellKnown: `${options.issuer}/.well-known/openid-configuration`,
+    wellKnown: `${options.issuer?.replace(/\/$/, "")}/.well-known/openid-configuration`,
     authorization: {
       params: { scope: "openid profile email" }, // Default scope, can be overridden by options.authorization
     },
