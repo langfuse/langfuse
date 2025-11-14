@@ -237,12 +237,6 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "e.output",
   },
   {
-    uiTableName: "User ID",
-    uiTableId: "userId",
-    clickhouseTableName: "events",
-    clickhouseSelect: 'e."user_id"',
-  },
-  {
     uiTableName: "Session ID",
     uiTableId: "sessionId",
     clickhouseTableName: "events",
