@@ -165,22 +165,21 @@ const DatasetAggregateCellContent = ({
         ) : showDiffMode &&
           expectedOutput !== null &&
           expectedOutput !== undefined ? (
-          <div className="h-full w-full p-2">
-            <DiffViewer
-              oldString={JSON.stringify(expectedOutput, null, 2)}
-              newString={JSON.stringify(data?.output ?? null, null, 2)}
-              viewType="combined"
-              size="xs"
-              oldLabel="Expected"
-              newLabel="Actual"
-            />
-          </div>
+          <DiffViewer
+            oldString={JSON.stringify(expectedOutput, null, 2)}
+            newString={JSON.stringify(data?.output ?? null, null, 2)}
+            viewType="combined"
+            size="xs"
+            variant="embedded"
+            oldLabel="Expected"
+            newLabel="Actual"
+          />
         ) : (
           <MemoizedIOTableCell
             isLoading={isLoading || !data}
             data={data?.output ?? "null"}
             className={"min-h-8 bg-accent-light-green"}
-            singleLine
+            singleLine={false}
             enableExpandOnHover
           />
         )}

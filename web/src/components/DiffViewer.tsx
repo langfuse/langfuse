@@ -31,6 +31,7 @@ type DiffViewerProps = {
   className?: string;
   viewType?: "split" | "combined";
   size?: "xs" | "sm" | "md" | "lg";
+  variant?: "default" | "embedded";
 };
 
 const DIFF_COLORS = {
@@ -143,6 +144,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   className,
   viewType = "split",
   size = "sm",
+  variant = "default",
 }) => {
   const [diffLines, setDiffLines] = useState<{
     left: DiffSegment[];
@@ -269,66 +271,79 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
     return <div className="text-sm text-muted-foreground">No changes</div>;
   }
 
+  const content = (
+    <>
+      {variant === "default" &&
+        (viewType === "split" ? (
+          <div className="grid grid-cols-2">
+            <div className="flex flex-row gap-1 border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
+              {oldLabel}
+              {oldSubLabel && (
+                <div
+                  className="truncate text-xs text-muted-foreground"
+                  title={oldSubLabel}
+                >
+                  {oldSubLabel}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
+              {newLabel}
+              {newSubLabel && (
+                <div
+                  className="truncate text-xs text-muted-foreground"
+                  title={newSubLabel}
+                >
+                  {newSubLabel}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
+            {oldLabel} → {newLabel}
+          </div>
+        ))}
+      <div ref={parentRef} className={cn(SIZE_MAP[size], "overflow-auto")}>
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => (
+            <div
+              key={virtualItem.key}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              {renderRow(rows[virtualItem.index])}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+
+  if (variant === "embedded") {
+    return (
+      <div className={cn("h-full w-full rounded border", className)}>
+        {content}
+      </div>
+    );
+  }
+
   return (
     <div className={cn("w-full", className)}>
       <Card>
-        <CardContent className="p-0">
-          {viewType === "split" ? (
-            <div className="grid grid-cols-2">
-              <div className="flex flex-row gap-1 border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
-                {oldLabel}
-                {oldSubLabel && (
-                  <div
-                    className="truncate text-xs text-muted-foreground"
-                    title={oldSubLabel}
-                  >
-                    {oldSubLabel}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
-                {newLabel}
-                {newSubLabel && (
-                  <div
-                    className="truncate text-xs text-muted-foreground"
-                    title={newSubLabel}
-                  >
-                    {newSubLabel}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
-              {oldLabel} → {newLabel}
-            </div>
-          )}
-          <div ref={parentRef} className={cn(SIZE_MAP[size], "overflow-auto")}>
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualItem) => (
-                <div
-                  key={virtualItem.key}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                >
-                  {renderRow(rows[virtualItem.index])}
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
+        <CardContent className="p-0">{content}</CardContent>
       </Card>
     </div>
   );
