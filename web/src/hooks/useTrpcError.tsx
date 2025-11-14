@@ -7,6 +7,7 @@ export function useTrpcError(
   return {
     isSilentError:
       error instanceof TRPCClientError &&
-      silentHttpCodes.includes(error.data.httpStatus),
+      typeof error.data?.httpStatus === "number" &&
+      silentHttpCodes.includes(error.data?.httpStatus),
   };
 }
