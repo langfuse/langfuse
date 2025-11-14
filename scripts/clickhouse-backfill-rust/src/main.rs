@@ -126,6 +126,9 @@ async fn main() -> Result<()> {
     // Create channel for readers → coordinator communication
     let (tx, mut rx) = mpsc::channel::<CoordinatorMessage>(50_000); // Bounded channel for backpressure
 
+    // Start timing for the entire backfill process
+    let start_time = Instant::now();
+
     // Spawn reader tasks for all partitions
     tracing::info!(
         "Spawning {} partition reader tasks...",
@@ -384,7 +387,7 @@ async fn main() -> Result<()> {
     }
 
     // Print final statistics
-    let elapsed = Instant::now().elapsed();
+    let elapsed = start_time.elapsed();
     let events_generated = total_events_generated.load(Ordering::SeqCst);
     let events_flushed = total_events_flushed.load(Ordering::SeqCst);
     let throughput = if elapsed.as_secs() > 0 {
