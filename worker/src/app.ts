@@ -381,6 +381,13 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
     postHogIntegrationProcessingProcessor,
     {
       concurrency: 1,
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
       limiter: {
         // Process at most one PostHog job globally per 10s.
         max: 1,
@@ -433,6 +440,13 @@ if (env.QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED === "true") {
     blobStorageIntegrationProcessingProcessor,
     {
       concurrency: 1,
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
     },
   );
 }
