@@ -222,16 +222,6 @@ function DatasetCompareRunsTableInternal(props: {
         setRowHeight={setRowHeight}
         actionButtons={
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="diff-mode"
-                checked={showDiffMode}
-                onCheckedChange={setShowDiffMode}
-              />
-              <Label htmlFor="diff-mode" className="text-sm font-normal">
-                Show Diff
-              </Label>
-            </div>
             <DropdownMenu open={isFieldsDropdownOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -265,6 +255,20 @@ function DatasetCompareRunsTableInternal(props: {
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <Label
+                htmlFor="diff-mode"
+                className="text-sm font-normal"
+                title="Show diff between expected and actual output"
+              >
+                Diff
+              </Label>
+              <Switch
+                id="diff-mode"
+                checked={showDiffMode}
+                onCheckedChange={setShowDiffMode}
+              />
+            </div>
           </div>
         }
       />
