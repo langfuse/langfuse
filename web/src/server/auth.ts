@@ -45,6 +45,7 @@ import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
+  JumpCloudProvider,
   traceException,
   sendResetPasswordVerificationRequest,
   instrumentAsync,
@@ -420,6 +421,30 @@ if (
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
       },
       ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
+    }),
+  );
+
+if (
+  env.AUTH_JUMPCLOUD_CLIENT_ID &&
+  env.AUTH_JUMPCLOUD_CLIENT_SECRET &&
+  env.AUTH_JUMPCLOUD_ISSUER
+)
+  staticProviders.push(
+    JumpCloudProvider({
+      clientId: env.AUTH_JUMPCLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_JUMPCLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_JUMPCLOUD_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      authorization: {
+        params: { scope: env.AUTH_JUMPCLOUD_SCOPE ?? "openid profile email" },
+      },
+      client: {
+        token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_JUMPCLOUD_CHECKS
+        ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
+        : {}),
     }),
   );
 

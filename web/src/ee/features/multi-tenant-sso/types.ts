@@ -158,6 +158,19 @@ export const CustomProviderSchema = base.extend({
     .nullish(),
 });
 
+export const JumpCloudProviderSchema = base.extend({
+  authProvider: z.literal("jumpcloud"),
+  authConfig: z
+    .object({
+      clientId: z.string(),
+      clientSecret: z.string(),
+      issuer: z.url(),
+      scope: z.string().nullish(),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
 export type GoogleProviderSchema = z.infer<typeof GoogleProviderSchema>;
 export type GithubProviderSchema = z.infer<typeof GithubProviderSchema>;
 export type GithubEnterpriseProviderSchema = z.infer<
@@ -172,6 +185,7 @@ export type AzureAdProviderSchema = z.infer<typeof AzureAdProviderSchema>;
 export type CognitoProviderSchema = z.infer<typeof CognitoProviderSchema>;
 export type KeycloakProviderSchema = z.infer<typeof KeycloakProviderSchema>;
 export type CustomProviderSchema = z.infer<typeof CustomProviderSchema>;
+export type JumpCloudProviderSchema = z.infer<typeof JumpCloudProviderSchema>;
 
 export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   GoogleProviderSchema,
@@ -185,6 +199,7 @@ export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   AzureAdProviderSchema,
   CognitoProviderSchema,
   KeycloakProviderSchema,
+  JumpCloudProviderSchema,
   CustomProviderSchema,
 ]);
 
