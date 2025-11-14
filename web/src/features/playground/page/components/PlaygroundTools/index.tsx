@@ -253,7 +253,7 @@ export const PlaygroundTools = () => {
                   <div className="flex items-center gap-1">
                     <WrenchIcon className="h-4 w-4 text-muted-foreground" />
                     <h3
-                      className="max-w-[200px] truncate text-ellipsis text-sm font-medium"
+                      className="max-w-[145px] truncate text-ellipsis text-sm font-medium"
                       title={tool.name}
                     >
                       {tool.name}
