@@ -6622,6 +6622,9 @@ components:
           nullable: true
         - type: boolean
           nullable: true
+        - type: integer
+          format: float
+          nullable: true
         - type: array
           items:
             type: string
