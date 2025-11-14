@@ -70,6 +70,8 @@ export const convertObservation = (
     level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
+    userId: record.user_id ?? null,
+    sessionId: record.session_id ?? null,
     input: applyInputOutputRendering(record.input, renderingProps),
     output: applyInputOutputRendering(record.output, renderingProps),
     // Necessary if we fill this from events as model_parameters will be an object

@@ -4,23 +4,10 @@ import { type ColumnDefinition } from "./tableDefinitions";
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns
 export const eventsTableCols: ColumnDefinition[] = [
   {
-    name: "Span ID",
-    id: "spanId",
-    type: "string",
-    internal: "e.span_id",
-  },
-  {
     name: "Trace ID",
     id: "traceId",
     type: "string",
     internal: "e.trace_id",
-  },
-  {
-    name: "Parent Span ID",
-    id: "parentSpanId",
-    type: "string",
-    internal: "e.parent_span_id",
-    nullable: true,
   },
   {
     name: "Start Time",
@@ -94,32 +81,11 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Completion Start Time",
-    id: "completionStartTime",
-    type: "datetime",
-    internal: "e.completion_start_time",
-    nullable: true,
-  },
-  {
-    name: "Prompt ID",
-    id: "promptId",
-    type: "string",
-    internal: "e.prompt_id",
-    nullable: true,
-  },
-  {
     name: "Prompt Name",
     id: "promptName",
     type: "stringOptions",
     internal: "e.prompt_name",
     options: [], // to be added at runtime
-    nullable: true,
-  },
-  {
-    name: "Prompt Version",
-    id: "promptVersion",
-    type: "string",
-    internal: "e.prompt_version",
     nullable: true,
   },
   {
@@ -136,13 +102,6 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: "e.provided_model_name",
     options: [], // to be added at runtime
-    nullable: true,
-  },
-  {
-    name: "Model Parameters",
-    id: "modelParameters",
-    type: "string",
-    internal: "e.model_parameters",
     nullable: true,
   },
   {

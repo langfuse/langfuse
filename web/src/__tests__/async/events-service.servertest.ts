@@ -24,6 +24,81 @@ describe("Events Service", () => {
     // redis connection when everything else is skipped.
   });
   maybe("getEventList", () => {
+    it("should sort events by providedModelName", async () => {
+      const projectId = v4();
+      const traceId = v4();
+      const timestamp = new Date("2024-01-01T00:00:00.000Z");
+
+      // Create events with different model names
+      const events = [
+        createEvent({
+          span_id: v4(),
+          id: v4(),
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-1",
+          start_time: timestamp.getTime() * 1000,
+          project_id: projectId,
+          provided_model_name: "gpt-4",
+        }),
+        createEvent({
+          span_id: v4(),
+          id: v4(),
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-2",
+          start_time: (timestamp.getTime() + 1000) * 1000,
+          project_id: projectId,
+          provided_model_name: "claude-3",
+        }),
+        createEvent({
+          span_id: v4(),
+          id: v4(),
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-3",
+          start_time: (timestamp.getTime() + 2000) * 1000,
+          project_id: projectId,
+          provided_model_name: "gpt-3.5-turbo",
+        }),
+      ];
+
+      await createEventsCh(events);
+      await waitForClickHouse();
+
+      // Test sorting DESC
+      const resultDesc = await getEventList({
+        projectId,
+        filter: [],
+        searchType: [],
+        orderBy: { column: "providedModelName", order: "DESC" },
+        page: 0,
+        limit: 10,
+      });
+
+      expect(resultDesc.observations).toBeDefined();
+      expect(resultDesc.observations.length).toBe(3);
+      expect(resultDesc.observations[0].model).toBe("gpt-4");
+      expect(resultDesc.observations[1].model).toBe("gpt-3.5-turbo");
+      expect(resultDesc.observations[2].model).toBe("claude-3");
+
+      // Test sorting ASC
+      const resultAsc = await getEventList({
+        projectId,
+        filter: [],
+        searchType: [],
+        orderBy: { column: "providedModelName", order: "ASC" },
+        page: 0,
+        limit: 10,
+      });
+
+      expect(resultAsc.observations).toBeDefined();
+      expect(resultAsc.observations.length).toBe(3);
+      expect(resultAsc.observations[0].model).toBe("claude-3");
+      expect(resultAsc.observations[1].model).toBe("gpt-3.5-turbo");
+      expect(resultAsc.observations[2].model).toBe("gpt-4");
+    });
+
     it("should return paginated list of events", async () => {
       const projectId = v4();
       const traceId = v4();
