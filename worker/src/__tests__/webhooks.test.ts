@@ -119,6 +119,9 @@ describe("Webhook Integration Tests", () => {
 
   beforeAll(() => {
     webhookServer.setup();
+    // Whitelist test domains for webhook validation
+    process.env.LANGFUSE_WEBHOOK_WHITELISTED_HOST =
+      "webhook.example.com,webhook-error.example.com,webhook-201.example.com,webhook-timeout.example.com,redirect.example.com";
   });
 
   beforeEach(async () => {
@@ -229,7 +232,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made
       const requests = webhookServer.getReceivedRequests();
@@ -351,9 +354,9 @@ describe("Webhook Integration Tests", () => {
         },
       };
 
-      await expect(
-        executeWebhook(webhookInput, { skipValidation: true }),
-      ).rejects.toThrow("Action config is not a valid webhook configuration");
+      await expect(executeWebhook(webhookInput)).rejects.toThrow(
+        "Action config is not a valid webhook configuration",
+      );
 
       const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
@@ -418,7 +421,7 @@ describe("Webhook Integration Tests", () => {
         },
       };
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made
       const requests = webhookServer.getReceivedRequests();
@@ -491,7 +494,7 @@ describe("Webhook Integration Tests", () => {
         },
       };
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify execution was marked as error
       const execution = await prisma.automationExecution.findUnique({
@@ -565,7 +568,7 @@ describe("Webhook Integration Tests", () => {
           },
         };
 
-        await executeWebhook(webhookInput, { skipValidation: true });
+        await executeWebhook(webhookInput);
 
         // Verify execution was marked as error
         const execution = await prisma.automationExecution.findUnique({
@@ -658,7 +661,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with decrypted secret headers
       const requests = webhookServer.getReceivedRequests();
@@ -749,7 +752,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with decrypted secret headers
       const requests = webhookServer.getReceivedRequests();
@@ -828,7 +831,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with public headers
       const requests = webhookServer.getReceivedRequests();
@@ -912,7 +915,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with public headers
       const requests = webhookServer.getReceivedRequests();
@@ -995,7 +998,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with valid headers only
       const requests = webhookServer.getReceivedRequests();
@@ -1037,9 +1040,7 @@ describe("Webhook Integration Tests", () => {
       };
 
       // Should not throw an error, but return gracefully
-      await expect(
-        executeWebhook(webhookInput, { skipValidation: true }),
-      ).resolves.toBeUndefined();
+      await expect(executeWebhook(webhookInput)).resolves.toBeUndefined();
 
       // Verify that no execution record was created since automation doesn't exist
       const execution = await prisma.automationExecution.findUnique({
@@ -1167,7 +1168,7 @@ describe("Webhook Integration Tests", () => {
             },
           };
 
-          await executeWebhook(webhookInput, { skipValidation: true });
+          await executeWebhook(webhookInput);
         }
 
         // Verify trigger was disabled and lastFailingExecutionId was stored
@@ -1223,7 +1224,7 @@ describe("Webhook Integration Tests", () => {
             },
           };
 
-          await executeWebhook(newWebhookInput, { skipValidation: true });
+          await executeWebhook(newWebhookInput);
         }
 
         // Verify trigger was disabled again and lastFailingExecutionId was updated
@@ -1292,8 +1293,7 @@ describe("Webhook Integration Tests", () => {
       });
 
       // Execute - should fail due to redirect validation
-      // Use skipValidation: true for MSW mocking, but basic SSRF checks still apply
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify execution was marked as ERROR
       const execution = await prisma.automationExecution.findUnique({
@@ -1343,8 +1343,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      // Use skipValidation: true for MSW mocking, but basic SSRF checks still apply
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify execution was marked as ERROR
       const execution = await prisma.automationExecution.findUnique({
@@ -1394,8 +1393,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      // Use skipValidation: true for MSW mocking, but basic SSRF checks still apply
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify execution was marked as ERROR
       const execution = await prisma.automationExecution.findUnique({
@@ -1458,7 +1456,7 @@ describe("Webhook Integration Tests", () => {
       });
 
       // Should succeed - legitimate redirect
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
@@ -1511,7 +1509,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
@@ -1608,7 +1606,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify execution was marked as ERROR
       const execution = await prisma.automationExecution.findUnique({
@@ -1661,7 +1659,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
@@ -1707,7 +1705,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify execution was marked as ERROR
       const execution = await prisma.automationExecution.findUnique({

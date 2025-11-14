@@ -155,67 +155,16 @@ function normalizeHostname(hostname: string): string {
 }
 
 /**
- * Performs basic hostname validation without DNS resolution.
- * Used in test mode to catch obvious SSRF attempts without DNS lookups.
- * This is NOT a replacement for full validateWebhookURL() which includes DNS resolution.
- *
- * @param urlString - The URL to validate
- */
-function basicHostnameValidation(urlString: string): void {
-  const url = new URL(urlString);
-  const hostname = url.hostname.toLowerCase();
-
-  // Check for obviously blocked hostnames (subset of validateWebhookURL checks)
-  if (isHostnameBlocked(hostname)) {
-    throw new Error(`Blocked hostname detected: ${hostname}`);
-  }
-
-  // Check for IP addresses in hostname
-  if (isIPAddress(hostname)) {
-    // For test mode, check if it looks like a private/internal IP
-    // This catches obvious cases without needing DNS
-    if (
-      hostname.startsWith("10.") ||
-      hostname.startsWith("192.168.") ||
-      hostname.startsWith("172.16.") ||
-      hostname.startsWith("172.17.") ||
-      hostname.startsWith("172.18.") ||
-      hostname.startsWith("172.19.") ||
-      hostname.startsWith("172.20.") ||
-      hostname.startsWith("172.21.") ||
-      hostname.startsWith("172.22.") ||
-      hostname.startsWith("172.23.") ||
-      hostname.startsWith("172.24.") ||
-      hostname.startsWith("172.25.") ||
-      hostname.startsWith("172.26.") ||
-      hostname.startsWith("172.27.") ||
-      hostname.startsWith("172.28.") ||
-      hostname.startsWith("172.29.") ||
-      hostname.startsWith("172.30.") ||
-      hostname.startsWith("172.31.") ||
-      hostname.startsWith("127.") ||
-      hostname.startsWith("169.254.") ||
-      hostname.startsWith("0.") ||
-      hostname === "0.0.0.0"
-    ) {
-      throw new Error(`Private IP address detected: ${hostname}`);
-    }
-  }
-}
-
-/**
  * Fetches a webhook URL with secure redirect handling.
  * Each redirect destination is validated to prevent SSRF attacks.
  *
  * @param url - The initial URL to fetch
  * @param options - Fetch options (method, body, headers, signal)
- * @param skipValidation - Skip full validation for testing with mocked servers (still performs basic checks)
  * @returns The final Response after following redirects
  */
 export async function fetchWebhookWithSecureRedirects(
   url: string,
   options: RequestInit,
-  skipValidation = false,
 ): Promise<Response> {
   const MAX_REDIRECTS = 5;
   let currentUrl = url;
@@ -258,32 +207,16 @@ export async function fetchWebhookWithSecureRedirects(
       }
 
       // Validate the redirect destination URL to prevent SSRF
-      if (!skipValidation) {
-        // Production: Full validation including DNS resolution
-        try {
-          await validateWebhookURL(redirectUrl);
-        } catch (validationError) {
-          logger.error(
-            `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
-            validationError,
-          );
-          throw new Error(
-            `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
-          );
-        }
-      } else {
-        // Test mode: Basic validation without DNS (for MSW compatibility)
-        try {
-          basicHostnameValidation(redirectUrl);
-        } catch (validationError) {
-          logger.error(
-            `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
-            validationError,
-          );
-          throw new Error(
-            `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
-          );
-        }
+      try {
+        await validateWebhookURL(redirectUrl);
+      } catch (validationError) {
+        logger.error(
+          `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
+          validationError,
+        );
+        throw new Error(
+          `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
+        );
       }
 
       // Update current URL and continue loop

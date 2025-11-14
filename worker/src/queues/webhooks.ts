@@ -43,10 +43,7 @@ export const webhookProcessor: Processor = async (
 };
 
 // TODO: Webhook outgoing API versioning
-export const executeWebhook = async (
-  input: WebhookInput,
-  options?: { skipValidation?: boolean },
-) => {
+export const executeWebhook = async (input: WebhookInput) => {
   const { projectId, automationId } = input;
 
   try {
@@ -69,7 +66,6 @@ export const executeWebhook = async (
       await executeWebhookAction({
         input,
         automation,
-        skipValidation: options?.skipValidation,
       });
     } else if (automation.action.type === "SLACK") {
       await executeSlackAction({
@@ -97,11 +93,9 @@ export const executeWebhook = async (
 async function executeWebhookAction({
   input,
   automation,
-  skipValidation,
 }: {
   input: WebhookInput;
   automation: Awaited<ReturnType<typeof getAutomationById>>;
-  skipValidation?: boolean;
 }) {
   if (!automation) return;
 
@@ -194,22 +188,16 @@ async function executeWebhookAction({
         }, env.LANGFUSE_WEBHOOK_TIMEOUT_MS);
 
         try {
-          // Skip validation when flag is set (for tests with MSW mocking)
-          if (!skipValidation) {
-            await validateWebhookURL(webhookConfig.url);
-          }
+          // Validate webhook URL to prevent SSRF attacks
+          await validateWebhookURL(webhookConfig.url);
 
           // Fetch with secure redirect handling
-          const res = await fetchWebhookWithSecureRedirects(
-            webhookConfig.url,
-            {
-              method: "POST",
-              body: webhookPayload,
-              headers: requestHeaders,
-              signal: abortController.signal,
-            },
-            skipValidation,
-          );
+          const res = await fetchWebhookWithSecureRedirects(webhookConfig.url, {
+            method: "POST",
+            body: webhookPayload,
+            headers: requestHeaders,
+            signal: abortController.signal,
+          });
 
           httpStatus = res.status;
           responseBody = await res.text();
