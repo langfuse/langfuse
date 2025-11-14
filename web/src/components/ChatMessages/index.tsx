@@ -1,4 +1,4 @@
-import { PlusCircleIcon } from "lucide-react";
+import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -8,6 +8,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import {
   ChatMessageRole,
   ChatMessageType,
@@ -147,6 +153,49 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
     }
   };
 
+  const addMessageWithRole = (role: ChatMessageRole) => {
+    switch (role) {
+      case ChatMessageRole.User:
+        addMessage({
+          role: ChatMessageRole.User,
+          content: "",
+          type: ChatMessageType.User,
+        });
+        break;
+      case ChatMessageRole.Assistant:
+        addMessage({
+          role: ChatMessageRole.Assistant,
+          content: "",
+          type: ChatMessageType.AssistantText,
+        });
+        break;
+      case ChatMessageRole.System:
+        addMessage({
+          role: ChatMessageRole.System,
+          content: "",
+          type: ChatMessageType.System,
+        });
+        break;
+      case ChatMessageRole.Developer:
+        addMessage({
+          role: ChatMessageRole.Developer,
+          content: "",
+          type: ChatMessageType.Developer,
+        });
+        break;
+      case ChatMessageRole.Tool:
+        addMessage({
+          role: ChatMessageRole.Tool,
+          content: "",
+          type: ChatMessageType.ToolResult,
+          toolCallId: "",
+        });
+        break;
+      default:
+        addRegularMessage();
+    }
+  };
+
   const addPlaceholderMessage = () => {
     addMessage({
       type: ChatMessageType.Placeholder,
@@ -156,15 +205,55 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
 
   return (
     <div className="flex gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        className="flex-1"
-        onClick={addRegularMessage}
-      >
-        <PlusCircleIcon size={14} className="mr-2" />
-        <p>Message</p>
-      </Button>
+      <div className="flex flex-1 gap-0">
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1 rounded-r-none border-r-0"
+          onClick={addRegularMessage}
+        >
+          <PlusCircleIcon size={14} className="mr-2" />
+          <p>Message</p>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-l-none border-l px-2"
+            >
+              <ChevronDownIcon size={14} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.User)}
+            >
+              User Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Assistant)}
+            >
+              Assistant Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.System)}
+            >
+              System Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Developer)}
+            >
+              Developer Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Tool)}
+            >
+              Tool Message
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
