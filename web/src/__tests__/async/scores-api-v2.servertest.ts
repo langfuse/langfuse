@@ -898,6 +898,78 @@ describe("/api/public/v2/scores API Endpoint", () => {
           ]),
         );
       });
+
+      it("should filter scores by dataset run ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?datasetRunId=${runId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_8,
+              datasetRunId: runId,
+              name: scoreName,
+              value: 100.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_9,
+              datasetRunId: runId,
+              name: scoreName,
+              value: 100.5,
+            }),
+          ]),
+        );
+      });
+
+      it("should filter scores by trace ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?traceId=${traceId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 3,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_1,
+              traceId: traceId,
+              name: scoreName,
+              value: 10.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_2,
+              traceId: traceId,
+              name: scoreName,
+              value: 50.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_3,
+              traceId: traceId,
+              name: scoreName,
+              value: 100.8,
+            }),
+          ]),
+        );
+      });
     });
   });
 });

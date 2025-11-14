@@ -4412,6 +4412,20 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: datasetRunId
+          in: query
+          description: Retrieve only scores with a specific datasetRunId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: traceId
+          in: query
+          description: Retrieve only scores with a specific traceId.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: queueId
           in: query
           description: Retrieve only scores with a specific annotation queueId.
@@ -7763,6 +7777,8 @@ components:
         - image/svg+xml
         - image/tiff
         - image/bmp
+        - image/avif
+        - image/heic
         - audio/mpeg
         - audio/mp3
         - audio/wav
@@ -7771,19 +7787,42 @@ components:
         - audio/aac
         - audio/mp4
         - audio/flac
+        - audio/opus
+        - audio/webm
         - video/mp4
         - video/webm
+        - video/ogg
+        - video/mpeg
+        - video/quicktime
+        - video/x-msvideo
+        - video/x-matroska
         - text/plain
         - text/html
         - text/css
         - text/csv
+        - text/markdown
+        - text/x-python
+        - application/javascript
+        - text/x-typescript
+        - application/x-yaml
         - application/pdf
         - application/msword
         - application/vnd.ms-excel
+        - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
         - application/zip
         - application/json
         - application/xml
         - application/octet-stream
+        - >-
+          application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        - >-
+          application/vnd.openxmlformats-officedocument.presentationml.presentation
+        - application/rtf
+        - application/x-ndjson
+        - application/vnd.apache.parquet
+        - application/gzip
+        - application/x-tar
+        - application/x-7z-compressed
       description: The MIME type of the media record
     MetricsResponse:
       title: MetricsResponse

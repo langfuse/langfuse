@@ -10,6 +10,8 @@ export const GetScoreResponseV2 = APIScoreSchemaV2;
 // GET /scores v2
 export const GetScoresQueryV2 = GetScoresQuery.extend({
   sessionId: z.string().nullish(),
+  traceId: z.string().nullish(),
+  datasetRunId: z.string().nullish(),
 });
 export const GetScoreResponseDataV2 = z.intersection(
   APIScoreSchemaV2,
