@@ -44,6 +44,7 @@ export const NewDatasetItemFromExistingObject = (props: {
   metadata: MetadataDomainClient;
   isCopyItem?: boolean;
   buttonVariant?: "outline" | "secondary";
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
 }) => {
   const parsedInput =
     props.input && typeof props.input === "string"
@@ -76,13 +77,14 @@ export const NewDatasetItemFromExistingObject = (props: {
   });
   const capture = usePostHogClientCapture();
   const buttonVariant = props.buttonVariant || "secondary";
+  const buttonSize = props.size || "default";
 
   return (
     <>
       {props.isCopyItem ? (
         <ActionButton
           variant="outline"
-          size="icon"
+          size={buttonSize === "sm" ? "icon-xs" : "icon"}
           hasAccess={hasAccess}
           title="Copy item"
           aria-label="Copy item"
@@ -97,7 +99,11 @@ export const NewDatasetItemFromExistingObject = (props: {
         <div>
           <DropdownMenu open={hasAccess ? undefined : false}>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" disabled={!hasAccess}>
+              <Button
+                variant="secondary"
+                size={buttonSize}
+                disabled={!hasAccess}
+              >
                 <span>{`In ${observationInDatasets.data.length} dataset(s)`}</span>
                 <ChevronDown className="ml-2 h-3 w-3" />
               </Button>
@@ -140,11 +146,15 @@ export const NewDatasetItemFromExistingObject = (props: {
             });
           }}
           variant={buttonVariant}
+          size={buttonSize}
           disabled={!hasAccess}
         >
           {hasAccess ? (
             <PlusIcon
-              className={cn("-ml-0.5 mr-1.5 h-4 w-4")}
+              className={cn(
+                "-ml-0.5 mr-1.5",
+                buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
+              )}
               aria-hidden="true"
             />
           ) : null}

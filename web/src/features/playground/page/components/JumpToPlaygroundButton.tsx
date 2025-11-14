@@ -67,6 +67,7 @@ type JumpToPlaygroundButtonProps = (
 ) & {
   variant?: "outline" | "secondary";
   className?: string;
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -193,6 +194,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       <DropdownMenuTrigger asChild>
         <Button
           variant={props.variant ?? "secondary"}
+          size={props.size ?? "default"}
           disabled={!isAvailable}
           title={tooltipMessage}
           className={cn(
@@ -200,7 +202,9 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
             !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           )}
         >
-          <Terminal className="h-4 w-4" />
+          <Terminal
+            className={props.size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+          />
           <span className={cn("hidden md:inline", props.className)}>
             Playground
           </span>

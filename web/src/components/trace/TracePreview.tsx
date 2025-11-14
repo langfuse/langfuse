@@ -155,8 +155,8 @@ export const TracePreview = ({
 
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
-      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2 px-2">
+      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden @container">
+        <div className="mt-2 grid w-full grid-cols-1 items-start gap-2 px-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
@@ -166,7 +166,7 @@ export const TracePreview = ({
             </span>
             <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
-          <div className="mr-1 flex h-full flex-wrap content-start items-start justify-end gap-1">
+          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             <NewDatasetItemFromExistingObject
               traceId={trace.id}
               projectId={trace.projectId}
@@ -174,6 +174,7 @@ export const TracePreview = ({
               output={trace.output}
               metadata={trace.metadata}
               key={trace.id}
+              size="sm"
             />
             {viewType === "detailed" && (
               <>
@@ -190,11 +191,13 @@ export const TracePreview = ({
                       projectId: trace.projectId,
                       environment: trace.environment,
                     }}
+                    size="sm"
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}
                     objectId={trace.id}
                     objectType={AnnotationQueueObjectType.TRACE}
+                    size="sm"
                   />
                 </div>
                 <CommentDrawerButton
@@ -202,6 +205,7 @@ export const TracePreview = ({
                   objectId={trace.id}
                   objectType="TRACE"
                   count={commentCounts?.get(trace.id)}
+                  size="sm"
                 />
               </>
             )}
@@ -211,6 +215,7 @@ export const TracePreview = ({
                 objectId={trace.id}
                 objectType="TRACE"
                 count={commentCounts?.get(trace.id)}
+                size="sm"
               />
             )}
           </div>

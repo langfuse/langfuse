@@ -22,7 +22,10 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   },
   scoreMetadata,
   buttonVariant = "secondary",
-}: AnnotateDrawerProps<Target>) {
+  size = "default",
+}: AnnotateDrawerProps<Target> & {
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+}) {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -34,6 +37,7 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
       <DrawerTrigger asChild>
         <Button
           variant={buttonVariant}
+          size={size}
           disabled={!hasAccess}
           className="rounded-r-none"
           onClick={() => {
@@ -48,7 +52,11 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           {!hasAccess ? (
             <LockIcon className="mr-1.5 h-3 w-3" />
           ) : (
-            <SquarePen className="mr-1.5 h-4 w-4" />
+            <SquarePen
+              className={
+                size === "sm" ? "mr-1.5 h-3.5 w-3.5" : "mr-1.5 h-4 w-4"
+              }
+            />
           )}
           <span>Annotate</span>
         </Button>

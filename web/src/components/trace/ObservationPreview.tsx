@@ -138,8 +138,8 @@ export const ObservationPreview = ({
 
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
-      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-2 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2 px-2">
+      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden @container">
+        <div className="mt-2 grid w-full grid-cols-1 items-start gap-2 px-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type={preloadedObservation.type} isSmall />
@@ -154,7 +154,7 @@ export const ObservationPreview = ({
               ]}
             />
           </div>
-          <div className="mr-1 flex h-full flex-wrap content-start items-start justify-end gap-1">
+          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             {observationWithInputAndOutput.data && (
               <NewDatasetItemFromExistingObject
                 traceId={preloadedObservation.traceId}
@@ -164,6 +164,7 @@ export const ObservationPreview = ({
                 output={observationWithInputAndOutput.data.output}
                 metadata={observationWithInputAndOutput.data.metadata}
                 key={preloadedObservation.id}
+                size="sm"
               />
             )}
             {viewType === "detailed" && (
@@ -182,12 +183,14 @@ export const ObservationPreview = ({
                       projectId: projectId,
                       environment: preloadedObservation.environment,
                     }}
+                    size="sm"
                   />
 
                   <CreateNewAnnotationQueueItem
                     projectId={projectId}
                     objectId={preloadedObservation.id}
                     objectType={AnnotationQueueObjectType.OBSERVATION}
+                    size="sm"
                   />
                 </div>
                 {observationWithInputAndOutput.data &&
@@ -197,6 +200,7 @@ export const ObservationPreview = ({
                       generation={observationWithInputAndOutput.data}
                       analyticsEventName="trace_detail:test_in_playground_button_click"
                       className={cn(isTimeline ? "!hidden" : "")}
+                      size="sm"
                     />
                   )}
                 <CommentDrawerButton
@@ -204,6 +208,7 @@ export const ObservationPreview = ({
                   objectId={preloadedObservation.id}
                   objectType="OBSERVATION"
                   count={commentCounts?.get(preloadedObservation.id)}
+                  size="sm"
                 />
               </>
             )}
@@ -213,6 +218,7 @@ export const ObservationPreview = ({
                 objectId={preloadedObservation.id}
                 objectType="OBSERVATION"
                 count={commentCounts?.get(preloadedObservation.id)}
+                size="sm"
               />
             )}
           </div>
