@@ -103,3 +103,5 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
     </div>
   );
 };
+
+TraceSearchList.whyDidYouRender = true;

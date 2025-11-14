@@ -19,7 +19,7 @@ import { SpanItem } from "@/src/components/trace/SpanItem";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { api } from "@/src/utils/api";
 
-export const TraceTree = ({
+const TraceTreeComponent = ({
   tree,
   collapsedNodes,
   toggleCollapsedNode,
@@ -145,6 +145,9 @@ export const TraceTree = ({
     </div>
   );
 };
+
+TraceTreeComponent.whyDidYouRender = true;
+export const TraceTree = TraceTreeComponent;
 
 type TreeNodeComponentProps = {
   node: TreeNode;
@@ -381,3 +384,4 @@ const UnmemoizedTreeNodeComponent = ({
 };
 
 const TreeNodeComponent = UnmemoizedTreeNodeComponent;
+TreeNodeComponent.whyDidYouRender = true;

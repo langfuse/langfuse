@@ -24,7 +24,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
-export function JSONView(props: {
+function JSONViewComponent(props: {
   canEnableMarkdown?: boolean;
   json?: unknown;
   title?: string;
@@ -194,6 +194,12 @@ export function JSONView(props: {
     </div>
   );
 }
+
+if (typeof window !== "undefined" && (window as any).whyDidYouRender) {
+  JSONViewComponent.whyDidYouRender = true;
+}
+
+export const JSONView = JSONViewComponent;
 
 export function CodeView(props: {
   content: string | React.ReactNode[] | undefined | null;
