@@ -169,68 +169,71 @@ export async function fetchWebhookWithSecureRedirects(
   const MAX_REDIRECTS = 5;
   let currentUrl = url;
   let redirectCount = 0;
+  let response: Response;
 
-  while (true) {
+  // Follow redirects manually to validate each destination
+  do {
     logger.debug(
       `Fetching webhook URL: ${currentUrl} (redirect ${redirectCount}/${MAX_REDIRECTS})`,
     );
 
     // Fetch with manual redirect handling
-    const response = await fetch(currentUrl, {
+    response = await fetch(currentUrl, {
       ...options,
       redirect: "manual",
     });
 
     // Check if response is a redirect (3xx status)
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-
-      if (!location) {
-        throw new Error(
-          `Webhook returned redirect status ${response.status} without Location header for url ${currentUrl}`,
-        );
-      }
-
-      // Resolve relative URLs against the current URL
-      const redirectUrl = new URL(location, currentUrl).href;
-
-      logger.info(
-        `Webhook redirect detected: ${currentUrl} -> ${redirectUrl} (attempt ${redirectCount + 1}/${MAX_REDIRECTS})`,
-      );
-
-      // Check redirect depth limit
-      redirectCount++;
-      if (redirectCount > MAX_REDIRECTS) {
-        throw new Error(
-          `Webhook exceeded maximum redirect limit of ${MAX_REDIRECTS}`,
-        );
-      }
-
-      // Validate the redirect destination URL to prevent SSRF
-      try {
-        await validateWebhookURL(redirectUrl);
-      } catch (validationError) {
-        logger.error(
-          `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
-          validationError,
-        );
-        throw new Error(
-          `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
-        );
-      }
-
-      // Update current URL and continue loop
-      currentUrl = redirectUrl;
-      continue;
+    const isRedirect = response.status >= 300 && response.status < 400;
+    if (!isRedirect) {
+      break;
     }
 
-    // Not a redirect, return the response
-    if (redirectCount > 0) {
-      logger.info(
-        `Webhook successfully followed ${redirectCount} redirect(s) to ${currentUrl}`,
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error(
+        `Webhook returned redirect status ${response.status} without Location header for url ${currentUrl}`,
       );
     }
 
-    return response;
+    // Resolve relative URLs against the current URL
+    const redirectUrl = new URL(location, currentUrl).href;
+
+    logger.info(
+      `Webhook redirect detected: ${currentUrl} -> ${redirectUrl} (attempt ${redirectCount + 1}/${MAX_REDIRECTS})`,
+    );
+
+    // Check redirect depth limit
+    redirectCount++;
+    if (redirectCount > MAX_REDIRECTS) {
+      throw new Error(
+        `Webhook exceeded maximum redirect limit of ${MAX_REDIRECTS}`,
+      );
+    }
+
+    // Validate the redirect destination URL to prevent SSRF
+    try {
+      await validateWebhookURL(redirectUrl);
+    } catch (validationError) {
+      logger.error(
+        `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
+        validationError,
+      );
+      throw new Error(
+        `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
+      );
+    }
+
+    // Update current URL for next iteration
+    currentUrl = redirectUrl;
+  } while (redirectCount <= MAX_REDIRECTS);
+
+  // Log success if we followed redirects
+  if (redirectCount > 0) {
+    logger.info(
+      `Webhook successfully followed ${redirectCount} redirect(s) to ${currentUrl}`,
+    );
   }
+
+  return response;
 }
