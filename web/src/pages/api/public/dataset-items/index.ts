@@ -92,8 +92,15 @@ export default withMiddlewares({
     responseSchema: GetDatasetItemsV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const { datasetName, sourceTraceId, sourceObservationId, page, limit } =
-        query;
+      const {
+        datasetName,
+        sourceTraceId,
+        sourceObservationId,
+        page,
+        limit,
+        includeArchived,
+      } = query;
+      const shouldIncludeArchived = includeArchived ?? false;
 
       let datasetId: string | undefined = undefined;
       if (datasetName) {
@@ -119,6 +126,7 @@ export default withMiddlewares({
             },
             sourceTraceId: sourceTraceId ?? undefined,
             sourceObservationId: sourceObservationId ?? undefined,
+            status: shouldIncludeArchived ? undefined : "ACTIVE",
           },
           take: limit,
           skip: (page - 1) * limit,
@@ -144,6 +152,7 @@ export default withMiddlewares({
           },
           sourceTraceId: sourceTraceId ?? undefined,
           sourceObservationId: sourceObservationId ?? undefined,
+          status: shouldIncludeArchived ? undefined : "ACTIVE",
         },
       });
 

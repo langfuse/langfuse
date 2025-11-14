@@ -179,6 +179,7 @@ export const GetDatasetItemsV1Query = z.object({
   datasetName: z.string().nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
+  includeArchived: z.coerce.boolean().optional(),
   ...publicApiPaginationZod,
 });
 export const GetDatasetItemsV1Response = z
