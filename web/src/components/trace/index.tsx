@@ -613,7 +613,7 @@ export function Trace(props: {
 
             {/* Preview Panel - Mobile */}
             <div className="flex-1 pt-4">
-              <div className="h-full pl-3">{previewContent}</div>
+              <div className="h-full">{previewContent}</div>
             </div>
           </div>
         )}
@@ -1003,7 +1003,7 @@ export function Trace(props: {
                 defaultSize={70}
                 className="min-w-56 overflow-hidden md:h-full"
               >
-                <div className="h-full pl-3">{previewContent}</div>
+                <div className="h-full">{previewContent}</div>
               </ResizablePanel>
             </ResizablePanelGroup>
           </div>

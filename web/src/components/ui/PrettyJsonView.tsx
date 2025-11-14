@@ -1047,67 +1047,78 @@ export function PrettyJsonView(props: {
   const body = (
     <>
       {emptyValueDisplay && isPrettyView ? (
-        <div
-          className={cn(
-            "flex items-center",
-            getContainerClasses(
-              props.title,
-              props.scrollable,
-              props.codeClassName,
-            ),
-          )}
-        >
+        <div className="io-message-content">
+          <div
+            className={cn(
+              "flex items-center",
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+              ),
+            )}
+          >
+            {props.isLoading ? (
+              <Skeleton className="h-3 w-3/4" />
+            ) : (
+              <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
+                {emptyValueDisplay}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : isMarkdownMode ? (
+        <div className="io-message-content">
           {props.isLoading ? (
             <Skeleton className="h-3 w-3/4" />
           ) : (
-            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
-              {emptyValueDisplay}
-            </span>
+            <MarkdownView markdown={markdownContent || ""} />
           )}
         </div>
-      ) : isMarkdownMode ? (
-        props.isLoading ? (
-          <Skeleton className="h-3 w-3/4" />
-        ) : (
-          <MarkdownView markdown={markdownContent || ""} />
-        )
       ) : (
         <>
           {/* Always render JsonPrettyTable to preserve internal React Table state */}
           <div
-            className={getContainerClasses(
-              props.title,
-              props.scrollable,
-              props.codeClassName,
-              "flex whitespace-pre-wrap break-words text-xs",
-            )}
+            className="io-message-content"
             style={{ display: shouldUseTableView ? "flex" : "none" }}
           >
-            {props.isLoading ? (
-              <Skeleton className="m-3 h-3 w-3/4" />
-            ) : (
-              <JsonPrettyTable
-                data={tableData}
-                expandAllRef={expandAllRef}
-                onExpandStateChange={setAllRowsExpanded}
-                noBorder={true}
-                expanded={
-                  actualExpansionState === false ? {} : actualExpansionState
-                }
-                onExpandedChange={handleTableExpandedChange}
-                onLazyLoadChildren={handleLazyLoadChildren}
-                onForceUpdate={handleForceUpdate}
-                smartDefaultsLevel={null}
-                expandedCells={expandedCells}
-                toggleCellExpansion={toggleCellExpansion}
-                stickyTopLevelKey={props.stickyTopLevelKey}
-                showObservationTypeBadge={props.showObservationTypeBadge}
-              />
-            )}
+            <div
+              className={getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+                "flex whitespace-pre-wrap break-words text-xs",
+              )}
+            >
+              {props.isLoading ? (
+                <Skeleton className="m-3 h-3 w-3/4" />
+              ) : (
+                <JsonPrettyTable
+                  data={tableData}
+                  expandAllRef={expandAllRef}
+                  onExpandStateChange={setAllRowsExpanded}
+                  noBorder={true}
+                  expanded={
+                    actualExpansionState === false ? {} : actualExpansionState
+                  }
+                  onExpandedChange={handleTableExpandedChange}
+                  onLazyLoadChildren={handleLazyLoadChildren}
+                  onForceUpdate={handleForceUpdate}
+                  smartDefaultsLevel={null}
+                  expandedCells={expandedCells}
+                  toggleCellExpansion={toggleCellExpansion}
+                  stickyTopLevelKey={props.stickyTopLevelKey}
+                  showObservationTypeBadge={props.showObservationTypeBadge}
+                />
+              )}
+            </div>
           </div>
 
           {/* Always render JSONView to preserve its state too */}
-          <div style={{ display: shouldUseTableView ? "none" : "block" }}>
+          <div
+            className="io-message-content"
+            style={{ display: shouldUseTableView ? "none" : "block" }}
+          >
             <JSONView
               json={props.json}
               title={props.title} // Title value used for background styling

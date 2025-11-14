@@ -245,7 +245,7 @@ export const TraceLogView = ({
   // prevents partial rendering and improves performance
   if (isLoading) {
     return (
-      <div className="flex h-full w-full flex-col overflow-hidden pr-3">
+      <div className="flex h-full w-full flex-col overflow-hidden px-2">
         <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
           <div className="rounded-md border p-4">
             <div className="text-sm text-muted-foreground">
@@ -258,8 +258,8 @@ export const TraceLogView = ({
   }
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden pr-3">
-      <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+    <div className="flex h-full w-full flex-col overflow-hidden pr-2">
+      <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto px-2">
         <PrettyJsonView
           key="trace-log-view"
           title="Concatenated Observation Log"
