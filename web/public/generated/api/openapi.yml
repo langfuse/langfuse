@@ -192,6 +192,33 @@ paths:
           schema:
             $ref: '#/components/schemas/AnnotationQueueStatus'
             nullable: true
+        - name: traceIds
+          in: query
+          description: Filter by trace IDs
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+            nullable: true
+        - name: observationIds
+          in: query
+          description: Filter by observation IDs
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+            nullable: true
+        - name: sessionIds
+          in: query
+          description: Filter by session IDs
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+            nullable: true
         - name: page
           in: query
           description: page number, starts at 1
