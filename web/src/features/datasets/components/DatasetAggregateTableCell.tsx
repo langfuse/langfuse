@@ -23,6 +23,8 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
+import DiffViewer from "@/src/components/DiffViewer";
+import { type Prisma } from "@langfuse/shared";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -31,6 +33,7 @@ const DatasetAggregateCellContent = ({
   serverScoreColumns,
   scoreDiffs,
   baselineRunValue,
+  expectedOutput,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
@@ -38,10 +41,11 @@ const DatasetAggregateCellContent = ({
   serverScoreColumns: ScoreColumn[];
   scoreDiffs?: Record<string, BaselineDiff>;
   baselineRunValue?: EnrichedDatasetRunItem;
+  expectedOutput?: Prisma.JsonValue;
 }) => {
   const router = useRouter();
   const silentHttpCodes = [404];
-  const { selectedFields } = useDatasetCompareFields();
+  const { selectedFields, showDiffMode } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
 
   const hasAnnotationWriteAccess = useHasProjectAccess({
@@ -54,7 +58,7 @@ const DatasetAggregateCellContent = ({
 
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
-    { traceId: value.trace.id, projectId },
+    { traceId: value.trace.id, projectId, verbosity: "compact" },
     {
       enabled: value.observation === undefined,
       trpc: {
@@ -158,12 +162,25 @@ const DatasetAggregateCellContent = ({
             itemType={value.observation ? "observation" : "trace"}
             singleLine={false}
           />
+        ) : showDiffMode &&
+          expectedOutput !== null &&
+          expectedOutput !== undefined ? (
+          <div className="h-full w-full p-2">
+            <DiffViewer
+              oldString={JSON.stringify(expectedOutput, null, 2)}
+              newString={JSON.stringify(data?.output ?? null, null, 2)}
+              viewType="combined"
+              size="xs"
+              oldLabel="Expected"
+              newLabel="Actual"
+            />
+          </div>
         ) : (
           <MemoizedIOTableCell
             isLoading={isLoading || !data}
             data={data?.output ?? "null"}
             className={"min-h-8 bg-accent-light-green"}
-            singleLine={false}
+            singleLine
             enableExpandOnHover
           />
         )}
@@ -265,11 +282,13 @@ const DatasetAggregateCellAgainstBaseline = ({
   projectId,
   serverScoreColumns,
   baselineRunValue,
+  expectedOutput,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
   serverScoreColumns: ScoreColumn[];
   baselineRunValue: EnrichedDatasetRunItem;
+  expectedOutput?: Prisma.JsonValue;
 }) => {
   // Merge cached score writes into aggregates for optimistic display
   const displayScores = useMergedAggregates(
@@ -298,6 +317,7 @@ const DatasetAggregateCellAgainstBaseline = ({
       scores={displayScores}
       scoreDiffs={scoreDiffs}
       baselineRunValue={baselineRunValue}
+      expectedOutput={expectedOutput}
     />
   );
 };
@@ -306,10 +326,12 @@ const DatasetAggregateCell = ({
   value,
   projectId,
   serverScoreColumns,
+  expectedOutput,
 }: {
   projectId: string;
   value: EnrichedDatasetRunItem;
   serverScoreColumns: ScoreColumn[];
+  expectedOutput?: Prisma.JsonValue;
 }) => {
   // Merge cached score writes into aggregates for optimistic display
   const displayScores = useMergedAggregates(
@@ -324,6 +346,7 @@ const DatasetAggregateCell = ({
       value={value}
       serverScoreColumns={serverScoreColumns}
       scores={displayScores}
+      expectedOutput={expectedOutput}
     />
   );
 };
@@ -334,6 +357,7 @@ type DatasetAggregateTableCellProps = {
   serverScoreColumns: ScoreColumn[];
   isBaselineRun: boolean;
   baselineRunValue?: EnrichedDatasetRunItem;
+  expectedOutput?: Prisma.JsonValue;
 };
 
 export const DatasetAggregateTableCell = ({
@@ -342,6 +366,7 @@ export const DatasetAggregateTableCell = ({
   serverScoreColumns,
   isBaselineRun,
   baselineRunValue,
+  expectedOutput,
 }: DatasetAggregateTableCellProps) => {
   return baselineRunValue && !isBaselineRun ? (
     <DatasetAggregateCellAgainstBaseline
@@ -349,12 +374,14 @@ export const DatasetAggregateTableCell = ({
       value={value}
       serverScoreColumns={serverScoreColumns}
       baselineRunValue={baselineRunValue}
+      expectedOutput={expectedOutput}
     />
   ) : (
     <DatasetAggregateCell
       projectId={projectId}
       value={value}
       serverScoreColumns={serverScoreColumns}
+      expectedOutput={expectedOutput}
     />
   );
 };

@@ -3,7 +3,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition } from "@langfuse/shared";
+import { Prisma, type ColumnDefinition } from "@langfuse/shared";
 import { type FilterState } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
@@ -20,12 +20,14 @@ function DatasetAggregateCellWithBaselineDetection({
   runId,
   projectId,
   serverScoreColumns,
+  expectedOutput,
 }: {
   value: EnrichedDatasetRunItem;
   runData: Record<string, EnrichedDatasetRunItem>;
   runId: string;
   projectId: string;
   serverScoreColumns?: ScoreColumn[];
+  expectedOutput?: Prisma.JsonValue;
 }) {
   const router = useRouter();
   const baselineRunId = router.query.baseline as string | undefined;
@@ -41,6 +43,7 @@ function DatasetAggregateCellWithBaselineDetection({
       serverScoreColumns={serverScoreColumns ?? []}
       isBaselineRun={isBaselineRun}
       baselineRunValue={baselineRunValue}
+      expectedOutput={expectedOutput}
     />
   );
 }
@@ -223,6 +226,7 @@ export const constructDatasetRunAggregateColumns = ({
             runId={id}
             projectId={projectId}
             serverScoreColumns={serverScoreColumns}
+            expectedOutput={row.original.expectedOutput}
           />
         );
       },

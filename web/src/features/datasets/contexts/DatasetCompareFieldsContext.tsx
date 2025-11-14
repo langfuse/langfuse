@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { useQueryParams, withDefault, BooleanParam } from "use-query-params";
 
 const DATASET_RUN_FIELDS = ["output", "scores", "resourceMetrics"] as const;
 export type DatasetRunField = (typeof DATASET_RUN_FIELDS)[number];
@@ -8,6 +9,8 @@ interface DatasetCompareFieldsContextValue {
   setSelectedFields: (fields: DatasetRunField[]) => void;
   toggleField: (field: DatasetRunField) => void;
   isFieldSelected: (field: DatasetRunField) => boolean;
+  showDiffMode: boolean;
+  setShowDiffMode: (show: boolean) => void;
 }
 
 const DatasetCompareFieldsContext = createContext<
@@ -26,6 +29,14 @@ export function DatasetCompareFieldsProvider({
   const [selectedFields, setSelectedFields] =
     useState<DatasetRunField[]>(defaultFields);
 
+  const [{ showDiff }, setQueryParams] = useQueryParams({
+    showDiff: withDefault(BooleanParam, false),
+  });
+
+  const setShowDiffMode = (show: boolean) => {
+    setQueryParams({ showDiff: show });
+  };
+
   const toggleField = (field: DatasetRunField) => {
     setSelectedFields((prev) =>
       prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field],
@@ -43,6 +54,8 @@ export function DatasetCompareFieldsProvider({
         setSelectedFields,
         toggleField,
         isFieldSelected,
+        showDiffMode: showDiff ?? false,
+        setShowDiffMode,
       }}
     >
       {children}

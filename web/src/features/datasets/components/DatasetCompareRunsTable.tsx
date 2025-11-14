@@ -19,6 +19,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { Switch } from "@/src/components/ui/switch";
+import { Label } from "@/src/components/ui/label";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import {
@@ -46,7 +48,8 @@ function DatasetCompareRunsTableInternal(props: {
   runIds: string[];
   localExperiments: { key: string; value: string }[];
 }) {
-  const { toggleField, isFieldSelected } = useDatasetCompareFields();
+  const { toggleField, isFieldSelected, showDiffMode, setShowDiffMode } =
+    useDatasetCompareFields();
   const [isFieldsDropdownOpen, setIsFieldsDropdownOpen] = useState(false);
   const {
     updateColumnFilters: updateRunFilters,
@@ -218,39 +221,51 @@ function DatasetCompareRunsTableInternal(props: {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={
-          <DropdownMenu open={isFieldsDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                onClick={() => setIsFieldsDropdownOpen(!isFieldsDropdownOpen)}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="diff-mode"
+                checked={showDiffMode}
+                onCheckedChange={setShowDiffMode}
+              />
+              <Label htmlFor="diff-mode" className="text-sm font-normal">
+                Show Diff
+              </Label>
+            </div>
+            <DropdownMenu open={isFieldsDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsFieldsDropdownOpen(!isFieldsDropdownOpen)}
+                >
+                  <LayoutList className="mr-2 h-4 w-4" />
+                  <span>Fields</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                onPointerDownOutside={() => setIsFieldsDropdownOpen(false)}
               >
-                <LayoutList className="mr-2 h-4 w-4" />
-                <span>Fields</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              onPointerDownOutside={() => setIsFieldsDropdownOpen(false)}
-            >
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("output")}
-                onCheckedChange={() => toggleField("output")}
-              >
-                Output
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("scores")}
-                onCheckedChange={() => toggleField("scores")}
-              >
-                Scores
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={isFieldSelected("resourceMetrics")}
-                onCheckedChange={() => toggleField("resourceMetrics")}
-              >
-                Latency and cost
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuCheckboxItem
+                  checked={isFieldSelected("output")}
+                  onCheckedChange={() => toggleField("output")}
+                >
+                  Output
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={isFieldSelected("scores")}
+                  onCheckedChange={() => toggleField("scores")}
+                >
+                  Scores
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={isFieldSelected("resourceMetrics")}
+                  onCheckedChange={() => toggleField("resourceMetrics")}
+                >
+                  Latency and cost
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
       />
       <FilteredRunPills
