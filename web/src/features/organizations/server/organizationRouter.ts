@@ -150,7 +150,7 @@ export const organizationsRouter = createTRPCRouter({
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
-            "Deletion of your projects is still being processed, please try deleting the org later",
+            "Deletion of your projects is still being processed, please try deleting the organization later",
         });
       }
 

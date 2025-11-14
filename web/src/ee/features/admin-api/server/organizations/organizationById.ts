@@ -190,7 +190,7 @@ export async function handleDeleteOrganization(
     return res.status(400).json({
       error: "Cannot delete organization with existing projects",
       message:
-        "Deletion of your projects is still being processed, please try deleting the org later",
+        "Deletion of your projects is still being processed, please try deleting the organization later",
     });
   }
 
