@@ -15,6 +15,7 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
+import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
@@ -177,6 +178,16 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   const renderContent = () => {
+    // Handle deleted object (trace/observation/session not found)
+    if (objectData.isError && objectData.errorCode === "NOT_FOUND") {
+      return (
+        <ObjectNotFoundCard
+          type={relevantItem?.objectType ?? AnnotationQueueObjectType.TRACE}
+        />
+      );
+    }
+
+    // Handle deleted queue item
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
@@ -258,7 +269,9 @@ export const AnnotationQueueItemPage: React.FC<{
                 onClick={handleComplete}
                 size="lg"
                 className="w-full"
-                disabled={completeMutation.isPending || !hasAccess}
+                disabled={
+                  completeMutation.isPending || !hasAccess || objectData.isError
+                }
               >
                 {isSingleItem || progressIndex + 1 === totalItems
                   ? "Complete"

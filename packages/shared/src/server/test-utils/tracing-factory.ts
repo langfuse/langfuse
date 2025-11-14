@@ -114,6 +114,7 @@ export const createTraceScore = (
     name: "test-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    string_value: null,
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },

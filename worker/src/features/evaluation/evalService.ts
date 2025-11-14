@@ -44,7 +44,7 @@ import {
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   JobTimeScope,
-  ScoreSource,
+  ScoreSourceEnum,
   availableTraceEvalVariables,
   variableMapping,
   TraceDomain,
@@ -56,6 +56,7 @@ import { compileHandlebarString, createW3CTraceId } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 
 let s3StorageServiceClient: StorageService;
 
@@ -475,11 +476,12 @@ export const createEvalJobs = async ({
       );
       if (!observationExists) {
         logger.warn(
-          `Observation ${observationId} not found, retrying dataset eval later`,
+          `Observation ${observationId} not found, will retry with exponential backoff`,
         );
-        throw new Error(
-          "Observation not found. Rejecting job to use retry-attempts.",
-        );
+        throw new ObservationNotFoundError({
+          message: "Observation not found, retrying later",
+          observationId,
+        });
       }
     }
 
@@ -806,7 +808,7 @@ export const evaluate = async ({
     name: config.scoreName,
     value: parsedLLMOutput.data.score,
     comment: parsedLLMOutput.data.reasoning,
-    source: ScoreSource.EVAL,
+    source: ScoreSourceEnum.EVAL,
     environment: environment ?? "default",
     executionTraceId: executionTraceId,
     metadata: executionMetadata,

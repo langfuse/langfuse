@@ -51,6 +51,10 @@ import {
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
 import { env } from "@/src/env.mjs";
+import {
+  toDomainWithStringifiedMetadata,
+  toDomainArrayWithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -248,7 +252,7 @@ export const traceRouter = createTRPCRouter({
         projectId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
-        truncated: z.boolean().default(false), // used to truncate the input and output
+        verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
     )
     .query(async ({ ctx }) => {
@@ -316,22 +320,15 @@ export const traceRouter = createTRPCRouter({
           : undefined;
 
       return {
-        ...ctx.trace,
-        metadata: ctx.trace.metadata
-          ? JSON.stringify(ctx.trace.metadata)
-          : null,
+        ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: validatedScores.map((s) => ({
-          ...s,
-          metadata: s.metadata ? JSON.stringify(s.metadata) : undefined,
-        })),
+        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
-          ...o,
+          ...toDomainWithStringifiedMetadata(o),
           output: undefined,
           input: undefined, // this is not queried above.
-          metadata: o.metadata ? JSON.stringify(o.metadata) : undefined,
         })) as ObservationReturnTypeWithMetadata[],
       };
     }),

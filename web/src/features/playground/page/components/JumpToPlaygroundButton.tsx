@@ -9,8 +9,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { Switch } from "@/src/components/ui/switch";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -40,6 +42,10 @@ import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverte
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import {
+  type MetadataDomainClient,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -49,10 +55,12 @@ type JumpToPlaygroundButtonProps = (
     }
   | {
       source: "generation";
-      generation: Omit<Observation, "input" | "output" | "metadata"> & {
+      generation: Omit<
+        WithStringifiedMetadata<Observation>,
+        "input" | "output"
+      > & {
         input: string | null;
         output: string | null;
-        metadata: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
@@ -70,6 +78,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const [includeOutput, setIncludeOutput] = useState<boolean>(false);
 
   // Generate a stable window ID based on the source data
   const stableWindowId = useMemo(() => {
@@ -117,9 +126,11 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     if (promptData) {
       setCapturedState(parsePrompt(promptData));
     } else if (generationData) {
-      setCapturedState(parseGeneration(generationData, modelToProviderMap));
+      setCapturedState(
+        parseGeneration(generationData, modelToProviderMap, includeOutput),
+      );
     }
-  }, [promptData, generationData, modelToProviderMap]);
+  }, [promptData, generationData, modelToProviderMap, includeOutput]);
 
   useEffect(() => {
     if (capturedState) {
@@ -205,6 +216,18 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
           <Terminal className="mr-2 h-4 w-4" />
           Add to existing
         </DropdownMenuItem>
+        {props.source === "generation" && (
+          <>
+            <DropdownMenuSeparator />
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className="text-sm">Include output</span>
+              <Switch
+                checked={includeOutput}
+                onCheckedChange={setIncludeOutput}
+              />
+            </div>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -248,12 +271,12 @@ const parsePrompt = (
 };
 
 const parseGeneration = (
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
   modelToProviderMap: Record<string, string>,
+  includeOutput: boolean = false,
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
@@ -263,6 +286,7 @@ const parseGeneration = (
     generation.output,
     generation.metadata,
   );
+
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
@@ -346,41 +370,45 @@ const parseGeneration = (
             )
         : [];
 
-      // process output for final assistant message
-      // this doesn't make that much sense, because the output is already the LLM result
-      // but some people wanted to have the entire thing, so that they can then iterate
-      // on the final result (e.g. ask it questions).
-      // NOTE: will probably remove later at some point on next playground release
-      let output = generation.output?.valueOf();
-      if (output && typeof output === "string") {
-        try {
-          output = JSON.parse(output);
-        } catch {
-          // ignore parse errors
+      if (includeOutput) {
+        // process output for final assistant message
+        // this doesn't make that much sense, because the output is already the LLM result
+        // but some people wanted to have the entire thing, so that they can then iterate
+        // on the final result (e.g. ask it questions).
+        // NOTE: will probably remove later at some point on next playground release
+        let output = generation.output?.valueOf();
+        if (output && typeof output === "string") {
+          try {
+            output = JSON.parse(output);
+          } catch {
+            // ignore parse errors
+          }
         }
-      }
 
-      if (output && typeof output === "object") {
-        try {
-          const outResult = normalizeOutput(output, ctx);
-          const outputMessages = outResult.success
-            ? outResult.data
-                .map(convertChatMlToPlayground)
-                .filter(
-                  (msg): msg is ChatMessage | PlaceholderMessage =>
-                    msg !== null,
-                )
-                // Filter tool calls without results (i.e. assistant messages with tool_calls but no results)
-                // here, a tool was just selected by an LLM but not called yet.
-                // we don't want this in the playground, because we a) cannot run the playground
-                // and b) if we jump to the playground, we exactly want to test if the LLM selects the tool
-                .filter((msg) => msg.type !== ChatMessageType.AssistantToolCall)
-            : [];
+        if (output && typeof output === "object") {
+          try {
+            const outResult = normalizeOutput(output, ctx);
+            const outputMessages = outResult.success
+              ? outResult.data
+                  .map(convertChatMlToPlayground)
+                  .filter(
+                    (msg): msg is ChatMessage | PlaceholderMessage =>
+                      msg !== null,
+                  )
+                  // Filter tool calls without results (i.e. assistant messages with tool_calls but no results)
+                  // here, a tool was just selected by an LLM but not called yet.
+                  // we don't want this in the playground, because we a) cannot run the playground
+                  // and b) if we jump to the playground, we exactly want to test if the LLM selects the tool
+                  .filter(
+                    (msg) => msg.type !== ChatMessageType.AssistantToolCall,
+                  )
+              : [];
 
-          // Append output messages to input messages
-          messages = [...messages, ...outputMessages];
-        } catch {
-          // ignore output processing errors
+            // Append output messages to input messages
+            messages = [...messages, ...outputMessages];
+          } catch {
+            // ignore output processing errors
+          }
         }
       }
 
@@ -454,7 +482,7 @@ function parseModelParams(
 function parseTools(
   inputString: string | null,
   outputString: string | null,
-  metadataString: string | null,
+  metadataString: MetadataDomainClient,
 ): PlaygroundTool[] {
   if (!inputString && !outputString && !metadataString) return [];
 
@@ -478,10 +506,9 @@ function parseTools(
 }
 
 function parseStructuredOutputSchema(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
 ): PlaygroundSchema | null {
   try {
@@ -550,10 +577,9 @@ function parseStructuredOutputSchema(
  * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
  */
 function parseLitellmMetadataFromGeneration(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
 ): UIModelParams["providerOptions"]["value"] | undefined {
   let metadata: unknown = generation.metadata;

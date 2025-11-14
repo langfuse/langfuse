@@ -19,6 +19,7 @@ import {
   timeFilter,
   isClickhouseFilterColumn,
   optionalPaginationZod,
+  LangfuseConflictError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -61,11 +62,50 @@ import {
 } from "@langfuse/shared/src/server";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 
+/**
+ * Remove problematic C0 and C1 control characters from string values.
+ * PostgreSQL TEXT columns cannot store NULL byte (\u0000) and other control characters.
+ * Preserves common characters like newlines and tabs.
+ */
+const cleanControlChars = (input: string): string => {
+  if (!input) return input;
+
+  // Remove control characters:
+  // \u0000-\u0008: NULL through backspace
+  // \u000B: vertical tab (preserve \n=\u000A, \t=\u0009, \r=\u000D)
+  // \u000E-\u001F: shift out through unit separator
+  // \u007F-\u009F: DEL + C1 controls
+  return input.replace(/[\u0000-\u0008\u000B\u000E-\u001F\u007F-\u009F]/g, "");
+};
+
+/**
+ * Recursively clean control characters from all string values in a JSON structure.
+ * This handles strings within objects and arrays after JSON.parse.
+ */
+const sanitizeJsonValue = (value: unknown): unknown => {
+  if (typeof value === "string") {
+    return cleanControlChars(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeJsonValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, sanitizeJsonValue(v)]),
+    );
+  }
+  return value;
+};
+
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
 
   try {
-    return !!data ? (JSON.parse(data) as Prisma.InputJsonObject) : undefined;
+    const parsed = !!data ? JSON.parse(data) : undefined;
+    // Sanitize control characters from parsed object before sending to PostgreSQL
+    return parsed
+      ? (sanitizeJsonValue(parsed) as Prisma.InputJsonObject)
+      : undefined;
   } catch (e) {
     logger.info(
       "[trpc.datasets.formatDatasetItemData] failed to parse dataset item data",
@@ -670,7 +710,7 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,
-          excludeMetadata: false,
+          excludeMetadata: true,
         }),
       ]);
 
@@ -1066,30 +1106,42 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const deletedDataset = await ctx.prisma.dataset.delete({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
+      try {
+        const deletedDataset = await ctx.prisma.dataset.delete({
+          where: {
+            id_projectId: {
+              id: input.datasetId,
+              projectId: input.projectId,
+            },
           },
-        },
-      });
+        });
 
-      await addToDeleteDatasetQueue({
-        deletionType: "dataset",
-        projectId: input.projectId,
-        datasetId: deletedDataset.id,
-      });
+        await addToDeleteDatasetQueue({
+          deletionType: "dataset",
+          projectId: input.projectId,
+          datasetId: deletedDataset.id,
+        });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "dataset",
-        resourceId: deletedDataset.id,
-        action: "delete",
-        before: deletedDataset,
-      });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "dataset",
+          resourceId: deletedDataset.id,
+          action: "delete",
+          before: deletedDataset,
+        });
 
-      return deletedDataset;
+        return deletedDataset;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          throw new LangfuseConflictError(
+            "The dataset you are trying to delete has likely been deleted",
+          );
+        }
+        throw error;
+      }
     }),
 
   deleteDatasetItem: protectedProjectProcedure
@@ -1628,6 +1680,14 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
+
+      if (runIds.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+        };
+      }
+
       // Step 1: Return dataset item ids for which the run items match the filters
       const datasetItemIds = await getDatasetItemIdsWithRunData({
         projectId: input.projectId,

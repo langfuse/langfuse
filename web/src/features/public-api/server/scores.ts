@@ -1,6 +1,6 @@
 import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src/server";
 import {
-  convertToScore,
+  convertClickhouseScoreToDomain,
   StringFilter,
   type ScoreRecordReadType,
   queryClickhouse,
@@ -139,7 +139,7 @@ export const _handleGenerateScoresForPublicApi = async ({
       });
 
       return records.map((record) => ({
-        ...convertToScore(record),
+        ...convertClickhouseScoreToDomain(record),
         trace:
           record.trace_id !== null
             ? {
