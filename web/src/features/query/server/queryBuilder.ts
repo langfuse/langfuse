@@ -143,7 +143,27 @@ export class QueryBuilder {
           }
         }
       }
-
+      // Validate filters on measure/metric fields
+      else if (filter.column in view.measures) {
+        const measure = view.measures[filter.column];
+        // Measures should use number filters for numeric types, string filters for string types
+        // Most measures are numeric (integer, decimal), but we check the type
+        if (measure.type === "integer" || measure.type === "decimal") {
+          if (filter.type !== "number") {
+            throw new InvalidRequestError(
+              `Invalid filter for metric '${filter.column}': Numeric metrics require type 'number', not '${filter.type}'. ` +
+                `Use operators like '=', '>', '<', '>=', '<=' with a numeric value.`,
+            );
+          }
+        } else if (measure.type === "string") {
+          if (filter.type !== "string") {
+            throw new InvalidRequestError(
+              `Invalid filter for metric '${filter.column}': String metrics require type 'string', not '${filter.type}'.`,
+            );
+          }
+        }
+        // Note: We don't validate other types here as they're less common
+      }
       // Special validation for metadata filters
       else if (filter.column === "metadata") {
         if (filter.type !== "stringObject") {
@@ -182,8 +202,20 @@ export class QueryBuilder {
     // Validate all filters before processing
     this.validateFilters(filters, view);
 
-    // Transform our filters to match the column mapping format expected by createFilterFromFilterState
-    const columnMappings = filters.map((filter) => {
+    // Separate dimension filters from metric filters
+    const dimensionFilters: z.infer<typeof queryModel>["filters"] = [];
+    const metricFilters: z.infer<typeof queryModel>["filters"] = [];
+
+    filters.forEach((filter) => {
+      if (filter.column in view.measures) {
+        metricFilters.push(filter);
+      } else {
+        dimensionFilters.push(filter);
+      }
+    });
+
+    // Transform dimension filters to match the column mapping format expected by createFilterFromFilterState
+    const dimensionColumnMappings = dimensionFilters.map((filter) => {
       let clickhouseSelect: string;
       let queryPrefix: string = "";
       let clickhouseTableName: string = view.name;
@@ -196,14 +228,6 @@ export class QueryBuilder {
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }
-        // Filters on measures are underdefined and not allowed in the initial version
-        // } else if (filter.column in view.measures) {
-        //   const measure = view.measures[filter.column];
-        //   clickhouseSelect = measure.sql;
-        //   type = measure.type;
-        //   if (measure.relationTable) {
-        //     clickhouseTableName = measure.relationTable;
-        //   }
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
         queryPrefix = clickhouseTableName;
@@ -221,7 +245,7 @@ export class QueryBuilder {
         type = "string";
       } else {
         throw new InvalidRequestError(
-          `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${view.timeDimension}`,
+          `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)}, ${Object.keys(view.measures)}, or ${view.timeDimension}`,
         );
       }
 
@@ -235,8 +259,42 @@ export class QueryBuilder {
       };
     });
 
-    // Use the createFilterFromFilterState function to create proper Clickhouse filters
-    return createFilterFromFilterState(filters, columnMappings);
+    // Transform metric filters - these will use the metric alias from the SELECT clause
+    const metricColumnMappings = metricFilters.map((filter) => {
+      const measure = view.measures[filter.column];
+      // Use the alias from the measure, which matches what's in the SELECT clause
+      const clickhouseSelect = measure.alias || filter.column;
+      // Map measure types to filter types
+      let type: string;
+      if (measure.type === "integer" || measure.type === "decimal") {
+        type = "number";
+      } else if (measure.type === "string") {
+        type = "string";
+      } else {
+        // Default to number for other types
+        type = "number";
+      }
+
+      return {
+        uiTableName: filter.column,
+        uiTableId: filter.column,
+        clickhouseTableName: view.name, // Metric filters apply after grouping, so use view name
+        clickhouseSelect,
+        queryPrefix: "", // No prefix needed for HAVING clause
+        type,
+      };
+    });
+
+    return {
+      dimensionFilters: createFilterFromFilterState(
+        dimensionFilters,
+        dimensionColumnMappings,
+      ),
+      metricFilters: createFilterFromFilterState(
+        metricFilters,
+        metricColumnMappings,
+      ),
+    };
   }
 
   private addStandardFilters(
@@ -430,6 +488,22 @@ export class QueryBuilder {
     return ` WHERE ${query}`;
   }
 
+  private buildHavingClause(
+    filterList: FilterList,
+    parameters: Record<string, unknown>,
+  ) {
+    if (filterList.length() === 0) return "";
+
+    // Use the FilterList's apply method to get the query and parameters
+    const { query, params } = filterList.apply();
+
+    // Add all parameters to the main parameters object
+    Object.assign(parameters, params);
+
+    // Return the HAVING clause with the query
+    return ` HAVING ${query}`;
+  }
+
   private determineTimeGranularity(
     fromTimestamp: string,
     toTimestamp: string,
@@ -529,6 +603,7 @@ export class QueryBuilder {
     innerDimensionsPart: string,
     innerMetricsPart: string,
     fromClause: string,
+    havingClause: string,
   ) {
     return `
       SELECT
@@ -537,7 +612,7 @@ export class QueryBuilder {
         ${innerDimensionsPart}
         ${innerMetricsPart}
         ${fromClause}
-      GROUP BY ${view.name}.project_id, ${view.name}.id`;
+      GROUP BY ${view.name}.project_id, ${view.name}.id${havingClause}`;
   }
 
   private buildOuterDimensionsPart(
@@ -804,14 +879,43 @@ export class QueryBuilder {
 
     // Map dimensions and metrics
     const appliedDimensions = this.mapDimensions(query.dimensions, view);
-    const appliedMetrics = this.mapMetrics(query.metrics, view);
+    let appliedMetrics = this.mapMetrics(query.metrics, view);
 
-    // Create a new FilterList with the mapped filters
-    let filterList = new FilterList(this.mapFilters(query.filters, view));
+    // Map filters and separate dimension filters from metric filters
+    const mappedFilters = this.mapFilters(query.filters, view);
+    let dimensionFilterList = new FilterList(mappedFilters.dimensionFilters);
+    const metricFilterList = new FilterList(mappedFilters.metricFilters);
 
-    // Add standard filters (project_id, timestamps)
-    filterList = this.addStandardFilters(
-      filterList,
+    // If there are metric filters, ensure the filtered metrics are included in the SELECT
+    // so they're available in the HAVING clause
+    if (mappedFilters.metricFilters.length > 0) {
+      const filteredMetricNames = new Set(
+        mappedFilters.metricFilters.map((f) => f.column),
+      );
+      // Check which metrics are already selected by comparing measure names
+      const selectedMetricMeasures = new Set(
+        query.metrics.map((m) => m.measure),
+      );
+
+      // Add any filtered metrics that aren't already selected
+      filteredMetricNames.forEach((metricName) => {
+        if (!selectedMetricMeasures.has(metricName)) {
+          // Find the measure definition
+          if (metricName in view.measures) {
+            const measure = view.measures[metricName];
+            // Add it with a simple aggregation (we'll use the raw SQL in HAVING)
+            appliedMetrics.push({
+              ...measure,
+              aggregation: "avg" as z.infer<typeof metricAggregations>, // Use avg as default for filtering
+            });
+          }
+        }
+      });
+    }
+
+    // Add standard filters (project_id, timestamps) to dimension filters
+    dimensionFilterList = this.addStandardFilters(
+      dimensionFilterList,
       view,
       projectId,
       query.fromTimestamp,
@@ -821,25 +925,35 @@ export class QueryBuilder {
     // Build the FROM clause with necessary JOINs
     let fromClause = `FROM ${view.baseCte}`;
 
-    // Handle relation tables
-    const relationTables = this.collectRelationTables(
+    // Handle relation tables - collect from both dimension and metric filters
+    const dimensionRelationTables = this.collectRelationTables(
       view,
       appliedDimensions,
       appliedMetrics,
-      filterList,
+      dimensionFilterList,
     );
+    const metricRelationTables = this.collectRelationTables(
+      view,
+      appliedDimensions,
+      appliedMetrics,
+      metricFilterList,
+    );
+    const relationTables = new Set([
+      ...dimensionRelationTables,
+      ...metricRelationTables,
+    ]);
     if (relationTables.size > 0) {
       const relationJoins = this.buildJoins(
         relationTables,
         view,
-        filterList,
+        dimensionFilterList,
         query,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }
 
-    // Build WHERE clause with parameters
-    fromClause += this.buildWhereClause(filterList, parameters);
+    // Build WHERE clause with dimension filters
+    fromClause += this.buildWhereClause(dimensionFilterList, parameters);
 
     // Build inner SELECT parts
     const innerDimensionsPart = this.buildInnerDimensionsPart(
@@ -849,12 +963,16 @@ export class QueryBuilder {
     );
     const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
+    // Build HAVING clause with metric filters
+    const havingClause = this.buildHavingClause(metricFilterList, parameters);
+
     // Build inner SELECT
     const innerQuery = this.buildInnerSelect(
       view,
       innerDimensionsPart,
       innerMetricsPart,
       fromClause,
+      havingClause,
     );
 
     // Build outer SELECT parts

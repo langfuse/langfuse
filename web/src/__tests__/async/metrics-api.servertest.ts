@@ -630,4 +630,232 @@ describe("/api/public/metrics API Endpoint", () => {
       expect(Number(taggedTraceResult.count_count)).toBe(1);
     });
   });
+
+  describe("Metric value filtering", () => {
+    it("should filter observations by tokensPerSecond metric", async () => {
+      // Create observations with different tokensPerSecond values
+      const highTokensPerSecondTraceId = randomUUID();
+      const lowTokensPerSecondTraceId = randomUUID();
+
+      await createTracesCh([
+        createTrace({
+          id: highTokensPerSecondTraceId,
+          name: "high-tokens-trace",
+          project_id: projectId,
+          timestamp: now.getTime(),
+          metadata: { test: testMetadataValue },
+        }),
+        createTrace({
+          id: lowTokensPerSecondTraceId,
+          name: "low-tokens-trace",
+          project_id: projectId,
+          timestamp: now.getTime(),
+          metadata: { test: testMetadataValue },
+        }),
+      ]);
+
+      // Create observations with different durations to get different tokensPerSecond
+      // tokensPerSecond = totalTokens / duration_in_seconds
+      // For high tokensPerSecond: 1000 tokens / 1 second = 1000 tokens/s
+      // For low tokensPerSecond: 100 tokens / 10 seconds = 10 tokens/s
+      const highTokensObs = createObservation({
+        id: randomUUID(),
+        trace_id: highTokensPerSecondTraceId,
+        project_id: projectId,
+        name: "high-tokens-obs",
+        start_time: now.getTime(),
+        end_time: now.getTime() + 1000, // 1 second duration
+        usage_details: { total: 1000 },
+        metadata: { test: testMetadataValue },
+      });
+
+      const lowTokensObs = createObservation({
+        id: randomUUID(),
+        trace_id: lowTokensPerSecondTraceId,
+        project_id: projectId,
+        name: "low-tokens-obs",
+        start_time: now.getTime(),
+        end_time: now.getTime() + 10000, // 10 second duration
+        usage_details: { total: 100 },
+        metadata: { test: testMetadataValue },
+      });
+
+      await createObservationsCh([highTokensObs, lowTokensObs]);
+
+      // Test filtering by tokensPerSecond > 100
+      // Note: tokensPerSecond will be automatically included in SELECT for HAVING clause
+      const queryWithMetricFilter = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "test",
+            value: testMetadataValue,
+            type: "stringObject",
+          },
+          {
+            column: "tokensPerSecond",
+            operator: ">",
+            value: 100,
+            type: "number",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: twoDaysAgo.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(queryWithMetricFilter))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body.data)).toBe(true);
+      // Should only return the high tokens observation
+      expect(response.body.data.length).toBeGreaterThanOrEqual(1);
+      const highTokensResult = response.body.data.find(
+        (row: any) => row.name === "high-tokens-obs",
+      );
+      expect(highTokensResult).toBeDefined();
+      expect(Number(highTokensResult.count_count)).toBeGreaterThanOrEqual(1);
+
+      // Verify low tokens observation is not in results
+      const lowTokensResult = response.body.data.find(
+        (row: any) => row.name === "low-tokens-obs",
+      );
+      expect(lowTokensResult).toBeUndefined();
+    });
+
+    it("should filter observations by totalCost metric", async () => {
+      // Create observations with different costs
+      const highCostTraceId = randomUUID();
+      const lowCostTraceId = randomUUID();
+
+      await createTracesCh([
+        createTrace({
+          id: highCostTraceId,
+          name: "high-cost-trace",
+          project_id: projectId,
+          timestamp: now.getTime(),
+          metadata: { test: testMetadataValue },
+        }),
+        createTrace({
+          id: lowCostTraceId,
+          name: "low-cost-trace",
+          project_id: projectId,
+          timestamp: now.getTime(),
+          metadata: { test: testMetadataValue },
+        }),
+      ]);
+
+      const highCostObs = createObservation({
+        id: randomUUID(),
+        trace_id: highCostTraceId,
+        project_id: projectId,
+        name: "high-cost-obs",
+        start_time: now.getTime(),
+        total_cost: 1.5,
+        metadata: { test: testMetadataValue },
+      });
+
+      const lowCostObs = createObservation({
+        id: randomUUID(),
+        trace_id: lowCostTraceId,
+        project_id: projectId,
+        name: "low-cost-obs",
+        start_time: now.getTime(),
+        total_cost: 0.1,
+        metadata: { test: testMetadataValue },
+      });
+
+      await createObservationsCh([highCostObs, lowCostObs]);
+
+      // Test filtering by totalCost >= 1.0
+      // Note: totalCost will be automatically included in SELECT for HAVING clause
+      const queryWithCostFilter = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "test",
+            value: testMetadataValue,
+            type: "stringObject",
+          },
+          {
+            column: "totalCost",
+            operator: ">=",
+            value: 1.0,
+            type: "number",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: twoDaysAgo.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(queryWithCostFilter))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body.data)).toBe(true);
+      // Should only return the high cost observation
+      const highCostResult = response.body.data.find(
+        (row: any) => row.name === "high-cost-obs",
+      );
+      expect(highCostResult).toBeDefined();
+      expect(Number(highCostResult.count_count)).toBeGreaterThanOrEqual(1);
+
+      // Verify low cost observation is not in results
+      const lowCostResult = response.body.data.find(
+        (row: any) => row.name === "low-cost-obs",
+      );
+      expect(lowCostResult).toBeUndefined();
+    });
+
+    it("should return 400 for invalid metric filter type", async () => {
+      const invalidMetricFilterQuery = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "tokensPerSecond",
+            operator: ">",
+            value: 100,
+            type: "string", // Invalid: should be "number"
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: twoDaysAgo.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidMetricFilterQuery))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: "InvalidRequestError",
+        message: expect.stringContaining(
+          "Numeric metrics require type 'number'",
+        ),
+      });
+    });
+  });
 });
