@@ -66,6 +66,8 @@ export const ObservationSchema = z.object({
   level: ObservationLevelDomain,
   statusMessage: z.string().nullable(),
   version: z.string().nullable(),
+  userId: z.string().nullable(),
+  sessionId: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
   model: z.string().nullable(),

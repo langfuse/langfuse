@@ -1011,8 +1011,8 @@ export default function ObservationsEventsTable({
                 : JSON.stringify(observation.output)
               : undefined,
             metadata: observation.metadata,
-            userId: undefined, // TODO: map from observation data
-            sessionId: undefined, // TODO: map from observation data
+            userId: observation.userId ?? undefined,
+            sessionId: observation.sessionId ?? undefined,
             completionStartTime: observation.completionStartTime ?? undefined,
           };
         })

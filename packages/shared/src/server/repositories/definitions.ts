@@ -51,6 +51,8 @@ export const observationRecordBaseSchema = z.object({
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
+  user_id: z.string().nullish(),
+  session_id: z.string().nullish(),
   is_deleted: z.number(),
 });
 
