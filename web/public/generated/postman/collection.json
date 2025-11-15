@@ -2480,7 +2480,7 @@
                 {
                   "key": "name",
                   "value": "",
-                  "description": "The name of the prompt"
+                  "description": "The name of the prompt. If the prompt is in a folder (e.g., \"folder/subfolder/prompt-name\"), \nthe folder path must be URL encoded."
                 },
                 {
                   "key": "version",
@@ -2544,7 +2544,7 @@
                 {
                   "key": "promptName",
                   "value": "",
-                  "description": "The name of the prompt"
+                  "description": "The name of the prompt. If the prompt is in a folder (e.g., \"folder/subfolder/prompt-name\"), \nthe folder path must be URL encoded."
                 }
               ]
             },
