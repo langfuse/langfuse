@@ -66,6 +66,24 @@ const notifications: SidebarNotification[] = [
     createdAt: "2025-11-06",
   },
   {
+    id: "lw4-5",
+    title: "Launch Week 4: Day 5",
+    description:
+      "Score Analytics to validate and align all your evaluators in Langfuse, from human annotations to LLM-as-a-judge",
+    link: "https://langfuse.com/changelog/2025-11-07-score-analytics-multi-score-comparison",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-07",
+  },
+  {
+    id: "lw4-6",
+    title: "Launch Week 4: Day 6",
+    description:
+      "Schema enforcement for dataset items and folders to structure your data.",
+    link: "https://langfuse.com/blog/2025-10-29-launch-week-4#datasets",
+    linkTitle: "Learn more",
+    createdAt: "2025-11-08",
+  },
+  {
     id: "js-sdk-v4",
     title: "New JS/TS SDK v4",
     description:
