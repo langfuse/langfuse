@@ -153,3 +153,87 @@ function normalizeHostname(hostname: string): string {
 
   return normalized;
 }
+
+/**
+ * Fetches a webhook URL with secure redirect handling.
+ * Each redirect destination is validated to prevent SSRF attacks.
+ *
+ * @param url - The initial URL to fetch
+ * @param options - Fetch options (method, body, headers, signal)
+ * @returns The final Response after following redirects
+ */
+export async function fetchWebhookWithSecureRedirects(
+  url: string,
+  options: RequestInit,
+): Promise<Response> {
+  const MAX_REDIRECTS = 5;
+  let currentUrl = url;
+  let redirectCount = 0;
+  let response: Response;
+
+  // Follow redirects manually to validate each destination
+  do {
+    logger.debug(
+      `Fetching webhook URL: ${currentUrl} (redirect ${redirectCount}/${MAX_REDIRECTS})`,
+    );
+
+    // Fetch with manual redirect handling
+    response = await fetch(currentUrl, {
+      ...options,
+      redirect: "manual",
+    });
+
+    // Check if response is a redirect (3xx status)
+    const isRedirect = response.status >= 300 && response.status < 400;
+    if (!isRedirect) {
+      break;
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error(
+        `Webhook returned redirect status ${response.status} without Location header for url ${currentUrl}`,
+      );
+    }
+
+    // Resolve relative URLs against the current URL
+    const redirectUrl = new URL(location, currentUrl).href;
+
+    logger.info(
+      `Webhook redirect detected: ${currentUrl} -> ${redirectUrl} (attempt ${redirectCount + 1}/${MAX_REDIRECTS})`,
+    );
+
+    // Check redirect depth limit
+    redirectCount++;
+    if (redirectCount > MAX_REDIRECTS) {
+      throw new Error(
+        `Webhook exceeded maximum redirect limit of ${MAX_REDIRECTS}`,
+      );
+    }
+
+    // Validate the redirect destination URL to prevent SSRF
+    try {
+      await validateWebhookURL(redirectUrl);
+    } catch (validationError) {
+      logger.error(
+        `Webhook redirect validation failed: ${currentUrl} -> ${redirectUrl}`,
+        validationError,
+      );
+      throw new Error(
+        `Webhook redirect blocked for security reasons: ${redirectUrl} failed validation. ${validationError instanceof Error ? validationError.message : "Unknown error"}`,
+      );
+    }
+
+    // Update current URL for next iteration
+    currentUrl = redirectUrl;
+  } while (redirectCount <= MAX_REDIRECTS);
+
+  // Log success if we followed redirects
+  if (redirectCount > 0) {
+    logger.info(
+      `Webhook successfully followed ${redirectCount} redirect(s) to ${currentUrl}`,
+    );
+  }
+
+  return response;
+}
