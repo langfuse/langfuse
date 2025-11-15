@@ -48,6 +48,7 @@ import {
   isTraceOrDatasetObject,
   isTraceTarget,
   type LangfuseObject,
+  type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import {
@@ -80,6 +81,25 @@ import { InfoIcon } from "lucide-react";
 const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
 );
+
+const OUTPUT_MAPPING = [
+  "generation",
+  "output",
+  "response",
+  "answer",
+  "completion",
+];
+
+const inferDefaultMapping = (
+  variable: string,
+): Pick<VariableMapping, "langfuseObject" | "selectedColumnId"> => {
+  return {
+    langfuseObject: "trace" as const,
+    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
+      ? "output"
+      : "input",
+  };
+};
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -284,8 +304,7 @@ export const InnerEvaluatorForm = (props: {
         "mapping",
         props.evalTemplate.vars.map((v) => ({
           templateVariable: v,
-          langfuseObject: "trace" as const,
-          selectedColumnId: "input",
+          ...inferDefaultMapping(v),
         })),
       );
       form.setValue("scoreName", `${props.evalTemplate.name}`);
