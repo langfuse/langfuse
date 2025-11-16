@@ -27,7 +27,6 @@ describe("Events Service", () => {
     it.each([
       {
         column: "startTime",
-        field: "startTime",
         eventConfigs: [
           { start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000 },
           { start_time: new Date("2024-01-02T00:00:00.000Z").getTime() * 1000 },
@@ -38,7 +37,6 @@ describe("Events Service", () => {
       },
       {
         column: "endTime",
-        field: "endTime",
         eventConfigs: [
           { end_time: new Date("2024-01-01T01:00:00.000Z").getTime() * 1000 },
           { end_time: new Date("2024-01-02T01:00:00.000Z").getTime() * 1000 },
@@ -49,7 +47,6 @@ describe("Events Service", () => {
       },
       {
         column: "type",
-        field: "type",
         eventConfigs: [
           { type: "EVENT" as const },
           { type: "GENERATION" as const },
@@ -60,7 +57,6 @@ describe("Events Service", () => {
       },
       {
         column: "name",
-        field: "name",
         eventConfigs: [
           { name: "alpha-event" },
           { name: "beta-event" },
@@ -71,7 +67,6 @@ describe("Events Service", () => {
       },
       {
         column: "level",
-        field: "level",
         eventConfigs: [
           { level: "DEFAULT" },
           { level: "ERROR" },
@@ -82,7 +77,6 @@ describe("Events Service", () => {
       },
       {
         column: "providedModelName",
-        field: "model",
         eventConfigs: [
           { provided_model_name: "claude-3" },
           { provided_model_name: "gpt-3.5-turbo" },
@@ -93,7 +87,6 @@ describe("Events Service", () => {
       },
       {
         column: "promptName",
-        field: "promptName",
         eventConfigs: [
           { prompt_name: "prompt-a" },
           { prompt_name: "prompt-b" },
@@ -104,7 +97,6 @@ describe("Events Service", () => {
       },
       {
         column: "version",
-        field: "version",
         eventConfigs: [
           { version: "v1.0" },
           { version: "v2.0" },
@@ -115,7 +107,6 @@ describe("Events Service", () => {
       },
       {
         column: "traceId",
-        field: "traceId",
         eventConfigs: [
           { trace_id: "00000000-0000-0000-0000-000000000001" },
           { trace_id: "00000000-0000-0000-0000-000000000002" },
@@ -126,7 +117,6 @@ describe("Events Service", () => {
       },
       {
         column: "latency",
-        field: "latency",
         eventConfigs: [
           {
             start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
@@ -146,7 +136,6 @@ describe("Events Service", () => {
       },
       {
         column: "timeToFirstToken",
-        field: "timeToFirstToken",
         eventConfigs: [
           {
             start_time: new Date("2024-01-01T00:00:00.000Z").getTime() * 1000,
@@ -169,7 +158,6 @@ describe("Events Service", () => {
       },
       {
         column: "inputTokens",
-        field: "inputTokens",
         eventConfigs: [
           { usage_details: { input: 100 } },
           { usage_details: { input: 200 } },
@@ -180,7 +168,6 @@ describe("Events Service", () => {
       },
       {
         column: "outputTokens",
-        field: "outputTokens",
         eventConfigs: [
           { usage_details: { output: 50 } },
           { usage_details: { output: 150 } },
@@ -191,7 +178,6 @@ describe("Events Service", () => {
       },
       {
         column: "totalTokens",
-        field: "totalTokens",
         eventConfigs: [
           { usage_details: { total: 150 } },
           { usage_details: { total: 350 } },
@@ -202,7 +188,6 @@ describe("Events Service", () => {
       },
       {
         column: "inputCost",
-        field: "inputCost",
         eventConfigs: [
           { cost_details: { input: 0.001 } },
           { cost_details: { input: 0.002 } },
@@ -213,7 +198,6 @@ describe("Events Service", () => {
       },
       {
         column: "outputCost",
-        field: "outputCost",
         eventConfigs: [
           { cost_details: { output: 0.005 } },
           { cost_details: { output: 0.01 } },
@@ -224,7 +208,6 @@ describe("Events Service", () => {
       },
       {
         column: "totalCost",
-        field: "totalCost",
         eventConfigs: [
           { cost_details: { total: 0.006 } },
           { cost_details: { total: 0.012 } },
@@ -235,7 +218,6 @@ describe("Events Service", () => {
       },
       {
         column: "tokensPerSecond",
-        field: "tokensPerSecond",
         eventConfigs: [
           {
             usage_details: { output: 100 },
@@ -258,13 +240,7 @@ describe("Events Service", () => {
       },
     ])(
       "should sort events by $column",
-      async ({
-        column,
-        field,
-        eventConfigs,
-        expectedDescOrder,
-        expectedAscOrder,
-      }) => {
+      async ({ column, eventConfigs, expectedDescOrder, expectedAscOrder }) => {
         const projectId = v4();
         const baseTraceId = v4();
         const baseTimestamp = new Date("2024-01-01T00:00:00.000Z");
