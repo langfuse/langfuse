@@ -94,6 +94,13 @@ export const ObservationSchema = z.object({
 
 export type Observation = z.infer<typeof ObservationSchema>;
 
+export const EventsObservationSchema = ObservationSchema.extend({
+  userId: z.string().nullable(),
+  sessionId: z.string().nullable(),
+});
+
+export type EventsObservation = z.infer<typeof EventsObservationSchema>;
+
 /**
  * Returns true if an observation type is generation-like, meaning it could include LLM calls
  * and potentially has similar input/output fields.

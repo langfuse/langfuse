@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { Observation } from "../../domain";
+import { Observation, EventsObservation } from "../../domain";
 
 export type ObservationPriceFields = {
   inputPrice: Decimal | null;
@@ -20,3 +20,9 @@ export type FullObservations = Array<FullObservation>;
 export type FullObservationsWithScores = Array<
   FullObservation & { scores?: Record<string, string[] | number[]> | null }
 >;
+
+// Events-specific types that include userId and sessionId
+export type FullEventsObservation = AdditionalObservationFields &
+  EventsObservation;
+
+export type FullEventsObservations = Array<FullEventsObservation>;

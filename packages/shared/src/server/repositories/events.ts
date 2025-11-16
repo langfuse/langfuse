@@ -1,5 +1,5 @@
 import { prisma } from "../../db";
-import { Observation, ObservationType } from "../../domain";
+import { Observation, EventsObservation, ObservationType } from "../../domain";
 import { env } from "../../env";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import {
@@ -16,7 +16,7 @@ import {
 import {
   DateTimeFilter,
   FilterList,
-  FullObservations,
+  FullEventsObservations,
   orderByToClickhouseSql,
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
@@ -44,7 +44,10 @@ import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
 } from "./observations";
-import { convertObservation } from "./observations_converters";
+import {
+  convertObservation,
+  convertEventsObservation,
+} from "./observations_converters";
 import {
   EventsQueryBuilder,
   CTEQueryBuilder,
@@ -58,11 +61,12 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
 
 /**
  * Internal helper: enrich observations with model pricing data
+ * Uses events-specific converter to include userId and sessionId
  */
 const enrichObservationsWithModelData = async (
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
-): Promise<Array<Observation & ObservationPriceFields>> => {
+): Promise<Array<EventsObservation & ObservationPriceFields>> => {
   const uniqueModels: string[] = Array.from(
     new Set(
       observationRecords
@@ -89,7 +93,7 @@ const enrichObservationsWithModelData = async (
   return observationRecords.map((o) => {
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservation(o),
+      ...convertEventsObservation(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -106,8 +110,8 @@ const enrichObservationsWithModelData = async (
 };
 
 const enrichObservationsWithTraceFields = async (
-  observationRecords: Array<Observation & ObservationPriceFields>,
-): Promise<FullObservations> => {
+  observationRecords: Array<EventsObservation & ObservationPriceFields>,
+): Promise<FullEventsObservations> => {
   return observationRecords.map((o) => {
     return {
       ...o,
@@ -193,7 +197,7 @@ export const getObservationsCountFromEventsTable = async (
 
 export const getObservationsWithModelDataFromEventsTable = async (
   opts: ObservationTableQuery,
-): Promise<FullObservations> => {
+): Promise<FullEventsObservations> => {
   const observationRecords =
     await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
       {

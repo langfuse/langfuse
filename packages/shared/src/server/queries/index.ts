@@ -1,6 +1,7 @@
 export {
   type FullObservations,
   type FullObservationsWithScores,
+  type FullEventsObservations,
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {

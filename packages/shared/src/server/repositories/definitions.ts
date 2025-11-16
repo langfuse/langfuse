@@ -96,6 +96,23 @@ export type ObservationBatchStagingRecordInsertType = z.infer<
   typeof observationBatchStagingRecordInsertSchema
 >;
 
+// Events-specific observation schema (includes user_id and session_id)
+// These fields are only available in the events table, not in historical observations
+export const eventsObservationRecordBaseSchema =
+  observationRecordBaseSchema.extend({
+    user_id: z.string().nullish(),
+    session_id: z.string().nullish(),
+  });
+
+export const eventsObservationRecordReadSchema =
+  observationRecordReadSchema.extend({
+    user_id: z.string().nullish(),
+    session_id: z.string().nullish(),
+  });
+export type EventsObservationRecordReadType = z.infer<
+  typeof eventsObservationRecordReadSchema
+>;
+
 export const traceRecordBaseSchema = z.object({
   id: z.string(),
   name: z.string().nullish(),

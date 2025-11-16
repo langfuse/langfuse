@@ -1,7 +1,11 @@
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
-import { ObservationRecordReadType } from "./definitions";
+import {
+  ObservationRecordReadType,
+  EventsObservationRecordReadType,
+} from "./definitions";
 import {
   Observation,
+  EventsObservation,
   ObservationLevelType,
   ObservationType,
 } from "../../domain";
@@ -123,6 +127,23 @@ export const convertObservation = (
     inputUsage: reducedUsageDetails.input ?? 0,
     outputUsage: reducedUsageDetails.output ?? 0,
     totalUsage: reducedUsageDetails.total ?? 0,
+  };
+};
+
+/**
+ * Events-specific converter that includes userId and sessionId fields.
+ * Use this for observations from the events table which contain user context.
+ */
+export const convertEventsObservation = (
+  record: EventsObservationRecordReadType,
+  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
+): EventsObservation => {
+  const baseObservation = convertObservation(record, renderingProps);
+
+  return {
+    ...baseObservation,
+    userId: record.user_id ?? null,
+    sessionId: record.session_id ?? null,
   };
 };
 

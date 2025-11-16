@@ -42,7 +42,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."environment"',
   },
   {
-    uiTableName: "type",
+    uiTableName: "Type",
     uiTableId: "type",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."type"',
@@ -52,12 +52,6 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "id",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."span_id"',
-  },
-  {
-    uiTableName: "Type",
-    uiTableId: "type",
-    clickhouseTableName: "events",
-    clickhouseSelect: 'e."type"',
   },
   {
     uiTableName: "Name",
@@ -149,6 +143,12 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."provided_model_name"',
   },
   {
+    uiTableName: "Provided Model Name",
+    uiTableId: "providedModelName",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."provided_model_name"',
+  },
+  {
     uiTableName: "Model ID",
     uiTableId: "modelId",
     clickhouseTableName: "events",
@@ -225,16 +225,16 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "e.prompt_name",
   },
   {
-    uiTableName: "Prompt Version",
-    uiTableId: "promptVersion",
+    uiTableName: "Input",
+    uiTableId: "input",
     clickhouseTableName: "events",
-    clickhouseSelect: "e.prompt_version",
+    clickhouseSelect: "e.input",
   },
   {
-    uiTableName: "User ID",
-    uiTableId: "userId",
+    uiTableName: "Output",
+    uiTableId: "output",
     clickhouseTableName: "events",
-    clickhouseSelect: 'e."user_id"',
+    clickhouseSelect: "e.output",
   },
   {
     uiTableName: "Session ID",

@@ -97,6 +97,8 @@ const FIELD_SETS = {
     "promptName",
     "promptVersion",
     "internalModelId",
+    "userId",
+    "sessionId",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
