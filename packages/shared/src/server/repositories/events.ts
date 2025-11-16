@@ -63,9 +63,6 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
 
-// Events-specific observation type with pricing fields
-type EventsObservationWithPrice = EventsObservation & ObservationPriceFields;
-
 /**
  * Internal helper: enrich observations with model pricing data
  * Uses events-specific converter to include userId and sessionId
@@ -73,7 +70,7 @@ type EventsObservationWithPrice = EventsObservation & ObservationPriceFields;
 const enrichObservationsWithModelData = async (
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
-): Promise<Array<EventsObservationWithPrice>> => {
+): Promise<Array<EventsObservation & ObservationPriceFields>> => {
   const uniqueModels: string[] = Array.from(
     new Set(
       observationRecords
@@ -100,7 +97,7 @@ const enrichObservationsWithModelData = async (
   return observationRecords.map((o) => {
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertEventsObservation(o as EventsObservationRecordReadType),
+      ...convertEventsObservation(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -117,7 +114,7 @@ const enrichObservationsWithModelData = async (
 };
 
 const enrichObservationsWithTraceFields = async (
-  observationRecords: Array<EventsObservationWithPrice>,
+  observationRecords: Array<EventsObservation & ObservationPriceFields>,
 ): Promise<FullEventsObservations> => {
   return observationRecords.map((o) => {
     return {

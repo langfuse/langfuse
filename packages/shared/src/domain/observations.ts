@@ -94,11 +94,6 @@ export const ObservationSchema = z.object({
 
 export type Observation = z.infer<typeof ObservationSchema>;
 
-/**
- * Events-specific observation schema with user context fields.
- * These fields (userId, sessionId) are only available in the events table,
- * not in historical observations.
- */
 export const EventsObservationSchema = ObservationSchema.extend({
   userId: z.string().nullable(),
   sessionId: z.string().nullable(),

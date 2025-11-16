@@ -251,14 +251,18 @@ describe("Events Service", () => {
           const baseConfig = {
             span_id: eventIds[index],
             id: eventIds[index],
-            trace_id: config.trace_id || baseTraceId,
-            type: config.type || ("GENERATION" as const),
-            name: config.name || `event-${index}`,
-            start_time:
-              config.start_time ||
-              (baseTimestamp.getTime() + index * 1000) * 1000,
+            trace_id: ("trace_id" in config
+              ? config.trace_id
+              : baseTraceId) as string,
+            type: ("type" in config
+              ? config.type
+              : "GENERATION") as ObservationType,
+            name: ("name" in config ? config.name : `event-${index}`) as string,
+            start_time: ("start_time" in config
+              ? config.start_time
+              : (baseTimestamp.getTime() + index * 1000) * 1000) as number,
             project_id: projectId,
-            level: config.level || "DEFAULT",
+            level: ("level" in config ? config.level : "DEFAULT") as string,
           };
 
           return createEvent({
