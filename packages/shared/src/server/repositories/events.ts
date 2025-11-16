@@ -17,6 +17,7 @@ import {
   DateTimeFilter,
   FilterList,
   FullObservations,
+  FullEventsObservations,
   orderByToClickhouseSql,
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
@@ -118,7 +119,7 @@ const enrichObservationsWithModelData = async (
 
 const enrichObservationsWithTraceFields = async (
   observationRecords: Array<EventsObservationWithPrice>,
-): Promise<FullObservations> => {
+): Promise<FullEventsObservations> => {
   return observationRecords.map((o) => {
     return {
       ...o,
@@ -204,7 +205,7 @@ export const getObservationsCountFromEventsTable = async (
 
 export const getObservationsWithModelDataFromEventsTable = async (
   opts: ObservationTableQuery,
-): Promise<FullObservations> => {
+): Promise<FullEventsObservations> => {
   const observationRecords =
     await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
       {
