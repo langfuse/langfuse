@@ -8,7 +8,6 @@ import {
   getDistinctScoreNames,
   queryClickhouseStream,
   logger,
-  convertObservation,
   ObservationRecordReadType,
   StringFilter,
   FilterList,
@@ -16,6 +15,7 @@ import {
   observationsTableUiColumnDefinitions,
   enrichObservationWithModelData,
   clickhouseSearchCondition,
+  convertObservation,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Readable } from "stream";
@@ -154,7 +154,7 @@ export const getObservationStream = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "o");
 
   const query = `
-   
+
       WITH scores_agg AS (
         SELECT
           trace_id,
@@ -227,7 +227,7 @@ export const getObservationStream = async (props: {
         if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token",
         o.input as input,
         o.output as output,
-        o.metadata as metadata, 
+        o.metadata as metadata,
         t.name as traceName,
         t.tags as traceTags,
         t.timestamp as traceTimestamp,
