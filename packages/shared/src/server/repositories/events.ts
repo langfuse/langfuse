@@ -39,11 +39,7 @@ import {
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { commandClickhouse, queryClickhouse } from "./clickhouse";
-import {
-  ObservationRecordReadType,
-  EventsObservationRecordReadType,
-  TraceRecordReadType,
-} from "./definitions";
+import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
 import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
