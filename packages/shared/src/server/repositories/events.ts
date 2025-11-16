@@ -16,7 +16,6 @@ import {
 import {
   DateTimeFilter,
   FilterList,
-  FullObservations,
   FullEventsObservations,
   orderByToClickhouseSql,
   createPublicApiObservationsColumnMapping,
