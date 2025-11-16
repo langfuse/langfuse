@@ -3481,7 +3481,11 @@ paths:
       parameters:
         - name: name
           in: path
-          description: The name of the prompt
+          description: >-
+            The name of the prompt. If the prompt is in a folder (e.g.,
+            "folder/subfolder/prompt-name"), 
+
+            the folder path must be URL encoded.
           required: true
           schema:
             type: string
@@ -3551,7 +3555,11 @@ paths:
       parameters:
         - name: promptName
           in: path
-          description: The name of the prompt
+          description: >-
+            The name of the prompt. If the prompt is in a folder (e.g.,
+            "folder/subfolder/prompt-name"), 
+
+            the folder path must be URL encoded.
           required: true
           schema:
             type: string
