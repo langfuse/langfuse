@@ -1,5 +1,6 @@
 import {
   type Observation,
+  type EventsObservation,
   ObservationLevel,
   paginationMetaResponseZod,
   publicApiPaginationZod,
@@ -100,11 +101,11 @@ export const APIObservation = z
 
 /**
  *
- * @param observation - DB Observation
+ * @param observation - DB Observation (may include EventsObservation with userId/sessionId, which are excluded from public API)
  * @returns API Observation as defined in the public API
  */
 export const transformDbToApiObservation = (
-  observation: Observation & ObservationPriceFields,
+  observation: (Observation | EventsObservation) & ObservationPriceFields,
 ): z.infer<typeof APIObservation> => {
   const reducedUsageDetails = reduceUsageOrCostDetails(
     observation.usageDetails,
@@ -134,8 +135,13 @@ export const transformDbToApiObservation = (
     outputUsage,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     totalUsage,
+    // Exclude userId and sessionId from public API (security/privacy)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    userId,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    sessionId,
     ...rest
-  } = observation;
+  } = observation as EventsObservation & ObservationPriceFields;
 
   return {
     ...rest,
