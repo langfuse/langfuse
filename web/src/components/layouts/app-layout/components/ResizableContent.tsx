@@ -9,20 +9,37 @@
 import { type PropsWithChildren, useRef, useLayoutEffect } from "react";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  type ImperativePanelHandle,
-} from "@/src/components/ui/resizable";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/src/components/ui/drawer";
+import { type PropsWithChildren } from "react";
+import { useMediaQuery } from "react-responsive";
+import dynamic from "next/dynamic";
+
+const MobileLayout = dynamic(
+  () =>
+    import("@/src/components/layouts/MobileDrawer").then((mod) => ({
+      default: mod.MobileDrawer,
+    })),
+  {
+    ssr: false,
+  },
+);
+const DesktopLayout = dynamic(
+  () =>
+    import("@/src/components/layouts/ResizableDesktopLayout").then((mod) => ({
+      default: mod.ResizableDesktopLayout,
+    })),
+  {
+    ssr: false,
+  },
+);
+const SupportDrawer = dynamic(
+  () =>
+    import("@/src/features/support-chat/SupportDrawer").then((mod) => ({
+      default: mod.SupportDrawer,
+    })),
+  {
+    ssr: false,
+  },
+);
 
 /**
  * Resizable content for support drawer on the right side of the screen (desktop).
