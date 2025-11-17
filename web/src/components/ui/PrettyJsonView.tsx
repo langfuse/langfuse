@@ -1136,7 +1136,7 @@ export function PrettyJsonView(props: {
           </div>
         </>
       )}
-      {props.media && props.media.length > 0 && (
+      {props.media && props.media.length > 0 && isPrettyView && (
         <>
           <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
             Media
