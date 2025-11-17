@@ -1,5 +1,10 @@
 import { prisma } from "../../db";
-import { Observation, EventsObservation, ObservationType } from "../../domain";
+import {
+  Observation,
+  EventsObservation,
+  ObservationType,
+  ObservationCoreFields,
+} from "../../domain";
 import { env } from "../../env";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import {
@@ -61,10 +66,7 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
 
 // TODO
 type ObservationV2 = Partial<EventsObservation & ObservationPriceFields> &
-  Pick<
-    Observation,
-    "id" | "traceId" | "startTime" | "projectId" | "parentObservationId"
-  >;
+  ObservationCoreFields;
 
 /**
  * Internal helper: enrich observations with model pricing data
@@ -74,19 +76,30 @@ type ObservationV2 = Partial<EventsObservation & ObservationPriceFields> &
  * @param observationRecords - Raw observation records from ClickHouse
  * @param projectId - Project ID for model lookup
  * @param parseIoAsJson - Whether to parse input/output as JSON
- * @param requestedFields - Field groups for V2 API (undefined/null = V1 API, returns complete observations)
+ * @param requestedFields - Field groups for V2 API (null = V1 API, returns complete observations)
  */
-async function enrichObservationsWithModelData<
-  F extends ObservationFieldGroup[] | null,
-  E extends F extends ObservationFieldGroup[]
-    ? Partial<EventsObservation>
-    : EventsObservation,
->(
+async function enrichObservationsWithModelData(
+  // eslint-disable-next-line no-unused-vars
+  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  projectId: string, // eslint-disable-line no-unused-vars
+  parseIoAsJson: boolean, // eslint-disable-line no-unused-vars
+  requestedFields: ObservationFieldGroup[], // eslint-disable-line no-unused-vars
+): Promise<Array<ObservationV2>>;
+async function enrichObservationsWithModelData(
+  // eslint-disable-next-line no-unused-vars
+  observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  projectId: string, // eslint-disable-line no-unused-vars
+  parseIoAsJson: boolean, // eslint-disable-line no-unused-vars
+  requestedFields: null, // eslint-disable-line no-unused-vars
+): Promise<Array<EventsObservation & ObservationPriceFields>>;
+async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
   projectId: string,
   parseIoAsJson: boolean,
-  requestedFields?: F,
-): Promise<Array<E & ObservationPriceFields>> {
+  requestedFields: ObservationFieldGroup[] | null,
+): Promise<
+  Array<(EventsObservation & ObservationPriceFields) | ObservationV2>
+> {
   // Determine if this is V1 (complete) or V2 (partial) API
   const isV2 = Array.isArray(requestedFields);
 
@@ -127,14 +140,16 @@ async function enrichObservationsWithModelData<
       ? models.find((m) => m.id === o.internal_model_id)
       : null;
 
-    const converted: E = convertEventsObservation(
-      o,
-      {
-        shouldJsonParse: parseIoAsJson,
-        truncated: false,
-      },
-      !isV2, // V1 API: complete=true, V2 API: complete=false
-    );
+    const renderingProps = {
+      shouldJsonParse: parseIoAsJson,
+      truncated: false,
+    };
+
+    // Branch based on API version to use correct overload
+    const converted = isV2
+      ? convertEventsObservation(o, renderingProps, false)
+      : convertEventsObservation(o, renderingProps, true);
+
     const enriched = {
       ...converted,
       // Use ClickHouse-calculated latency/timeToFirstToken if available, otherwise use what converter calculated
@@ -881,12 +896,12 @@ export const getObservationsFromEventsTableForPublicApi = async (
       opts,
     );
 
-  return (await enrichObservationsWithModelData(
+  return await enrichObservationsWithModelData(
     observationRecords,
     opts.projectId,
     opts.parseIoAsJson ?? true, // V1 API: default to parsing JSON (backwards compatibility)
     null, // V1 API: no field groups, return complete observations
-  )) as Array<Observation & ObservationPriceFields>;
+  );
 };
 
 /**
@@ -902,12 +917,12 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       opts,
     );
 
-  return (await enrichObservationsWithModelData(
+  return await enrichObservationsWithModelData(
     observationRecords,
     opts.projectId,
     Boolean(opts.parseIoAsJson),
     opts.fields, // V2 API: field groups specified, return partial observations
-  )) as Array<ObservationV2>;
+  );
 };
 
 /**

@@ -8,6 +8,9 @@ import {
   EventsObservation,
   ObservationLevelType,
   ObservationType,
+  PartialEventsObservation,
+  PartialObservation,
+  ObservationCoreFields,
 } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import {
@@ -19,6 +22,39 @@ import { logger } from "../logger";
 import type { Model, Price } from "@prisma/client";
 
 type ModelWithPrice = Model & { Price: Price[] };
+
+/**
+ * Validates that all ObservationCoreFields are present and not undefined in a ClickHouse record.
+ * Throws an error if any required core field is missing.
+ *
+ * @param record - The partial observation record from ClickHouse to validate
+ * @throws Error if any core field is undefined
+ * @returns The validated core fields in domain format
+ */
+function ensureObservationCoreFields(
+  record: Partial<ObservationRecordReadType>,
+): ObservationCoreFields {
+  const missingFields: string[] = [];
+
+  if (record.id === undefined) missingFields.push("id");
+  if (record.trace_id === undefined) missingFields.push("trace_id");
+  if (record.start_time === undefined) missingFields.push("start_time");
+  if (record.project_id === undefined) missingFields.push("project_id");
+
+  if (missingFields.length > 0) {
+    const errorMessage = `Missing required ObservationCoreFields: ${missingFields.join(", ")}${record.id ? ` (record: ${record.id})` : ""}`;
+    logger.error(errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  return {
+    id: record.id!,
+    traceId: record.trace_id ?? null,
+    startTime: parseClickhouseUTCDateTimeFormat(record.start_time!),
+    projectId: record.project_id!,
+    parentObservationId: record.parent_observation_id ?? null,
+  };
+}
 
 /**
  * Enriches observation data with model pricing information
@@ -41,24 +77,33 @@ export const enrichObservationWithModelData = (
 
 /**
  * Convert observation record from ClickHouse to domain model
- * Uses type-level dispatch to return either complete Observation or Partial<Observation>
+ * Return type depenns on input parameters: either complete Observation or Partial<Observation>
  *
  * @param record - Raw observation record from ClickHouse
  * @param renderingProps - Rendering options for input/output
  * @param complete - If true, fills missing fields with defaults (V1 API). If false/undefined, returns only present fields (V2 API)
  *
- * Type-level dispatch:
+ * Type signatures:
  * - convertObservation(record, props, true) → Observation
  * - convertObservation(record, props) → Partial<Observation>
  */
-export function convertObservationPartial<
-  Complete extends boolean = false,
-  R = Complete extends true ? Observation : Partial<Observation>,
->(
+export function convertObservationPartial(
+  // eslint-disable-next-line no-unused-vars
+  record: ObservationRecordReadType,
+  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
+  complete: true, // eslint-disable-line no-unused-vars
+): Observation;
+export function convertObservationPartial(
+  // eslint-disable-next-line no-unused-vars
+  record: Partial<ObservationRecordReadType>,
+  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
+  complete: false, // eslint-disable-line no-unused-vars
+): PartialObservation;
+export function convertObservationPartial(
   record: Partial<ObservationRecordReadType>,
   renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
-  complete?: Complete,
-): R {
+  complete: boolean,
+): Observation | PartialObservation {
   // Core fields validation - these should always be present
   if (record.start_time !== undefined && !record.start_time) {
     logger.error(
@@ -82,18 +127,12 @@ export function convertObservationPartial<
       ? reduceUsageOrCostDetails(record.usage_details)
       : { input: null, output: null, total: null };
 
+  // Core fields are not optional
+  const coreFields = ensureObservationCoreFields(record);
+
   const partial = {
-    // Core fields
-    ...(record.id !== undefined && { id: record.id }),
-    ...(record.trace_id !== undefined && { traceId: record.trace_id ?? null }),
-    ...(record.project_id !== undefined && { projectId: record.project_id }),
+    ...coreFields,
     ...(record.type !== undefined && { type: record.type as ObservationType }),
-    ...(record.parent_observation_id !== undefined && {
-      parentObservationId: record.parent_observation_id ?? null,
-    }),
-    ...(record.start_time !== undefined && {
-      startTime: parseClickhouseUTCDateTimeFormat(record.start_time),
-    }),
     ...(record.end_time !== undefined && {
       endTime: record.end_time
         ? parseClickhouseUTCDateTimeFormat(record.end_time)
@@ -221,19 +260,15 @@ export function convertObservationPartial<
 
   // V2 API: return partial observation (only fields that were present in record)
   if (!complete) {
-    return partial as R;
+    return partial;
   }
 
   // V1 API: fill missing fields with defaults to ensure complete Observation
   return {
     // These fields should always be present from partial conversion
-    id: partial.id!,
-    traceId: partial.traceId ?? null,
-    projectId: partial.projectId!,
+    ...coreFields,
     type: partial.type!,
     environment: partial.environment ?? "",
-    parentObservationId: partial.parentObservationId ?? null,
-    startTime: partial.startTime!,
     endTime: partial.endTime ?? null,
     name: partial.name ?? null,
     level: partial.level ?? "DEFAULT",
@@ -264,7 +299,7 @@ export function convertObservationPartial<
     inputUsage: partial.inputUsage ?? 0,
     outputUsage: partial.outputUsage ?? 0,
     totalUsage: partial.totalUsage ?? 0,
-  } as R;
+  };
 }
 
 export function convertObservation(
@@ -278,25 +313,37 @@ export function convertObservation(
  * Events-specific converter that includes userId and sessionId fields.
  * Use this for observations from the events table which contain user context.
  */
-export function convertEventsObservation<
-  Complete extends boolean = false,
-  R = Complete extends true ? EventsObservation : Partial<EventsObservation>,
->(
+export function convertEventsObservation(
+  // eslint-disable-next-line no-unused-vars
+  record: EventsObservationRecordReadType,
+  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
+  complete: true, // eslint-disable-line no-unused-vars
+): EventsObservation;
+export function convertEventsObservation(
+  // eslint-disable-next-line no-unused-vars
+  record: Partial<EventsObservationRecordReadType>,
+  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
+  complete: false, // eslint-disable-line no-unused-vars
+): PartialEventsObservation;
+export function convertEventsObservation(
   record: Partial<EventsObservationRecordReadType>,
   renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
-  complete?: Complete,
-): R {
-  const baseObservation = convertObservationPartial(
-    record,
-    renderingProps,
-    complete,
-  );
+  complete: boolean,
+): EventsObservation | PartialEventsObservation {
+  // Branch based on complete flag to use correct overload
+  const baseObservation = complete
+    ? convertObservationPartial(
+        record as ObservationRecordReadType,
+        renderingProps,
+        true,
+      )
+    : convertObservationPartial(record, renderingProps, false);
 
   return {
     ...baseObservation,
     userId: record.user_id ?? null,
     sessionId: record.session_id ?? null,
-  } as R;
+  };
 }
 
 export const reduceUsageOrCostDetails = (
