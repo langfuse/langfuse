@@ -54,6 +54,7 @@ const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
   LLMAdapter.GoogleAIStudio,
   LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
 ];
 
 const transformSystemMessageToUserMessage = (
