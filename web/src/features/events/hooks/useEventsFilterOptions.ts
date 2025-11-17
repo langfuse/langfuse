@@ -80,7 +80,7 @@ export function useEventsFilterOptions({
   }, [filterOptions.data]);
 
   return {
-    filterOptions,
-    newFilterOptions,
+    filterOptions: newFilterOptions,
+    isFilterOptionsPending: filterOptions.isPending,
   };
 }

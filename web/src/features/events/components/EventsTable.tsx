@@ -213,16 +213,16 @@ export default function ObservationsEventsTable({
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
   // Fetch filter options
-  const { filterOptions, newFilterOptions } = useEventsFilterOptions({
+  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
     oldFilterState,
   });
 
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
-    newFilterOptions,
+    filterOptions,
     projectId,
-    filterOptions.isPending,
+    isFilterOptionsPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

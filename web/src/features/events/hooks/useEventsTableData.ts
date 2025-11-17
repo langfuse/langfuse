@@ -97,7 +97,7 @@ export function useEventsTableData({
   }) => {
     const selectedObservationIds = Object.keys(selectedRows).filter(
       (observationId) =>
-        observations.data?.observations
+        (observations.data?.observations ?? [])
           .map((o) => o.id)
           .includes(observationId),
     );
