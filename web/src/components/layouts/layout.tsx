@@ -24,6 +24,17 @@ import {
 } from "@/src/components/layouts/utilities/routes";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ErrorPage } from "@/src/components/error-page";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+
+const SupportDrawer = dynamic(
+  () =>
+    import("@/src/features/support-chat/SupportDrawer").then((mod) => ({
+      default: mod.SupportDrawer,
+    })),
+  {
+    ssr: false,
+  },
+);
 
 const CommandMenu = dynamic(
   () =>
@@ -419,10 +430,21 @@ export default function Layout(props: PropsWithChildren) {
  */
 export function ResizableContent({ children }: PropsWithChildren) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const { open } = useSupportDrawer();
 
   if (!isDesktop) {
     return <MobileLayout>{children}</MobileLayout>;
   }
 
-  return <DesktopLayout>{children}</DesktopLayout>;
+  return (
+    <DesktopLayout
+      mainContent={children}
+      sidebarContent={<SupportDrawer />}
+      open={open}
+      defaultMainSize={70}
+      defaultSidebarSize={30}
+      minMainSize={30}
+      maxSidebarSize={60}
+    />
+  );
 }
