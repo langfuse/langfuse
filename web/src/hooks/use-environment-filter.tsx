@@ -53,24 +53,24 @@ export function useEnvironmentFilter(
   useEffect(() => {
     if (!availableEnvironments) return;
 
-    // Create updated map with new environments
-    const updatedMap = { ...visibilityMap };
-    let hasChanges = false;
+    setVisibilityMap((currentMap) => {
+      // Create updated map with new environments
+      const updatedMap = { ...currentMap };
+      let hasChanges = false;
 
-    availableEnvironments.forEach((env) => {
-      // If environment doesn't exist in map, set default visibility
-      // Environments prefixed with "langfuse-" are deselected by default
-      if (updatedMap[env] === undefined) {
-        updatedMap[env] = !env.startsWith("langfuse-");
-        hasChanges = true;
-      }
+      availableEnvironments.forEach((env) => {
+        // If environment doesn't exist in map, set default visibility
+        // Environments prefixed with "langfuse-" are deselected by default
+        if (updatedMap[env] === undefined) {
+          updatedMap[env] = !env.startsWith("langfuse-");
+          hasChanges = true;
+        }
+      });
+
+      // Only return new map if there were changes
+      return hasChanges ? updatedMap : currentMap;
     });
-
-    // Only update state if there were changes
-    if (hasChanges) {
-      setVisibilityMap(updatedMap);
-    }
-  }, [availableEnvironments, visibilityMap, setVisibilityMap]);
+  }, [availableEnvironments, setVisibilityMap]);
 
   return {
     selectedEnvironments: visibleEnvironments,
