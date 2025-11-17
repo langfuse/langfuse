@@ -303,6 +303,8 @@ export function useSidebarFilterState(
   useEffect(() => {
     // Skip auto-applying defaults for embedded tables
     if (disableUrlPersistence) return;
+    // Wait for options to finish loading before applying defaults
+    if (loading) return;
     if (filterState.length > 0 || defaultsApplied) return;
 
     // only if there is an environment facet
@@ -342,6 +344,7 @@ export function useSidebarFilterState(
     defaultsApplied,
     config.facets,
     options,
+    loading,
     disableUrlPersistence,
     setFilterState,
     setDefaultsApplied,
