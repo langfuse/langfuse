@@ -1,5 +1,10 @@
 import { Button } from "@/src/components/ui/button";
-import React, { type Dispatch, type SetStateAction, useState } from "react";
+import React, {
+  type Dispatch,
+  type SetStateAction,
+  startTransition,
+  useState,
+} from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -154,7 +159,11 @@ export function DataTableToolbar<TData, TValue>({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
+            onClick={() =>
+              startTransition(() => {
+                setControlsPanelOpen(!controlsPanelOpen);
+              })
+            }
             className="flex h-8 items-center gap-2 text-sm"
           >
             {controlsPanelOpen ? (

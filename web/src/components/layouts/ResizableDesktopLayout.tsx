@@ -1,58 +1,101 @@
-"use client";
-
-import { type PropsWithChildren, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
   type ImperativePanelHandle,
 } from "@/src/components/ui/resizable";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
+
+interface ResizableDesktopLayoutProps {
+  mainContent: ReactNode;
+  sidebarContent: ReactNode;
+  open: boolean;
+  defaultMainSize?: number;
+  defaultSidebarSize?: number;
+  minMainSize?: number;
+  maxSidebarSize?: number;
+  autoSaveId?: string;
+  className?: string;
+  sidebarPosition?: "left" | "right";
+}
 
 /**
- * Desktop-only resizable layout for the support drawer.
- * Always render ResizablePanelGroup to prevent remounting children.
- * Use refs to programmatically control panel sizes when drawer opens/closes.
+ * Reusable component to show/hide resizable panels with a consistent DOM tree.
+ * Always renders the same DOM tree to prevent remounting children and preserve their state.
  */
-export function ResizableDesktopLayout({ children }: PropsWithChildren) {
-  const { open } = useSupportDrawer();
-  const drawerPanelRef = useRef<ImperativePanelHandle>(null);
+export function ResizableDesktopLayout({
+  mainContent,
+  sidebarContent,
+  open,
+  defaultMainSize = 70,
+  defaultSidebarSize = 30,
+  minMainSize = 30,
+  maxSidebarSize = 60,
+  autoSaveId,
+  className = "flex h-full w-full",
+  sidebarPosition = "right",
+}: ResizableDesktopLayoutProps) {
+  const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
   const mainPanelRef = useRef<ImperativePanelHandle>(null);
 
   useLayoutEffect(() => {
     if (open) {
-      // Open drawer: resize main to 70%, drawer to 30%
-      drawerPanelRef.current?.resize(30);
-      mainPanelRef.current?.resize(70);
+      sidebarPanelRef.current?.resize(defaultSidebarSize);
+      mainPanelRef.current?.resize(defaultMainSize);
     } else {
-      // Close drawer: resize main to 100%, drawer to 0%
-      drawerPanelRef.current?.resize(0);
+      sidebarPanelRef.current?.resize(0);
       mainPanelRef.current?.resize(100);
     }
-  }, [open]);
+  }, [open, defaultMainSize, defaultSidebarSize]);
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
-      <ResizablePanel ref={mainPanelRef} defaultSize={100} minSize={30}>
-        <main
+    <ResizablePanelGroup
+      direction="horizontal"
+      className={className}
+      autoSaveId={autoSaveId}
+      storage={autoSaveId ? sessionStorage : undefined}
+    >
+      {sidebarPosition === "left" && (
+        <ResizablePanel
+          ref={sidebarPanelRef}
+          defaultSize={0}
+          minSize={0}
+          maxSize={maxSidebarSize}
+          collapsible={true}
+          collapsedSize={0}
+          className={open ? "visible" : "invisible"}
+          style={{ overscrollBehaviorY: "none" }}
+        >
+          {sidebarContent}
+        </ResizablePanel>
+      )}
+      {open && <ResizableHandle withHandle />}
+      <ResizablePanel
+        ref={mainPanelRef}
+        defaultSize={defaultMainSize}
+        minSize={minMainSize}
+      >
+        <div
           className="relative h-full w-full overflow-scroll"
           style={{ overscrollBehaviorY: "none" }}
         >
-          {children}
-        </main>
+          {mainContent}
+        </div>
       </ResizablePanel>
-      {open && <ResizableHandle withHandle />}
-      <ResizablePanel
-        ref={drawerPanelRef}
-        defaultSize={0}
-        minSize={0}
-        maxSize={60}
-        collapsible={true}
-        collapsedSize={0}
-      >
-        {open && <SupportDrawer />}
-      </ResizablePanel>
+      {sidebarPosition === "right" && (
+        <ResizablePanel
+          ref={sidebarPanelRef}
+          defaultSize={0}
+          minSize={0}
+          maxSize={maxSidebarSize}
+          collapsible={true}
+          collapsedSize={0}
+          className={open ? "visible" : "invisible"}
+          style={{ overscrollBehaviorY: "none" }}
+        >
+          {sidebarContent}
+        </ResizablePanel>
+      )}
     </ResizablePanelGroup>
   );
 }
