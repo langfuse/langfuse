@@ -157,7 +157,30 @@ const PUBLIC_API_TRACES_COLUMN_MAPPING = createPublicApiTracesColumnMapping(
   "t",
 );
 
-const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS = tracesTableUiColumnDefinitions;
+// For events-based traces, observation fields are aggregated into the traces CTE (with 't' prefix),
+// not joined from a separate observations table (with 'o' prefix). We need to remap these.
+const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS =
+  tracesTableUiColumnDefinitions.map((col) => {
+    // If this column references the observations table with 'o' prefix,
+    // remap it to use 't' prefix since observations are aggregated into traces CTE
+    if (col.clickhouseTableName === "observations") {
+      // Replace o. prefix with t. in clickhouseSelect (only when followed by identifier)
+      // Technically we do not need to deal with the prefix at all,
+      // since here these columns are always used inside a CTE.
+      const updatedSelect = col.clickhouseSelect.replace(
+        /\bo\.([a-z_])/g,
+        "t.$1",
+      );
+
+      return {
+        ...col,
+        clickhouseTableName: "traces", // Now it's in the traces CTE
+        queryPrefix: undefined,
+        clickhouseSelect: updatedSelect,
+      };
+    }
+    return col;
+  });
 
 /**
  * Order by columns for traces CTE (post-aggregation)
@@ -602,12 +625,19 @@ const getObservationsFromEventsTableForPublicApiInternal = async <T>(
     eventsTableUiColumnDefinitions,
   );
 
-  // Determine if we need to join traces (for userId filter)
-  const hasTraceFilter = Boolean(filterParams.userId);
+  // Remove score filters since observations don't support scores in response
+  const filteredObservationsFilter = observationsFilter.filter(
+    (f) => f.clickhouseTable !== "scores",
+  );
+
+  // Determine if we need to join traces (check both simple params and advanced filters)
+  const hasTraceFilter = filteredObservationsFilter.some(
+    (f) => f.clickhouseTable === "traces",
+  );
 
   // Extract time filter using helper
-  const startTimeFrom = extractTimeFilter(observationsFilter);
-  const appliedFilter = observationsFilter.apply();
+  const startTimeFrom = extractTimeFilter(filteredObservationsFilter);
+  const appliedFilter = filteredObservationsFilter.apply();
 
   // Build query using EventsQueryBuilder
   const queryBuilder = new EventsQueryBuilder({ projectId });
@@ -754,6 +784,16 @@ const getTracesFromEventsTableForPublicApiInternal = async <T>(
 
   const appliedFilter = tracesFilter.apply();
 
+  // Check if any filters reference the scores table
+  const filtersNeedScores = tracesFilter.some(
+    (f) => f.clickhouseTable === "scores",
+  );
+
+  // Check if filters specifically reference score aggregation columns
+  const hasScoreAggregationFilters = tracesFilter.some(
+    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+  );
+
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
   // Filters must be applied AFTER aggregation to ensure filters on aggregated
   // fields (like timestamp or version) are applied correctly
@@ -768,15 +808,22 @@ const getTracesFromEventsTableForPublicApiInternal = async <T>(
     .from("traces", "t")
     .where(appliedFilter);
 
-  if (includeScores) {
+  if (includeScores || filtersNeedScores) {
     const scoresCTE = eventsTracesScoresAggregation({
       projectId,
       startTimeFrom,
+      hasScoreAggregationFilters,
     });
     queryBuilder = queryBuilder
       .withCTE("score_stats", {
         ...scoresCTE,
-        schema: ["trace_id", "project_id", "score_ids"],
+        schema: [
+          "trace_id",
+          "project_id",
+          "score_ids",
+          "scores_avg",
+          "score_categories",
+        ],
       })
       .leftJoin(
         "score_stats",
