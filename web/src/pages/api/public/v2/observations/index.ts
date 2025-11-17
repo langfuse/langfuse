@@ -15,11 +15,6 @@ export default withMiddlewares({
     querySchema: GetObservationsV2Query,
     responseSchema: GetObservationsV2Response,
     fn: async ({ query, auth }) => {
-      // Since topLevelOnly is not a column filter, we need to handle it explicitly
-      const parentObservationId = Boolean(query.topLevelOnly)
-        ? ""
-        : (query.parentObservationId ?? undefined);
-
       const filterProps = {
         projectId: auth.scope.projectId,
         page: 0, // v2 doesn't use page-based pagination
@@ -30,13 +25,13 @@ export default withMiddlewares({
         name: query.name ?? undefined,
         type: query.type ?? undefined,
         environment: query.environment ?? undefined,
-        parentObservationId,
+        parentObservationId: query.parentObservationId ?? undefined,
         fromStartTime: query.fromStartTime ?? undefined,
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
         advancedFilters: query.filter,
         parseIoAsJson: query.parseIoAsJson ?? false,
-        withCursor: query.withCursor ?? undefined,
+        cursor: query.cursor ?? undefined,
         fields: query.fields ?? undefined,
       };
 

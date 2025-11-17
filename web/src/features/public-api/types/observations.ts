@@ -290,18 +290,14 @@ export const GetObservationsV2Query = z.object({
     })
     .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
   // Pagination
-  limit: z.coerce.number().nonnegative().lte(10000).default(50),
-  withCursor: EncodedObservationsCursorV2.optional(),
+  limit: z.coerce.number().nonnegative().lte(1000).default(50),
+  cursor: EncodedObservationsCursorV2.optional(),
   // Parsing behavior
   parseIoAsJson: z
     .union([z.literal("true"), z.literal("false")])
     .transform((val) => val === "true")
     .default(false),
   // Filters
-  topLevelOnly: z
-    .union([z.literal("true"), z.literal("false")])
-    .optional()
-    .transform((val) => (val === undefined ? undefined : val === "true")),
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),

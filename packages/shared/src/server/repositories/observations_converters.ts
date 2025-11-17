@@ -77,7 +77,7 @@ export const enrichObservationWithModelData = (
 
 /**
  * Convert observation record from ClickHouse to domain model
- * Return type depenns on input parameters: either complete Observation or Partial<Observation>
+ * Return type depends on input parameters: either complete Observation or Partial<Observation>
  *
  * @param record - Raw observation record from ClickHouse
  * @param renderingProps - Rendering options for input/output

@@ -1,10 +1,5 @@
 import { prisma } from "../../db";
-import {
-  Observation,
-  EventsObservation,
-  ObservationType,
-  ObservationCoreFields,
-} from "../../domain";
+import { Observation, EventsObservation, ObservationType } from "../../domain";
 import { env } from "../../env";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import {
@@ -58,15 +53,12 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
 } from "../queries/clickhouse-sql/event-query-builder";
+import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
-
-// TODO
-type ObservationV2 = Partial<EventsObservation & ObservationPriceFields> &
-  ObservationCoreFields;
 
 /**
  * Internal helper: enrich observations with model pricing data
@@ -84,7 +76,7 @@ async function enrichObservationsWithModelData(
   projectId: string, // eslint-disable-line no-unused-vars
   parseIoAsJson: boolean, // eslint-disable-line no-unused-vars
   requestedFields: ObservationFieldGroup[], // eslint-disable-line no-unused-vars
-): Promise<Array<ObservationV2>>;
+): Promise<Array<EventsObservationPublic>>;
 async function enrichObservationsWithModelData(
   // eslint-disable-next-line no-unused-vars
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
@@ -98,7 +90,7 @@ async function enrichObservationsWithModelData(
   parseIoAsJson: boolean,
   requestedFields: ObservationFieldGroup[] | null,
 ): Promise<
-  Array<(EventsObservation & ObservationPriceFields) | ObservationV2>
+  Array<(EventsObservation & ObservationPriceFields) | EventsObservationPublic>
 > {
   // Determine if this is V1 (complete) or V2 (partial) API
   const isV2 = Array.isArray(requestedFields);
@@ -703,7 +695,7 @@ type PublicApiObservationsQuery = {
   environment?: string | string[];
   advancedFilters?: FilterState;
   parseIoAsJson?: boolean;
-  withCursor?: {
+  cursor?: {
     lastStartTimeTo: Date;
     lastTraceId: string;
     lastId: string;
@@ -829,12 +821,12 @@ async function getObservationsRowsFromEventsTableForPublicApiInternal<T>(
 
   // Determine if this is cursor-based pagination (v2) or page-based (v1)
   // v2 API always passes page=0, v1 API passes actual page numbers
-  const isCursorPagination = page === 0 || opts.withCursor !== undefined;
+  const isCursorPagination = page === 0 || opts.cursor !== undefined;
 
   queryBuilder
     // Apply cursor filter if provided
-    .when(Boolean(opts.withCursor), (b) => {
-      const cursor = opts.withCursor!;
+    .when(Boolean(opts.cursor), (b) => {
+      const cursor = opts.cursor!;
       return b.whereRaw(
         "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
         {
@@ -911,7 +903,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
  */
 export const getObservationsV2FromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery & { fields: ObservationFieldGroup[] },
-): Promise<Array<ObservationV2>> => {
+): Promise<Array<EventsObservationPublic>> => {
   const observationRecords =
     await getObservationsRowsFromEventsTableForPublicApiInternal<ObservationsTableQueryResultWitouhtTraceFields>(
       opts,

@@ -82,91 +82,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(createdObs?.providedModelName).toBeUndefined();
     });
 
-    it("should filter to only top-level observations when topLevelOnly=true", async () => {
-      const traceId = randomUUID();
-      const parentObsId = randomUUID();
-      const childObsId = randomUUID();
-      const uniqueName = `toplevel-test-${randomUUID().substring(0, 8)}`;
-      const timestamp = new Date();
-      const timeValue = timestamp.getTime() * 1000;
-
-      // Create parent observation (top-level) with unique name
-      const parentObs = createEvent({
-        id: parentObsId,
-        span_id: parentObsId,
-        trace_id: traceId,
-        project_id: projectId,
-        name: `${uniqueName}-parent`,
-        type: "SPAN",
-        level: "DEFAULT",
-        start_time: timeValue,
-        end_time: timeValue + 5000 * 1000,
-        parent_span_id: "", // Empty string for top-level spans
-      });
-
-      // Create child observation (nested) with unique name
-      const childObs = createEvent({
-        id: childObsId,
-        span_id: childObsId,
-        trace_id: traceId,
-        project_id: projectId,
-        name: `${uniqueName}-child`,
-        type: "GENERATION",
-        level: "DEFAULT",
-        start_time: timeValue + 1000 * 1000,
-        end_time: timeValue + 2000 * 1000,
-        parent_span_id: parentObsId,
-      });
-
-      await createEventsCh([parentObs, childObs]);
-
-      // Small delay to ensure ClickHouse has processed the inserts
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // First, verify both observations exist without topLevelOnly filter
-      const allResponse = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
-        `/api/public/v2/observations?fields=basic&traceId=${traceId}`,
-      );
-
-      expect(allResponse.status).toBe(200);
-      const allObs = allResponse.body.data.filter((obs: any) =>
-        obs.name?.includes(uniqueName),
-      );
-
-      // Both observations should be present
-      expect(allObs.length).toBe(2);
-
-      // Now test with topLevelOnly=true
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
-        "GET",
-        `/api/public/v2/observations?fields=basic&topLevelOnly=true&traceId=${traceId}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-
-      // Find observations from our trace
-      const traceObservations = response.body.data.filter((obs: any) =>
-        obs.name?.includes(uniqueName),
-      );
-
-      // Should only have parent (top-level) observation
-      expect(traceObservations.length).toBe(1);
-      expect(traceObservations[0].id).toBe(parentObsId);
-      expect(traceObservations[0].name).toBe(`${uniqueName}-parent`);
-      // parentObservationId is null for top-level observations (converted from empty string)
-      expect(traceObservations[0].parentObservationId).toBeNull();
-
-      // Child observation should not be in results
-      const childInResults = traceObservations.find(
-        (obs: any) => obs.id === childObsId,
-      );
-      expect(childInResults).toBeUndefined();
-    });
-
     it("should return input/output as strings by default (parseIoAsJson=false)", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -434,7 +349,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page2 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?traceId=${traceId}&limit=2&withCursor=${page1.body.meta.cursor}`,
+        `/api/public/v2/observations?traceId=${traceId}&limit=2&cursor=${page1.body.meta.cursor}`,
       );
 
       expect(page2.status).toBe(200);
@@ -451,7 +366,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page3 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?traceId=${traceId}&limit=2&withCursor=${page2.body.meta.cursor}`,
+        `/api/public/v2/observations?traceId=${traceId}&limit=2&cursor=${page2.body.meta.cursor}`,
       );
 
       expect(page3.status).toBe(200);
@@ -525,7 +440,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page2 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?userId=${userId}&limit=2&withCursor=${page1.body.meta.cursor}`,
+        `/api/public/v2/observations?userId=${userId}&limit=2&cursor=${page1.body.meta.cursor}`,
       );
 
       expect(page2.status).toBe(200);
@@ -587,7 +502,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const page2 = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?traceId=${traceId}&type=SPAN&limit=2&withCursor=${page1.body.meta.cursor}`,
+        `/api/public/v2/observations?traceId=${traceId}&type=SPAN&limit=2&cursor=${page1.body.meta.cursor}`,
       );
 
       expect(page2.status).toBe(200);
@@ -607,7 +522,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const { makeAPICall } = await import("@/src/__tests__/test-utils");
       const response = await makeAPICall(
         "GET",
-        `/api/public/v2/observations?fields=id&withCursor=invalid-base64-string`,
+        `/api/public/v2/observations?fields=id&cursor=invalid-base64-string`,
       );
 
       // Should fail validation
