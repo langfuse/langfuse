@@ -65,10 +65,10 @@ const getMinTimestampForExport = async (
         });
 
         // Extract the minimum timestamp
-        const minTimestampValue = result[0]?.min_timestamp;
         logger.info(
-          `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${minTimestampValue}`,
+          `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${result[0]?.min_timestamp}, type: ${typeof result[0]?.min_timestamp}`,
         );
+        const minTimestampValue = Number(result[0]?.min_timestamp);
 
         if (minTimestampValue && minTimestampValue > 0) {
           const date = new Date(minTimestampValue);
