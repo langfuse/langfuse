@@ -82,7 +82,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       case BatchTableNames.AuditLogs:
         return "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported. This issue will be addressed together with a comprehensive data model update in the future.";
       default:
-        // Note: for Scores, Sessions, DatasetRunItems, DatasetItems, AuditLogs, filters should works as expected
+        // Note: for Scores, Sessions, DatasetRunItems, DatasetItems, filters should work as expected
         return null;
     }
   };
