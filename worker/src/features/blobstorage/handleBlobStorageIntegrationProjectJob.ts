@@ -65,18 +65,27 @@ const getMinTimestampForExport = async (
         });
 
         // Extract the minimum timestamp
-        if (result[0]?.min_timestamp && result[0].min_timestamp > 0) {
-          return new Date(result[0].min_timestamp);
+        const minTimestampValue = result[0]?.min_timestamp;
+        logger.info(
+          `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${minTimestampValue}`,
+        );
+
+        if (minTimestampValue && minTimestampValue > 0) {
+          const date = new Date(minTimestampValue);
+          logger.info(
+            `[BLOB INTEGRATION] Created Date from min_timestamp for project ${projectId}: ${date}, isValid: ${!isNaN(date.getTime())}, getTime: ${date.getTime()}`,
+          );
+          return date;
         }
 
         // If no data exists, use current time as a fallback
         logger.info(
-          `No historical data found for project ${projectId}, using current time`,
+          `[BLOB INTEGRATION] No historical data found for project ${projectId}, using current time`,
         );
         return new Date();
       } catch (error) {
         logger.error(
-          `Error querying ClickHouse for minimum timestamp for project ${projectId}`,
+          `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
           error,
         );
         throw new Error(`Failed to fetch minimum timestamp: ${error}`);
@@ -148,7 +157,7 @@ const processBlobStorageExport = async (config: {
   fileType: BlobStorageIntegrationFileType;
 }) => {
   logger.info(
-    `Processing ${config.table} export for project ${config.projectId}`,
+    `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
   );
 
   // Initialize the storage service
@@ -210,7 +219,7 @@ const processBlobStorageExport = async (config: {
       (err) => {
         if (err) {
           logger.error(
-            "Getting data from DB for blob storage integration failed: ",
+            "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
             err,
           );
         }
@@ -230,11 +239,11 @@ const processBlobStorageExport = async (config: {
     });
 
     logger.info(
-      `Successfully exported ${config.table} records for project ${config.projectId}`,
+      `[BLOB INTEGRATION] Successfully exported ${config.table} records for project ${config.projectId}`,
     );
   } catch (error) {
     logger.error(
-      `Error exporting ${config.table} for project ${config.projectId}`,
+      `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId}`,
       error,
     );
     throw error;
@@ -252,7 +261,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
   }
 
-  logger.info(`Processing blob storage integration for project ${projectId}`);
+  logger.info(
+    `[BLOB INTEGRATION] Processing blob storage integration for project ${projectId}`,
+  );
 
   const blobStorageIntegration = await prisma.blobStorageIntegration.findUnique(
     {
@@ -263,12 +274,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
   );
 
   if (!blobStorageIntegration) {
-    logger.warn(`Blob storage integration not found for project ${projectId}`);
+    logger.warn(
+      `[BLOB INTEGRATION] Blob storage integration not found for project ${projectId}`,
+    );
     return;
   }
   if (!blobStorageIntegration.enabled) {
     logger.info(
-      `Blob storage integration is disabled for project ${projectId}`,
+      `[BLOB INTEGRATION] Blob storage integration is disabled for project ${projectId}`,
     );
     return;
   }
@@ -281,6 +294,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
     blobStorageIntegration.exportMode,
     blobStorageIntegration.exportStartDate,
   );
+
+  logger.info(
+    `[BLOB INTEGRATION] Calculated minTimestamp for project ${projectId}: ${minTimestamp}, isValid: ${!isNaN(minTimestamp.getTime())}, getTime: ${minTimestamp.getTime()}, exportMode: ${blobStorageIntegration.exportMode}, lastSyncAt: ${blobStorageIntegration.lastSyncAt}, exportStartDate: ${blobStorageIntegration.exportStartDate}`,
+  );
+
   const now = new Date();
   const uncappedMaxTimestamp = new Date(now.getTime() - 30 * 60 * 1000); // 30-minute lag buffer
   const frequencyIntervalMs = getFrequencyIntervalMs(
@@ -296,10 +314,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
     ),
   );
 
+  logger.info(
+    `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
+  );
+
   // Skip export if the time window is empty or invalid
   if (minTimestamp >= maxTimestamp) {
     logger.info(
-      `Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
     );
     return;
   }
@@ -337,13 +359,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       // Normal mode: schedule for the next frequency period
       nextSyncAt = new Date(maxTimestamp.getTime() + frequencyIntervalMs);
       logger.info(
-        `Caught up with exports for project ${projectId}. Next sync at ${nextSyncAt.toISOString()}`,
+        `[BLOB INTEGRATION] Caught up with exports for project ${projectId}. Next sync at ${nextSyncAt.toISOString()}`,
       );
     } else {
       // Catch-up mode: schedule next chunk immediately
       nextSyncAt = new Date();
       logger.info(
-        `Still catching up for project ${projectId}. Scheduling next chunk immediately (processed up to ${maxTimestamp.toISOString()})`,
+        `[BLOB INTEGRATION] Still catching up for project ${projectId}. Scheduling next chunk immediately (processed up to ${maxTimestamp.toISOString()})`,
       );
     }
 
@@ -374,17 +396,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
           { jobId },
         );
         logger.info(
-          `Queued next catch-up chunk for project ${projectId} with jobId ${jobId}`,
+          `[BLOB INTEGRATION] Queued next catch-up chunk for project ${projectId} with jobId ${jobId}`,
         );
       }
     }
 
     logger.info(
-      `Successfully processed blob storage integration for project ${projectId}`,
+      `[BLOB INTEGRATION] Successfully processed blob storage integration for project ${projectId}`,
     );
   } catch (error) {
     logger.error(
-      `Error processing blob storage integration for project ${projectId}`,
+      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}`,
       error,
     );
     throw error; // Rethrow to trigger retries
