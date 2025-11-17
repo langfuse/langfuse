@@ -17,10 +17,9 @@ import {
 import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
 
 /**
- * Input schema for listPrompts tool
- * Note: projectId is NOT included - it's auto-injected from context
+ * Base schema for listPrompts tool (no refinements needed)
  */
-const ListPromptsInputSchema = z.object({
+const ListPromptsBaseSchema = z.object({
   name: ParamPromptName.optional().describe(
     "Filter by exact prompt name match",
   ),
@@ -63,7 +62,8 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
     "- Get specific prompt metadata: `{name: 'chatbot'}`",
     "- Paginate results: `{page: 2, limit: 20}`",
   ].join("\n"),
-  inputSchema: ListPromptsInputSchema,
+  baseSchema: ListPromptsBaseSchema,
+  inputSchema: ListPromptsBaseSchema, // No refinements, same as base
   handler: async (input, context) => {
     const { name, label, tag, page, limit } = input;
 

@@ -1,13 +1,11 @@
 /**
  * MCP Tool Definition Helper
  *
- * Standardized helper for defining MCP tools with automatic error handling.
- * Following Sentry pattern of consistent tool configuration.
+ * Simplified helper for defining MCP tools with automatic JSON Schema generation.
+ * Handles the conversion from Zod schemas to JSON Schema for MCP compatibility.
  */
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { z } from "zod/v4";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { wrapErrorHandling } from "./error-formatting";
 import type { ServerContext } from "../types";
 
@@ -29,28 +27,22 @@ export interface DefineToolOptions<TInput> {
   /** Description for LLM to understand when to use this tool */
   description: string;
 
-  /** Zod schema for validating input parameters */
+  /** Base Zod schema (without refinements) - used for JSON Schema generation */
+  baseSchema: z.ZodType<TInput>;
+
+  /** Full Zod schema with refinements - used for runtime validation */
   inputSchema: z.ZodType<TInput>;
 
   /** Handler function that executes the tool logic */
   handler: ToolHandler<TInput>;
 
-  /**
-   * Hint: This tool only reads data, does not modify anything
-   * Helps LLM understand tool capabilities
-   */
+  /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
 
-  /**
-   * Hint: This tool has destructive effects (delete, overwrite)
-   * Helps LLM be more cautious when using this tool
-   */
+  /** Hint: This tool has destructive effects (delete, overwrite) */
   destructiveHint?: boolean;
 
-  /**
-   * Hint: This tool is expensive to run (slow, rate-limited)
-   * Helps LLM avoid unnecessary calls
-   */
+  /** Hint: This tool is expensive to run (slow, rate-limited) */
   expensiveHint?: boolean;
 }
 
@@ -74,25 +66,22 @@ export interface ToolDefinition {
 }
 
 /**
- * Define an MCP tool with standardized configuration and error handling.
- *
- * Features:
- * - Automatic input validation with Zod
- * - Automatic error handling and formatting
- * - JSON Schema generation from Zod schema
- * - Tool annotations for LLM hints
+ * Define an MCP tool with automatic JSON Schema generation.
  *
  * @param options Tool configuration options
- * @returns Tuple of [tool definition, wrapped handler]
+ * @returns Tuple of [tool definition for MCP, wrapped handler for execution]
  *
  * @example
+ * const baseSchema = z.object({
+ *   name: z.string(),
+ *   version: z.number().optional(),
+ * });
+ *
  * const [toolDef, handler] = defineTool({
  *   name: "getPrompt",
  *   description: "Fetch a prompt by name",
- *   inputSchema: z.object({
- *     name: ParamPromptName,
- *     version: ParamPromptVersion,
- *   }),
+ *   baseSchema,
+ *   inputSchema: baseSchema.refine(...), // Add runtime validations
  *   handler: async (input, context) => {
  *     // Implementation
  *   },
@@ -105,6 +94,7 @@ export function defineTool<TInput>(
   const {
     name,
     description,
+    baseSchema,
     inputSchema,
     handler,
     readOnlyHint,
@@ -112,17 +102,29 @@ export function defineTool<TInput>(
     expensiveHint,
   } = options;
 
-  // Convert Zod schema to JSON Schema for MCP
-  // Note: Cast to any is necessary because zodToJsonSchema returns JsonSchema7
-  // which isn't directly compatible with MCP's tool schema type.
-  // The cast back to ToolDefinition['inputSchema'] is safe because:
-  // 1. We use $refStrategy: "none" to avoid $ref usage
-  // 2. MCP expects JSON Schema Draft 7 compatible object schemas
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const jsonSchema = zodToJsonSchema(inputSchema as any, {
-    name: `${name}Input`,
-    $refStrategy: "none",
+  // Convert base Zod schema to JSON Schema using Zod v4's native method
+  const jsonSchema = z.toJSONSchema(baseSchema, {
+    target: "draft-7", // MCP uses JSON Schema draft-7
+    unrepresentable: "any", // Fallback for unsupported types
   });
+
+  if (!jsonSchema) {
+    throw new Error(
+      `Failed to convert Zod schema to JSON Schema for tool: ${name}.`,
+    );
+  }
+
+  // Validate that we got a usable schema (object or union of objects)
+  const hasObjectType = (jsonSchema as { type?: string }).type === "object";
+  const hasUnionType =
+    "oneOf" in jsonSchema ||
+    "anyOf" in jsonSchema ||
+    "discriminator" in jsonSchema;
+  if (!hasObjectType && !hasUnionType) {
+    throw new Error(
+      `Failed to convert Zod schema to JSON Schema for tool: ${name}. Expected object or union schema, got: ${JSON.stringify(jsonSchema).slice(0, 100)}`,
+    );
+  }
 
   // Build tool definition
   const toolDefinition: ToolDefinition = {
@@ -143,10 +145,8 @@ export function defineTool<TInput>(
   // Wrap handler with validation and error handling
   const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
     async (rawInput: unknown, context: ServerContext) => {
-      // Validate input with Zod schema
+      // Validate input with the full schema (including refinements)
       const validatedInput = inputSchema.parse(rawInput);
-
-      // Call the actual handler with validated input
       return await handler(validatedInput, context);
     },
   );

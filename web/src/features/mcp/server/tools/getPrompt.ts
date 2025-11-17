@@ -16,19 +16,24 @@ import { getPromptByName } from "@/src/features/prompts/server/actions/getPrompt
 import { UserInputError } from "../../internal/errors";
 
 /**
- * Input schema for getPrompt tool
- * Note: projectId is NOT included - it's auto-injected from context
+ * Base schema for JSON Schema generation (without refinements)
  */
-const GetPromptInputSchema = z
-  .object({
-    name: ParamPromptName,
-    label: ParamPromptLabel,
-    version: ParamPromptVersion,
-  })
-  .refine((data) => !(data.label && data.version), {
+const GetPromptBaseSchema = z.object({
+  name: ParamPromptName,
+  label: ParamPromptLabel,
+  version: ParamPromptVersion,
+});
+
+/**
+ * Full input schema with runtime validations
+ */
+const GetPromptInputSchema = GetPromptBaseSchema.refine(
+  (data) => !(data.label && data.version),
+  {
     message:
       "Cannot specify both label and version - they are mutually exclusive",
-  });
+  },
+);
 
 /**
  * getPrompt tool definition and handler
@@ -52,6 +57,7 @@ export const [getPromptTool, handleGetPrompt] = defineTool({
     "",
     "**Returns:** Full prompt content including compiled templates with resolved dependencies.",
   ].join("\n"),
+  baseSchema: GetPromptBaseSchema,
   inputSchema: GetPromptInputSchema,
   handler: async (input, context) => {
     const { name, label, version } = input;
