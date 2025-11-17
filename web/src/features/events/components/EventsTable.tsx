@@ -1,4 +1,3 @@
-import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -22,9 +21,7 @@ import {
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
-  AnnotationQueueObjectType,
   BatchActionType,
-  type TimeFilter,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -54,7 +51,6 @@ import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -62,6 +58,8 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 
 export type EventsTableRow = {
   // Identity fields
@@ -214,68 +212,11 @@ export default function ObservationsEventsTable({
 
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
-  const startTimeFilters = oldFilterState.filter(
-    (f) =>
-      (f.column === "Start Time" || f.column === "startTime") &&
-      f.type === "datetime",
-  ) as TimeFilter[];
-
-  const filterOptions = api.events.filterOptions.useQuery(
-    {
-      projectId,
-      startTimeFilter:
-        startTimeFilters.length > 0 ? startTimeFilters : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
-  const newFilterOptions = useMemo(() => {
-    const scoreCategories =
-      filterOptions.data?.score_categories?.reduce(
-        (acc, score) => {
-          acc[score.label] = score.values;
-          return acc;
-        },
-        {} as Record<string, string[]>,
-      ) ?? undefined;
-
-    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
-
-    return {
-      environment: filterOptions.data?.environment ?? undefined,
-      name: filterOptions.data?.name ?? undefined,
-      type: filterOptions.data?.type ?? undefined,
-      level: filterOptions.data?.level ?? undefined,
-      providedModelName: filterOptions.data?.providedModelName ?? undefined,
-      modelId: filterOptions.data?.modelId ?? undefined,
-      promptName: filterOptions.data?.promptName ?? undefined,
-      traceTags: filterOptions.data?.traceTags ?? undefined,
-      userId: filterOptions.data?.userId ?? undefined,
-      sessionId: filterOptions.data?.sessionId ?? undefined,
-      version: filterOptions.data?.version ?? undefined,
-      latency: [],
-      timeToFirstToken: [],
-      tokensPerSecond: [],
-      inputTokens: [],
-      outputTokens: [],
-      totalTokens: [],
-      inputCost: [],
-      outputCost: [],
-      totalCost: [],
-      score_categories: scoreCategories,
-      scores_avg: scoresNumeric,
-    };
-  }, [filterOptions.data]);
+  // Fetch filter options
+  const { filterOptions, newFilterOptions } = useEventsFilterOptions({
+    projectId,
+    oldFilterState,
+  });
 
   const queryFilter = useSidebarFilterState(
     observationEventsFilterConfig,
@@ -295,45 +236,19 @@ export default function ObservationsEventsTable({
 
   const filterState = queryFilter.filterState.concat(dateRangeFilter);
 
-  const getCountPayload = {
-    projectId,
-    filter: filterState,
-    searchQuery,
-    searchType,
-    page: 1,
-    limit: 1,
-    orderBy: null,
-  };
-
-  const getAllPayload = {
-    ...getCountPayload,
-    page: paginationState.page,
-    limit: paginationState.limit,
-    orderBy: orderByState,
-  };
-
-  const observations = api.events.all.useQuery(getAllPayload, {
-    refetchOnWindowFocus: true,
-  });
-
-  const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
-    refetchOnWindowFocus: true,
-  });
-
-  const totalCount = totalCountQuery.data?.totalCount ?? null;
-
-  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
-      showSuccessToast({
-        title: "Observations added to queue",
-        description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,
-        link: {
-          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
-          text: `View queue "${data.queueName}"`,
-        },
-      });
-    },
-  });
+  // Use the custom hook for observations data fetching
+  const { observations, totalCount, handleAddToAnnotationQueue } =
+    useEventsTableData({
+      projectId,
+      filterState,
+      paginationState,
+      orderByState,
+      searchQuery,
+      searchType,
+      selectedRows,
+      selectAll,
+      setSelectedRows,
+    });
 
   useEffect(() => {
     if (observations.isSuccess) {
@@ -366,34 +281,6 @@ export default function ObservationsEventsTable({
     tableName: "observations",
     setSelectedRows,
   });
-
-  const handleAddToAnnotationQueue = async ({
-    projectId,
-    targetId,
-  }: {
-    projectId: string;
-    targetId: string;
-  }) => {
-    const selectedObservationIds = Object.keys(selectedRows).filter(
-      (observationId) =>
-        observations.data?.observations
-          .map((o) => o.id)
-          .includes(observationId),
-    );
-
-    await addToQueueMutation.mutateAsync({
-      projectId,
-      objectIds: selectedObservationIds,
-      objectType: AnnotationQueueObjectType.OBSERVATION,
-      queueId: targetId,
-      isBatchAction: selectAll,
-      query: {
-        filter: filterState,
-        orderBy: orderByState,
-      },
-    });
-    setSelectedRows({});
-  };
 
   const tableActions: TableAction[] = [
     {
