@@ -387,7 +387,7 @@ export function TableViewPresetsDrawer({
                         {view.id === selectedViewId && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="xs"
                             className={cn(
                               "w-fit pl-0 text-xs",
                               hasWriteAccess
