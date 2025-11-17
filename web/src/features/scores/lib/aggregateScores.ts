@@ -2,9 +2,9 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   type ScoreAggregate,
   type ScoreSimplified,
-  type APIScoreV2,
   type ScoreSourceType,
   type ScoreDataType,
+  type ScoreDomain,
 } from "@langfuse/shared";
 
 /**
@@ -49,7 +49,7 @@ export const getScoreLabelFromKey = (key: string): string => {
   return `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
 };
 
-type ScoreToAggregate = (APIScoreV2 | ScoreSimplified) & {
+type ScoreToAggregate = (ScoreDomain | ScoreSimplified) & {
   hasMetadata?: boolean;
 };
 

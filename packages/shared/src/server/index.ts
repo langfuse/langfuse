@@ -15,6 +15,7 @@ export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";
+export * from "./auth/jumpcloudProvider";
 export * from "./auth/userProjectRoleAuth";
 export * from "./llm/fetchLLMCompletion";
 export * from "./llm/errors";
@@ -25,6 +26,8 @@ export * from "./llm/testModelCall";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
+export * from "./utils/compareVersions";
+export * from "./otel/utils";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
@@ -93,6 +96,7 @@ export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
 // dataset run items
+export * from "./datasets";
 export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils

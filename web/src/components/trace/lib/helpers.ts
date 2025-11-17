@@ -8,6 +8,7 @@ import {
   ObservationLevel,
   type TraceDomain,
 } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export function nestObservations(
   list: ObservationReturnType[],
@@ -195,10 +196,9 @@ export const unnestObservation = (nestedObservation: NestedObservation) => {
 // Transform trace + observations into unified tree structure
 // This function is only used internally by buildTraceUiData
 function buildTraceTree(
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
     latency?: number;
   },
   observations: ObservationReturnType[],
@@ -253,10 +253,9 @@ function buildTraceTree(
 // UI helper: build flat search items with per-node aggregated totals and root-level parent totals for heatmap scaling
 
 export function buildTraceUiData(
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
     latency?: number;
   },
   observations: ObservationReturnType[],
@@ -341,4 +340,38 @@ export function buildTraceUiData(
   visit(tree);
 
   return { tree, hiddenObservationsCount, searchItems: out };
+}
+
+/**
+ * Download trace data with optionally observations as JSON file
+ * @param trace - Trace object to download
+ * @param observations - Array of observations (can be basic or with full I/O data)
+ * @param filename - Optional custom filename (defaults to trace-{traceId}.json)
+ */
+export function downloadTraceAsJson(params: {
+  trace: {
+    id: string;
+    [key: string]: unknown;
+  };
+  observations: unknown[];
+  filename?: string;
+}) {
+  const { trace, observations, filename } = params;
+
+  const exportData = {
+    trace,
+    observations,
+  };
+
+  const jsonString = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([jsonString], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename || `trace-${trace.id}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

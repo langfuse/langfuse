@@ -15,6 +15,8 @@ import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
+import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
+import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -49,6 +51,37 @@ export const evalJobDatasetCreatorQueueProcessor = async (
     });
     return true;
   } catch (e) {
+    // Handle observation-not-found errors with manual retry
+    if (isObservationNotFoundError(e)) {
+      const shouldRetry = await retryObservationNotFound(e, {
+        data: {
+          projectId: job.data.payload.projectId,
+          datasetItemId: job.data.payload.datasetItemId,
+          traceId: job.data.payload.traceId,
+          observationId: job.data.payload.observationId,
+          retryBaggage: job.data.retryBaggage,
+        },
+      });
+
+      if (shouldRetry) {
+        // Retry was scheduled, complete this job successfully
+        return true;
+      } else {
+        // Max attempts reached, log warning and complete successfully
+        logger.warn(
+          `Observation not found after max retries. Completing job without creating eval.`,
+          {
+            projectId: job.data.payload.projectId,
+            datasetItemId: job.data.payload.datasetItemId,
+            observationId: job.data.payload.observationId,
+            traceId: job.data.payload.traceId,
+          },
+        );
+        return true;
+      }
+    }
+
+    // All other errors should be logged and propagated for BullMQ retry
     logger.error(
       `Failed job Evaluation for dataset item: ${job.data.payload.datasetItemId}`,
       e,

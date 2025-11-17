@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "description": "Skill activation triggers for Claude Code. Controls when skills automatically suggest or block actions.",
+  "skills": {
+    "skill-developer": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "description": "Meta-skill for creating and managing Claude Code skills",
+      "promptTriggers": {
+        "keywords": [
+          "skill system",
+          "create skill",
+          "add skill",
+          "skill triggers",
+          "skill rules",
+          "hook system",
+          "skill development",
+          "skill-rules.json"
+        ],
+        "intentPatterns": [
+          "(how do|how does|explain).*?skill",
+          "(create|add|modify|build).*?skill",
+          "skill.*?(work|trigger|activate|system)"
+        ]
+      }
+    },
+    "backend-dev-guidelines": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "description": "Backend development patterns for Node.js/NextJS/Express/TypeScript",
+      "promptTriggers": {
+        "keywords": [
+          "backend",
+          "backend development",
+          "microservice",
+          "controller",
+          "service",
+          "repository",
+          "route",
+          "routing",
+          "express",
+          "API",
+          "endpoint",
+          "middleware",
+          "validation",
+          "Zod",
+          "Prisma",
+          "database access",
+          "BaseController",
+          "dependency injection",
+          "unifiedConfig",
+          "configuration"
+        ],
+        "intentPatterns": [
+          "(create|add|implement|build).*?(route|endpoint|API|controller|service|repository)",
+          "(fix|handle|debug).*?(error|exception|backend)",
+          "(add|implement).*?(middleware|validation|error.*?handling)",
+          "(organize|structure|refactor).*?(backend|service|API)",
+          "(how to|best practice).*?(backend|route|controller|service)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "worker/src/**/*.ts",
+          "packages/shared/src/**/*.ts",
+          "web/src/**/*.ts"
+        ],
+        "pathExclusions": [
+          "**/*.test.ts",
+          "**/*.spec.ts"
+        ],
+        "contentPatterns": [
+          "router\\.",
+          "app\\.(get|post|put|delete|patch)",
+          "export.*Controller",
+          "export.*Service",
+          "prisma\\."
+        ]
+      }
+    }
+  }
+}

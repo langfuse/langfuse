@@ -1,7 +1,9 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { traceRouter } from "./routers/traces";
 import { generationsRouter } from "./routers/generations";
+import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { scoresRouter } from "./routers/scores";
+import { scoreAnalyticsRouter } from "@/src/features/score-analytics/server/scoreAnalyticsRouter";
 import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-router";
 import { projectsRouter } from "@/src/features/projects/server/projectsRouter";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
@@ -32,8 +34,8 @@ import { utilsRouter } from "@/src/server/api/routers/utilities";
 import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCustomizationRouter";
 import { commentsRouter } from "@/src/server/api/routers/comments";
 import { commentReactionsRouter } from "@/src/server/api/routers/commentReactions";
-import { queueRouter } from "@/src/features/annotation-queues/server/annotationQueues";
-import { queueItemRouter } from "@/src/features/annotation-queues/server/annotationQueueItems";
+import { queueRouter } from "@/src/features/annotation-queues/server/annotationQueuesRouter";
+import { queueItemRouter } from "@/src/features/annotation-queues/server/annotationQueueItemsRouter";
 import { experimentsRouter } from "@/src/features/experiments/server/router";
 import { mediaRouter } from "@/src/server/api/routers/media";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
@@ -46,7 +48,7 @@ import { automationsRouter } from "@/src/features/automations/server/router";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { slackRouter } from "@/src/features/slack/server/router";
 import { plainRouter } from "@/src/features/support-chat/trpc/plainRouter";
-import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignments";
+import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
@@ -64,7 +66,9 @@ export const appRouter = createTRPCRouter({
   traces: traceRouter,
   sessions: sessionRouter,
   generations: generationsRouter,
+  events: eventsRouter,
   scores: scoresRouter,
+  scoreAnalytics: scoreAnalyticsRouter,
   scoreConfigs: scoreConfigsRouter,
   dashboard: dashboardRouter,
   organizations: organizationsRouter,

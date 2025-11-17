@@ -46,6 +46,12 @@ Sentry.init({
       return null;
     }
 
+    // Filter React DevTools internal errors - these are benign errors from DevTools
+    // trying to access internal React properties
+    if (errorValue.includes("__reactContextDevtoolDebugId")) {
+      return null;
+    }
+
     return event;
   },
 

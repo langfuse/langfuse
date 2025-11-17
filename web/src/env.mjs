@@ -148,6 +148,13 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
+    AUTH_JUMPCLOUD_CLIENT_ID: z.string().optional(),
+    AUTH_JUMPCLOUD_CLIENT_SECRET: z.string().optional(),
+    AUTH_JUMPCLOUD_ISSUER: z.string().url().optional(),
+    AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_JUMPCLOUD_CHECKS: zAuthChecks,
+    AUTH_JUMPCLOUD_SCOPE: z.string().optional(),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
     AUTH_CUSTOM_ISSUER: z.string().url().optional(),
@@ -182,6 +189,7 @@ export const env = createEnv({
       .default(30 * 24 * 60), // default to 30 days
     AUTH_HTTP_PROXY: z.string().url().optional(),
     AUTH_HTTPS_PROXY: z.string().url().optional(),
+    AUTH_SSO_TIMEOUT: z.number().optional(),
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
@@ -328,6 +336,10 @@ export const env = createEnv({
 
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
+      .enum(["true", "false"])
+      .default("false"),
+
+    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
       .enum(["true", "false"])
       .default("false"),
   },
@@ -484,6 +496,15 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CHECKS: process.env.AUTH_KEYCLOAK_CHECKS,
     AUTH_KEYCLOAK_SCOPE: process.env.AUTH_KEYCLOAK_SCOPE,
     AUTH_KEYCLOAK_ID_TOKEN: process.env.AUTH_KEYCLOAK_ID_TOKEN,
+    AUTH_JUMPCLOUD_CLIENT_ID: process.env.AUTH_JUMPCLOUD_CLIENT_ID,
+    AUTH_JUMPCLOUD_CLIENT_SECRET: process.env.AUTH_JUMPCLOUD_CLIENT_SECRET,
+    AUTH_JUMPCLOUD_ISSUER: process.env.AUTH_JUMPCLOUD_ISSUER,
+    AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING,
+    AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD:
+      process.env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+    AUTH_JUMPCLOUD_CHECKS: process.env.AUTH_JUMPCLOUD_CHECKS,
+    AUTH_JUMPCLOUD_SCOPE: process.env.AUTH_JUMPCLOUD_SCOPE,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
@@ -515,6 +536,7 @@ export const env = createEnv({
     AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE,
     AUTH_HTTP_PROXY: process.env.AUTH_HTTP_PROXY,
     AUTH_HTTPS_PROXY: process.env.AUTH_HTTPS_PROXY,
+    AUTH_SSO_TIMEOUT: process.env.AUTH_SSO_TIMEOUT,
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,
@@ -648,6 +670,8 @@ export const env = createEnv({
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

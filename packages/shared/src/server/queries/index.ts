@@ -1,6 +1,7 @@
 export {
   type FullObservations,
   type FullObservationsWithScores,
+  type FullEventsObservations,
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
@@ -29,6 +30,7 @@ export {
 } from "./public-api-filter-builder";
 export {
   CTEQueryBuilder,
+  EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
   type CTESchema,
   type CTEWithSchema,

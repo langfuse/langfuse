@@ -5,6 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -231,32 +232,35 @@ export default function TracesTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = traceFilterOptionsResponse.data?.scores_avg || [];
+    const scoresNumeric =
+      traceFilterOptionsResponse.data?.scores_avg ?? undefined;
 
     return {
       name:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
           value: n.value,
           count: Number(n.count),
-        })) || [],
+        })) ?? undefined,
       // tags don't have counts
-      tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
+      tags:
+        traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        environmentFilterOptions.data?.map((value) => value.environment) ??
+        undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       bookmarked: ["Bookmarked", "Not bookmarked"],
       userId:
         traceFilterOptionsResponse.data?.users?.map((u) => ({
           value: u.value,
           count: Number(u.count),
-        })) || [],
+        })) ?? undefined,
       sessionId:
         traceFilterOptionsResponse.data?.sessions?.map((s) => ({
           value: s.value,
           count: Number(s.count),
-        })) || [],
+        })) ?? undefined,
       latency: [],
       inputTokens: [],
       outputTokens: [],
@@ -273,6 +277,8 @@ export default function TracesTable({
     traceFilterConfig,
     filterOptions,
     projectId,
+    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
+    hideControls, // Disable URL persistence for embedded preview tables
   );
 
   const combinedFilterState = queryFilter.filterState.concat(
@@ -542,11 +548,7 @@ export default function TracesTable({
       enableSorting,
       cell: ({ row }) => {
         const value: TracesTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {
@@ -1228,7 +1230,7 @@ export default function TracesTable({
         )}
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls queryFilter={queryFilter} filterWithAI />
           )}
@@ -1274,7 +1276,7 @@ export default function TracesTable({
               tableName={"traces"}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );
@@ -1294,7 +1296,7 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, timestamp, truncated: true },
+    { traceId, projectId, timestamp, verbosity: "compact" },
     {
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute

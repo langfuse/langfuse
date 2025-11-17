@@ -38,7 +38,7 @@ export const PeekViewEvaluatorConfigDetail = ({
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   if (!evalConfig) {
-    return <Skeleton className="h-full w-full" />;
+    return <Skeleton className="h-full w-full rounded-none" />;
   }
 
   return (

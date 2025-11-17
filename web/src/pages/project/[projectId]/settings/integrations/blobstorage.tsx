@@ -80,7 +80,7 @@ export default function BlobStorageIntegrationSettings() {
         actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link
-              href="https://langfuse.com/docs/query-traces#blob-storage"
+              href="https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage"
               target="_blank"
             >
               Integration Docs ↗
@@ -198,7 +198,7 @@ const BlobStorageIntegrationSettingsForm = ({
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
       endpoint: state?.endpoint || null,
-      region: state?.region || "",
+      region: state?.region || "auto",
       accessKeyId: state?.accessKeyId || "",
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
@@ -345,8 +345,8 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        {/* Region field - Only shown for AWS S3 */}
-        {integrationType === "S3" && (
+        {/* Region field - Only shown for AWS S3 or compatible storage */}
+        {integrationType !== "AZURE_BLOB_STORAGE" && (
           <FormField
             control={blobStorageForm.control}
             name="region"
@@ -356,7 +356,11 @@ const BlobStorageIntegrationSettingsForm = ({
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
-                <FormDescription>AWS region (e.g., us-east-1)</FormDescription>
+                <FormDescription>
+                  {integrationType === "S3"
+                    ? "AWS region (e.g., us-east-1)"
+                    : "S3 compatible storage region"}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
@@ -43,6 +44,8 @@ type DatasetTableRow = {
   countItems: number | null;
   countRuns: number | null;
   metadata: Prisma.JsonValue | null;
+  inputSchema?: Prisma.JsonValue | null;
+  expectedOutputSchema?: Prisma.JsonValue | null;
 };
 
 function createRow(
@@ -62,6 +65,8 @@ function createRow(
     countItems: null,
     countRuns: null,
     metadata: null,
+    inputSchema: null,
+    expectedOutputSchema: null,
     ...data,
   };
 }
@@ -154,11 +159,7 @@ export function DatasetsTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const description: DatasetTableRow["description"] =
           row.getValue("description");
-        return (
-          <div className="max-h-full max-w-full overflow-y-auto overflow-x-hidden break-words">
-            {description}
-          </div>
-        );
+        return description;
       },
     },
     {
@@ -195,6 +196,43 @@ export function DatasetsTable(props: { projectId: string }) {
       cell: ({ row }) => {
         const value: DatasetTableRow["lastRunAt"] = row.getValue("lastRunAt");
         return value ? <LocalIsoDate date={value} /> : undefined;
+      },
+    },
+    {
+      accessorKey: "inputSchema",
+      header: "Input Schema",
+      id: "inputSchema",
+      enableHiding: true,
+      size: 80,
+      cell: ({ row }) => {
+        const inputSchema: DatasetTableRow["inputSchema"] =
+          row.getValue("inputSchema");
+
+        if (!inputSchema) return null;
+
+        return (
+          <DatasetSchemaHoverCard schema={inputSchema} schemaType="input" />
+        );
+      },
+    },
+    {
+      accessorKey: "expectedOutputSchema",
+      header: "Expected Output Schema",
+      id: "expectedOutputSchema",
+      enableHiding: true,
+      size: 90,
+      cell: ({ row }) => {
+        const expectedOutputSchema: DatasetTableRow["expectedOutputSchema"] =
+          row.getValue("expectedOutputSchema");
+
+        if (!expectedOutputSchema) return null;
+
+        return (
+          <DatasetSchemaHoverCard
+            schema={expectedOutputSchema}
+            schemaType="expectedOutput"
+          />
+        );
       },
     },
     {
@@ -243,6 +281,10 @@ export function DatasetsTable(props: { projectId: string }) {
                   datasetName={row.original.folderPath}
                   datasetDescription={row.getValue("description") ?? undefined}
                   datasetMetadata={row.getValue("metadata") ?? undefined}
+                  datasetInputSchema={row.original.inputSchema ?? undefined}
+                  datasetExpectedOutputSchema={
+                    row.original.expectedOutputSchema ?? undefined
+                  }
                 />
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
@@ -319,6 +361,8 @@ export function DatasetsTable(props: { projectId: string }) {
                 countItems: dataset.countDatasetItems,
                 countRuns: dataset.countDatasetRuns,
                 metadata: dataset.metadata,
+                inputSchema: dataset.inputSchema,
+                expectedOutputSchema: dataset.expectedOutputSchema,
               }),
         }),
       );

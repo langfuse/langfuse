@@ -5,6 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -285,49 +286,50 @@ export default function ObservationsTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
 
     return {
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        environmentFilterOptions.data?.map((value) => value.environment) ??
+        undefined,
       name:
         filterOptions.data?.name?.map((n) => ({
           value: n.value,
           count: n.count !== undefined ? Number(n.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       type:
         filterOptions.data?.type?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
           count: tn.count !== undefined ? Number(tn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       model:
         filterOptions.data?.model?.map((m) => ({
           value: m.value,
           count: m.count !== undefined ? Number(m.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       modelId:
         filterOptions.data?.modelId?.map((mid) => ({
           value: mid.value,
           count: mid.count !== undefined ? Number(mid.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       promptName:
         filterOptions.data?.promptName?.map((pn) => ({
           value: pn.value,
           count: pn.count !== undefined ? Number(pn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       tags:
         filterOptions.data?.tags?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -346,6 +348,7 @@ export default function ObservationsTable({
     observationFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending || environmentFilterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -518,11 +521,7 @@ export default function ObservationsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationsTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {
@@ -1209,7 +1208,7 @@ export default function ObservationsTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -1276,7 +1275,7 @@ export default function ObservationsTable({
               }}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );
@@ -1303,7 +1302,7 @@ const GenerationsDynamicCell = ({
       traceId,
       projectId,
       startTime,
-      truncated: true,
+      verbosity: "compact",
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

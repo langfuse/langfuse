@@ -1,5 +1,11 @@
 import { type Route } from "@/src/components/layouts/routes";
-import { type PropsWithChildren, useEffect, useState } from "react";
+import {
+  type PropsWithChildren,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/router";
 import { getSession, signOut, useSession } from "next-auth/react";
 import Head from "next/head";
@@ -22,6 +28,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  type ImperativePanelHandle,
 } from "@/src/components/ui/resizable";
 import {
   PaymentBanner,
@@ -72,6 +79,7 @@ const pathsWithoutNavigation: string[] = [
 const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",
+  "/auth/sso-initiate",
   "/auth/error",
   "/auth/hf-spaces",
 ];
@@ -306,8 +314,8 @@ export default function Layout(props: PropsWithChildren) {
     router.pathname.startsWith("/public/");
   if (hideNavigation)
     return (
-      <SidebarProvider>
-        <main className="h-dvh w-full bg-primary-foreground p-3 px-4 py-4 sm:px-6 lg:px-8">
+      <SidebarProvider className="bg-primary-foreground">
+        <main className="min-h-dvh w-full overflow-y-scroll p-3 px-4 py-4 sm:px-6 lg:px-8">
           {props.children}
         </main>
       </SidebarProvider>
@@ -373,10 +381,31 @@ export function ResizableContent({ children }: PropsWithChildren) {
   const { open, setOpen } = useSupportDrawer();
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
 
+  // 👉 DESKTOP: Always render ResizablePanelGroup to prevent remounting children
+  // Use refs to programmatically control panel sizes when drawer opens/closes
+  const drawerPanelRef = useRef<ImperativePanelHandle>(null);
+  const mainPanelRef = useRef<ImperativePanelHandle>(null);
+
+  useLayoutEffect(() => {
+    if (!isDesktop) return;
+
+    if (open) {
+      // Open drawer: resize main to 70%, drawer to 30%
+      drawerPanelRef.current?.resize(30);
+      mainPanelRef.current?.resize(70);
+    } else {
+      // Close drawer: resize main to 100%, drawer to 0%
+      drawerPanelRef.current?.resize(0);
+      mainPanelRef.current?.resize(100);
+    }
+  }, [open, isDesktop]);
+
   if (!isDesktop) {
     return (
       <>
-        <main className="h-full flex-1">{children}</main>
+        <main className="h-full flex-1" style={{ overscrollBehaviorY: "none" }}>
+          {children}
+        </main>
 
         <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
           <DrawerContent
@@ -403,24 +432,27 @@ export function ResizableContent({ children }: PropsWithChildren) {
     );
   }
 
-  // 👉 DESKTOP: if drawer isn't open, render only the main content (like before)
-  if (isDesktop && !open) {
-    return <main className="h-full flex-1">{children}</main>;
-  }
-
-  const mainDefault = 70;
-  const drawerDefault = 30;
-
+  // 👉 DESKTOP: Always render ResizablePanelGroup to prevent remounting children
   return (
     <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
-      <ResizablePanel defaultSize={mainDefault} minSize={30}>
-        <main className="relative h-full w-full overflow-scroll">
+      <ResizablePanel ref={mainPanelRef} defaultSize={100} minSize={30}>
+        <main
+          className="relative h-full w-full overflow-scroll"
+          style={{ overscrollBehaviorY: "none" }}
+        >
           {children}
         </main>
       </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel defaultSize={drawerDefault} minSize={20} maxSize={60}>
-        <SupportDrawer />
+      {open && <ResizableHandle withHandle />}
+      <ResizablePanel
+        ref={drawerPanelRef}
+        defaultSize={0}
+        minSize={0}
+        maxSize={60}
+        collapsible={true}
+        collapsedSize={0}
+      >
+        {open && <SupportDrawer />}
       </ResizablePanel>
     </ResizablePanelGroup>
   );

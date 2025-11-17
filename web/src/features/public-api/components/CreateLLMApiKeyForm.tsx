@@ -65,11 +65,18 @@ const createFormSchema = (mode: "create" | "update") =>
         }),
       ),
     })
-    // 1) If adapter requires custom models, enforce that first
+    // 1) Bedrock validation - credentials required in create mode
     .refine(
       (data) => {
         if (data.adapter !== LLMAdapter.Bedrock) return true;
 
+        // In update mode, credentials are optional (existing ones are preserved)
+        if (mode === "update") {
+          // Only validate region is present
+          return data.awsRegion;
+        }
+
+        // In create mode, validate credentials
         // For cloud deployments, AWS credentials are required
         if (isLangfuseCloud) {
           return (
@@ -81,9 +88,12 @@ const createFormSchema = (mode: "create" | "update") =>
         return data.awsRegion;
       },
       {
-        message: isLangfuseCloud
-          ? "AWS credentials are required for Bedrock"
-          : "AWS region is required.",
+        message:
+          mode === "update"
+            ? "AWS region is required."
+            : isLangfuseCloud
+              ? "AWS credentials are required for Bedrock"
+              : "AWS region is required.",
         path: ["adapter"],
       },
     )
@@ -210,6 +220,12 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
                 ? ((existingKey.config as VertexAIConfig).location ?? "")
                 : "",
+            awsRegion:
+              existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
+                ? ((existingKey.config as BedrockConfig).region ?? "")
+                : "",
+            awsAccessKeyId: "",
+            awsSecretAccessKey: "",
           }
         : {
             adapter: defaultAdapter,
@@ -220,6 +236,9 @@ export function CreateLLMApiKeyForm({
             customModels: [],
             extraHeaders: [],
             vertexAILocation: "",
+            awsRegion: "",
+            awsAccessKeyId: "",
+            awsSecretAccessKey: "",
           },
   });
 
@@ -387,18 +406,33 @@ export function CreateLLMApiKeyForm({
     let config: BedrockConfig | VertexAIConfig | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
-      // For self-hosted deployments, allow empty credentials to use default provider chain
-      if (
-        !isLangfuseCloud &&
-        (!values.awsAccessKeyId || !values.awsSecretAccessKey)
-      ) {
-        secretKey = BEDROCK_USE_DEFAULT_CREDENTIALS;
+      // In update mode, only update credentials if provided
+      if (mode === "update") {
+        // Only update secretKey if both credentials are provided
+        if (values.awsAccessKeyId && values.awsSecretAccessKey) {
+          const credentials: BedrockCredential = {
+            accessKeyId: values.awsAccessKeyId,
+            secretAccessKey: values.awsSecretAccessKey,
+          };
+          secretKey = JSON.stringify(credentials);
+        } else {
+          // Keep existing credentials by not setting secretKey
+          secretKey = undefined;
+        }
       } else {
-        const credentials: BedrockCredential = {
-          accessKeyId: values.awsAccessKeyId ?? "",
-          secretAccessKey: values.awsSecretAccessKey ?? "",
-        };
-        secretKey = JSON.stringify(credentials);
+        // In create mode, handle as before
+        if (
+          !isLangfuseCloud &&
+          (!values.awsAccessKeyId || !values.awsSecretAccessKey)
+        ) {
+          secretKey = BEDROCK_USE_DEFAULT_CREDENTIALS;
+        } else {
+          const credentials: BedrockCredential = {
+            accessKeyId: values.awsAccessKeyId ?? "",
+            secretAccessKey: values.awsSecretAccessKey ?? "",
+          };
+          secretKey = JSON.stringify(credentials);
+        }
       }
 
       config = {
@@ -550,8 +584,29 @@ export function CreateLLMApiKeyForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>AWS Region</FormLabel>
+                    <FormDescription>
+                      {mode === "update" &&
+                        existingKey?.config &&
+                        (existingKey.config as BedrockConfig).region && (
+                          <span className="text-sm">
+                            Current:{" "}
+                            <code className="rounded bg-muted px-1 py-0.5">
+                              {(existingKey.config as BedrockConfig).region}
+                            </code>
+                          </span>
+                        )}
+                    </FormDescription>
                     <FormControl>
-                      <Input {...field} data-1p-ignore />
+                      <Input
+                        {...field}
+                        placeholder={
+                          mode === "update" && existingKey?.config
+                            ? ((existingKey.config as BedrockConfig).region ??
+                              "")
+                            : "e.g., us-east-1"
+                        }
+                        data-1p-ignore
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -572,12 +627,26 @@ export function CreateLLMApiKeyForm({
                       )}
                     </FormLabel>
                     <FormDescription>
-                      {isLangfuseCloud
-                        ? "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission."
-                        : "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain."}
+                      {mode === "update"
+                        ? "Leave empty to keep existing credentials. To update, provide both Access Key ID and Secret Access Key."
+                        : isLangfuseCloud
+                          ? "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission."
+                          : "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain."}
                     </FormDescription>
                     <FormControl>
-                      <Input {...field} data-1p-ignore />
+                      <Input
+                        {...field}
+                        placeholder={
+                          mode === "update"
+                            ? existingKey?.displaySecretKey ===
+                              "Default AWS credentials"
+                              ? "Using default AWS credentials"
+                              : "•••••••• (existing credentials preserved if empty)"
+                            : undefined
+                        }
+                        autoComplete="off"
+                        data-1p-ignore
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -598,7 +667,22 @@ export function CreateLLMApiKeyForm({
                       )}
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} data-1p-ignore />
+                      <Input
+                        {...field}
+                        type="password"
+                        placeholder={
+                          mode === "update"
+                            ? existingKey?.displaySecretKey ===
+                              "Default AWS credentials"
+                              ? "Using default AWS credentials"
+                              : existingKey?.displaySecretKey
+                                ? `${existingKey.displaySecretKey} (preserved if empty)`
+                                : "•••••••• (existing credentials preserved if empty)"
+                            : undefined
+                        }
+                        autoComplete="new-password"
+                        data-1p-ignore
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

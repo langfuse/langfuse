@@ -16,12 +16,97 @@ import {
   redis,
   TQueueJobTypes,
   traceException,
+  compareVersions,
+  ResourceSpan,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { ForbiddenError } from "@langfuse/shared";
+
+/**
+ * SDK information extracted from OTEL resourceSpans.
+ */
+type SdkInfo = {
+  scopeName: string | null;
+  scopeVersion: string | null;
+  telemetrySdkLanguage: string | null;
+};
+
+/**
+ * Extract SDK information from resourceSpans.
+ * Gets scope name/version and telemetry SDK language from the OTEL structure.
+ */
+function getSdkInfoFromResourceSpans(resourceSpans: ResourceSpan): SdkInfo {
+  try {
+    // Get the first scopeSpan (all spans in a batch share the same scope)
+    const firstScopeSpan = resourceSpans?.scopeSpans?.[0];
+    const scopeName = firstScopeSpan?.scope?.name ?? null;
+    const scopeVersion = firstScopeSpan?.scope?.version ?? null;
+
+    // Extract telemetry SDK language from resource attributes
+    const resourceAttributes = resourceSpans?.resource?.attributes ?? [];
+    const telemetrySdkLanguage =
+      resourceAttributes.find((attr) => attr.key === "telemetry.sdk.language")
+        ?.value?.stringValue ?? null;
+
+    return { scopeName, scopeVersion, telemetrySdkLanguage };
+  } catch (error) {
+    logger.warn("Failed to extract SDK info from resourceSpans", error);
+    return { scopeName: null, scopeVersion: null, telemetrySdkLanguage: null };
+  }
+}
+
+/**
+ * Check if SDK meets version requirements for direct event writes.
+ *
+ * Requirements:
+ * - Scope name must contain 'langfuse' (case-insensitive)
+ * - Python SDK: scope_version >= 3.9.0
+ * - JS/JavaScript SDK: scope_version >= 4.4.0
+ */
+function checkSdkVersionRequirements(
+  sdkInfo: SdkInfo,
+  isSdkExperimentBatch: boolean,
+): boolean {
+  const { scopeName, scopeVersion, telemetrySdkLanguage } = sdkInfo;
+
+  // Must be a Langfuse SDK
+  if (!scopeName || !String(scopeName).toLowerCase().includes("langfuse")) {
+    return false;
+  }
+
+  if (!scopeVersion || !telemetrySdkLanguage) {
+    return false;
+  }
+
+  try {
+    // Python SDK >= 3.9.0
+    if (telemetrySdkLanguage === "python" && isSdkExperimentBatch) {
+      const comparison = compareVersions(scopeVersion, "v3.9.0");
+      return comparison === null; // null means current >= latest
+    }
+
+    // JS/JavaScript SDK >= 4.4.0
+    if (
+      (telemetrySdkLanguage === "js" ||
+        telemetrySdkLanguage === "javascript") &&
+      isSdkExperimentBatch
+    ) {
+      const comparison = compareVersions(scopeVersion, "v4.4.0");
+      return comparison === null; // null means current >= latest
+    }
+
+    return false;
+  } catch (error) {
+    logger.warn(
+      `Failed to parse SDK version ${scopeVersion} for language ${telemetrySdkLanguage}`,
+      error,
+    );
+    return false;
+  }
+}
 
 export const otelIngestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.OtelIngestionQueue]>,
@@ -118,13 +203,44 @@ export const otelIngestionQueueProcessor: Processor = async (
       clickhouseClient(),
     );
 
+    // Decide whether observations should be processed via new flow (directly to events table)
+    // or via the dual write (staging table and batch job to events).
+    // Rules:
+    // 1. If the environment is `sdk-experiment`, JS SDK 4.4.0+ and python SDK 3.9.0+ will write directly to events.
+    // 2. All other observations will go through the dual write until we have SDKs in place that have old trace updates
+    //    deprecated and new methods in place.
+    // 3. Non-Langfuse SDK spans will go through the dual write until a yet to be determined cutoff date.
+    // Check if any observation has environment='sdk-experiment'
+    const hasExperimentEnvironment = observations.some((o) => {
+      const body = o.body as { environment?: string };
+      return body.environment === "sdk-experiment";
+    });
+    const sdkInfo =
+      parsedSpans.length > 0
+        ? getSdkInfoFromResourceSpans(parsedSpans[0])
+        : { scopeName: null, scopeVersion: null, telemetrySdkLanguage: null };
+    const useDirectEventWrite = checkSdkVersionRequirements(
+      sdkInfo,
+      hasExperimentEnvironment,
+    );
+
+    const shouldForwardToEventsTable =
+      !useDirectEventWrite &&
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
+      env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
+      env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true";
+
     // Running everything concurrently might be detrimental to the event loop, but has probably
     // the highest possible throughput. Therefore, we start with a Promise.all.
     // If necessary, we may use a for each instead.
     await Promise.all(
       [
         // Process traces
-        processEventBatch(traces, auth, { delay: 0, source: "otel" }),
+        processEventBatch(traces, auth, {
+          delay: 0,
+          source: "otel",
+          forwardToEventsTable: shouldForwardToEventsTable,
+        }),
         // Process observations
         observations.map((observation) =>
           ingestionService.mergeAndWrite(
@@ -133,16 +249,18 @@ export const otelIngestionQueueProcessor: Processor = async (
             observation.body.id || "", // id is always defined for observations
             new Date(), // Use the current timestamp as event time
             [observation],
-            // TODO: Eventually we want to set this one to true, but then skip the event processing below and vice versa
-            false,
+            shouldForwardToEventsTable,
           ),
         ),
       ].flat(),
     );
 
-    // If inserts into the events table are enabled, we run the dedicated processing for the otel
-    // spans and move them into the dedicated IngestionService processor.
-    if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true") {
+    // If inserts into the events table are enabled AND observations qualify for direct write,
+    // run the dedicated processing for the otel spans and move them into the dedicated IngestionService processor.
+    if (
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
+      useDirectEventWrite
+    ) {
       try {
         const events = processor.processToEvent(parsedSpans);
         await Promise.all(
