@@ -25,8 +25,10 @@ import {
   handleGetPrompt,
   listPromptsTool,
   handleListPrompts,
-  createPromptTool,
-  handleCreatePrompt,
+  createTextPromptTool,
+  handleCreateTextPrompt,
+  createChatPromptTool,
+  handleCreateChatPrompt,
   updatePromptLabelsTool,
   handleUpdatePromptLabels,
 } from "./tools";
@@ -134,14 +136,17 @@ export function createMcpServer(_context: ServerContext): Server {
 
   // Register tool handlers (LF-1929)
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
+    const toolsResponse = {
       tools: [
         getPromptTool,
         listPromptsTool,
-        createPromptTool,
+        createTextPromptTool,
+        createChatPromptTool,
         updatePromptLabelsTool,
       ],
     };
+
+    return toolsResponse;
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -179,13 +184,26 @@ export function createMcpServer(_context: ServerContext): Server {
             },
           ],
         };
-      case "createPrompt":
+      case "createTextPrompt":
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify(
-                await handleCreatePrompt(toolArgs, _context),
+                await handleCreateTextPrompt(toolArgs, _context),
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      case "createChatPrompt":
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                await handleCreateChatPrompt(toolArgs, _context),
                 null,
                 2,
               ),

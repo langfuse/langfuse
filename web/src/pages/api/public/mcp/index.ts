@@ -6,14 +6,18 @@
  *
  * Architecture:
  * - Stateless per-request pattern (fresh server instance per request)
- * - Streamable HTTP (SSE) transport
+ * - Streamable HTTP transport (2025-03-26 spec)
  * - BasicAuth using Langfuse API keys
  * - Context captured in closures (no session storage)
  *
+ * Transport: Streamable HTTP (NOT the deprecated HTTP+SSE transport)
+ * - Single endpoint handles POST (JSON-RPC), GET (SSE streams), DELETE (sessions)
+ * - JSON-RPC messages sent via POST body
+ * - No separate /message endpoint needed
+ *
  * Note: This endpoint does NOT use withMiddlewares() like other public APIs because
- * SSE streaming requires direct response control, which conflicts with standard
- * middleware error handling that sends JSON responses. Instead, error handling
- * and CORS are implemented directly in the transport layer.
+ * the transport layer needs direct response control for both JSON and SSE responses.
+ * Error handling and CORS are implemented directly in the transport layer.
  *
  * Authentication: BasicAuth (Public Key:Secret Key) - LF-1927
  * Resources: Added in LF-1928
@@ -106,13 +110,16 @@ export default async function handler(
       projectId: context.projectId,
       orgId: context.orgId,
       userAgent: req.headers["user-agent"],
+      contentType: req.headers["content-type"],
+      accept: req.headers.accept,
     });
 
     // Build fresh server per request (stateless pattern)
     // Context is captured in closures and available to all handlers
     const server = createMcpServer(context);
 
-    // Handle the MCP request using SSE transport
+    // Handle the MCP request using Streamable HTTP transport
+    // Transport handles routing based on HTTP method (POST, GET, DELETE, OPTIONS)
     await handleMcpRequest(server, req, res);
   } catch (error) {
     logger.error("MCP API route error", {
@@ -131,11 +138,11 @@ export default async function handler(
 }
 
 /**
- * Disable body parsing for SSE streaming
- * The SSE transport needs to handle the raw stream
+ * Enable body parsing for JSON-RPC messages
+ * Streamable HTTP transport receives JSON-RPC via POST body
  */
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: true,
   },
 };

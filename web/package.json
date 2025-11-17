@@ -165,8 +165,7 @@
     "uuid": "^9.0.1",
     "vaul": "^1.1.2",
     "vis-network": "^9.1.9",
-    "zod": "^3.25.62",
-    "zod-to-json-schema": "^3.23.5"
+    "zod": "^3.25.62"
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",

@@ -1,27 +1,38 @@
 /**
  * MCP Streamable HTTP Transport
  *
- * Implements the Streamable HTTP transport for the Model Context Protocol.
- * This transport allows MCP communication over HTTP with streaming support.
+ * Implements the Streamable HTTP transport for the Model Context Protocol (2025-03-26 spec).
+ * This transport allows MCP communication over HTTP with JSON-RPC messages.
  *
- * Following MCP specification for remote server communication.
+ * Key differences from deprecated HTTP+SSE transport:
+ * - Single endpoint handles all HTTP methods (POST, GET, DELETE)
+ * - No separate /message endpoint
+ * - JSON-RPC messages sent via POST body
+ * - Optional SSE streaming for server responses
+ * - Session management via Mcp-Session-Id header (when stateful)
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { formatErrorForUser } from "../internal/error-formatting";
 import { logger } from "@langfuse/shared/src/server";
 
 /**
- * Handle MCP request using Streamable HTTP (SSE) transport.
+ * Handle MCP request using Streamable HTTP transport.
  *
  * This function:
- * 1. Sets up SSE (Server-Sent Events) response headers
- * 2. Creates an SSE transport for the MCP server
+ * 1. Sets CORS headers for MCP clients
+ * 2. Creates a StreamableHTTPServerTransport (stateless mode)
  * 3. Connects the server to the transport
- * 4. Handles the MCP protocol communication
- * 5. Properly cleans up after the request
+ * 4. Routes the request to the transport handler
+ * 5. Transport handles the response lifecycle
+ *
+ * Supports:
+ * - POST: JSON-RPC requests (initialize, tool calls, etc.)
+ * - GET: SSE stream for server-initiated messages (optional)
+ * - DELETE: Session termination (returns 405 for stateless)
+ * - OPTIONS: CORS preflight
  *
  * @param server - MCP Server instance (created per-request)
  * @param req - Next.js API request
@@ -33,21 +44,14 @@ export async function handleMcpRequest(
   res: NextApiResponse,
 ): Promise<void> {
   try {
-    // Set SSE headers for streaming
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-
     // CORS headers for MCP clients
-    // Note: MCP clients (Claude Desktop, Cursor) need permissive CORS for local development
-    // TODO(Security): Consider restricting origins based on allowed client list
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization",
+      "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID",
     );
+    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
     // Handle preflight OPTIONS request
     if (req.method === "OPTIONS") {
@@ -55,97 +59,66 @@ export async function handleMcpRequest(
       return;
     }
 
-    // Create SSE transport for the server
-    const transport = new SSEServerTransport("/message", res);
+    // Validate Accept header for POST requests (per spec)
+    if (req.method === "POST") {
+      const acceptHeader = req.headers.accept || "";
+      if (
+        !acceptHeader.includes("application/json") &&
+        !acceptHeader.includes("text/event-stream") &&
+        !acceptHeader.includes("*/*")
+      ) {
+        res.status(406).json({
+          jsonrpc: "2.0",
+          error: {
+            code: -32600,
+            message:
+              "Invalid Request: Accept header must include application/json or text/event-stream",
+          },
+          id: null,
+        });
+        return;
+      }
+    }
+
+    // Create Streamable HTTP transport (stateless mode - no sessionIdGenerator)
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // Stateless mode
+      enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
+    });
 
     // Connect server to transport
     await server.connect(transport);
 
-    logger.info("MCP server connected via SSE transport");
-
-    // Keep connection alive until client disconnects
-    await new Promise<void>((resolve, reject) => {
-      // Handle client disconnect
-      req.on("close", () => {
-        logger.info("MCP client disconnected");
-        resolve();
-      });
-
-      // Handle errors (sanitized logging)
-      req.on("error", (error) => {
-        logger.error("MCP request error", {
-          message: error instanceof Error ? error.message : "Unknown error",
-          name: error instanceof Error ? error.name : typeof error,
-        });
-        reject(error);
-      });
-
-      // Handle server close
-      transport.onclose = () => {
-        logger.info("MCP transport closed");
-        resolve();
-      };
+    logger.info("MCP server connected via Streamable HTTP transport", {
+      method: req.method,
     });
+
+    // Handle the request through the transport
+    // IMPORTANT: The transport manages the response lifecycle internally.
+    // It will send the response and end it when appropriate.
+    // Do NOT call res.end() after this - the transport handles it.
+    await transport.handleRequest(req, res, req.body);
+
+    // Note: Do NOT end the response here. The transport has already
+    // sent the response (JSON or SSE) and ended it appropriately.
   } catch (error) {
     logger.error("MCP transport error", {
       message: error instanceof Error ? error.message : "Unknown error",
       name: error instanceof Error ? error.name : typeof error,
+      method: req.method,
     });
 
-    // If headers not sent, send error response
+    // If headers not sent, send JSON-RPC error response
     if (!res.headersSent) {
       const mcpError = formatErrorForUser(error);
       res.status(500).json({
-        error: mcpError.message,
-        code: mcpError.code,
+        jsonrpc: "2.0",
+        error: {
+          code: -32603,
+          message: mcpError.message,
+        },
+        id: null,
       });
     }
-  } finally {
-    // Ensure response is ended
-    if (!res.writableEnded) {
-      res.end();
-    }
-  }
-}
-
-/**
- * Handle MCP POST message endpoint.
- *
- * Note: The SSEServerTransport from MCP SDK automatically creates and handles
- * the /message endpoint internally. This function is kept for reference but may
- * not be needed if SSEServerTransport handles POST messages automatically.
- *
- * TODO(LF-1927): Verify if a separate /api/public/mcp/message route is needed
- * by testing with MCP clients. If not needed, remove this function.
- *
- * @param req - Next.js API request
- * @param res - Next.js API response
- */
-export async function handleMcpPostMessage(
-  req: NextApiRequest,
-  res: NextApiResponse,
-): Promise<void> {
-  try {
-    // Parse the message from request body
-    const message = req.body;
-
-    if (!message) {
-      res.status(400).json({ error: "Missing message body" });
-      return;
-    }
-
-    // The actual message handling is done through the SSE transport
-    // This endpoint is called by the SSE transport's /message endpoint
-    res.status(200).json({ received: true });
-  } catch (error) {
-    logger.error("MCP POST message error", {
-      message: error instanceof Error ? error.message : "Unknown error",
-      name: error instanceof Error ? error.name : typeof error,
-    });
-    const mcpError = formatErrorForUser(error);
-    res.status(500).json({
-      error: mcpError.message,
-      code: mcpError.code,
-    });
   }
 }

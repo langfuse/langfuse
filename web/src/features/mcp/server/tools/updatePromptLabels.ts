@@ -15,10 +15,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { UserInputError } from "../../internal/errors";
 
 /**
- * Input schema for updatePromptLabels tool
- * Note: projectId is NOT included - it's auto-injected from context
+ * Base schema for updatePromptLabels tool (no refinements needed)
  */
-const UpdatePromptLabelsInputSchema = z.object({
+const UpdatePromptLabelsBaseSchema = z.object({
   name: ParamPromptName,
   version: z.coerce
     .number()
@@ -85,7 +84,8 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "- ❌ Change prompt type (use `createPrompt` with a new name)",
     "- ❌ Modify tags (tags are managed via `createPrompt`)",
   ].join("\n"),
-  inputSchema: UpdatePromptLabelsInputSchema,
+  baseSchema: UpdatePromptLabelsBaseSchema,
+  inputSchema: UpdatePromptLabelsBaseSchema, // No refinements, same as base
   handler: async (input, context) => {
     const { name, version, newLabels } = input;
 
