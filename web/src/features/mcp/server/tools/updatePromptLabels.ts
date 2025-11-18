@@ -41,6 +41,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "",
     "**Important Behavior:**",
     "- This is the ONLY way to modify existing prompts (labels only)",
+    "- The specified labels are ADDED to the version (preserving any existing labels not mentioned)",
     "- Labels are unique across versions - setting 'production' on v3 removes it from v2",
     "- You cannot modify prompt content - create a new version instead with `createPrompt`",
     "- The 'latest' label is automatically managed and cannot be set manually",
@@ -152,5 +153,5 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
       },
     );
   },
-  destructiveHint: true,
+  destructive: true,
 });

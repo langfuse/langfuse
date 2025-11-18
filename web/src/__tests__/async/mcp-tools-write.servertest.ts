@@ -495,23 +495,25 @@ describe("MCP Write Tools", () => {
       expect(messages[1].content).toContain("{{concept}}");
     });
 
-    it("should allow empty message array", async () => {
+    it("should reject empty message array", async () => {
       const { context } = await createMcpTestSetup();
       const promptName = `chat-prompt-${nanoid()}`;
 
-      // Empty array is allowed - flexibility for edge cases
-      const result = (await handleCreateChatPrompt(
-        {
-          name: promptName,
-          prompt: [],
-        },
-        context,
-      )) as { id: string };
-
-      const prompt = await prisma.prompt.findUnique({
-        where: { id: result.id },
+      // Empty array is now rejected - chat prompts need at least one message
+      await expect(
+        handleCreateChatPrompt(
+          {
+            name: promptName,
+            prompt: [],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        code: -32602, // INVALID_PARAMS
+        message: expect.stringContaining(
+          "Chat prompts must have at least one message",
+        ),
       });
-      expect(prompt?.prompt).toEqual([]);
     });
 
     it("should set createdBy to API", async () => {

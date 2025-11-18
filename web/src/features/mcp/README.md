@@ -20,20 +20,21 @@ Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to inte
 2. **Encode Credentials**
 
    ```bash
-   echo -n "pk-lf-df1fb7b5-b644-45f4-8149-053d4d1cd1a5:sk-lf-961dabbe-ae50-434b-9197-854787548dc8" | base64
+   echo -n "pk-lf-xxx:sk-lf-xxx" | base64
    ```
 
    Output:
 
    ```
-   cGstbGYtZGYxZmI3YjUtYjY0NC00NWY0LTgxNDktMDUzZDRkMWNkMWE1OnNrLWxmLTk2MWRhYmJlLWFlNTAtNDM0Yi05MTk3LTg1NDc4NzU0OGRjOA==
+   // Example. Real token will be much longer
+   cGstbGYteHh4OnNrLWxmLXh4eA==
    ```
 
 3. **Add to Claude Code**
 
    ```bash
    claude mcp add --transport http langfuse http://localhost:3000/api/public/mcp \
-       --header "Authorization: Basic cGstbGYtZGYxZmI3YjUtYjY0NC00NWY0LTgxNDktMDUzZDRkMWNkMWE1OnNrLWxmLTk2MWRhYmJlLWFlNTAtNDM0Yi05MTk3LTg1NDc4NzU0OGRjOA=="
+       --header "Authorization: Basic {your-base64-token}"
    ```
 
 4. **Verify**

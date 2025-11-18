@@ -36,6 +36,7 @@ const CreateChatPromptBaseSchema = z.object({
   name: PromptNameSchema.describe("The name of the prompt"),
   prompt: z
     .array(ChatMessageSchema)
+    .min(1, "Chat prompts must have at least one message")
     .describe("Array of chat messages with role and content"),
   labels: z
     .array(PromptLabelSchema)
@@ -167,5 +168,5 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
       },
     );
   },
-  destructiveHint: true,
+  destructive: true,
 });
