@@ -121,7 +121,7 @@ describe("MCP Write Tools", () => {
     });
 
     it("should create text prompt with commit message", async () => {
-      const { context, projectId } = await createMcpTestSetup();
+      const { context } = await createMcpTestSetup();
       const promptName = `text-prompt-${nanoid()}`;
 
       const result = (await handleCreateTextPrompt(
@@ -195,8 +195,6 @@ describe("MCP Write Tools", () => {
     it("should use context.projectId for tenant isolation", async () => {
       const { context: context1, projectId: projectId1 } =
         await createMcpTestSetup();
-      const { context: context2, projectId: projectId2 } =
-        await createMcpTestSetup();
 
       const promptName = `isolated-${nanoid()}`;
 
@@ -214,7 +212,6 @@ describe("MCP Write Tools", () => {
         where: { id: result1.id },
       });
       expect(prompt?.projectId).toBe(projectId1);
-      expect(prompt?.projectId).not.toBe(projectId2);
     });
 
     it("should support template variables in prompt", async () => {
@@ -438,7 +435,6 @@ describe("MCP Write Tools", () => {
     it("should use context.projectId for tenant isolation", async () => {
       const { context: context1, projectId: projectId1 } =
         await createMcpTestSetup();
-      const { projectId: projectId2 } = await createMcpTestSetup();
 
       const promptName = `isolated-chat-${nanoid()}`;
 
@@ -454,7 +450,6 @@ describe("MCP Write Tools", () => {
         where: { id: result.id },
       });
       expect(prompt?.projectId).toBe(projectId1);
-      expect(prompt?.projectId).not.toBe(projectId2);
     });
 
     it("should support template variables in messages", async () => {

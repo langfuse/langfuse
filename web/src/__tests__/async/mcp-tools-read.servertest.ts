@@ -1,13 +1,8 @@
 /** @jest-environment node */
 
-import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { nanoid } from "ai";
-import {
-  createMcpTestSetup,
-  createPromptInDb,
-  cleanupProjectPrompts,
-} from "./mcp-helpers";
+import { createMcpTestSetup, createPromptInDb } from "./mcp-helpers";
 
 // Import MCP tool handlers directly
 import {
