@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod/v4";
-import { defineTool } from "../../internal/define-tool";
+import { defineTool } from "../../../core/define-tool";
 import {
   PromptType,
   PromptLabelSchema,

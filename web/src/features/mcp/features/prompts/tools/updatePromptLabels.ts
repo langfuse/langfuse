@@ -7,12 +7,12 @@
  */
 
 import { z } from "zod/v4";
-import { defineTool } from "../../internal/define-tool";
-import { ParamPromptName, ParamNewLabels } from "../../internal/validation";
+import { defineTool } from "../../../core/define-tool";
+import { ParamPromptName, ParamNewLabels } from "../validation";
 import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompts";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
-import { UserInputError } from "../../internal/errors";
+import { UserInputError } from "../../../core/errors";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 

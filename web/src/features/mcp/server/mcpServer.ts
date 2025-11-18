@@ -2,11 +2,12 @@
  * MCP Server Instance
  *
  * Main MCP server configuration and initialization.
- * Implements stateless per-request server pattern similar to Sentry MCP.
+ * Implements stateless per-request server pattern.
  *
  * Key principles:
  * - Fresh server instance per request
  * - Context captured in closures (no session storage)
+ * - Tools dynamically loaded from registry
  * - Server discarded after request completes
  */
 
@@ -16,21 +17,11 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ServerContext } from "../types";
-import {
-  getPromptTool,
-  handleGetPrompt,
-  listPromptsTool,
-  handleListPrompts,
-  createTextPromptTool,
-  handleCreateTextPrompt,
-  createChatPromptTool,
-  handleCreateChatPrompt,
-  updatePromptLabelsTool,
-  handleUpdatePromptLabels,
-} from "./tools";
+import { toolRegistry } from "./registry";
+import { logger } from "@langfuse/shared/src/server";
 
 const MCP_SERVER_NAME = "langfuse";
-const MCP_SERVER_VERSION = "0.1.0";
+const MCP_SERVER_VERSION = "0.2.0";
 
 /**
  * Create and configure the MCP server instance.
@@ -38,8 +29,8 @@ const MCP_SERVER_VERSION = "0.1.0";
  * Creates a fresh MCP server for each request with context captured in closures.
  * This follows the stateless pattern where no server state persists between requests.
  *
- * Tools are registered with access to 'context' via closures.
- * Each handler can access the context without it being stored in the server instance.
+ * Tools are dynamically loaded from the global registry, eliminating hardcoded tool lists.
+ * Features register themselves at application startup via the bootstrap module.
  *
  * @param context - Server context from authenticated request (captured in closures)
  * @returns Configured MCP Server instance
@@ -51,7 +42,7 @@ const MCP_SERVER_VERSION = "0.1.0";
  * // ... handle request ...
  * // Server discarded after request
  */
-export function createMcpServer(_context: ServerContext): Server {
+export function createMcpServer(context: ServerContext): Server {
   const server = new Server(
     {
       name: MCP_SERVER_NAME,
@@ -64,100 +55,47 @@ export function createMcpServer(_context: ServerContext): Server {
     },
   );
 
-  // Context is captured here and available to all handlers via closure
-  // Each handler can access '_context' via closure
-
+  // ListTools handler - dynamically load from registry
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const toolsResponse = {
-      tools: [
-        getPromptTool,
-        listPromptsTool,
-        createTextPromptTool,
-        createChatPromptTool,
-        updatePromptLabelsTool,
-      ],
-    };
+    const tools = await toolRegistry.getToolDefinitions(context);
 
-    return toolsResponse;
+    logger.debug("MCP ListTools", {
+      projectId: context.projectId,
+      toolCount: tools.length,
+      toolNames: tools.map((t) => t.name),
+    });
+
+    return { tools };
   });
 
+  // CallTool handler - route to registered tool handlers
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
-    // Route to appropriate tool handler based on name
-    // Handlers are wrapped with validation and error handling via defineTool
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toolArgs = args as any;
+    logger.debug("MCP CallTool", {
+      projectId: context.projectId,
+      toolName: name,
+    });
 
-    switch (name) {
-      case "getPrompt":
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                await handleGetPrompt(toolArgs, _context),
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      case "listPrompts":
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                await handleListPrompts(toolArgs, _context),
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      case "createTextPrompt":
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                await handleCreateTextPrompt(toolArgs, _context),
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      case "createChatPrompt":
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                await handleCreateChatPrompt(toolArgs, _context),
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      case "updatePromptLabels":
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                await handleUpdatePromptLabels(toolArgs, _context),
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+    // Look up tool in registry
+    const registeredTool = toolRegistry.getTool(name);
+
+    if (!registeredTool) {
+      throw new Error(`Unknown tool: ${name}`);
     }
+
+    // Execute handler with context
+    // Handler performs validation and error handling via defineTool wrapper
+    const result = await registeredTool.handler(args, context);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
   });
 
   return server;

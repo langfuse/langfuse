@@ -6,14 +6,13 @@
  */
 
 import { z } from "zod/v4";
-import { defineTool } from "../../internal/define-tool";
+import { defineTool } from "../../../core/define-tool";
 import {
   ParamPromptName,
   ParamPromptLabel,
   ParamPromptTag,
-  ParamLimit,
-  ParamPage,
-} from "../../internal/validation";
+} from "../validation";
+import { ParamLimit, ParamPage } from "../../../core/validation";
 import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";

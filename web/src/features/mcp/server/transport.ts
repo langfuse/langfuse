@@ -9,7 +9,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { formatErrorForUser } from "../internal/error-formatting";
+import { formatErrorForUser } from "../core/error-formatting";
 import { logger } from "@langfuse/shared/src/server";
 
 /**

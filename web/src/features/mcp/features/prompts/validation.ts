@@ -1,8 +1,8 @@
 /**
- * MCP Validation Schemas
+ * Prompts Feature Validation Schemas
  *
- * Pre-defined Zod v4 schemas for common parameters.
- * Following Sentry pattern of reusable, well-documented validation schemas.
+ * Zod v4 schemas specific to the prompts feature domain.
+ * Common cross-feature validations live in /core/validation.ts
  */
 
 import { z } from "zod/v4";
@@ -46,12 +46,6 @@ export const ParamPromptVersion = z.coerce
   .describe("Specific version number to retrieve (e.g., 1, 2, 3)");
 
 /**
- * Project ID parameter
- * No format enforcement - validated via API key authentication
- */
-export const ParamProjectId = z.string().describe("The project ID");
-
-/**
  * Prompt tag parameter (optional)
  * Used for filtering prompts by tag
  */
@@ -59,29 +53,6 @@ export const ParamPromptTag = z
   .string()
   .optional()
   .describe("Tag to filter prompts (e.g., 'v1', 'experimental')");
-
-/**
- * Pagination limit parameter
- * Defaults to 50, max 100
- */
-export const ParamLimit = z.coerce
-  .number()
-  .int()
-  .min(1)
-  .max(100)
-  .default(50)
-  .describe("Number of items to return (1-100, default: 50)");
-
-/**
- * Pagination page parameter
- * Defaults to 1
- */
-export const ParamPage = z.coerce
-  .number()
-  .int()
-  .min(1)
-  .default(1)
-  .describe("Page number for pagination (default: 1)");
 
 /**
  * Commit message parameter (optional)
@@ -111,10 +82,3 @@ export const ParamNewLabels = z
     message: "Label 'latest' is always assigned to the latest prompt version",
   })
   .describe("Array of new labels to assign to the prompt version");
-
-/**
- * Helper to extract schema description for MCP tool definitions
- */
-export function getSchemaDescription(schema: z.ZodType): string | undefined {
-  return schema.description;
-}

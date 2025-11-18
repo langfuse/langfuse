@@ -33,15 +33,15 @@ import {
 import {
   createTextPromptTool,
   handleCreateTextPrompt,
-} from "@/src/features/mcp/server/tools/createTextPrompt";
+} from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
 import {
   createChatPromptTool,
   handleCreateChatPrompt,
-} from "@/src/features/mcp/server/tools/createChatPrompt";
+} from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
 import {
   updatePromptLabelsTool,
   handleUpdatePromptLabels,
-} from "@/src/features/mcp/server/tools/updatePromptLabels";
+} from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
 
 describe("MCP Write Tools", () => {
   describe("createTextPrompt tool", () => {

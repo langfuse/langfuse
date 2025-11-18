@@ -22,11 +22,11 @@ import { createMcpTestSetup, createPromptInDb } from "./mcp-helpers";
 import {
   getPromptTool,
   handleGetPrompt,
-} from "@/src/features/mcp/server/tools/getPrompt";
+} from "@/src/features/mcp/features/prompts/tools/getPrompt";
 import {
   listPromptsTool,
   handleListPrompts,
-} from "@/src/features/mcp/server/tools/listPrompts";
+} from "@/src/features/mcp/features/prompts/tools/listPrompts";
 
 describe("MCP Read Tools", () => {
   describe("getPrompt tool", () => {

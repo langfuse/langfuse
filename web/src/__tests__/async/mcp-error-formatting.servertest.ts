@@ -21,11 +21,8 @@ import { z } from "zod/v4";
 import {
   formatErrorForUser,
   wrapErrorHandling,
-} from "@/src/features/mcp/internal/error-formatting";
-import {
-  UserInputError,
-  ApiServerError,
-} from "@/src/features/mcp/internal/errors";
+} from "@/src/features/mcp/core/error-formatting";
+import { UserInputError, ApiServerError } from "@/src/features/mcp/core/errors";
 import {
   UnauthorizedError,
   ForbiddenError,
