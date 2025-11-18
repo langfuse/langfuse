@@ -47,12 +47,9 @@ export const ParamPromptVersion = z.coerce
 
 /**
  * Project ID parameter
- * UUID format required
+ * No format enforcement - validated via API key authentication
  */
-export const ParamProjectId = z
-  .string()
-  .uuid()
-  .describe("The project ID (UUID format)");
+export const ParamProjectId = z.string().describe("The project ID");
 
 /**
  * Prompt tag parameter (optional)
