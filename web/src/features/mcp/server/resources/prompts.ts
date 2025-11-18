@@ -17,6 +17,8 @@ import { logger } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL, publicApiPaginationZod } from "@langfuse/shared";
 import { UserInputError } from "../../internal/errors";
 import { z } from "zod/v4";
+import { instrumentAsync } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 /**
  * List prompts resource handler
@@ -38,72 +40,100 @@ export async function listPromptsResource(
 ): Promise<{
   contents: Array<{ uri: string; mimeType: string; text: string }>;
 }> {
-  const name = uri.searchParams.get("name") || undefined;
-  const label = uri.searchParams.get("label") || undefined;
-  const tag = uri.searchParams.get("tag") || undefined;
+  return await instrumentAsync(
+    { name: "mcp.resource.listPrompts", spanKind: SpanKind.INTERNAL },
+    async (span) => {
+      const name = uri.searchParams.get("name") || undefined;
+      const label = uri.searchParams.get("label") || undefined;
+      const tag = uri.searchParams.get("tag") || undefined;
 
-  // Parse pagination parameters using standard Langfuse schema
-  const paginationSchema = z.object(publicApiPaginationZod);
-  const pagination = paginationSchema.parse({
-    page: uri.searchParams.get("page") || undefined,
-    limit: uri.searchParams.get("limit") || undefined,
-  });
+      // Parse pagination parameters using standard Langfuse schema
+      const paginationSchema = z.object(publicApiPaginationZod);
+      const pagination = paginationSchema.parse({
+        page: uri.searchParams.get("page") || undefined,
+        limit: uri.searchParams.get("limit") || undefined,
+      });
 
-  logger.info("MCP: List prompts resource", {
-    projectId: context.projectId,
-    filters: { name, label, tag },
-    pagination,
-  });
+      // Set span attributes for observability
+      span.setAttributes({
+        "langfuse.project.id": context.projectId,
+        "langfuse.org.id": context.orgId,
+        "mcp.resource": "prompts",
+        "mcp.pagination_page": pagination.page,
+        "mcp.pagination_limit": pagination.limit,
+      });
 
-  // Build filter conditions
-  const where = {
-    projectId: context.projectId,
-    ...(name && { name: { contains: name } }),
-    ...(label && { labels: { has: label } }),
-    ...(tag && { tags: { has: tag } }),
-  };
+      if (name) {
+        span.setAttribute("mcp.filter_name", name);
+      }
+      if (label) {
+        span.setAttribute("mcp.filter_label", label);
+      }
+      if (tag) {
+        span.setAttribute("mcp.filter_tag", tag);
+      }
 
-  // Query prompts and count in parallel (standard Langfuse pattern)
-  const [prompts, totalItems] = await Promise.all([
-    prisma.prompt.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        version: true,
-        type: true,
-        labels: true,
-        tags: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: pagination.limit,
-      skip: (pagination.page - 1) * pagination.limit,
-    }),
-    prisma.prompt.count({ where }),
-  ]);
+      logger.info("MCP: List prompts resource", {
+        projectId: context.projectId,
+        filters: { name, label, tag },
+        pagination,
+      });
 
-  // Build response with standard pagination metadata
-  const response = {
-    data: prompts,
-    meta: {
-      page: pagination.page,
-      limit: pagination.limit,
-      totalItems,
-      totalPages: Math.ceil(totalItems / pagination.limit),
+      // Build filter conditions
+      const where = {
+        projectId: context.projectId,
+        ...(name && { name: { contains: name } }),
+        ...(label && { labels: { has: label } }),
+        ...(tag && { tags: { has: tag } }),
+      };
+
+      // Query prompts and count in parallel (standard Langfuse pattern)
+      const [prompts, totalItems] = await Promise.all([
+        prisma.prompt.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            version: true,
+            type: true,
+            labels: true,
+            tags: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: pagination.limit,
+          skip: (pagination.page - 1) * pagination.limit,
+        }),
+        prisma.prompt.count({ where }),
+      ]);
+
+      // Set result count for observability
+      span.setAttribute("mcp.result_count", prompts.length);
+      span.setAttribute("mcp.total_items", totalItems);
+
+      // Build response with standard pagination metadata
+      const response = {
+        data: prompts,
+        meta: {
+          page: pagination.page,
+          limit: pagination.limit,
+          totalItems,
+          totalPages: Math.ceil(totalItems / pagination.limit),
+        },
+      };
+
+      return {
+        contents: [
+          {
+            uri: uri.toString(),
+            mimeType: "application/json",
+            text: JSON.stringify(response, null, 2),
+          },
+        ],
+      };
     },
-  };
-
-  return {
-    contents: [
-      {
-        uri: uri.toString(),
-        mimeType: "application/json",
-        text: JSON.stringify(response, null, 2),
-      },
-    ],
-  };
+  );
 }
 
 /**
@@ -127,89 +157,109 @@ export async function getPromptResource(
 ): Promise<{
   contents: Array<{ uri: string; mimeType: string; text: string }>;
 }> {
-  const label = uri.searchParams.get("label") || undefined;
-  const versionParam = uri.searchParams.get("version");
+  return await instrumentAsync(
+    { name: "mcp.resource.getPrompt", spanKind: SpanKind.INTERNAL },
+    async (span) => {
+      const label = uri.searchParams.get("label") || undefined;
+      const versionParam = uri.searchParams.get("version");
 
-  // Parse and validate version parameter
-  let version: number | undefined = undefined;
-  if (versionParam) {
-    const parsedVersion = parseInt(versionParam, 10);
-    if (isNaN(parsedVersion) || parsedVersion < 1) {
-      throw new UserInputError(
-        `Invalid version parameter: ${versionParam}. Version must be a positive integer.`,
-      );
-    }
-    version = parsedVersion;
-  }
+      // Parse and validate version parameter
+      let version: number | undefined = undefined;
+      if (versionParam) {
+        const parsedVersion = parseInt(versionParam, 10);
+        if (isNaN(parsedVersion) || parsedVersion < 1) {
+          throw new UserInputError(
+            `Invalid version parameter: ${versionParam}. Version must be a positive integer.`,
+          );
+        }
+        version = parsedVersion;
+      }
 
-  // Label and version are mutually exclusive
-  if (version && label) {
-    throw new UserInputError("Cannot specify both version and label");
-  }
+      // Label and version are mutually exclusive
+      if (version && label) {
+        throw new UserInputError("Cannot specify both version and label");
+      }
 
-  logger.info("MCP: Get prompt resource", {
-    projectId: context.projectId,
-    promptName,
-    label,
-    version,
-  });
-
-  // Use PromptService to get compiled prompt
-  const promptService = new PromptService(prisma, redis);
-
-  // Handle discriminated union for PromptParams
-  let prompt;
-  try {
-    if (version) {
-      prompt = await promptService.getPrompt({
-        projectId: context.projectId,
-        promptName,
-        version,
-        label: undefined,
+      // Set span attributes for observability
+      span.setAttributes({
+        "langfuse.project.id": context.projectId,
+        "langfuse.org.id": context.orgId,
+        "mcp.resource": "prompt",
+        "mcp.prompt_name": promptName,
       });
-    } else if (label) {
-      prompt = await promptService.getPrompt({
+
+      if (label) {
+        span.setAttribute("mcp.prompt_label", label);
+      }
+      if (version) {
+        span.setAttribute("mcp.prompt_version", version);
+      }
+
+      logger.info("MCP: Get prompt resource", {
         projectId: context.projectId,
         promptName,
         label,
-        version: undefined,
+        version,
       });
-    } else {
-      // Default to production label if neither specified
-      prompt = await promptService.getPrompt({
-        projectId: context.projectId,
-        promptName,
-        label: PRODUCTION_LABEL,
-        version: undefined,
-      });
-    }
-  } catch (error) {
-    // Re-throw PromptService errors as UserInputError for better UX
-    if (
-      error instanceof Error &&
-      (error.message.includes("Circular dependency") ||
-        error.message.includes("Maximum nesting depth") ||
-        error.message.includes("Prompt dependency not found") ||
-        error.message.includes("not a text prompt"))
-    ) {
-      throw new UserInputError(error.message);
-    }
-    throw error; // Re-throw other errors unchanged
-  }
 
-  if (!prompt) {
-    throw new UserInputError(
-      `Prompt '${promptName}' not found${label ? ` with label '${label}'` : ""}${version ? ` with version ${version}` : ""}`,
-    );
-  }
+      // Use PromptService to get compiled prompt
+      const promptService = new PromptService(prisma, redis);
 
-  return {
-    contents: [
-      {
-        uri: uri.toString(),
-        mimeType: "application/json",
-        text: JSON.stringify(prompt, null, 2),
-      },
-    ],
-  };
+      // Handle discriminated union for PromptParams
+      let prompt;
+      try {
+        if (version) {
+          prompt = await promptService.getPrompt({
+            projectId: context.projectId,
+            promptName,
+            version,
+            label: undefined,
+          });
+        } else if (label) {
+          prompt = await promptService.getPrompt({
+            projectId: context.projectId,
+            promptName,
+            label,
+            version: undefined,
+          });
+        } else {
+          // Default to production label if neither specified
+          prompt = await promptService.getPrompt({
+            projectId: context.projectId,
+            promptName,
+            label: PRODUCTION_LABEL,
+            version: undefined,
+          });
+        }
+      } catch (error) {
+        // Re-throw PromptService errors as UserInputError for better UX
+        if (
+          error instanceof Error &&
+          (error.message.includes("Circular dependency") ||
+            error.message.includes("Maximum nesting depth") ||
+            error.message.includes("Prompt dependency not found") ||
+            error.message.includes("not a text prompt"))
+        ) {
+          throw new UserInputError(error.message);
+        }
+        throw error; // Re-throw other errors unchanged
+      }
+
+      if (!prompt) {
+        throw new UserInputError(
+          `Prompt '${promptName}' not found${label ? ` with label '${label}'` : ""}${version ? ` with version ${version}` : ""}`,
+        );
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.toString(),
+            mimeType: "application/json",
+            text: JSON.stringify(prompt, null, 2),
+          },
+        ],
+      };
+    },
+  );
 }
