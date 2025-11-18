@@ -226,6 +226,182 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.type).toBe("GENERATION");
       expect(obs?.level).toBe("WARNING");
     });
+
+    it("should support filter parameter on various columns without SQL crashes", async () => {
+      const traceId = randomUUID();
+      const observationId1 = randomUUID();
+      const observationId2 = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create observations with trace-level fields that require joins
+      const observation1 = createEvent({
+        id: observationId1,
+        span_id: observationId1,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "filter-test-obs-1",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        end_time: timeValue + 2000 * 1000,
+        provided_model_name: "gpt-4",
+        // Trace-level fields (require join to traces table)
+        user_id: "test-user-123",
+        trace_name: "test-trace",
+        tags: ["tag1", "tag2"],
+        session_id: "session-abc",
+      });
+
+      const observation2 = createEvent({
+        id: observationId2,
+        span_id: observationId2,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "filter-test-obs-2",
+        type: "SPAN",
+        level: "WARNING",
+        start_time: timeValue + 1000 * 1000,
+        end_time: timeValue + 3000 * 1000,
+        provided_model_name: "gpt-3.5-turbo",
+        // Trace-level fields (require join to traces table)
+        user_id: "test-user-456",
+        trace_name: "different-trace",
+        session_id: "session-xyz",
+      });
+
+      await createEventsCh([observation1, observation2]);
+
+      // Focus on testing columns that require joins to other tables
+      // (columns from traces table: userId, traceName, sessionId, traceTags, traceEnvironment)
+      // and score-related columns that may require special handling
+      const filterTestCases = [
+        // Trace table columns (require join)
+        {
+          description: "trace field: userId",
+          filter: [
+            {
+              type: "string",
+              column: "userId",
+              operator: "=",
+              value: "test-user-123",
+            },
+          ],
+        },
+        {
+          description: "trace field: traceName",
+          filter: [
+            {
+              type: "string",
+              column: "traceName",
+              operator: "contains",
+              value: "test",
+            },
+          ],
+        },
+        {
+          description: "trace field: sessionId",
+          filter: [
+            {
+              type: "string",
+              column: "sessionId",
+              operator: "=",
+              value: "session-abc",
+            },
+          ],
+        },
+        {
+          description: "trace field: traceEnvironment",
+          filter: [
+            {
+              type: "string",
+              column: "traceEnvironment",
+              operator: "=",
+              value: "production",
+            },
+          ],
+        },
+        // Also test a few events table columns to ensure they still work
+        {
+          description: "events field: name",
+          filter: [
+            {
+              type: "string",
+              column: "name",
+              operator: "contains",
+              value: "filter-test",
+            },
+          ],
+        },
+        {
+          description: "events field: type",
+          filter: [
+            {
+              type: "string",
+              column: "type",
+              operator: "=",
+              value: "GENERATION",
+            },
+          ],
+        },
+      ];
+
+      // Test each filter to ensure no SQL crashes
+      for (const testCase of filterTestCases) {
+        const filterParam = JSON.stringify(testCase.filter);
+        const response = await makeZodVerifiedAPICall(
+          GetObservationsV2Response,
+          "GET",
+          `/api/public/v2/observations?traceId=${traceId}&fields=basic,io,cost,model,metadata&filter=${encodeURIComponent(filterParam)}`,
+        );
+
+        // Main assertion: should not crash (200 status)
+        expect(response.status).toBe(200);
+        expect(response.body.data).toBeDefined();
+
+        // Response should be an array (even if empty)
+        expect(Array.isArray(response.body.data)).toBe(true);
+      }
+
+      // Verify a trace-field filter (requires join) returns expected observations
+      const userIdFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "userId",
+          operator: "=",
+          value: "test-user-123",
+        },
+      ]);
+      const userIdFilterResponse = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(userIdFilterParam)}`,
+      );
+
+      expect(userIdFilterResponse.status).toBe(200);
+      const userFilteredObs = userIdFilterResponse.body.data.find(
+        (obs: any) => obs.id === observationId1,
+      );
+      expect(userFilteredObs).toBeDefined();
+
+      // Verify trace name filter (requires join)
+      const traceNameFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "traceName",
+          operator: "contains",
+          value: "test",
+        },
+      ]);
+      const traceNameResponse = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(traceNameFilterParam)}`,
+      );
+
+      expect(traceNameResponse.status).toBe(200);
+      expect(traceNameResponse.body.data.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   maybe("Cursor-based pagination", () => {

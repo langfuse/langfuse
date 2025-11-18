@@ -34,6 +34,7 @@ import {
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   eventsTableLegacyTraceUiColumnDefinitions,
+  eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
 } from "../tableMappings/mapEventsTable";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
@@ -54,6 +55,7 @@ import {
   EventsAggQueryBuilder,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
+import { UiColumnMappings } from "../../tableDefinitions";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
@@ -703,36 +705,31 @@ type PublicApiObservationsQuery = {
   fields?: ObservationFieldGroup[] | null;
 };
 
-/**
- * Helper function to setup observations query builder with filters and common CTEs.
- * Combines filter preparation and query builder setup for both count and rows queries.
- */
 function buildObservationsQueryBase(
   opts: PublicApiObservationsQuery,
+  eventsTableUiColumnDefinitions: UiColumnMappings = [
+    ...eventsTableLegacyTraceUiColumnDefinitions,
+    ...eventsTableNativeUiColumnDefinitions,
+  ],
 ): EventsQueryBuilder {
-  const { projectId, page, limit, advancedFilters, ...filterParams } = opts;
+  const { projectId, advancedFilters, ...filterParams } = opts;
 
   // Convert and merge simple and advanced filters
   const observationsFilter = deriveFilters(
-    { ...filterParams, projectId, page, limit },
+    { ...filterParams, projectId },
     PUBLIC_API_EVENTS_COLUMN_MAPPING,
     advancedFilters,
     eventsTableUiColumnDefinitions,
   );
 
-  // Remove score filters since observations don't support scores in response
-  const filteredObservationsFilter = observationsFilter.filter(
-    (f) => f.clickhouseTable !== "scores",
-  );
-
   // Determine if we need to join traces (check both simple params and advanced filters)
-  const hasTraceFilter = filteredObservationsFilter.some(
+  const hasTraceFilter = observationsFilter.some(
     (f) => f.clickhouseTable === "traces",
   );
 
   // Extract time filter and apply filters
-  const startTimeFrom = extractTimeFilter(filteredObservationsFilter);
-  const appliedFilter = filteredObservationsFilter.apply();
+  const startTimeFrom = extractTimeFilter(observationsFilter);
+  const appliedFilter = observationsFilter.apply();
 
   // Build query with common CTE, joins, and filters
   const queryBuilder = new EventsQueryBuilder({ projectId })
@@ -751,6 +748,82 @@ function buildObservationsQueryBase(
     .where(appliedFilter);
 
   return queryBuilder;
+}
+
+function applyOrderByForObservationsQuery(
+  queryBuilder: EventsQueryBuilder,
+): EventsQueryBuilder {
+  return (
+    queryBuilder
+      // Order by to match table ordering
+      .orderBy(
+        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
+      )
+  );
+}
+
+function applyOffsetPagination(
+  opts: PublicApiObservationsQuery,
+  queryBuilder: EventsQueryBuilder,
+): EventsQueryBuilder {
+  // Apply offset pagination for page-based requests
+  const offset = (opts.page - 1) * opts.limit;
+  return queryBuilder.limit(opts.limit, offset);
+}
+
+function applyCursorPagination(
+  opts: PublicApiObservationsQuery,
+  queryBuilder: EventsQueryBuilder,
+): EventsQueryBuilder {
+  // Apply cursor filter if provided
+  return queryBuilder.when(Boolean(opts.cursor), (b) => {
+    const cursor = opts.cursor!;
+    return (
+      b
+        .whereRaw(
+          "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
+          {
+            lastStartTime: convertDateToClickhouseDateTime(
+              cursor.lastStartTimeTo,
+            ),
+            lastTraceId: cursor.lastTraceId,
+            lastId: cursor.lastId,
+          },
+        )
+        // When cursor pagination (v2): fetch limit+1 to detect if there are more results
+        .limit(opts.limit + 1, undefined)
+    );
+  });
+}
+
+async function getObservationsRowsFromBuilder<T>(
+  projectId: string,
+  queryBuilder: EventsQueryBuilder,
+  operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+): Promise<Array<T>> {
+  const { query, params } = queryBuilder.buildWithParams();
+
+  return await measureAndReturn({
+    operationName,
+    projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "events",
+        kind: "publicApiRows",
+        projectId,
+      },
+    },
+    fn: async (input) => {
+      return await queryClickhouse<T>({
+        query,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      });
+    },
+  });
 }
 
 /**
@@ -795,99 +868,29 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
 }
 
 /**
- * Internal function to get observations rows from events table for public API.
- */
-async function getObservationsRowsFromEventsTableForPublicApiInternal<T>(
-  opts: PublicApiObservationsQuery,
-): Promise<Array<T>> {
-  const { projectId, page, limit } = opts;
-
-  // Build query with filters and common CTEs
-  const queryBuilder = buildObservationsQueryBase(opts);
-
-  // Determine which field groups to include
-  // If fields are not specified (null), include all groups
-  const requestedFields = opts.fields ?? [...OBSERVATION_FIELD_GROUPS];
-
-  // Core fields are always included (required for cursor pagination)
-  queryBuilder.selectFieldSet("core");
-
-  // Conditionally add other field sets based on requested groups
-  requestedFields
-    .filter((fg) => fg !== "core")
-    .forEach((fieldGroup) => {
-      queryBuilder.selectFieldSet(fieldGroup);
-    });
-
-  // Determine if this is cursor-based pagination (v2) or page-based (v1)
-  // v2 API always passes page=0, v1 API passes actual page numbers
-  const isCursorPagination = page === 0 || opts.cursor !== undefined;
-
-  queryBuilder
-    // Apply cursor filter if provided
-    .when(Boolean(opts.cursor), (b) => {
-      const cursor = opts.cursor!;
-      return b.whereRaw(
-        "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
-        {
-          lastStartTime: convertDateToClickhouseDateTime(
-            cursor.lastStartTimeTo,
-          ),
-          lastTraceId: cursor.lastTraceId,
-          lastId: cursor.lastId,
-        },
-      );
-    })
-    // Order by start_time, xxHash32(trace_id), span_id to match table ordering
-    .orderBy(
-      "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
-    )
-    // When cursor pagination (v2): fetch limit+1 to detect if there are more results
-    // When page-based (v1): use offset pagination
-    .limit(
-      isCursorPagination ? limit + 1 : limit,
-      isCursorPagination ? 0 : (page - 1) * limit,
-    );
-
-  const { query, params } = queryBuilder.buildWithParams();
-
-  const result = await measureAndReturn({
-    operationName: "getObservationsFromEventsTableForPublicApi_rows",
-    projectId,
-    input: {
-      params,
-      tags: {
-        feature: "tracing",
-        type: "events",
-        kind: "publicApiRows",
-        projectId,
-      },
-    },
-    fn: async (input) => {
-      return await queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-    },
-  });
-
-  return result;
-}
-
-/**
  * V1 API: Get observations list from events table for public API
  * Returns complete observations with all fields for transformDbToApiObservation
  */
 export const getObservationsFromEventsTableForPublicApi = async (
   opts: Omit<PublicApiObservationsQuery, "fields">,
 ): Promise<Array<Observation & ObservationPriceFields>> => {
-  const observationRecords =
-    await getObservationsRowsFromEventsTableForPublicApiInternal<ObservationsTableQueryResultWitouhtTraceFields>(
-      opts,
-    );
+  const { projectId } = opts;
 
+  // Build query with filters and common CTEs
+  const queryBuilder = applyOffsetPagination(
+    opts,
+    applyOrderByForObservationsQuery(buildObservationsQueryBase(opts)),
+  );
+
+  OBSERVATION_FIELD_GROUPS.forEach((fieldGroup) => {
+    queryBuilder.selectFieldSet(fieldGroup);
+  });
+
+  const observationRecords =
+    await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+      projectId,
+      queryBuilder,
+    );
   return await enrichObservationsWithModelData(
     observationRecords,
     opts.projectId,
@@ -904,9 +907,37 @@ export const getObservationsFromEventsTableForPublicApi = async (
 export const getObservationsV2FromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery & { fields: ObservationFieldGroup[] },
 ): Promise<Array<EventsObservationPublic>> => {
+  const { projectId } = opts;
+
+  // Build query with filters and common CTEs
+  let queryBuilder = buildObservationsQueryBase(opts, [
+    ...eventsTableLegacyTraceUiColumnDefinitions,
+    ...eventsTableNativeUiColumnDefinitions,
+  ]);
+
+  // Determine which field groups to include
+  // If fields are not specified (null), include "default" groups: core + basic
+  const requestedFields = opts.fields ?? ["core", "basic"];
+
+  // Core fields are always included (required for cursor pagination)
+  queryBuilder.selectFieldSet("core");
+
+  // Conditionally add other field sets based on requested groups
+  requestedFields
+    .filter((fg) => fg !== "core")
+    .forEach((fieldGroup) => {
+      queryBuilder.selectFieldSet(fieldGroup);
+    });
+
+  queryBuilder = applyCursorPagination(
+    opts,
+    applyOrderByForObservationsQuery(queryBuilder),
+  );
+
   const observationRecords =
-    await getObservationsRowsFromEventsTableForPublicApiInternal<ObservationsTableQueryResultWitouhtTraceFields>(
-      opts,
+    await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+      projectId,
+      queryBuilder,
     );
 
   return await enrichObservationsWithModelData(

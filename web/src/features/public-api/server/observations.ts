@@ -168,7 +168,9 @@ const generateFilter = (query: QueryType) => {
     simpleFilterProps,
     filterParams,
     advancedFilters,
-    observationsTableUiColumnDefinitions,
+    observationsTableUiColumnDefinitions.filter(
+      (c) => c.clickhouseTableName !== "scores",
+    ),
   );
 
   // Remove score filters since observations don't support scores in response
