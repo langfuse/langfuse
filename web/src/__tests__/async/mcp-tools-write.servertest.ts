@@ -30,18 +30,9 @@ import {
 } from "./mcp-helpers";
 
 // Import MCP tool handlers directly
-import {
-  createTextPromptTool,
-  handleCreateTextPrompt,
-} from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
-import {
-  createChatPromptTool,
-  handleCreateChatPrompt,
-} from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
-import {
-  updatePromptLabelsTool,
-  handleUpdatePromptLabels,
-} from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
+import { handleCreateTextPrompt } from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
+import { handleCreateChatPrompt } from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
+import { handleUpdatePromptLabels } from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
 
 describe("MCP Write Tools", () => {
   describe("createTextPrompt tool", () => {
