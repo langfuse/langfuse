@@ -1,43 +1,75 @@
-import React, { type ReactNode, useEffect } from "react";
+import React, {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useState,
+} from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
+import { type PostHog } from "posthog-js";
 
-import posthog from "posthog-js";
-import { PostHogProvider } from "posthog-js/react";
 import Script from "next/script";
 
 import { env } from "@/src/env.mjs";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { PostHogContextProvider } from "@/src/features/posthog-analytics/PostHogContext";
 import { useRef } from "react";
-
-// Initialize PostHog on client-side
-if (
-  typeof window !== "undefined" &&
-  process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-  process.env.NEXT_PUBLIC_POSTHOG_HOST
-) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
-    ui_host: "https://eu.posthog.com",
-    // Enable debug mode in development
-    loaded: (posthog) => {
-      if (process.env.NODE_ENV === "development") posthog.debug();
-    },
-    session_recording: {
-      maskCapturedNetworkRequestFn(request) {
-        request.requestBody = request.requestBody ? "REDACTED" : undefined;
-        request.responseBody = request.responseBody ? "REDACTED" : undefined;
-        return request;
-      },
-    },
-    autocapture: false,
-    enable_heatmaps: false,
-  });
-}
 
 interface AnalyticsProviderProps {
   children: ReactNode;
+}
+
+/**
+ * Hook to initialize PostHog dynamically
+ * Returns the posthog instance or null if not configured
+ */
+function useInitializeAnalytics() {
+  const [posthogInstance, setPosthogInstance] = useState<PostHog | null>(null);
+  const initRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      !initRef.current &&
+      typeof window !== "undefined" &&
+      env.NEXT_PUBLIC_POSTHOG_KEY &&
+      env.NEXT_PUBLIC_POSTHOG_HOST
+    ) {
+      initRef.current = true;
+
+      // Dynamically import and initialize PostHog
+      import("posthog-js").then((posthogModule) => {
+        const posthog = posthogModule.default;
+        if (!env.NEXT_PUBLIC_POSTHOG_KEY) return; // make TS happy
+
+        posthog.init(env.NEXT_PUBLIC_POSTHOG_KEY, {
+          api_host: env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
+          ui_host: "https://eu.posthog.com",
+          // Enable debug mode in development
+          loaded: (posthog: any) => {
+            if (process.env.NODE_ENV === "development") posthog.debug();
+          },
+          session_recording: {
+            maskCapturedNetworkRequestFn(request: any) {
+              request.requestBody = request.requestBody
+                ? "REDACTED"
+                : undefined;
+              request.responseBody = request.responseBody
+                ? "REDACTED"
+                : undefined;
+              return request;
+            },
+          },
+          autocapture: false,
+          enable_heatmaps: false,
+        });
+
+        setPosthogInstance(posthog);
+      });
+    }
+  }, []);
+
+  return posthogInstance;
 }
 
 /**
@@ -49,6 +81,9 @@ interface AnalyticsProviderProps {
 export const AnalyticsProvider: React.FC<AnalyticsProviderProps> = ({
   children,
 }) => {
+  // Initialize PostHog on first render and get the instance
+  const posthogInstance = useInitializeAnalytics();
+
   const router = useRouter();
   const session = useSession();
   const { region } = useLangfuseCloudRegion();
@@ -57,18 +92,19 @@ export const AnalyticsProvider: React.FC<AnalyticsProviderProps> = ({
   // Track user identity and properties
   const lastIdentifiedUser = useRef<string | null>(null);
 
+  const handleRouteChange = useEffectEvent(() => {
+    if (posthogInstance) {
+      posthogInstance.capture("$pageview");
+    }
+  });
+
   // PostHog page view tracking
   useEffect(() => {
-    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
-      const handleRouteChange = () => {
-        posthog.capture("$pageview");
-      };
-      router.events.on("routeChangeComplete", handleRouteChange);
+    router.events.on("routeChangeComplete", handleRouteChange);
 
-      return () => {
-        router.events.off("routeChangeComplete", handleRouteChange);
-      };
-    }
+    return () => {
+      router.events.off("routeChangeComplete", handleRouteChange);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -80,8 +116,8 @@ export const AnalyticsProvider: React.FC<AnalyticsProviderProps> = ({
     ) {
       lastIdentifiedUser.current = JSON.stringify(sessionUser);
       // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST)
-        posthog.identify(sessionUser.id ?? undefined, {
+      if (posthogInstance) {
+        posthogInstance.identify(sessionUser.id ?? undefined, {
           environment: process.env.NODE_ENV,
           email: sessionUser.email ?? undefined,
           name: sessionUser.name ?? undefined,
@@ -95,6 +131,7 @@ export const AnalyticsProvider: React.FC<AnalyticsProviderProps> = ({
             ) ?? undefined,
           LANGFUSE_CLOUD_REGION: region,
         });
+      }
 
       // Sentry
       setUser({
@@ -104,19 +141,29 @@ export const AnalyticsProvider: React.FC<AnalyticsProviderProps> = ({
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
       // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
-        posthog.reset();
+      if (posthogInstance) {
+        posthogInstance.reset();
       }
       // Sentry
       setUser(null);
     }
-  }, [sessionUser, session.status, region]);
+  }, [sessionUser, session.status, region, posthogInstance]);
+
+  // Only render PostHogContextProvider if we have a posthog instance
+  if (!posthogInstance) {
+    return (
+      <>
+        {children}
+        <BetterStackUptimeStatusMessage />
+      </>
+    );
+  }
 
   return (
-    <PostHogProvider client={posthog}>
+    <PostHogContextProvider posthogInstance={posthogInstance}>
       {children}
       <BetterStackUptimeStatusMessage />
-    </PostHogProvider>
+    </PostHogContextProvider>
   );
 };
 
@@ -128,7 +175,7 @@ function BetterStackUptimeStatusMessage() {
     <Script
       src="https://uptime.betterstack.com/widgets/announcement.js"
       data-id="189328"
-      strategy="afterInteractive"
+      strategy="lazyOnload"
     />
   );
 }
