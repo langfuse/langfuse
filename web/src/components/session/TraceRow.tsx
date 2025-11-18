@@ -2,7 +2,7 @@ import { SessionIO } from "@/src/components/session";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
-import { RouterOutputs } from "@/src/utils/api";
+import { type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
 import React, {
