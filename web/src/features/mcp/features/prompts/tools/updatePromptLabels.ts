@@ -17,9 +17,28 @@ import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 
 /**
- * Base schema for updatePromptLabels tool (no refinements needed)
+ * Base schema for JSON Schema generation (MCP client display)
+ * Uses simple types without refinements
  */
 const UpdatePromptLabelsBaseSchema = z.object({
+  name: z.string().min(1).max(255).describe("The name of the prompt"),
+  version: z.coerce
+    .number()
+    .int()
+    .positive()
+    .describe("The version number to update (required)"),
+  newLabels: z
+    .array(z.string())
+    .describe(
+      "Array of new labels to assign to the prompt version (can be empty to remove all labels)",
+    ),
+});
+
+/**
+ * Input schema for runtime validation
+ * Uses full validation schemas with refinements
+ */
+const UpdatePromptLabelsInputSchema = z.object({
   name: ParamPromptName,
   version: z.coerce
     .number()
@@ -47,7 +66,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "Accepts: name, version (required), newLabels (array, can be empty to remove all labels)",
   ].join("\n"),
   baseSchema: UpdatePromptLabelsBaseSchema,
-  inputSchema: UpdatePromptLabelsBaseSchema, // No refinements, same as base
+  inputSchema: UpdatePromptLabelsInputSchema,
   handler: async (input, context) => {
     return await instrumentAsync(
       { name: "mcp.prompts.update_labels", spanKind: SpanKind.INTERNAL },

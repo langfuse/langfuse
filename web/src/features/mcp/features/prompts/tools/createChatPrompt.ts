@@ -13,7 +13,6 @@ import {
   PromptNameSchema,
   COMMIT_MESSAGE_MAX_LENGTH,
 } from "@langfuse/shared";
-import { jsonSchema } from "@langfuse/shared";
 import { createPrompt as createPromptAction } from "@/src/features/prompts/server/actions/createPrompt";
 import { prisma } from "@langfuse/shared/src/db";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -30,32 +29,48 @@ const ChatMessageSchema = z.object({
 });
 
 /**
- * Schema for creating a chat prompt (array of messages)
+ * Base schema for JSON Schema generation (MCP client display)
+ * Uses simple types that serialize well to JSON Schema
  */
 const CreateChatPromptBaseSchema = z.object({
-  name: PromptNameSchema.describe("The name of the prompt"),
+  name: z.string().min(1).max(255).describe("The name of the prompt"),
   prompt: z
     .array(ChatMessageSchema)
-    .min(1, "Chat prompts must have at least one message")
+    .min(1)
     .describe("Array of chat messages with role and content"),
   labels: z
-    .array(PromptLabelSchema)
+    .array(z.string())
     .optional()
     .describe("Labels to assign (e.g., ['production', 'staging'])"),
-  config: jsonSchema
-    .nullish()
+  config: z
+    .record(z.string(), z.any())
+    .optional()
     .describe(
       "Optional JSON config (e.g., {model: 'gpt-4', temperature: 0.7})",
     ),
   tags: z
     .array(z.string())
-    .nullish()
+    .optional()
     .describe("Optional tags for organization (e.g., ['experimental', 'v2'])"),
   commitMessage: z
     .string()
-    .max(COMMIT_MESSAGE_MAX_LENGTH)
-    .nullish()
+    .optional()
     .describe("Optional commit message describing the changes"),
+});
+
+/**
+ * Input schema for runtime validation
+ * Uses full validation schemas from shared package
+ */
+const CreateChatPromptInputSchema = z.object({
+  name: PromptNameSchema,
+  prompt: z
+    .array(ChatMessageSchema)
+    .min(1, "Chat prompts must have at least one message"),
+  labels: z.array(PromptLabelSchema).optional(),
+  config: z.record(z.string(), z.any()).optional(),
+  tags: z.array(z.string()).optional(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
 });
 
 /**
@@ -76,7 +91,7 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
     "Accepts: name, prompt (array of {role, content}), optional labels, config, tags, commitMessage",
   ].join("\n"),
   baseSchema: CreateChatPromptBaseSchema,
-  inputSchema: CreateChatPromptBaseSchema,
+  inputSchema: CreateChatPromptInputSchema,
   handler: async (input, context) => {
     return await instrumentAsync(
       { name: "mcp.prompts.create_chat", spanKind: SpanKind.INTERNAL },
