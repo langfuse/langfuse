@@ -15,7 +15,7 @@ type UseEventsTableDataParams = {
     order: "ASC" | "DESC";
   } | null;
   searchQuery?: string | null;
-  searchType?: string;
+  searchType?: ("id" | "content")[];
   selectedRows: Record<string, boolean>;
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
@@ -38,7 +38,7 @@ export function useEventsTableData({
       projectId,
       filter: filterState,
       searchQuery: searchQuery ?? null,
-      searchType: searchType ?? "id",
+      searchType: searchType ?? ["id", "content"],
       page: 1,
       limit: 1,
       orderBy: null,
