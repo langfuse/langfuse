@@ -17,6 +17,8 @@ import { jsonSchema } from "@langfuse/shared";
 import { createPrompt as createPromptAction } from "@/src/features/prompts/server/actions/createPrompt";
 import { prisma } from "@langfuse/shared/src/db";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { instrumentAsync } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 /**
  * Schema for creating a text prompt (simple string content)
@@ -91,41 +93,62 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
   baseSchema: CreateTextPromptBaseSchema,
   inputSchema: CreateTextPromptBaseSchema,
   handler: async (input, context) => {
-    const createdPrompt = await createPromptAction({
-      projectId: context.projectId,
-      name: input.name,
-      type: PromptType.Text,
-      prompt: input.prompt,
-      labels: input.labels ?? [],
-      config: input.config ?? {},
-      tags: input.tags,
-      commitMessage: input.commitMessage,
-      createdBy: "API",
-      prisma,
-    });
+    return await instrumentAsync(
+      { name: "mcp.prompts.create_text", spanKind: SpanKind.INTERNAL },
+      async (span) => {
+        // Set span attributes for observability
+        span.setAttributes({
+          "langfuse.project.id": context.projectId,
+          "langfuse.org.id": context.orgId,
+          "mcp.api_key_id": context.apiKeyId,
+          "mcp.prompt_name": input.name,
+          "mcp.prompt_type": "text",
+          "mcp.labels_count": input.labels?.length ?? 0,
+          "mcp.has_config": input.config ? "true" : "false",
+          "mcp.has_tags": input.tags ? "true" : "false",
+          "mcp.has_commit_message": input.commitMessage ? "true" : "false",
+        });
 
-    await auditLog({
-      action: "create",
-      resourceType: "prompt",
-      resourceId: createdPrompt.id,
-      projectId: context.projectId,
-      orgId: context.orgId,
-      apiKeyId: context.apiKeyId,
-      after: createdPrompt,
-    });
+        const createdPrompt = await createPromptAction({
+          projectId: context.projectId,
+          name: input.name,
+          type: PromptType.Text,
+          prompt: input.prompt,
+          labels: input.labels ?? [],
+          config: input.config ?? {},
+          tags: input.tags,
+          commitMessage: input.commitMessage,
+          createdBy: "API",
+          prisma,
+        });
 
-    return {
-      id: createdPrompt.id,
-      name: createdPrompt.name,
-      version: createdPrompt.version,
-      type: createdPrompt.type,
-      labels: createdPrompt.labels,
-      tags: createdPrompt.tags,
-      config: createdPrompt.config,
-      createdAt: createdPrompt.createdAt,
-      createdBy: createdPrompt.createdBy,
-      message: `Successfully created text prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
-    };
+        // Set created version for observability
+        span.setAttribute("mcp.created_version", createdPrompt.version);
+
+        await auditLog({
+          action: "create",
+          resourceType: "prompt",
+          resourceId: createdPrompt.id,
+          projectId: context.projectId,
+          orgId: context.orgId,
+          apiKeyId: context.apiKeyId,
+          after: createdPrompt,
+        });
+
+        return {
+          id: createdPrompt.id,
+          name: createdPrompt.name,
+          version: createdPrompt.version,
+          type: createdPrompt.type,
+          labels: createdPrompt.labels,
+          tags: createdPrompt.tags,
+          config: createdPrompt.config,
+          createdAt: createdPrompt.createdAt,
+          createdBy: createdPrompt.createdBy,
+          message: `Successfully created text prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
+        };
+      },
+    );
   },
   destructiveHint: true,
 });

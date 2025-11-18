@@ -1,7 +1,7 @@
 /**
  * MCP Test Helpers
  *
- * Shared utilities for testing MCP server tools and resources.
+ * Shared utilities for testing MCP server tools.
  * These helpers allow direct testing of tool handlers without HTTP overhead.
  */
 
@@ -23,21 +23,31 @@ export async function createMcpTestSetup(): Promise<{
   auth: string;
   context: ServerContext;
 }> {
-  const { projectId, orgId, apiKeyId, auth } =
-    await createOrgProjectAndApiKey();
+  const result = await createOrgProjectAndApiKey();
+  const { projectId, orgId, auth } = result;
+
+  // Extract apiKeyId from created API key
+  const apiKey = await prisma.apiKey.findFirst({
+    where: { projectId, publicKey: result.publicKey },
+    select: { id: true },
+  });
+
+  if (!apiKey) {
+    throw new Error("Failed to create API key for test setup");
+  }
 
   const context: ServerContext = {
     projectId,
     orgId,
-    apiKeyId,
+    apiKeyId: apiKey.id,
     accessLevel: "project",
-    publicKey: `pk-lf-test-${projectId}`,
+    publicKey: result.publicKey,
   };
 
   return {
     projectId,
     orgId,
-    apiKeyId,
+    apiKeyId: apiKey.id,
     auth,
     context,
   };
@@ -191,10 +201,12 @@ export async function createPromptInDb(params: {
   return await prisma.prompt.create({
     data: {
       name: params.name,
-      prompt: params.prompt,
+      //eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prompt: params.prompt as any, // Prisma's JsonValue type - can be string or object
       labels: params.labels ?? [],
       version: params.version ?? 1,
-      config: params.config ?? {},
+      //eslint-disable-next-line @typescript-eslint/no-explicit-any
+      config: (params.config ?? {}) as any, // Prisma's JsonValue type - safe because we control the input
       tags: params.tags ?? [],
       type: params.type ?? "text",
       createdBy: params.createdBy ?? "test-user",

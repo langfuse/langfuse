@@ -1,7 +1,27 @@
 /** @jest-environment node */
 
+// Mock queue operations to avoid Redis dependency in tests
+jest.mock("@langfuse/shared/src/server", () => {
+  const actual = jest.requireActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    // Mock queue getInstance to return a no-op queue
+    EventPropagationQueue: {
+      getInstance: () => ({
+        add: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn(),
+      }),
+    },
+    EntityChangeQueue: {
+      getInstance: () => ({
+        add: jest.fn().mockResolvedValue(undefined),
+        disconnect: jest.fn(),
+      }),
+    },
+  };
+});
+
 import { prisma } from "@langfuse/shared/src/db";
-import { disconnectQueues } from "@/src/__tests__/test-utils";
 import { nanoid } from "nanoid";
 import {
   createMcpTestSetup,
@@ -24,10 +44,6 @@ import {
 } from "@/src/features/mcp/server/tools/updatePromptLabels";
 
 describe("MCP Write Tools", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
-
   describe("createTextPrompt tool", () => {
     it("should have destructive annotation", () => {
       expect(createTextPromptTool.annotations?.destructive).toBe(true);
