@@ -48,7 +48,13 @@ claude mcp add --transport http langfuse http://localhost:3000/api/public/mcp \
     --header "Authorization: Basic cGstbGYtZGYxZmI3YjUtYjY0NC00NWY0LTgxNDktMDUzZDRkMWNkMWE1OnNrLWxmLTk2MWRhYmJlLWFlNTAtNDM0Yi05MTk3LTg1NDc4NzU0OGRjOA=="
 ```
 
-For production Langfuse instances, replace `http://localhost:3000` with your hosted URL.
+**For Langfuse Cloud:**
+- EU Region: `https://cloud.langfuse.com`
+- US Region: `https://us.langfuse.com`
+- HIPAA: `https://hipaa.langfuse.com`
+
+**For Self-Hosted Deployments:**
+Replace with your domain using `https://` (HTTPS required).
 
 ### 4. Verify
 
@@ -721,10 +727,13 @@ claude mcp add --transport http langfuse http://localhost:3000/api/public/mcp \
 
 ---
 
-### Production (Hosted Langfuse)
+### Production (Langfuse Cloud)
 
+**Langfuse Cloud Regions:**
+
+**EU Region (cloud.langfuse.com):**
 ```bash
-# 1. Get API keys from your Langfuse instance
+# 1. Get API keys from Langfuse Cloud EU
 # Navigate to: https://cloud.langfuse.com/project/{project-id}/settings
 
 # 2. Encode credentials
@@ -734,6 +743,27 @@ echo -n "pk-lf-...:sk-lf-..." | base64
 claude mcp add --transport http langfuse https://cloud.langfuse.com/api/public/mcp \
     --header "Authorization: Basic {base64-encoded-credentials}"
 ```
+
+**US Region (us.langfuse.com):**
+```bash
+claude mcp add --transport http langfuse https://us.langfuse.com/api/public/mcp \
+    --header "Authorization: Basic {base64-encoded-credentials}"
+```
+
+**HIPAA (hipaa.langfuse.com):**
+```bash
+claude mcp add --transport http langfuse https://hipaa.langfuse.com/api/public/mcp \
+    --header "Authorization: Basic {base64-encoded-credentials}"
+```
+
+**Self-Hosted Deployments:**
+```bash
+# Replace with your domain (HTTPS required)
+claude mcp add --transport http langfuse https://your-domain.com/api/public/mcp \
+    --header "Authorization: Basic {base64-encoded-credentials}"
+```
+
+**Note:** All production and self-hosted deployments **must use HTTPS**.
 
 ---
 
