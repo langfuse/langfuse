@@ -114,5 +114,5 @@ export const [getPromptTool, handleGetPrompt] = defineTool({
       },
     );
   },
-  readOnly: true,
+  readOnlyHint: true,
 });

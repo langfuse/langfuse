@@ -124,5 +124,5 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
       },
     );
   },
-  readOnly: true,
+  readOnlyHint: true,
 });

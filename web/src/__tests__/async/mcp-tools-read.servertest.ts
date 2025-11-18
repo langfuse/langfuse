@@ -16,7 +16,11 @@ jest.mock("@langfuse/shared/src/server", () => {
 });
 
 import { nanoid } from "nanoid";
-import { createMcpTestSetup, createPromptInDb } from "./mcp-helpers";
+import {
+  createMcpTestSetup,
+  createPromptInDb,
+  verifyToolAnnotations,
+} from "./mcp-helpers";
 
 // Import MCP tool handlers directly
 import {
@@ -31,8 +35,7 @@ import {
 describe("MCP Read Tools", () => {
   describe("getPrompt tool", () => {
     it("should have readOnlyHint annotation", () => {
-      expect(getPromptTool.annotations?.readOnly).toBe(true);
-      expect(getPromptTool.annotations?.destructive).toBeUndefined();
+      verifyToolAnnotations(getPromptTool, { readOnlyHint: true });
     });
 
     it("should fetch prompt by name only (defaults to production label)", async () => {
@@ -271,8 +274,7 @@ describe("MCP Read Tools", () => {
 
   describe("listPrompts tool", () => {
     it("should have readOnlyHint annotation", () => {
-      expect(listPromptsTool.annotations?.readOnly).toBe(true);
-      expect(listPromptsTool.annotations?.destructive).toBeUndefined();
+      verifyToolAnnotations(listPromptsTool, { readOnlyHint: true });
     });
 
     it("should list all prompts for project", async () => {

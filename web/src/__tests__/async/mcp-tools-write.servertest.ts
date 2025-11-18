@@ -27,6 +27,7 @@ import {
   createMcpTestSetup,
   createPromptInDb,
   verifyAuditLog,
+  verifyToolAnnotations,
 } from "./mcp-helpers";
 
 // Import MCP tool handlers directly
@@ -46,8 +47,7 @@ import {
 describe("MCP Write Tools", () => {
   describe("createTextPrompt tool", () => {
     it("should have destructive annotation", () => {
-      expect(createTextPromptTool.annotations?.destructive).toBe(true);
-      expect(createTextPromptTool.annotations?.readOnly).toBeUndefined();
+      verifyToolAnnotations(createTextPromptTool, { destructiveHint: true });
     });
 
     it("should create a simple text prompt", async () => {
@@ -286,8 +286,7 @@ describe("MCP Write Tools", () => {
 
   describe("createChatPrompt tool", () => {
     it("should have destructive annotation", () => {
-      expect(createChatPromptTool.annotations?.destructive).toBe(true);
-      expect(createChatPromptTool.annotations?.readOnly).toBeUndefined();
+      verifyToolAnnotations(createChatPromptTool, { destructiveHint: true });
     });
 
     it("should create a simple chat prompt", async () => {
@@ -534,8 +533,7 @@ describe("MCP Write Tools", () => {
 
   describe("updatePromptLabels tool", () => {
     it("should have destructive annotation", () => {
-      expect(updatePromptLabelsTool.annotations?.destructive).toBe(true);
-      expect(updatePromptLabelsTool.annotations?.readOnly).toBeUndefined();
+      verifyToolAnnotations(updatePromptLabelsTool, { destructiveHint: true });
     });
 
     it("should update labels for a prompt version", async () => {

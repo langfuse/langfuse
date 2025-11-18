@@ -37,13 +37,13 @@ export interface DefineToolOptions<TInput> {
   handler: ToolHandler<TInput>;
 
   /** Hint: This tool only reads data, does not modify anything */
-  readOnly?: boolean;
+  readOnlyHint?: boolean;
 
   /** Hint: This tool has destructive effects (delete, overwrite) */
-  destructive?: boolean;
+  destructiveHint?: boolean;
 
   /** Hint: This tool is expensive to run (slow, rate-limited) */
-  expensive?: boolean;
+  expensiveHint?: boolean;
 }
 
 /**
@@ -59,9 +59,9 @@ export interface ToolDefinition {
     additionalProperties?: boolean;
   };
   annotations?: {
-    readOnly?: boolean;
-    destructive?: boolean;
-    expensive?: boolean;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    expensiveHint?: boolean;
   };
 }
 
@@ -97,9 +97,9 @@ export function defineTool<TInput>(
     baseSchema,
     inputSchema,
     handler,
-    readOnly,
-    destructive,
-    expensive,
+    readOnlyHint,
+    destructiveHint,
+    expensiveHint,
   } = options;
 
   // Convert base Zod schema to JSON Schema using Zod v4's native method
@@ -134,11 +134,11 @@ export function defineTool<TInput>(
   };
 
   // Add annotations if provided
-  if (readOnly || destructive || expensive) {
+  if (readOnlyHint || destructiveHint || expensiveHint) {
     toolDefinition.annotations = {
-      readOnly,
-      destructive,
-      expensive,
+      readOnlyHint,
+      destructiveHint,
+      expensiveHint,
     };
   }
 
