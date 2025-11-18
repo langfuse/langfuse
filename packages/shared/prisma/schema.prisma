@@ -653,6 +653,7 @@ model DatasetItemEvent {
   createdAt           DateTime?     @map("created_at")
   deletedAt           DateTime?     @map("deleted_at")
 
+  @@index([projectId, datasetId, id, createdAt])
   @@map("dataset_item_events")
 }
 
