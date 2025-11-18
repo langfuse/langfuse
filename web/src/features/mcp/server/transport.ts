@@ -38,20 +38,7 @@ export async function handleMcpRequest(
   res: NextApiResponse,
 ): Promise<void> {
   try {
-    // CORS headers for MCP clients
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID",
-    );
-    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
-
-    // Handle preflight OPTIONS request
-    if (req.method === "OPTIONS") {
-      res.status(200).end();
-      return;
-    }
+    // Note: CORS headers and OPTIONS handling are now in index.ts (before authentication)
 
     // Validate Accept header for POST requests (per spec)
     if (req.method === "POST") {

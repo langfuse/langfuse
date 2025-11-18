@@ -60,6 +60,21 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
+    // CORS headers for MCP clients (must be set before authentication)
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID",
+    );
+    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+
+    // Handle preflight OPTIONS request (before authentication)
+    if (req.method === "OPTIONS") {
+      res.status(200).end();
+      return;
+    }
+
     // Authenticate request using BasicAuth (Public Key:Secret Key)
     const authCheck = await new ApiAuthService(
       prisma,
