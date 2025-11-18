@@ -14,22 +14,23 @@ import { PromptService } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { logger } from "@langfuse/shared/src/server";
-import { PRODUCTION_LABEL } from "@langfuse/shared";
+import { PRODUCTION_LABEL, publicApiPaginationZod } from "@langfuse/shared";
 import { UserInputError } from "../../internal/errors";
+import { z } from "zod/v4";
 
 /**
  * List prompts resource handler
  *
- * URI: langfuse://prompts?name={name}&label={label}&tag={tag}&limit={limit}&offset={offset}
+ * URI: langfuse://prompts?name={name}&label={label}&tag={tag}&page={page}&limit={limit}
  *
  * Query parameters:
  * - name: Filter by prompt name (partial match)
  * - label: Filter by label
  * - tag: Filter by tag
- * - limit: Maximum number of results (1-250, default 100)
- * - offset: Number of results to skip (default 0)
+ * - page: Page number (1-indexed, default 1)
+ * - limit: Items per page (1-100, default 50)
  *
- * Returns array of prompt metadata
+ * Returns paginated prompt metadata following standard Langfuse API format
  */
 export async function listPromptsResource(
   uri: URL,
@@ -41,67 +42,65 @@ export async function listPromptsResource(
   const label = uri.searchParams.get("label") || undefined;
   const tag = uri.searchParams.get("tag") || undefined;
 
-  // Parse pagination parameters with validation
-  const limitParam = uri.searchParams.get("limit");
-  const offsetParam = uri.searchParams.get("offset");
-
-  let limit = 100; // Default limit
-  if (limitParam) {
-    const parsedLimit = parseInt(limitParam, 10);
-    if (isNaN(parsedLimit) || parsedLimit < 1) {
-      throw new UserInputError(
-        `Invalid limit parameter: ${limitParam}. Limit must be a positive integer.`,
-      );
-    }
-    limit = Math.min(parsedLimit, 250); // Cap at 250
-  }
-
-  let offset = 0; // Default offset
-  if (offsetParam) {
-    const parsedOffset = parseInt(offsetParam, 10);
-    if (isNaN(parsedOffset) || parsedOffset < 0) {
-      throw new UserInputError(
-        `Invalid offset parameter: ${offsetParam}. Offset must be a non-negative integer.`,
-      );
-    }
-    offset = parsedOffset;
-  }
+  // Parse pagination parameters using standard Langfuse schema
+  const paginationSchema = z.object(publicApiPaginationZod);
+  const pagination = paginationSchema.parse({
+    page: uri.searchParams.get("page") || undefined,
+    limit: uri.searchParams.get("limit") || undefined,
+  });
 
   logger.info("MCP: List prompts resource", {
     projectId: context.projectId,
     filters: { name, label, tag },
-    pagination: { limit, offset },
+    pagination,
   });
 
-  // Query prompts with filters
-  const prompts = await prisma.prompt.findMany({
-    where: {
-      projectId: context.projectId,
-      ...(name && { name: { contains: name } }),
-      ...(label && { labels: { has: label } }),
-      ...(tag && { tags: { has: tag } }),
+  // Build filter conditions
+  const where = {
+    projectId: context.projectId,
+    ...(name && { name: { contains: name } }),
+    ...(label && { labels: { has: label } }),
+    ...(tag && { tags: { has: tag } }),
+  };
+
+  // Query prompts and count in parallel (standard Langfuse pattern)
+  const [prompts, totalItems] = await Promise.all([
+    prisma.prompt.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        type: true,
+        labels: true,
+        tags: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: pagination.limit,
+      skip: (pagination.page - 1) * pagination.limit,
+    }),
+    prisma.prompt.count({ where }),
+  ]);
+
+  // Build response with standard pagination metadata
+  const response = {
+    data: prompts,
+    meta: {
+      page: pagination.page,
+      limit: pagination.limit,
+      totalItems,
+      totalPages: Math.ceil(totalItems / pagination.limit),
     },
-    select: {
-      id: true,
-      name: true,
-      version: true,
-      type: true,
-      labels: true,
-      tags: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip: offset,
-  });
+  };
 
   return {
     contents: [
       {
         uri: uri.toString(),
         mimeType: "application/json",
-        text: JSON.stringify(prompts, null, 2),
+        text: JSON.stringify(response, null, 2),
       },
     ],
   };

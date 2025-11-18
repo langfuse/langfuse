@@ -83,7 +83,7 @@ export function createMcpServer(_context: ServerContext): Server {
           uri: "langfuse://prompts",
           name: "Langfuse Prompts",
           description:
-            "List prompts in the project. Query params: ?name={partial match}&label={exact match}&tag={exact match}&limit={1-250, default 100}&offset={skip count, default 0}. Returns prompt metadata ordered by creation date (newest first).",
+            "List prompts in the project. Query params: ?name={partial match}&label={exact match}&tag={exact match}&page={page number, default 1}&limit={items per page, 1-100, default 50}. Returns paginated prompt metadata with { data: [], meta: { page, limit, totalItems, totalPages } } format.",
           mimeType: "application/json",
         },
         {
