@@ -5,15 +5,18 @@ export const DATASET_TABS = {
 
 export type DatasetTab = (typeof DATASET_TABS)[keyof typeof DATASET_TABS];
 
-export const getDatasetTabs = (projectId: string, datasetId: string) => [
-  {
-    value: DATASET_TABS.RUNS,
-    label: "Runs",
-    href: `/project/${projectId}/datasets/${datasetId}`,
-  },
-  {
-    value: DATASET_TABS.ITEMS,
-    label: "Items",
-    href: `/project/${projectId}/datasets/${datasetId}/items`,
-  },
-];
+export const getDatasetTabs = (projectId: string, datasetId: string) => {
+  const encodedDatasetId = encodeURIComponent(datasetId);
+  return [
+    {
+      value: DATASET_TABS.RUNS,
+      label: "Runs",
+      href: `/project/${projectId}/datasets/${encodedDatasetId}`,
+    },
+    {
+      value: DATASET_TABS.ITEMS,
+      label: "Items",
+      href: `/project/${projectId}/datasets/${encodedDatasetId}/items`,
+    },
+  ];
+};

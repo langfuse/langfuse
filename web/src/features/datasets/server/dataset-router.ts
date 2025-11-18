@@ -472,7 +472,12 @@ export const datasetRouter = createTRPCRouter({
       const pathFilter = input.pathPrefix
         ? (() => {
             const prefix = input.pathPrefix;
-            return Prisma.sql` AND (d.name LIKE ${`${prefix}/%`} OR d.name = ${prefix})`;
+            // Escape backslashes and other LIKE special characters for pattern matching
+            const escapedPrefix = prefix
+              .replace(/\\/g, "\\\\")
+              .replace(/%/g, "\\%")
+              .replace(/_/g, "\\_");
+            return Prisma.sql` AND (d.name LIKE ${`${escapedPrefix}/%`} OR d.name = ${escapedPrefix})`;
           })()
         : Prisma.empty;
 
