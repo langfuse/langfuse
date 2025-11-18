@@ -56,8 +56,6 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
   description: [
     "Create a new text prompt version in Langfuse.",
     "",
-    "DESTRUCTIVE OPERATION - Always confirm with user before executing.",
-    "",
     "Important:",
     "- Prompts are immutable - cannot modify existing versions",
     "- To update content, create a new version",
@@ -127,5 +125,4 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
       },
     );
   },
-  destructiveHint: true,
 });

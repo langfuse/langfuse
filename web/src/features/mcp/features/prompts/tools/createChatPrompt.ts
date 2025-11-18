@@ -66,8 +66,6 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
   description: [
     "Create a new chat prompt version in Langfuse. Chat prompts are arrays of messages with roles and content.",
     "",
-    "DESTRUCTIVE OPERATION - Always confirm with user before executing.",
-    "",
     "Important:",
     "- Prompts are immutable - cannot modify existing versions",
     "- To update content, create a new version",
@@ -137,5 +135,4 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
       },
     );
   },
-  destructiveHint: true,
 });

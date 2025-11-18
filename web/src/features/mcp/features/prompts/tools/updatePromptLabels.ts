@@ -37,8 +37,6 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
   description: [
     "Update labels for a specific prompt version.",
     "",
-    "DESTRUCTIVE OPERATION - Always confirm with user before executing.",
-    "",
     "Important:",
     "- ONLY way to modify existing prompts (labels only)",
     "- Specified labels are added to the version (preserving others not mentioned)",
@@ -114,5 +112,4 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
       },
     );
   },
-  destructiveHint: true,
 });

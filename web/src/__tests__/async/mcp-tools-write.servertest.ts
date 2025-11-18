@@ -27,7 +27,6 @@ import {
   createMcpTestSetup,
   createPromptInDb,
   verifyAuditLog,
-  verifyToolAnnotations,
 } from "./mcp-helpers";
 
 // Import MCP tool handlers directly
@@ -46,10 +45,6 @@ import {
 
 describe("MCP Write Tools", () => {
   describe("createTextPrompt tool", () => {
-    it("should have destructive annotation", () => {
-      verifyToolAnnotations(createTextPromptTool, { destructiveHint: true });
-    });
-
     it("should create a simple text prompt", async () => {
       const { context } = await createMcpTestSetup();
       const promptName = `text-prompt-${nanoid()}`;
@@ -285,10 +280,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("createChatPrompt tool", () => {
-    it("should have destructive annotation", () => {
-      verifyToolAnnotations(createChatPromptTool, { destructiveHint: true });
-    });
-
     it("should create a simple chat prompt", async () => {
       const { context } = await createMcpTestSetup();
       const promptName = `chat-prompt-${nanoid()}`;
@@ -532,10 +523,6 @@ describe("MCP Write Tools", () => {
   });
 
   describe("updatePromptLabels tool", () => {
-    it("should have destructive annotation", () => {
-      verifyToolAnnotations(updatePromptLabelsTool, { destructiveHint: true });
-    });
-
     it("should update labels for a prompt version", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const promptName = `update-labels-${nanoid()}`;
