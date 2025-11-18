@@ -124,17 +124,32 @@ export const IOPreview: React.FC<{
       const message = messages[i];
       const isOutputMessage = i >= inputMessageCount; // Only output messages get numbered
 
-      if (message.tool_calls && Array.isArray(message.tool_calls)) {
+      const toolCallList =
+        message.tool_calls && Array.isArray(message.tool_calls)
+          ? message.tool_calls
+          : message.json?.tool_calls && Array.isArray(message.json.tool_calls)
+            ? message.json.tool_calls
+            : undefined;
+
+      if (toolCallList) {
         const messageToolNumbers: number[] = [];
 
-        for (const toolCall of message.tool_calls) {
-          if (toolCall.name && typeof toolCall.name === "string") {
+        for (const toolCall of toolCallList) {
+          const calledToolName =
+            toolCall.name && typeof toolCall.name === "string"
+              ? toolCall.name
+              : // AI SDK has 'toolName'
+                toolCall.toolName && typeof toolCall.toolName === "string"
+                ? toolCall.toolName
+                : undefined;
+
+          if (calledToolName) {
             // count tool calls from OUTPUT messages only, only those were called
             // in this generation
             if (isOutputMessage) {
               toolCallCounts.set(
-                toolCall.name,
-                (toolCallCounts.get(toolCall.name) || 0) + 1,
+                calledToolName,
+                (toolCallCounts.get(calledToolName) || 0) + 1,
               );
               toolCallCounter++;
               messageToolNumbers.push(toolCallCounter);
