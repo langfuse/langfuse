@@ -1,7 +1,7 @@
 /**
  * MCP Test Helpers
  *
- * Shared utilities for testing MCP server tools and resources.
+ * Shared utilities for testing MCP server tools.
  * These helpers allow direct testing of tool handlers without HTTP overhead.
  */
 
