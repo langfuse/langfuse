@@ -1,7 +1,6 @@
 /** @jest-environment node */
 
-import { disconnectQueues } from "@/src/__tests__/test-utils";
-import { nanoid } from "ai";
+import { nanoid } from "nanoid";
 import { createMcpTestSetup, createPromptInDb } from "./mcp-helpers";
 
 // Import MCP tool handlers directly
@@ -15,10 +14,6 @@ import {
 } from "@/src/features/mcp/server/tools/listPrompts";
 
 describe("MCP Read Tools", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
-
   describe("getPrompt tool", () => {
     it("should have readOnlyHint annotation", () => {
       expect(getPromptTool.annotations?.readOnly).toBe(true);
@@ -284,16 +279,19 @@ describe("MCP Read Tools", () => {
         projectId,
       });
 
-      const result = (await handleListPrompts({}, context)) as {
+      const result = (await handleListPrompts(
+        { page: 1, limit: 100 },
+        context,
+      )) as {
         data: Array<{ name: string }>;
-        meta: { totalItems: number };
+        pagination: { totalItems: number };
       };
 
       // Should include our prompts (may include others from setup)
       const names = result.data.map((p) => p.name);
       expect(names).toContain(prompt1Name);
       expect(names).toContain(prompt2Name);
-      expect(result.meta.totalItems).toBeGreaterThanOrEqual(2);
+      expect(result.pagination.totalItems).toBeGreaterThanOrEqual(2);
     });
 
     it("should filter by name", async () => {
@@ -313,7 +311,7 @@ describe("MCP Read Tools", () => {
       });
 
       const result = (await handleListPrompts(
-        { name: `${uniquePrefix}-match` },
+        { name: `${uniquePrefix}-match`, page: 1, limit: 100 },
         context,
       )) as {
         data: Array<{ name: string }>;
@@ -344,7 +342,7 @@ describe("MCP Read Tools", () => {
       });
 
       const result = (await handleListPrompts(
-        { label: "production" },
+        { label: "production", page: 1, limit: 100 },
         context,
       )) as {
         data: Array<{ name: string; labels: string[] }>;
@@ -375,7 +373,7 @@ describe("MCP Read Tools", () => {
       });
 
       const result = (await handleListPrompts(
-        { tag: "experimental" },
+        { tag: "experimental", page: 1, limit: 100 },
         context,
       )) as {
         data: Array<{ name: string; tags: string[] }>;
@@ -405,28 +403,28 @@ describe("MCP Read Tools", () => {
         context,
       )) as {
         data: Array<{ name: string }>;
-        meta: { page: number; limit: number; totalPages: number };
+        pagination: { page: number; limit: number; totalPages: number };
       };
 
       expect(result.data.length).toBeLessThanOrEqual(2);
-      expect(result.meta.page).toBe(1);
-      expect(result.meta.limit).toBe(2);
-      expect(result.meta.totalPages).toBeGreaterThanOrEqual(1);
+      expect(result.pagination.page).toBe(1);
+      expect(result.pagination.limit).toBe(2);
+      expect(result.pagination.totalPages).toBeGreaterThanOrEqual(1);
     });
 
     it("should return empty results for no matches", async () => {
       const { context } = await createMcpTestSetup();
 
       const result = (await handleListPrompts(
-        { name: `non-existent-${nanoid()}` },
+        { name: `non-existent-${nanoid()}`, page: 1, limit: 100 },
         context,
       )) as {
         data: Array<unknown>;
-        meta: { totalItems: number };
+        pagination: { totalItems: number };
       };
 
       expect(result.data).toEqual([]);
-      expect(result.meta.totalItems).toBe(0);
+      expect(result.pagination.totalItems).toBe(0);
     });
 
     it("should use context.projectId for tenant isolation", async () => {
@@ -445,14 +443,14 @@ describe("MCP Read Tools", () => {
 
       // Project 1 should see it
       const result1 = (await handleListPrompts(
-        { name: uniqueName },
+        { name: uniqueName, page: 1, limit: 100 },
         context1,
       )) as { data: Array<unknown> };
       expect(result1.data.length).toBe(1);
 
       // Project 2 should not see it
       const result2 = (await handleListPrompts(
-        { name: uniqueName },
+        { name: uniqueName, page: 1, limit: 100 },
         context2,
       )) as { data: Array<unknown> };
       expect(result2.data.length).toBe(0);
@@ -461,13 +459,16 @@ describe("MCP Read Tools", () => {
     it("should respect default pagination values", async () => {
       const { context } = await createMcpTestSetup();
 
-      const result = (await handleListPrompts({}, context)) as {
-        meta: { page: number; limit: number };
+      const result = (await handleListPrompts(
+        { page: 1, limit: 100 },
+        context,
+      )) as {
+        pagination: { page: number; limit: number };
       };
 
       // Default values from validation schema
-      expect(result.meta.page).toBe(1);
-      expect(result.meta.limit).toBeLessThanOrEqual(100); // Max limit
+      expect(result.pagination.page).toBe(1);
+      expect(result.pagination.limit).toBeLessThanOrEqual(100); // Max limit
     });
 
     it("should include prompt metadata in list results", async () => {
@@ -484,7 +485,7 @@ describe("MCP Read Tools", () => {
       });
 
       const result = (await handleListPrompts(
-        { name: promptName },
+        { name: promptName, page: 1, limit: 100 },
         context,
       )) as {
         data: Array<{

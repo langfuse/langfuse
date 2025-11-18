@@ -3,7 +3,6 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { ZodError } from "zod/v4";
 import { z } from "zod/v4";
-import { disconnectQueues } from "@/src/__tests__/test-utils";
 import {
   formatErrorForUser,
   wrapErrorHandling,
@@ -21,10 +20,6 @@ import {
 } from "@langfuse/shared";
 
 describe("MCP Error Formatting", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
-
   describe("formatErrorForUser", () => {
     describe("UserInputError handling", () => {
       it("should format UserInputError as InvalidRequest", () => {
@@ -199,7 +194,12 @@ describe("MCP Error Formatting", () => {
       });
 
       it("should format BaseError as InvalidRequest", () => {
-        const error = new BaseError("Generic base error");
+        const error = new BaseError(
+          "Generic base error",
+          500,
+          "Generic base error",
+          true,
+        );
         const mcpError = formatErrorForUser(error);
 
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);

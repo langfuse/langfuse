@@ -2,7 +2,7 @@
 
 import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues } from "@/src/__tests__/test-utils";
-import { nanoid } from "ai";
+import { nanoid } from "nanoid";
 import {
   createMcpTestSetup,
   createPromptInDb,
