@@ -1,17 +1,57 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import {
   type FilterState,
   singleFilter,
   type SingleValueOption,
+  type ColumnDefinition,
 } from "@langfuse/shared";
 import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
 } from "../lib/filter-query-encoding";
+import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import type { FilterConfig } from "../lib/filter-config";
+
+/**
+ * Decodes filters from URL query string and normalizes display names to column IDs.
+ * This prevents duplicates when old URLs use display names and new filters use column IDs.
+ *
+ * @param filtersQuery - Encoded filter string from URL
+ * @param columnDefinitions - Column definitions for validation and normalization
+ * @returns Normalized and validated FilterState
+ */
+export function decodeAndNormalizeFilters(
+  filtersQuery: string,
+  columnDefinitions: ColumnDefinition[],
+): FilterState {
+  try {
+    const filters = decodeFiltersGeneric(filtersQuery);
+
+    // Normalize display names to column IDs immediately after decoding
+    // This prevents duplicates when old URLs use display names (e.g., "Environment")
+    // and user adds new filters with column IDs (e.g., "environment")
+    const normalized = normalizeFilterColumnNames(filters, columnDefinitions);
+
+    // Validate normalized filters
+    const result: FilterState = [];
+    for (const filter of normalized) {
+      const validationResult = singleFilter.safeParse(filter);
+      if (validationResult.success) {
+        result.push(validationResult.data);
+      } else {
+        console.warn(`Invalid filter skipped:`, filter, validationResult.error);
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("Error decoding filters:", error);
+    return [];
+  }
+}
 
 function computeNumericRange(
   column: string,
@@ -41,7 +81,6 @@ function computeNumericRange(
 export interface BaseUIFilter {
   column: string;
   label: string;
-  shortKey: string | null;
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -201,8 +240,16 @@ export function useSidebarFilterState(
   config: FilterConfig,
   options: Record<
     string,
-    (string | SingleValueOption)[] | Record<string, string[]>
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
+  projectId?: string,
+  loading?: boolean,
+  /**
+   * If true, prevents filter state from being persisted to/read from URL query params.
+   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
+   * the parent page's URL with filters that don't apply to the parent context.
+   */
+  disableUrlPersistence?: boolean,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -227,56 +274,78 @@ export function useSidebarFilterState(
   );
 
   const filterState: FilterState = useMemo(() => {
-    try {
-      const filters = decodeFiltersGeneric(
-        filtersQuery,
-        config.columnToQueryKey,
-        options,
-        (column) => {
-          const columnDef = config.columnDefinitions.find(
-            (col) => col.id === column,
-          );
-          return columnDef?.type || "stringOptions";
-        },
-      );
-
-      // Validate filters
-      const result: FilterState = [];
-      for (const filter of filters) {
-        const validationResult = singleFilter.safeParse(filter);
-        if (validationResult.success) {
-          result.push(validationResult.data);
-        } else {
-          console.warn(
-            `Invalid filter skipped:`,
-            filter,
-            validationResult.error,
-          );
-        }
-      }
-      return result;
-    } catch (error) {
-      console.error("Error decoding filters:", error);
-      return [];
-    }
-  }, [
-    filtersQuery,
-    config.columnToQueryKey,
-    config.columnDefinitions,
-    options,
-  ]);
+    // If URL persistence is disabled, return empty filter state
+    if (disableUrlPersistence) return [];
+    return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
+  }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
-      const encoded = encodeFiltersGeneric(
-        newFilters,
-        config.columnToQueryKey,
-        options,
-      );
+      // Don't modify URL if persistence is disabled
+      if (disableUrlPersistence) return;
+      const encoded = encodeFiltersGeneric(newFilters);
       setFiltersQuery(encoded || null);
     },
-    [config.columnToQueryKey, options, setFiltersQuery],
+    [setFiltersQuery, disableUrlPersistence],
   );
+
+  // track if defaults have been applied before, versioned to support future changes
+  // per project tracking because people want a default experience in a new project
+  const storageKey = projectId
+    ? `${config.tableName}-${projectId}-env-defaults-v1`
+    : `${config.tableName}-env-defaults-v1`;
+  const [defaultsApplied, setDefaultsApplied] = useLocalStorage<boolean>(
+    storageKey,
+    false,
+  );
+
+  // init default env filters on first load to deselect envs prefixed with "langfuse-"
+  useEffect(() => {
+    // Skip auto-applying defaults for embedded tables
+    if (disableUrlPersistence) return;
+    if (filterState.length > 0 || defaultsApplied) return;
+
+    // only if there is an environment facet
+    const environmentFacet = config.facets.find(
+      (f) => f.column === "environment" && f.type === "categorical",
+    );
+    if (!environmentFacet) return;
+
+    const environmentOptions = options["environment"];
+    if (!Array.isArray(environmentOptions) || environmentOptions.length === 0)
+      return;
+
+    const environments = environmentOptions.map((opt) =>
+      typeof opt === "string" ? opt : opt.value,
+    );
+
+    const langfuseEnvironments = environments.filter((env) =>
+      env.startsWith("langfuse-"),
+    );
+
+    // exclude langfuse- environments if there are any
+    if (langfuseEnvironments.length > 0) {
+      const defaultFilter: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: langfuseEnvironments,
+        },
+      ];
+
+      setFilterState(defaultFilter);
+      setDefaultsApplied(true);
+    }
+  }, [
+    filterState.length,
+    defaultsApplied,
+    config.facets,
+    options,
+    disableUrlPersistence,
+    setFilterState,
+    setDefaultsApplied,
+  ]);
 
   const clearAll = () => {
     setFilterState([]);
@@ -639,8 +708,14 @@ export function useSidebarFilterState(
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
 
-    const getShortKey = (column: string): string | null => {
-      return config.columnToQueryKey[column] ?? null;
+    // Helper to determine if a filter should show loading state
+    // Only filters that depend on options from the query should show loading
+    const shouldShowLoading = (facetColumn: string): boolean => {
+      if (!loading) return false;
+      // Only show loading if the filter depends on options and options are not yet available
+      // Filters that use options: categorical, keyValue, numericKeyValue, stringKeyValue
+      // Filters that don't use options: numeric (uses facet.min/max), string (static), boolean (static)
+      return options[facetColumn] === undefined;
     };
 
     return config.facets
@@ -660,7 +735,7 @@ export function useSidebarFilterState(
             type: "numeric",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: currentRange,
             min: facet.min,
             max: facet.max,
@@ -689,7 +764,7 @@ export function useSidebarFilterState(
             type: "string",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: currentValue,
             loading: false,
             expanded: expandedSet.has(facet.column),
@@ -739,7 +814,7 @@ export function useSidebarFilterState(
             type: "keyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
             availableValues:
@@ -747,7 +822,7 @@ export function useSidebarFilterState(
               !Array.isArray(availableValues)
                 ? (availableValues as Record<string, string[]>)
                 : ({} as Record<string, string[]>),
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: KeyValueFilterEntry[]) => {
@@ -824,10 +899,10 @@ export function useSidebarFilterState(
             type: "numericKeyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: NumericKeyValueFilterEntry[]) => {
@@ -904,10 +979,10 @@ export function useSidebarFilterState(
             type: "stringKeyValue",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: activeFilters,
             keyOptions,
-            loading: false,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (filters: StringKeyValueFilterEntry[]) => {
@@ -963,7 +1038,7 @@ export function useSidebarFilterState(
             type: "categorical",
             column: facet.column,
             label: facet.label,
-            shortKey: getShortKey(facet.column),
+
             value: selectedOptions,
             options: availableOptions,
             counts: EMPTY_MAP,
@@ -1085,11 +1160,11 @@ export function useSidebarFilterState(
           type: "categorical",
           column: facet.column,
           label: facet.label,
-          shortKey: getShortKey(facet.column),
+
           value: selectedValues,
           options: availableValues,
           counts,
-          loading: false,
+          loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
           isActive,
           onChange: (values: string[]) => updateFilter(facet.column, values),
@@ -1139,6 +1214,7 @@ export function useSidebarFilterState(
   }, [
     config,
     options,
+    loading,
     filterState,
     updateFilter,
     updateFilterOnly,

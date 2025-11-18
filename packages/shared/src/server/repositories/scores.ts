@@ -2,7 +2,6 @@ import { ScoreDataType } from "@prisma/client";
 import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
 import {
   commandClickhouse,
-  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
   upsertClickhouse,
@@ -20,7 +19,7 @@ import {
 } from "../tableMappings";
 import {
   convertScoreAggregation,
-  convertToScore,
+  convertClickhouseScoreToDomain,
   ScoreAggregation,
 } from "./scores_converters";
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
@@ -32,6 +31,7 @@ import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import type { AnalyticsScoreEvent } from "../analytics-integrations/types";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
@@ -88,7 +88,7 @@ export const searchExistingAnnotationScore = async (
       projectId,
     },
   });
-  return rows.map((row) => convertToScore(row)).shift();
+  return rows.map((row) => convertClickhouseScoreToDomain(row)).shift();
 };
 
 export const getScoreById = async ({
@@ -99,7 +99,7 @@ export const getScoreById = async ({
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
-}) => {
+}): Promise<ScoreDomain | undefined> => {
   return _handleGetScoreById({
     projectId,
     scoreId,
@@ -112,7 +112,7 @@ export const getScoresByIds = async (
   projectId: string,
   scoreId: string[],
   source?: ScoreSourceType,
-) => {
+): Promise<ScoreDomain[]> => {
   return _handleGetScoresByIds({
     projectId,
     scoreId,
@@ -132,7 +132,7 @@ export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
   await upsertClickhouse({
     table: "scores",
     records: [score as ScoreRecordReadType],
-    eventBodyMapper: convertToScore,
+    eventBodyMapper: convertClickhouseScoreToDomain,
     tags: {
       feature: "tracing",
       type: "score",
@@ -243,7 +243,10 @@ export const getScoresForSessions = async <
     clickhouseConfigs,
   });
 
-  return rows.map(convertToScore);
+  const includeMetadataPayload = excludeMetadata ? false : true;
+  return rows.map((row) =>
+    convertClickhouseScoreToDomain(row, includeMetadataPayload),
+  );
 };
 
 export const getScoresForDatasetRuns = async <
@@ -292,7 +295,10 @@ export const getScoresForDatasetRuns = async <
     clickhouseConfigs,
   });
 
-  return rows.map(convertToScore);
+  const includeMetadataPayload = excludeMetadata ? false : true;
+  return rows.map((row) =>
+    convertClickhouseScoreToDomain(row, includeMetadataPayload),
+  );
 };
 
 export const getTraceScoresForDatasetRuns = async (
@@ -356,8 +362,12 @@ export const getTraceScoresForDatasetRuns = async (
     },
   });
 
+  const includeMetadataPayload = false;
   return rows.map((row) => ({
-    ...convertToScore({ ...row, metadata: {} }),
+    ...convertClickhouseScoreToDomain(
+      { ...row, metadata: {} },
+      includeMetadataPayload,
+    ),
     datasetRunId: row.run_id,
     hasMetadata: !!row.has_metadata,
   }));
@@ -425,11 +435,15 @@ export const getScoresForTraces = async <
     preferredClickhouseService,
   });
 
+  const includeMetadataPayload = excludeMetadata ? false : true;
   return rows.map((row) => {
-    const score = convertToScore({
-      ...row,
-      metadata: excludeMetadata ? {} : row.metadata,
-    });
+    const score = convertClickhouseScoreToDomain(
+      {
+        ...row,
+        metadata: excludeMetadata ? {} : row.metadata,
+      },
+      includeMetadataPayload,
+    );
 
     recordDistribution(
       "langfuse.query_by_id_age",
@@ -522,11 +536,15 @@ export const getScoresForObservations = async <
     clickhouseConfigs,
   });
 
+  const includeMetadataPayload = excludeMetadata ? false : true;
   return rows.map((row) => ({
-    ...convertToScore({
-      ...row,
-      metadata: excludeMetadata ? {} : row.metadata,
-    }),
+    ...convertClickhouseScoreToDomain(
+      {
+        ...row,
+        metadata: excludeMetadata ? {} : row.metadata,
+      },
+      includeMetadataPayload,
+    ),
     hasMetadata: (includeHasMetadata
       ? !!row.has_metadata
       : undefined) as IncludeHasMetadata extends true ? boolean : never,
@@ -832,6 +850,8 @@ export async function getScoresUiTable<
     config_id: string | null;
     queue_id: string | null;
     execution_trace_id: string | null;
+    is_deleted: number;
+    event_ts: string;
     created_at: string;
     updated_at: string;
     // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
@@ -845,40 +865,22 @@ export async function getScoresUiTable<
     ...rest,
   });
 
-  return rows.map((row) => ({
-    projectId: row.project_id,
-    environment: row.environment,
-    authorUserId: row.author_user_id,
-    traceId: row.trace_id,
-    sessionId: row.session_id,
-    observationId: row.observation_id,
-    datasetRunId: row.dataset_run_id,
-    traceUserId: row.user_id,
-    traceName: row.trace_name,
-    traceTags: row.trace_tags,
-    configId: row.config_id,
-    queueId: row.queue_id,
-    executionTraceId: row.execution_trace_id,
-    createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
-    stringValue: row.string_value,
-    comment: row.comment,
-    dataType: row.data_type as ScoreDataType,
-    source: row.source as ScoreSourceType,
-    name: row.name,
-    value: row.value,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-    id: row.id,
-    metadata: (excludeMetadata
-      ? undefined
-      : (parseMetadataCHRecordToDomain(row.metadata ?? {}) ??
-        {})) as ExcludeMetadata extends true
-      ? never
-      : NonNullable<ReturnType<typeof parseMetadataCHRecordToDomain>>,
-    hasMetadata: (includeHasMetadataFlag
-      ? !!row.has_metadata
-      : undefined) as IncludeHasMetadata extends true ? boolean : never,
-  }));
+  const includeMetadataPayload = excludeMetadata ? false : true;
+  return rows.map((row) => {
+    const score = convertClickhouseScoreToDomain(
+      { ...row, metadata: excludeMetadata ? {} : row.metadata },
+      includeMetadataPayload,
+    );
+    return {
+      ...score,
+      traceUserId: row.user_id,
+      traceName: row.trace_name,
+      traceTags: row.trace_tags,
+      hasMetadata: (includeHasMetadataFlag
+        ? !!row.has_metadata
+        : undefined) as IncludeHasMetadata extends true ? boolean : never,
+    };
+  });
 }
 
 const getScoresUiGeneric = async <T>(props: {
@@ -932,6 +934,8 @@ const getScoresUiGeneric = async <T>(props: {
         s.config_id,
         s.queue_id,
         s.execution_trace_id,
+        s.is_deleted,
+        s.event_ts,
         t.user_id,
         t.name as trace_name,
         t.tags as trace_tags
@@ -1037,6 +1041,55 @@ export const getScoreNames = async (
 
   return rows.map((row) => ({
     name: row.name,
+    count: Number(row.count),
+  }));
+};
+
+export const getScoreStringValues = async (
+  projectId: string,
+  timestampFilter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(
+      timestampFilter,
+      scoresTableUiColumnDefinitions,
+    ),
+  );
+  const timestampFilterRes = chFilter.apply();
+
+  const query = `
+      select
+        string_value,
+        count(*) as count
+      from scores s
+      WHERE s.project_id = {projectId: String}
+      AND string_value IS NOT NULL
+      AND string_value != ''
+      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+      GROUP BY string_value
+      ORDER BY count() desc
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    string_value: string;
+    count: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    value: row.string_value,
     count: Number(row.count),
   }));
 };
@@ -1207,6 +1260,7 @@ export const getAggregatedScoresForPrompts = async (
       s.source,
       s.data_type,
       s.comment,
+      s.timestamp,
       length(mapKeys(s.metadata)) > 0 AS has_metadata
     FROM scores s FINAL LEFT JOIN observations o FINAL
       ON o.trace_id = s.trace_id
@@ -1409,7 +1463,7 @@ export const getScoresForBlobStorageExport = function (
   return records;
 };
 
-export const getScoresForPostHog = async function* (
+export const getScoresForAnalyticsIntegrations = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
@@ -1436,7 +1490,8 @@ export const getScoresForPostHog = async function* (
       t.release as trace_release,
       t.tags as trace_tags,
       s.metadata as metadata,
-      t.metadata['$posthog_session_id'] as posthog_session_id
+      t.metadata['$posthog_session_id'] as posthog_session_id,
+      t.metadata['$mixpanel_session_id'] as mixpanel_session_id
     FROM scores s FINAL
     LEFT JOIN ${traceTable} t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
@@ -1498,6 +1553,9 @@ export const getScoresForPostHog = async function* (
       langfuse_score_data_type: record.data_type,
       langfuse_trace_name: record.trace_name,
       langfuse_trace_id: effectiveTraceId,
+      langfuse_user_url: record.trace_user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.trace_user_id as string)}`
+        : undefined,
       langfuse_id: record.id,
       langfuse_session_id: effectiveSessionId,
       langfuse_project_id: projectId,
@@ -1514,17 +1572,9 @@ export const getScoresForPostHog = async function* (
             ? "dataset_run"
             : "unknown",
       langfuse_dataset_run_id: record.score_dataset_run_id,
-      $session_id: record.posthog_session_id ?? null,
-      ...(record.trace_user_id
-        ? {
-            $set: {
-              langfuse_user_url: `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.trace_user_id as string)}`,
-            },
-          }
-        : // Capture as anonymous PostHog event (cheaper/faster)
-          // https://posthog.com/docs/data/anonymous-vs-identified-events?tab=Backend
-          { $process_person_profile: false }),
-    };
+      posthog_session_id: record.posthog_session_id ?? null,
+      mixpanel_session_id: record.mixpanel_session_id ?? null,
+    } satisfies AnalyticsScoreEvent;
   }
 };
 

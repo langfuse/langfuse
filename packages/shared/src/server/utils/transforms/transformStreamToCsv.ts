@@ -24,7 +24,7 @@ export function transformStreamToCsv(): Transform {
       // Convert the object to a CSV line and push it
       const csvRow = headers.map((header) => {
         const field = row[header] ?? "";
-        let str = stringify(field);
+        let str = stringify(field, header);
 
         // escape and format fields that contain commas
         if (str.includes(",")) {

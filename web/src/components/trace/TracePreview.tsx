@@ -1,6 +1,6 @@
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   type TraceDomain,
   AnnotationQueueObjectType,
   isGenerationLike,
@@ -45,6 +45,21 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import TagList from "@/src/features/tag/components/TagList";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+
+const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
+const LOG_VIEW_DISABLED_THRESHOLD = 350;
 
 export const TracePreview = ({
   trace,
@@ -52,17 +67,18 @@ export const TracePreview = ({
   serverScores: scores,
   commentCounts,
   viewType = "detailed",
+  showCommentButton = false,
 }: {
-  trace: Omit<TraceDomain, "input" | "output" | "metadata"> & {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
     input: string | null;
     output: string | null;
-    metadata: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
-  serverScores: APIScoreV2[];
+  serverScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
+  showCommentButton?: boolean;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -113,18 +129,34 @@ export const TracePreview = ({
   );
 
   // For performance reasons, we preemptively disable the log view if there are too many observations.
-  const isLogViewDisabled = observations.length > 150;
+  const isLogViewDisabled = observations.length > LOG_VIEW_DISABLED_THRESHOLD;
+  const requiresConfirmation =
+    observations.length > LOG_VIEW_CONFIRMATION_THRESHOLD && !isLogViewDisabled;
   const showLogViewTab = observations.length > 0;
+
+  const [hasLogViewConfirmed, setHasLogViewConfirmed] = useState(false);
+  const [showLogViewDialog, setShowLogViewDialog] = useState(false);
+
+  useEffect(() => {
+    setHasLogViewConfirmed(false);
+  }, [trace.id]);
+
   useEffect(() => {
     if ((isLogViewDisabled || !showLogViewTab) && selectedTab === "log") {
       setSelectedTab("preview");
     }
   }, [isLogViewDisabled, showLogViewTab, selectedTab, setSelectedTab]);
 
+  const handleConfirmLogView = () => {
+    setHasLogViewConfirmed(true);
+    setShowLogViewDialog(false);
+    setSelectedTab("log");
+  };
+
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
-      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
-        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
+      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden @container">
+        <div className="mt-2 grid w-full grid-cols-1 items-start gap-2 px-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
             <div className="mt-1.5">
               <ItemBadge type="TRACE" isSmall />
@@ -134,7 +166,7 @@ export const TracePreview = ({
             </span>
             <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
+          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             <NewDatasetItemFromExistingObject
               traceId={trace.id}
               projectId={trace.projectId}
@@ -142,6 +174,7 @@ export const TracePreview = ({
               output={trace.output}
               metadata={trace.metadata}
               key={trace.id}
+              size="sm"
             />
             {viewType === "detailed" && (
               <>
@@ -158,11 +191,13 @@ export const TracePreview = ({
                       projectId: trace.projectId,
                       environment: trace.environment,
                     }}
+                    size="sm"
                   />
                   <CreateNewAnnotationQueueItem
                     projectId={trace.projectId}
                     objectId={trace.id}
                     objectType={AnnotationQueueObjectType.TRACE}
+                    size="sm"
                   />
                 </div>
                 <CommentDrawerButton
@@ -170,12 +205,22 @@ export const TracePreview = ({
                   objectId={trace.id}
                   objectType="TRACE"
                   count={commentCounts?.get(trace.id)}
+                  size="sm"
                 />
               </>
             )}
+            {viewType === "focused" && showCommentButton && (
+              <CommentDrawerButton
+                projectId={trace.projectId}
+                objectId={trace.id}
+                objectType="TRACE"
+                count={commentCounts?.get(trace.id)}
+                size="sm"
+              />
+            )}
           </div>
         </div>
-        <div className="grid w-full min-w-0 items-center justify-between">
+        <div className="grid w-full min-w-0 items-center justify-between px-2">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
             <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
               <LocalIsoDate
@@ -259,6 +304,15 @@ export const TracePreview = ({
           }
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onValueChange={(value) => {
+            // on tab click, is confirmation is needed?
+            if (
+              value === "log" &&
+              requiresConfirmation &&
+              !hasLogViewConfirmed
+            ) {
+              setShowLogViewDialog(true);
+              return;
+            }
             capture("trace_detail:view_mode_switch", { mode: value });
             setSelectedTab(value);
           }}
@@ -271,12 +325,14 @@ export const TracePreview = ({
                   <TabsBarTrigger value="log" disabled={isLogViewDisabled}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span>Log View (Beta)</span>
+                        <span>Log View</span>
                       </TooltipTrigger>
                       <TooltipContent className="text-xs">
                         {isLogViewDisabled
-                          ? `Log View is disabled for traces with more than 150 observations (this trace has ${observations.length})`
-                          : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
+                          ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
+                          : requiresConfirmation
+                            ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
+                            : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
                       </TooltipContent>
                     </Tooltip>
                   </TabsBarTrigger>
@@ -333,28 +389,32 @@ export const TracePreview = ({
           {/* show preview always if not detailed view */}
           <TabsBarContent
             value="preview"
-            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-2"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
-              <div>
-                <IOPreview
-                  key={trace.id + "-io"}
-                  input={trace.input ?? undefined}
-                  output={trace.output ?? undefined}
-                  media={traceMedia.data}
-                  currentView={currentView}
-                  setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-                  inputExpansionState={expansionState.input}
-                  outputExpansionState={expansionState.output}
-                  onInputExpansionChange={(expansion) =>
-                    setFieldExpansion("input", expansion)
-                  }
-                  onOutputExpansionChange={(expansion) =>
-                    setFieldExpansion("output", expansion)
-                  }
-                />
+              <IOPreview
+                key={trace.id + "-io"}
+                input={trace.input ?? undefined}
+                output={trace.output ?? undefined}
+                media={traceMedia.data}
+                currentView={currentView}
+                setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+                inputExpansionState={expansionState.input}
+                outputExpansionState={expansionState.output}
+                onInputExpansionChange={(expansion) =>
+                  setFieldExpansion("input", expansion)
+                }
+                onOutputExpansionChange={(expansion) =>
+                  setFieldExpansion("output", expansion)
+                }
+              />
+
+              <div className="px-2 text-sm font-medium">{"Tags"}</div>
+              <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
+                <TagList selectedTags={trace.tags} isLoading={false} />
               </div>
-              <div>
+
+              <div className="px-2">
                 <PrettyJsonView
                   key={trace.id + "-metadata"}
                   title="Metadata"
@@ -377,6 +437,7 @@ export const TracePreview = ({
               traceId={trace.id}
               projectId={trace.projectId}
               currentView={currentView}
+              trace={trace}
             />
           </TabsBarContent>
           {showScoresTab && (
@@ -397,6 +458,27 @@ export const TracePreview = ({
           )}
         </TabsBar>
       </div>
+
+      {/* Confirmation dialog for log view with many observations */}
+      <AlertDialog open={showLogViewDialog} onOpenChange={setShowLogViewDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sluggish Performance Warning</AlertDialogTitle>
+            <AlertDialogDescription>
+              This trace has {observations.length} observations. The log view
+              may be slow to load and interact with. Do you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowLogViewDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLogView}>
+              Show Log View
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

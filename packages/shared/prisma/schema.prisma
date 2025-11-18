@@ -90,6 +90,8 @@ model User {
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
   surveys                   Survey[]
+  commentReactions          CommentReaction[]
+  notificationPreferences   NotificationPreference[]
 
   @@map("users")
 }
@@ -104,23 +106,23 @@ model VerificationToken {
 }
 
 model Organization {
-  id                        String                   @id @default(cuid())
-  name                      String
-  createdAt                 DateTime                 @default(now()) @map("created_at")
-  updatedAt                 DateTime                 @default(now()) @updatedAt @map("updated_at")
-  cloudConfig               Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
-  metadata                  Json?
+  id                               String                   @id @default(cuid())
+  name                             String
+  createdAt                        DateTime                 @default(now()) @map("created_at")
+  updatedAt                        DateTime                 @default(now()) @updatedAt @map("updated_at")
+  cloudConfig                      Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
+  metadata                         Json?
   cloudBillingCycleAnchor          DateTime?                @default(now()) @map("cloud_billing_cycle_anchor")
   cloudBillingCycleUpdatedAt       DateTime?                @map("cloud_billing_cycle_updated_at")
   cloudCurrentCycleUsage           Int?                     @map("cloud_current_cycle_usage")
   cloudFreeTierUsageThresholdState String?                  @map("cloud_free_tier_usage_threshold_state")
-  aiFeaturesEnabled         Boolean                  @default(false) @map("ai_features_enabled")
-  organizationMemberships   OrganizationMembership[]
-  projects                  Project[]
-  MembershipInvitation      MembershipInvitation[]
-  ApiKey                    ApiKey[]
-  surveys                   Survey[]
-  cloudSpendAlerts          CloudSpendAlert[]
+  aiFeaturesEnabled                Boolean                  @default(false) @map("ai_features_enabled")
+  organizationMemberships          OrganizationMembership[]
+  projects                         Project[]
+  MembershipInvitation             MembershipInvitation[]
+  ApiKey                           ApiKey[]
+  surveys                          Survey[]
+  cloudSpendAlerts                 CloudSpendAlert[]
 
   @@map("organizations")
 }
@@ -147,10 +149,12 @@ model Project {
   JobExecution              JobExecution[]
   LlmApiKeys                LlmApiKeys[]
   PosthogIntegration        PosthogIntegration[]
+  MixpanelIntegration       MixpanelIntegration[]
   BlobStorageIntegration    BlobStorageIntegration[]
   scoreConfig               ScoreConfig[]
   BatchExport               BatchExport[]
   comment                   Comment[]
+  commentReactions          CommentReaction[]
   annotationQueue           AnnotationQueue[]
   annotationQueueItem       AnnotationQueueItem[]
   TraceMedia                TraceMedia[]
@@ -175,6 +179,7 @@ model Project {
   SlackIntegration          SlackIntegration?
   PendingDeletion           PendingDeletion[]
   AnnotationQueueAssignment AnnotationQueueAssignment[]
+  NotificationPreference    NotificationPreference[]
 
   @@index([orgId])
   @@map("projects")
@@ -593,6 +598,8 @@ model Dataset {
   metadata                Json?
   remoteExperimentUrl     String?       @map("remote_experiment_url")
   remoteExperimentPayload Json?         @map("remote_experiment_payload")
+  inputSchema             Json?   @db.Json @map("input_schema")
+  expectedOutputSchema    Json?   @db.Json @map("expected_output_schema")
   project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @default(now()) @updatedAt @map("updated_at")
@@ -687,9 +694,25 @@ model Comment {
   updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at")
   content      String
   authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
+  reactions    CommentReaction[]
 
   @@index([projectId, objectType, objectId])
   @@map("comments")
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commentId String   @map("comment_id")
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String // Unicode emoji (e.g., "👍", "❤️")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([commentId, userId, emoji])
+  @@map("comment_reactions")
 }
 
 enum CommentObjectType {
@@ -697,6 +720,34 @@ enum CommentObjectType {
   OBSERVATION
   SESSION
   PROMPT
+}
+
+enum NotificationChannel {
+  EMAIL
+  // Extend by adding: IN_APP, SLACK
+}
+
+enum NotificationType {
+  COMMENT_MENTION
+  // Extend by adding: COMMENT_REPLY, COMMENT_NEW, EVAL_COMPLETE, EXPORT_READY
+}
+
+model NotificationPreference {
+  id        String  @id @default(cuid())
+  userId    String  @map("user_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  channel NotificationChannel
+  type    NotificationType
+  enabled Boolean             @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([userId, projectId, channel, type])
+  @@map("notification_preferences")
 }
 
 model Prompt {
@@ -987,6 +1038,18 @@ model PosthogIntegration {
   createdAt              DateTime  @default(now()) @map("created_at")
 
   @@map("posthog_integrations")
+}
+
+model MixpanelIntegration {
+  projectId                     String    @id @map("project_id")
+  project                       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedMixpanelProjectToken String    @map("encrypted_mixpanel_project_token")
+  mixpanelRegion                String    @map("mixpanel_region")
+  lastSyncAt                    DateTime? @map("last_sync_at")
+  enabled                       Boolean
+  createdAt                     DateTime  @default(now()) @map("created_at")
+
+  @@map("mixpanel_integrations")
 }
 
 model BlobStorageIntegration {
@@ -1439,17 +1502,17 @@ enum SurveyName {
 }
 
 model CloudSpendAlert {
-  id         String    @id @default(cuid())
-  orgId      String    @map("org_id")
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  
-  title      String    // e.g., "Production Alert"
-  threshold  Decimal   @map("threshold") // USD amount
-  
+  id    String       @id @default(cuid())
+  orgId String       @map("org_id")
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  title     String // e.g., "Production Alert"
+  threshold Decimal @map("threshold") // USD amount
+
   triggeredAt DateTime? @map("triggered_at") // Last trigger timestamp
-  
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([orgId])
   @@map("cloud_spend_alerts")

@@ -52,7 +52,9 @@ const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
   LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
 ];
 
 const transformSystemMessageToUserMessage = (
@@ -233,21 +235,41 @@ export async function fetchLLMCompletion(
     | ChatVertexAI
     | ChatGoogleGenerativeAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    chatModel = new ChatAnthropic({
+    const isClaude45Family =
+      modelParams.model?.includes("claude-sonnet-4-5") ||
+      modelParams.model?.includes("claude-opus-4-1") ||
+      modelParams.model?.includes("claude-haiku-4-5");
+
+    const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
-      temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
         timeout: timeoutMs,
         ...(proxyAgent && { httpAgent: proxyAgent }),
       },
+      temperature: modelParams.temperature,
+      topP: modelParams.top_p,
       invocationKwargs: modelParams.providerOptions,
-    });
+    };
+    chatModel = new ChatAnthropic(chatOptions);
+    if (isClaude45Family) {
+      if (
+        modelParams.temperature !== undefined &&
+        modelParams.top_p === undefined
+      ) {
+        chatModel.topP = undefined;
+      }
+      if (
+        modelParams.top_p !== undefined &&
+        modelParams.temperature === undefined
+      ) {
+        chatModel.temperature = undefined;
+      }
+    }
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
@@ -332,6 +354,9 @@ export async function fetchLLMCompletion(
         projectId: credentials.project_id,
         credentials,
       },
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
@@ -342,6 +367,9 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else {
     // eslint-disable-next-line no-unused-vars

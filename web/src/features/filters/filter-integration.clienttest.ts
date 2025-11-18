@@ -4,35 +4,26 @@
  * using browser URLSearchParams APIs to simulate real-world usage.
  */
 
-import { type FilterState, tracesTableCols } from "@langfuse/shared";
+import {
+  type FilterState,
+  tracesTableCols,
+  observationsTableCols,
+} from "@langfuse/shared";
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-  type ColumnToQueryKeyMap,
-  type GenericFilterOptions,
 } from "./lib/filter-query-encoding";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
-
-const mockColumnMap: ColumnToQueryKeyMap = {
-  name: "name",
-  period: "period",
-  diet: "diet",
-  length: "length",
-  extinct: "extinct",
-  ratings: "ratings",
-  scoresNumeric: "scoresNumeric",
-  metadata: "metadata",
-};
-
-const mockOptions: GenericFilterOptions = {
-  period: ["triassic", "jurassic", "cretaceous"],
-  diet: ["carnivore", "herbivore", "omnivore"],
-};
+import { traceFilterConfig } from "./config/traces-config";
+import { observationFilterConfig } from "./config/observations-config";
+import { transformFiltersForBackend } from "./lib/filter-transform";
+import { sessionFilterConfig } from "./config/sessions-config";
+import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
   // encode filters to query string
-  const encoded = encodeFiltersGeneric(filters, mockColumnMap, mockOptions);
+  const encoded = encodeFiltersGeneric(filters);
 
   // mock browser URL API
   const params = new URLSearchParams();
@@ -44,7 +35,7 @@ function simulateUrlFlow(filters: FilterState): FilterState {
   const queryValue = readParams.get("filter") || "";
 
   // decode to filter state
-  return decodeFiltersGeneric(queryValue, mockColumnMap, mockOptions);
+  return decodeFiltersGeneric(queryValue);
 }
 
 describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
@@ -126,11 +117,7 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
     const legacyUrl =
       "filter=length;number;;%3E%3D;5,length;number;;%3C%3D;10,extinct;boolean;;%3D;true";
     const params = new URLSearchParams(legacyUrl);
-    const decoded = decodeFiltersGeneric(
-      params.get("filter") || "",
-      mockColumnMap,
-      mockOptions,
-    );
+    const decoded = decodeFiltersGeneric(params.get("filter") || "");
 
     expect(decoded).toEqual([
       {
@@ -415,5 +402,144 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     expect(validated).toHaveLength(2);
     expect(validated[0]?.column).toBe("userId"); // Normalized!
     expect(validated[1]?.column).toBe("name"); // Already correct
+  });
+
+  it("should handle old saved view metadata filter with column name metadata key", () => {
+    const savedFilter: FilterState = [
+      {
+        key: "projectName",
+        type: "stringObject",
+        value: "myproject",
+        column: "Metadata", // Display name (capital M)
+        operator: "contains",
+      },
+    ];
+
+    // 1. Validate: normalizes "Metadata" → "metadata"
+    const validated = validateFilters(savedFilter, tracesTableCols);
+    expect(validated).toHaveLength(1);
+    expect(validated[0]?.column).toBe("metadata"); // Normalized to lowercase ID
+
+    // 2. Encode
+    const encoded = encodeFiltersGeneric(validated);
+
+    // Should successfully encode (not drop the filter!)
+    expect(encoded).toBeTruthy();
+    expect(encoded).toContain(
+      "metadata;stringObject;projectName;contains;myproject",
+    );
+
+    // 3. Decode: should restore correctly
+    const decoded = decodeFiltersGeneric(encoded);
+
+    expect(decoded).toHaveLength(1);
+    expect(decoded[0]).toEqual({
+      column: "metadata",
+      type: "stringObject",
+      key: "projectName",
+      operator: "contains",
+      value: "myproject",
+    });
+  });
+
+  it("should handle saved score filters with display names", () => {
+    // Real saved filters for scores
+    const savedFilters: FilterState = [
+      {
+        key: "hallucination",
+        type: "categoryOptions",
+        value: ["high"],
+        column: "Scores (categorical)", // Display name
+        operator: "any of",
+      },
+      {
+        key: "accuracy",
+        type: "numberObject",
+        value: 0.8,
+        column: "Scores (numeric)", // Display name
+        operator: ">=",
+      },
+    ];
+
+    // 1. Validate: normalizes display names → IDs
+    const validated = validateFilters(savedFilters, tracesTableCols);
+    expect(validated).toHaveLength(2);
+    expect(validated[0]?.column).toBe("score_categories");
+    expect(validated[1]?.column).toBe("scores_avg");
+
+    // 2. Encode: should encode validated filters
+    const encoded = encodeFiltersGeneric(validated);
+
+    expect(encoded).toBeTruthy();
+    expect(encoded).toContain(
+      "score_categories;categoryOptions;hallucination;any of;high",
+    );
+    expect(encoded).toContain("scores_avg;numberObject;accuracy");
+
+    // 3. Round-trip: decode should restore
+    const decoded = decodeFiltersGeneric(encoded);
+
+    expect(decoded).toHaveLength(2);
+    expect(decoded[0]?.column).toBe("score_categories");
+    expect(decoded[1]?.column).toBe("scores_avg");
+  });
+});
+
+describe("Config Validation of old saved views", () => {
+  it("should validate traces config uses column IDs not display names", () => {
+    // Validate all keys in columnToQueryKey exist as column IDs
+    const columnIds = new Set(tracesTableCols.map((col) => col.id));
+    const invalidFacets = traceFilterConfig.facets.filter(
+      (facet) => !columnIds.has(facet.column),
+    );
+
+    expect(invalidFacets).toEqual([]);
+  });
+
+  it("should validate observations config uses column IDs not display names", () => {
+    const columnIds = new Set(observationsTableCols.map((col) => col.id));
+    const invalidFacets = observationFilterConfig.facets.filter(
+      (facet) => !columnIds.has(facet.column),
+    );
+
+    expect(invalidFacets).toEqual([]);
+  });
+});
+
+describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
+  it("should preserve multiple string contains filters from URL", () => {
+    // environment contains "e" AND environment contains "a"
+    // These create valid SQL: WHERE env LIKE '%e%' AND env LIKE '%a%'
+    const urlFilter =
+      "environment;string;;contains;e,environment;string;;contains;a";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      sessionFilterConfig.columnDefinitions,
+    );
+
+    const result = transformFiltersForBackend(normalized, {});
+
+    // Both filters preserved
+    expect(result).toHaveLength(2);
+    expect(result[0]?.value).toBe("e");
+    expect(result[1]?.value).toBe("a");
+  });
+
+  it("should handle backend column remapping from URL", () => {
+    // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
+    const urlFilter = "tags;arrayOptions;;any of;tag1";
+
+    const normalized = decodeAndNormalizeFilters(
+      urlFilter,
+      traceFilterConfig.columnDefinitions,
+    );
+
+    const result = transformFiltersForBackend(normalized, {
+      tags: "traceTags",
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.column).toBe("traceTags");
   });
 });

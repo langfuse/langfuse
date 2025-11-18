@@ -2398,9 +2398,11 @@ paths:
           in: query
           description: >-
             JSON string containing an array of filter conditions. When provided,
-            this takes precedence over legacy filter parameters (userId, name,
-            sessionId, tags, version, release, environment, fromTimestamp,
-            toTimestamp).
+            this takes precedence over query parameter filters (userId, name,
+            type, level, environment, fromStartTime, ...).
+
+
+            ## Filter Structure
 
             Each filter condition has the following structure:
 
@@ -2409,7 +2411,7 @@ paths:
             [
               {
                 "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
-                "column": string,         // Required. Column to filter on
+                "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
                                           // - string: "=", "contains", "does not contain", "starts with", "ends with"
@@ -2423,6 +2425,116 @@ paths:
                                           // - null: "is null", "is not null"
                 "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
                 "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+              }
+            ]
+
+            ```
+
+
+            ## Available Columns
+
+
+            ### Core Observation Fields
+
+            - `id` (string) - Observation ID
+
+            - `type` (string) - Observation type (SPAN, GENERATION, EVENT)
+
+            - `name` (string) - Observation name
+
+            - `traceId` (string) - Associated trace ID
+
+            - `startTime` (datetime) - Observation start time
+
+            - `endTime` (datetime) - Observation end time
+
+            - `environment` (string) - Environment tag
+
+            - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
+
+            - `statusMessage` (string) - Status message
+
+            - `version` (string) - Version tag
+
+
+            ### Performance Metrics
+
+            - `latency` (number) - Latency in seconds (calculated: end_time -
+            start_time)
+
+            - `timeToFirstToken` (number) - Time to first token in seconds
+
+            - `tokensPerSecond` (number) - Output tokens per second
+
+
+            ### Token Usage
+
+            - `inputTokens` (number) - Number of input tokens
+
+            - `outputTokens` (number) - Number of output tokens
+
+            - `totalTokens` (number) - Total tokens (alias: `tokens`)
+
+
+            ### Cost Metrics
+
+            - `inputCost` (number) - Input cost in USD
+
+            - `outputCost` (number) - Output cost in USD
+
+            - `totalCost` (number) - Total cost in USD
+
+
+            ### Model Information
+
+            - `model` (string) - Provided model name
+
+            - `promptName` (string) - Associated prompt name
+
+            - `promptVersion` (number) - Associated prompt version
+
+
+            ### Structured Data
+
+            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
+            key-value pairs. Use `key` parameter to filter on specific metadata
+            keys.
+
+
+            ### Associated Trace Fields (requires join with traces table)
+
+            - `userId` (string) - User ID from associated trace
+
+            - `traceName` (string) - Name from associated trace
+
+            - `traceEnvironment` (string) - Environment from associated trace
+
+            - `traceTags` (arrayOptions) - Tags from associated trace
+
+
+            ## Filter Examples
+
+            ```json
+
+            [
+              {
+                "type": "string",
+                "column": "type",
+                "operator": "=",
+                "value": "GENERATION"
+              },
+              {
+                "type": "number",
+                "column": "latency",
+                "operator": ">=",
+                "value": 2.5
+              },
+              {
+                "type": "stringObject",
+                "column": "metadata",
+                "key": "environment",
+                "operator": "=",
+                "value": "production"
               }
             ]
 
@@ -2922,6 +3034,49 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/organizations/apiKeys:
+    get:
+      description: >-
+        Get all API keys for the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: organizations_getOrganizationApiKeys
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationApiKeysResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/projects:
     get:
       description: Get Project associated with API key
@@ -3318,7 +3473,11 @@ paths:
       parameters:
         - name: name
           in: path
-          description: The name of the prompt
+          description: >-
+            The name of the prompt. If the prompt is in a folder (e.g.,
+            "folder/subfolder/prompt-name"), 
+
+            the folder path must be URL encoded.
           required: true
           schema:
             type: string
@@ -3388,7 +3547,11 @@ paths:
       parameters:
         - name: promptName
           in: path
-          description: The name of the prompt
+          description: >-
+            The name of the prompt. If the prompt is in a folder (e.g.,
+            "folder/subfolder/prompt-name"), 
+
+            the folder path must be URL encoded.
           required: true
           schema:
             type: string
@@ -4249,6 +4412,20 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: datasetRunId
+          in: query
+          description: Retrieve only scores with a specific datasetRunId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: traceId
+          in: query
+          description: Retrieve only scores with a specific traceId.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: queueId
           in: query
           description: Retrieve only scores with a specific annotation queueId.
@@ -4798,9 +4975,12 @@ paths:
           in: query
           description: >-
             JSON string containing an array of filter conditions. When provided,
-            this takes precedence over legacy filter parameters (userId, name,
+            this takes precedence over query parameter filters (userId, name,
             sessionId, tags, version, release, environment, fromTimestamp,
             toTimestamp).
+
+
+            ## Filter Structure
 
             Each filter condition has the following structure:
 
@@ -4809,7 +4989,7 @@ paths:
             [
               {
                 "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
-                "column": string,         // Required. Column to filter on
+                "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
                                           // - string: "=", "contains", "does not contain", "starts with", "ends with"
@@ -4827,6 +5007,135 @@ paths:
             ]
 
             ```
+
+
+            ## Available Columns
+
+
+            ### Core Trace Fields
+
+            - `id` (string) - Trace ID
+
+            - `name` (string) - Trace name
+
+            - `timestamp` (datetime) - Trace timestamp
+
+            - `userId` (string) - User ID
+
+            - `sessionId` (string) - Session ID
+
+            - `environment` (string) - Environment tag
+
+            - `version` (string) - Version tag
+
+            - `release` (string) - Release tag
+
+            - `tags` (arrayOptions) - Array of tags
+
+            - `bookmarked` (boolean) - Bookmark status
+
+
+            ### Structured Data
+
+            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
+            key-value pairs. Use `key` parameter to filter on specific metadata
+            keys.
+
+
+            ### Aggregated Metrics (from observations)
+
+            These metrics are aggregated from all observations within the trace:
+
+            - `latency` (number) - Latency in seconds (time from first
+            observation start to last observation end)
+
+            - `inputTokens` (number) - Total input tokens across all
+            observations
+
+            - `outputTokens` (number) - Total output tokens across all
+            observations
+
+            - `totalTokens` (number) - Total tokens (alias: `tokens`)
+
+            - `inputCost` (number) - Total input cost in USD
+
+            - `outputCost` (number) - Total output cost in USD
+
+            - `totalCost` (number) - Total cost in USD
+
+
+            ### Observation Level Aggregations
+
+            These fields aggregate observation levels within the trace:
+
+            - `level` (string) - Highest severity level (ERROR > WARNING >
+            DEFAULT > DEBUG)
+
+            - `warningCount` (number) - Count of WARNING level observations
+
+            - `errorCount` (number) - Count of ERROR level observations
+
+            - `defaultCount` (number) - Count of DEFAULT level observations
+
+            - `debugCount` (number) - Count of DEBUG level observations
+
+
+            ### Scores (requires join with scores table)
+
+            - `scores_avg` (number) - Average of numeric scores (alias:
+            `scores`)
+
+            - `score_categories` (categoryOptions) - Categorical score values
+
+
+            ## Filter Examples
+
+            ```json
+
+            [
+              {
+                "type": "datetime",
+                "column": "timestamp",
+                "operator": ">=",
+                "value": "2024-01-01T00:00:00Z"
+              },
+              {
+                "type": "string",
+                "column": "userId",
+                "operator": "=",
+                "value": "user-123"
+              },
+              {
+                "type": "number",
+                "column": "totalCost",
+                "operator": ">=",
+                "value": 0.01
+              },
+              {
+                "type": "arrayOptions",
+                "column": "tags",
+                "operator": "all of",
+                "value": ["production", "critical"]
+              },
+              {
+                "type": "stringObject",
+                "column": "metadata",
+                "key": "customer_tier",
+                "operator": "=",
+                "value": "enterprise"
+              }
+            ]
+
+            ```
+
+
+            ## Performance Notes
+
+            - Filtering on `userId`, `sessionId`, or `metadata` may enable skip
+            indexes for better query performance
+
+            - Score filters require a join with the scores table and may impact
+            query performance
           required: false
           schema:
             type: string
@@ -5291,7 +5600,7 @@ components:
           type: string
           description: >-
             The content of the comment. May include markdown. Currently limited
-            to 3000 characters.
+            to 5000 characters.
         authorUserId:
           type: string
           nullable: true
@@ -5854,16 +6163,16 @@ components:
         value:
           type: number
           format: double
-          nullable: true
           description: >-
-            Only defined if a config is linked. Represents the numeric category
-            mapping of the stringValue
+            Represents the numeric category mapping of the stringValue. If no
+            config is linked, defaults to 0.
         stringValue:
           type: string
           description: >-
             The string representation of the score value. If no config is
             linked, can be any string. Otherwise, must map to a config category
       required:
+        - value
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScoreV1'
@@ -6008,16 +6317,16 @@ components:
         value:
           type: number
           format: double
-          nullable: true
           description: >-
-            Only defined if a config is linked. Represents the numeric category
-            mapping of the stringValue
+            Represents the numeric category mapping of the stringValue. If no
+            config is linked, defaults to 0.
         stringValue:
           type: string
           description: >-
             The string representation of the score value. If no config is
             linked, can be any string. Otherwise, must map to a config category
       required:
+        - value
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScore'
@@ -6110,6 +6419,12 @@ components:
           nullable: true
         metadata:
           nullable: true
+        inputSchema:
+          nullable: true
+          description: JSON Schema for validating dataset item inputs
+        expectedOutputSchema:
+          nullable: true
+          description: JSON Schema for validating dataset item expected outputs
         projectId:
           type: string
         createdAt:
@@ -6499,6 +6814,17 @@ components:
           nullable: true
         metadata:
           nullable: true
+        inputSchema:
+          nullable: true
+          description: >-
+            JSON Schema for validating dataset item inputs. When set, all new
+            and existing dataset items will be validated against this schema.
+        expectedOutputSchema:
+          nullable: true
+          description: >-
+            JSON Schema for validating dataset item expected outputs. When set,
+            all new and existing dataset items will be validated against this
+            schema.
       required:
         - name
     PaginatedDatasetRuns:
@@ -7451,6 +7777,8 @@ components:
         - image/svg+xml
         - image/tiff
         - image/bmp
+        - image/avif
+        - image/heic
         - audio/mpeg
         - audio/mp3
         - audio/wav
@@ -7459,19 +7787,42 @@ components:
         - audio/aac
         - audio/mp4
         - audio/flac
+        - audio/opus
+        - audio/webm
         - video/mp4
         - video/webm
+        - video/ogg
+        - video/mpeg
+        - video/quicktime
+        - video/x-msvideo
+        - video/x-matroska
         - text/plain
         - text/html
         - text/css
         - text/csv
+        - text/markdown
+        - text/x-python
+        - application/javascript
+        - text/x-typescript
+        - application/x-yaml
         - application/pdf
         - application/msword
         - application/vnd.ms-excel
+        - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
         - application/zip
         - application/json
         - application/xml
         - application/octet-stream
+        - >-
+          application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        - >-
+          application/vnd.openxmlformats-officedocument.presentationml.presentation
+        - application/rtf
+        - application/x-ndjson
+        - application/vnd.apache.parquet
+        - application/gzip
+        - application/x-tar
+        - application/x-7z-compressed
       description: The MIME type of the media record
     MetricsResponse:
       title: MetricsResponse
@@ -7826,6 +8177,45 @@ components:
             $ref: '#/components/schemas/OrganizationProject'
       required:
         - projects
+    OrganizationApiKey:
+      title: OrganizationApiKey
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        publicKey:
+          type: string
+        displaySecretKey:
+          type: string
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - displaySecretKey
+    OrganizationApiKeysResponse:
+      title: OrganizationApiKeysResponse
+      type: object
+      properties:
+        apiKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationApiKey'
+      required:
+        - apiKeys
     Projects:
       title: Projects
       type: object
@@ -8730,6 +9120,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         environment:
           type: string

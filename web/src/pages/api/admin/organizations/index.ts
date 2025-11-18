@@ -18,8 +18,8 @@ export default async function handler(
       return;
     }
 
-    // Verify admin API authentication, but allow non-langfuse cloud use-cases
-    if (!AdminApiAuthService.handleAdminAuth(req, res, false)) {
+    // Verify admin API authentication, only allow on self-hosted (not on Langfuse Cloud)
+    if (!AdminApiAuthService.handleAdminAuth(req, res)) {
       return;
     }
 

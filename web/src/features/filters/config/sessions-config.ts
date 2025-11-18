@@ -1,29 +1,43 @@
 import { sessionsViewCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
+import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 
-const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  bookmarked: "bookmarked",
-  sessionDuration: "sessionDuration",
-  countTraces: "countTraces",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
-  inputTokens: "inputTokens",
-  outputTokens: "outputTokens",
-  totalTokens: "totalTokens",
+/**
+ * Maps frontend column IDs to backend-expected column IDs
+ * Frontend uses "tags" but backend CH mapping expects "traceTags" for trace tags on sessions table
+ */
+export const SESSION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
+  tags: "traceTags",
 };
 
 export const sessionFilterConfig: FilterConfig = {
   tableName: "sessions",
 
-  columnToQueryKey: SESSION_COLUMN_TO_QUERY_KEY,
-
   columnDefinitions: sessionsViewCols,
 
-  defaultExpanded: ["bookmarked"],
+  defaultExpanded: ["environment", "bookmarked"],
 
   facets: [
+    {
+      type: "categorical" as const,
+      column: "environment",
+      label: "Environment",
+    },
+    {
+      type: "string" as const,
+      column: "id",
+      label: "Session ID",
+    },
+    {
+      type: "categorical" as const,
+      column: "userIds",
+      label: "User IDs",
+    },
+    {
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
+    },
     {
       type: "boolean" as const,
       column: "bookmarked",
@@ -90,6 +104,16 @@ export const sessionFilterConfig: FilterConfig = {
       min: 0,
       max: 100,
       unit: "$",
+    },
+    {
+      type: "keyValue" as const,
+      column: "score_categories",
+      label: "Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "scores_avg",
+      label: "Numeric Scores",
     },
   ],
 };

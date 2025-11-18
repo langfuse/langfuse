@@ -14,6 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   SiOkta,
+  SiAuthentik,
   SiAuth0,
   SiAmazoncognito,
   SiKeycloak,
@@ -35,7 +36,7 @@ import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegio
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
-import { Code } from "lucide-react";
+import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -61,6 +62,8 @@ export type PageProps = {
     githubEnterprise: boolean;
     gitlab: boolean;
     okta: boolean;
+    authentik: boolean;
+    onelogin: boolean;
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
@@ -109,6 +112,14 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_OKTA_CLIENT_ID !== undefined &&
           env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
           env.AUTH_OKTA_ISSUER !== undefined,
+        authentik:
+          env.AUTH_AUTHENTIK_CLIENT_ID !== undefined &&
+          env.AUTH_AUTHENTIK_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTHENTIK_ISSUER !== undefined,
+        onelogin:
+          env.AUTH_ONELOGIN_CLIENT_ID !== undefined &&
+          env.AUTH_ONELOGIN_CLIENT_SECRET !== undefined &&
+          env.AUTH_ONELOGIN_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
@@ -197,19 +208,24 @@ export function SSOButtons({
       });
   };
 
+  // Only show separator if credentials are enabled (for sign-in) or if action is sign-up (which always has the form)
+  const showSeparator = authProviders.credentials || action !== "sign in";
+
   return (
     // any authprovider from props is enabled
     Object.entries(authProviders).some(
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        {action === "sign in" ? (
-          <div className="my-6 border-t border-border"></div>
-        ) : (
-          <div className="my-6 text-center text-xs text-muted-foreground">
-            or {action} with
-          </div>
-        )}
+        {showSeparator ? (
+          action === "sign in" ? (
+            <div className="my-6 border-t border-border"></div>
+          ) : (
+            <div className="my-6 text-center text-xs text-muted-foreground">
+              or {action} with
+            </div>
+          )
+        ) : null}
         <div className="flex flex-row flex-wrap items-center justify-center gap-2">
           {authProviders.google && (
             <AuthProviderButton
@@ -274,6 +290,28 @@ export function SSOButtons({
               loading={providerSigningIn === "okta"}
               showLastUsedBadge={
                 hasMultipleAuthMethods && lastUsedMethod === "okta"
+              }
+            />
+          )}
+          {authProviders.authentik && (
+            <AuthProviderButton
+              icon={<SiAuthentik className="mr-3" size={18} />}
+              label="Authentik"
+              onClick={() => handleSignIn("authentik")}
+              loading={providerSigningIn === "authentik"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "authentik"
+              }
+            />
+          )}
+          {authProviders.onelogin && (
+            <AuthProviderButton
+              icon={<Key className="mr-3" size={18} />}
+              label="OneLogin"
+              onClick={() => handleSignIn("onelogin")}
+              loading={providerSigningIn === "onelogin"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "onelogin"
               }
             />
           )}
@@ -474,19 +512,32 @@ export default function SignIn({
     typeof router.query.error === "string"
       ? decodeURIComponent(router.query.error)
       : null;
-  const nextAuthErrorDescription = signInErrors.find(
-    (e) => e.code === nextAuthError,
-  )?.description;
+  const nextAuthErrorDescription =
+    typeof router.query.error_description === "string"
+      ? decodeURIComponent(router.query.error_description)
+      : null;
+
+  // Use error_description from IdP if available, otherwise use mapped error or error code
+  const errorMessage = nextAuthErrorDescription
+    ? nextAuthErrorDescription
+    : (signInErrors.find((e) => e.code === nextAuthError)?.description ??
+      nextAuthError);
+
   useEffect(() => {
     // log unexpected sign in errors to Sentry
-    if (nextAuthError && !nextAuthErrorDescription) {
+    // An error is unexpected if it's not in our mapped errors and has no IdP error_description
+    if (
+      nextAuthError &&
+      !nextAuthErrorDescription &&
+      !signInErrors.find((e) => e.code === nextAuthError)
+    ) {
       captureException(new Error(`Sign in error: ${nextAuthError}`));
     }
   }, [nextAuthError, nextAuthErrorDescription]);
 
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
-  >(nextAuthErrorDescription ?? nextAuthError);
+  >(errorMessage);
   // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
   // Skip this flow when no SSO is configured - show password field immediately
   const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
@@ -671,8 +722,7 @@ export default function SignIn({
         {isLangfuseCloud && (
           <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
-            page (CMD + SHIFT + R) or clear your browser cache. We are working
-            on a solution.{" "}
+            page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
               href="mailto:support@langfuse.com"
               className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"

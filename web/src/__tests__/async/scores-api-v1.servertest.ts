@@ -414,6 +414,7 @@ describe("/api/public/scores API Endpoint", () => {
       const traceId_3 = v4();
       const generationId = v4();
       const sessionId = v4();
+      const datasetRunId = v4();
       const scoreId_1 = v4();
       const scoreId_2 = v4();
       const scoreId_3 = v4();
@@ -1043,6 +1044,36 @@ describe("/api/public/scores API Endpoint", () => {
           await makeAPICall(
             "GET",
             `/api/public/scores?sessionId=${sessionId}`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toContain(
+            "API call did not return 200, returned status 400",
+          );
+        }
+      });
+
+      it("should reject dataset run ID filtering", async () => {
+        try {
+          await makeAPICall(
+            "GET",
+            `/api/public/scores?datasetRunId=${datasetRunId}`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toContain(
+            "API call did not return 200, returned status 400",
+          );
+        }
+      });
+
+      it("should reject trace ID filtering", async () => {
+        try {
+          await makeAPICall(
+            "GET",
+            `/api/public/scores?traceId=${traceId}`,
             undefined,
             authentication,
           );

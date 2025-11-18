@@ -26,6 +26,11 @@ const EnvSchema = z.object({
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_SENTINEL_NODES: z.string().optional(),
+  REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
+  REDIS_SENTINEL_USERNAME: z.string().optional(),
+  REDIS_SENTINEL_PASSWORD: z.string().optional(),
   ENCRYPTION_KEY: z
     .string()
     .length(
@@ -175,6 +180,12 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_WEBHOOK_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -182,7 +193,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .optional()
-    .default(1_000)
+    .default(5_000)
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),

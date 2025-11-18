@@ -4,6 +4,7 @@ services:
     # Unit tests still verify 24.3 behaviour using -azure and -redis-cluster configs.
     image: docker.io/clickhouse/clickhouse-server:25.8
     user: "101:101"
+    container_name: ${CLICKHOUSE_CONTAINER_NAME:-langfuse-clickhouse}
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
@@ -12,13 +13,16 @@ services:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - 127.0.0.1:8123:8123
-      - 127.0.0.1:9000:9000
+      - ${HOST_IP:-127.0.0.1}:${CLICKHOUSE_HTTP_PORT:-8123}:8123
+      - ${HOST_IP:-127.0.0.1}:${CLICKHOUSE_NATIVE_PORT:-9000}:9000
     depends_on:
       - postgres
+    networks:
+      - default
 
   minio:
     image: docker.io/minio/minio
+    container_name: ${MINIO_CONTAINER_NAME:-langfuse-minio}
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -26,8 +30,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
     ports:
-      - 127.0.0.1:9090:9000
-      - 127.0.0.1:9091:9001
+      - ${HOST_IP:-127.0.0.1}:${MINIO_API_PORT:-9090}:9000
+      - ${HOST_IP:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9091}:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -36,17 +40,23 @@ services:
       timeout: 5s
       retries: 5
       start_period: 1s
+    networks:
+      - default
 
   redis:
     image: docker.io/redis:7.2.4
+    container_name: ${REDIS_CONTAINER_NAME:-langfuse-redis}
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
-      - 127.0.0.1:6379:6379
+      - ${HOST_IP:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379
+    networks:
+      - default
 
   postgres:
     image: docker.io/postgres:${POSTGRES_VERSION:-17}
+    container_name: ${POSTGRES_CONTAINER_NAME:-langfuse-postgres}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -61,16 +71,27 @@ services:
       - TZ=UTC
       - PGTZ=UTC
     ports:
-      - 127.0.0.1:5432:5432
+      - ${HOST_IP:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - default
 
 volumes:
   langfuse_postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-langfuse_postgres_data}
     driver: local
   langfuse_clickhouse_data:
+    name: ${CLICKHOUSE_DATA_VOLUME_NAME:-langfuse_clickhouse_data}
     driver: local
   langfuse_clickhouse_logs:
+    name: ${CLICKHOUSE_LOGS_VOLUME_NAME:-langfuse_clickhouse_logs}
     driver: local
   langfuse_minio_data:
+    name: ${MINIO_VOLUME_NAME:-langfuse_minio_data}
     driver: local
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK_NAME:-langfuse-network}
+    driver: bridge

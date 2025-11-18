@@ -21,6 +21,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "id",
   },
   {
+    uiTableName: "Trace ID",
+    uiTableId: "traceId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "id",
+  },
+  {
     uiTableName: "Name",
     uiTableId: "name",
     clickhouseTableName: "traces",
@@ -153,13 +159,13 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   },
   {
     uiTableName: "Scores (numeric)",
-    uiTableId: "scores",
+    uiTableId: "scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
-    uiTableId: "scores",
+    uiTableId: "score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",
   },

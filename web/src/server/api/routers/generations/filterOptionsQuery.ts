@@ -18,11 +18,22 @@ export const filterOptionsQuery = protectedProjectProcedure
   .input(
     z.object({
       projectId: z.string(),
-      startTimeFilter: timeFilter.optional(),
+      startTimeFilter: z.array(timeFilter).optional(),
     }),
   )
   .query(async ({ input }) => {
     const { startTimeFilter } = input;
+
+    // map startTimeFilter to Timestamp column for trace queries
+    const traceTimestampFilters =
+      startTimeFilter && startTimeFilter.length > 0
+        ? startTimeFilter.map((f) => ({
+            column: "Timestamp" as const,
+            operator: f.operator,
+            value: f.value,
+            type: "datetime" as const,
+          }))
+        : [];
 
     const getClickhouseTraceName = async (): Promise<
       Array<{ traceName: string }>
@@ -30,16 +41,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       const traces = await getTracesGroupedByName(
         input.projectId,
         tracesTableUiColumnDefinitions,
-        startTimeFilter
-          ? [
-              {
-                column: "Timestamp",
-                operator: startTimeFilter.operator,
-                value: startTimeFilter.value,
-                type: "datetime",
-              },
-            ]
-          : [],
+        traceTimestampFilters,
       );
       return traces.map((i) => ({ traceName: i.name }));
     };
@@ -49,16 +51,7 @@ export const filterOptionsQuery = protectedProjectProcedure
     > => {
       const traces = await getTracesGroupedByTags({
         projectId: input.projectId,
-        filter: startTimeFilter
-          ? [
-              {
-                column: "Timestamp",
-                operator: startTimeFilter.operator,
-                value: startTimeFilter.value,
-                type: "datetime",
-              },
-            ]
-          : [],
+        filter: traceTimestampFilters,
       });
       return traces.map((i) => ({ tag: i.value }));
     };
@@ -74,57 +67,24 @@ export const filterOptionsQuery = protectedProjectProcedure
       modelId,
     ] = await Promise.all([
       // numeric scores
-      getNumericScoresGroupedByName(
-        input.projectId,
-        startTimeFilter
-          ? [
-              {
-                column: "Timestamp",
-                operator: startTimeFilter.operator,
-                value: startTimeFilter.value,
-                type: "datetime",
-              },
-            ]
-          : [],
-      ),
+      getNumericScoresGroupedByName(input.projectId, traceTimestampFilters),
       // categorical scores
-      getCategoricalScoresGroupedByName(
-        input.projectId,
-        startTimeFilter
-          ? [
-              {
-                column: "Timestamp",
-                operator: startTimeFilter.operator,
-                value: startTimeFilter.value,
-                type: "datetime",
-              },
-            ]
-          : [],
-      ),
+      getCategoricalScoresGroupedByName(input.projectId, traceTimestampFilters),
       //model
-      getObservationsGroupedByModel(
-        input.projectId,
-        startTimeFilter ? [startTimeFilter] : [],
-      ),
+      getObservationsGroupedByModel(input.projectId, startTimeFilter ?? []),
       //name
-      getObservationsGroupedByName(
-        input.projectId,
-        startTimeFilter ? [startTimeFilter] : [],
-      ),
+      getObservationsGroupedByName(input.projectId, startTimeFilter ?? []),
       //prompt name
       getObservationsGroupedByPromptName(
         input.projectId,
-        startTimeFilter ? [startTimeFilter] : [],
+        startTimeFilter ?? [],
       ),
       //trace name
       getClickhouseTraceName(),
       // trace tags
       getClickhouseTraceTags(),
       // modelId
-      getObservationsGroupedByModelId(
-        input.projectId,
-        startTimeFilter ? [startTimeFilter] : [],
-      ),
+      getObservationsGroupedByModelId(input.projectId, startTimeFilter ?? []),
     ]);
 
     // typecheck filter options, needs to include all columns with options
@@ -171,6 +131,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       ].map((i) => ({
         value: i,
       })),
+      environment: [], // Environment is fetched separately via api.projects.environmentFilterOptions
     };
 
     return res;

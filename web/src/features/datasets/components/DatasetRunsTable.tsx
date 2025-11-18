@@ -115,16 +115,12 @@ const DatasetRunTableMultiSelectAction = ({
         <DropdownMenuContent key="dropdown-menu-content">
           <Link
             key="compare"
-            href={
-              selectedRunIds.length < 2
-                ? "#"
-                : {
-                    pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
-                    query: { runs: selectedRunIds },
-                  }
-            }
+            href={{
+              pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+              query: { runs: selectedRunIds },
+            }}
           >
-            <DropdownMenuItem disabled={selectedRunIds.length < 2}>
+            <DropdownMenuItem>
               <Columns3 className="mr-2 h-4 w-4" />
               <span>Compare</span>
             </DropdownMenuItem>
@@ -276,6 +272,7 @@ export function DatasetRunsTable(props: {
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<DatasetRunRowData>({
+      displayFormat: "aggregate",
       scoreColumnKey: "runItemScores",
       projectId: props.projectId,
       filter: runs.data?.runs?.length
@@ -424,11 +421,7 @@ export function DatasetRunsTable(props: {
       cell: ({ row }) => {
         const description: DatasetRunRowData["description"] =
           row.getValue("description");
-        return (
-          <div className="max-h-full max-w-full overflow-y-auto overflow-x-hidden break-words">
-            {description}
-          </div>
-        );
+        return description;
       },
     },
     {

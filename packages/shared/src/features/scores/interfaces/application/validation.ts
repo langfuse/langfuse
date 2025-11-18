@@ -1,9 +1,8 @@
 import z from "zod/v4";
-import { APIScoreSchemaV2, APIScoreV2 } from "../api/v2/schemas";
 import { APIScoreSchemaV1, APIScoreV1 } from "../api/v1/schemas";
-import { ScoreDomain } from "../../../../domain";
+import { ScoreDomain, ScoreSchema } from "../../../../domain";
 
-type ValidatedAPIScore<IncludeHasMetadata extends boolean> = APIScoreV2 & {
+type ValidatedScore<IncludeHasMetadata extends boolean> = ScoreDomain & {
   hasMetadata: IncludeHasMetadata extends true ? boolean : never;
 };
 
@@ -16,8 +15,8 @@ type InputScore = ScoreDomain & { hasMetadata?: boolean };
  * @returns validated score
  * @throws error if score fails validation
  */
-export const validateDbScore = (score: ScoreDomain): APIScoreV2 =>
-  APIScoreSchemaV2.parse(score);
+export const validateDbScore = (score: unknown): ScoreDomain =>
+  ScoreSchema.parse(score);
 
 /**
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
@@ -36,21 +35,21 @@ export const filterAndValidateDbScoreList = <
   includeHasMetadata?: IncludeHasMetadata;
   // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void;
-}): ValidatedAPIScore<IncludeHasMetadata>[] => {
+}): ValidatedScore<IncludeHasMetadata>[] => {
   return scores.reduce((acc, ts) => {
-    const result = APIScoreSchemaV2.safeParse(ts);
+    const result = ScoreSchema.safeParse(ts);
     if (result.success) {
       const score = { ...result.data };
       if (includeHasMetadata) {
         Object.assign(score, { hasMetadata: ts.hasMetadata ?? false });
       }
-      acc.push(score as ValidatedAPIScore<IncludeHasMetadata>);
+      acc.push(score as ValidatedScore<IncludeHasMetadata>);
     } else {
       console.error("Score parsing error: ", result.error);
       onParseError?.(result.error);
     }
     return acc;
-  }, [] as ValidatedAPIScore<IncludeHasMetadata>[]);
+  }, [] as ValidatedScore<IncludeHasMetadata>[]);
 };
 
 type ValidatedAPITraceScore<IncludeHasMetadata extends boolean> = APIScoreV1 & {

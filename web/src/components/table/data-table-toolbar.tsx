@@ -199,7 +199,14 @@ export function DataTableToolbar<TData, TValue>({
                     : `Search (${searchConfig.metadataSearchFields.join(", ")})`
                 }
                 value={searchString}
-                onChange={(event) => setSearchString(event.currentTarget.value)}
+                onChange={(event) => {
+                  const newValue = event.currentTarget.value;
+                  setSearchString(newValue);
+                  // If user cleared the search, update URL immediately
+                  if (newValue === "") {
+                    searchConfig.updateQuery("");
+                  }
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     capture("table:search_submit");

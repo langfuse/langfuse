@@ -23,6 +23,8 @@ import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
+import AuthentikProvider from "next-auth/providers/authentik";
+import OneLoginProvider from "next-auth/providers/onelogin";
 import EmailProvider from "next-auth/providers/email";
 import { randomInt } from "crypto";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -43,10 +45,12 @@ import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
+  JumpCloudProvider,
   traceException,
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
+  resolveProjectRole,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -56,7 +60,6 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { resolveProjectRole } from "@/src/features/rbac/utils/userProjectRole";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -204,7 +207,7 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_CUSTOM_CHECKS,
+      ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
   );
 
@@ -218,7 +221,7 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_GOOGLE_CHECKS,
+      ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
   );
 
@@ -237,7 +240,47 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_OKTA_CHECKS,
+      ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
+    }),
+  );
+
+if (
+  env.AUTH_AUTHENTIK_CLIENT_ID &&
+  env.AUTH_AUTHENTIK_CLIENT_SECRET &&
+  env.AUTH_AUTHENTIK_ISSUER
+)
+  staticProviders.push(
+    AuthentikProvider({
+      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+      issuer: env.AUTH_AUTHENTIK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_AUTHENTIK_CHECKS
+        ? { checks: env.AUTH_AUTHENTIK_CHECKS }
+        : {}),
+    }),
+  );
+
+if (
+  env.AUTH_ONELOGIN_CLIENT_ID &&
+  env.AUTH_ONELOGIN_CLIENT_SECRET &&
+  env.AUTH_ONELOGIN_ISSUER
+)
+  staticProviders.push(
+    OneLoginProvider({
+      clientId: env.AUTH_ONELOGIN_CLIENT_ID,
+      clientSecret: env.AUTH_ONELOGIN_CLIENT_SECRET,
+      issuer: env.AUTH_ONELOGIN_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
   );
 
@@ -256,7 +299,7 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_AUTH0_CHECKS,
+      ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
     }),
   );
 
@@ -270,7 +313,7 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_GITHUB_CHECKS,
+      ...(env.AUTH_GITHUB_CHECKS ? { checks: env.AUTH_GITHUB_CHECKS } : {}),
     }),
   );
 
@@ -290,7 +333,9 @@ if (
         token_endpoint_auth_method:
           env.AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS,
+      ...(env.AUTH_GITHUB_ENTERPRISE_CHECKS
+        ? { checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS }
+        : {}),
     }),
   );
 }
@@ -312,7 +357,7 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       },
       token: `${env.AUTH_GITLAB_URL}/oauth/token`,
       userinfo: `${env.AUTH_GITLAB_URL}/api/v4/user`,
-      checks: env.AUTH_GITLAB_CHECKS,
+      ...(env.AUTH_GITLAB_CHECKS ? { checks: env.AUTH_GITLAB_CHECKS } : {}),
     }),
   );
 
@@ -331,7 +376,7 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_AZURE_AD_CHECKS,
+      ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
   );
 
@@ -345,12 +390,14 @@ if (
       clientId: env.AUTH_COGNITO_CLIENT_ID,
       clientSecret: env.AUTH_COGNITO_CLIENT_SECRET,
       issuer: env.AUTH_COGNITO_ISSUER,
-      checks: env.AUTH_COGNITO_CHECKS ?? "nonce",
       allowDangerousEmailAccountLinking:
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
       },
+      ...(env.AUTH_COGNITO_CHECKS
+        ? { checks: env.AUTH_COGNITO_CHECKS }
+        : { checks: "nonce" }),
     }),
   );
 
@@ -373,7 +420,31 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_KEYCLOAK_CHECKS,
+      ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
+    }),
+  );
+
+if (
+  env.AUTH_JUMPCLOUD_CLIENT_ID &&
+  env.AUTH_JUMPCLOUD_CLIENT_SECRET &&
+  env.AUTH_JUMPCLOUD_ISSUER
+)
+  staticProviders.push(
+    JumpCloudProvider({
+      clientId: env.AUTH_JUMPCLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_JUMPCLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_JUMPCLOUD_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      authorization: {
+        params: { scope: env.AUTH_JUMPCLOUD_SCOPE ?? "openid profile email" },
+      },
+      client: {
+        token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_JUMPCLOUD_CHECKS
+        ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
+        : {}),
     }),
   );
 
@@ -400,7 +471,9 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_WORDPRESS_CHECKS,
+      ...(env.AUTH_WORDPRESS_CHECKS
+        ? { checks: env.AUTH_WORDPRESS_CHECKS }
+        : {}),
     }),
   );
 
@@ -700,7 +773,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             console.log(
               "Custom SSO provider enforced for domain, user signed in with other provider",
             );
-            throw new Error(`You must sign in via SSO for this domain.`);
+            throw new Error(
+              `You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.`,
+            );
           }
 
           // EE: Check that provider is only used for the associated domain

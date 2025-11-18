@@ -113,7 +113,6 @@ export function MembersTable({
   );
   const membersViaProject = api.members.allFromProject.useQuery(
     {
-      orgId,
       projectId: project?.id ?? "NOT ENABLED",
       searchQuery: searchQuery ?? undefined,
       page: paginationState.pageIndex,

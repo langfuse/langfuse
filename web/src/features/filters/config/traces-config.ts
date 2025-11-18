@@ -1,34 +1,8 @@
 import { tracesTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
-
-const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  id: "id",
-  name: "name",
-  userId: "userId",
-  sessionId: "sessionId",
-  version: "version",
-  release: "release",
-  tags: "tags",
-  environment: "environment",
-  level: "level",
-  bookmarked: "bookmarked",
-  latency: "latency",
-  inputTokens: "inputTokens",
-  outputTokens: "outputTokens",
-  totalTokens: "totalTokens",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
-  "Scores (categorical)": "score_categories",
-  "Scores (numeric)": "scores_avg",
-  Metadata: "metadata",
-};
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
-
-  columnToQueryKey: TRACE_COLUMN_TO_QUERY_KEY,
 
   columnDefinitions: tracesTableCols,
 
@@ -62,7 +36,7 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "stringKeyValue" as const,
-      column: "Metadata",
+      column: "metadata",
       label: "Metadata",
     },
     {
@@ -147,12 +121,12 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "keyValue" as const,
-      column: "Scores (categorical)",
+      column: "score_categories",
       label: "Categorical Scores",
     },
     {
       type: "numericKeyValue" as const,
-      column: "Scores (numeric)",
+      column: "scores_avg",
       label: "Numeric Scores",
     },
   ],

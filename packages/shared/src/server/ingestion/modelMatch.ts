@@ -5,8 +5,8 @@ import {
   recordIncrement,
   redis,
   safeMultiDel,
+  scanKeys,
 } from "../";
-import { type Cluster } from "ioredis";
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
@@ -293,17 +293,7 @@ export async function clearModelCacheForProject(
 
   try {
     const pattern = `${getModelMatchKeyPrefix()}:${projectId}:*`;
-
-    const keys =
-      env.REDIS_CLUSTER_ENABLED === "true"
-        ? (
-            await Promise.all(
-              (redis as Cluster)
-                .nodes("master")
-                .map((node) => node.keys(pattern) || []),
-            )
-          ).flat()
-        : await redis.keys(pattern);
+    const keys = await scanKeys(redis, pattern);
 
     if (keys.length > 0) {
       await safeMultiDel(redis, keys);
@@ -354,16 +344,7 @@ export async function clearFullModelCache() {
 
     const pattern = getModelMatchKeyPrefix() + "*";
 
-    const keys =
-      env.REDIS_CLUSTER_ENABLED === "true"
-        ? (
-            await Promise.all(
-              (redis as Cluster)
-                .nodes("master")
-                .map((node) => node.keys(pattern) || []),
-            )
-          ).flat()
-        : await redis.keys(pattern);
+    const keys = await scanKeys(redis, pattern);
 
     if (keys.length > 0) {
       await safeMultiDel(redis, keys);

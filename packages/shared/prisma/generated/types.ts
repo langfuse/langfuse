@@ -79,6 +79,16 @@ export const CommentObjectType = {
 } as const;
 export type CommentObjectType =
   (typeof CommentObjectType)[keyof typeof CommentObjectType];
+export const NotificationChannel = {
+  EMAIL: "EMAIL",
+} as const;
+export type NotificationChannel =
+  (typeof NotificationChannel)[keyof typeof NotificationChannel];
+export const NotificationType = {
+  COMMENT_MENTION: "COMMENT_MENTION",
+} as const;
+export type NotificationType =
+  (typeof NotificationType)[keyof typeof NotificationType];
 export const AuditLogRecordType = {
   USER: "USER",
   API_KEY: "API_KEY",
@@ -352,6 +362,14 @@ export type Comment = {
   content: string;
   author_user_id: string | null;
 };
+export type CommentReaction = {
+  id: string;
+  project_id: string;
+  comment_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: Generated<Timestamp>;
+};
 export type CronJobs = {
   name: string;
   last_run: Timestamp | null;
@@ -394,6 +412,8 @@ export type Dataset = {
   metadata: unknown | null;
   remote_experiment_url: string | null;
   remote_experiment_payload: unknown | null;
+  input_schema: unknown | null;
+  expected_output_schema: unknown | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -620,6 +640,14 @@ export type MembershipInvitation = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type MixpanelIntegration = {
+  project_id: string;
+  encrypted_mixpanel_project_token: string;
+  mixpanel_region: string;
+  last_sync_at: Timestamp | null;
+  enabled: boolean;
+  created_at: Generated<Timestamp>;
+};
 export type Model = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -634,6 +662,16 @@ export type Model = {
   unit: string | null;
   tokenizer_id: string | null;
   tokenizer_config: unknown | null;
+};
+export type NotificationPreference = {
+  id: string;
+  user_id: string;
+  project_id: string;
+  channel: NotificationChannel;
+  type: NotificationType;
+  enabled: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 };
 export type ObservationMedia = {
   id: string;
@@ -863,6 +901,7 @@ export type DB = {
   billing_meter_backups: BillingMeterBackup;
   blob_storage_integrations: BlobStorageIntegration;
   cloud_spend_alerts: CloudSpendAlert;
+  comment_reactions: CommentReaction;
   comments: Comment;
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
@@ -880,7 +919,9 @@ export type DB = {
   llm_tools: LlmTool;
   media: Media;
   membership_invitations: MembershipInvitation;
+  mixpanel_integrations: MixpanelIntegration;
   models: Model;
+  notification_preferences: NotificationPreference;
   observation_media: ObservationMedia;
   observations: LegacyPrismaObservation;
   organization_memberships: OrganizationMembership;

@@ -5,12 +5,17 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { useEffect, useMemo, useState } from "react";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { observationFilterConfig } from "@/src/features/filters/config/observations-config";
+import {
+  observationFilterConfig,
+  OBSERVATION_COLUMN_TO_BACKEND_KEY,
+} from "@/src/features/filters/config/observations-config";
+import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -22,6 +27,7 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -39,10 +45,6 @@ import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import {
-  useEnvironmentFilter,
-  convertSelectedEnvironmentsToFilter,
-} from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState, type Row } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -139,7 +141,7 @@ export default function ObservationsTable({
     "s",
   );
 
-  const [inputFilterState, setInputFilterState] = useQueryFilterState(
+  const [inputFilterState] = useQueryFilterState(
     // If the user loads saved table view presets, we should not apply the default type filter
     !viewId
       ? [
@@ -245,33 +247,23 @@ export default function ObservationsTable({
       },
     );
 
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
-
-  const { selectedEnvironments } = useEnvironmentFilter(
-    environmentOptions,
-    projectId,
-  );
-
-  const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["environment"],
-    selectedEnvironments,
-  );
-
   const oldFilterState = inputFilterState.concat(
     dateRangeFilter,
     promptNameFilter,
     promptVersionFilter,
     modelIdFilter,
-    environmentFilter,
   );
 
-  const startTimeFilter = oldFilterState.find((f) => f.column === "Start Time");
+  const startTimeFilters = oldFilterState.filter(
+    (f) =>
+      (f.column === "Start Time" || f.column === "startTime") &&
+      f.type === "datetime",
+  ) as TimeFilter[];
   const filterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
       startTimeFilter:
-        startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
+        startTimeFilters.length > 0 ? startTimeFilters : undefined,
     },
     {
       trpc: {
@@ -286,46 +278,58 @@ export default function ObservationsTable({
     },
   );
 
-  const newFilterOptions = useMemo(
-    () => ({
+  const newFilterOptions = useMemo(() => {
+    const scoreCategories =
+      filterOptions.data?.score_categories?.reduce(
+        (acc, score) => {
+          acc[score.label] = score.values;
+          return acc;
+        },
+        {} as Record<string, string[]>,
+      ) ?? undefined;
+
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
+
+    return {
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        environmentFilterOptions.data?.map((value) => value.environment) ??
+        undefined,
       name:
         filterOptions.data?.name?.map((n) => ({
           value: n.value,
           count: n.count !== undefined ? Number(n.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       type:
         filterOptions.data?.type?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
           count: tn.count !== undefined ? Number(tn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       model:
         filterOptions.data?.model?.map((m) => ({
           value: m.value,
           count: m.count !== undefined ? Number(m.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       modelId:
         filterOptions.data?.modelId?.map((mid) => ({
           value: mid.value,
           count: mid.count !== undefined ? Number(mid.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       promptName:
         filterOptions.data?.promptName?.map((pn) => ({
           value: pn.value,
           count: pn.count !== undefined ? Number(pn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       tags:
         filterOptions.data?.tags?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -335,13 +339,25 @@ export default function ObservationsTable({
       inputCost: [],
       outputCost: [],
       totalCost: [],
-    }),
-    [environmentFilterOptions.data, filterOptions.data],
-  );
+      score_categories: scoreCategories,
+      scores_avg: scoresNumeric,
+    };
+  }, [environmentFilterOptions.data, filterOptions.data]);
 
   const queryFilter = useSidebarFilterState(
     observationFilterConfig,
     newFilterOptions,
+    projectId,
+    filterOptions.isPending || environmentFilterOptions.isPending,
+  );
+
+  // Create ref-based wrapper to avoid stale closure when queryFilter updates
+  const queryFilterRef = useRef(queryFilter);
+  queryFilterRef.current = queryFilter;
+
+  const setFiltersWrapper = useCallback(
+    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    [],
   );
 
   const filterState = queryFilter.filterState.concat(
@@ -349,12 +365,17 @@ export default function ObservationsTable({
     promptNameFilter,
     promptVersionFilter,
     modelIdFilter,
-    environmentFilter,
+  );
+
+  const backendFilterState = transformFiltersForBackend(
+    filterState,
+    OBSERVATION_COLUMN_TO_BACKEND_KEY,
+    observationFilterConfig.columnDefinitions,
   );
 
   const getCountPayload = {
     projectId,
-    filter: filterState,
+    filter: backendFilterState,
     searchQuery,
     searchType,
     page: 0,
@@ -442,7 +463,7 @@ export default function ObservationsTable({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: filterState,
+        filter: backendFilterState,
         orderBy: orderByState,
       },
     });
@@ -500,11 +521,7 @@ export default function ObservationsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationsTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {
@@ -766,7 +783,7 @@ export default function ObservationsTable({
                 rowHeight !== "s" && "flex-wrap",
               )}
             >
-              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+              <TagList selectedTags={traceTags} isLoading={false} />
             </div>
           )
         );
@@ -1055,7 +1072,7 @@ export default function ObservationsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setInputFilterState,
+      setFilters: setFiltersWrapper,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
@@ -1064,7 +1081,7 @@ export default function ObservationsTable({
       columns,
       filterColumnDefinition: observationFilterConfig.columnDefinitions,
     },
-    currentFilterState: inputFilterState,
+    currentFilterState: queryFilter.filterState,
   });
 
   const peekConfig: DataTablePeekViewProps = useMemo(
@@ -1155,7 +1172,7 @@ export default function ObservationsTable({
             <BatchExportTableButton
               {...{
                 projectId,
-                filterState,
+                filterState: backendFilterState,
                 orderByState,
                 searchQuery,
                 searchType,
@@ -1191,7 +1208,7 @@ export default function ObservationsTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -1258,7 +1275,7 @@ export default function ObservationsTable({
               }}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );
@@ -1285,7 +1302,7 @@ const GenerationsDynamicCell = ({
       traceId,
       projectId,
       startTime,
-      truncated: true,
+      verbosity: "compact",
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

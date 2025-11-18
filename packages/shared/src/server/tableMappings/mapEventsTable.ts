@@ -42,7 +42,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: 'e."environment"',
   },
   {
-    uiTableName: "type",
+    uiTableName: "Type",
     uiTableId: "type",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."type"',
@@ -52,12 +52,6 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "id",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."span_id"',
-  },
-  {
-    uiTableName: "Type",
-    uiTableId: "type",
-    clickhouseTableName: "events",
-    clickhouseSelect: 'e."type"',
   },
   {
     uiTableName: "Name",
@@ -89,7 +83,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "timeToFirstToken",
     clickhouseTableName: "events",
     clickhouseSelect:
-      "if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time) / 1000)",
+      "if(isNull(e.completion_start_time), NULL,  date_diff('millisecond', e.start_time, e.completion_start_time) / 1000)",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
@@ -98,7 +92,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "latency",
     clickhouseTableName: "events",
     clickhouseSelect:
-      "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000)",
+      "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000)",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
@@ -145,6 +139,12 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Model",
     uiTableId: "model",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."provided_model_name"',
+  },
+  {
+    uiTableName: "Provided Model Name",
+    uiTableId: "providedModelName",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."provided_model_name"',
   },
@@ -202,13 +202,13 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
   },
   {
     uiTableName: "Scores (numeric)",
-    uiTableId: "scores",
+    uiTableId: "scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Scores (categorical)",
-    uiTableId: "scores",
+    uiTableId: "score_categories",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",
   },
@@ -222,12 +222,24 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
     clickhouseTableName: "events",
-    clickhouseSelect: "o.prompt_name",
+    clickhouseSelect: "e.prompt_name",
   },
   {
-    uiTableName: "Prompt Version",
-    uiTableId: "promptVersion",
+    uiTableName: "Input",
+    uiTableId: "input",
     clickhouseTableName: "events",
-    clickhouseSelect: "o.prompt_version",
+    clickhouseSelect: "e.input",
+  },
+  {
+    uiTableName: "Output",
+    uiTableId: "output",
+    clickhouseTableName: "events",
+    clickhouseSelect: "e.output",
+  },
+  {
+    uiTableName: "Session ID",
+    uiTableId: "sessionId",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."session_id"',
   },
 ];

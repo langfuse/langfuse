@@ -2,9 +2,9 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   type ScoreAggregate,
   type ScoreSimplified,
-  type APIScoreV2,
   type ScoreSourceType,
   type ScoreDataType,
+  type ScoreDomain,
 } from "@langfuse/shared";
 
 /**
@@ -49,7 +49,7 @@ export const getScoreLabelFromKey = (key: string): string => {
   return `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
 };
 
-type ScoreToAggregate = (APIScoreV2 | ScoreSimplified) & {
+type ScoreToAggregate = (ScoreDomain | ScoreSimplified) & {
   hasMetadata?: boolean;
 };
 
@@ -101,6 +101,7 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         comment: values.length === 1 ? scores[0].comment : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
         hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
+        timestamp: values.length === 1 ? scores[0].timestamp : undefined,
       };
     } else {
       const values = scores.map((score) => score.stringValue ?? "n/a");
@@ -122,6 +123,7 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         comment: values.length === 1 ? scores[0].comment : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
         hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
+        timestamp: values.length === 1 ? scores[0].timestamp : undefined,
       };
     }
     return acc;

@@ -55,10 +55,8 @@ const createObservationData = (
       input: data.input !== undefined ? data.input : "Hello World",
       output: data.output !== undefined ? data.output : "Hello John",
       metadata: data.metadata ?? { source: "API", server: "Node" },
-      metadata_string_names: data.metadata
-        ? Object.keys(data.metadata)
-        : undefined,
-      metadata_string_values: data.metadata
+      metadata_names: data.metadata ? Object.keys(data.metadata) : undefined,
+      metadata_raw_values: data.metadata
         ? Object.values(data.metadata)
         : undefined,
       provided_model_name: data.provided_model_name,
@@ -719,6 +717,163 @@ describe("/api/public/observations API Endpoint", () => {
           );
 
           expect(response.body.data.length).toBe(1);
+        });
+
+        it("should not crash when scores filter is used", async () => {
+          const traceId = randomUUID();
+          const timestamp = new Date();
+          const baseTimestamp = timestamp.getTime();
+          const timeValue = useEventsTable
+            ? baseTimestamp * 1000
+            : baseTimestamp;
+
+          const createdTrace = createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+
+          const obs1Id = randomUUID();
+
+          await createAndInsertObservations(useEventsTable, createdTrace, [
+            {
+              id: obs1Id,
+              trace_id: traceId,
+              project_id: projectId,
+              name: "obs-with-high-score",
+              type: "GENERATION",
+              level: "DEFAULT",
+              start_time: timeValue,
+            },
+          ]);
+
+          const filterParam = JSON.stringify([
+            {
+              type: "number",
+              column: "scores_avg",
+              operator: ">=",
+              value: 1000.0,
+            },
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}&traceId=${traceId}&type=GENERATION&filter=${encodeURIComponent(filterParam)}`,
+          );
+
+          expect(response.status).toBe(200);
+          // Score filter should be ignored, so some observations should be returned
+          expect(response.body.data.length).toBeGreaterThan(0);
+        });
+
+        it("should filter by userId (trace field)", async () => {
+          const trace1Id = randomUUID();
+          const trace2Id = randomUUID();
+          const timestamp = new Date();
+          const baseTimestamp = timestamp.getTime();
+          const timeValue = useEventsTable
+            ? baseTimestamp * 1000
+            : baseTimestamp;
+
+          // Create two traces with different userIds
+          const trace1 = createTrace({
+            id: trace1Id,
+            project_id: projectId,
+            timestamp: timeValue,
+            user_id: "user-A",
+          });
+
+          const trace2 = createTrace({
+            id: trace2Id,
+            project_id: projectId,
+            timestamp: timeValue,
+            user_id: "user-B",
+          });
+
+          if (useEventsTable) {
+            createEventsCh([
+              createEvent({
+                ...trace1,
+                span_id: trace1.id,
+                trace_id: trace1.id,
+                parent_span_id: "",
+                name: "trace1",
+              }),
+              createEvent({
+                ...trace2,
+                span_id: trace2.id,
+                trace_id: trace2.id,
+                parent_span_id: "",
+                name: "trace2",
+              }),
+            ]);
+          }
+
+          // Create observations for both traces
+          await createAndInsertObservations(useEventsTable, trace1, [
+            {
+              id: randomUUID(),
+              trace_id: trace1Id,
+              project_id: projectId,
+              name: "obs-trace1-a",
+              type: "GENERATION",
+              level: "DEFAULT",
+              start_time: timeValue,
+            },
+            {
+              id: randomUUID(),
+              trace_id: trace1Id,
+              project_id: projectId,
+              name: "obs-trace1-b",
+              type: "GENERATION",
+              level: "DEFAULT",
+              start_time: timeValue + 1000,
+            },
+          ]);
+
+          await createAndInsertObservations(useEventsTable, trace2, [
+            {
+              id: randomUUID(),
+              trace_id: trace2Id,
+              project_id: projectId,
+              name: "obs-trace2",
+              type: "GENERATION",
+              level: "DEFAULT",
+              start_time: timeValue + 2000,
+            },
+          ]);
+
+          const filterParam = JSON.stringify([
+            {
+              type: "string",
+              column: "userId",
+              operator: "=",
+              value: "user-A",
+            },
+            {
+              type: "stringOptions",
+              column: "traceId",
+              operator: "any of",
+              value: [trace1Id, trace2Id],
+            },
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}filter=${encodeURIComponent(filterParam)}`,
+          );
+
+          expect(response.status).toBe(200);
+          // Should only return observations from trace1
+          const matchingObs = response.body.data.filter(
+            (obs) => obs.traceId === trace1Id || obs.traceId === trace2Id,
+          );
+          expect(matchingObs.length).toBeGreaterThanOrEqual(2); // events path picks up top level trace itself
+          expect(matchingObs.every((obs) => obs.traceId === trace1Id)).toBe(
+            true,
+          );
         });
       });
     };

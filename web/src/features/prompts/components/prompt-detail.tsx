@@ -226,14 +226,19 @@ export const PromptDetail = ({
     ).data?.tags ?? []
   ).map((t) => t.value);
 
-  const commentCounts = api.comments.getCountByObjectId.useQuery(
+  const promptIds = useMemo(
+    () => promptHistory.data?.promptVersions.map((p) => p.id) ?? [],
+    [promptHistory.data?.promptVersions],
+  );
+
+  const commentCounts = api.comments.getCountByObjectIds.useQuery(
     {
       projectId: projectId as string,
-      objectId: prompt?.id as string,
       objectType: "PROMPT",
+      objectIds: promptIds,
     },
     {
-      enabled: Boolean(projectId) && Boolean(prompt?.id),
+      enabled: Boolean(projectId) && promptIds.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -274,6 +279,8 @@ export const PromptDetail = ({
     <Page
       headerProps={{
         title: prompt.name,
+        titleTooltip:
+          "Prompt names cannot be changed. Instead, duplicate this prompt to a different name.",
         itemType: "PROMPT",
         help: {
           description:
@@ -353,6 +360,7 @@ export const PromptDetail = ({
                 setCurrentPromptLabel(null);
               }}
               totalCount={promptHistory.data.totalCount}
+              commentCounts={commentCounts.data}
             />
           </div>
         </Command>

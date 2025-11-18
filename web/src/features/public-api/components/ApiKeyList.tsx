@@ -29,12 +29,15 @@ import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { startCase } from "lodash";
+import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 
 type ApiKeyScope = "project" | "organization";
 type ApiKeyEntity = { id: string; note: string | null };
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const { entityId, scope } = props;
+  const envCode = useLangfuseEnvCode();
+
   if (!entityId) {
     throw new Error(
       `${scope}Id is required for ApiKeyList with scope ${scope}`,
@@ -80,7 +83,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   }
 
   return (
-    <div>
+    <div className="space-y-4">
       <Header
         title={startCase(`${scope} API keys`)}
         help={{
@@ -92,6 +95,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
         }}
         actionButtons={<CreateApiKeyButton entityId={entityId} scope={scope} />}
       />
+      <CodeView content={envCode} title=".env" />
       <Card className="mb-4 overflow-hidden">
         <Table>
           <TableHeader>

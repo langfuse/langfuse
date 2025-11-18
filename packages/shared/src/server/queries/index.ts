@@ -1,6 +1,7 @@
 export {
   type FullObservations,
   type FullObservationsWithScores,
+  type FullEventsObservations,
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
 export {
@@ -23,6 +24,14 @@ export { clickhouseSearchCondition } from "./clickhouse-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
+  createPublicApiTracesColumnMapping,
   deriveFilters,
   type ApiColumnMapping,
 } from "./public-api-filter-builder";
+export {
+  CTEQueryBuilder,
+  EventsAggQueryBuilder,
+  EventsAggregationQueryBuilder,
+  type CTESchema,
+  type CTEWithSchema,
+} from "./clickhouse-sql/event-query-builder";
