@@ -7,9 +7,9 @@ import {
   convertObservation,
   measureAndReturn,
   observationsTableUiColumnDefinitions,
+  shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
 import type { FilterState } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
 
 type QueryType = {
   page: number;
@@ -32,8 +32,9 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
   // ClickHouse query optimizations for List Observations API
-  const disableObservationsFinal =
-    env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL === "true";
+  const disableObservationsFinal = await shouldSkipObservationsFinal(
+    props.projectId,
+  );
 
   const query = `
     with clickhouse_keys as (

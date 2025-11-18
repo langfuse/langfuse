@@ -224,6 +224,18 @@ const EnvSchema = z.object({
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
 
+  // API Performance Flags
+  // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
+  // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
+  LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
+    .enum(["true", "false"])
+    .default("false"),
+  // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
+  // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
+  LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Langfuse AI Features
   LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
   LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),

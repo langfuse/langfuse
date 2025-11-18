@@ -322,9 +322,9 @@ export const env = createEnv({
     LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
 
     // API Performance Flags
-    // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
-    // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
-    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
+    // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
+    // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
+    LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
     // Whether to propagate the toTimestamp restriction (including a server-side offset)
@@ -657,8 +657,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS:
       process.env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS,
-    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL:
-      process.env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL,
+    LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
+      process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
 
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:
