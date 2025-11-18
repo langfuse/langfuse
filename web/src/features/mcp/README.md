@@ -18,16 +18,19 @@ Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to inte
    - Note: Organization-level keys are not supported
 
 2. **Encode Credentials**
+
    ```bash
    echo -n "pk-lf-df1fb7b5-b644-45f4-8149-053d4d1cd1a5:sk-lf-961dabbe-ae50-434b-9197-854787548dc8" | base64
    ```
 
    Output:
+
    ```
    cGstbGYtZGYxZmI3YjUtYjY0NC00NWY0LTgxNDktMDUzZDRkMWNkMWE1OnNrLWxmLTk2MWRhYmJlLWFlNTAtNDM0Yi05MTk3LTg1NDc4NzU0OGRjOA==
    ```
 
 3. **Add to Claude Code**
+
    ```bash
    claude mcp add --transport http langfuse http://localhost:3000/api/public/mcp \
        --header "Authorization: Basic cGstbGYtZGYxZmI3YjUtYjY0NC00NWY0LTgxNDktMDUzZDRkMWNkMWE1OnNrLWxmLTk2MWRhYmJlLWFlNTAtNDM0Yi05MTk3LTg1NDc4NzU0OGRjOA=="
@@ -64,6 +67,7 @@ The Langfuse MCP server uses a **stateless per-request architecture**:
 4. **No state between requests:** Each request is independent
 
 This design:
+
 - Eliminates session management complexity
 - Prevents state leaks between projects
 - Simplifies authentication (project context derived from API key)
@@ -87,6 +91,7 @@ This design:
 ```
 
 **ServerContext:**
+
 ```typescript
 {
   projectId: "proj-123",      // Auto-injected from API key
@@ -105,6 +110,7 @@ Tools include hints for clients about their behavior:
 - **`destructive: true`**: Operations that create/modify data (createTextPrompt, createChatPrompt, updatePromptLabels)
 
 Clients like Claude Code can use these annotations to:
+
 - Auto-approve read-only operations
 - Require user confirmation for destructive operations
 
@@ -133,14 +139,17 @@ This outputs your BasicAuth token (e.g., `cGstbGYt...`).
 ### 2. Choose Your Langfuse URL
 
 **Langfuse Cloud:**
+
 - **EU Region:** `https://cloud.langfuse.com`
 - **US Region:** `https://us.langfuse.com`
 - **HIPAA:** `https://hipaa.langfuse.com`
 
 **Self-Hosted:**
+
 - Use your domain with HTTPS: `https://your-domain.com`
 
 **Local Development:**
+
 - `http://localhost:3000`
 
 ---
@@ -182,30 +191,6 @@ Add to your Cursor MCP settings:
         "headers": {
           "Authorization": "Basic {your-base64-token}"
         }
-      }
-    }
-  }
-}
-```
-
-Replace `https://cloud.langfuse.com` with your Langfuse URL (see [Choose Your Langfuse URL](#2-choose-your-langfuse-url)).
-
----
-
-## Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "langfuse": {
-      "command": "http",
-      "args": [
-        "https://cloud.langfuse.com/api/public/mcp"
-      ],
-      "env": {
-        "AUTHORIZATION": "Basic {your-base64-token}"
       }
     }
   }
