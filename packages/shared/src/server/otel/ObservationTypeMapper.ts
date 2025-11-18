@@ -271,11 +271,12 @@ export class ObservationTypeMapperRegistry {
 
         // Only handle generation and embedding operations
         const generationEmbeddingPrefixes = [
-          "ai.generateText",
-          "ai.streamText",
-          "ai.generateObject",
-          "ai.streamObject",
-          "ai.embed",
+          "ai.generateText.doGenerate",
+          "ai.streamText.doStream",
+          "ai.generateObject.doGenerate",
+          "ai.streamObject.doStream",
+          "ai.embedMany.doEmbed",
+          "ai.embed.doEmbed",
         ];
 
         const isGenerationOrEmbedding = matchesVercelAiSdkOperation(
