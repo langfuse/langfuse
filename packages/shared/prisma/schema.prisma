@@ -626,7 +626,6 @@ model DatasetItem {
   dataset             Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
-  datasetRunItems     DatasetRunItems[]
 
   @@id([id, projectId])
   @@index([sourceTraceId], type: Hash)
@@ -668,7 +667,6 @@ model DatasetRunItems {
   datasetRunId  String      @map("dataset_run_id")
   datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
   datasetItemId String      @map("dataset_item_id")
-  datasetItem   DatasetItem @relation(fields: [datasetItemId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId       String      @map("trace_id")
   observationId String?     @map("observation_id")
   createdAt     DateTime    @default(now()) @map("created_at")
