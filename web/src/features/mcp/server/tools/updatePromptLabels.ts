@@ -13,6 +13,8 @@ import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompt
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { UserInputError } from "../../internal/errors";
+import { instrumentAsync } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 /**
  * Base schema for updatePromptLabels tool (no refinements needed)
@@ -87,53 +89,68 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
   baseSchema: UpdatePromptLabelsBaseSchema,
   inputSchema: UpdatePromptLabelsBaseSchema, // No refinements, same as base
   handler: async (input, context) => {
-    const { name, version, newLabels } = input;
+    return await instrumentAsync(
+      { name: "mcp.prompts.update_labels", spanKind: SpanKind.INTERNAL },
+      async (span) => {
+        const { name, version, newLabels } = input;
 
-    // Fetch existing prompt to capture "before" state for audit log
-    const existingPrompt = await prisma.prompt.findUnique({
-      where: {
-        projectId_name_version: {
+        // Set span attributes for observability
+        span.setAttributes({
+          "langfuse.project.id": context.projectId,
+          "langfuse.org.id": context.orgId,
+          "mcp.api_key_id": context.apiKeyId,
+          "mcp.prompt_name": name,
+          "mcp.prompt_version": version,
+          "mcp.new_labels_count": newLabels.length,
+        });
+
+        // Fetch existing prompt to capture "before" state for audit log
+        const existingPrompt = await prisma.prompt.findUnique({
+          where: {
+            projectId_name_version: {
+              projectId: context.projectId,
+              name,
+              version,
+            },
+          },
+        });
+
+        if (!existingPrompt) {
+          throw new UserInputError(
+            `Prompt '${name}' version ${version} not found in project`,
+          );
+        }
+
+        // Update prompt labels using existing action
+        const updatedPrompt = await updatePrompt({
+          promptName: name,
+          projectId: context.projectId, // Auto-injected from authenticated API key
+          promptVersion: version,
+          newLabels,
+        });
+
+        // Audit log the update with both before and after states
+        await auditLog({
+          action: "update",
+          resourceType: "prompt",
+          resourceId: updatedPrompt.id,
           projectId: context.projectId,
-          name,
-          version,
-        },
+          orgId: context.orgId,
+          apiKeyId: context.apiKeyId,
+          before: existingPrompt,
+          after: updatedPrompt,
+        });
+
+        // Return formatted response
+        return {
+          id: updatedPrompt.id,
+          name: updatedPrompt.name,
+          version: updatedPrompt.version,
+          labels: updatedPrompt.labels,
+          message: `Successfully updated labels for '${updatedPrompt.name}' version ${updatedPrompt.version}. Labels are now: ${updatedPrompt.labels.length > 0 ? updatedPrompt.labels.join(", ") : "(none)"}`,
+        };
       },
-    });
-
-    if (!existingPrompt) {
-      throw new UserInputError(
-        `Prompt '${name}' version ${version} not found in project`,
-      );
-    }
-
-    // Update prompt labels using existing action
-    const updatedPrompt = await updatePrompt({
-      promptName: name,
-      projectId: context.projectId, // Auto-injected from authenticated API key
-      promptVersion: version,
-      newLabels,
-    });
-
-    // Audit log the update with both before and after states
-    await auditLog({
-      action: "update",
-      resourceType: "prompt",
-      resourceId: updatedPrompt.id,
-      projectId: context.projectId,
-      orgId: context.orgId,
-      apiKeyId: context.apiKeyId,
-      before: existingPrompt,
-      after: updatedPrompt,
-    });
-
-    // Return formatted response
-    return {
-      id: updatedPrompt.id,
-      name: updatedPrompt.name,
-      version: updatedPrompt.version,
-      labels: updatedPrompt.labels,
-      message: `Successfully updated labels for '${updatedPrompt.name}' version ${updatedPrompt.version}. Labels are now: ${updatedPrompt.labels.length > 0 ? updatedPrompt.labels.join(", ") : "(none)"}`,
-    };
+    );
   },
   destructiveHint: true,
 });

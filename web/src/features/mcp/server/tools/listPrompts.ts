@@ -15,6 +15,8 @@ import {
   ParamPage,
 } from "../../internal/validation";
 import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
+import { instrumentAsync } from "@langfuse/shared/src/server";
+import { SpanKind } from "@opentelemetry/api";
 
 /**
  * Base schema for listPrompts tool (no refinements needed)
@@ -65,36 +67,63 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
   baseSchema: ListPromptsBaseSchema,
   inputSchema: ListPromptsBaseSchema, // No refinements, same as base
   handler: async (input, context) => {
-    const { name, label, tag, page, limit } = input;
+    return await instrumentAsync(
+      { name: "mcp.prompts.list", spanKind: SpanKind.INTERNAL },
+      async (span) => {
+        const { name, label, tag, page, limit } = input;
 
-    // Fetch prompts metadata using existing service
-    const result = await getPromptsMeta({
-      projectId: context.projectId, // Auto-injected from authenticated API key
-      name,
-      label,
-      tag,
-      page, // Default handled by Zod schema
-      limit, // Default handled by Zod schema
-    });
+        // Set span attributes for observability
+        span.setAttributes({
+          "langfuse.project.id": context.projectId,
+          "langfuse.org.id": context.orgId,
+          "mcp.api_key_id": context.apiKeyId,
+          "mcp.pagination_page": page ?? 1,
+          "mcp.pagination_limit": limit ?? 50,
+        });
 
-    // Return formatted response
-    return {
-      data: result.data.map((prompt) => ({
-        name: prompt.name,
-        type: prompt.type,
-        versions: prompt.versions,
-        labels: prompt.labels,
-        tags: prompt.tags,
-        lastUpdatedAt: prompt.lastUpdatedAt,
-        lastConfig: prompt.lastConfig,
-      })),
-      pagination: {
-        page: result.pagination.page,
-        limit: result.pagination.limit,
-        totalPages: result.pagination.totalPages,
-        totalItems: result.pagination.totalItems,
+        if (name) {
+          span.setAttribute("mcp.filter_name", name);
+        }
+        if (label) {
+          span.setAttribute("mcp.filter_label", label);
+        }
+        if (tag) {
+          span.setAttribute("mcp.filter_tag", tag);
+        }
+
+        // Fetch prompts metadata using existing service
+        const result = await getPromptsMeta({
+          projectId: context.projectId, // Auto-injected from authenticated API key
+          name,
+          label,
+          tag,
+          page, // Default handled by Zod schema
+          limit, // Default handled by Zod schema
+        });
+
+        // Set result count for observability
+        span.setAttribute("mcp.result_count", result.data.length);
+
+        // Return formatted response
+        return {
+          data: result.data.map((prompt) => ({
+            name: prompt.name,
+            type: prompt.type,
+            versions: prompt.versions,
+            labels: prompt.labels,
+            tags: prompt.tags,
+            lastUpdatedAt: prompt.lastUpdatedAt,
+            lastConfig: prompt.lastConfig,
+          })),
+          pagination: {
+            page: result.pagination.page,
+            limit: result.pagination.limit,
+            totalPages: result.pagination.totalPages,
+            totalItems: result.pagination.totalItems,
+          },
+        };
       },
-    };
+    );
   },
   readOnlyHint: true,
 });
