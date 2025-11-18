@@ -2,7 +2,7 @@
  * MCP Server Instance
  *
  * Main MCP server configuration and initialization.
- * Implements stateless per-request server pattern from Sentry MCP.
+ * Implements stateless per-request server pattern similar to Sentry MCP.
  *
  * Key principles:
  * - Fresh server instance per request
@@ -65,11 +65,8 @@ export function createMcpServer(_context: ServerContext): Server {
   );
 
   // Context is captured here and available to all handlers via closure
-  // Authentication completed in LF-1927 using BasicAuth
-  // Tools registered in LF-1929
   // Each handler can access '_context' via closure
 
-  // Register tool handlers (LF-1929)
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const toolsResponse = {
       tools: [

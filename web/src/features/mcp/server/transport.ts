@@ -4,12 +4,6 @@
  * Implements the Streamable HTTP transport for the Model Context Protocol (2025-03-26 spec).
  * This transport allows MCP communication over HTTP with JSON-RPC messages.
  *
- * Key differences from deprecated HTTP+SSE transport:
- * - Single endpoint handles all HTTP methods (POST, GET, DELETE)
- * - No separate /message endpoint
- * - JSON-RPC messages sent via POST body
- * - Optional SSE streaming for server responses
- * - Session management via Mcp-Session-Id header (when stateful)
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
