@@ -4,9 +4,9 @@ import {
   StringFilter,
   type ObservationRecordReadType,
   queryClickhouse,
-  convertObservation,
   measureAndReturn,
   observationsTableUiColumnDefinitions,
+  convertObservation,
 } from "@langfuse/shared/src/server";
 import type { FilterState } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -168,7 +168,9 @@ const generateFilter = (query: QueryType) => {
     simpleFilterProps,
     filterParams,
     advancedFilters,
-    observationsTableUiColumnDefinitions,
+    observationsTableUiColumnDefinitions.filter(
+      (c) => c.clickhouseTableName !== "scores",
+    ),
   );
 
   // Remove score filters since observations don't support scores in response

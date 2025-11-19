@@ -29,7 +29,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { InfoIcon } from "lucide-react";
+import { ExternalLinkIcon, InfoIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import Link from "next/link";
@@ -231,7 +231,10 @@ export const TracePreview = ({
                   href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
                   className="inline-flex"
                 >
-                  <Badge>Session: {trace.sessionId}</Badge>
+                  <Badge>
+                    <span className="truncate">Session: {trace.sessionId}</span>
+                    <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                  </Badge>
                 </Link>
               ) : null}
               {trace.userId ? (
@@ -239,7 +242,10 @@ export const TracePreview = ({
                   href={`/project/${trace.projectId as string}/users/${encodeURIComponent(trace.userId)}`}
                   className="inline-flex"
                 >
-                  <Badge>User ID: {trace.userId}</Badge>
+                  <Badge>
+                    <span className="truncate">User ID: {trace.userId}</span>
+                    <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                  </Badge>
                 </Link>
               ) : null}
               {trace.environment ? (
