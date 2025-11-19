@@ -42,39 +42,13 @@ const flattenTree = (
     );
     sortedChildren.forEach((child, index) => {
       const isChildLast = index === sortedChildren.length - 1;
-      // The vertical line at depth `depth` is drawn if the current node is NOT the last sibling.
-      // This state is passed down to children so they can draw the line for this level.
-      const nextTreeLines = [...treeLines, !isLastSibling];
-
-      // Wait, looking at the original recursive logic:
-      // const childTreeLines = [...treeLines, !isChildLastSibling];
-      // It seems the line for the *current* level depends on if *this child* is the last sibling?
-      // No, let's re-read the original component carefully.
-      // Indentation level 0: No lines.
-      // Indentation level 1:
-      //   Array.from({ length: 0 }) -> empty.
-      //   But it draws "Vertical bar connecting upwards" and "downwards".
-
-      // The `treeLines` prop in original component was used for the ANCESTOR lines (far left lines).
-      // In the map loop: `const childTreeLines = [...treeLines, !isChildLastSibling];`
-      // This means: for the children of the current node, the line at `currentLevel` should be present
-      // if the current child is NOT the last sibling.
-
-      // So if I am Child 1 of 3. `isChildLastSibling` is false. `!isChildLastSibling` is true.
-      // My children will inherit `[..., true]`. They will draw a vertical line at my level.
-      // If I am Child 3 of 3. `isChildLastSibling` is true. `!isChildLastSibling` is false.
-      // My children will inherit `[..., false]`. They will NOT draw a vertical line at my level.
-
-      // So my flatten logic:
-      // `treeLines` passed to `flattenTree` corresponds to the lines for levels 0 to depth-1.
-      // When recursing to children (depth+1), we append the status of the current child.
 
       flatList.push(
         ...flattenTree(
           child,
           collapsedNodes,
           depth + 1,
-          [...treeLines, !isChildLast], // This matches the original logic
+          [...treeLines, !isChildLast],
           isChildLast,
         ),
       );
