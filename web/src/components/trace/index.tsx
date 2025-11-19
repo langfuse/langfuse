@@ -135,6 +135,7 @@ export function Trace(props: {
     );
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [searchInputValue, setSearchInputValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -183,6 +184,30 @@ export function Trace(props: {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // CMD+F / Ctrl+F keyboard shortcut for trace search
+  useEffect(() => {
+    if (isTreePanelCollapsed) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [isTreePanelCollapsed]);
 
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
@@ -446,14 +471,17 @@ export function Trace(props: {
                       Node display
                     </span>
                   ) : (
-                    <CommandInput
-                      showBorder={false}
-                      placeholder="Search"
-                      className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
-                      value={searchInputValue}
-                      onValueChange={handleSearchInputChange}
-                      onKeyDown={handleSearchKeyDown}
-                    />
+                    <div className="relative flex-1">
+                      <CommandInput
+                        ref={searchInputRef}
+                        showBorder={false}
+                        placeholder="Search"
+                        className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                        value={searchInputValue}
+                        onValueChange={handleSearchInputChange}
+                        onKeyDown={handleSearchKeyDown}
+                      />
+                    </div>
                   )}
                   {viewType === "detailed" && (
                     <div className="flex flex-row items-center gap-0.5">
@@ -690,14 +718,17 @@ export function Trace(props: {
                           Node display
                         </span>
                       ) : (
-                        <CommandInput
-                          showBorder={false}
-                          placeholder="Search"
-                          className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
-                          value={searchInputValue}
-                          onValueChange={handleSearchInputChange}
-                          onKeyDown={handleSearchKeyDown}
-                        />
+                        <div className="relative flex-1">
+                          <CommandInput
+                            ref={searchInputRef}
+                            showBorder={false}
+                            placeholder="Search"
+                            className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
+                            value={searchInputValue}
+                            onValueChange={handleSearchInputChange}
+                            onKeyDown={handleSearchKeyDown}
+                          />
+                        </div>
                       )}
                       {viewType === "detailed" && (
                         <div className="flex flex-row items-center gap-0.5">
