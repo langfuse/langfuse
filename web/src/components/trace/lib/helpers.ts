@@ -28,10 +28,13 @@ export function nestObservations(
   );
   const hiddenObservationsCount = list.length - mutableList.length;
 
+  // Build a Set of all observation IDs for O(1) lookup instead of O(n) find
+  const observationIds = new Set(list.map((o) => o.id));
+
   mutableList.forEach((observation) => {
     if (
       observation.parentObservationId &&
-      !list.find((o) => o.id === observation.parentObservationId)
+      !observationIds.has(observation.parentObservationId)
     ) {
       observation.parentObservationId = null;
     }
