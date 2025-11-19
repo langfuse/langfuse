@@ -293,12 +293,9 @@ function buildTraceTree(
     inputUsage: obs.inputUsage,
     outputUsage: obs.outputUsage,
     totalUsage: obs.totalUsage,
-    calculatedInputCost:
-      "calculatedInputCost" in obs ? obs.calculatedInputCost : undefined,
-    calculatedOutputCost:
-      "calculatedOutputCost" in obs ? obs.calculatedOutputCost : undefined,
-    calculatedTotalCost:
-      "calculatedTotalCost" in obs ? obs.calculatedTotalCost : undefined,
+    calculatedInputCost: obs.inputCost,
+    calculatedOutputCost: obs.outputCost,
+    calculatedTotalCost: obs.totalCost,
     parentObservationId: obs.parentObservationId,
     traceId: obs.traceId,
   });
