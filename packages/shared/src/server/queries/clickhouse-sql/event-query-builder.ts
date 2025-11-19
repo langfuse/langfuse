@@ -134,7 +134,42 @@ const FIELD_SETS = {
   ],
   byIdPrompt: ["promptId", "promptName", "promptVersion"],
   byIdTimestamps: ["createdAt", "updatedAt", "eventTs"],
+
+  // Public API v2 field sets (field groups for selective fetching)
+  core: [
+    "id",
+    "traceId",
+    "startTime",
+    "endTime",
+    "projectId",
+    "parentObservationId",
+    "type",
+  ],
+  basic: [
+    "name",
+    "level",
+    "statusMessage",
+    "version",
+    "environment",
+    "bookmarked",
+    "public",
+    "userId",
+    "sessionId",
+  ],
+  time: ["completionStartTime", "createdAt", "updatedAt"],
+  model: ["providedModelName", "internalModelId", "modelParameters"],
+  usage: [
+    "usageDetails",
+    "costDetails",
+    "totalCost",
+    "providedUsageDetails",
+    "providedCostDetails",
+  ],
+  prompt: ["promptId", "promptName", "promptVersion"],
+  metrics: ["latency", "timeToFirstToken"],
 } as const;
+
+export type FieldSetName = keyof typeof FIELD_SETS;
 
 /**
  * Aggregation fields for trace-level queries
@@ -260,10 +295,13 @@ abstract class AbstractQueryBuilder {
    * Add LIMIT and OFFSET
    */
   limit(limit?: number, offset?: number): this {
-    if (limit !== undefined && offset !== undefined) {
+    if (limit !== undefined && offset !== undefined && offset > 0) {
       this.limitClause = "LIMIT {limit: Int32} OFFSET {offset: Int32}";
       this.params.limit = limit;
       this.params.offset = offset;
+    } else if (limit !== undefined) {
+      this.limitClause = "LIMIT {limit: Int32}";
+      this.params.limit = limit;
     } else {
       this.limitClause = "";
     }
@@ -480,7 +518,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   /**
    * Add SELECT fields from predefined field sets
    */
-  selectFieldSet(...setNames: Array<keyof typeof FIELD_SETS>): this {
+  selectFieldSet(...setNames: Array<FieldSetName>): this {
     setNames
       .flatMap((s) => {
         return FIELD_SETS[s];
