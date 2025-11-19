@@ -13,9 +13,9 @@ import React, {
   useState,
   useLayoutEffect,
 } from "react";
-import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
+import { TreeItem } from "@mui/x-tree-view";
 import type Decimal from "decimal.js";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, ChevronRight } from "lucide-react";
 import {
   heatMapTextColor,
   nestObservations,
@@ -34,6 +34,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap, castToNumberMap } from "@/src/utils/map-utils";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 900;
@@ -44,6 +45,92 @@ const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25,
   35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500,
 ];
+
+// Virtualized timeline data structure
+type FlatTimelineItem = {
+  observation:
+    | NestedObservation
+    | {
+        id: string;
+        name: string;
+        type: "TRACE";
+        startTime: Date;
+        children: NestedObservation[];
+      };
+  depth: number;
+  treeLines: boolean[];
+  isLastSibling: boolean;
+  // Pre-computed timeline metrics
+  startOffset: number;
+  itemWidth: number;
+  firstTokenTimeOffset?: number;
+  latency?: number;
+  isTraceRoot?: boolean;
+};
+
+/**
+ * Flatten nested observations into a flat array with pre-computed timeline metrics.
+ * Only includes expanded nodes based on expandedItems.
+ * This enables virtualization by converting the tree to a flat list.
+ */
+function flattenTimelineTree(
+  observations: NestedObservation[],
+  expandedItems: string[],
+  traceStartTime: Date,
+  totalScaleSpan: number,
+): FlatTimelineItem[] {
+  const result: FlatTimelineItem[] = [];
+
+  const flatten = (
+    obs: NestedObservation,
+    depth: number,
+    treeLines: boolean[],
+    isLastSibling: boolean,
+  ) => {
+    // Calculate timeline metrics ONCE during flattening
+    const latency = obs.endTime
+      ? (obs.endTime.getTime() - obs.startTime.getTime()) / 1000
+      : undefined;
+    const startOffset =
+      ((obs.startTime.getTime() - traceStartTime.getTime()) /
+        totalScaleSpan /
+        1000) *
+      SCALE_WIDTH;
+    const itemWidth = ((latency ?? 0) / totalScaleSpan) * SCALE_WIDTH;
+    const firstTokenTimeOffset = obs.completionStartTime
+      ? ((obs.completionStartTime.getTime() - traceStartTime.getTime()) /
+          totalScaleSpan /
+          1000) *
+        SCALE_WIDTH
+      : undefined;
+
+    result.push({
+      observation: obs,
+      depth,
+      treeLines,
+      isLastSibling,
+      startOffset,
+      itemWidth,
+      firstTokenTimeOffset,
+      latency,
+    });
+
+    // Only include children if this observation is expanded
+    const observationId = `observation-${obs.id}`;
+    if (obs.children.length > 0 && expandedItems.includes(observationId)) {
+      obs.children.forEach((child, index) => {
+        const isChildLast = index === obs.children.length - 1;
+        flatten(child, depth + 1, [...treeLines, !isChildLast], isChildLast);
+      });
+    }
+  };
+
+  observations.forEach((obs, index) => {
+    flatten(obs, 0, [], index === observations.length - 1);
+  });
+
+  return result;
+}
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
   const calculatedStepSize = latency / (scaleWidth / STEP_SIZE);
@@ -260,6 +347,160 @@ function TreeItemInner({
   );
 }
 
+/**
+ * Virtualized timeline row component - replaces recursive TraceTreeItem.
+ * Renders a single timeline item with tree lines, expand/collapse button, and Gantt bar.
+ */
+function VirtualizedTimelineRow({
+  item,
+  totalScaleSpan,
+  isSelected,
+  onClick,
+  onToggleExpand,
+  hasChildren,
+  isExpanded,
+  scores,
+  commentCount,
+  parentTotalCost,
+  parentTotalDuration,
+  showDuration = true,
+  showCostTokens = true,
+  showScores = true,
+  showComments = true,
+  colorCodeMetrics = false,
+}: {
+  item: FlatTimelineItem;
+  totalScaleSpan: number;
+  isSelected: boolean;
+  onClick: () => void;
+  onToggleExpand: () => void;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  scores?: WithStringifiedMetadata<ScoreDomain>[];
+  commentCount?: number;
+  parentTotalCost?: Decimal;
+  parentTotalDuration?: number;
+  showDuration?: boolean;
+  showCostTokens?: boolean;
+  showScores?: boolean;
+  showComments?: boolean;
+  colorCodeMetrics?: boolean;
+}) {
+  const {
+    observation,
+    depth,
+    treeLines,
+    isLastSibling,
+    startOffset,
+    firstTokenTimeOffset,
+    latency,
+    isTraceRoot,
+  } = item;
+
+  // For cost calculation, we need to compute it per observation
+  // TODO: This should ideally be pre-computed in flattenTimelineTree
+  // For trace root, use the parent total cost passed from props
+  const totalCost = isTraceRoot
+    ? parentTotalCost
+    : (() => {
+        const unnestedObservations = unnestObservation(
+          observation as NestedObservation,
+        );
+        return calculateDisplayTotalCost({
+          allObservations: unnestedObservations,
+        });
+      })();
+
+  return (
+    <div
+      className={cn(
+        "group my-0.5 flex w-full min-w-fit cursor-pointer flex-row items-center",
+      )}
+      onClick={onClick}
+    >
+      {/* Tree lines for ancestor levels (depth - 1) */}
+      {depth > 0 && (
+        <div className="flex flex-shrink-0">
+          {Array.from({ length: depth - 1 }, (_, i) => (
+            <div
+              key={i}
+              className="relative"
+              style={{ width: `${TREE_INDENTATION}px` }}
+            >
+              {treeLines[i] && (
+                <div className="absolute bottom-0 left-1.5 top-0 w-px bg-border" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Current level tree connector */}
+      {depth > 0 && (
+        <div
+          className="relative flex-shrink-0"
+          style={{ width: `${TREE_INDENTATION}px` }}
+        >
+          {/* Vertical line up */}
+          <div
+            className={cn(
+              "absolute left-1.5 top-0 w-px bg-border",
+              isLastSibling ? "h-3" : "bottom-0",
+            )}
+          />
+          {/* Horizontal line to content */}
+          <div className="absolute left-1.5 top-3 h-px w-2 bg-border" />
+        </div>
+      )}
+
+      {/* Expand/collapse button (if has children) */}
+      {hasChildren && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="absolute z-10 rounded hover:bg-muted"
+          style={{
+            left: `${depth * TREE_INDENTATION + (startOffset > 0 ? startOffset + 4 : 4)}px`,
+            top: "50%",
+            transform: "translateY(-50%)",
+          }}
+        >
+          <ChevronRight
+            className={cn(
+              "h-4 w-4 transition-transform duration-200",
+              isExpanded && "rotate-90",
+            )}
+          />
+        </button>
+      )}
+
+      {/* Reuse existing TreeItemInner component */}
+      <TreeItemInner
+        latency={latency}
+        type={observation.type}
+        name={observation.name}
+        startOffset={startOffset}
+        firstTokenTimeOffset={firstTokenTimeOffset}
+        totalScaleSpan={totalScaleSpan}
+        hasChildren={hasChildren}
+        isSelected={isSelected}
+        showDuration={showDuration}
+        showCostTokens={showCostTokens}
+        showScores={showScores}
+        showComments={showComments}
+        colorCodeMetrics={colorCodeMetrics}
+        scores={scores}
+        commentCount={commentCount}
+        parentTotalDuration={parentTotalDuration}
+        totalCost={totalCost}
+        parentTotalCost={parentTotalCost}
+      />
+    </div>
+  );
+}
+
 function TraceTreeItem({
   observation,
   level = 0,
@@ -442,7 +683,7 @@ export function TraceTimelineView({
   setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
   containerWidth?: number;
 }) {
-  const { latency, name, id } = trace;
+  const { latency } = trace;
 
   const { nestedObservations, hiddenObservationsCount } = useMemo(
     () => nestObservations(observations, minLevel),
@@ -547,12 +788,71 @@ export function TraceTimelineView({
     }
   }, [observations, expandedItems, contentWidth]);
 
-  if (!latency) return null;
-  const stepSize = calculateStepSize(latency, SCALE_WIDTH);
+  // Calculate step size and scale span
+  const stepSize = latency ? calculateStepSize(latency, SCALE_WIDTH) : 1;
   const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
 
   const traceScores = scores.filter((s) => s.observationId === null);
-  const totalDuration = latency * 1000; // Convert to milliseconds for consistency
+  const totalDuration = latency ? latency * 1000 : 0; // Convert to milliseconds for consistency
+
+  // Flatten the tree for virtualization
+  const flattenedItems = useMemo(() => {
+    if (!latency) return [];
+
+    const traceStartTime = nestedObservations[0]?.startTime ?? trace.timestamp;
+
+    // Create trace root item
+    const traceRootItem: FlatTimelineItem = {
+      observation: {
+        id: trace.id,
+        name: trace.name ?? "",
+        type: "TRACE",
+        startTime: trace.timestamp,
+        children: nestedObservations,
+      },
+      depth: 0,
+      treeLines: [],
+      isLastSibling: true,
+      startOffset: 0,
+      itemWidth: (latency / totalScaleSpan) * SCALE_WIDTH,
+      latency,
+      isTraceRoot: true,
+    };
+
+    // Flatten all observations
+    const flatObservations = flattenTimelineTree(
+      nestedObservations,
+      expandedItems,
+      traceStartTime,
+      totalScaleSpan,
+    );
+
+    return [traceRootItem, ...flatObservations];
+  }, [nestedObservations, expandedItems, totalScaleSpan, trace, latency]);
+
+  // Calculate dynamic content width from flattened items
+  const dynamicContentWidth = useMemo(() => {
+    const maxEndOffset = flattenedItems.reduce((max, item) => {
+      const endOffset = item.startOffset + item.itemWidth;
+      return Math.max(max, endOffset);
+    }, SCALE_WIDTH);
+
+    return Math.max(SCALE_WIDTH, maxEndOffset + 100); // +100px padding
+  }, [flattenedItems]);
+
+  // Use dynamic content width instead of measured scrollWidth
+  const finalContentWidth = dynamicContentWidth;
+
+  // Set up virtualizer
+  const rowVirtualizer = useVirtualizer({
+    count: flattenedItems.length,
+    getScrollElement: () => timelineContentRef.current,
+    estimateSize: () => 42, // Approximate row height
+    overscan: 50,
+  });
+
+  // Early return after all hooks
+  if (!latency) return null;
 
   return (
     <div ref={parentRef} className="h-full w-full px-3">
@@ -575,7 +875,7 @@ export function TraceTimelineView({
               }
             }}
           >
-            <div style={{ width: `${contentWidth}px` }}>
+            <div style={{ width: `${finalContentWidth}px` }}>
               <div className="mb-2 ml-2">
                 <div
                   className="relative mr-2 h-8"
@@ -626,91 +926,96 @@ export function TraceTimelineView({
             }
           }}
         >
-          <div className="h-full" style={{ width: `${contentWidth}px` }}>
-            {/* Main timeline content */}
+          <div className="h-full" style={{ width: `${finalContentWidth}px` }}>
+            {/* Main timeline content - virtualized */}
             <div
               ref={timelineContentRef}
               className="h-full overflow-y-auto"
-              style={{ width: `${contentWidth}px` }}
+              style={{ width: `${finalContentWidth}px` }}
             >
-              <SimpleTreeView
-                expandedItems={expandedItems}
-                onExpandedItemsChange={(_, itemIds) =>
-                  setExpandedItems(itemIds)
-                }
-                itemChildrenIndentation={TREE_INDENTATION}
-                expansionTrigger="iconContainer"
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
               >
-                <TreeItem
-                  key={`trace-${id}`}
-                  itemId={`trace-${id}`}
-                  classes={{
-                    content: `!min-w-fit hover:!bg-background`,
-                    selected: "!bg-background !important",
-                    label: "!min-w-fit",
-                    iconContainer:
-                      "absolute left-3 top-1/2 z-10 -translate-y-1/2",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const isIconClick = (e.target as HTMLElement).closest(
-                      "svg.MuiSvgIcon-root",
-                    );
-                    if (!isIconClick) {
-                      setCurrentObservationId(null);
-                    }
-                  }}
-                  label={
-                    <TreeItemInner
-                      name={name}
-                      latency={latency}
-                      totalScaleSpan={totalScaleSpan}
-                      type="TRACE"
-                      hasChildren={!!nestedObservations.length}
-                      isSelected={currentObservationId === null}
-                      showDuration={showDuration}
-                      showCostTokens={showCostTokens}
-                      showScores={showScores}
-                      showComments={showComments}
-                      colorCodeMetrics={colorCodeMetrics}
-                      scores={traceScores}
-                      commentCount={getNumberFromMap(
-                        traceCommentCounts.data,
-                        id,
-                      )}
-                      totalCost={totalCost}
-                    />
-                  }
-                >
-                  {Boolean(nestedObservations.length)
-                    ? nestedObservations.map((observation) => (
-                        <TraceTreeItem
-                          key={`observation-${observation.id}`}
-                          observation={observation}
-                          level={1}
-                          traceStartTime={nestedObservations[0].startTime}
-                          totalScaleSpan={totalScaleSpan}
-                          projectId={projectId}
-                          scores={scores}
-                          observations={observations}
-                          cardWidth={cardWidth}
-                          commentCounts={castToNumberMap(
-                            observationCommentCounts.data,
-                          )}
-                          currentObservationId={currentObservationId}
-                          setCurrentObservationId={setCurrentObservationId}
-                          showDuration={showDuration}
-                          showCostTokens={showCostTokens}
-                          showScores={showScores}
-                          showComments={showComments}
-                          colorCodeMetrics={colorCodeMetrics}
-                          parentTotalDuration={totalDuration}
-                          parentTotalCost={totalCost}
-                        />
-                      ))
-                    : null}
-                </TreeItem>
-              </SimpleTreeView>
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const item = flattenedItems[virtualRow.index];
+                  const observationId =
+                    item.observation.type === "TRACE"
+                      ? `trace-${item.observation.id}`
+                      : `observation-${item.observation.id}`;
+                  const isExpanded = expandedItems.includes(observationId);
+                  const isSelected =
+                    item.observation.type === "TRACE"
+                      ? currentObservationId === null
+                      : item.observation.id === currentObservationId;
+
+                  // Get scores for this observation
+                  const itemScores =
+                    item.observation.type === "TRACE"
+                      ? traceScores
+                      : scores.filter(
+                          (s) => s.observationId === item.observation.id,
+                        );
+
+                  // Get comment count
+                  const commentCount =
+                    item.observation.type === "TRACE"
+                      ? getNumberFromMap(
+                          traceCommentCounts.data,
+                          item.observation.id,
+                        )
+                      : castToNumberMap(observationCommentCounts.data)?.get(
+                          item.observation.id,
+                        );
+
+                  return (
+                    <div
+                      key={item.observation.id}
+                      data-index={virtualRow.index}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <VirtualizedTimelineRow
+                        item={item}
+                        totalScaleSpan={totalScaleSpan}
+                        isSelected={isSelected}
+                        onClick={() => {
+                          if (item.observation.type === "TRACE") {
+                            setCurrentObservationId(null);
+                          } else {
+                            setCurrentObservationId(item.observation.id);
+                          }
+                        }}
+                        onToggleExpand={() => {
+                          const newItems = expandedItems.includes(observationId)
+                            ? expandedItems.filter((id) => id !== observationId)
+                            : [...expandedItems, observationId];
+                          setExpandedItems(newItems);
+                        }}
+                        hasChildren={item.observation.children?.length > 0}
+                        isExpanded={isExpanded}
+                        scores={itemScores}
+                        commentCount={commentCount}
+                        parentTotalCost={totalCost}
+                        parentTotalDuration={totalDuration}
+                        showDuration={showDuration}
+                        showCostTokens={showCostTokens}
+                        showScores={showScores}
+                        showComments={showComments}
+                        colorCodeMetrics={colorCodeMetrics}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
 
               {minLevel && hiddenObservationsCount > 0 ? (
                 <div className="flex items-center gap-1 p-2 py-4">
