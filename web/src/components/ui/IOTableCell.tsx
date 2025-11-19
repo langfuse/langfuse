@@ -61,10 +61,7 @@ const IOTableCellContent = ({
       json={
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
-      className={cn(
-        "h-full w-full self-stretch rounded-sm",
-        className,
-      )}
+      className={cn("h-full w-full self-stretch rounded-sm", className)}
       codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
     />
