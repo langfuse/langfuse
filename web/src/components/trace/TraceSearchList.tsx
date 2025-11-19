@@ -1,10 +1,4 @@
-import React, { useRef, useMemo } from "react";
-import {
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from "@/src/components/ui/command";
+import React, { useRef } from "react";
 import { SpanItem } from "@/src/components/trace/SpanItem";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { type ScoreDomain } from "@langfuse/shared";
