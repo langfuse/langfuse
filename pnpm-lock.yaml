@@ -10,6 +10,7 @@ overrides:
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   '@types/node-fetch': ^2.6.13
+  glob: ^10.5.0
 
 patchedDependencies:
   next-auth@4.24.12:
@@ -58,7 +59,7 @@ importers:
         version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       zod:
         specifier: ^3.25.62
         version: 3.25.62
@@ -247,7 +248,7 @@ importers:
         version: 4.1.1
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       nodemailer:
         specifier: ^7.0.10
         version: 7.0.10
@@ -653,7 +654,7 @@ importers:
         version: 15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-auth:
         specifier: ^4.24.12
-        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        version: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       next-query-params:
         specifier: ^5.1.0
         version: 5.1.0(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react@19.2.0)(use-query-params@2.2.1(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
@@ -6925,9 +6926,6 @@ packages:
   brace-expansion@2.0.1:
     resolution: {integrity: sha512-XnAIvQ8eM+kC6aULx6wuQiwVsnzsi9d3WxzV3FpWTGA19F621kwdbsAcFKXgKUHZWsy+mY6iL1sHTxWEFCytDA==}
 
-  brace-expansion@2.0.2:
-    resolution: {integrity: sha512-Jt0vHyM+jmUBqojB7E1NIYadt0vI0Qxjxd2TErW94wDz+E2LAm5vKMXXwg6ZZBTHPuUlDgQHKXvjGBdfcF1ZDQ==}
-
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
     engines: {node: '>=8'}
@@ -8784,9 +8782,6 @@ packages:
   fs-jetpack@5.1.0:
     resolution: {integrity: sha512-Xn4fDhLydXkuzepZVsr02jakLlmoARPy+YWIclo4kh0GyNGUHnTqeH/w/qIsVn50dFxtp8otPL2t/HcPJBbxUA==}
 
-  fs.realpath@1.0.0:
-    resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
-
   fsevents@2.3.2:
     resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -8913,27 +8908,9 @@ packages:
   glob-to-regexp@0.4.1:
     resolution: {integrity: sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==}
 
-  glob@10.3.10:
-    resolution: {integrity: sha512-fa46+tv1Ak0UPK1TOy/pZrIybNNt4HCv7SDzwyfiOZkvZLEbjsZkJBPtDHVshZjbecAoAGSC20MjLDG/qr679g==}
-    engines: {node: '>=16 || 14 >=14.17'}
+  glob@10.5.0:
+    resolution: {integrity: sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==}
     hasBin: true
-
-  glob@10.4.5:
-    resolution: {integrity: sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==}
-    hasBin: true
-
-  glob@7.2.3:
-    resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
-
-  glob@8.1.0:
-    resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
-    engines: {node: '>=12'}
-    deprecated: Glob versions prior to v9 are no longer supported
-
-  glob@9.3.5:
-    resolution: {integrity: sha512-e1LleDykUz2Iu+MTYdkSsuWX8lvAjAcs0Xef0lNIu0S2wOAzuTxCJtcd9S3cijlwYF18EsU3rzb8jPVobxDh9Q==}
-    engines: {node: '>=16 || 14 >=14.17'}
 
   global-dirs@3.0.1:
     resolution: {integrity: sha512-NBcGGFbBA9s1VzD41QXDG+3++t9Mn5t1FpLdhESY6oKY4gYTFpX4wO3sqGUa0Srjtbfj3szX0RnemmrVRUdULA==}
@@ -9202,10 +9179,6 @@ packages:
   indent-string@4.0.0:
     resolution: {integrity: sha512-EdDDZu4A2OyIK7Lr/2zG+w5jmbuk1DVBnEwREQvBzspBJkCEbRa8GxU1lghYcaGJCnRWibjDXlq779X1/y5xwg==}
     engines: {node: '>=8'}
-
-  inflight@1.0.6:
-    resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
-    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -9587,10 +9560,6 @@ packages:
   iterator.prototype@1.1.5:
     resolution: {integrity: sha512-H0dkQoCa3b2VEeKQBOxFph+JAbcrQdE7KC0UkqwpLmv2EC4P41QXP+rqo9wYodACiG5/WM5s9oDApTU8utwj9g==}
     engines: {node: '>= 0.4'}
-
-  jackspeak@2.3.6:
-    resolution: {integrity: sha512-N3yCS/NegsOBokc8GAdM8UcmfsKiSS8cipheD/nivzr700H+nsMOxJjQnvwOcRYVuFkdH0wGUvW2WbXGmrZGbQ==}
-    engines: {node: '>=14'}
 
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
@@ -10630,10 +10599,6 @@ packages:
     resolution: {integrity: sha512-lKwV/1brpG6mBUFHtb7NUmtABCb2WZZmm2wNiOA5hAb8VdCS4B3dtMWyvcoViccwAW/COERjXLt0zP1zXUN26g==}
     engines: {node: '>=10'}
 
-  minimatch@8.0.4:
-    resolution: {integrity: sha512-W0Wvr9HyFXZRGIDgCicunpQ299OKXs9RgZfaukz4qAW/pJhcpUfupc9c+OObPOFueNy8VSrZgEmDtk6Kh4WzDA==}
-    engines: {node: '>=16 || 14 >=14.17'}
-
   minimatch@9.0.3:
     resolution: {integrity: sha512-RHiac9mvaRw0x3AYRgDC1CxAP7HTcNrrECeA8YYJeWnpo+2Q5CegtZjaotWTWxDG3UeGA1coE05iH1mPjT/2mg==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -10644,10 +10609,6 @@ packages:
 
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
-
-  minipass@4.2.8:
-    resolution: {integrity: sha512-fNzuVyifolSLFL4NzpF+wEF4qrgqaaKX0haXPQEdQ7NKAN+WecoKMHV09YcuL/DHxrUsYQOK3MiuDf7Ip2OXfQ==}
-    engines: {node: '>=8'}
 
   minipass@7.1.2:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
@@ -11197,10 +11158,6 @@ packages:
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
     engines: {node: '>=8'}
-
-  path-is-absolute@1.0.1:
-    resolution: {integrity: sha512-AVbw3UJ2e9bq64vSaS9Am0fje1Pa8pbGqTTsmXfaIiMpnr5DlDhfJOuLj9Sf95ZPVDAUerDfEk88MPmPe7UCQg==}
-    engines: {node: '>=0.10.0'}
 
   path-key@3.1.1:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
@@ -17169,7 +17126,7 @@ snapshots:
       chalk: 4.1.2
       collect-v8-coverage: 1.0.2
       exit: 0.1.2
-      glob: 7.2.3
+      glob: 10.5.0
       graceful-fs: 4.2.11
       istanbul-lib-coverage: 3.2.2
       istanbul-lib-instrument: 6.0.2
@@ -17713,7 +17670,7 @@ snapshots:
   '@next-auth/prisma-adapter@1.0.7(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2))(next-auth@4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))':
     dependencies:
       '@prisma/client': 6.17.1(prisma@6.17.1(typescript@5.9.2))(typescript@5.9.2)
-      next-auth: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      next-auth: 4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
 
   '@next/bundle-analyzer@15.5.4':
     dependencies:
@@ -17726,7 +17683,7 @@ snapshots:
 
   '@next/eslint-plugin-next@14.2.15':
     dependencies:
-      glob: 10.3.10
+      glob: 10.5.0
 
   '@next/eslint-plugin-next@15.5.4':
     dependencies:
@@ -19610,7 +19567,7 @@ snapshots:
       '@sentry/cli': 2.56.0
       dotenv: 16.6.1
       find-up: 5.0.0
-      glob: 9.3.5
+      glob: 10.5.0
       magic-string: 0.30.8
       unplugin: 1.0.1
     transitivePeerDependencies:
@@ -21878,7 +21835,7 @@ snapshots:
 
   archiver-utils@2.1.0:
     dependencies:
-      glob: 7.2.3
+      glob: 10.5.0
       graceful-fs: 4.2.11
       lazystream: 1.0.1
       lodash.defaults: 4.2.0
@@ -21891,7 +21848,7 @@ snapshots:
 
   archiver-utils@3.0.4:
     dependencies:
-      glob: 7.2.3
+      glob: 10.5.0
       graceful-fs: 4.2.11
       lazystream: 1.0.1
       lodash.defaults: 4.2.0
@@ -22239,10 +22196,6 @@ snapshots:
       concat-map: 0.0.1
 
   brace-expansion@2.0.1:
-    dependencies:
-      balanced-match: 1.0.2
-
-  brace-expansion@2.0.2:
     dependencies:
       balanced-match: 1.0.2
 
@@ -24550,8 +24503,6 @@ snapshots:
     dependencies:
       minimatch: 5.1.6
 
-  fs.realpath@1.0.0: {}
-
   fsevents@2.3.2:
     optional: true
 
@@ -24710,45 +24661,13 @@ snapshots:
 
   glob-to-regexp@0.4.1: {}
 
-  glob@10.3.10:
-    dependencies:
-      foreground-child: 3.1.1
-      jackspeak: 2.3.6
-      minimatch: 9.0.5
-      minipass: 7.1.2
-      path-scurry: 1.11.1
-
-  glob@10.4.5:
+  glob@10.5.0:
     dependencies:
       foreground-child: 3.1.1
       jackspeak: 3.4.3
       minimatch: 9.0.5
       minipass: 7.1.2
       package-json-from-dist: 1.0.0
-      path-scurry: 1.11.1
-
-  glob@7.2.3:
-    dependencies:
-      fs.realpath: 1.0.0
-      inflight: 1.0.6
-      inherits: 2.0.4
-      minimatch: 3.1.2
-      once: 1.4.0
-      path-is-absolute: 1.0.1
-
-  glob@8.1.0:
-    dependencies:
-      fs.realpath: 1.0.0
-      inflight: 1.0.6
-      inherits: 2.0.4
-      minimatch: 5.1.6
-      once: 1.4.0
-
-  glob@9.3.5:
-    dependencies:
-      fs.realpath: 1.0.0
-      minimatch: 8.0.4
-      minipass: 4.2.8
       path-scurry: 1.11.1
 
   global-dirs@3.0.1:
@@ -25066,11 +24985,6 @@ snapshots:
   imurmurhash@0.1.4: {}
 
   indent-string@4.0.0: {}
-
-  inflight@1.0.6:
-    dependencies:
-      once: 1.4.0
-      wrappy: 1.0.2
 
   inherits@2.0.4: {}
 
@@ -25451,12 +25365,6 @@ snapshots:
       has-symbols: 1.1.0
       set-function-name: 2.0.2
 
-  jackspeak@2.3.6:
-    dependencies:
-      '@isaacs/cliui': 8.0.2
-    optionalDependencies:
-      '@pkgjs/parseargs': 0.11.0
-
   jackspeak@3.4.3:
     dependencies:
       '@isaacs/cliui': 8.0.2
@@ -25543,7 +25451,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 3.9.0
       deepmerge: 4.3.1
-      glob: 7.2.3
+      glob: 10.5.0
       graceful-fs: 4.2.11
       jest-circus: 29.7.0(babel-plugin-macros@3.1.0)
       jest-environment-node: 29.7.0
@@ -25574,7 +25482,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 3.9.0
       deepmerge: 4.3.1
-      glob: 7.2.3
+      glob: 10.5.0
       graceful-fs: 4.2.11
       jest-circus: 29.7.0(babel-plugin-macros@3.1.0)
       jest-environment-node: 29.7.0
@@ -25751,7 +25659,7 @@ snapshots:
       chalk: 4.1.2
       cjs-module-lexer: 1.4.1
       collect-v8-coverage: 1.0.2
-      glob: 7.2.3
+      glob: 10.5.0
       graceful-fs: 4.2.11
       jest-haste-map: 29.7.0
       jest-message-util: 29.7.0
@@ -27053,10 +26961,6 @@ snapshots:
     dependencies:
       brace-expansion: 2.0.1
 
-  minimatch@8.0.4:
-    dependencies:
-      brace-expansion: 2.0.2
-
   minimatch@9.0.3:
     dependencies:
       brace-expansion: 2.0.1
@@ -27066,8 +26970,6 @@ snapshots:
       brace-expansion: 2.0.1
 
   minimist@1.2.8: {}
-
-  minipass@4.2.8: {}
 
   minipass@7.1.2: {}
 
@@ -27172,7 +27074,7 @@ snapshots:
     dependencies:
       type-fest: 2.19.0
 
-  next-auth@4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  next-auth@4.24.12(patch_hash=x447yy4qrylml2g7vrfko5ivki)(next@15.5.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(nodemailer@7.0.10)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
       '@babel/runtime': 7.28.4
       '@panva/hkdf': 1.2.1
@@ -27312,7 +27214,7 @@ snapshots:
 
   npm-packlist@5.1.3:
     dependencies:
-      glob: 8.1.0
+      glob: 10.5.0
       ignore-walk: 5.0.1
       npm-bundled: 2.0.1
       npm-normalize-package-bin: 2.0.0
@@ -27669,8 +27571,6 @@ snapshots:
   path-data-parser@0.1.0: {}
 
   path-exists@4.0.0: {}
-
-  path-is-absolute@1.0.1: {}
 
   path-key@3.1.1: {}
 
@@ -28656,7 +28556,7 @@ snapshots:
 
   rimraf@3.0.2:
     dependencies:
-      glob: 7.2.3
+      glob: 10.5.0
 
   robust-predicates@3.0.2: {}
 
@@ -28911,7 +28811,7 @@ snapshots:
 
   shelljs@0.8.5:
     dependencies:
-      glob: 7.2.3
+      glob: 10.5.0
       interpret: 1.4.0
       rechoir: 0.6.2
 
@@ -29311,7 +29211,7 @@ snapshots:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.5
       commander: 4.1.1
-      glob: 10.4.5
+      glob: 10.5.0
       lines-and-columns: 1.2.4
       mz: 2.7.0
       pirates: 4.0.6
@@ -29519,7 +29419,7 @@ snapshots:
   test-exclude@6.0.0:
     dependencies:
       '@istanbuljs/schema': 0.1.3
-      glob: 7.2.3
+      glob: 10.5.0
       minimatch: 3.1.2
 
   text-hex@1.0.0: {}
