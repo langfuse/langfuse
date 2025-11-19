@@ -82,6 +82,8 @@ export class MutationMonitor {
   private static async checkMutationsAndScheduleNext(): Promise<void> {
     try {
       await this.checkMutations();
+    } catch (error) {
+      logger.error("Unexpected error in mutation monitoring loop", error);
     } finally {
       // Always schedule next check, even if current check failed
       this.scheduleNextCheck();

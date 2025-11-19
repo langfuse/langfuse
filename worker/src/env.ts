@@ -298,7 +298,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   // ClickHouse mutation monitoring
-  LANGFUSE_MUTATION_MONITOR_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_MUTATION_MONITOR_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS: z.coerce
     .number()
     .positive()
@@ -306,7 +306,7 @@ const EnvSchema = z.object({
   LANGFUSE_DELETION_MUTATIONS_MAX_COUNT: z.coerce
     .number()
     .positive()
-    .default(30),
+    .default(15),
   LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT: z.coerce
     .number()
     .positive()
