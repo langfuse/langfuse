@@ -297,6 +297,21 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
+  // ClickHouse mutation monitoring
+  LANGFUSE_MUTATION_MONITOR_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000), // 1 minute
+  LANGFUSE_DELETION_MUTATIONS_MAX_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(30),
+  LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(5),
+
   // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
