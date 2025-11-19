@@ -2,6 +2,7 @@
 imports:
   commons: ./commons.yml
   pagination: ./utils/pagination.yml
+  scim: ./scim.yml
 service:
   auth: true
   base-path: /api/public/v2
@@ -58,6 +59,25 @@ service:
       path: /prompts
       request: CreatePromptRequest
       response: Prompt
+
+    delete:
+      docs: Delete a prompt or specific versions
+      method: DELETE
+      path: /prompts/{promptName}
+      path-parameters:
+        promptName:
+          type: string
+          docs: The name of the prompt
+      request:
+        name: DeletePromptRequest
+        query-parameters:
+          label:
+            type: optional<string>
+            docs: Optional label of the prompt to delete
+          version:
+            type: optional<integer>
+            docs: Optional version of the prompt to delete
+      response: scim.EmptyResponse
 
 types:
   PromptMetaListResponse:
