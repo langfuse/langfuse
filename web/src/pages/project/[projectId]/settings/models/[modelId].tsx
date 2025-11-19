@@ -78,6 +78,10 @@ export default function ModelDetailPage() {
         },
         breadcrumb: [
           {
+            name: "Settings",
+            href: `/project/${router.query.projectId as string}/settings`,
+          },
+          {
             name: "Models",
             href: `/project/${router.query.projectId as string}/settings/models`,
           },
