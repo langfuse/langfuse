@@ -20,8 +20,8 @@ import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/compon
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useMemo, useState, useEffect } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
-import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import type Decimal from "decimal.js";
 import {
   TabsBar,
   TabsBarContent,
@@ -68,6 +68,7 @@ export const TracePreview = ({
   commentCounts,
   viewType = "detailed",
   showCommentButton = false,
+  precomputedCost,
 }: {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
@@ -79,6 +80,7 @@ export const TracePreview = ({
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
   showCommentButton?: boolean;
+  precomputedCost: Decimal | undefined;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -112,13 +114,7 @@ export const TracePreview = ({
     },
   );
 
-  const totalCost = useMemo(
-    () =>
-      calculateDisplayTotalCost({
-        allObservations: observations,
-      }),
-    [observations],
-  );
+  const totalCost = precomputedCost;
 
   const usageDetails = useMemo(
     () =>

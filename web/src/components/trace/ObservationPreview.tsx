@@ -21,7 +21,8 @@ import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
+import type Decimal from "decimal.js";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   TabsBar,
@@ -51,6 +52,7 @@ export const ObservationPreview = ({
   viewType = "detailed",
   isTimeline,
   showCommentButton = false,
+  precomputedCost,
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
@@ -61,6 +63,7 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   isTimeline?: boolean;
   showCommentButton?: boolean;
+  precomputedCost: Decimal | undefined;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -125,14 +128,7 @@ export const ObservationPreview = ({
       })
     : undefined;
 
-  const totalCost = useMemo(
-    () =>
-      calculateDisplayTotalCost({
-        allObservations: observations,
-        rootObservationId: currentObservationId,
-      }),
-    [observations, currentObservationId],
-  );
+  const totalCost = precomputedCost;
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
 

@@ -330,11 +330,14 @@ export function Trace(props: {
     tree: traceTree,
     hiddenObservationsCount,
     searchItems,
-  } = useMemo(
-    () =>
-      buildTraceUiData(props.trace, props.observations, minObservationLevel),
-    [props.trace, props.observations, minObservationLevel],
-  );
+    nodeMap,
+  } = useMemo(() => {
+    return buildTraceUiData(
+      props.trace,
+      props.observations,
+      minObservationLevel,
+    );
+  }, [props.trace, props.observations, minObservationLevel]);
 
   // Compute these outside the component to avoid recreation
   const hasQuery = (searchQuery ?? "").trim().length > 0;
@@ -392,6 +395,12 @@ export function Trace(props: {
     />
   );
 
+  // Find the selected node to pass pre-computed cost to preview
+  const selectedNode = useMemo(() => {
+    if (!currentObservationId) return null;
+    return nodeMap.get(currentObservationId) ?? null;
+  }, [nodeMap, currentObservationId]);
+
   const previewContent =
     currentObservationId === undefined ||
     currentObservationId === "" ||
@@ -403,6 +412,7 @@ export function Trace(props: {
         serverScores={props.scores}
         commentCounts={castToNumberMap(traceCommentCounts.data)}
         viewType={viewType}
+        precomputedCost={traceTree.totalCost}
       />
     ) : isValidObservationId ? (
       <ObservationPreview
@@ -414,6 +424,7 @@ export function Trace(props: {
         commentCounts={castToNumberMap(observationCommentCounts.data)}
         viewType={viewType}
         isTimeline={props.selectedTab?.includes("timeline")}
+        precomputedCost={selectedNode?.totalCost}
       />
     ) : null;
 
@@ -602,6 +613,7 @@ export function Trace(props: {
                         colorCodeMetrics={colorCodeMetricsOnObservationTree}
                         minLevel={minObservationLevel}
                         setMinLevel={setMinObservationLevel}
+                        tree={traceTree}
                       />
                     </div>
                   ) : (
@@ -902,6 +914,7 @@ export function Trace(props: {
                                   }
                                   minLevel={minObservationLevel}
                                   setMinLevel={setMinObservationLevel}
+                                  tree={traceTree}
                                 />
                               </ResizablePanel>
 
@@ -944,6 +957,7 @@ export function Trace(props: {
                                 }
                                 minLevel={minObservationLevel}
                                 setMinLevel={setMinObservationLevel}
+                                tree={traceTree}
                               />
                             </div>
                           )}

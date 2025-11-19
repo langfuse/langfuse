@@ -15,6 +15,7 @@ import React, {
 } from "react";
 import { TreeItem } from "@mui/x-tree-view";
 import type Decimal from "decimal.js";
+import { type TreeNode } from "./lib/types";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import {
   heatMapTextColor,
@@ -66,7 +67,26 @@ type FlatTimelineItem = {
   firstTokenTimeOffset?: number;
   latency?: number;
   isTraceRoot?: boolean;
+  // Pre-computed cost for this observation + all descendants
+  totalCost?: Decimal;
 };
+
+/**
+ * Build a map of observation ID to pre-computed totalCost from the TreeNode structure
+ */
+function buildCostMap(tree: TreeNode): Map<string, Decimal> {
+  const costMap = new Map<string, Decimal>();
+
+  const traverse = (node: TreeNode) => {
+    if (node.totalCost) {
+      costMap.set(node.id, node.totalCost);
+    }
+    node.children.forEach(traverse);
+  };
+
+  traverse(tree);
+  return costMap;
+}
 
 /**
  * Flatten nested observations into a flat array with pre-computed timeline metrics.
@@ -78,6 +98,7 @@ function flattenTimelineTree(
   expandedItems: string[],
   traceStartTime: Date,
   totalScaleSpan: number,
+  costMap?: Map<string, Decimal>,
 ): FlatTimelineItem[] {
   const result: FlatTimelineItem[] = [];
 
@@ -104,6 +125,9 @@ function flattenTimelineTree(
         SCALE_WIDTH
       : undefined;
 
+    // Get pre-computed cost from the cost map
+    const totalCost = costMap?.get(obs.id);
+
     result.push({
       observation: obs,
       depth,
@@ -113,6 +137,7 @@ function flattenTimelineTree(
       itemWidth,
       firstTokenTimeOffset,
       latency,
+      totalCost,
     });
 
     // Only include children if this observation is expanded
@@ -397,19 +422,9 @@ function VirtualizedTimelineRow({
     isTraceRoot,
   } = item;
 
-  // For cost calculation, we need to compute it per observation
-  // TODO: This should ideally be pre-computed in flattenTimelineTree
+  // Use pre-computed cost from the item (computed during tree building)
   // For trace root, use the parent total cost passed from props
-  const totalCost = isTraceRoot
-    ? parentTotalCost
-    : (() => {
-        const unnestedObservations = unnestObservation(
-          observation as NestedObservation,
-        );
-        return calculateDisplayTotalCost({
-          allObservations: unnestedObservations,
-        });
-      })();
+  const totalCost = isTraceRoot ? parentTotalCost : item.totalCost;
 
   return (
     <div
@@ -661,6 +676,7 @@ export function TraceTimelineView({
   minLevel,
   setMinLevel,
   containerWidth,
+  tree,
 }: {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
@@ -682,6 +698,7 @@ export function TraceTimelineView({
   minLevel?: ObservationLevelType;
   setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
   containerWidth?: number;
+  tree: TreeNode;
 }) {
   const { latency } = trace;
 
@@ -690,17 +707,21 @@ export function TraceTimelineView({
     [observations, minLevel],
   );
 
+  // Build cost map from tree
+  const costMap = useMemo(() => buildCostMap(tree), [tree]);
+
   // Use containerWidth from parent or fallback to ResizeObserver if not provided
   const [cardWidth, setCardWidth] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // Calculate total cost for all observations
+  // Use pre-computed cost from tree, or calculate if not available
   const totalCost = useMemo(
     () =>
+      tree?.totalCost ??
       calculateDisplayTotalCost({
         allObservations: observations,
       }),
-    [observations],
+    [tree?.totalCost, observations],
   );
 
   useEffect(() => {
@@ -819,16 +840,24 @@ export function TraceTimelineView({
       isTraceRoot: true,
     };
 
-    // Flatten all observations
+    // Flatten all observations with pre-computed costs
     const flatObservations = flattenTimelineTree(
       nestedObservations,
       expandedItems,
       traceStartTime,
       totalScaleSpan,
+      costMap,
     );
 
     return [traceRootItem, ...flatObservations];
-  }, [nestedObservations, expandedItems, totalScaleSpan, trace, latency]);
+  }, [
+    nestedObservations,
+    expandedItems,
+    totalScaleSpan,
+    trace,
+    latency,
+    costMap,
+  ]);
 
   // Calculate dynamic content width from flattened items
   const dynamicContentWidth = useMemo(() => {
