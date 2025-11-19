@@ -30,7 +30,7 @@ import {
   TabsBarContent,
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "./BreakdownToolTip";
-import { InfoIcon, PlusCircle } from "lucide-react";
+import { ExternalLinkIcon, InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -321,7 +321,10 @@ export const ObservationPreview = ({
                           className="flex items-center"
                           title="View model details"
                         >
-                          {preloadedObservation.model}
+                          <span className="truncate">
+                            {preloadedObservation.model}
+                          </span>
+                          <ExternalLinkIcon className="ml-1 h-3 w-3" />
                         </Link>
                       </Badge>
                     ) : (
@@ -525,9 +528,12 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
       className="inline-flex"
     >
       <Badge variant="tertiary">
-        Prompt: {prompt.data.name}
-        {" - v"}
-        {prompt.data.version}
+        <span className="truncate">
+          Prompt: {prompt.data.name}
+          {" - v"}
+          {prompt.data.version}
+        </span>
+        <ExternalLinkIcon className="ml-1 h-3 w-3" />
       </Badge>
     </Link>
   );

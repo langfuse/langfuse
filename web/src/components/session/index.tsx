@@ -18,7 +18,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { Download } from "lucide-react";
+import { Download, ExternalLinkIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
@@ -61,7 +61,10 @@ export function SessionUsers({
           key={userId}
           href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
         >
-          <Badge className="max-w-[300px] truncate">User ID: {userId}</Badge>
+          <Badge className="max-w-[300px]">
+            <span className="truncate">User ID: {userId}</span>
+            <ExternalLinkIcon className="ml-1 h-3 w-3" />
+          </Badge>
         </Link>
       ))}
 
@@ -87,8 +90,9 @@ export function SessionUsers({
                       href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
                       className="block hover:bg-accent"
                     >
-                      <Badge className="max-w-[260px] truncate">
-                        User ID: {userId}
+                      <Badge className="max-w-[260px]">
+                        <span className="truncate">User ID: {userId}</span>
+                        <ExternalLinkIcon className="ml-1 h-3 w-3" />
                       </Badge>
                     </Link>
                   ))}
