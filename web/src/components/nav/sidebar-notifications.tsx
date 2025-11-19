@@ -27,24 +27,6 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
-    id: "js-sdk-v4",
-    title: "New JS/TS SDK v4",
-    description:
-      "With v4, the TypeScript SDK significantly improves DX, speed, and ecosystem integrations.",
-    link: "https://langfuse.com/docs/observability/sdk/typescript/overview",
-    linkTitle: "Learn more",
-    createdAt: "2025-09-09",
-  },
-  {
-    id: "python-sdk-v3",
-    title: "New Python SDK v3",
-    description:
-      "Python SDK V3 offers significant improvements in developer experience, performance, and integrations.",
-    link: "https://langfuse.com/docs/observability/sdk/python/upgrade-path",
-    linkTitle: "Upgrade to v3",
-    createdAt: "2025-06-27",
-  },
-  {
     id: "github-star",
     title: "Star Langfuse",
     description:
