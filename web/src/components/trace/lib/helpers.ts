@@ -213,7 +213,10 @@ function enrichTreeNodeWithCosts(
   let nodeCost: Decimal | undefined;
 
   if (node.calculatedTotalCost != null) {
-    nodeCost = new Decimal(node.calculatedTotalCost);
+    const cost = new Decimal(node.calculatedTotalCost);
+    if (!cost.isZero()) {
+      nodeCost = cost;
+    }
   } else if (
     node.calculatedInputCost != null ||
     node.calculatedOutputCost != null
@@ -362,7 +365,10 @@ export function buildTraceUiData(
     let nodeCost: Decimal | undefined;
 
     if (node.calculatedTotalCost != null) {
-      nodeCost = new Decimal(node.calculatedTotalCost);
+      const cost = new Decimal(node.calculatedTotalCost);
+      if (!cost.isZero()) {
+        nodeCost = cost;
+      }
     } else if (
       node.calculatedInputCost != null ||
       node.calculatedOutputCost != null
