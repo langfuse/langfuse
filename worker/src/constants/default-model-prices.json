@@ -2183,5 +2183,68 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "a7f3c8d9-1b2e-4f5a-8c9d-0e1f2a3b4c5d",
+    "model_name": "gpt-5-codex",
+    "match_pattern": "(?i)^(gpt-5-codex)$",
+    "created_at": "2025-11-13T00:00:00.000Z",
+    "updated_at": "2025-11-13T00:00:00.000Z",
+    "prices": {
+      "input": 1.25e-6,
+      "input_cached_tokens": 0.125e-6,
+      "output": 10.0e-6,
+      "input_cache_read": 0.125e-6,
+      "output_reasoning_tokens": 10e-6,
+      "output_reasoning": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "b8e4d9f0-2c3f-5g6b-9d0e-1f2a3b4c5d6e",
+    "model_name": "gpt-5.1-codex",
+    "match_pattern": "(?i)^(gpt-5.1-codex)$",
+    "created_at": "2025-11-13T00:00:00.000Z",
+    "updated_at": "2025-11-13T00:00:00.000Z",
+    "prices": {
+      "input": 1.25e-6,
+      "input_cached_tokens": 0.125e-6,
+      "output": 10.0e-6,
+      "input_cache_read": 0.125e-6,
+      "output_reasoning_tokens": 10e-6,
+      "output_reasoning": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "c9f5e0g1-3d4g-6h7c-0e1f-2a3b4c5d6e7f",
+    "model_name": "gpt-5.1-codex-mini",
+    "match_pattern": "(?i)^(gpt-5.1-codex-mini)$",
+    "created_at": "2025-11-13T00:00:00.000Z",
+    "updated_at": "2025-11-13T00:00:00.000Z",
+    "prices": {
+      "input": 0.25e-6,
+      "input_cached_tokens": 0.025e-6,
+      "output": 2.0e-6,
+      "input_cache_read": 0.025e-6,
+      "output_reasoning_tokens": 2e-6,
+      "output_reasoning": 2e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   }
 ]
