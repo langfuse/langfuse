@@ -357,7 +357,6 @@ const TraceTreeRow = ({
         {/* 4. Content button: just the text/metrics content */}
         <button
           type="button"
-          aria-selected={isSelected}
           onClick={(e) => {
             e.stopPropagation();
             setCurrentNodeId(node.type === "TRACE" ? undefined : node.id);
