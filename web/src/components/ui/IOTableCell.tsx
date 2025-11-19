@@ -32,7 +32,7 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "ph-no-capture h-full w-full self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
+        "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
         className,
       )}
     >
@@ -41,7 +41,7 @@ const IOTableCellContent = ({
         : stringifiedJson}
     </div>
   ) : shouldTruncate ? (
-    <div className="ph-no-capture grid h-full grid-cols-1">
+    <div className="grid h-full grid-cols-1">
       <JSONView
         json={decodeUnicodeEscapesOnly(
           stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
@@ -61,10 +61,7 @@ const IOTableCellContent = ({
       json={
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
-      className={cn(
-        "ph-no-capture h-full w-full self-stretch rounded-sm",
-        className,
-      )}
+      className={cn("h-full w-full self-stretch rounded-sm", className)}
       codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
     />
