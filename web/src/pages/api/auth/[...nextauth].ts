@@ -61,7 +61,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
 
     res.setHeader(
       "Set-Cookie",
-      `__Secure-next-auth.session-token.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}=; Path=/; Domain=${langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax`,
+      `__Secure-next-auth.session-token.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}=; Path=/; Domain=${langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax`,
     );
   }
 
