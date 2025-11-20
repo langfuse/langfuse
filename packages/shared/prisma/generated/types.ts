@@ -430,7 +430,7 @@ export type DatasetItem = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
-export type LegacyPrismaDatasetRunItems = {
+export type DatasetRunItems = {
   id: string;
   project_id: string;
   dataset_run_id: string;
@@ -907,7 +907,7 @@ export type DB = {
   dashboard_widgets: DashboardWidget;
   dashboards: Dashboard;
   dataset_items: DatasetItem;
-  dataset_run_items: LegacyPrismaDatasetRunItems;
+  dataset_run_items: DatasetRunItems;
   dataset_runs: DatasetRuns;
   datasets: Dataset;
   default_llm_models: DefaultLlmModel;
