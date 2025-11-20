@@ -279,4 +279,62 @@ describe("Issue #10436: Environment ingestion bug", () => {
     // Should preserve the explicitly set production environment
     expect(traces[0].data.environment).toBe("production");
   });
+
+  it("should preserve early environment when later events have undefined environment (Steffen911 concern)", async () => {
+    const traceId = uuidv4();
+    const projectId = "project-123";
+    const now = new Date();
+
+    // Event 1: Early event with explicit staging environment
+    const traceCreate = {
+      id: uuidv4(),
+      type: eventTypes.TRACE_CREATE,
+      timestamp: now.toISOString(),
+      body: {
+        id: traceId,
+        name: "trace-early-env",
+        environment: "staging",
+      },
+    };
+
+    // Event 2: Later event without environment field (undefined)
+    const traceUpdate1 = {
+      id: uuidv4(),
+      type: eventTypes.TRACE_CREATE,
+      timestamp: new Date(now.getTime() + 100).toISOString(),
+      body: {
+        id: traceId,
+        name: "trace-early-env-updated",
+        // environment is undefined here
+      },
+    };
+
+    // Event 3: Another update without environment
+    const traceUpdate2 = {
+      id: uuidv4(),
+      type: eventTypes.TRACE_CREATE,
+      timestamp: new Date(now.getTime() + 200).toISOString(),
+      body: {
+        id: traceId,
+        output: { result: "done" },
+        // environment is undefined here too
+      },
+    };
+
+    await ingestionService.mergeAndWrite(
+      "trace",
+      projectId,
+      traceId,
+      now,
+      [traceCreate, traceUpdate1, traceUpdate2] as any[],
+      false,
+    );
+
+    const traces = mockClickhouseWriter.queue[TableName.Traces];
+    expect(traces).toHaveLength(1);
+
+    // Should preserve the original "staging" environment from the early event
+    // because later events have undefined environment (not explicit "default")
+    expect(traces[0].data.environment).toBe("staging");
+  });
 });
