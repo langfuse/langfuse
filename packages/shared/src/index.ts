@@ -15,7 +15,6 @@ export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./utils/prompts";
-export * from "./utils/jsonSchemaValidation";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";

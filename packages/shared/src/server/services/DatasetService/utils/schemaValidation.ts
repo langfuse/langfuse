@@ -1,14 +1,11 @@
-import type { PrismaClient } from "../../db";
-import {
-  validateFieldAgainstSchema,
-  DatasetSchemaValidator,
-  type FieldValidationError,
-  type FieldValidationResult,
-} from "../../utils/jsonSchemaValidation";
+import { PrismaClient } from "../../../../db";
+import { DatasetSchemaValidator } from "../DatasetSchemaValidator";
+import type { FieldValidationError, FieldValidationResult } from "../types";
+import { validateFieldAgainstSchema } from "./jsonSchemaValidation";
 
 // Re-export for backward compatibility
-export { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
-export type { FieldValidationError, FieldValidationResult };
+// export { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
+// export type { FieldValidationError, FieldValidationResult };
 
 export type ValidationError = {
   datasetItemId: string;
@@ -198,56 +195,4 @@ export function validateDatasetItemsBatch(params: {
     isValid: errors.length === 0,
     errors,
   };
-}
-
-export type ValidateItemResult =
-  | { isValid: true }
-  | {
-      isValid: false;
-      inputErrors?: FieldValidationError[];
-      expectedOutputErrors?: FieldValidationError[];
-    };
-
-/**
- * Core validation logic - validates dataset item data
- * Works with already-parsed JSON (not strings)
- * Used by both tRPC and Public API
- *
- * Performance optimized: compiles schemas once, validates both fields with reused validators
- * Provides 2x speedup even for single item validation
- *
- * @param normalizeUndefinedToNull - Set to true for CREATE operations where undefined becomes null in DB
- */
-export function validateDatasetItemData(params: {
-  input: unknown;
-  expectedOutput: unknown;
-  inputSchema: Record<string, unknown> | null | undefined;
-  expectedOutputSchema: Record<string, unknown> | null | undefined;
-  normalizeUndefinedToNull?: boolean;
-}): ValidateItemResult {
-  // Create validator once - compiles schemas once, validates both fields
-  // Even for single item, this is 2x faster than fresh Ajv per field
-  const validator = new DatasetSchemaValidator({
-    inputSchema: params.inputSchema ?? null,
-    expectedOutputSchema: params.expectedOutputSchema ?? null,
-  });
-
-  // Normalize values for validation
-  const inputToValidate = params.normalizeUndefinedToNull
-    ? params.input === undefined || params.input === null
-      ? null
-      : params.input
-    : params.input;
-
-  const outputToValidate = params.normalizeUndefinedToNull
-    ? params.expectedOutput === undefined || params.expectedOutput === null
-      ? null
-      : params.expectedOutput
-    : params.expectedOutput;
-
-  // Use the optimized validateItem method
-  return validator.validateItem({
-    input: inputToValidate,
-    expectedOutput: outputToValidate,
-  });
 }

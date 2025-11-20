@@ -15,7 +15,7 @@ import {
   InvalidRequestError,
   Prisma,
 } from "@langfuse/shared";
-import { logger, validateDatasetItemData } from "@langfuse/shared/src/server";
+import { logger, DatasetItemValidator } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -62,17 +62,20 @@ export default withMiddlewares({
 
       const itemId = id ?? uuidv4();
 
-      // Validate input and expectedOutput against schemas before upsert
-      // For UPSERT (which handles both CREATE and UPDATE), we validate as CREATE
-      // because the data is always being set (not partial update)
-      const validationResult = validateDatasetItemData({
-        input: input ?? undefined,
-        expectedOutput: expectedOutput ?? undefined,
+      const validator = new DatasetItemValidator({
         inputSchema: dataset.inputSchema as Record<string, unknown> | null,
         expectedOutputSchema: dataset.expectedOutputSchema as Record<
           string,
           unknown
         > | null,
+      });
+
+      // Validate input and expectedOutput against schemas before upsert
+      // For UPSERT (which handles both CREATE and UPDATE), we validate as CREATE
+      // because the data is always being set (not partial update)
+      const validationResult = validator.validateDatasetItemData({
+        input: input ?? undefined,
+        expectedOutput: expectedOutput ?? undefined,
         normalizeUndefinedToNull: true, // UPSERT behaves like CREATE for validation
       });
 

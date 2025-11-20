@@ -1,4 +1,7 @@
-import { prisma } from "../../../db";
+import { Dataset, DatasetItem, prisma } from "../../../db";
+import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
+import { DatasetItemValidator } from "./DatasetItemValidator";
+import type { PayloadError } from "./types";
 
 type ItemBase = {
   id: string;
@@ -14,7 +17,7 @@ type ItemWithIO = ItemBase & {
   metadata: any;
 };
 
-export class DatasetService {
+export class DatasetItemManager {
   private static DEFAULT_OPTIONS = {
     includeIO: true,
     returnVersionTimestamp: false,
@@ -42,6 +45,29 @@ export class DatasetService {
           }
         : base
     ) as IncludeIO extends true ? ItemWithIO : ItemBase;
+  }
+
+  private static async getDataset(props: {
+    projectId: string;
+    datasetId: string;
+  }): Promise<Pick<Dataset, "id" | "inputSchema" | "expectedOutputSchema">> {
+    const dataset = await prisma.dataset.findUnique({
+      where: {
+        id_projectId: { id: props.datasetId, projectId: props.projectId },
+      },
+      select: {
+        id: true,
+        inputSchema: true,
+        expectedOutputSchema: true,
+      },
+    });
+
+    if (!dataset)
+      throw new LangfuseNotFoundError(
+        `Dataset with id ${props.datasetId} not found for project ${props.projectId}`,
+      );
+
+    return dataset;
   }
 
   private static async getItems<
@@ -204,5 +230,54 @@ export class DatasetService {
       includeIO: options.includeIO as IncludeIO,
       returnVersionTimestamp: true,
     });
+  }
+
+  public static async createItem(props: {
+    projectId: string;
+    datasetId: string;
+    input?: string | null;
+    expectedOutput?: string | null;
+    metadata?: string | null;
+    sourceTraceId?: string;
+    sourceObservationId?: string;
+    opts: {
+      normalizeUndefinedToNull?: boolean;
+    };
+  }): Promise<{ success: true; datasetItem: DatasetItem } | PayloadError> {
+    // 1. Get dataset
+    const dataset = await this.getDataset(props);
+
+    // 2. Validate item payload
+    const validator = new DatasetItemValidator({
+      inputSchema: dataset.inputSchema as Record<string, unknown> | null,
+      expectedOutputSchema: dataset.expectedOutputSchema as Record<
+        string,
+        unknown
+      > | null,
+    });
+
+    const itemPayload = validator.preparePayload({
+      input: props.input,
+      expectedOutput: props.expectedOutput,
+      metadata: props.metadata,
+      normalizeUndefinedToNull: props.opts.normalizeUndefinedToNull,
+    });
+
+    if (!itemPayload.success) {
+      return itemPayload;
+    }
+
+    // 3. Create item
+    const item = await prisma.datasetItem.create({
+      data: {
+        ...itemPayload,
+        projectId: props.projectId,
+        datasetId: props.datasetId,
+        sourceTraceId: props.sourceTraceId,
+        sourceObservationId: props.sourceObservationId,
+      },
+    });
+
+    return { success: true, datasetItem: item };
   }
 }

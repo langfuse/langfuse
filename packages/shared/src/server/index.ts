@@ -10,6 +10,7 @@ export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
 export * from "./services/InMemoryFilterService";
+export * from "./services/DatasetService";
 export * from "./evalJobConfigCache";
 export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
@@ -96,7 +97,6 @@ export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
 // dataset run items
-export * from "./datasets";
 export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils

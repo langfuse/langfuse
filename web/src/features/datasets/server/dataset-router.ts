@@ -46,6 +46,12 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
+  DatasetItemManager,
+  validateAllDatasetItems,
+  validateDatasetItemField,
+  DatasetItemValidator,
+  DatasetJSONSchema,
+  type DatasetMutationResult,
 } from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -53,13 +59,6 @@ import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
-import {
-  validateAllDatasetItems,
-  validateDatasetItemField,
-  validateDatasetItemData,
-  DatasetJSONSchema,
-  type DatasetMutationResult,
-} from "@langfuse/shared/src/server";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 
 /**
@@ -182,11 +181,13 @@ const validateAndThrowIfInvalid = (params: {
   expectedOutputSchema: Record<string, unknown> | null | undefined;
   normalizeUndefinedToNull?: boolean;
 }) => {
-  const result = validateDatasetItemData({
-    input: params.input,
-    expectedOutput: params.expectedOutput,
+  const validator = new DatasetItemValidator({
     inputSchema: params.inputSchema,
     expectedOutputSchema: params.expectedOutputSchema,
+  });
+  const result = validator.validateDatasetItemData({
+    input: params.input,
+    expectedOutput: params.expectedOutput,
     normalizeUndefinedToNull: params.normalizeUndefinedToNull,
   });
 
@@ -1320,62 +1321,37 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        select: {
-          id: true,
-          inputSchema: true,
-          expectedOutputSchema: true,
+
+      const result = await DatasetItemManager.createItem({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        input: input.input,
+        expectedOutput: input.expectedOutput,
+        metadata: input.metadata,
+        sourceTraceId: input.sourceTraceId,
+        sourceObservationId: input.sourceObservationId,
+        opts: {
+          normalizeUndefinedToNull: true, // For CREATE, undefined becomes null in DB
         },
       });
-      if (!dataset) {
+
+      if (!result.success) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Dataset not found",
+          code: "BAD_REQUEST",
+          message: result.message,
+          cause: result.cause,
         });
       }
-
-      const parsedInput = formatDatasetItemData(input.input);
-      const parsedExpectedOutput = formatDatasetItemData(input.expectedOutput);
-
-      // Validate both input and expected output against schemas
-      validateAndThrowIfInvalid({
-        input: parsedInput,
-        expectedOutput: parsedExpectedOutput,
-        inputSchema: dataset.inputSchema as Record<string, unknown> | null,
-        expectedOutputSchema: dataset.expectedOutputSchema as Record<
-          string,
-          unknown
-        > | null,
-        normalizeUndefinedToNull: true, // For CREATE, undefined becomes null in DB
-      });
-
-      const datasetItem = await ctx.prisma.datasetItem.create({
-        data: {
-          input: parsedInput,
-          expectedOutput: parsedExpectedOutput,
-          metadata: formatDatasetItemData(input.metadata),
-          datasetId: input.datasetId,
-          sourceTraceId: input.sourceTraceId,
-          sourceObservationId: input.sourceObservationId,
-          projectId: input.projectId,
-        },
-      });
 
       await auditLog({
         session: ctx.session,
         resourceType: "datasetItem",
-        resourceId: datasetItem.id,
+        resourceId: result.datasetItem.id,
         action: "create",
-        after: datasetItem,
+        after: result.datasetItem,
       });
 
-      return datasetItem;
+      return result.datasetItem;
     }),
 
   createManyDatasetItems: protectedProjectProcedure
