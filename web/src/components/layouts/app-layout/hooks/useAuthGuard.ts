@@ -5,9 +5,9 @@
 
 import { useRouter } from "next/router";
 import { useMemo } from "react";
-import DOMPurify from "dompurify";
 import { env } from "@/src/env.mjs";
 import { PATH_CONSTANTS } from "../utils/pathClassification";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import type { useSession } from "next-auth/react";
 
 export type AuthGuardState =
@@ -80,18 +80,7 @@ export function useAuthGuard(
     // Authenticated user on authentication page - redirect to target or home
     if (session.status === "authenticated" && isUnauthPath) {
       const queryTargetPath = query.targetPath as string | undefined;
-      const sanitizedTargetPath = queryTargetPath
-        ? DOMPurify.sanitize(queryTargetPath)
-        : undefined;
-
-      // Validate target path is relative and doesn't try to escape
-      const isValidTargetPath =
-        sanitizedTargetPath?.startsWith("/") &&
-        !sanitizedTargetPath.startsWith("//");
-
-      const redirectUrl = (
-        isValidTargetPath ? sanitizedTargetPath : "/"
-      ) as string;
+      const redirectUrl = getSafeRedirectPath(queryTargetPath);
       return { type: "redirect", url: redirectUrl, message: "Redirecting" };
     }
 
