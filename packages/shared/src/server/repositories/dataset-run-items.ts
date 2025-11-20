@@ -972,7 +972,9 @@ export const getDatasetRunItemsWithoutIOByItemIds = async (
 
 export const getDatasetItemIdsByTraceIdCh = async (
   opts: DatasetItemIdsByTraceIdQuery,
-): Promise<{ id: string; datasetId: string }[]> => {
+): Promise<
+  { id: string; datasetId: string; observationId: string | null }[]
+> => {
   const { projectId, traceId, filter } = opts;
 
   const datasetRunItemsFilter = new FilterList([
@@ -1001,6 +1003,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
   const query = `
   SELECT
     dri.dataset_item_id as dataset_item_id,
+    dri.observation_id as observation_id,
     dri.dataset_id as dataset_id
   FROM dataset_run_items_rmt dri 
   WHERE ${appliedFilter.query}
@@ -1008,6 +1011,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
 
   const res = await queryClickhouse<{
     dataset_item_id: string;
+    observation_id: string | null;
     dataset_id: string;
   }>({
     query,
@@ -1025,6 +1029,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
   return res.map((runItem) => {
     return {
       id: runItem.dataset_item_id,
+      observationId: runItem.observation_id,
       datasetId: runItem.dataset_id,
     };
   });

@@ -72,6 +72,7 @@ import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
+import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
 
 const app = express();
 
@@ -527,6 +528,11 @@ if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
       concurrency: 5, // Process up to 5 notification jobs concurrently
     },
   );
+}
+
+if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
+  // Start the ClickHouse mutation monitor after all workers are registered
+  MutationMonitor.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

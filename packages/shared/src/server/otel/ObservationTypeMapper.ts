@@ -271,11 +271,12 @@ export class ObservationTypeMapperRegistry {
 
         // Only handle generation and embedding operations
         const generationEmbeddingPrefixes = [
-          "ai.generateText",
-          "ai.streamText",
-          "ai.generateObject",
-          "ai.streamObject",
-          "ai.embed",
+          "ai.generateText.doGenerate",
+          "ai.streamText.doStream",
+          "ai.generateObject.doGenerate",
+          "ai.streamObject.doStream",
+          "ai.embedMany.doEmbed",
+          "ai.embed.doEmbed",
         ];
 
         const isGenerationOrEmbedding = matchesVercelAiSdkOperation(
@@ -290,18 +291,16 @@ export class ObservationTypeMapperRegistry {
         // IMPORTANT: prefixes inversely ordered by length to avoid false matches
         // AI SDK may append function ID after operation name (e.g., "ai.embed my-function")
         const prefixMappings: Array<[string[], LangfuseObservationType]> = [
-          [["ai.generateText.doGenerate"], "GENERATION"],
-          [["ai.generateText"], "GENERATION"],
-          [["ai.streamText.doStream"], "GENERATION"],
-          [["ai.streamText"], "GENERATION"],
-          [["ai.generateObject.doGenerate"], "GENERATION"],
-          [["ai.generateObject"], "GENERATION"],
-          [["ai.streamObject.doStream"], "GENERATION"],
-          [["ai.streamObject"], "GENERATION"],
-          [["ai.embed.doEmbed"], "EMBEDDING"],
-          [["ai.embedMany.doEmbed"], "EMBEDDING"],
-          [["ai.embedMany"], "EMBEDDING"],
-          [["ai.embed"], "EMBEDDING"],
+          [
+            [
+              "ai.generateText.doGenerate",
+              "ai.streamText.doStream",
+              "ai.generateObject.doGenerate",
+              "ai.streamObject.doStream",
+            ],
+            "GENERATION",
+          ],
+          [["ai.embedMany.doEmbed", "ai.embed.doEmbed"], "EMBEDDING"],
         ];
 
         for (const [prefixes, type] of prefixMappings) {
@@ -340,11 +339,12 @@ export class ObservationTypeMapperRegistry {
         // technically, not required here because the generation-like mapper has higher priority
         // but to keep them interchangeable, we reject them here
         const generationEmbeddingPrefixes = [
-          "ai.generateText",
-          "ai.streamText",
-          "ai.generateObject",
-          "ai.streamObject",
-          "ai.embed",
+          "ai.generateText.doGenerate",
+          "ai.streamText.doStream",
+          "ai.generateObject.doGenerate",
+          "ai.streamObject.doStream",
+          "ai.embedMany.doEmbed",
+          "ai.embed.doEmbed",
         ];
 
         const isGenerationOrEmbedding = matchesVercelAiSdkOperation(
