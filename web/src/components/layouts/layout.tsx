@@ -13,8 +13,8 @@ import { env } from "@/src/env.mjs";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
-import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -303,17 +303,7 @@ export default function Layout(props: PropsWithChildren) {
     unauthenticatedPaths.includes(router.pathname)
   ) {
     const queryTargetPath = router.query.targetPath as string | undefined;
-
-    const sanitizedTargetPath = queryTargetPath
-      ? DOMPurify.sanitize(queryTargetPath)
-      : undefined;
-
-    // only allow relative links
-    const targetPath =
-      sanitizedTargetPath?.startsWith("/") &&
-      !sanitizedTargetPath.startsWith("//")
-        ? sanitizedTargetPath
-        : "/";
+    const targetPath = getSafeRedirectPath(queryTargetPath);
 
     void router.replace(targetPath);
     return <Spinner message="Redirecting" />;
