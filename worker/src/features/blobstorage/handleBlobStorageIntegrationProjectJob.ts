@@ -226,6 +226,7 @@ const processBlobStorageExport = async (config: {
     }
 
     // Reconstruct the generator to include the first item we peeked
+    // eslint-disable-next-line no-inner-declarations
     async function* reconstructedDataStream() {
       yield firstResult.value;
       yield* {
