@@ -1,9 +1,8 @@
-import {
-  Prisma,
-  type PrismaClient,
-  type singleFilter,
-} from "@langfuse/shared/src/db";
+import type { PrismaClient } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
+import { singleFilter } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
+import type { z } from "zod/v4";
 
 /**
  * Maximum number of trace IDs that can be returned from comment filters.
@@ -217,11 +216,11 @@ export async function processCommentFilters({
   prisma,
   projectId,
 }: {
-  filterState: singleFilter[];
+  filterState: z.infer<typeof singleFilter>[];
   prisma: PrismaClient;
   projectId: string;
 }): Promise<{
-  updatedFilterState: singleFilter[];
+  updatedFilterState: z.infer<typeof singleFilter>[];
   matchingTraceIds: string[] | null;
 }> {
   // Extract comment filters from filterState

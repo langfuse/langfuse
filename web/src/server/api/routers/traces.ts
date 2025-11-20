@@ -2,11 +2,7 @@ import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import {
-  processCommentFilters,
-  type CommentCountOperator,
-  type CommentContentOperator,
-} from "@/src/features/comments/server/commentFilterHelpers";
+import { processCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
