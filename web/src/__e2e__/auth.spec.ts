@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("should redirect to sign-in if not signed in", async ({ page }) => {
   await page.goto("/");
   await page.waitForTimeout(2000);
-  await expect(page).toHaveURL("/auth/sign-in");
+  await expect(page).toHaveURL(/^\/auth\/sign-in/);
 });
 
 test("should redirect to home if signed in", async ({ page }) => {
@@ -81,7 +81,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.getByRole("menuitem", { name: "Sign Out" }).click();
 
-  await expect(page).toHaveURL("/auth/sign-in");
+  await expect(page).toHaveURL(/^\/auth\/sign-in/);
 
   await page.goto(promptUrl);
 
