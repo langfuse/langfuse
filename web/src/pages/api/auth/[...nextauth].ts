@@ -51,17 +51,9 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
 
   // Clean up the cookie from incident: https://status.langfuse.com/incident/770854
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-    const langfuseUrls = {
-      US: "us.cloud.langfuse.com",
-      EU: "cloud.langfuse.com",
-      STAGING: "staging.langfuse.com",
-      HIPAA: "hipaa.cloud.langfuse.com",
-      DEV: "dev.langfuse.com",
-    } as const;
-
     res.setHeader(
       "Set-Cookie",
-      `__Secure-next-auth.session-token.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}=; Path=/; Domain=${langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax`,
+      `__Secure-next-auth.session-token.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
     );
   }
 
