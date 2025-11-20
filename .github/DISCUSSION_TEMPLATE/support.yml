@@ -7,10 +7,10 @@ body:
       required: true
   - type: dropdown
     attributes:
-      label: Langfuse Cloud or self-hosted?
+      label: Langfuse Cloud or Self-Hosted?
       options:
         - "Langfuse Cloud"
-        - "Self-hosted"
+        - "Self-Hosted"
     validations:
       required: true
   - type: input
@@ -24,9 +24,9 @@ body:
   - type: checkboxes
     attributes:
       label: Pre-Submission Checklist
-      description: Link to [issues](https://github.com/langfuse/langfuse/issues), [discussions](https://github.com/orgs/langfuse/discussions) and the [Langfuse AI chatbot](https://langfuse.com/docs/ask-ai).
+      description: Please check for existing [issues](https://github.com/langfuse/langfuse/issues) and [discussions](https://github.com/orgs/langfuse/discussions) and ask the [Langfuse AI chatbot](https://langfuse.com/docs/ask-ai).
       options:
-        - label: I have checked for existing issues/discussions and consulted Langfuse AI
+        - label: I have checked for existing issues/discussions and consulted Langfuse AI.
           required: true
     validations:
       required: true
