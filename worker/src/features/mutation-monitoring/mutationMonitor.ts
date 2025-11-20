@@ -49,6 +49,7 @@ export class MutationMonitor {
       "observations",
       "scores",
     ],
+    [QueueName.BatchActionQueue]: ["traces", "observations", "scores"],
   };
 
   /**
