@@ -60,27 +60,6 @@ const TEST_SCHEMAS = {
   },
 };
 
-// Test data
-const DATA = {
-  validSimpleText: { text: "hello" },
-  invalidSimpleText: { text: 123 },
-  missingRequired: {},
-  hasExtra: { text: "hello", extra: "field" },
-
-  validChatMessages: {
-    messages: [
-      { role: "user", content: "hello" },
-      { role: "assistant", content: "hi" },
-    ],
-  },
-  invalidChatMessages: {
-    messages: [{ role: "invalid", content: "hello" }],
-  },
-
-  validNumber: { value: 42 },
-  invalidNumber: { value: "not a number" },
-};
-
 // ============================================================================
 // UNIT TESTS - Validation Functions
 // ============================================================================
