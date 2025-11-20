@@ -47,6 +47,7 @@ import {
   type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { ErrorPage } from "@/src/components/error-page";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -149,6 +150,16 @@ export default function Layout(props: PropsWithChildren) {
 
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
+
+  // Check project access from session data (client-side)
+  const userProjects =
+    session.data?.user?.organizations
+      ?.flatMap((org) => org?.projects?.map((project) => project?.id))
+      .filter(Boolean) ?? [];
+  const userHasProjectAccess =
+    !routerProjectId ||
+    userProjects.includes(routerProjectId) ||
+    session.data?.user?.admin === true;
 
   // Helper function for precise path matching
   const isPathActive = (routePath: string, currentPath: string): boolean => {
@@ -308,11 +319,32 @@ export default function Layout(props: PropsWithChildren) {
     return <Spinner message="Redirecting" />;
   }
 
+  // Handle project access verification failure (client-side check)
+  if (
+    session.status === "authenticated" &&
+    session.data &&
+    routerProjectId &&
+    router.pathname.includes("[projectId]") &&
+    !userHasProjectAccess
+  ) {
+    return (
+      <ErrorPage
+        title="Project Not Found"
+        message="The project you are trying to access does not exist or you do not have access to it."
+        additionalButton={{
+          label: "Go to Home",
+          href: "/",
+        }}
+      />
+    );
+  }
+
   const hideNavigation =
     session.status === "unauthenticated" ||
     pathsWithoutNavigation.includes(router.pathname) ||
     router.pathname.startsWith("/public/");
-  if (hideNavigation)
+
+  if (hideNavigation) {
     return (
       <SidebarProvider className="bg-primary-foreground">
         <main className="min-h-dvh w-full overflow-y-scroll p-3 px-4 py-4 sm:px-6 lg:px-8">
@@ -320,6 +352,8 @@ export default function Layout(props: PropsWithChildren) {
         </main>
       </SidebarProvider>
     );
+  }
+
   return (
     <>
       <Head>
