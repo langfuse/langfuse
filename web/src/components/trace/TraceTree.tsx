@@ -141,11 +141,56 @@ export const TraceTree = ({
     return flattenTree(tree, collapsedNodes, 0, [], true);
   }, [tree, collapsedNodes]);
 
+  // Calculate dynamic row height based on node content
+  const estimateSize = useCallback(
+    (index: number) => {
+      const item = flattenedItems[index];
+      if (!item) return 37;
+
+      // Base height for node row
+      let height = 37;
+
+      // Add height for metrics line if visible
+      const hasMetrics =
+        (showDuration && (item.node.endTime || item.node.latency !== null)) ||
+        (showCostTokens &&
+          (item.node.inputUsage ||
+            item.node.outputUsage ||
+            item.node.totalUsage ||
+            item.node.totalCost));
+      if (hasMetrics) {
+        height += 16; // One line of metrics
+      }
+
+      // Add height for scores if visible
+      if (showScores) {
+        const nodeScores = scores.filter((s) =>
+          item.node.type === "TRACE"
+            ? s.observationId === null
+            : s.observationId === item.node.id,
+        );
+
+        if (nodeScores.length > 0) {
+          // Estimate 3 score groups per line, each line ~20px
+          const estimatedLines = Math.min(Math.ceil(nodeScores.length / 3), 3);
+          height += estimatedLines * 20;
+        }
+      }
+
+      return height;
+    },
+    [flattenedItems, showDuration, showCostTokens, showScores, scores],
+  );
+
   const rowVirtualizer = useVirtualizer({
     count: flattenedItems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 37, // Approximate height of a row
+    estimateSize,
     overscan: 500,
+    measureElement:
+      typeof window !== "undefined"
+        ? (element) => element.getBoundingClientRect().height
+        : undefined,
   });
 
   // Track initial currentNodeId to detect URL-based navigation vs user clicks
@@ -198,12 +243,13 @@ export const TraceTree = ({
           return (
             <div
               key={item.node.id}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
               style={{
                 position: "absolute",
                 top: 0,
                 left: 0,
                 width: "100%",
-                height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
