@@ -11,14 +11,30 @@ export type ValidationResult = {
 };
 
 /**
- * Validates all dataset items against dataset schemas
- * Used ONLY when adding or updating schemas on an existing dataset
+ * Validates all existing dataset items against new/updated schemas.
  *
- * Performance optimized with batched validation:
- * - Compiles schemas once per batch (5000 items) - provides 3800x speedup
- * - Processes items in batches to avoid memory issues
- * - Stops after collecting 10 validation errors (enough for debugging)
- * - No memory leaks: validator is scoped to each batch and garbage collected
+ * **When to use:**
+ * - ONLY when adding or updating schemas on a dataset that already has items
+ * - Called during dataset UPSERT operations to ensure existing items are compatible
+ * - Used to block schema changes that would make existing data invalid
+ *
+ * **When NOT to use:**
+ * - DO NOT use for validating new items during creation/update
+ * - Use DatasetItemManager methods instead, which handle per-item validation
+ *
+ * **Performance:**
+ * - Batched validation: processes 5000 items at a time
+ * - Compiles schemas once per batch (3800x+ faster than per-item compilation)
+ * - Stops after 10 errors (enough for user feedback without wasting resources)
+ *
+ * @example
+ * // User tries to add schema to dataset with existing items
+ * const result = await validateAllDatasetItems({
+ *   datasetId, projectId, inputSchema, expectedOutputSchema, prisma
+ * });
+ * if (!result.isValid) {
+ *   throw new Error(`Cannot add schema: ${result.errors.length} items fail validation`);
+ * }
  */
 export async function validateAllDatasetItems(params: {
   datasetId: string;

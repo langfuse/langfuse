@@ -12,6 +12,28 @@ type ValidateItemResult =
       expectedOutputErrors?: FieldValidationError[];
     };
 
+/**
+ * Validator for dataset item payloads (normalization + schema validation).
+ *
+ * @internal
+ * **This class is internal to DatasetService. Use DatasetItemManager methods instead.**
+ *
+ * **Purpose:**
+ * 1. JSON parsing and normalization (strings → objects, control char sanitization)
+ * 2. Schema validation against dataset's input/expectedOutput schemas
+ *
+ * **Performance:** Compiles schemas once in constructor, validates many items with
+ * reused validators. Provides 3800x+ speedup over fresh compilation per item.
+ *
+ * **Used by:** DatasetItemManager for all CRUD operations
+ *
+ * @example
+ * // Internal use only - called by DatasetItemManager
+ * const validator = new DatasetItemValidator({ inputSchema, expectedOutputSchema });
+ * for (const item of items) {
+ *   const result = validator.preparePayload({ input, expectedOutput, metadata, ... });
+ * }
+ */
 export class DatasetItemValidator {
   private inputSchema: Record<string, unknown> | null | undefined;
   private expectedOutputSchema: Record<string, unknown> | null | undefined;
@@ -37,6 +59,7 @@ export class DatasetItemValidator {
     // \u000B: vertical tab (preserve \n=\u000A, \t=\u0009, \r=\u000D)
     // \u000E-\u001F: shift out through unit separator
     // \u007F-\u009F: DEL + C1 controls
+    // eslint-disable-next-line no-control-regex
     return data.replace(/[\u0000-\u0008\u000B\u000E-\u001F\u007F-\u009F]/g, "");
   }
 
@@ -86,12 +109,8 @@ export class DatasetItemValidator {
   }
 
   /**
-   * Core validation logic - validates dataset item data
-   * Works with already-parsed JSON (not strings)
-   * Used by both tRPC and Public API
-   *
-   * Performance optimized: compiles schemas once, validates both fields with reused validators
-   * Provides 2x speedup even for single item validation
+   * Validates dataset item data against schemas (internal use).
+   * Expects already-parsed JSON objects, not strings.
    *
    * @param normalizeUndefinedToNull - Set to true for CREATE operations where undefined becomes null in DB
    */
@@ -128,6 +147,15 @@ export class DatasetItemValidator {
     });
   }
 
+  /**
+   * Normalizes and validates a dataset item payload for database insertion.
+   * Combines JSON parsing, control character sanitization, and schema validation.
+   *
+   * @param params.input - JSON string or null
+   * @param params.expectedOutput - JSON string or null
+   * @param params.metadata - JSON string or null
+   * @returns Success with normalized data, or error with validation details
+   */
   public preparePayload(params: {
     input: string | null | undefined;
     expectedOutput: string | null | undefined;

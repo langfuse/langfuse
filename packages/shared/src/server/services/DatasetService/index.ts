@@ -1,3 +1,3 @@
 export * from "./DatasetItemManager";
 export * from "./types";
-export * from "./DatasetItemValidator";
+// DatasetItemValidator is internal - not exported

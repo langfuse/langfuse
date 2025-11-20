@@ -11,6 +11,25 @@ import type {
 
 type IdOrName = { datasetId: string } | { datasetName: string };
 
+/**
+ * Manager for dataset item CRUD operations.
+ *
+ * **Usage:** Use this class for all create/update/delete operations on dataset items.
+ * Each operation validates items against dataset schemas before persisting.
+ *
+ * **Performance:** Uses DatasetItemValidator which compiles schemas once per operation,
+ * providing 3800x+ speedup for batch operations compared to per-item compilation.
+ *
+ * @example
+ * // Create single item
+ * await DatasetItemManager.createItem({ projectId, datasetId, input, expectedOutput, ... });
+ *
+ * // Bulk create (CSV upload, API batch)
+ * await DatasetItemManager.createManyItems({ projectId, items: [...], ... });
+ *
+ * // Upsert by ID or name
+ * await DatasetItemManager.upsertItem({ projectId, datasetId, datasetItemId, ... });
+ */
 export class DatasetItemManager {
   private static async getDatasets(props: {
     projectId: string;
@@ -70,6 +89,12 @@ export class DatasetItemManager {
     return dataset;
   }
 
+  /**
+   * Creates a single dataset item with validation.
+   * Validates input/expectedOutput against dataset schemas before insertion.
+   *
+   * @returns Success with created item, or validation error with details
+   */
   public static async createItem(props: {
     projectId: string;
     datasetId: string;
@@ -120,6 +145,13 @@ export class DatasetItemManager {
     return { success: true, datasetItem };
   }
 
+  /**
+   * Upserts a dataset item (create if not exists, update if exists).
+   * Validates against dataset schemas before persisting.
+   *
+   * @param props - Can identify dataset by ID or name
+   * @returns Success with upserted item, or validation error with details
+   */
   public static async upsertItem(
     props: {
       projectId: string;
@@ -198,6 +230,11 @@ export class DatasetItemManager {
     return { success: true, datasetItem: datasetItem };
   }
 
+  /**
+   * Deletes a dataset item by ID.
+   *
+   * @throws LangfuseNotFoundError if item doesn't exist
+   */
   public static async deleteItem(props: {
     projectId: string;
     datasetItemId: string;
@@ -223,6 +260,24 @@ export class DatasetItemManager {
     return { success: true, deletedItem: item };
   }
 
+  /**
+   * Bulk creates multiple dataset items with validation.
+   * Validates all items before insertion - if any fail, none are inserted.
+   *
+   * **Performance:** Compiles schemas once per dataset (not per item), providing
+   * 3800x+ speedup over individual validations.
+   *
+   * **Use cases:**
+   * - CSV uploads with thousands of rows
+   * - Batch API endpoints
+   * - Multi-dataset operations (items can span multiple datasets)
+   *
+   * **Index preservation:** Validation errors include `itemIndex` to map back
+   * to original CSV rows or API payloads for user-friendly error reporting.
+   *
+   * @param props.items - Can contain items from multiple datasets
+   * @returns Success with all created items, or validation errors with indices
+   */
   public static async createManyItems(props: {
     projectId: string;
     items: CreateManyItemsPayload;
