@@ -23,6 +23,8 @@ type ItemWithIO = ItemBase & {
   metadata: any;
 };
 
+type IdOrName = { datasetId: string } | { datasetName: string };
+
 export class DatasetItemManager {
   private static DEFAULT_OPTIONS = {
     includeIO: true,
@@ -75,6 +77,40 @@ export class DatasetItemManager {
       );
 
     return datasets;
+  }
+
+  private static async getDatasetById(props: {
+    projectId: string;
+    datasetId: string;
+  }): Promise<Pick<Dataset, "id" | "inputSchema" | "expectedOutputSchema">> {
+    const result = await this.getDatasets({
+      projectId: props.projectId,
+      datasetIds: [props.datasetId],
+    });
+    return result[0]!;
+  }
+
+  private static async getDatasetByName(props: {
+    projectId: string;
+    datasetName: string;
+  }): Promise<Pick<Dataset, "id" | "inputSchema" | "expectedOutputSchema">> {
+    const dataset = await prisma.dataset.findFirst({
+      where: {
+        name: props.datasetName,
+        projectId: props.projectId,
+      },
+      select: {
+        id: true,
+        inputSchema: true,
+        expectedOutputSchema: true,
+      },
+    });
+    if (!dataset) {
+      throw new LangfuseNotFoundError(
+        `Dataset ${props.datasetName} not found for project ${props.projectId}`,
+      );
+    }
+    return dataset;
   }
 
   private static async getItems<
@@ -289,26 +325,31 @@ export class DatasetItemManager {
     return { success: true, datasetItem };
   }
 
-  // TODO: maybe upsert instead
-  public static async updateItem(props: {
-    projectId: string;
-    datasetId: string;
-    datasetItemId: string;
-    input?: string | null;
-    expectedOutput?: string | null;
-    metadata?: string | null;
-    sourceTraceId?: string;
-    sourceObservationId?: string;
-    status?: DatasetStatus;
-    normalizeOpts?: { sanitizeControlChars?: boolean };
-    validateOpts: { normalizeUndefinedToNull?: boolean };
-  }): Promise<{ success: true; updatedItem: DatasetItem } | PayloadError> {
+  public static async upsertItem(
+    props: {
+      projectId: string;
+      datasetItemId?: string;
+      input?: string | null;
+      expectedOutput?: string | null;
+      metadata?: string | null;
+      sourceTraceId?: string;
+      sourceObservationId?: string;
+      status?: DatasetStatus;
+      normalizeOpts?: { sanitizeControlChars?: boolean };
+      validateOpts: { normalizeUndefinedToNull?: boolean };
+    } & IdOrName,
+  ): Promise<{ success: true; updatedItem: DatasetItem } | PayloadError> {
     // 1. Get dataset
-    const result = await this.getDatasets({
-      projectId: props.projectId,
-      datasetIds: [props.datasetId],
-    });
-    const dataset = result.shift()!;
+    const dataset =
+      "datasetId" in props
+        ? await this.getDatasetById({
+            projectId: props.projectId,
+            datasetId: props.datasetId,
+          })
+        : await this.getDatasetByName({
+            projectId: props.projectId,
+            datasetName: props.datasetName,
+          });
 
     // 2. Validate item payload
     const validator = new DatasetItemValidator({
@@ -331,20 +372,31 @@ export class DatasetItemManager {
       return itemPayload;
     }
 
+    const itemId = props.datasetItemId ?? v4();
+
     // 3. Update item
-    const datasetItem = await prisma.datasetItem.update({
+    const datasetItem = await prisma.datasetItem.upsert({
       where: {
         id_projectId: {
-          id: props.datasetItemId,
+          id: itemId,
           projectId: props.projectId,
         },
-        datasetId: props.datasetId,
+        datasetId: dataset.id,
       },
-      data: {
+      create: {
+        id: itemId,
         ...itemPayload,
-        sourceTraceId: props.sourceTraceId,
-        sourceObservationId: props.sourceObservationId,
-        status: props.status,
+        datasetId: dataset.id,
+        sourceTraceId: props.sourceTraceId ?? undefined,
+        sourceObservationId: props.sourceObservationId ?? undefined,
+        status: props.status ?? undefined,
+        projectId: props.projectId,
+      },
+      update: {
+        ...itemPayload,
+        sourceTraceId: props.sourceTraceId ?? undefined,
+        sourceObservationId: props.sourceObservationId ?? undefined,
+        status: props.status ?? undefined,
       },
     });
 

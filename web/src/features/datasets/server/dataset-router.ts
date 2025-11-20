@@ -748,7 +748,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await DatasetItemManager.updateItem({
+      const result = await DatasetItemManager.upsertItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         datasetItemId: input.datasetItemId,
