@@ -59,7 +59,6 @@ export class DatasetItemValidator {
     return data;
   }
 
-  // TODO: check null behaviour
   private normalize(
     data: string | null | undefined,
     opts?: { sanitizeControlChars?: boolean },

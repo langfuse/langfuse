@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { v4 as uuidv4 } from "uuid";
 import {
   GetDatasetItemsV1Query,
   GetDatasetItemsV1Response,
@@ -10,16 +9,11 @@ import {
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import {
-  type DatasetItem,
   LangfuseNotFoundError,
   InvalidRequestError,
   Prisma,
 } from "@langfuse/shared";
-import {
-  logger,
-  DatasetItemValidator,
-  DatasetItemManager,
-} from "@langfuse/shared/src/server";
+import { logger, DatasetItemManager } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -52,7 +46,7 @@ export default withMiddlewares({
         const result = await DatasetItemManager.upsertItem({
           projectId: auth.scope.projectId,
           datasetName: datasetName,
-          datasetItemId: id,
+          datasetItemId: id ?? undefined,
           input: input ?? undefined,
           expectedOutput: expectedOutput ?? undefined,
           metadata: metadata ?? undefined,
@@ -60,11 +54,11 @@ export default withMiddlewares({
           sourceObservationId: sourceObservationId ?? undefined,
           status: status ?? undefined,
           normalizeOpts: { sanitizeControlChars: true },
-          validateOpts: { normalizeUndefinedToNull: true },
+          validateOpts: { normalizeUndefinedToNull: true }, // Treat UPSERT as CREATE for validation
         });
         if (!result.success) {
           throw new InvalidRequestError(
-            `Dataset item validation failed: ${result.error.message}`,
+            `Dataset item validation failed: ${result.message}`,
           );
         }
 

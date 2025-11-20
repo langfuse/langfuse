@@ -1,41 +1,18 @@
-import { PrismaClient } from "../../../../db";
-import {
-  FieldValidationError,
-  FieldValidationResult,
-  validateFieldAgainstSchema,
-} from "../../../../utils/jsonSchemaValidation";
-import { DatasetSchemaValidator } from "../DatasetSchemaValidator";
+import type { PrismaClient } from "../../db";
+import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
+import type { DatasetSchemaValidationError } from "./schemaTypes";
 
-export type ValidationError = {
-  datasetItemId: string;
-  field: "input" | "expectedOutput";
-  errors: FieldValidationError[];
-};
+// Re-export for backward compatibility with tests
+export { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
 
 export type ValidationResult = {
   isValid: boolean;
-  errors: ValidationError[];
+  errors: DatasetSchemaValidationError[];
 };
 
 /**
- * Validates a single dataset item field against a JSON schema
- * Wrapper around validateFieldAgainstSchema for dataset-specific usage
- */
-export function validateDatasetItemField(params: {
-  data: unknown;
-  schema: Record<string, unknown>;
-  itemId: string;
-  field: "input" | "expectedOutput";
-}): FieldValidationResult {
-  return validateFieldAgainstSchema({
-    data: params.data,
-    schema: params.schema,
-  });
-}
-
-/**
  * Validates all dataset items against dataset schemas
- * Used when adding or updating schemas on an existing dataset
+ * Used ONLY when adding or updating schemas on an existing dataset
  *
  * Performance optimized with batched validation:
  * - Compiles schemas once per batch (5000 items) - provides 3800x speedup
@@ -57,7 +34,7 @@ export async function validateAllDatasetItems(params: {
   const MAX_ERRORS = 10;
 
   let offset = 0;
-  const errors: ValidationError[] = [];
+  const errors: DatasetSchemaValidationError[] = [];
 
   while (errors.length < MAX_ERRORS) {
     // Fetch batch

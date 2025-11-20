@@ -9,20 +9,6 @@ import type {
   PayloadError,
 } from "./types";
 
-type ItemBase = {
-  id: string;
-  sourceTraceId: string | null;
-  sourceObservationId: string | null;
-  status: string;
-  createdAt: Date | null;
-};
-
-type ItemWithIO = ItemBase & {
-  input: any;
-  expectedOutput: any;
-  metadata: any;
-};
-
 type IdOrName = { datasetId: string } | { datasetName: string };
 
 export class DatasetItemManager {
@@ -147,7 +133,7 @@ export class DatasetItemManager {
       normalizeOpts?: { sanitizeControlChars?: boolean };
       validateOpts: { normalizeUndefinedToNull?: boolean };
     } & IdOrName,
-  ): Promise<{ success: true; updatedItem: DatasetItem } | PayloadError> {
+  ): Promise<{ success: true; datasetItem: DatasetItem } | PayloadError> {
     // 1. Get dataset
     const dataset =
       "datasetId" in props
@@ -209,7 +195,7 @@ export class DatasetItemManager {
       },
     });
 
-    return { success: true, updatedItem: datasetItem };
+    return { success: true, datasetItem: datasetItem };
   }
 
   public static async deleteItem(props: {
