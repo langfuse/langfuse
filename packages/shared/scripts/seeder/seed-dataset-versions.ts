@@ -1,8 +1,6 @@
 import { PrismaClient } from "../../src/index";
 import { logger } from "../../src/server";
 
-const prisma = new PrismaClient();
-
 // Config
 const ITEM_COUNT = 50_000;
 const BULK_VERSIONS = 5;
