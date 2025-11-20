@@ -5,7 +5,14 @@ import {
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
-import { Fragment, useMemo, useRef, useEffect, useCallback } from "react";
+import {
+  Fragment,
+  useMemo,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+} from "react";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -145,7 +152,7 @@ export const TraceTree = ({
     count: flattenedItems.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 37, // Approximate height of a row
-    overscan: 100,
+    overscan: 500,
   });
 
   return (
@@ -268,19 +275,27 @@ const TraceTreeRow = ({
   const capture = usePostHogClientCapture();
   const collapsed = collapsedNodes.includes(node.id);
   const currentNodeRef = useRef<HTMLButtonElement>(null);
+  const hasScrolledOnInitialLoadRef = useRef(false);
 
-  // Scroll to selected node logic
+  // Scroll to selected node logic - only on initial page load, not on user clicks
   // Note: In a virtual list, scrolling to an item requires using the virtualizer's scrollToIndex.
   // However, since we only have the row component here, we can't easily access the virtualizer.
   // For now, we'll rely on the user scrolling or implement a more complex context-based scroll later if needed.
   // The original scrollIntoView might not work if the item is not rendered.
   // But if it IS rendered, this will work.
-  useEffect(() => {
-    if (currentNodeId && currentNodeRef.current && currentNodeId === node.id) {
+  // Using useLayoutEffect to ensure DOM is fully laid out before scrolling
+  useLayoutEffect(() => {
+    if (
+      currentNodeId &&
+      currentNodeRef.current &&
+      currentNodeId === node.id &&
+      !hasScrolledOnInitialLoadRef.current
+    ) {
       currentNodeRef.current.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
+      hasScrolledOnInitialLoadRef.current = true;
     }
   }, [currentNodeId, node.id]);
 

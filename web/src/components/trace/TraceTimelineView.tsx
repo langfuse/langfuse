@@ -877,7 +877,7 @@ export function TraceTimelineView({
     count: flattenedItems.length,
     getScrollElement: () => timelineContentRef.current,
     estimateSize: () => 42, // Approximate row height
-    overscan: 50,
+    overscan: 500,
   });
 
   // Early return after all hooks

@@ -101,7 +101,7 @@ export const TraceSearchList: React.FC<TraceSearchListProps> = ({
     count: items.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 48, // Approximate height of a search result row
-    overscan: 50, // Render 50 extra rows above/below viewport for smooth scrolling
+    overscan: 500, // Render 500 extra rows above/below viewport for smooth scrolling
   });
 
   // Handle empty state
