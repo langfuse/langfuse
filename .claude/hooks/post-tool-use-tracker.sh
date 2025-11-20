@@ -64,7 +64,8 @@ detect_repo() {
                 echo "$repo"
             fi
             ;;
-        # Examples directory
+        # Default case
+        *)
             # Check if it's a source file in root
             if [[ ! "$relative_path" =~ / ]]; then
                 echo "root"
