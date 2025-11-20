@@ -67,7 +67,7 @@ export class DatasetItemValidator {
    * Recursively clean control characters from all string values in a JSON structure.
    * This handles strings within objects and arrays after JSON.parse.
    */
-  private sanitizeJsonValue(data: unknown): unknown {
+  private sanitizeJsonValue = (data: unknown): unknown => {
     if (typeof data === "string") {
       return this.cleanControlChars(data);
     }
@@ -80,21 +80,31 @@ export class DatasetItemValidator {
       );
     }
     return data;
-  }
+  };
 
   private normalize(
-    data: string | null | undefined,
+    data: string | unknown | null | undefined,
     opts?: { sanitizeControlChars?: boolean },
-  ): Prisma.InputJsonObject | Prisma.NullTypes.DbNull | undefined {
+  ): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined {
     if (data === "") return Prisma.DbNull;
+    if (data === undefined || data === null) return undefined;
 
     try {
-      if (data === undefined || data === null) return undefined;
-      const parsed = JSON.parse(data) as Prisma.InputJsonObject;
+      // Handle both string (tRPC) and already-parsed values (Public API)
+      // InputJsonValue accepts objects, arrays, strings, numbers, booleans, null
+      let parsed: Prisma.InputJsonValue;
+
+      if (typeof data === "string") {
+        // tRPC sends JSON strings - parse them
+        parsed = JSON.parse(data) as Prisma.InputJsonValue;
+      } else {
+        // Public API sends already-parsed values - use directly
+        parsed = data as Prisma.InputJsonValue;
+      }
 
       if (opts?.sanitizeControlChars) {
-        // Sanitize control characters from parsed object before sending to PostgreSQL
-        return this.sanitizeJsonValue(parsed) as Prisma.InputJsonObject;
+        // Sanitize control characters from parsed value before sending to PostgreSQL
+        return this.sanitizeJsonValue(parsed) as Prisma.InputJsonValue;
       } else {
         return parsed;
       }
@@ -151,15 +161,18 @@ export class DatasetItemValidator {
    * Normalizes and validates a dataset item payload for database insertion.
    * Combines JSON parsing, control character sanitization, and schema validation.
    *
-   * @param params.input - JSON string or null
-   * @param params.expectedOutput - JSON string or null
-   * @param params.metadata - JSON string or null
+   * **Flexible input:** Accepts both JSON strings (from tRPC) and already-parsed
+   * objects (from Public API). Handles both seamlessly.
+   *
+   * @param params.input - JSON string, parsed object, or null
+   * @param params.expectedOutput - JSON string, parsed object, or null
+   * @param params.metadata - JSON string, parsed object, or null
    * @returns Success with normalized data, or error with validation details
    */
   public preparePayload(params: {
-    input: string | null | undefined;
-    expectedOutput: string | null | undefined;
-    metadata: string | null | undefined;
+    input: string | unknown | null | undefined;
+    expectedOutput: string | unknown | null | undefined;
+    metadata: string | unknown | null | undefined;
     normalizeOpts?: { sanitizeControlChars?: boolean };
     validateOpts: { normalizeUndefinedToNull?: boolean };
   }): PreparePayloadResult {

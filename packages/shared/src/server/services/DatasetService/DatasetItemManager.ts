@@ -93,14 +93,16 @@ export class DatasetItemManager {
    * Creates a single dataset item with validation.
    * Validates input/expectedOutput against dataset schemas before insertion.
    *
+   * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
+   *
    * @returns Success with created item, or validation error with details
    */
   public static async createItem(props: {
     projectId: string;
     datasetId: string;
-    input?: string | null;
-    expectedOutput?: string | null;
-    metadata?: string | null;
+    input?: string | unknown | null;
+    expectedOutput?: string | unknown | null;
+    metadata?: string | unknown | null;
     sourceTraceId?: string;
     sourceObservationId?: string;
     normalizeOpts: {
@@ -149,6 +151,8 @@ export class DatasetItemManager {
    * Upserts a dataset item (create if not exists, update if exists).
    * Validates against dataset schemas before persisting.
    *
+   * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
+   *
    * @param props - Can identify dataset by ID or name
    * @returns Success with upserted item, or validation error with details
    */
@@ -156,9 +160,9 @@ export class DatasetItemManager {
     props: {
       projectId: string;
       datasetItemId?: string;
-      input?: string | null;
-      expectedOutput?: string | null;
-      metadata?: string | null;
+      input?: string | unknown | null;
+      expectedOutput?: string | unknown | null;
+      metadata?: string | unknown | null;
       sourceTraceId?: string;
       sourceObservationId?: string;
       status?: DatasetStatus;
@@ -212,7 +216,9 @@ export class DatasetItemManager {
       },
       create: {
         id: itemId,
-        ...itemPayload,
+        input: itemPayload.input,
+        expectedOutput: itemPayload.expectedOutput,
+        metadata: itemPayload.metadata,
         datasetId: dataset.id,
         sourceTraceId: props.sourceTraceId ?? undefined,
         sourceObservationId: props.sourceObservationId ?? undefined,
@@ -220,7 +226,9 @@ export class DatasetItemManager {
         projectId: props.projectId,
       },
       update: {
-        ...itemPayload,
+        input: itemPayload.input,
+        expectedOutput: itemPayload.expectedOutput,
+        metadata: itemPayload.metadata,
         sourceTraceId: props.sourceTraceId ?? undefined,
         sourceObservationId: props.sourceObservationId ?? undefined,
         status: props.status ?? undefined,
