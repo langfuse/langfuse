@@ -413,7 +413,10 @@ export const createEvalJobs = async ({
     });
 
     const isDatasetConfig = config.target_object === "dataset";
-    let datasetItem: { id: string } | undefined;
+    let datasetItem:
+      | { id: string }
+      | { id: string; observationId: string | null }
+      | undefined;
     if (isDatasetConfig) {
       const condition = tableColumnsToSqlFilterAndPrefix(
         config.target_object === "dataset" ? validatedFilter : [],
@@ -456,6 +459,20 @@ export const createEvalJobs = async ({
           datasetItem = datasetItemIds.shift();
         }
       }
+    }
+
+    // we must check if the dataset run item is linked at the observation level, if so, we must skip the eval job
+    // triggered by the trace-upsert queue as it would prematurely create a score at the trace level which is incorrect.
+    if (
+      sourceEventType === "trace-upsert" &&
+      !!datasetItem &&
+      "observationId" in datasetItem &&
+      !!datasetItem.observationId
+    ) {
+      logger.info(
+        `Eval job for project ${event.projectId} and dataset item ${datasetItem.id} should be evaluated at observation level`,
+      );
+      continue;
     }
 
     // We also need to validate that the observation exists in case an observationId is set
