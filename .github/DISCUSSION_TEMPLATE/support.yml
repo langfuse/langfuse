@@ -2,20 +2,21 @@ body:
   - type: textarea
     attributes:
       label: Describe your question
-      description: Please describe the question you have as clear and concise as possible.
-    validations:
-      required: true
-  - type: dropdown
-    id: hosting
-    attributes:
-      label: Are you using Langfuse Cloud or self-host Langfuse?
-      options:
-        - Langfuse Cloud
-        - Self-hosted Langfuse
+      value: |
+        ## Issue
+        Please describe the question you have as clear and concise as possible. Include error messages, unexpected behavior, or steps to reproduce the problem.
+
+        ## Setup
+        - Self-hosting or Langfuse Cloud? If self-hosting, please provide the Langfuse version.
+        - Setup details (e.g., Python SDK, JS/TS SDK, Vercel AI, etc.)
     validations:
       required: true
   - type: checkboxes
     attributes:
-      label: I checked if there is already an [issue](https://github.com/langfuse/langfuse/issues) or [discussion](https://github.com/orgs/langfuse/discussions) for my question and asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help.
+      label: Pre-Submission Checklist
+      description: Link to [issues](https://github.com/langfuse/langfuse/issues), [discussions](https://github.com/orgs/langfuse/discussions) and the [Langfuse AI chatbot](https://langfuse.com/docs/ask-ai).
+      options:
+        - label: I have checked for existing issues/discussions and consulted Langfuse AI
+          required: true
     validations:
       required: true
