@@ -60,7 +60,7 @@ const getMinTimestampForExport = async (
                 FROM scores
                 WHERE project_id = {projectId: String}
               )
-              -- WHERE ts > 0 -- Ignore 0 results (usually empty tables)
+              WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
           params: { projectId },
         });
@@ -83,7 +83,7 @@ const getMinTimestampForExport = async (
         logger.info(
           `[BLOB INTEGRATION] No historical data found for project ${projectId}, using current time`,
         );
-        return new Date();
+        return new Date(0);
       } catch (error) {
         logger.error(
           `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
