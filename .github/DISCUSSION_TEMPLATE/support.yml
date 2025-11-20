@@ -5,12 +5,24 @@ body:
       value: |
         ## Question
         Please describe the question you have as clear and concise as possible. Include error messages, unexpected behavior, or steps to reproduce the problem.
-
-        ## Setup
-        - Self-hosting or Langfuse Cloud? If self-hosting, please provide the Langfuse version.
-        - Setup details (e.g., Python SDK, JS/TS SDK, Vercel AI, etc.)
     validations:
       required: true
+   - type: dropdown
+    attributes:
+      label: Langfuse Cloud or self-hosted?
+      options:
+        - "Langfuse Cloud"
+        - "Self-hosted"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: If self-hosted, what version are you running?
+      description: We may ask you to upgrade to the latest version, as many issues are continuously being fixed.
+  - type: textarea
+    attributes:
+      label: SDK and integration versions
+      description: If you're experiencing an issue with an integration or SDK, please share all package versions you're using. If you are not on the latest version, try upgrading, as this will often resolve the issue.
   - type: checkboxes
     attributes:
       label: Pre-Submission Checklist
