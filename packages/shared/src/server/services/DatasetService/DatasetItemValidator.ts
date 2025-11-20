@@ -95,8 +95,14 @@ export class DatasetItemValidator {
       let parsed: Prisma.InputJsonValue;
 
       if (typeof data === "string") {
-        // tRPC sends JSON strings - parse them
-        parsed = JSON.parse(data) as Prisma.InputJsonValue;
+        // Try to parse as JSON first (for tRPC which sends JSON strings like '{"key":"value"}')
+        try {
+          parsed = JSON.parse(data) as Prisma.InputJsonValue;
+        } catch {
+          // If parsing fails, it's a plain string
+          // Store the string as-is
+          parsed = data;
+        }
       } else {
         // Public API sends already-parsed values - use directly
         parsed = data as Prisma.InputJsonValue;
