@@ -5,14 +5,7 @@ import {
   ObservationLevel,
   type ObservationLevelType,
 } from "@langfuse/shared";
-import {
-  Fragment,
-  useMemo,
-  useRef,
-  useEffect,
-  useLayoutEffect,
-  useCallback,
-} from "react";
+import { useMemo, useRef, useLayoutEffect, useCallback } from "react";
 import { InfoIcon, ChevronRight } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
