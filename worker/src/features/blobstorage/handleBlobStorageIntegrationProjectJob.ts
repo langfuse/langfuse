@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
+import { env } from "../../env";
 
 const getMinTimestampForExport = async (
   projectId: string,
