@@ -2,9 +2,7 @@ body:
   - type: textarea
     attributes:
       label: Describe your question
-      value: |
-        ## Question
-        Please describe the question you have as clear and concise as possible. Include error messages, unexpected behavior, or steps to reproduce the problem.
+      description: Please describe the question you have as clear and concise as possible. Include error messages, unexpected behavior, or steps to reproduce the problem.
     validations:
       required: true
   - type: dropdown
