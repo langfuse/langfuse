@@ -3,7 +3,7 @@ body:
     attributes:
       label: Describe your question
       value: |
-        ## Issue
+        ## Question
         Please describe the question you have as clear and concise as possible. Include error messages, unexpected behavior, or steps to reproduce the problem.
 
         ## Setup
