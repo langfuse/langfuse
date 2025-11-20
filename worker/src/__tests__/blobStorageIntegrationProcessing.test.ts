@@ -471,6 +471,24 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       });
       await createTracesCh([oldTrace]);
 
+      await Promise.all([
+        createObservationsCh([
+          createObservation({
+            project_id: projectId,
+            start_time: twoDaysAgo.getTime(),
+            name: "Test Observation",
+          }),
+        ]),
+        createScoresCh([
+          createTraceScore({
+            project_id: projectId,
+            timestamp: twoDaysAgo.getTime(),
+            name: "Test Score",
+            value: 0.95,
+          }),
+        ]),
+      ]);
+
       // Create integration with FULL_HISTORY mode and no lastSyncAt
       await prisma.blobStorageIntegration.create({
         data: {
