@@ -56,3 +56,17 @@ export type CreateManyValidationError = {
     keyword?: string;
   }>;
 };
+
+export type ItemBase = {
+  id: string;
+  sourceTraceId: string | null;
+  sourceObservationId: string | null;
+  status: string;
+  createdAt: Date | null;
+};
+
+export type ItemWithIO = ItemBase & {
+  input: any;
+  expectedOutput: any;
+  metadata: any;
+};
