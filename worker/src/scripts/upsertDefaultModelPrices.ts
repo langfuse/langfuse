@@ -19,18 +19,29 @@ const PricingTierSchema = z.object({
   prices: z.record(z.string(), z.number()),
 });
 
-const DefaultModelPriceSchema = z.object({
-  id: z.string(),
-  model_name: z.string(),
-  match_pattern: z.string(),
-  created_at: z.coerce.date(),
-  updated_at: z.coerce.date(),
-  pricing_tiers: z.array(PricingTierSchema),
-  tokenizer_config: z
-    .record(z.string(), z.union([z.string(), z.number()]))
-    .nullish(),
-  tokenizer_id: z.string().nullish(),
-});
+const DefaultModelPriceSchema = z
+  .object({
+    id: z.string(),
+    model_name: z.string(),
+    match_pattern: z.string(),
+    created_at: z.coerce.date(),
+    updated_at: z.coerce.date(),
+    pricing_tiers: z.array(PricingTierSchema),
+    tokenizer_config: z
+      .record(z.string(), z.union([z.string(), z.number()]))
+      .nullish(),
+    tokenizer_id: z.string().nullish(),
+  })
+  .refine(
+    (data) => {
+      const defaultTiers = data.pricing_tiers.filter((t) => t.is_default);
+      return defaultTiers.length === 1;
+    },
+    {
+      message:
+        "Each model must have exactly one default pricing tier (is_default: true)",
+    },
+  );
 type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
 type PricingTier = z.infer<typeof PricingTierSchema>;
 
