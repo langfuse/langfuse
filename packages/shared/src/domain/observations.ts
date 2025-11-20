@@ -94,6 +94,11 @@ export const ObservationSchema = z.object({
 
 export type Observation = z.infer<typeof ObservationSchema>;
 
+export type ObservationCoreFields = Pick<
+  Observation,
+  "id" | "traceId" | "startTime" | "projectId" | "parentObservationId"
+>;
+
 export const EventsObservationSchema = ObservationSchema.extend({
   userId: z.string().nullable(),
   sessionId: z.string().nullable(),
@@ -101,11 +106,16 @@ export const EventsObservationSchema = ObservationSchema.extend({
 
 export type EventsObservation = z.infer<typeof EventsObservationSchema>;
 
+export type PartialObservation = Partial<Observation> & ObservationCoreFields;
+
+export type PartialEventsObservation = Partial<EventsObservation> &
+  ObservationCoreFields;
+
 /**
  * Returns true if an observation type is generation-like, meaning it could include LLM calls
  * and potentially has similar input/output fields.
  */
-export const GenerationLikeObservationTypes = [
+const GenerationLikeObservationTypes = [
   ObservationType.GENERATION,
   ObservationType.AGENT,
   ObservationType.TOOL,

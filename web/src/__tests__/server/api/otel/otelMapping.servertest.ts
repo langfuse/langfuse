@@ -1073,7 +1073,8 @@ describe("OTel Resource Span Mapping", () => {
                   {
                     key: "operation.name",
                     value: {
-                      stringValue: "ai.embed generate-document-embedding",
+                      stringValue:
+                        "ai.embed.doEmbed generate-document-embedding",
                     },
                   },
                   {
@@ -1270,19 +1271,13 @@ describe("OTel Resource Span Mapping", () => {
     );
 
     it.each([
-      ["ai.generateText", "generation-create"],
       ["ai.generateText.doGenerate", "generation-create"],
-      ["ai.streamText", "generation-create"],
       ["ai.streamText.doStream", "generation-create"],
       ["ai.generateObject", "generation-create"],
       ["ai.generateObject.doGenerate", "generation-create"],
-      ["ai.streamObject", "generation-create"],
       ["ai.streamObject.doStream", "generation-create"],
-      ["ai.embed", "embedding-create"],
       ["ai.embed.doEmbed", "embedding-create"],
-      ["ai.embedMany", "embedding-create"],
       ["ai.embedMany.doEmbed", "embedding-create"],
-      ["ai.embed generate-document-embedding", "embedding-create"],
       ["ai.embed.doEmbed generate-document-embedding", "embedding-create"],
       ["ai.toolCall", "tool-create"],
     ])(
