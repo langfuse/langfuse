@@ -60,7 +60,7 @@ const getMinTimestampForExport = async (
                 FROM scores
                 WHERE project_id = {projectId: String}
               )
-              WHERE ts > 0 -- Ignore 0 results (usually empty tables)
+              -- WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
           params: { projectId },
         });
