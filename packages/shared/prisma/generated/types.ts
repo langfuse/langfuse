@@ -430,21 +430,7 @@ export type DatasetItem = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
-export type DatasetItemEvent = {
-  pk: Generated<string>;
-  id: string;
-  project_id: string;
-  dataset_id: string;
-  status: Generated<DatasetStatus>;
-  input: unknown | null;
-  expected_output: unknown | null;
-  metadata: unknown | null;
-  source_trace_id: string | null;
-  source_observation_id: string | null;
-  created_at: Timestamp | null;
-  deleted_at: Timestamp | null;
-};
-export type DatasetRunItems = {
+export type LegacyPrismaDatasetRunItems = {
   id: string;
   project_id: string;
   dataset_run_id: string;
@@ -920,9 +906,8 @@ export type DB = {
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
   dashboards: Dashboard;
-  dataset_item_events: DatasetItemEvent;
   dataset_items: DatasetItem;
-  dataset_run_items: DatasetRunItems;
+  dataset_run_items: LegacyPrismaDatasetRunItems;
   dataset_runs: DatasetRuns;
   datasets: Dataset;
   default_llm_models: DefaultLlmModel;
