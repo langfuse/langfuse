@@ -382,7 +382,6 @@ const TraceTreeRow = ({
           className={cn(
             "peer relative flex min-w-0 flex-1 items-start rounded-md py-0.5 pl-1 pr-2 text-left",
           )}
-          ref={currentNodeRef}
         >
           <SpanItem
             node={node}
