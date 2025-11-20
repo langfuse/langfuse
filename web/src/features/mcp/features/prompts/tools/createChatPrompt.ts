@@ -12,6 +12,7 @@ import {
   PromptLabelSchema,
   PromptNameSchema,
   COMMIT_MESSAGE_MAX_LENGTH,
+  PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
 import { createPrompt as createPromptAction } from "@/src/features/prompts/server/actions/createPrompt";
 import { prisma } from "@langfuse/shared/src/db";
@@ -33,7 +34,11 @@ const ChatMessageSchema = z.object({
  * Uses simple types that serialize well to JSON Schema
  */
 const CreateChatPromptBaseSchema = z.object({
-  name: z.string().min(1).max(255).describe("The name of the prompt"),
+  name: z
+    .string()
+    .min(1)
+    .max(PROMPT_NAME_MAX_LENGTH)
+    .describe("The name of the prompt"),
   prompt: z
     .array(ChatMessageSchema)
     .min(1)
@@ -103,10 +108,6 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
           "mcp.api_key_id": context.apiKeyId,
           "mcp.prompt_name": input.name,
           "mcp.prompt_type": "chat",
-          "mcp.message_count": input.prompt.length,
-          "mcp.labels_count": input.labels?.length ?? 0,
-          "mcp.has_config": input.config ? "true" : "false",
-          "mcp.has_tags": input.tags ? "true" : "false",
         });
 
         const createdPrompt = await createPromptAction({

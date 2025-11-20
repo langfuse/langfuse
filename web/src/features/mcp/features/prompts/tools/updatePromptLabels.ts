@@ -16,12 +16,18 @@ import { UserInputError } from "../../../core/errors";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind } from "@opentelemetry/api";
 
+import { PROMPT_NAME_MAX_LENGTH } from "@langfuse/shared";
+
 /**
  * Base schema for JSON Schema generation (MCP client display)
  * Uses simple types without refinements
  */
 const UpdatePromptLabelsBaseSchema = z.object({
-  name: z.string().min(1).max(255).describe("The name of the prompt"),
+  name: z
+    .string()
+    .min(1)
+    .max(PROMPT_NAME_MAX_LENGTH)
+    .describe("The name of the prompt"),
   version: z.coerce
     .number()
     .int()

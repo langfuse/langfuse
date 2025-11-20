@@ -6,6 +6,14 @@
  */
 
 import { z } from "zod/v4";
+import {
+  PROMPT_NAME_MAX_LENGTH,
+  PROMPT_LABEL_MAX_LENGTH,
+  PROMPT_LABEL_REGEX,
+  PROMPT_LABEL_REGEX_ERROR,
+  COMMIT_MESSAGE_MAX_LENGTH,
+  LATEST_PROMPT_LABEL,
+} from "@langfuse/shared";
 
 /**
  * Prompt name parameter
@@ -14,7 +22,7 @@ import { z } from "zod/v4";
 export const ParamPromptName = z
   .string()
   .min(1)
-  .max(255)
+  .max(PROMPT_NAME_MAX_LENGTH)
   .describe("The name of the prompt");
 
 /**
@@ -24,11 +32,8 @@ export const ParamPromptName = z
 export const ParamPromptLabel = z
   .string()
   .min(1)
-  .max(36)
-  .regex(
-    /^[a-z0-9_\-.]+$/,
-    "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
-  )
+  .max(PROMPT_LABEL_MAX_LENGTH)
+  .regex(PROMPT_LABEL_REGEX, PROMPT_LABEL_REGEX_ERROR)
   .optional()
   .describe(
     'Label to retrieve (e.g., "production", "staging"). Defaults to "production".',
@@ -60,7 +65,7 @@ export const ParamPromptTag = z
  */
 export const ParamCommitMessage = z
   .string()
-  .max(500)
+  .max(COMMIT_MESSAGE_MAX_LENGTH)
   .optional()
   .describe("Optional commit message describing the changes");
 
@@ -72,13 +77,10 @@ export const ParamNewLabels = z
     z
       .string()
       .min(1)
-      .max(36)
-      .regex(
-        /^[a-z0-9_\-.]+$/,
-        "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
-      ),
+      .max(PROMPT_LABEL_MAX_LENGTH)
+      .regex(PROMPT_LABEL_REGEX, PROMPT_LABEL_REGEX_ERROR),
   )
-  .refine((labels) => !labels.includes("latest"), {
+  .refine((labels) => !labels.includes(LATEST_PROMPT_LABEL), {
     message: "Label 'latest' is always assigned to the latest prompt version",
   })
   .describe("Array of new labels to assign to the prompt version");
