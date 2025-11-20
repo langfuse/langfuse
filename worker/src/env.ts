@@ -150,6 +150,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
+  // Comma-separated list of project IDs that should only export traces table (skip observations and scores)
+  LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
