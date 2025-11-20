@@ -1,7 +1,8 @@
 import { Prisma } from "../../../db";
+import { FieldValidationError } from "../../../utils/jsonSchemaValidation";
 import { logger } from "../../logger";
 import { DatasetSchemaValidator } from "./DatasetSchemaValidator";
-import type { FieldValidationError, PreparePayloadResult } from "./types";
+import type { PreparePayloadResult } from "./types";
 
 type ValidateItemResult =
   | { isValid: true }
@@ -58,15 +59,23 @@ export class DatasetItemValidator {
     return data;
   }
 
-  private normalize(data: string | null | undefined) {
+  // TODO: check null behaviour
+  private normalize(
+    data: string | null | undefined,
+    opts?: { sanitizeControlChars?: boolean },
+  ): Prisma.InputJsonObject | Prisma.NullTypes.DbNull | undefined {
     if (data === "") return Prisma.DbNull;
 
     try {
-      const parsed = !!data ? JSON.parse(data) : undefined;
-      // Sanitize control characters from parsed object before sending to PostgreSQL
-      return parsed
-        ? (this.sanitizeJsonValue(parsed) as Prisma.InputJsonObject)
-        : undefined;
+      if (data === undefined || data === null) return undefined;
+      const parsed = JSON.parse(data) as Prisma.InputJsonObject;
+
+      if (opts?.sanitizeControlChars) {
+        // Sanitize control characters from parsed object before sending to PostgreSQL
+        return this.sanitizeJsonValue(parsed) as Prisma.InputJsonObject;
+      } else {
+        return parsed;
+      }
     } catch (e) {
       logger.info(
         "[DatasetItemValidator.normalize] failed to parse dataset item data",
@@ -92,14 +101,7 @@ export class DatasetItemValidator {
     expectedOutput: unknown;
     normalizeUndefinedToNull?: boolean;
   }): ValidateItemResult {
-    // Create validator once - compiles schemas once, validates both fields
-    // Even for single item, this is 2x faster than fresh Ajv per field
-    const validator = new DatasetSchemaValidator({
-      inputSchema: this.inputSchema,
-      expectedOutputSchema: this.expectedOutputSchema,
-    });
-
-    // Normalize values for validation
+    // 1. Normalize IO for validation
     const inputToValidate = params.normalizeUndefinedToNull
       ? params.input === undefined || params.input === null
         ? null
@@ -112,6 +114,14 @@ export class DatasetItemValidator {
         : params.expectedOutput
       : params.expectedOutput;
 
+    // 2. Validate IO against schema
+    // Create validator once - compiles schemas once, validates both fields
+    // Even for single item, this is 2x faster than fresh Ajv per field
+    const validator = new DatasetSchemaValidator({
+      inputSchema: this.inputSchema,
+      expectedOutputSchema: this.expectedOutputSchema,
+    });
+
     // Use the optimized validateItem method
     return validator.validateItem({
       input: inputToValidate,
@@ -123,18 +133,25 @@ export class DatasetItemValidator {
     input: string | null | undefined;
     expectedOutput: string | null | undefined;
     metadata: string | null | undefined;
-    normalizeUndefinedToNull?: boolean;
+    normalizeOpts?: { sanitizeControlChars?: boolean };
+    validateOpts: { normalizeUndefinedToNull?: boolean };
   }): PreparePayloadResult {
     // 1. Normalize IO
-    const normalizedInput = this.normalize(params.input);
-    const normalizedExpectedOutput = this.normalize(params.expectedOutput);
-    const normalizedMetadata = this.normalize(params.metadata);
+    const normalizedInput = this.normalize(params.input, params.normalizeOpts);
+    const normalizedExpectedOutput = this.normalize(
+      params.expectedOutput,
+      params.normalizeOpts,
+    );
+    const normalizedMetadata = this.normalize(
+      params.metadata,
+      params.normalizeOpts,
+    );
 
     // 2. Validate IO against schema
     const result = this.validateDatasetItemData({
       input: normalizedInput,
       expectedOutput: normalizedExpectedOutput,
-      normalizeUndefinedToNull: params.normalizeUndefinedToNull,
+      normalizeUndefinedToNull: params.validateOpts.normalizeUndefinedToNull,
     });
 
     if (!result.isValid) {

@@ -1,21 +1,20 @@
 import Ajv, { AnySchema, ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
-import { FieldValidationResult } from "../types";
 
-/**
- * Creates a fresh Ajv instance for validation
- */
-export const createAjvInstance = () => {
-  const ajv = new Ajv({
-    strict: true,
-    allErrors: false, // Return only the first error, not all
-    code: { optimize: true }, // Enable code optimization to improve performance and reduce DoS risk
-    validateFormats: false, // Prevent ReDoS via format validators
-  });
-  addFormats(ajv); // Formats added but not validated
-
-  return ajv;
+export type FieldValidationError = {
+  path: string;
+  message: string;
+  keyword?: string;
 };
+
+export type FieldValidationResult =
+  | {
+      isValid: true;
+    }
+  | {
+      isValid: false;
+      errors: FieldValidationError[];
+    };
 
 /**
  * Validates if a given object is a valid JSON Schema
@@ -27,7 +26,7 @@ export function isValidJSONSchema(schema: unknown): boolean {
     const stringified = JSON.stringify(schema);
     if (stringified.length > 1_000) return false; // Schema too large
 
-    const ajv = createAjvInstance();
+    const ajv = createAjvInstanceInternal();
     // This will throw an error if the schema is invalid
     ajv.compile(schema as AnySchema);
 
@@ -36,6 +35,21 @@ export function isValidJSONSchema(schema: unknown): boolean {
     return false;
   }
 }
+
+/**
+ * Creates a fresh Ajv instance for validation
+ */
+export const createAjvInstanceInternal = () => {
+  const ajv = new Ajv({
+    strict: true,
+    allErrors: false, // Return only the first error, not all
+    code: { optimize: true }, // Enable code optimization to improve performance and reduce DoS risk
+    validateFormats: false, // Prevent ReDoS via format validators
+  });
+  addFormats(ajv); // Formats added but not validated
+
+  return ajv;
+};
 
 /**
  * Validates data against a compiled schema validator
@@ -71,7 +85,7 @@ export function validateFieldAgainstSchema(params: {
   schema: Record<string, unknown>;
 }): FieldValidationResult {
   const { data, schema } = params;
-  const ajv = createAjvInstance();
+  const ajv = createAjvInstanceInternal();
   const validate = ajv.compile(schema);
   return validateWithCompiledSchema(data, validate);
 }

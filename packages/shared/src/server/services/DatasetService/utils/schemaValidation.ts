@@ -1,11 +1,10 @@
 import { PrismaClient } from "../../../../db";
+import {
+  FieldValidationError,
+  FieldValidationResult,
+  validateFieldAgainstSchema,
+} from "../../../../utils/jsonSchemaValidation";
 import { DatasetSchemaValidator } from "../DatasetSchemaValidator";
-import type { FieldValidationError, FieldValidationResult } from "../types";
-import { validateFieldAgainstSchema } from "./jsonSchemaValidation";
-
-// Re-export for backward compatibility
-// export { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
-// export type { FieldValidationError, FieldValidationResult };
 
 export type ValidationError = {
   datasetItemId: string;

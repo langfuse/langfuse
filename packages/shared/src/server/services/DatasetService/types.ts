@@ -1,23 +1,11 @@
 import { z } from "zod/v4";
 import { ValidationError } from "ajv";
-import { Dataset, Prisma } from "../../../db";
+import { Dataset, DatasetStatus, Prisma } from "../../../db";
 import { jsonSchemaNullable } from "../../../utils/zod";
-import { isValidJSONSchema } from "./utils/jsonSchemaValidation";
-
-export type FieldValidationError = {
-  path: string;
-  message: string;
-  keyword?: string;
-};
-
-export type FieldValidationResult =
-  | {
-      isValid: true;
-    }
-  | {
-      isValid: false;
-      errors: FieldValidationError[];
-    };
+import {
+  FieldValidationError,
+  isValidJSONSchema,
+} from "../../../utils/jsonSchemaValidation";
 
 /**
  * Schema for validating JSON Schema objects
@@ -49,7 +37,7 @@ export type DatasetMutationResult =
 export type PayloadError = {
   success: false;
   message: string;
-  cause: {
+  cause?: {
     inputErrors?: FieldValidationError[];
     expectedOutputErrors?: FieldValidationError[];
   };
@@ -66,3 +54,38 @@ export type PreparePayloadResult =
       metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonObject | undefined;
     }
   | PayloadError;
+
+export type CreateManyItemsPayload = {
+  datasetId: string;
+  input?: string | null;
+  expectedOutput?: string | null;
+  metadata?: string | null;
+  sourceTraceId?: string;
+  sourceObservationId?: string;
+}[];
+
+export type CreateManyItemsInsert = {
+  id: string;
+  projectId: string;
+  datasetId: string;
+  status: DatasetStatus;
+  input: Prisma.NullTypes.DbNull | Prisma.InputJsonObject | undefined;
+  expectedOutput: Prisma.NullTypes.DbNull | Prisma.InputJsonObject | undefined;
+  metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonObject | undefined;
+  sourceTraceId?: string;
+  sourceObservationId?: string;
+}[];
+
+/**
+ * Type for bulk dataset item validation errors
+ * Used when validating multiple items before creation (e.g., CSV upload)
+ */
+export type CreateManyValidationError = {
+  itemIndex: number;
+  field: "input" | "expectedOutput";
+  errors: Array<{
+    path: string;
+    message: string;
+    keyword?: string;
+  }>;
+};

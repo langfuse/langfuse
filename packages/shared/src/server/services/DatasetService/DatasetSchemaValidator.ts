@@ -1,9 +1,10 @@
 import { ValidateFunction } from "ajv";
 import {
-  createAjvInstance,
+  createAjvInstanceInternal,
+  FieldValidationError,
+  FieldValidationResult,
   validateWithCompiledSchema,
-} from "./utils/jsonSchemaValidation";
-import type { FieldValidationError, FieldValidationResult } from "./types";
+} from "../../../utils/jsonSchemaValidation";
 
 /**
  * Operation-scoped validator that compiles schemas once and reuses them
@@ -27,7 +28,7 @@ export class DatasetSchemaValidator {
     inputSchema?: Record<string, unknown> | null;
     expectedOutputSchema?: Record<string, unknown> | null;
   }) {
-    const ajv = createAjvInstance();
+    const ajv = createAjvInstanceInternal();
 
     if (params.inputSchema) {
       this.inputValidator = ajv.compile(params.inputSchema);
