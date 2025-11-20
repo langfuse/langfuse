@@ -289,7 +289,10 @@ async function upsertModelWithTiers(
  * Upserts a single pricing tier with its prices
  */
 async function upsertTierWithPrices(
-  tx: PrismaClient,
+  tx: Omit<
+    PrismaClient,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+  >,
   modelId: string,
   createdAt: Date,
   updatedAt: Date,
