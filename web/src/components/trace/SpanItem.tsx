@@ -5,11 +5,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import {
-  calculateDisplayTotalCost,
-  heatMapTextColor,
-  unnestObservation,
-} from "@/src/components/trace/lib/helpers";
+import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
 import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import React from "react";
@@ -42,19 +38,8 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   showComments = true,
   className,
 }) => {
-  const convertTreeNodeToObservation = (treeNode: TreeNode): any => ({
-    ...treeNode,
-    children: treeNode.children.map(convertTreeNodeToObservation),
-  });
-
-  const totalCost = calculateDisplayTotalCost({
-    allObservations:
-      node.children.length > 0
-        ? node.children.flatMap((child) =>
-            unnestObservation(convertTreeNodeToObservation(child)),
-          )
-        : [convertTreeNodeToObservation(node)],
-  });
+  // Use pre-computed cost from the TreeNode (computed during tree building)
+  const totalCost = node.totalCost;
 
   const duration =
     node.endTime && node.startTime
@@ -77,7 +62,9 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
       <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-        <span className="flex-shrink truncate text-xs">{node.name}</span>
+        <span className="flex-shrink truncate text-xs">
+          {node.name || `Unnamed ${node.type.toLowerCase()}`}
+        </span>
 
         <div className="flex items-center gap-x-2">
           {comments && showComments ? (

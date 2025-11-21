@@ -50,6 +50,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  // Optional to allow for server-setting fallbacks
+  CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
+  CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
