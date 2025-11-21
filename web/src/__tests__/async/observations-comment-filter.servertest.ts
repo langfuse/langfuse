@@ -9,11 +9,16 @@ import {
   createTracesCh,
   createObservation,
   createObservationsCh,
+  createEvent,
+  createEventsCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { env } from "@/src/env.mjs";
 
 describe("Observations Comment Filtering", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const useEventsTable =
+    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
 
   const session: Session = {
     expires: "1",
@@ -51,6 +56,32 @@ describe("Observations Comment Filtering", () => {
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
+  // Helper to create observation data in the appropriate format
+  const createObservationData = (data: {
+    id: string;
+    project_id: string;
+    trace_id: string;
+    type: string;
+  }) => {
+    if (useEventsTable) {
+      return createEvent({
+        ...data,
+        span_id: data.id,
+      });
+    } else {
+      return createObservation(data);
+    }
+  };
+
+  // Helper to insert observations into the correct table
+  const insertObservations = async (observations: any[]) => {
+    if (useEventsTable) {
+      await createEventsCh(observations);
+    } else {
+      await createObservationsCh(observations);
+    }
+  };
+
   // Helper to create standard query params
   const createQueryParams = (filter: any[]) => ({
     projectId,
@@ -75,17 +106,22 @@ describe("Observations Comment Filtering", () => {
       });
       await createTracesCh([trace1, trace2]);
 
-      const observation1 = createObservation({
+      const observation1Id = randomUUID();
+      const observation2Id = randomUUID();
+
+      const observation1 = createObservationData({
+        id: observation1Id,
         project_id: projectId,
         trace_id: trace1.id,
         type: "GENERATION",
       });
-      const observation2 = createObservation({
+      const observation2 = createObservationData({
+        id: observation2Id,
         project_id: projectId,
         trace_id: trace2.id,
         type: "GENERATION",
       });
-      await createObservationsCh([observation1, observation2]);
+      await insertObservations([observation1, observation2]);
 
       // Add 2 comments to observation1
       await prisma.comment.createMany({
@@ -93,14 +129,14 @@ describe("Observations Comment Filtering", () => {
           {
             projectId,
             objectType: "OBSERVATION",
-            objectId: observation1.id,
+            objectId: observation1Id,
             content: "First comment",
             authorUserId: "user-1",
           },
           {
             projectId,
             objectType: "OBSERVATION",
-            objectId: observation1.id,
+            objectId: observation1Id,
             content: "Second comment",
             authorUserId: "user-1",
           },
@@ -112,7 +148,7 @@ describe("Observations Comment Filtering", () => {
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: observation2.id,
+          objectId: observation2Id,
           content: "Only one comment",
           authorUserId: "user-1",
         },
@@ -131,9 +167,9 @@ describe("Observations Comment Filtering", () => {
 
       // Should get observation1 (has >= 2 comments)
       const observationIds = result.generations.map((o) => o.id);
-      expect(observationIds).toContain(observation1.id);
+      expect(observationIds).toContain(observation1Id);
       // observation2 has only 1 comment, should not be included
-      expect(observationIds).not.toContain(observation2.id);
+      expect(observationIds).not.toContain(observation2Id);
     });
   });
 
@@ -150,24 +186,29 @@ describe("Observations Comment Filtering", () => {
       });
       await createTracesCh([trace1, trace2]);
 
-      const observation1 = createObservation({
+      const observation1Id = randomUUID();
+      const observation2Id = randomUUID();
+
+      const observation1 = createObservationData({
+        id: observation1Id,
         project_id: projectId,
         trace_id: trace1.id,
         type: "GENERATION",
       });
-      const observation2 = createObservation({
+      const observation2 = createObservationData({
+        id: observation2Id,
         project_id: projectId,
         trace_id: trace2.id,
         type: "GENERATION",
       });
-      await createObservationsCh([observation1, observation2]);
+      await insertObservations([observation1, observation2]);
 
       // Add comments with different content
       await prisma.comment.create({
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: observation1.id,
+          objectId: observation1Id,
           content: "This observation has a bug in the output",
           authorUserId: "user-1",
         },
@@ -177,7 +218,7 @@ describe("Observations Comment Filtering", () => {
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: observation2.id,
+          objectId: observation2Id,
           content: "Observation works perfectly",
           authorUserId: "user-1",
         },
@@ -195,8 +236,8 @@ describe("Observations Comment Filtering", () => {
       );
 
       const observationIds = result.generations.map((o) => o.id);
-      expect(observationIds).toContain(observation1.id);
-      expect(observationIds).not.toContain(observation2.id);
+      expect(observationIds).toContain(observation1Id);
+      expect(observationIds).not.toContain(observation2Id);
     });
   });
 
@@ -209,12 +250,14 @@ describe("Observations Comment Filtering", () => {
       });
       await createTracesCh([trace]);
 
-      const observation = createObservation({
+      const observationId = randomUUID();
+      const observation = createObservationData({
+        id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await createObservationsCh([observation]);
+      await insertObservations([observation]);
 
       // Add 2 comments with "bug" in content
       await prisma.comment.createMany({
@@ -222,14 +265,14 @@ describe("Observations Comment Filtering", () => {
           {
             projectId,
             objectType: "OBSERVATION",
-            objectId: observation.id,
+            objectId: observationId,
             content: "Found a bug here",
             authorUserId: "user-1",
           },
           {
             projectId,
             objectType: "OBSERVATION",
-            objectId: observation.id,
+            objectId: observationId,
             content: "Confirmed the bug",
             authorUserId: "user-1",
           },
@@ -254,7 +297,7 @@ describe("Observations Comment Filtering", () => {
       );
 
       const observationIds = result.generations.map((o) => o.id);
-      expect(observationIds).toContain(observation.id);
+      expect(observationIds).toContain(observationId);
     });
   });
 
@@ -267,19 +310,21 @@ describe("Observations Comment Filtering", () => {
       });
       await createTracesCh([trace]);
 
-      const observation = createObservation({
+      const observationId = randomUUID();
+      const observation = createObservationData({
+        id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await createObservationsCh([observation]);
+      await insertObservations([observation]);
 
       // Add comment
       await prisma.comment.create({
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: observation.id,
+          objectId: observationId,
           content: "Test comment for counting",
           authorUserId: "user-1",
         },
@@ -316,19 +361,21 @@ describe("Observations Comment Filtering", () => {
       });
       await createTracesCh([trace]);
 
-      const observation = createObservation({
+      const observationId = randomUUID();
+      const observation = createObservationData({
+        id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await createObservationsCh([observation]);
+      await insertObservations([observation]);
 
       // Add comment
       await prisma.comment.create({
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: observation.id,
+          objectId: observationId,
           content: "Test comment",
           authorUserId: "user-1",
         },
@@ -358,7 +405,7 @@ describe("Observations Comment Filtering", () => {
       );
 
       const observationIds = result.generations.map((o) => o.id);
-      expect(observationIds).toContain(observation.id);
+      expect(observationIds).toContain(observationId);
     });
 
     it("should return empty results when no observations match range", async () => {
@@ -369,19 +416,21 @@ describe("Observations Comment Filtering", () => {
       });
       await createTracesCh([trace]);
 
-      const observation = createObservation({
+      const observationId = randomUUID();
+      const observation = createObservationData({
+        id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await createObservationsCh([observation]);
+      await insertObservations([observation]);
 
       // Add comment
       await prisma.comment.create({
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: observation.id,
+          objectId: observationId,
           content: "Test comment",
           authorUserId: "user-1",
         },
@@ -409,19 +458,21 @@ describe("Observations Comment Filtering", () => {
       });
       await createTracesCh([trace]);
 
-      const observation = createObservation({
+      const observationId = randomUUID();
+      const observation = createObservationData({
+        id: observationId,
         project_id: projectId,
         trace_id: trace.id,
         type: "GENERATION",
       });
-      await createObservationsCh([observation]);
+      await insertObservations([observation]);
 
       // Add comment with special characters
       await prisma.comment.create({
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: observation.id,
+          objectId: observationId,
           content: "Error: (test & validation) failed!",
           authorUserId: "user-1",
         },
@@ -440,7 +491,7 @@ describe("Observations Comment Filtering", () => {
       );
 
       const observationIds = result.generations.map((o) => o.id);
-      expect(observationIds).toContain(observation.id);
+      expect(observationIds).toContain(observationId);
     });
   });
 });

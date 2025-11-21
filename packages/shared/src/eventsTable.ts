@@ -4,6 +4,13 @@ import { type ColumnDefinition } from "./tableDefinitions";
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns
 export const eventsTableCols: ColumnDefinition[] = [
   {
+    name: "ID",
+    id: "id",
+    type: "stringOptions",
+    internal: "e.span_id",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Trace ID",
     id: "traceId",
     type: "string",

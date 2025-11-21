@@ -184,6 +184,7 @@ describe("Traces Comment Filtering", () => {
 
   describe("Combined Filters (AND Logic)", () => {
     it("should combine comment count + content filters", async () => {
+      const uniqueId = randomUUID();
       const trace1 = createTrace({
         project_id: projectId,
         id: randomUUID(),
@@ -196,14 +197,14 @@ describe("Traces Comment Filtering", () => {
             projectId,
             objectType: "TRACE",
             objectId: trace1.id,
-            content: "Found a bug here",
+            content: `Found a bug here ${uniqueId}`,
             authorUserId: "user-1",
           },
           {
             projectId,
             objectType: "TRACE",
             objectId: trace1.id,
-            content: "Confirmed the bug",
+            content: `Confirmed the bug ${uniqueId}`,
             authorUserId: "user-1",
           },
         ],
@@ -221,7 +222,7 @@ describe("Traces Comment Filtering", () => {
             type: "string",
             column: "commentContent",
             operator: "contains",
-            value: "bug",
+            value: uniqueId,
           },
         ]),
       );
@@ -463,6 +464,7 @@ describe("Traces Comment Filtering", () => {
     });
 
     it("should handle special characters in search query", async () => {
+      const uniqueId = randomUUID();
       const trace = createTrace({
         project_id: projectId,
         id: randomUUID(),
@@ -474,7 +476,7 @@ describe("Traces Comment Filtering", () => {
           projectId,
           objectType: "TRACE",
           objectId: trace.id,
-          content: "Error: (test & validation) failed!",
+          content: `Error: (test & validation) failed! ${uniqueId}`,
           authorUserId: "user-1",
         },
       });
@@ -486,7 +488,7 @@ describe("Traces Comment Filtering", () => {
             type: "string",
             column: "commentContent",
             operator: "contains",
-            value: "test & validation",
+            value: `test & validation) failed! ${uniqueId}`,
           },
         ]),
       );
