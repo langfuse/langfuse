@@ -1,10 +1,22 @@
+/**
+ * TraceDataContext - Provides read-only trace data and derived structures.
+ *
+ * Purpose:
+ * - Provides trace, observations, scores from props
+ * - Computes and memoizes tree structure, nodeMap, and searchItems
+ *
+ * Not responsible for:
+ * - Data fetching (done by parent via API hooks)
+ * - UI state (selection, collapsed nodes) - see SelectionContext
+ * - Display preferences - see ViewPreferencesContext
+ */
+
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { type TreeNode } from "@/src/components/trace/lib/types";
-import { type TraceSearchListItem } from "@/src/components/trace/TraceSearchList";
-import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
+import { type TreeNode, type TraceSearchListItem } from "../lib/types";
+import { buildTraceUiData } from "../lib/tree-building";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,

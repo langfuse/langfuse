@@ -1,3 +1,16 @@
+/**
+ * ViewPreferencesContext - Manages user display preferences persisted to localStorage.
+ *
+ * Purpose:
+ * - Stores toggle states for tree item display (duration, cost, scores, comments)
+ * - Manages minimum observation level filter
+ * - Persists preferences across sessions via localStorage
+ *
+ * Not responsible for:
+ * - Trace data - see TraceDataContext
+ * - Selection/navigation state - see SelectionContext
+ */
+
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
 import useLocalStorage from "@/src/components/useLocalStorage";

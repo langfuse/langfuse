@@ -1,3 +1,16 @@
+/**
+ * SelectionContext - Manages UI navigation and interaction state.
+ *
+ * Purpose:
+ * - Tracks selected node ID (synced to URL query param)
+ * - Manages collapsed/expanded state for tree nodes
+ * - Handles search query with debounced input
+ *
+ * Not responsible for:
+ * - Trace data or tree structure - see TraceDataContext
+ * - Display preferences - see ViewPreferencesContext
+ */
+
 import {
   createContext,
   useContext,
