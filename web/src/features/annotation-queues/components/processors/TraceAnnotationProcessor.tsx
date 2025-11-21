@@ -6,13 +6,14 @@ import {
   AnnotationQueueObjectType,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { api } from "@/src/utils/api";
 import { castToNumberMap } from "@/src/utils/map-utils";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
 
 interface TraceAnnotationProcessorProps {
   item: AnnotationQueueItem & {
@@ -80,6 +81,13 @@ export const TraceAnnotationProcessor: React.FC<
     } else setCurrentObservationId(undefined);
   }, [view, item, setCurrentObservationId]);
 
+  const { tree: traceTree, nodeMap } = useMemo(() => {
+    if (!data || !data.observations) {
+      return { tree: null, nodeMap: new Map() };
+    }
+    return buildTraceUiData(data, data.observations);
+  }, [data]);
+
   if (!data) return <div className="p-3">Loading...</div>;
 
   let isValidObservationId = false;
@@ -105,6 +113,7 @@ export const TraceAnnotationProcessor: React.FC<
             viewType="focused"
             showCommentButton={true}
             commentCounts={castToNumberMap(traceCommentCounts.data)}
+            precomputedCost={traceTree?.totalCost}
           />
         ) : (
           <ObservationPreview
@@ -112,6 +121,7 @@ export const TraceAnnotationProcessor: React.FC<
             serverScores={data.scores}
             projectId={item.projectId}
             currentObservationId={item.objectId}
+            precomputedCost={nodeMap.get(item.objectId)?.totalCost}
             traceId={traceId}
             viewType="focused"
             showCommentButton={true}
