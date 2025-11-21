@@ -147,7 +147,16 @@ export default async function handler(
     // Format error for user (never throw from handler)
     if (!res.headersSent) {
       const mcpError = formatErrorForUser(error);
-      res.status(500).json({
+
+      // Return appropriate HTTP status based on error type
+      let status = 500;
+      if (error instanceof UnauthorizedError) {
+        status = 401;
+      } else if (error instanceof ForbiddenError) {
+        status = 403;
+      }
+
+      res.status(status).json({
         error: mcpError.message,
         code: mcpError.code,
       });
