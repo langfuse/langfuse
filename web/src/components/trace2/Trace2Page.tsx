@@ -99,16 +99,20 @@ export function Trace2Page({
                   ...(typeof view === "string" ? { view } : {}),
                   ...(typeof display === "string" ? { display } : {}),
                 });
-                const queryParamString = Boolean(queryParams.size)
-                  ? `?${queryParams.toString()}`
-                  : "";
-
                 const timestamp =
                   entry.params && entry.params.timestamp
                     ? encodeURIComponent(entry.params.timestamp)
                     : undefined;
 
-                return `/project/${projectId as string}/traces2/${entry.id}${queryParamString}${timestamp ? `?timestamp=${timestamp}` : ""}`;
+                if (timestamp) {
+                  queryParams.set("timestamp", timestamp);
+                }
+
+                const finalQueryString = queryParams.size
+                  ? `?${queryParams.toString()}`
+                  : "";
+
+                return `/project/${projectId as string}/traces2/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
             />
