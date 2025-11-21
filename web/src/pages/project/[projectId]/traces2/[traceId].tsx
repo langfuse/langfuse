@@ -1,7 +1,7 @@
-import { Trace2Page } from "@/src/components/trace2/Trace2Page";
+import { TracePage } from "@/src/components/trace2/TracePage";
 import { useRouter } from "next/router";
 
-export default function Trace2() {
+export default function Trace() {
   const router = useRouter();
   const traceId = router.query.traceId as string;
 
@@ -10,5 +10,5 @@ export default function Trace2() {
       ? new Date(decodeURIComponent(router.query.timestamp))
       : undefined;
 
-  return <Trace2Page traceId={traceId} timestamp={timestamp} />;
+  return <TracePage traceId={traceId} timestamp={timestamp} />;
 }

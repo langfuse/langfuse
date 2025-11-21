@@ -10,7 +10,7 @@ import {
 } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider, useSelection } from "./contexts/SelectionContext";
 
-export type Trace2Props = {
+export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     input: string | null;
@@ -29,7 +29,7 @@ export type Trace2Props = {
   ) => void;
 };
 
-export function Trace2(props: Trace2Props) {
+export function Trace(props: TraceProps) {
   const { trace, observations, scores, defaultMinObservationLevel } = props;
 
   return (
@@ -42,14 +42,14 @@ export function Trace2(props: Trace2Props) {
         defaultMinObservationLevel={defaultMinObservationLevel}
       >
         <SelectionProvider>
-          <Trace2Content />
+          <TraceContent />
         </SelectionProvider>
       </ViewPreferencesProvider>
     </TraceDataProvider>
   );
 }
 
-function Trace2Content() {
+function TraceContent() {
   const traceData = useTraceData();
   const viewPrefs = useViewPreferences();
   const selection = useSelection();
@@ -57,7 +57,7 @@ function Trace2Content() {
   return (
     <div className="flex h-full w-full items-center justify-center">
       <div className="text-center">
-        <h2 className="text-lg font-semibold">Trace2 Component</h2>
+        <h2 className="text-lg font-semibold">Trace Component</h2>
         <p className="text-muted-foreground">
           Loaded {traceData.observations.length} observations for trace &quot;
           {traceData.trace.name ?? traceData.trace.id}&quot;

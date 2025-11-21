@@ -1,5 +1,5 @@
 /**
- * Tree building utilities for trace2 component.
+ * Tree building utilities for trace component.
  *
  * Transforms flat observation arrays into hierarchical TreeNode structures.
  * Includes cost aggregation computed bottom-up for O(1) access.
@@ -248,50 +248,6 @@ function buildTraceTree(
 }
 
 /**
- * Calculates total cost for a tree node and all descendants.
- */
-function calculateTreeNodeTotalCost(node: TreeNode): Decimal | undefined {
-  let nodeCost: Decimal | undefined;
-
-  if (node.calculatedTotalCost != null) {
-    const cost = new Decimal(node.calculatedTotalCost);
-    if (!cost.isZero()) {
-      nodeCost = cost;
-    }
-  } else if (
-    node.calculatedInputCost != null ||
-    node.calculatedOutputCost != null
-  ) {
-    const inputCost =
-      node.calculatedInputCost != null
-        ? new Decimal(node.calculatedInputCost)
-        : new Decimal(0);
-    const outputCost =
-      node.calculatedOutputCost != null
-        ? new Decimal(node.calculatedOutputCost)
-        : new Decimal(0);
-    const combinedCost = inputCost.plus(outputCost);
-    if (!combinedCost.isZero()) {
-      nodeCost = combinedCost;
-    }
-  }
-
-  const childrenCost = node.children.reduce<Decimal | undefined>(
-    (acc, child) => {
-      const childCost = calculateTreeNodeTotalCost(child);
-      if (!childCost) return acc;
-      return acc ? acc.plus(childCost) : childCost;
-    },
-    undefined,
-  );
-
-  if (nodeCost && childrenCost) {
-    return nodeCost.plus(childrenCost);
-  }
-  return nodeCost || childrenCost;
-}
-
-/**
  * Main entry point: builds complete UI data from trace and observations.
  *
  * Returns:
@@ -316,15 +272,8 @@ export function buildTraceUiData(
     minLevel,
   );
 
-  // Calculate root totals for heatmap scaling
-  const rootTotalCost =
-    tree.type === "TRACE"
-      ? tree.children.reduce<Decimal | undefined>((acc, child) => {
-          const childCost = calculateTreeNodeTotalCost(child);
-          if (!childCost) return acc;
-          return acc ? acc.plus(childCost) : childCost;
-        }, undefined)
-      : calculateTreeNodeTotalCost(tree);
+  // Use pre-computed totals for heatmap scaling (computed in enrichTreeNodeWithCosts)
+  const rootTotalCost = tree.totalCost;
   const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
 
   // Build flat search items list

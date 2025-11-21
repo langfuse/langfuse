@@ -1,5 +1,5 @@
 /**
- * Core types for trace2 component tree structure.
+ * Core types for trace component tree structure.
  *
  * TreeNode: Unified node type representing both traces and observations in a hierarchical tree.
  * TraceSearchListItem: Flattened representation of tree nodes for search/list views.
