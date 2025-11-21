@@ -108,6 +108,19 @@ export class ClickHouseClientManager {
         },
         max_open_connections: env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
         clickhouse_settings: {
+          // Overwrite async insert settings to tune throughput
+          ...(env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE
+            ? {
+                async_insert_max_data_size:
+                  env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE,
+              }
+            : {}),
+          ...(env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS
+            ? {
+                async_insert_busy_timeout_ms:
+                  env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS,
+              }
+            : {}),
           ...cloudOptions,
           ...opts.clickhouse_settings,
           async_insert: 1,
