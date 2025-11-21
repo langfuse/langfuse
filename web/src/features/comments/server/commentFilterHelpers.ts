@@ -12,6 +12,11 @@ import type { z } from "zod/v4";
 export const COMMENT_FILTER_THRESHOLD = 50000;
 
 /**
+ * Supported object types for comment filtering
+ */
+export type CommentObjectType = "TRACE" | "OBSERVATION" | "SESSION" | "PROMPT";
+
+/**
  * Supported operators for comment count filters
  */
 export type CommentCountOperator = ">=" | "<=" | "=" | ">" | "<" | "!=";
@@ -26,39 +31,46 @@ export type CommentContentOperator =
   | "ends with";
 
 /**
- * Validates that the number of trace IDs is within acceptable limits.
+ * Validates that the number of object IDs is within acceptable limits.
  * Throws a user-friendly error if threshold is exceeded.
  */
-export function validateTraceIdCount(traceIds: string[]): void {
-  if (traceIds.length > COMMENT_FILTER_THRESHOLD) {
+export function validateObjectIdCount(
+  objectIds: string[],
+  objectType: CommentObjectType,
+): void {
+  if (objectIds.length > COMMENT_FILTER_THRESHOLD) {
+    const objectTypePlural = objectType.toLowerCase() + "s";
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Comment filter matches ${traceIds.length.toLocaleString()} traces (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString()}). Please add additional filters to narrow your search.`,
+      message: `Comment filter matches ${objectIds.length.toLocaleString()} ${objectTypePlural} (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString()}). Please add additional filters to narrow your search.`,
     });
   }
 }
 
 /**
- * Query PostgreSQL for trace IDs that have a specific number of comments.
+ * Query PostgreSQL for object IDs that have a specific number of comments.
  * Uses GROUP BY + HAVING to efficiently filter by comment count.
  *
  * @example
  * // Get traces with >= 3 comments
- * await getTraceIdsByCommentCount({
+ * await getObjectIdsByCommentCount({
  *   prisma,
  *   projectId: "abc123",
+ *   objectType: "TRACE",
  *   operator: ">=",
  *   value: 3
  * });
  */
-export async function getTraceIdsByCommentCount({
+export async function getObjectIdsByCommentCount({
   prisma,
   projectId,
+  objectType,
   operator,
   value,
 }: {
   prisma: PrismaClient;
   projectId: string;
+  objectType: CommentObjectType;
   operator: CommentCountOperator;
   value: number;
 }): Promise<string[]> {
@@ -81,7 +93,7 @@ export async function getTraceIdsByCommentCount({
   const rawQuery = Prisma.sql`
     SELECT object_id
     FROM comments
-    WHERE project_id = ${projectId} AND object_type = 'TRACE'
+    WHERE project_id = ${projectId} AND object_type = ${objectType}::"CommentObjectType"
     GROUP BY object_id
     HAVING COUNT(*) ${Prisma.raw(operator)} ${value}
   `;
@@ -91,27 +103,30 @@ export async function getTraceIdsByCommentCount({
 }
 
 /**
- * Query PostgreSQL for trace IDs where comments match a text search query.
+ * Query PostgreSQL for object IDs where comments match a text search query.
  * Uses PostgreSQL's full-text search with GIN index for "contains" operator.
  * Falls back to ILIKE for other operators.
  *
  * @example
  * // Get traces with comments containing "bug"
- * await getTraceIdsByCommentContent({
+ * await getObjectIdsByCommentContent({
  *   prisma,
  *   projectId: "abc123",
+ *   objectType: "TRACE",
  *   searchQuery: "bug",
  *   operator: "contains"
  * });
  */
-export async function getTraceIdsByCommentContent({
+export async function getObjectIdsByCommentContent({
   prisma,
   projectId,
+  objectType,
   searchQuery,
   operator = "contains",
 }: {
   prisma: PrismaClient;
   projectId: string;
+  objectType: CommentObjectType;
   searchQuery: string;
   operator?: CommentContentOperator;
 }): Promise<string[]> {
@@ -128,7 +143,7 @@ export async function getTraceIdsByCommentContent({
       SELECT DISTINCT object_id
       FROM comments
       WHERE project_id = ${projectId}
-        AND object_type = 'TRACE'
+        AND object_type = ${objectType}::"CommentObjectType"
         AND to_tsvector('english', content) @@ plainto_tsquery('english', ${trimmedQuery})
     `;
 
@@ -141,7 +156,7 @@ export async function getTraceIdsByCommentContent({
   if (operator === "does not contain") {
     whereCondition = {
       projectId,
-      objectType: "TRACE",
+      objectType,
       NOT: {
         content: {
           contains: searchQuery,
@@ -152,7 +167,7 @@ export async function getTraceIdsByCommentContent({
   } else if (operator === "starts with") {
     whereCondition = {
       projectId,
-      objectType: "TRACE",
+      objectType,
       content: {
         startsWith: searchQuery,
         mode: "insensitive",
@@ -161,7 +176,7 @@ export async function getTraceIdsByCommentContent({
   } else if (operator === "ends with") {
     whereCondition = {
       projectId,
-      objectType: "TRACE",
+      objectType,
       content: {
         endsWith: searchQuery,
         mode: "insensitive",
@@ -171,7 +186,7 @@ export async function getTraceIdsByCommentContent({
     // Default to contains
     whereCondition = {
       projectId,
-      objectType: "TRACE",
+      objectType,
       content: {
         contains: searchQuery,
         mode: "insensitive",
@@ -189,39 +204,42 @@ export async function getTraceIdsByCommentContent({
 }
 
 /**
- * Processes comment filters from filter state and returns matching trace IDs.
+ * Processes comment filters from filter state and returns matching object IDs.
  * Extracts comment filters, queries PostgreSQL, and removes them from filter state.
- * This consolidates the duplicated logic across traces.all, traces.countAll, and traces.metrics.
+ * This consolidates the duplicated logic across all endpoints (traces, sessions, prompts, observations).
  *
  * @returns Object with:
  *   - updatedFilterState: Filter state with comment filters removed
- *   - matchingTraceIds: null if no comment filters, [] if no matches, or array of matching trace IDs
+ *   - matchingObjectIds: null if no comment filters, [] if no matches, or array of matching object IDs
  *
  * @example
- * const { updatedFilterState, matchingTraceIds } = await processCommentFilters({
+ * const { updatedFilterState, matchingObjectIds } = await processCommentFilters({
  *   filterState: input.filter,
  *   prisma,
- *   projectId: ctx.session.projectId
+ *   projectId: ctx.session.projectId,
+ *   objectType: "TRACE"
  * });
  *
- * if (matchingTraceIds !== null) {
- *   if (matchingTraceIds.length === 0) {
+ * if (matchingObjectIds !== null) {
+ *   if (matchingObjectIds.length === 0) {
  *     return { traces: [] }; // No matches
  *   }
- *   // Use matchingTraceIds to filter ClickHouse query
+ *   // Use matchingObjectIds to filter query
  * }
  */
 export async function processCommentFilters({
   filterState,
   prisma,
   projectId,
+  objectType,
 }: {
   filterState: z.infer<typeof singleFilter>[];
   prisma: PrismaClient;
   projectId: string;
+  objectType: CommentObjectType;
 }): Promise<{
   updatedFilterState: z.infer<typeof singleFilter>[];
-  matchingTraceIds: string[] | null;
+  matchingObjectIds: string[] | null;
 }> {
   // Extract comment filters from filterState
   const commentCountFilters = filterState.filter(
@@ -237,11 +255,11 @@ export async function processCommentFilters({
   if (commentCountFilters.length === 0 && !commentContentFilter) {
     return {
       updatedFilterState: filterState,
-      matchingTraceIds: null,
+      matchingObjectIds: null,
     };
   }
 
-  let traceIdsFromComments: string[] = [];
+  let objectIdsFromComments: string[] = [];
   const hasCommentCountFilters = commentCountFilters.length > 0;
 
   // Remove comment filters from filterState
@@ -260,22 +278,23 @@ export async function processCommentFilters({
     let isFirstCommentCountFilter = true;
     for (const commentCountFilter of commentCountFilters) {
       if (commentCountFilter.type === "number") {
-        const filterTraceIds = await getTraceIdsByCommentCount({
+        const filterObjectIds = await getObjectIdsByCommentCount({
           prisma,
           projectId,
+          objectType,
           operator: commentCountFilter.operator as CommentCountOperator,
           value: commentCountFilter.value,
         });
 
-        validateTraceIdCount(filterTraceIds);
+        validateObjectIdCount(filterObjectIds, objectType);
 
         // Intersect with previous results (AND logic for multiple filters)
         if (isFirstCommentCountFilter) {
-          traceIdsFromComments = filterTraceIds;
+          objectIdsFromComments = filterObjectIds;
           isFirstCommentCountFilter = false;
         } else {
-          traceIdsFromComments = traceIdsFromComments.filter((id) =>
-            filterTraceIds.includes(id),
+          objectIdsFromComments = objectIdsFromComments.filter((id) =>
+            filterObjectIds.includes(id),
           );
         }
       }
@@ -284,28 +303,29 @@ export async function processCommentFilters({
 
   // Handle comment content filter
   if (commentContentFilter && commentContentFilter.type === "string") {
-    const contentTraceIds = await getTraceIdsByCommentContent({
+    const contentObjectIds = await getObjectIdsByCommentContent({
       prisma,
       projectId,
+      objectType,
       searchQuery: commentContentFilter.value,
       operator: commentContentFilter.operator as CommentContentOperator,
     });
 
-    validateTraceIdCount(contentTraceIds);
+    validateObjectIdCount(contentObjectIds, objectType);
 
     // Intersect with comment count results if present
     if (hasCommentCountFilters) {
       // Always intersect if comment count filters were processed
-      traceIdsFromComments = traceIdsFromComments.filter((id) =>
-        contentTraceIds.includes(id),
+      objectIdsFromComments = objectIdsFromComments.filter((id) =>
+        contentObjectIds.includes(id),
       );
     } else {
-      traceIdsFromComments = contentTraceIds;
+      objectIdsFromComments = contentObjectIds;
     }
   }
 
   return {
     updatedFilterState,
-    matchingTraceIds: traceIdsFromComments,
+    matchingObjectIds: objectIdsFromComments,
   };
 }

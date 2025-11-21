@@ -112,18 +112,19 @@ export const traceRouter = createTRPCRouter({
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
       // Process comment filters and get matching trace IDs
-      const { updatedFilterState, matchingTraceIds } =
+      const { updatedFilterState, matchingObjectIds } =
         await processCommentFilters({
           filterState: input.filter ?? [],
           prisma: ctx.prisma,
           projectId: ctx.session.projectId,
+          objectType: "TRACE",
         });
 
       let filterState = updatedFilterState;
 
       // Handle comment filter results
-      if (matchingTraceIds !== null) {
-        if (matchingTraceIds.length === 0) {
+      if (matchingObjectIds !== null) {
+        if (matchingObjectIds.length === 0) {
           // No traces match comment filters - return empty result
           return { traces: [] };
         }
@@ -133,7 +134,7 @@ export const traceRouter = createTRPCRouter({
           type: "stringOptions",
           operator: "any of",
           column: "id",
-          value: matchingTraceIds,
+          value: matchingObjectIds,
         });
       }
 
@@ -152,18 +153,19 @@ export const traceRouter = createTRPCRouter({
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
       // Process comment filters and get matching trace IDs
-      const { updatedFilterState, matchingTraceIds } =
+      const { updatedFilterState, matchingObjectIds } =
         await processCommentFilters({
           filterState: input.filter ?? [],
           prisma: ctx.prisma,
           projectId: ctx.session.projectId,
+          objectType: "TRACE",
         });
 
       let filterState = updatedFilterState;
 
       // Handle comment filter results
-      if (matchingTraceIds !== null) {
-        if (matchingTraceIds.length === 0) {
+      if (matchingObjectIds !== null) {
+        if (matchingObjectIds.length === 0) {
           // No traces match comment filters - return 0 count
           return { totalCount: 0 };
         }
@@ -173,7 +175,7 @@ export const traceRouter = createTRPCRouter({
           type: "stringOptions",
           operator: "any of",
           column: "id",
-          value: matchingTraceIds,
+          value: matchingObjectIds,
         });
       }
 
@@ -202,25 +204,26 @@ export const traceRouter = createTRPCRouter({
       if (input.traceIds.length === 0) return [];
 
       // Process comment filters and get matching trace IDs
-      const { updatedFilterState, matchingTraceIds } =
+      const { updatedFilterState, matchingObjectIds } =
         await processCommentFilters({
           filterState: input.filter ?? [],
           prisma: ctx.prisma,
           projectId: ctx.session.projectId,
+          objectType: "TRACE",
         });
 
       let filteredTraceIds = input.traceIds;
 
       // Handle comment filter results
-      if (matchingTraceIds !== null) {
-        if (matchingTraceIds.length === 0) {
+      if (matchingObjectIds !== null) {
+        if (matchingObjectIds.length === 0) {
           // No traces match comment filters - return empty result
           return [];
         }
 
         // Filter input.traceIds to only include traces matching comment filters
         filteredTraceIds = input.traceIds.filter((id) =>
-          matchingTraceIds.includes(id),
+          matchingObjectIds.includes(id),
         );
 
         if (filteredTraceIds.length === 0) {

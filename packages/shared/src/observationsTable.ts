@@ -218,6 +218,18 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: "t.tags",
     options: [], // to be added at runtime
   },
+  {
+    name: "Comment Count",
+    id: "commentCount",
+    type: "number",
+    internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Comment Content",
+    id: "commentContent",
+    type: "string",
+    internal: "", // handled by comment filter helpers
+  },
 ];
 
 // to be used client side, insert options for use in filter-builder

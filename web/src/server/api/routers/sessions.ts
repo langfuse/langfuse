@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { processCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
 import {
   createTRPCRouter,
   protectedGetSessionProcedure,
@@ -140,9 +141,35 @@ export const sessionRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
+      // Process comment filters and get matching session IDs
+      const { updatedFilterState, matchingObjectIds } =
+        await processCommentFilters({
+          filterState: input.filter ?? [],
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          objectType: "SESSION",
+        });
+
+      // Handle comment filter results
+      let filterWithComments = updatedFilterState;
+      if (matchingObjectIds !== null) {
+        if (matchingObjectIds.length === 0) {
+          // No sessions match comment filters - return empty result
+          return { sessions: [] };
+        }
+
+        // Inject matching session IDs as filter
+        filterWithComments.push({
+          type: "stringOptions",
+          operator: "any of",
+          column: "id",
+          value: matchingObjectIds,
+        });
+      }
+
       const finalFilter = await getPublicSessionsFilter(
         input.projectId,
-        input.filter ?? [],
+        filterWithComments,
       );
       const sessions = await getSessionsTable({
         projectId: input.projectId,
@@ -187,10 +214,36 @@ export const sessionRouter = createTRPCRouter({
     }),
   countAll: protectedProjectProcedure
     .input(SessionFilterOptions)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // Process comment filters and get matching session IDs
+      const { updatedFilterState, matchingObjectIds } =
+        await processCommentFilters({
+          filterState: input.filter ?? [],
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          objectType: "SESSION",
+        });
+
+      // Handle comment filter results
+      let filterWithComments = updatedFilterState;
+      if (matchingObjectIds !== null) {
+        if (matchingObjectIds.length === 0) {
+          // No sessions match comment filters - return 0 count
+          return { totalCount: 0 };
+        }
+
+        // Inject matching session IDs as filter
+        filterWithComments.push({
+          type: "stringOptions",
+          operator: "any of",
+          column: "id",
+          value: matchingObjectIds,
+        });
+      }
+
       const finalFilter = await getPublicSessionsFilter(
         input.projectId,
-        input.filter ?? [],
+        filterWithComments,
       );
       const count = await getSessionsTableCount({
         projectId: input.projectId,

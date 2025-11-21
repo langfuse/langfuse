@@ -115,5 +115,17 @@ export const sessionFilterConfig: FilterConfig = {
       column: "scores_avg",
       label: "Numeric Scores",
     },
+    {
+      type: "numeric" as const,
+      column: "commentCount",
+      label: "Comment Count",
+      min: 0,
+      max: 100,
+    },
+    {
+      type: "string" as const,
+      column: "commentContent",
+      label: "Comment Content",
+    },
   ],
 };
