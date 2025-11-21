@@ -648,4 +648,252 @@ describe("buildTraceUiData", () => {
       expect(result.tree.totalCost).toBeUndefined();
     });
   });
+
+  describe.skip("Performance Tests", () => {
+    // Helper to generate observations at scale
+    const generateObservations = (
+      count: number,
+      structure: "flat" | "deep" | "balanced" | "realistic",
+      withCosts: boolean,
+    ): ObservationReturnType[] => {
+      const observations: ObservationReturnType[] = [];
+      const baseCost = withCosts ? 0.001 : null;
+
+      if (structure === "flat") {
+        // All observations at root level
+        for (let i = 0; i < count; i++) {
+          observations.push(
+            createMockObservation({
+              id: `obs-${i}`,
+              parentObservationId: null,
+              totalCost: baseCost,
+              startTime: new Date(`2024-01-01T00:00:${i % 60}.${i % 1000}Z`),
+            }),
+          );
+        }
+      } else if (structure === "deep") {
+        // Single linear chain (worst case for recursion)
+        for (let i = 0; i < count; i++) {
+          observations.push(
+            createMockObservation({
+              id: `obs-${i}`,
+              parentObservationId: i === 0 ? null : `obs-${i - 1}`,
+              totalCost: baseCost,
+              startTime: new Date(`2024-01-01T00:00:${i % 60}.${i % 1000}Z`),
+            }),
+          );
+        }
+      } else if (structure === "balanced") {
+        // Binary tree structure
+        for (let i = 0; i < count; i++) {
+          const parentIndex = i === 0 ? null : Math.floor((i - 1) / 2);
+          observations.push(
+            createMockObservation({
+              id: `obs-${i}`,
+              parentObservationId:
+                parentIndex === null ? null : `obs-${parentIndex}`,
+              totalCost: baseCost,
+              startTime: new Date(`2024-01-01T00:00:${i % 60}.${i % 1000}Z`),
+            }),
+          );
+        }
+      } else {
+        // Realistic: ~20% intermediate nodes, ~80% leaf nodes, max depth ~10
+        const intermediateNodeCount = Math.floor(count * 0.2);
+        const leafNodeCount = count - intermediateNodeCount;
+
+        // Create intermediate nodes
+        for (let i = 0; i < intermediateNodeCount; i++) {
+          const depth = Math.min(Math.floor(Math.random() * 10), 9);
+          const parentIndex =
+            depth === 0 ? null : Math.floor(Math.random() * i);
+          observations.push(
+            createMockObservation({
+              id: `obs-${i}`,
+              parentObservationId:
+                parentIndex === null ? null : `obs-${parentIndex}`,
+              totalCost: baseCost,
+              startTime: new Date(`2024-01-01T00:00:${i % 60}.${i % 1000}Z`),
+            }),
+          );
+        }
+
+        // Create leaf nodes
+        for (let i = 0; i < leafNodeCount; i++) {
+          const parentIndex =
+            intermediateNodeCount === 0
+              ? null
+              : Math.floor(Math.random() * intermediateNodeCount);
+          observations.push(
+            createMockObservation({
+              id: `obs-${intermediateNodeCount + i}`,
+              parentObservationId:
+                parentIndex === null ? null : `obs-${parentIndex}`,
+              totalCost: baseCost,
+              startTime: new Date(
+                `2024-01-01T00:00:${(intermediateNodeCount + i) % 60}.${(intermediateNodeCount + i) % 1000}Z`,
+              ),
+            }),
+          );
+        }
+      }
+
+      return observations;
+    };
+
+    const runPerformanceTest = (
+      scale: number,
+      structure: "flat" | "deep" | "balanced" | "realistic",
+      withCosts: boolean,
+      threshold: number,
+    ) => {
+      const trace = createMockTrace();
+      const observations = generateObservations(scale, structure, withCosts);
+
+      const start = Date.now();
+      const result = buildTraceUiData(trace, observations);
+      const duration = Date.now() - start;
+
+      // Verify correct structure was built
+      expect(result.nodeMap.size).toBe(scale + 1); // +1 for trace root
+      expect(result.searchItems.length).toBe(scale + 1);
+
+      // Log performance metrics
+      console.log(
+        `${scale.toLocaleString()} observations (${structure}, ${withCosts ? "with costs" : "no costs"}): ${duration}ms`,
+      );
+
+      // Assert threshold (generous to avoid flakiness)
+      expect(duration).toBeLessThan(threshold);
+
+      return duration;
+    };
+
+    describe("1k observations", () => {
+      const scale = 1_000;
+      const threshold = 100; // 100ms
+
+      it("builds flat structure", () => {
+        runPerformanceTest(scale, "flat", false, threshold);
+      });
+
+      it("builds deep chain", () => {
+        runPerformanceTest(scale, "deep", false, threshold);
+      });
+
+      it("builds balanced tree", () => {
+        runPerformanceTest(scale, "balanced", false, threshold);
+      });
+
+      it("builds realistic structure", () => {
+        runPerformanceTest(scale, "realistic", false, threshold);
+      });
+
+      it("builds with cost aggregation", () => {
+        runPerformanceTest(scale, "realistic", true, threshold);
+      });
+    });
+
+    describe("10k observations", () => {
+      const scale = 10_000;
+      const threshold = 500; // 500ms
+
+      it("builds flat structure", () => {
+        runPerformanceTest(scale, "flat", false, threshold);
+      });
+
+      it("builds deep chain", () => {
+        runPerformanceTest(scale, "deep", false, threshold);
+      });
+
+      it("builds balanced tree", () => {
+        runPerformanceTest(scale, "balanced", false, threshold);
+      });
+
+      it("builds realistic structure", () => {
+        runPerformanceTest(scale, "realistic", false, threshold);
+      });
+
+      it("builds with cost aggregation", () => {
+        runPerformanceTest(scale, "realistic", true, threshold);
+      });
+    });
+
+    describe("25k observations", () => {
+      const scale = 25_000;
+      const threshold = 2_000; // 2s
+
+      it("builds flat structure", () => {
+        runPerformanceTest(scale, "flat", false, threshold);
+      });
+
+      it("builds realistic structure", () => {
+        runPerformanceTest(scale, "realistic", false, threshold);
+      });
+
+      it("builds with cost aggregation", () => {
+        runPerformanceTest(scale, "realistic", true, threshold);
+      });
+    });
+
+    describe("50k observations", () => {
+      const scale = 50_000;
+      const threshold = 5_000; // 5s
+
+      it("builds flat structure", () => {
+        runPerformanceTest(scale, "flat", false, threshold);
+      });
+
+      it("builds realistic structure", () => {
+        runPerformanceTest(scale, "realistic", false, threshold);
+      });
+
+      it("builds with cost aggregation", () => {
+        runPerformanceTest(scale, "realistic", true, threshold);
+      });
+    });
+
+    describe("100k observations", () => {
+      const scale = 100_000;
+      const threshold = 15_000; // 15s
+
+      it("builds flat structure", () => {
+        runPerformanceTest(scale, "flat", false, threshold);
+      });
+
+      it("builds realistic structure", () => {
+        runPerformanceTest(scale, "realistic", false, threshold);
+      });
+
+      it("builds with cost aggregation", () => {
+        runPerformanceTest(scale, "realistic", true, threshold);
+      });
+    });
+
+    describe.skip("500k observations (extreme - manual only)", () => {
+      const scale = 500_000;
+      const threshold = 60_000; // 60s
+
+      it("builds realistic structure", () => {
+        runPerformanceTest(scale, "realistic", false, threshold);
+      });
+
+      it("builds with cost aggregation", () => {
+        runPerformanceTest(scale, "realistic", true, threshold);
+      });
+    });
+
+    describe.skip("1M observations (extreme - manual only)", () => {
+      const scale = 1_000_000;
+      const threshold = 180_000; // 3 minutes
+
+      it("builds realistic structure", () => {
+        runPerformanceTest(scale, "realistic", false, threshold);
+      });
+
+      it("builds with cost aggregation", () => {
+        runPerformanceTest(scale, "realistic", true, threshold);
+      });
+    });
+  });
 });
