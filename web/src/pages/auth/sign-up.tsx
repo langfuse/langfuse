@@ -28,7 +28,7 @@ import {
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
-import DOMPurify from "dompurify";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
@@ -51,16 +51,9 @@ export default function SignIn({
   const emailParam = router.query.email as string | undefined;
 
   // Validate targetPath to prevent open redirect attacks
-  const sanitizedTargetPath = queryTargetPath
-    ? DOMPurify.sanitize(queryTargetPath)
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
     : undefined;
-
-  // Only allow relative links (must start with '/' but not '//')
-  const targetPath =
-    sanitizedTargetPath?.startsWith("/") &&
-    !sanitizedTargetPath.startsWith("//")
-      ? sanitizedTargetPath
-      : undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
 
