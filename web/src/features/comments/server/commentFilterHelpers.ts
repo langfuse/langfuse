@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared/src/db";
-import { singleFilter } from "@langfuse/shared";
+import { type singleFilter } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import type { z } from "zod/v4";
 
