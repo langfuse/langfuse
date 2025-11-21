@@ -7,9 +7,9 @@ import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { ErrorPage } from "@/src/components/error-page";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import Page from "@/src/components/layouts/page";
-import { Trace2 } from "@/src/components/trace2";
+import { Trace } from "@/src/components/trace2";
 
-export function Trace2Page({
+export function TracePage({
   traceId,
   timestamp,
 }: {
@@ -128,7 +128,7 @@ export function Trace2Page({
       }}
     >
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
-        <Trace2
+        <Trace
           trace={trace.data}
           scores={trace.data.scores}
           projectId={trace.data.projectId}
