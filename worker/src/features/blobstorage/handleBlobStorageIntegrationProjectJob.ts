@@ -214,30 +214,8 @@ const processBlobStorageExport = async (config: {
         throw new Error(`Unsupported table type: ${config.table}`);
     }
 
-    // Peek at the first item to check if there is any data
-    const iterator = dataStream[Symbol.asyncIterator]();
-    const firstResult = await iterator.next();
-
-    if (firstResult.done) {
-      logger.info(
-        `[BLOB INTEGRATION] No ${config.table} data to export for project ${config.projectId}, skipping upload`,
-      );
-      return;
-    }
-
-    // Reconstruct the generator to include the first item we peeked
-    // eslint-disable-next-line no-inner-declarations
-    async function* reconstructedDataStream() {
-      yield firstResult.value;
-      yield* {
-        [Symbol.asyncIterator]() {
-          return iterator;
-        },
-      };
-    }
-
     const fileStream = pipeline(
-      reconstructedDataStream(),
+      dataStream,
       streamTransformations[config.fileType](),
       (err) => {
         if (err) {
