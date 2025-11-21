@@ -11,8 +11,9 @@ export const observationsTableCols: ColumnDefinition[] = [
   {
     name: "ID",
     id: "id",
-    type: "string",
+    type: "stringOptions",
     internal: 'o."id"',
+    options: [], // to be added at runtime
   },
   {
     name: "Name",
