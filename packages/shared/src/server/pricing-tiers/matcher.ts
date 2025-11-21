@@ -1,4 +1,3 @@
-import { logger, traceException } from "@langfuse/shared/src/server";
 import type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
 import type { PricingTierCondition } from "./validation";
 
@@ -46,15 +45,9 @@ function evaluateCondition(
       case "neq":
         return sum !== condition.value;
       default:
-        logger.warn(`Unknown operator: ${condition.operator}`);
         return false;
     }
   } catch (error) {
-    traceException(error);
-    logger.error("Error evaluating condition", {
-      condition,
-      error: error instanceof Error ? error.message : String(error),
-    });
     return false; // Fail-safe: condition fails on error
   }
 }
@@ -104,12 +97,6 @@ export function matchPricingTier(
   // 2. Try to match each tier in priority order
   for (const tier of sortedTiers) {
     if (evaluateConditions(tier.conditions, usageDetails)) {
-      logger.debug("Matched pricing tier", {
-        tierId: tier.id,
-        tierName: tier.name,
-        priority: tier.priority,
-      });
-
       return {
         pricingTierId: tier.id,
         pricingTierName: tier.name,
@@ -124,11 +111,6 @@ export function matchPricingTier(
   const defaultTier = tiers.find((tier) => tier.isDefault);
 
   if (defaultTier) {
-    logger.debug("Using default pricing tier", {
-      tierId: defaultTier.id,
-      tierName: defaultTier.name,
-    });
-
     return {
       pricingTierId: defaultTier.id,
       pricingTierName: defaultTier.name,
@@ -139,10 +121,5 @@ export function matchPricingTier(
   }
 
   // 4. No match and no default (should not happen after migration)
-  logger.warn("No pricing tier matched and no default found", {
-    usageDetails,
-    availableTiers: tiers.map((t) => ({ id: t.id, name: t.name })),
-  });
-
   return null;
 }
