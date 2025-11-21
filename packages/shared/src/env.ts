@@ -53,6 +53,9 @@ const EnvSchema = z.object({
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
+    .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
+    .default("alter_update"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()

@@ -121,6 +121,11 @@ export class ClickHouseClientManager {
                   env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS,
               }
             : {}),
+          ...(env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE !== "alter_update"
+            ? {
+                lightweight_delete_mode: env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE,
+              }
+            : {}),
           ...cloudOptions,
           ...opts.clickhouse_settings,
           async_insert: 1,
