@@ -98,7 +98,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY
-          s.timestamp desc
+          s.timestamp desc, s.event_ts desc
       LIMIT
           1 BY s.id, s.project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
