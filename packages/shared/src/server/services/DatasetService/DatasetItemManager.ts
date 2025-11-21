@@ -160,7 +160,7 @@ export class DatasetItemManager {
   }
 
   private static mergeItemData(
-    existingItem: Omit<DatasetItem, "createdAt" | "updatedAt">,
+    existingItem: DatasetItem,
     newData: {
       input?: string | unknown | null;
       expectedOutput?: string | unknown | null;
@@ -212,7 +212,7 @@ export class DatasetItemManager {
   ): Promise<
     | {
         success: true;
-        datasetItem: Omit<DatasetItem, "createdAt" | "updatedAt">;
+        datasetItem: DatasetItem;
       }
     | PayloadError
   > {
@@ -232,8 +232,7 @@ export class DatasetItemManager {
 
     // 2. Fetch existing item if updating (itemId provided)
     // This ensures we validate and write the complete merged state
-    let existingItem: Omit<DatasetItem, "createdAt" | "updatedAt"> | null =
-      null;
+    let existingItem: DatasetItem | null = null;
     if (props.datasetItemId) {
       existingItem = await this.getItemById({
         projectId: props.projectId,
@@ -279,7 +278,7 @@ export class DatasetItemManager {
       status: mergedItemData.status ?? undefined,
     };
 
-    let item: Omit<DatasetItem, "createdAt" | "updatedAt"> | null = null;
+    let item: DatasetItem | null = null;
     // 6. Update item
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
@@ -326,6 +325,8 @@ export class DatasetItemManager {
           metadata: res.metadata,
           sourceTraceId: res.sourceTraceId,
           sourceObservationId: res.sourceObservationId,
+          createdAt: res.createdAt ?? new Date(),
+          updatedAt: res.createdAt ?? new Date(),
         };
       },
     });
@@ -387,6 +388,7 @@ export class DatasetItemManager {
 
   /**
    * Retrieves a single dataset item by ID.
+   * Always returns the latest version of the item.
    * Used by API layers to fetch current state before merging partial updates.
    *
    * Call this BEFORE validation to merge existing data with updates.
