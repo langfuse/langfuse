@@ -11,7 +11,9 @@ import {
 import {
   createOrgProjectAndApiKey,
   isValidJSONSchema,
+  validateFieldAgainstSchema,
 } from "@langfuse/shared/src/server";
+import { DatasetSchemaValidator } from "@langfuse/shared";
 
 // Test schemas
 const TEST_SCHEMAS = {
@@ -60,6 +62,27 @@ const TEST_SCHEMAS = {
   },
 };
 
+// Test data
+const DATA = {
+  validSimpleText: { text: "hello" },
+  invalidSimpleText: { text: 123 },
+  missingRequired: {},
+  hasExtra: { text: "hello", extra: "field" },
+
+  validChatMessages: {
+    messages: [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+    ],
+  },
+  invalidChatMessages: {
+    messages: [{ role: "invalid", content: "hello" }],
+  },
+
+  validNumber: { value: 42 },
+  invalidNumber: { value: "not a number" },
+};
+
 // ============================================================================
 // UNIT TESTS - Validation Functions
 // ============================================================================
@@ -101,6 +124,187 @@ describe("Unit Tests - isValidJSONSchema", () => {
       },
     };
     expect(isValidJSONSchema(complexSchema)).toBe(true);
+  });
+});
+
+describe("Unit Tests - validateFieldAgainstSchema", () => {
+  describe("Valid cases", () => {
+    it("should validate valid data against schema", () => {
+      const result = validateFieldAgainstSchema({
+        data: DATA.validSimpleText,
+        schema: TEST_SCHEMAS.simpleText,
+      });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should validate null when schema allows null", () => {
+      const result = validateFieldAgainstSchema({
+        data: null,
+        schema: TEST_SCHEMAS.allowsNull,
+      });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should validate complex nested objects", () => {
+      const result = validateFieldAgainstSchema({
+        data: DATA.validChatMessages,
+        schema: TEST_SCHEMAS.chatMessages,
+      });
+      expect(result.isValid).toBe(true);
+    });
+  });
+
+  describe("Invalid cases", () => {
+    it("should return errors for invalid data", () => {
+      const result = validateFieldAgainstSchema({
+        data: DATA.invalidSimpleText,
+        schema: TEST_SCHEMAS.simpleText,
+      });
+      expect(result.isValid).toBe(false);
+      if (!result.isValid) {
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.errors[0].message).toBeDefined();
+      }
+    });
+
+    it("should reject null when schema doesn't allow null", () => {
+      const result = validateFieldAgainstSchema({
+        data: null,
+        schema: TEST_SCHEMAS.requiresObject,
+      });
+      expect(result.isValid).toBe(false);
+      if (!result.isValid) {
+        expect(result.errors.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("should validate enum violations", () => {
+      const result = validateFieldAgainstSchema({
+        data: DATA.invalidChatMessages,
+        schema: TEST_SCHEMAS.chatMessages,
+      });
+      expect(result.isValid).toBe(false);
+      if (!result.isValid) {
+        expect(result.errors.some((e) => e.keyword === "enum")).toBe(true);
+      }
+    });
+
+    it("should validate additionalProperties: false", () => {
+      const result = validateFieldAgainstSchema({
+        data: DATA.hasExtra,
+        schema: TEST_SCHEMAS.simpleText,
+      });
+      expect(result.isValid).toBe(false);
+      if (!result.isValid) {
+        expect(
+          result.errors.some((e) => e.keyword === "additionalProperties"),
+        ).toBe(true);
+      }
+    });
+  });
+
+  it("should return proper JSON paths in errors", () => {
+    const result = validateFieldAgainstSchema({
+      data: DATA.invalidChatMessages,
+      schema: TEST_SCHEMAS.chatMessages,
+    });
+    expect(result.isValid).toBe(false);
+    if (!result.isValid) {
+      expect(result.errors[0].path).toBeDefined();
+      expect(typeof result.errors[0].path).toBe("string");
+    }
+  });
+});
+
+describe("Unit Tests - DatasetItemValidator", () => {
+  const defaultValidator = new DatasetSchemaValidator({
+    inputSchema: TEST_SCHEMAS.simpleText,
+    expectedOutputSchema: TEST_SCHEMAS.requiresObject,
+  });
+
+  it("should validate both input and expectedOutput", () => {
+    const result = defaultValidator.validateDatasetItemData({
+      input: DATA.validSimpleText,
+      expectedOutput: DATA.validNumber,
+    });
+
+    expect(result.isValid).toBe(true);
+  });
+
+  it("should return inputErrors when input invalid", () => {
+    const result = defaultValidator.validateDatasetItemData({
+      input: DATA.invalidSimpleText,
+      expectedOutput: DATA.validNumber,
+    });
+    expect(result.isValid).toBe(false);
+    if (!result.isValid) {
+      expect(result.inputErrors).toBeDefined();
+      expect(result.expectedOutputErrors).toBeUndefined();
+    }
+  });
+
+  it("should return expectedOutputErrors when expectedOutput invalid", () => {
+    const result = defaultValidator.validateDatasetItemData({
+      input: DATA.validSimpleText,
+      expectedOutput: DATA.invalidNumber,
+    });
+    expect(result.isValid).toBe(false);
+    if (!result.isValid) {
+      expect(result.inputErrors).toBeUndefined();
+      expect(result.expectedOutputErrors).toBeDefined();
+    }
+  });
+
+  it("should return both errors when both invalid", () => {
+    const result = defaultValidator.validateDatasetItemData({
+      input: DATA.invalidSimpleText,
+      expectedOutput: DATA.invalidNumber,
+    });
+    expect(result.isValid).toBe(false);
+    if (!result.isValid) {
+      expect(result.inputErrors).toBeDefined();
+      expect(result.expectedOutputErrors).toBeDefined();
+    }
+  });
+
+  it("should treat undefined as null when normalizeUndefinedToNull=true", () => {
+    const validator = new DatasetSchemaValidator({
+      inputSchema: TEST_SCHEMAS.requiresObject,
+      expectedOutputSchema: TEST_SCHEMAS.requiresObject,
+    });
+
+    const result = validator.validateDatasetItemData({
+      input: undefined,
+      expectedOutput: undefined,
+      normalizeUndefinedToNull: true,
+    });
+    expect(result.isValid).toBe(false);
+  });
+
+  it("should reject null when schema doesn't allow null", () => {
+    const result = defaultValidator.validateDatasetItemData({
+      input: null,
+      expectedOutput: null,
+      normalizeUndefinedToNull: true,
+    });
+    expect(result.isValid).toBe(false);
+    if (!result.isValid) {
+      expect(result.inputErrors).toBeDefined();
+      expect(result.expectedOutputErrors).toBeDefined();
+    }
+  });
+
+  it("should pass when null is allowed in schema", () => {
+    const validator = new DatasetSchemaValidator({
+      inputSchema: TEST_SCHEMAS.allowsNull,
+      expectedOutputSchema: TEST_SCHEMAS.allowsNull,
+    });
+    const result = validator.validateDatasetItemData({
+      input: null,
+      expectedOutput: null,
+      normalizeUndefinedToNull: true,
+    });
+    expect(result.isValid).toBe(true);
   });
 });
 
