@@ -33,13 +33,7 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  UnauthorizedError,
-  ForbiddenError,
-  LangfuseNotFoundError,
-  InvalidRequestError,
-  BaseError,
-} from "@langfuse/shared";
+import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod/v4";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 
@@ -158,18 +152,11 @@ export default async function handler(
 
       // Return appropriate HTTP status based on error type
       let status = 500;
-      if (error instanceof UnauthorizedError) {
-        status = 401;
-      } else if (error instanceof ForbiddenError) {
-        status = 403;
-      } else if (
-        isUserInputError(error) ||
-        error instanceof ZodError ||
-        error instanceof LangfuseNotFoundError ||
-        error instanceof InvalidRequestError ||
-        error instanceof BaseError
-      ) {
-        // User-caused errors (invalid input, not found, validation failures)
+      if (error instanceof BaseError) {
+        // BaseError subclasses have their own httpCode (401, 403, 404, 409, 500, etc.)
+        status = error.httpCode;
+      } else if (isUserInputError(error) || error instanceof ZodError) {
+        // User-caused errors (invalid input, validation failures)
         status = 400;
       }
 
