@@ -6,6 +6,7 @@
 
 import { buildTraceUiData } from "./tree-building";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import Decimal from "decimal.js";
 
 // Helper to create mock observations
 const createMockObservation = (
@@ -229,5 +230,422 @@ describe("buildTraceUiData", () => {
     expect(result.tree.children[0].id).toBe("obs-early");
     expect(result.tree.children[1].id).toBe("obs-middle");
     expect(result.tree.children[2].id).toBe("obs-late");
+  });
+
+  describe("Cost Aggregation - Fundamentals", () => {
+    it("treats null costs as undefined (not zero)", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          inputCost: null,
+          outputCost: null,
+          totalCost: null,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      expect(obs?.totalCost).toBeUndefined();
+      expect(result.tree.totalCost).toBeUndefined();
+    });
+
+    it("treats zero costs as undefined", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          totalCost: 0,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      expect(obs?.totalCost).toBeUndefined();
+    });
+
+    it("treats zero input + output as undefined", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          inputCost: 0,
+          outputCost: 0,
+          totalCost: null,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      expect(obs?.totalCost).toBeUndefined();
+    });
+
+    it("uses inputCost when only input is set", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          inputCost: 0.5,
+          outputCost: null,
+          totalCost: null,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      expect(obs?.totalCost).toBeDefined();
+      expect(obs?.totalCost?.equals(new Decimal(0.5))).toBe(true);
+    });
+
+    it("uses outputCost when only output is set", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          inputCost: null,
+          outputCost: 0.3,
+          totalCost: null,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      expect(obs?.totalCost).toBeDefined();
+      expect(obs?.totalCost?.equals(new Decimal(0.3))).toBe(true);
+    });
+
+    it("sums input + output when both are set", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          inputCost: 0.5,
+          outputCost: 0.3,
+          totalCost: null,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      expect(obs?.totalCost).toBeDefined();
+      expect(obs?.totalCost?.equals(new Decimal(0.8))).toBe(true);
+    });
+
+    it("prefers totalCost over input + output", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          inputCost: 0.5,
+          outputCost: 0.3,
+          totalCost: 0.9, // Different from sum
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      expect(obs?.totalCost).toBeDefined();
+      expect(obs?.totalCost?.equals(new Decimal(0.9))).toBe(true);
+    });
+
+    it("treats zero totalCost as undefined (does not fall back to input+output)", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          inputCost: 0.5,
+          outputCost: 0.3,
+          totalCost: 0, // Zero means "no cost"
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const obs = result.nodeMap.get("obs-1");
+      // Zero totalCost is treated as undefined (explicit "no cost")
+      // Does NOT fall back to input+output
+      expect(obs?.totalCost).toBeUndefined();
+    });
+  });
+
+  describe("Cost Aggregation - Hierarchical", () => {
+    it("sums parent and children costs when both have costs", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          totalCost: 0.5,
+        }),
+        createMockObservation({
+          id: "child-1",
+          parentObservationId: "parent",
+          totalCost: 0.3,
+        }),
+        createMockObservation({
+          id: "child-2",
+          parentObservationId: "parent",
+          totalCost: 0.2,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const parent = result.nodeMap.get("parent");
+      expect(parent?.totalCost).toBeDefined();
+      expect(parent?.totalCost?.equals(new Decimal(1.0))).toBe(true);
+    });
+
+    it("bubbles up children costs when parent has no cost", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          totalCost: null,
+        }),
+        createMockObservation({
+          id: "child-1",
+          parentObservationId: "parent",
+          totalCost: 0.3,
+        }),
+        createMockObservation({
+          id: "child-2",
+          parentObservationId: "parent",
+          totalCost: 0.2,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const parent = result.nodeMap.get("parent");
+      expect(parent?.totalCost).toBeDefined();
+      expect(parent?.totalCost?.equals(new Decimal(0.5))).toBe(true);
+    });
+
+    it("uses only parent cost when children have no costs", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          totalCost: 0.5,
+        }),
+        createMockObservation({
+          id: "child-1",
+          parentObservationId: "parent",
+          totalCost: null,
+        }),
+        createMockObservation({
+          id: "child-2",
+          parentObservationId: "parent",
+          totalCost: null,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const parent = result.nodeMap.get("parent");
+      expect(parent?.totalCost).toBeDefined();
+      expect(parent?.totalCost?.equals(new Decimal(0.5))).toBe(true);
+    });
+
+    it("aggregates costs through deep nesting (3 levels)", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "grandparent",
+          parentObservationId: null,
+          totalCost: 0.1,
+        }),
+        createMockObservation({
+          id: "parent",
+          parentObservationId: "grandparent",
+          totalCost: 0.2,
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "parent",
+          totalCost: 0.3,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const grandparent = result.nodeMap.get("grandparent");
+      const parent = result.nodeMap.get("parent");
+      const child = result.nodeMap.get("child");
+
+      expect(child?.totalCost?.equals(new Decimal(0.3))).toBe(true);
+      expect(parent?.totalCost?.equals(new Decimal(0.5))).toBe(true); // 0.2 + 0.3
+      expect(grandparent?.totalCost?.equals(new Decimal(0.6))).toBe(true); // 0.1 + 0.5
+    });
+
+    it("handles gaps in cost hierarchy (parent has no cost)", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "grandparent",
+          parentObservationId: null,
+          totalCost: 0.1,
+        }),
+        createMockObservation({
+          id: "parent",
+          parentObservationId: "grandparent",
+          totalCost: null, // Gap here
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "parent",
+          totalCost: 0.3,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const grandparent = result.nodeMap.get("grandparent");
+      const parent = result.nodeMap.get("parent");
+
+      expect(parent?.totalCost?.equals(new Decimal(0.3))).toBe(true); // Just child's cost
+      expect(grandparent?.totalCost?.equals(new Decimal(0.4))).toBe(true); // 0.1 + 0.3
+    });
+
+    it("handles mixed cost types among siblings", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          totalCost: null,
+        }),
+        createMockObservation({
+          id: "child-1",
+          parentObservationId: "parent",
+          totalCost: 0.5, // Uses totalCost
+        }),
+        createMockObservation({
+          id: "child-2",
+          parentObservationId: "parent",
+          inputCost: 0.2,
+          outputCost: 0.1,
+          totalCost: null, // Uses input+output
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const parent = result.nodeMap.get("parent");
+      expect(parent?.totalCost).toBeDefined();
+      expect(parent?.totalCost?.equals(new Decimal(0.8))).toBe(true); // 0.5 + 0.3
+    });
+  });
+
+  describe("Cost Aggregation - Edge Cases", () => {
+    it("does not double-count costs (parent with input/output + child)", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          inputCost: 0.5,
+          outputCost: 0.3,
+          totalCost: null,
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "parent",
+          totalCost: 0.2,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const parent = result.nodeMap.get("parent");
+      // Should be 0.8 (parent's 0.5+0.3) + 0.2 (child) = 1.0
+      // NOT 0.5 + 0.3 + 0.8 (double-counting parent)
+      expect(parent?.totalCost?.equals(new Decimal(1.0))).toBe(true);
+    });
+
+    it("aggregates costs at trace root level", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          parentObservationId: null,
+          totalCost: 0.5,
+        }),
+        createMockObservation({
+          id: "obs-2",
+          parentObservationId: null,
+          totalCost: 0.3,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      // Trace root should sum all top-level observations
+      expect(result.tree.totalCost).toBeDefined();
+      expect(result.tree.totalCost?.equals(new Decimal(0.8))).toBe(true);
+    });
+
+    it("propagates trace totalCost to all searchItems as parentTotalCost", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          parentObservationId: null,
+          totalCost: 0.5,
+        }),
+        createMockObservation({
+          id: "obs-2",
+          parentObservationId: null,
+          totalCost: 0.3,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      // All searchItems should have the trace's total cost as parentTotalCost
+      const traceTotalCost = result.tree.totalCost;
+      expect(traceTotalCost).toBeDefined();
+
+      result.searchItems.forEach((item) => {
+        expect(item.parentTotalCost).toBeDefined();
+        expect(item.parentTotalCost?.equals(traceTotalCost!)).toBe(true);
+      });
+    });
+
+    it("handles zero costs correctly in hierarchy (should not propagate)", () => {
+      const trace = createMockTrace();
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "parent",
+          parentObservationId: null,
+          totalCost: 0, // Zero cost
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "parent",
+          totalCost: 0, // Zero cost
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      const parent = result.nodeMap.get("parent");
+      const child = result.nodeMap.get("child");
+
+      // Both should have undefined totalCost (zero is treated as undefined)
+      expect(child?.totalCost).toBeUndefined();
+      expect(parent?.totalCost).toBeUndefined();
+      expect(result.tree.totalCost).toBeUndefined();
+    });
   });
 });
