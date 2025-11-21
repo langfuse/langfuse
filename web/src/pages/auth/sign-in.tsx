@@ -30,7 +30,6 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod/v4";
-import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
