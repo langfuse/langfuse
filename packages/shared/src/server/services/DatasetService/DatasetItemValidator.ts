@@ -35,15 +35,18 @@ type ValidateItemResult =
  * }
  */
 export class DatasetItemValidator {
-  private inputSchema: Record<string, unknown> | null | undefined;
-  private expectedOutputSchema: Record<string, unknown> | null | undefined;
+  private validator: DatasetSchemaValidator;
 
   constructor(params: {
     inputSchema: Record<string, unknown> | null | undefined;
     expectedOutputSchema: Record<string, unknown> | null | undefined;
   }) {
-    this.inputSchema = params.inputSchema;
-    this.expectedOutputSchema = params.expectedOutputSchema;
+    // Create validator once - compiles schemas once, validates both fields
+    // Even for single item, this is 2x faster than fresh Ajv per field
+    this.validator = new DatasetSchemaValidator({
+      inputSchema: params.inputSchema,
+      expectedOutputSchema: params.expectedOutputSchema,
+    });
   }
 
   /**
@@ -149,15 +152,7 @@ export class DatasetItemValidator {
       : params.expectedOutput;
 
     // 2. Validate IO against schema
-    // Create validator once - compiles schemas once, validates both fields
-    // Even for single item, this is 2x faster than fresh Ajv per field
-    const validator = new DatasetSchemaValidator({
-      inputSchema: this.inputSchema,
-      expectedOutputSchema: this.expectedOutputSchema,
-    });
-
-    // Use the optimized validateItem method
-    return validator.validateItem({
+    return this.validator.validateItem({
       input: inputToValidate,
       expectedOutput: outputToValidate,
     });
