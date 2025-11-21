@@ -33,7 +33,9 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
-import { UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import { ZodError } from "zod/v4";
+import { isUserInputError } from "@/src/features/mcp/core/errors";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -147,7 +149,18 @@ export default async function handler(
     // Format error for user (never throw from handler)
     if (!res.headersSent) {
       const mcpError = formatErrorForUser(error);
-      res.status(500).json({
+
+      // Return appropriate HTTP status based on error type
+      let status = 500;
+      if (error instanceof BaseError) {
+        // BaseError subclasses have their own httpCode (401, 403, 404, 409, 500, etc.)
+        status = error.httpCode;
+      } else if (isUserInputError(error) || error instanceof ZodError) {
+        // User-caused errors (invalid input, validation failures)
+        status = 400;
+      }
+
+      res.status(status).json({
         error: mcpError.message,
         code: mcpError.code,
       });
