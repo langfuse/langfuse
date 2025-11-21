@@ -1,4 +1,4 @@
-import { Model, Price, Prisma } from "../../";
+import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
   logger,
