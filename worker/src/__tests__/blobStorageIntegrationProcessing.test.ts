@@ -23,6 +23,8 @@ import { encrypt } from "@langfuse/shared/encryption";
 
 // Skip tests that use Azurite in Azure mode due to known Azurite limitations
 // with multipart uploads. These tests use MinIO explicitly or are skipped.
+// Unfortunately, this is necessary as we don't have a good way to skip empty file uploads
+// and at least azurite doesn't handle them gracefully.
 const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
 
 describe("BlobStorageIntegrationProcessingJob", () => {
