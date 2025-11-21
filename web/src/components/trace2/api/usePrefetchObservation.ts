@@ -10,7 +10,7 @@ export function usePrefetchObservation({
   const utils = api.useUtils();
 
   const prefetch = (observationId: string, traceId: string) => {
-    void utils.observations.byIdWithIOAndEvents.prefetch({
+    void utils.observations.byId.prefetch({
       observationId,
       traceId,
       projectId,
