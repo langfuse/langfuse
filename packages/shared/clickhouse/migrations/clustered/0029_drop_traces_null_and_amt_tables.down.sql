@@ -1,5 +1,5 @@
 -- Recreate traces_null and trace amt tables
-CREATE TABLE traces_null ON CLUSTER default
+CREATE TABLE traces_null ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     -- Identifiers
     `project_id`      String,
@@ -37,7 +37,7 @@ CREATE TABLE traces_null ON CLUSTER default
     `event_ts`        DateTime64(3)
 ) Engine = Null();
 
-CREATE TABLE traces_all_amt ON CLUSTER default
+CREATE TABLE traces_all_amt ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     -- Identifiers
     `project_id`         String,
@@ -84,7 +84,7 @@ CREATE TABLE traces_all_amt ON CLUSTER default
 ) Engine = AggregatingMergeTree()
       ORDER BY (project_id, id);
 
-CREATE TABLE traces_7d_amt ON CLUSTER default
+CREATE TABLE traces_7d_amt ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     -- Identifiers
     `project_id`         String,
@@ -131,7 +131,7 @@ CREATE TABLE traces_7d_amt ON CLUSTER default
     ORDER BY (project_id, id)
     TTL toDate(start_time) + INTERVAL 7 DAY;
 
-CREATE TABLE traces_30d_amt ON CLUSTER default
+CREATE TABLE traces_30d_amt ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     -- Identifiers
     `project_id`         String,
