@@ -261,6 +261,9 @@ export const ObservationPreview = ({
                     <BreakdownTooltip
                       details={preloadedObservation.costDetails}
                       isCost={true}
+                      pricingTierName={
+                        preloadedObservation.usagePricingTierName ?? undefined
+                      }
                     >
                       <Badge
                         variant="tertiary"
@@ -287,6 +290,9 @@ export const ObservationPreview = ({
                     <BreakdownTooltip
                       details={preloadedObservation.usageDetails}
                       isCost={false}
+                      pricingTierName={
+                        preloadedObservation.usagePricingTierName ?? undefined
+                      }
                     >
                       <Badge
                         variant="tertiary"

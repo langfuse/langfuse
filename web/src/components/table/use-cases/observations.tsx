@@ -629,7 +629,11 @@ export default function ObservationsTable({
         const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
+          <BreakdownTooltip
+            details={row.original.costDetails}
+            isCost
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
@@ -670,7 +674,10 @@ export default function ObservationsTable({
           totalUsage: number;
         } = row.getValue("usage");
         return (
-          <BreakdownTooltip details={row.original.usageDetails}>
+          <BreakdownTooltip
+            details={row.original.usageDetails}
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <TokenUsageBadge
                 inputUsage={value.inputUsage}

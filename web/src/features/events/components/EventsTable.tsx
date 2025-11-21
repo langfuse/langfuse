@@ -444,7 +444,11 @@ export default function ObservationsEventsTable({
         const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
+          <BreakdownTooltip
+            details={row.original.costDetails}
+            isCost
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
