@@ -70,3 +70,5 @@ web/test-results/*
 
 # local config files
 *.local.*
+
+.claude/tsc-cache

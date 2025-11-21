@@ -14,3 +14,5 @@ export {
 } from "./validation";
 
 export type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
+
+export { matchPricingTier } from "./matcher";
