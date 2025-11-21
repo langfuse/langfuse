@@ -92,6 +92,8 @@ const EnvSchema = z.object({
     .positive()
     .default(3),
 
+  LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
