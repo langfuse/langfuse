@@ -70,3 +70,6 @@ web/test-results/*
 
 # local config files
 *.local.*
+
+# Refactoring planning files (local only)
+**/.refactor/
