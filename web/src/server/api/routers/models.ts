@@ -281,24 +281,33 @@ export const modelRouter = createTRPCRouter({
           },
         });
 
-        await tx.price.deleteMany({
+        await tx.modelPricingTier.deleteMany({
           where: {
             modelId: upsertedModel.id,
           },
         });
 
-        await tx.price.createMany({
-          data: Object.entries(input.prices)
-            .filter(
-              (priceEntry): priceEntry is [string, number] =>
-                priceEntry[1] != null,
-            )
-            .map(([usageType, price]) => ({
-              modelId: upsertedModel.id,
-              projectId: upsertedModel.projectId,
-              usageType,
-              price,
-            })),
+        await tx.modelPricingTier.create({
+          data: {
+            name: "Standard",
+            conditions: [],
+            priority: 0,
+            isDefault: true,
+            modelId,
+            prices: {
+              create: Object.entries(input.prices)
+                .filter(
+                  (priceEntry): priceEntry is [string, number] =>
+                    priceEntry[1] != null,
+                )
+                .map(([usageType, price]) => ({
+                  modelId: upsertedModel.id,
+                  projectId: upsertedModel.projectId,
+                  usageType,
+                  price,
+                })),
+            },
+          },
         });
 
         await auditLog({
