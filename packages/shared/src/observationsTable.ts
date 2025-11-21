@@ -11,8 +11,9 @@ export const observationsTableCols: ColumnDefinition[] = [
   {
     name: "ID",
     id: "id",
-    type: "string",
+    type: "stringOptions",
     internal: 'o."id"',
+    options: [], // to be added at runtime
   },
   {
     name: "Name",
@@ -217,6 +218,18 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "arrayOptions",
     internal: "t.tags",
     options: [], // to be added at runtime
+  },
+  {
+    name: "Comment Count",
+    id: "commentCount",
+    type: "number",
+    internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Comment Content",
+    id: "commentContent",
+    type: "string",
+    internal: "", // handled by comment filter helpers
   },
 ];
 

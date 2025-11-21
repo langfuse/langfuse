@@ -57,6 +57,18 @@ export const traceFilterConfig: FilterConfig = {
       falseLabel: "Not bookmarked",
     },
     {
+      type: "numeric" as const,
+      column: "commentCount",
+      label: "Comment Count",
+      min: 0,
+      max: 100,
+    },
+    {
+      type: "string" as const,
+      column: "commentContent",
+      label: "Comment Content",
+    },
+    {
       type: "categorical" as const,
       column: "tags",
       label: "Tags",

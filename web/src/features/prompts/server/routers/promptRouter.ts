@@ -113,7 +113,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        input.filter ?? [],
         promptsTableCols,
         "prompts",
       );
@@ -201,13 +201,14 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const filterCondition = input.filter
-        ? tableColumnsToSqlFilterAndPrefix(
-            input.filter,
-            promptsTableCols,
-            "prompts",
-          )
-        : Prisma.empty;
+      const filterCondition =
+        input.filter && input.filter.length > 0
+          ? tableColumnsToSqlFilterAndPrefix(
+              input.filter,
+              promptsTableCols,
+              "prompts",
+            )
+          : Prisma.empty;
 
       const pathFilter = input.pathPrefix
         ? (() => {
