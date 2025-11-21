@@ -216,4 +216,16 @@ export const eventsTableCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
     nullable: true,
   },
+  {
+    name: "Comment Count",
+    id: "commentCount",
+    type: "number",
+    internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Comment Content",
+    id: "commentContent",
+    type: "string",
+    internal: "", // handled by comment filter helpers
+  },
 ];
