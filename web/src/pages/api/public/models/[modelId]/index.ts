@@ -37,17 +37,33 @@ export default withMiddlewares({
           ],
         },
         include: {
-          Price: {
-            select: { usageType: true, price: true },
+          pricingTiers: {
+            select: {
+              id: true,
+              name: true,
+              isDefault: true,
+              priority: true,
+              conditions: true,
+              prices: {
+                select: {
+                  usageType: true,
+                  price: true,
+                },
+              },
+            },
+            orderBy: { priority: "asc" },
           },
         },
       });
+
       if (!model) {
         throw new LangfuseNotFoundError("No model with this id found.");
       }
+
       return prismaToApiModelDefinition(model);
     },
   }),
+
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete model",
     querySchema: DeleteModelV1Query,

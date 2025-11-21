@@ -109,6 +109,7 @@ export type EventsTableRow = {
     outputCost?: number;
   };
   costDetails: Record<string, number>;
+  usagePricingTierName?: string | null;
 
   // Performance metrics
   latency?: number;
@@ -444,7 +445,11 @@ export default function ObservationsEventsTable({
         const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
+          <BreakdownTooltip
+            details={row.original.costDetails}
+            isCost
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
@@ -886,6 +891,7 @@ export default function ObservationsEventsTable({
             timestamp: observation.traceTimestamp ?? undefined,
             usageDetails: observation.usageDetails ?? {},
             costDetails: observation.costDetails ?? {},
+            usagePricingTierName: observation.usagePricingTierName ?? undefined,
             environment: observation.environment ?? undefined,
             input: observation.input
               ? typeof observation.input === "string"

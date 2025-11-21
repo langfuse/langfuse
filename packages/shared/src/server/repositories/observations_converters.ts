@@ -237,6 +237,14 @@ export function convertObservationPartial(
         : null,
     }),
 
+    // Pricing tier fields
+    ...(record.usage_pricing_tier_id !== undefined && {
+      usagePricingTierId: record.usage_pricing_tier_id ?? null,
+    }),
+    ...(record.usage_pricing_tier_name !== undefined && {
+      usagePricingTierName: record.usage_pricing_tier_name ?? null,
+    }),
+
     // Metrics (calculated fields)
     ...((record.end_time !== undefined || record.start_time !== undefined) && {
       latency:
@@ -299,6 +307,8 @@ export function convertObservationPartial(
     inputUsage: partial.inputUsage ?? 0,
     outputUsage: partial.outputUsage ?? 0,
     totalUsage: partial.totalUsage ?? 0,
+    usagePricingTierId: partial.usagePricingTierId ?? null,
+    usagePricingTierName: partial.usagePricingTierName ?? null,
   };
 }
 

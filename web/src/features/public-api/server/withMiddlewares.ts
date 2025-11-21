@@ -105,8 +105,20 @@ export function withMiddlewares(handlers: Handlers) {
 
         // Instanceof check fails here as shared package zod has different instances
         if (isZodError(error)) {
+          // Format error message from Zod issues
+          const errorMessage =
+            error.issues.length > 0
+              ? error.issues
+                  .map((issue: any) =>
+                    issue.path.length > 0
+                      ? `${issue.path.join(".")}: ${issue.message}`
+                      : issue.message,
+                  )
+                  .join("; ")
+              : "Invalid request data";
+
           return res.status(400).json({
-            message: "Invalid request data",
+            message: errorMessage,
             error: error.issues,
           });
         }

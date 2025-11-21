@@ -1598,7 +1598,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05T13:15:30Z\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05T13:15:30Z\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"pricingTiers\": [\n        {\n            \"name\": \"example\",\n            \"isDefault\": true,\n            \"priority\": 0,\n            \"conditions\": [\n                {\n                    \"usageDetailPattern\": \"example\",\n                    \"operator\": \"gt\",\n                    \"value\": 0,\n                    \"caseSensitive\": true\n                }\n            ],\n            \"prices\": {\n                \"example\": 0\n            }\n        }\n    ],\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

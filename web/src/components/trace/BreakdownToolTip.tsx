@@ -16,12 +16,14 @@ interface BreakdownTooltipProps {
   details: Details | Details[];
   children: React.ReactNode;
   isCost?: boolean;
+  pricingTierName?: string;
 }
 
 export const BreakdownTooltip = ({
   details,
   children,
   isCost = false,
+  pricingTierName,
 }: BreakdownTooltipProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -71,6 +73,17 @@ export const BreakdownTooltip = ({
                   Aggregate across {details.length}{" "}
                   {details.length === 1 ? "generation" : "generations"}
                 </span>
+              )}
+              {/* Pricing Tier Section */}
+              {pricingTierName && (
+                <div className="flex flex-row items-center gap-1 border-b pb-2">
+                  <span className="text-xs text-muted-foreground">
+                    Pricing Tier:
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {pricingTierName}
+                  </span>
+                </div>
               )}
             </div>
 

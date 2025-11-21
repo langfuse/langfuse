@@ -1,9 +1,9 @@
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
+import { Decimal } from "decimal.js";
 import {
   Model,
   ObservationLevel,
-  Price,
   PrismaClient,
   Prompt,
 } from "@langfuse/shared";
@@ -38,6 +38,7 @@ import {
   TraceUpsertQueue,
   UsageCostType,
   findModel,
+  matchPricingTier,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
@@ -1080,22 +1081,52 @@ export class IngestionService {
   }): Promise<
     Pick<
       ObservationRecordInsertType,
-      "usage_details" | "cost_details" | "total_cost" | "internal_model_id"
+      | "usage_details"
+      | "cost_details"
+      | "total_cost"
+      | "internal_model_id"
+      | "usage_pricing_tier_id"
+      | "usage_pricing_tier_name"
     >
   > {
     const { projectId, observationRecord } = params;
-    const { model: internalModel, prices: modelPrices } =
+    const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
             projectId,
             model: observationRecord.provided_model_name,
           })
-        : { model: null, prices: [] };
+        : { model: null, pricingTiers: [] };
 
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
+
+    // Match pricing tier based on usage_details
+    let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
+    let usage_pricing_tier_id: string | null = null;
+    let usage_pricing_tier_name: string | null = null;
+
+    if (pricingTiers.length > 0 && final_usage_details.usage_details) {
+      const matchedTier = matchPricingTier(
+        pricingTiers,
+        final_usage_details.usage_details,
+      );
+
+      if (matchedTier) {
+        usage_pricing_tier_id = matchedTier.pricingTierId;
+        usage_pricing_tier_name = matchedTier.pricingTierName;
+
+        // Convert matched tier prices to simple format for calculateUsageCosts
+        modelPrices = Object.entries(matchedTier.prices).map(
+          ([usageType, price]) => ({
+            usageType,
+            price,
+          }),
+        );
+      }
+    }
 
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
@@ -1108,6 +1139,7 @@ export class IngestionService {
       {
         cost: final_cost_details.cost_details,
         usage: final_usage_details.usage_details,
+        pricingTier: usage_pricing_tier_name,
       },
     );
 
@@ -1115,6 +1147,8 @@ export class IngestionService {
       ...final_usage_details,
       ...final_cost_details,
       internal_model_id: internalModel?.id,
+      usage_pricing_tier_id,
+      usage_pricing_tier_name,
     };
   }
 
@@ -1249,7 +1283,10 @@ export class IngestionService {
   }
 
   static calculateUsageCosts(
-    modelPrices: Price[] | null | undefined,
+    modelPrices:
+      | Array<{ usageType: string; price: Decimal }>
+      | null
+      | undefined,
     observationRecord: Pick<
       ObservationRecordInsertType,
       "provided_cost_details"

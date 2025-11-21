@@ -37,6 +37,7 @@ export * from "../server/ingestion/modelMatch";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "../server/queries/public-api-filter-builder";
+export * from "../server/pricing-tiers";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";

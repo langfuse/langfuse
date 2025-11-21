@@ -1,4 +1,4 @@
-import { expect, describe, it, beforeEach, afterEach } from "vitest";
+import { expect, describe, it } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 import {
@@ -7,28 +7,37 @@ import {
   getRedisModelKey,
   clearModelCacheForProject,
 } from "@langfuse/shared/src/server";
+import { v4 as uuidv4 } from "uuid";
 
 describe("modelMatch", () => {
   describe("findModel", () => {
     it("should return model with prices from Redis if available", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       // First create a model in Postgres
+      const modelId = uuidv4();
       const mockModel = await prisma.model.create({
         data: {
           projectId,
+          id: modelId,
           modelName: "gpt-4",
           matchPattern: "gpt-4",
           unit: "TOKENS",
           inputPrice: "1.0123",
-        },
-      });
-
-      // Create prices for the model
-      const mockPrice = await prisma.price.create({
-        data: {
-          modelId: mockModel.id,
-          usageType: "input",
-          price: "0.03",
+          pricingTiers: {
+            create: {
+              name: "Standard",
+              isDefault: true,
+              conditions: [],
+              priority: 0,
+              prices: {
+                create: {
+                  modelId,
+                  usageType: "input",
+                  price: "0.03",
+                },
+              },
+            },
+          },
         },
       });
 
@@ -63,12 +72,16 @@ describe("modelMatch", () => {
         mockModel.totalPrice?.toString(),
       );
 
-      // Verify prices are included
-      expect(result.prices).toHaveLength(1);
-      expect(result.prices[0].id).toEqual(mockPrice.id);
-      expect(result.prices[0].usageType).toEqual(mockPrice.usageType);
+      // Verify pricing tiers are included
+      expect(result.pricingTiers).toHaveLength(1);
+      expect(result.pricingTiers[0].name).toEqual("Standard");
+      expect(result.pricingTiers[0].isDefault).toBe(true);
+      expect(result.pricingTiers[0].priority).toBe(0);
+      expect(result.pricingTiers[0].prices).toHaveLength(1);
+      expect(result.pricingTiers[0].prices[0].usageType).toEqual("input");
+      expect(result.pricingTiers[0].prices[0].price.toString()).toEqual("0.03");
 
-      // Verify the model with prices exists in Redis
+      // Verify the model with pricing tiers exists in Redis
       const redisKey = getRedisModelKey({
         projectId,
         model: "gpt-4",
@@ -79,8 +92,8 @@ describe("modelMatch", () => {
       const parsed = JSON.parse(cachedValue!);
       expect(parsed.model.id).toEqual(mockModel.id);
       expect(parsed.model.projectId).toEqual(mockModel.projectId);
-      expect(parsed.prices).toHaveLength(1);
-      expect(parsed.prices[0].id).toEqual(mockPrice.id);
+      expect(parsed.pricingTiers).toHaveLength(1);
+      expect(parsed.pricingTiers[0].name).toEqual("Standard");
     });
 
     it("should query Postgres if Redis cache misses", async () => {
@@ -100,7 +113,7 @@ describe("modelMatch", () => {
       });
 
       expect(result.model).toEqual(mockModel);
-      expect(result.prices).toEqual([]);
+      expect(result.pricingTiers).toEqual([]);
     });
 
     it("should cache not found models in Redis", async () => {
@@ -113,7 +126,7 @@ describe("modelMatch", () => {
         model: nonExistentModel,
       });
       expect(result1.model).toBeNull();
-      expect(result1.prices).toEqual([]);
+      expect(result1.pricingTiers).toEqual([]);
 
       // Second lookup should use the cached not-found result
       const result2 = await findModel({
@@ -121,7 +134,7 @@ describe("modelMatch", () => {
         model: nonExistentModel,
       });
       expect(result2.model).toBeNull();
-      expect(result2.prices).toEqual([]);
+      expect(result2.pricingTiers).toEqual([]);
 
       // Verify the not-found token exists in Redis
       const redisKey = getRedisModelKey({

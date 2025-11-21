@@ -663,6 +663,16 @@ export type Model = {
   tokenizer_id: string | null;
   tokenizer_config: unknown | null;
 };
+export type ModelPricingTier = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  model_id: string;
+  name: string;
+  is_default: Generated<boolean>;
+  priority: number;
+  conditions: unknown;
+};
 export type NotificationPreference = {
   id: string;
   user_id: string;
@@ -727,6 +737,7 @@ export type Price = {
   updated_at: Generated<Timestamp>;
   model_id: string;
   project_id: string | null;
+  pricing_tier_id: string;
   usage_type: string;
   price: string;
 };
@@ -920,6 +931,7 @@ export type DB = {
   media: Media;
   membership_invitations: MembershipInvitation;
   mixpanel_integrations: MixpanelIntegration;
+  model_pricing_tiers: ModelPricingTier;
   models: Model;
   notification_preferences: NotificationPreference;
   observation_media: ObservationMedia;
