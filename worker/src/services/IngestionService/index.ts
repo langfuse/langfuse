@@ -4,7 +4,6 @@ import { Decimal } from "decimal.js";
 import {
   Model,
   ObservationLevel,
-  Price,
   PrismaClient,
   Prompt,
 } from "@langfuse/shared";
