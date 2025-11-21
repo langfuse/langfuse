@@ -10,6 +10,11 @@ import type {
   ItemWithIO,
   PayloadError,
 } from "./types";
+import {
+  Implementation,
+  executeWithDatasetServiceStrategy,
+  OperationType,
+} from "../../datasets/executeWithDatasetServiceStrategy";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
 
@@ -154,6 +159,34 @@ export class DatasetItemManager {
     return { success: true, datasetItem };
   }
 
+  private static mergeItemData(
+    existingItem: Omit<DatasetItem, "createdAt" | "updatedAt">,
+    newData: {
+      input?: string | unknown | null;
+      expectedOutput?: string | unknown | null;
+      metadata?: string | unknown | null;
+      sourceTraceId?: string;
+      sourceObservationId?: string;
+      status?: DatasetStatus;
+    },
+  ) {
+    return {
+      input: newData.input !== undefined ? newData.input : existingItem?.input,
+      expectedOutput:
+        newData.expectedOutput !== undefined
+          ? newData.expectedOutput
+          : existingItem?.expectedOutput,
+      metadata:
+        newData.metadata !== undefined
+          ? newData.metadata
+          : existingItem?.metadata,
+      sourceTraceId: newData.sourceTraceId ?? existingItem?.sourceTraceId,
+      sourceObservationId:
+        newData.sourceObservationId ?? existingItem?.sourceObservationId,
+      status: newData.status ?? existingItem?.status,
+    };
+  }
+
   /**
    * Upserts a dataset item (create if not exists, update if exists).
    * Validates against dataset schemas before persisting.
@@ -176,7 +209,13 @@ export class DatasetItemManager {
       normalizeOpts?: { sanitizeControlChars?: boolean };
       validateOpts: { normalizeUndefinedToNull?: boolean };
     } & IdOrName,
-  ): Promise<{ success: true; datasetItem: DatasetItem } | PayloadError> {
+  ): Promise<
+    | {
+        success: true;
+        datasetItem: Omit<DatasetItem, "createdAt" | "updatedAt">;
+      }
+    | PayloadError
+  > {
     // 1. Get dataset
     const dataset =
       "datasetId" in props
@@ -189,7 +228,27 @@ export class DatasetItemManager {
             datasetName: props.datasetName,
           });
 
-    // 2. Validate item payload
+    const itemId = props.datasetItemId ?? v4();
+
+    // 2. Fetch existing item if updating (itemId provided)
+    // This ensures we validate and write the complete merged state
+    let existingItem: Omit<DatasetItem, "createdAt" | "updatedAt"> | null =
+      null;
+    if (props.datasetItemId) {
+      existingItem = await this.getItemById({
+        projectId: props.projectId,
+        datasetItemId: props.datasetItemId,
+        datasetId: dataset.id,
+      });
+    }
+
+    // 3. Merge incoming data with existing data
+    // For fields where props value is undefined, use existing value
+    const mergedItemData = existingItem
+      ? this.mergeItemData(existingItem, props)
+      : props;
+
+    // 4. Validate merged payload
     const validator = new DatasetItemValidator({
       inputSchema: dataset.inputSchema as Record<string, unknown> | null,
       expectedOutputSchema: dataset.expectedOutputSchema as Record<
@@ -199,9 +258,9 @@ export class DatasetItemManager {
     });
 
     const itemPayload = validator.preparePayload({
-      input: props.input,
-      expectedOutput: props.expectedOutput,
-      metadata: props.metadata,
+      input: mergedItemData.input,
+      expectedOutput: mergedItemData.expectedOutput,
+      metadata: mergedItemData.metadata,
       normalizeOpts: props.normalizeOpts,
       validateOpts: props.validateOpts,
     });
@@ -210,39 +269,78 @@ export class DatasetItemManager {
       return itemPayload;
     }
 
-    const itemId = props.datasetItemId ?? v4();
+    // 5. Prepare full item data for writing
+    const itemData = {
+      input: itemPayload.input,
+      expectedOutput: itemPayload.expectedOutput,
+      metadata: itemPayload.metadata,
+      sourceTraceId: mergedItemData.sourceTraceId ?? undefined,
+      sourceObservationId: mergedItemData.sourceObservationId ?? undefined,
+      status: mergedItemData.status ?? undefined,
+    };
 
-    // 3. Update item
-    const datasetItem = await prisma.datasetItem.upsert({
-      where: {
-        id_projectId: {
-          id: itemId,
-          projectId: props.projectId,
-        },
-        datasetId: dataset.id,
+    let item: Omit<DatasetItem, "createdAt" | "updatedAt"> | null = null;
+    // 6. Update item
+    await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+      [Implementation.STATEFUL]: async () => {
+        const res = await prisma.datasetItem.upsert({
+          where: {
+            id_projectId: {
+              id: itemId,
+              projectId: props.projectId,
+            },
+            datasetId: dataset.id,
+          },
+          create: {
+            id: itemId,
+            datasetId: dataset.id,
+            ...itemData,
+            projectId: props.projectId,
+          },
+          update: {
+            ...itemData,
+          },
+        });
+        item = res;
       },
-      create: {
-        id: itemId,
-        input: itemPayload.input,
-        expectedOutput: itemPayload.expectedOutput,
-        metadata: itemPayload.metadata,
-        datasetId: dataset.id,
-        sourceTraceId: props.sourceTraceId ?? undefined,
-        sourceObservationId: props.sourceObservationId ?? undefined,
-        status: props.status ?? undefined,
-        projectId: props.projectId,
-      },
-      update: {
-        input: itemPayload.input,
-        expectedOutput: itemPayload.expectedOutput,
-        metadata: itemPayload.metadata,
-        sourceTraceId: props.sourceTraceId ?? undefined,
-        sourceObservationId: props.sourceObservationId ?? undefined,
-        status: props.status ?? undefined,
+      [Implementation.VERSIONED]: async () => {
+        // Write full item state to event table
+        const res = await prisma.datasetItemEvent.create({
+          data: {
+            id: itemId,
+            projectId: props.projectId,
+            datasetId: dataset.id,
+            createdAt: new Date(),
+            ...itemData,
+          },
+        });
+
+        // Map DatasetItemEvent to DatasetItem for return
+        item = {
+          id: res.id,
+          projectId: res.projectId,
+          datasetId: res.datasetId,
+          status: res.status,
+          input: res.input,
+          expectedOutput: res.expectedOutput,
+          metadata: res.metadata,
+          sourceTraceId: res.sourceTraceId,
+          sourceObservationId: res.sourceObservationId,
+        };
       },
     });
 
-    return { success: true, datasetItem: datasetItem };
+    if (!item) {
+      return {
+        success: false,
+        message: "Failed to upsert dataset item",
+      };
+    }
+
+    return {
+      success: true,
+      datasetItem: item,
+    };
   }
 
   /**
@@ -255,24 +353,106 @@ export class DatasetItemManager {
     datasetItemId: string;
     datasetId?: string;
   }): Promise<{ success: true; deletedItem: DatasetItem }> {
-    const item = await prisma.datasetItem.findUnique({
-      where: {
-        id_projectId: { id: props.datasetItemId, projectId: props.projectId },
-        ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-      },
+    const item = await this.getItemById({
+      projectId: props.projectId,
+      datasetItemId: props.datasetItemId,
+      datasetId: props.datasetId,
     });
-    if (!item) {
-      throw new LangfuseNotFoundError(
-        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
-      );
-    }
 
-    await prisma.datasetItem.delete({
-      where: {
-        id_projectId: { id: props.datasetItemId, projectId: props.projectId },
+    await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+      [Implementation.STATEFUL]: async () => {
+        await prisma.datasetItem.delete({
+          where: {
+            id_projectId: {
+              id: props.datasetItemId,
+              projectId: props.projectId,
+            },
+          },
+        });
+      },
+      [Implementation.VERSIONED]: async () => {
+        await prisma.datasetItemEvent.create({
+          data: {
+            id: props.datasetItemId,
+            projectId: props.projectId,
+            datasetId: item.datasetId,
+            deletedAt: new Date(),
+          },
+        });
       },
     });
+
     return { success: true, deletedItem: item };
+  }
+
+  /**
+   * Retrieves a single dataset item by ID.
+   * Used by API layers to fetch current state before merging partial updates.
+   *
+   * Call this BEFORE validation to merge existing data with updates.
+   *
+   * @param props.datasetId - Required to ensure item belongs to correct dataset
+   * @returns The dataset item or null if not found
+   */
+  public static async getItemById(props: {
+    projectId: string;
+    datasetItemId: string;
+    datasetId?: string;
+  }): Promise<DatasetItem> {
+    return executeWithDatasetServiceStrategy(OperationType.READ, {
+      [Implementation.STATEFUL]: async () => {
+        const item = await prisma.datasetItem.findUnique({
+          where: {
+            id_projectId: {
+              id: props.datasetItemId,
+              projectId: props.projectId,
+            },
+            ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+          },
+        });
+        if (!item) {
+          throw new LangfuseNotFoundError(
+            `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+          );
+        }
+        return item;
+      },
+      [Implementation.VERSIONED]: async () => {
+        // Fetch the latest event for this item (deleted or not)
+        const latestEvent = await prisma.datasetItemEvent.findFirst({
+          where: {
+            id: props.datasetItemId,
+            projectId: props.projectId,
+            ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+
+        // If the latest event is a deletion, the item doesn't exist
+        if (!latestEvent || latestEvent.deletedAt) {
+          throw new LangfuseNotFoundError(
+            `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+          );
+        }
+
+        // Map DatasetItemEvent to DatasetItem
+        return {
+          id: latestEvent.id,
+          projectId: latestEvent.projectId,
+          datasetId: latestEvent.datasetId,
+          status: latestEvent.status,
+          input: latestEvent.input,
+          expectedOutput: latestEvent.expectedOutput,
+          metadata: latestEvent.metadata,
+          sourceTraceId: latestEvent.sourceTraceId,
+          sourceObservationId: latestEvent.sourceObservationId,
+          createdAt: latestEvent.createdAt ?? new Date(),
+          updatedAt: latestEvent.createdAt ?? new Date(),
+        } as DatasetItem;
+      },
+    });
   }
 
   /**

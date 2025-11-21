@@ -703,7 +703,7 @@ export const datasetRouter = createTRPCRouter({
         sourceTraceId: input.sourceTraceId,
         sourceObservationId: input.sourceObservationId,
         status: input.status,
-        validateOpts: { normalizeUndefinedToNull: false }, // For UPDATE, undefined means "don't update" },
+        validateOpts: { normalizeUndefinedToNull: false }, // For UPDATE, undefined means "don't update"
       });
       if (!result.success) {
         throw new TRPCError({
