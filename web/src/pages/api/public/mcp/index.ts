@@ -33,7 +33,15 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
-import { UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import {
+  UnauthorizedError,
+  ForbiddenError,
+  LangfuseNotFoundError,
+  InvalidRequestError,
+  BaseError,
+} from "@langfuse/shared";
+import { ZodError } from "zod/v4";
+import { isUserInputError } from "@/src/features/mcp/core/errors";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -154,6 +162,15 @@ export default async function handler(
         status = 401;
       } else if (error instanceof ForbiddenError) {
         status = 403;
+      } else if (
+        isUserInputError(error) ||
+        error instanceof ZodError ||
+        error instanceof LangfuseNotFoundError ||
+        error instanceof InvalidRequestError ||
+        error instanceof BaseError
+      ) {
+        // User-caused errors (invalid input, not found, validation failures)
+        status = 400;
       }
 
       res.status(status).json({
