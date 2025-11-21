@@ -109,6 +109,7 @@ export type EventsTableRow = {
     outputCost?: number;
   };
   costDetails: Record<string, number>;
+  usagePricingTierName?: string | null;
 
   // Performance metrics
   latency?: number;
@@ -890,6 +891,7 @@ export default function ObservationsEventsTable({
             timestamp: observation.traceTimestamp ?? undefined,
             usageDetails: observation.usageDetails ?? {},
             costDetails: observation.costDetails ?? {},
+            usagePricingTierName: observation.usagePricingTierName ?? undefined,
             environment: observation.environment ?? undefined,
             input: observation.input
               ? typeof observation.input === "string"

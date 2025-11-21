@@ -85,6 +85,7 @@ export type ObservationsTableRow = {
   usageDetails: Record<string, number>;
   totalCost?: number;
   costDetails: Record<string, number>;
+  usagePricingTierName?: string | null;
   model?: string;
   promptName?: string;
   environment?: string;
@@ -1139,6 +1140,7 @@ export default function ObservationsTable({
             timestamp: generation.traceTimestamp ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
+            usagePricingTierName: generation.usagePricingTierName ?? undefined,
             environment: generation.environment ?? undefined,
           };
         })
