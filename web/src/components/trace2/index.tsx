@@ -6,7 +6,8 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { TraceDataProvider } from "./contexts/TraceDataContext";
 import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider } from "./contexts/SelectionContext";
-import { TraceTree } from "./components/TraceTree";
+import { SearchProvider } from "./contexts/SearchContext";
+import { NavigationPanel } from "./components/_layout/NavigationPanel";
 import { useMemo } from "react";
 
 export type TraceProps = {
@@ -45,7 +46,9 @@ export function Trace(props: TraceProps) {
         defaultMinObservationLevel={defaultMinObservationLevel}
       >
         <SelectionProvider>
-          <TraceContent />
+          <SearchProvider>
+            <TraceContent />
+          </SearchProvider>
         </SelectionProvider>
       </ViewPreferencesProvider>
     </TraceDataProvider>
@@ -54,10 +57,8 @@ export function Trace(props: TraceProps) {
 
 function TraceContent() {
   return (
-    <div className="flex h-full w-full flex-col">
-      <div className="flex-1 overflow-hidden">
-        <TraceTree />
-      </div>
+    <div className="h-full w-full">
+      <NavigationPanel />
     </div>
   );
 }
