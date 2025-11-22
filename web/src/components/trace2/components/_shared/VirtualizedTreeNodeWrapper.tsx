@@ -44,7 +44,7 @@ interface TreeNodeWrapperProps {
   className?: string;
 }
 
-export function TreeNodeWrapper({
+export function VirtualizedTreeNodeWrapper({
   metadata,
   nodeType,
   hasChildren,

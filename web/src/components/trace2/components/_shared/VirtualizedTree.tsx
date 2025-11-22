@@ -9,7 +9,7 @@ import { useRef, useLayoutEffect, useMemo, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { flattenTree } from "./tree-flattening";
 import { cn } from "@/src/utils/tailwind";
-import { type TreeNodeMetadata } from "./TreeNodeWrapper";
+import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
 
 interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   tree: T;

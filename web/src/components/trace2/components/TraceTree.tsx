@@ -10,7 +10,7 @@
  */
 
 import { VirtualizedTree } from "./_shared/VirtualizedTree";
-import { TreeNodeWrapper } from "./_shared/TreeNodeWrapper";
+import { VirtualizedTreeNodeWrapper } from "./_shared/VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "../contexts/TraceDataContext";
 import { useSelection } from "../contexts/SelectionContext";
@@ -39,7 +39,7 @@ export function TraceTree() {
         const typedNode = node as TreeNode;
 
         return (
-          <TreeNodeWrapper
+          <VirtualizedTreeNodeWrapper
             metadata={treeMetadata}
             nodeType={typedNode.type}
             hasChildren={typedNode.children.length > 0}
@@ -59,7 +59,7 @@ export function TraceTree() {
               commentCount={comments.get(typedNode.id)}
               onSelect={onSelect}
             />
-          </TreeNodeWrapper>
+          </VirtualizedTreeNodeWrapper>
         );
       }}
     />
