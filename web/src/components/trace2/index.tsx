@@ -3,12 +3,11 @@ import { type UrlUpdateType } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider, useTraceData } from "./contexts/TraceDataContext";
-import {
-  ViewPreferencesProvider,
-  useViewPreferences,
-} from "./contexts/ViewPreferencesContext";
-import { SelectionProvider, useSelection } from "./contexts/SelectionContext";
+import { TraceDataProvider } from "./contexts/TraceDataContext";
+import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
+import { SelectionProvider } from "./contexts/SelectionContext";
+import { TraceTree } from "./components/TraceTree";
+import { useMemo } from "react";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -32,11 +31,15 @@ export type TraceProps = {
 export function Trace(props: TraceProps) {
   const { trace, observations, scores, defaultMinObservationLevel } = props;
 
+  // Build comments map (empty for now - will be populated from API in future)
+  const commentsMap = useMemo(() => new Map<string, number>(), []);
+
   return (
     <TraceDataProvider
       trace={trace}
       observations={observations}
       scores={scores}
+      comments={commentsMap}
     >
       <ViewPreferencesProvider
         defaultMinObservationLevel={defaultMinObservationLevel}
@@ -50,26 +53,10 @@ export function Trace(props: TraceProps) {
 }
 
 function TraceContent() {
-  const traceData = useTraceData();
-  const viewPrefs = useViewPreferences();
-  const selection = useSelection();
-
   return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div className="text-center">
-        <h2 className="text-lg font-semibold">Trace Component</h2>
-        <p className="text-muted-foreground">
-          Loaded {traceData.observations.length} observations for trace &quot;
-          {traceData.trace.name ?? traceData.trace.id}&quot;
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tree nodes: {traceData.nodeMap.size} | Search items:{" "}
-          {traceData.searchItems.length}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Show duration: {viewPrefs.showDuration ? "yes" : "no"} | Selected:{" "}
-          {selection.selectedNodeId ?? "none"}
-        </p>
+    <div className="flex h-full w-full flex-col">
+      <div className="flex-1 overflow-hidden">
+        <TraceTree />
       </div>
     </div>
   );
