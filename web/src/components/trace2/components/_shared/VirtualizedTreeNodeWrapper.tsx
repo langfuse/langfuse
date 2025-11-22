@@ -131,7 +131,8 @@ export function VirtualizedTreeNodeWrapper({
         {/* 5. Expand/Collapse button */}
         {hasChildren && (
           <div className="flex items-center justify-end py-1 pr-1">
-            <Button aria-expanded={!isCollapsed}
+            <Button
+              aria-expanded={!isCollapsed}
               data-expand-button
               size="icon"
               variant="ghost"
