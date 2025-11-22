@@ -229,7 +229,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made
       const requests = webhookServer.getReceivedRequests();
@@ -351,9 +351,9 @@ describe("Webhook Integration Tests", () => {
         },
       };
 
-      await expect(
-        executeWebhook(webhookInput, { skipValidation: true }),
-      ).rejects.toThrow("Action config is not a valid webhook configuration");
+      await expect(executeWebhook(webhookInput)).rejects.toThrow(
+        "Action config is not a valid webhook configuration",
+      );
 
       const execution = await prisma.automationExecution.findUnique({
         where: { id: executionId },
@@ -418,7 +418,7 @@ describe("Webhook Integration Tests", () => {
         },
       };
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made
       const requests = webhookServer.getReceivedRequests();
@@ -491,7 +491,7 @@ describe("Webhook Integration Tests", () => {
         },
       };
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify execution was marked as error
       const execution = await prisma.automationExecution.findUnique({
@@ -565,7 +565,7 @@ describe("Webhook Integration Tests", () => {
           },
         };
 
-        await executeWebhook(webhookInput, { skipValidation: true });
+        await executeWebhook(webhookInput);
 
         // Verify execution was marked as error
         const execution = await prisma.automationExecution.findUnique({
@@ -658,7 +658,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with decrypted secret headers
       const requests = webhookServer.getReceivedRequests();
@@ -749,7 +749,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with decrypted secret headers
       const requests = webhookServer.getReceivedRequests();
@@ -828,7 +828,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with public headers
       const requests = webhookServer.getReceivedRequests();
@@ -912,7 +912,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with public headers
       const requests = webhookServer.getReceivedRequests();
@@ -995,7 +995,7 @@ describe("Webhook Integration Tests", () => {
         },
       });
 
-      await executeWebhook(webhookInput, { skipValidation: true });
+      await executeWebhook(webhookInput);
 
       // Verify webhook request was made with valid headers only
       const requests = webhookServer.getReceivedRequests();
@@ -1037,9 +1037,7 @@ describe("Webhook Integration Tests", () => {
       };
 
       // Should not throw an error, but return gracefully
-      await expect(
-        executeWebhook(webhookInput, { skipValidation: true }),
-      ).resolves.toBeUndefined();
+      await expect(executeWebhook(webhookInput)).resolves.toBeUndefined();
 
       // Verify that no execution record was created since automation doesn't exist
       const execution = await prisma.automationExecution.findUnique({
@@ -1167,7 +1165,7 @@ describe("Webhook Integration Tests", () => {
             },
           };
 
-          await executeWebhook(webhookInput, { skipValidation: true });
+          await executeWebhook(webhookInput);
         }
 
         // Verify trigger was disabled and lastFailingExecutionId was stored
@@ -1223,7 +1221,7 @@ describe("Webhook Integration Tests", () => {
             },
           };
 
-          await executeWebhook(newWebhookInput, { skipValidation: true });
+          await executeWebhook(newWebhookInput);
         }
 
         // Verify trigger was disabled again and lastFailingExecutionId was updated
@@ -1242,5 +1240,476 @@ describe("Webhook Integration Tests", () => {
         );
       },
     );
+  });
+
+  describe("Webhook Redirect Security Tests (SSRF Prevention)", () => {
+    beforeEach(async () => {
+      // Reset server handlers to avoid conflicts with redirect tests
+      webhookServer.reset();
+    });
+
+    it("should block redirect to internal IP (169.254.169.254 - AWS metadata)", async () => {
+      // Setup: Configure MSW to return a redirect to AWS metadata service
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "http://169.254.169.254/latest/meta-data/",
+            },
+          });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      // Execute - should fail due to redirect validation
+      await executeWebhook(webhookInput);
+
+      // Verify execution was marked as ERROR
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      expect(execution?.error).toContain("redirect blocked for security");
+    });
+
+    it("should block redirect to localhost", async () => {
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test", () => {
+          return new HttpResponse(null, {
+            status: 301,
+            headers: {
+              Location: "http://localhost:8080/internal",
+            },
+          });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify execution was marked as ERROR
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      expect(execution?.error).toContain("redirect blocked for security");
+    });
+
+    it("should block redirect to private IP (10.0.0.1)", async () => {
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "http://10.0.0.1/internal-api",
+            },
+          });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify execution was marked as ERROR
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      expect(execution?.error).toContain("redirect blocked for security");
+    });
+
+    it("should allow legitimate HTTP->HTTPS redirect on same host", async () => {
+      // Setup: First request redirects to HTTPS, second request succeeds
+      let requestCount = 0;
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test", async ({ request }) => {
+          requestCount++;
+          if (requestCount === 1) {
+            // First request: redirect to HTTPS (simulating HTTP->HTTPS upgrade)
+            return new HttpResponse(null, {
+              status: 301,
+              headers: {
+                Location: "https://webhook.example.com/secure",
+              },
+            });
+          } else {
+            // Second request: success
+            return HttpResponse.json({ success: true }, { status: 200 });
+          }
+        }),
+        http.post("https://webhook.example.com/secure", async () => {
+          return HttpResponse.json({ success: true }, { status: 200 });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      // Should succeed - legitimate redirect
+      await executeWebhook(webhookInput);
+
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("should allow legitimate trailing slash redirect", async () => {
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test/", async () => {
+          // Handle the redirect target first (more specific pattern)
+          return HttpResponse.json({ success: true }, { status: 200 });
+        }),
+        http.post("https://webhook.example.com/test", () => {
+          // Handle the initial URL (without trailing slash)
+          return new HttpResponse(null, {
+            status: 301,
+            headers: {
+              Location: "https://webhook.example.com/test/",
+            },
+          });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("should reject webhooks exceeding max redirect limit (5)", async () => {
+      // Setup infinite redirect loop
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://webhook.example.com/redirect1",
+            },
+          });
+        }),
+        http.post("https://webhook.example.com/redirect1", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://webhook.example.com/redirect2",
+            },
+          });
+        }),
+        http.post("https://webhook.example.com/redirect2", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://webhook.example.com/redirect3",
+            },
+          });
+        }),
+        http.post("https://webhook.example.com/redirect3", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://webhook.example.com/redirect4",
+            },
+          });
+        }),
+        http.post("https://webhook.example.com/redirect4", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://webhook.example.com/redirect5",
+            },
+          });
+        }),
+        http.post("https://webhook.example.com/redirect5", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://webhook.example.com/redirect6",
+            },
+          });
+        }),
+        http.post("https://webhook.example.com/redirect6", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "https://webhook.example.com/redirect7",
+            },
+          });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify execution was marked as ERROR
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      expect(execution?.error).toContain("exceeded maximum redirect limit");
+    });
+
+    it("should properly resolve relative redirect URLs", async () => {
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            headers: {
+              Location: "/redirected-path", // Relative URL
+            },
+          });
+        }),
+        http.post("https://webhook.example.com/redirected-path", () => {
+          return HttpResponse.json({ success: true }, { status: 200 });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("should fail when redirect has no Location header", async () => {
+      webhookServer["server"].use(
+        http.post("https://webhook.example.com/test", () => {
+          return new HttpResponse(null, {
+            status: 302,
+            // Missing Location header
+          });
+        }),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput);
+
+      // Verify execution was marked as ERROR
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      expect(execution?.error).toContain("without Location header");
+    });
   });
 });
