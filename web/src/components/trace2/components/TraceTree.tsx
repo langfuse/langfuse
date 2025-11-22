@@ -1,15 +1,17 @@
 /**
- * TraceTree - Instantiation of VirtualizedTree for trace view.
+ * TraceTree - Composition of VirtualizedTree + TreeNodeWrapper + SpanContent.
  *
- * Connects:
- * - VirtualizedTree (generic virtualized renderer)
- * - SpanListItemView (node renderer)
- * - SelectionContext (collapsed state, selection state)
- * - TraceDataContext (tree data)
+ * Connects three layers:
+ * - VirtualizedTree (virtualization)
+ * - TreeNodeWrapper (tree structure rendering)
+ * - SpanContent (span-specific content)
+ *
+ * This composition pattern allows each component to have a single responsibility.
  */
 
 import { VirtualizedTree } from "./_shared/VirtualizedTree";
-import { SpanListItemView } from "./SpanListItemView";
+import { TreeNodeWrapper } from "./_shared/TreeNodeWrapper";
+import { SpanContent } from "./SpanContent";
 import { useTraceData } from "../contexts/TraceDataContext";
 import { useSelection } from "../contexts/SelectionContext";
 import { type TreeNode } from "../lib/types";
@@ -28,9 +30,7 @@ export function TraceTree() {
       onSelectNode={setSelectedNodeId}
       renderNode={({
         node,
-        depth,
-        treeLines,
-        isLastSibling,
+        treeMetadata,
         isSelected,
         isCollapsed,
         onToggleCollapse,
@@ -39,23 +39,27 @@ export function TraceTree() {
         const typedNode = node as TreeNode;
 
         return (
-          <SpanListItemView
-            node={typedNode}
-            depth={depth}
-            treeLines={treeLines}
-            isLastSibling={isLastSibling}
-            isSelected={isSelected}
+          <TreeNodeWrapper
+            metadata={treeMetadata}
+            nodeType={typedNode.type}
+            hasChildren={typedNode.children.length > 0}
             isCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
+            isSelected={isSelected}
             onSelect={onSelect}
-            parentTotalCost={typedNode.totalCost}
-            parentTotalDuration={
-              typedNode.endTime && typedNode.startTime
-                ? typedNode.endTime.getTime() - typedNode.startTime.getTime()
-                : undefined
-            }
-            commentCount={comments.get(typedNode.id)}
-          />
+          >
+            <SpanContent
+              node={typedNode}
+              parentTotalCost={typedNode.totalCost}
+              parentTotalDuration={
+                typedNode.endTime && typedNode.startTime
+                  ? typedNode.endTime.getTime() - typedNode.startTime.getTime()
+                  : undefined
+              }
+              commentCount={comments.get(typedNode.id)}
+              onSelect={onSelect}
+            />
+          </TreeNodeWrapper>
         );
       }}
     />

@@ -9,6 +9,7 @@ import { useRef, useLayoutEffect, useMemo, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { flattenTree } from "./tree-flattening";
 import { cn } from "@/src/utils/tailwind";
+import { type TreeNodeMetadata } from "./TreeNodeWrapper";
 
 interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   tree: T;
@@ -16,9 +17,7 @@ interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   selectedNodeId: string | null;
   renderNode: (params: {
     node: T;
-    depth: number;
-    treeLines: boolean[];
-    isLastSibling: boolean;
+    treeMetadata: TreeNodeMetadata;
     isSelected: boolean;
     isCollapsed: boolean;
     onToggleCollapse: () => void;
@@ -27,6 +26,8 @@ interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   onToggleCollapse: (nodeId: string) => void;
   onSelectNode: (nodeId: string | null) => void;
   estimateSize?: (node: T, index: number) => number;
+  overscan?: number;
+  defaultRowHeight?: number;
   className?: string;
 }
 
@@ -38,6 +39,8 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   onToggleCollapse,
   onSelectNode,
   estimateSize,
+  overscan = 500,
+  defaultRowHeight = 37,
   className,
 }: VirtualizedTreeProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -47,7 +50,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     [tree, collapsedNodes],
   );
 
-  const defaultEstimateSize = () => 37;
+  const defaultEstimateSize = () => defaultRowHeight;
 
   const rowVirtualizer = useVirtualizer({
     count: flattenedItems.length,
@@ -55,7 +58,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     estimateSize: estimateSize
       ? (index) => estimateSize(flattenedItems[index]!.node, index)
       : defaultEstimateSize,
-    overscan: 500,
+    overscan,
     measureElement:
       typeof window !== "undefined"
         ? (element) => element.getBoundingClientRect().height
@@ -115,9 +118,11 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
             >
               {renderNode({
                 node: item.node,
-                depth: item.depth,
-                treeLines: item.treeLines,
-                isLastSibling: item.isLastSibling,
+                treeMetadata: {
+                  depth: item.depth,
+                  treeLines: item.treeLines,
+                  isLastSibling: item.isLastSibling,
+                },
                 isSelected,
                 isCollapsed,
                 onToggleCollapse: () => onToggleCollapse(item.node.id),
