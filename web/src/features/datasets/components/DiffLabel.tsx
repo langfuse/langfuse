@@ -13,16 +13,26 @@ export function DiffLabel({
   diff,
   formatValue,
   className,
+  invertColors,
 }: {
   diff: NumericDiff | CategoricalDiff;
   formatValue: (value: number) => string;
   className?: string;
+  invertColors?: boolean;
 }) {
   if (diff.type === "NUMERIC") {
+    let variant: "success" | "error";
+    if (invertColors) {
+      // Lower is better (cost/latency)
+      variant = diff.direction === "+" ? "error" : "success";
+    } else {
+      // Higher is better (scores)
+      variant = diff.direction === "+" ? "success" : "error";
+    }
     return (
       <Badge
         size="sm"
-        variant={diff.direction === "+" ? "success" : "error"}
+        variant={variant}
         className={cn("font-semibold", className)}
       >
         {diff.direction}

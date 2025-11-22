@@ -209,6 +209,7 @@ const DatasetAggregateCellContent = ({
                   diff={latencyDiff}
                   formatValue={(value) => formatIntervalSeconds(value)}
                   className="ml-1"
+                  invertColors={true}
                 />
               ) : (
                 <Badge variant="tertiary" size="sm" className="font-normal">
@@ -224,6 +225,7 @@ const DatasetAggregateCellContent = ({
                   diff={totalCostDiff}
                   formatValue={(value) => usdFormatter(value, 2, 4)}
                   className="ml-1"
+                  invertColors={true}
                 />
               ) : (
                 <Badge variant="tertiary" size="sm" className="font-normal">
