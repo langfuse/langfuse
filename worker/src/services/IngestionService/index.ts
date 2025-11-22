@@ -162,20 +162,13 @@ const immutableEntityKeys: {
   [TableName.Observations]: (keyof ObservationRecordInsertType)[];
   [TableName.DatasetRunItems]: (keyof DatasetRunItemRecordInsertType)[];
 } = {
-  [TableName.Traces]: [
-    "id",
-    "project_id",
-    "timestamp",
-    "created_at",
-    "environment",
-  ],
+  [TableName.Traces]: ["id", "project_id", "timestamp", "created_at"],
   [TableName.Scores]: [
     "id",
     "project_id",
     "timestamp",
     "trace_id",
     "created_at",
-    "environment",
   ],
   [TableName.Observations]: [
     "id",
@@ -183,7 +176,6 @@ const immutableEntityKeys: {
     "trace_id",
     "start_time",
     "created_at",
-    "environment",
   ],
   // We do not accept updates, hence this list is currently not used.
   [TableName.DatasetRunItems]: [
