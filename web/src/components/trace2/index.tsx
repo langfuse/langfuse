@@ -9,6 +9,7 @@ import {
   useViewPreferences,
 } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider, useSelection } from "./contexts/SelectionContext";
+import { TraceTree } from "./components/TraceTree";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -50,26 +51,10 @@ export function Trace(props: TraceProps) {
 }
 
 function TraceContent() {
-  const traceData = useTraceData();
-  const viewPrefs = useViewPreferences();
-  const selection = useSelection();
-
   return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div className="text-center">
-        <h2 className="text-lg font-semibold">Trace Component</h2>
-        <p className="text-muted-foreground">
-          Loaded {traceData.observations.length} observations for trace &quot;
-          {traceData.trace.name ?? traceData.trace.id}&quot;
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tree nodes: {traceData.nodeMap.size} | Search items:{" "}
-          {traceData.searchItems.length}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Show duration: {viewPrefs.showDuration ? "yes" : "no"} | Selected:{" "}
-          {selection.selectedNodeId ?? "none"}
-        </p>
+    <div className="flex h-full w-full flex-col">
+      <div className="flex-1 overflow-hidden">
+        <TraceTree />
       </div>
     </div>
   );
