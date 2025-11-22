@@ -1,8 +1,10 @@
 import { z } from "zod/v4";
+import type { Dataset } from "../../db";
 import { jsonSchemaNullable } from "../../utils/zod";
-import { isValidJSONSchema } from "../../utils/jsonSchemaValidation";
-import type { Dataset } from "@prisma/client";
-import type { ValidationError } from "./schemaValidation";
+import {
+  isValidJSONSchema,
+  type FieldValidationError,
+} from "../../utils/jsonSchemaValidation";
 
 /**
  * Schema for validating JSON Schema objects
@@ -18,6 +20,16 @@ export const DatasetJSONSchema = z
 export type DatasetJSONSchema = z.infer<typeof DatasetJSONSchema>;
 
 /**
+ * Validation error for dataset schema validation
+ * Used when validating existing items against newly added/updated schemas
+ */
+export type DatasetSchemaValidationError = {
+  datasetItemId: string;
+  field: "input" | "expectedOutput";
+  errors: FieldValidationError[];
+};
+
+/**
  * Result type for dataset mutations that may fail validation
  * Using discriminated union for type-safe error handling
  */
@@ -28,5 +40,5 @@ export type DatasetMutationResult =
     }
   | {
       success: false;
-      validationErrors: ValidationError[];
+      validationErrors: DatasetSchemaValidationError[];
     };
