@@ -15,7 +15,7 @@ import { useSelection } from "../contexts/SelectionContext";
 import { type TreeNode } from "../lib/types";
 
 export function TraceTree() {
-  const { tree } = useTraceData();
+  const { tree, comments } = useTraceData();
   const { selectedNodeId, setSelectedNodeId, collapsedNodes, toggleCollapsed } =
     useSelection();
 
@@ -54,6 +54,7 @@ export function TraceTree() {
                 ? typedNode.endTime.getTime() - typedNode.startTime.getTime()
                 : undefined
             }
+            commentCount={comments.get(typedNode.id)}
           />
         );
       }}

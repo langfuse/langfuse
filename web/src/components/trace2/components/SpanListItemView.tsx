@@ -35,6 +35,7 @@ interface SpanListItemViewProps {
   onSelect: () => void;
   parentTotalCost?: Decimal;
   parentTotalDuration?: number;
+  commentCount?: number;
 }
 
 export function SpanListItemView({
@@ -48,6 +49,7 @@ export function SpanListItemView({
   onSelect,
   parentTotalCost,
   parentTotalDuration,
+  commentCount,
 }: SpanListItemViewProps) {
   const { scores } = useTraceData();
   const {
@@ -171,8 +173,8 @@ export function SpanListItemView({
               </span>
 
               <div className="flex items-center gap-x-2">
-                {showComments && node.commentCount !== undefined && (
-                  <CommentCountIcon count={node.commentCount} />
+                {showComments && commentCount !== undefined && (
+                  <CommentCountIcon count={commentCount} />
                 )}
                 {node.type !== "TRACE" &&
                   node.level &&

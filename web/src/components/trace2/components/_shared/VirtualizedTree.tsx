@@ -7,7 +7,7 @@
 
 import { useRef, useLayoutEffect, useMemo, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { flattenTree, type FlatNode } from "./tree-flattening";
+import { flattenTree } from "./tree-flattening";
 import { cn } from "@/src/utils/tailwind";
 
 interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {

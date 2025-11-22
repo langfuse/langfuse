@@ -3,13 +3,11 @@ import { type UrlUpdateType } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider, useTraceData } from "./contexts/TraceDataContext";
-import {
-  ViewPreferencesProvider,
-  useViewPreferences,
-} from "./contexts/ViewPreferencesContext";
-import { SelectionProvider, useSelection } from "./contexts/SelectionContext";
+import { TraceDataProvider } from "./contexts/TraceDataContext";
+import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
+import { SelectionProvider } from "./contexts/SelectionContext";
 import { TraceTree } from "./components/TraceTree";
+import { useMemo } from "react";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -33,11 +31,15 @@ export type TraceProps = {
 export function Trace(props: TraceProps) {
   const { trace, observations, scores, defaultMinObservationLevel } = props;
 
+  // Build comments map (empty for now - will be populated from API in future)
+  const commentsMap = useMemo(() => new Map<string, number>(), []);
+
   return (
     <TraceDataProvider
       trace={trace}
       observations={observations}
       scores={scores}
+      comments={commentsMap}
     >
       <ViewPreferencesProvider
         defaultMinObservationLevel={defaultMinObservationLevel}

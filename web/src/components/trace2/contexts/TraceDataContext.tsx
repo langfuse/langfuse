@@ -34,6 +34,7 @@ interface TraceDataContextValue {
   nodeMap: Map<string, TreeNode>;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
+  comments: Map<string, number>;
 }
 
 const TraceDataContext = createContext<TraceDataContextValue | null>(null);
@@ -50,6 +51,7 @@ interface TraceDataProviderProps {
   trace: TraceType;
   observations: ObservationReturnTypeWithMetadata[];
   scores: WithStringifiedMetadata<ScoreDomain>[];
+  comments: Map<string, number>;
   children: ReactNode;
 }
 
@@ -57,6 +59,7 @@ export function TraceDataProvider({
   trace,
   observations,
   scores,
+  comments,
   children,
 }: TraceDataProviderProps) {
   const uiData = useMemo(() => {
@@ -72,8 +75,9 @@ export function TraceDataProvider({
       nodeMap: uiData.nodeMap,
       searchItems: uiData.searchItems,
       hiddenObservationsCount: uiData.hiddenObservationsCount,
+      comments,
     }),
-    [trace, observations, scores, uiData],
+    [trace, observations, scores, uiData, comments],
   );
 
   return (
