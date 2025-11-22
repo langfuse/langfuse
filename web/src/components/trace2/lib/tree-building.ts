@@ -1,13 +1,21 @@
 /**
  * Tree building utilities for trace component.
  *
- * Transforms flat observation arrays into hierarchical TreeNode structures.
- * Includes cost aggregation computed bottom-up for O(1) access.
+ * IMPLEMENTATION APPROACH:
+ * Uses fully iterative algorithms (no recursion) to avoid stack overflow on deep trees (10k+ depth).
+ *
+ * Algorithm Overview:
+ * 1. Filter observations by level threshold and sort by startTime
+ * 2. Build dependency graph: Map-based parent-child relationships (O(N))
+ * 3. Topological sort: Process nodes bottom-up (leaves first) using queue with index-based traversal
+ * 4. Cost aggregation: Compute bottom-up during tree construction (children before parents)
+ * 5. Flatten to searchItems: Iterative pre-order traversal using explicit stack
+ *
+ * Complexity: O(N) time, O(N) space - handles unlimited depth without stack overflow.
  *
  * Main export: buildTraceUiData() - builds tree, nodeMap, and searchItems from trace + observations.
  */
 
-import { type NestedObservation } from "@/src/utils/types";
 import { type TreeNode, type TraceSearchListItem } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
@@ -28,6 +36,17 @@ type TraceType = Omit<
 };
 
 /**
+ * Processing node for iterative tree building.
+ * Tracks parent-child relationships and processing state for bottom-up traversal.
+ */
+interface ProcessingNode {
+  observation: ObservationReturnType;
+  childrenIds: string[];
+  inDegree: number; // Number of unprocessed children (for topological sort)
+  treeNode?: TreeNode; // Set when node is processed
+}
+
+/**
  * Returns observation levels at or above the minimum level.
  */
 function getObservationLevels(minLevel: ObservationLevelType | undefined) {
@@ -45,18 +64,19 @@ function getObservationLevels(minLevel: ObservationLevelType | undefined) {
 }
 
 /**
- * Nests flat observation array into parent-child hierarchy.
- * Filters by minimum observation level and sorts by startTime.
+ * Filters and prepares observations for tree building.
+ * Filters by minimum observation level, cleans orphaned parents, and sorts by startTime.
+ * Returns flat array (nesting happens in buildDependencyGraph).
  */
-function nestObservations(
+function filterAndPrepareObservations(
   list: ObservationReturnType[],
   minLevel?: ObservationLevelType,
 ): {
-  nestedObservations: NestedObservation[];
+  sortedObservations: ObservationReturnType[];
   hiddenObservationsCount: number;
 } {
   if (list.length === 0)
-    return { nestedObservations: [], hiddenObservationsCount: 0 };
+    return { sortedObservations: [], hiddenObservationsCount: 0 };
 
   // Filter for observations with minimum level
   const mutableList = list.filter((o) =>
@@ -82,147 +102,183 @@ function nestObservations(
     (a, b) => a.startTime.getTime() - b.startTime.getTime(),
   );
 
-  // Create map with children arrays
-  const map = new Map<string, NestedObservation>();
-  for (const obj of sortedObservations) {
-    map.set(obj.id, { ...obj, children: [] });
-  }
-
-  // Build roots map
-  const roots = new Map<string, NestedObservation>();
-
-  // Populate children arrays and root map
-  for (const obj of map.values()) {
-    if (obj.parentObservationId) {
-      const parent = map.get(obj.parentObservationId);
-      if (parent) {
-        parent.children.push(obj);
-      }
-    } else {
-      roots.set(obj.id, obj);
-    }
-  }
-
-  // Sort children by start time
-  for (const obj of map.values()) {
-    obj.children.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-  }
-
   return {
-    nestedObservations: Array.from(roots.values()),
+    sortedObservations,
     hiddenObservationsCount,
   };
 }
 
 /**
- * Enriches tree nodes with pre-computed costs (bottom-up aggregation).
- * Also populates nodeMap for O(1) lookup by ID.
+ * Phase 2: Builds dependency graph for bottom-up tree construction.
+ * Creates ProcessingNodes with parent-child relationships via IDs.
+ * Calculates in-degrees for topological sort (children count per node).
  */
-function enrichTreeNodeWithCosts(
-  node: TreeNode,
-  nodeMap: Map<string, TreeNode>,
-): TreeNode {
-  // Recursively enrich children first
-  const enrichedChildren = node.children.map((child) =>
-    enrichTreeNodeWithCosts(child, nodeMap),
-  );
+function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
+  nodeRegistry: Map<string, ProcessingNode>;
+  leafIds: string[];
+} {
+  const nodeRegistry = new Map<string, ProcessingNode>();
 
-  // Calculate this node's own cost
-  let nodeCost: Decimal | undefined;
+  // First pass: create all ProcessingNodes
+  for (const obs of sortedObservations) {
+    nodeRegistry.set(obs.id, {
+      observation: obs,
+      childrenIds: [],
+      inDegree: 0,
+      treeNode: undefined,
+    });
+  }
 
-  if (node.calculatedTotalCost != null) {
-    const cost = new Decimal(node.calculatedTotalCost);
-    if (!cost.isZero()) {
-      nodeCost = cost;
-    }
-  } else if (
-    node.calculatedInputCost != null ||
-    node.calculatedOutputCost != null
-  ) {
-    const inputCost =
-      node.calculatedInputCost != null
-        ? new Decimal(node.calculatedInputCost)
-        : new Decimal(0);
-    const outputCost =
-      node.calculatedOutputCost != null
-        ? new Decimal(node.calculatedOutputCost)
-        : new Decimal(0);
-    const combinedCost = inputCost.plus(outputCost);
-    if (!combinedCost.isZero()) {
-      nodeCost = combinedCost;
+  // Second pass: build parent-child relationships
+  for (const obs of sortedObservations) {
+    if (obs.parentObservationId) {
+      const parent = nodeRegistry.get(obs.parentObservationId);
+      if (parent) {
+        parent.childrenIds.push(obs.id);
+      }
     }
   }
 
-  // Sum children's total costs
-  const childrenTotalCost = enrichedChildren.reduce<Decimal | undefined>(
-    (acc, child) => {
-      if (!child.totalCost) return acc;
-      return acc ? acc.plus(child.totalCost) : child.totalCost;
-    },
-    undefined,
-  );
+  // Third pass: calculate in-degrees and identify leaf nodes
+  // Note: Children are already in correct order because observations are pre-sorted
+  // by startTime in filterAndPrepareObservations, and children are added in iteration order.
+  const leafIds: string[] = [];
+  for (const [id, node] of nodeRegistry) {
+    // Set in-degree to children count (for topological sort)
+    node.inDegree = node.childrenIds.length;
 
-  // Total = node cost + children costs
-  const totalCost =
-    nodeCost && childrenTotalCost
-      ? nodeCost.plus(childrenTotalCost)
-      : nodeCost || childrenTotalCost;
+    // Track leaf nodes (no children = ready to process first)
+    if (node.childrenIds.length === 0) {
+      leafIds.push(id);
+    }
+  }
 
-  const enrichedNode = {
-    ...node,
-    children: enrichedChildren,
-    totalCost,
-  };
-
-  nodeMap.set(enrichedNode.id, enrichedNode);
-  return enrichedNode;
+  return { nodeRegistry, leafIds };
 }
 
 /**
- * Builds hierarchical tree from trace and observations.
+ * Phase 3: Builds TreeNodes bottom-up using topological sort.
+ * Processes leaf nodes first, then parents once all children are processed.
+ * Calculates costs bottom-up: node cost + aggregated children costs.
  */
-function buildTraceTree(
+function buildTreeNodesBottomUp(
+  nodeRegistry: Map<string, ProcessingNode>,
+  leafIds: string[],
+  nodeMap: Map<string, TreeNode>,
+): string[] {
+  // Queue starts with all leaf nodes (inDegree === 0)
+  // Use index-based traversal instead of shift() for O(1) dequeue (shift is O(N))
+  const queue = [...leafIds];
+  let queueIndex = 0;
+  const rootIds: string[] = [];
+
+  while (queueIndex < queue.length) {
+    const currentId = queue[queueIndex++];
+    const currentNode = nodeRegistry.get(currentId)!;
+    const obs = currentNode.observation;
+
+    // Get child TreeNodes (already processed)
+    const childTreeNodes: TreeNode[] = [];
+    for (const childId of currentNode.childrenIds) {
+      const childNode = nodeRegistry.get(childId)!;
+      if (childNode.treeNode) {
+        childTreeNodes.push(childNode.treeNode);
+      }
+    }
+
+    // Calculate this node's own cost
+    let nodeCost: Decimal | undefined;
+
+    if (obs.totalCost != null) {
+      const cost = new Decimal(obs.totalCost);
+      if (!cost.isZero()) {
+        nodeCost = cost;
+      }
+    } else if (obs.inputCost != null || obs.outputCost != null) {
+      const inputCost =
+        obs.inputCost != null ? new Decimal(obs.inputCost) : new Decimal(0);
+      const outputCost =
+        obs.outputCost != null ? new Decimal(obs.outputCost) : new Decimal(0);
+      const combinedCost = inputCost.plus(outputCost);
+      if (!combinedCost.isZero()) {
+        nodeCost = combinedCost;
+      }
+    }
+
+    // Sum children's total costs (already computed bottom-up)
+    const childrenTotalCost = childTreeNodes.reduce<Decimal | undefined>(
+      (acc, child) => {
+        if (!child.totalCost) return acc;
+        return acc ? acc.plus(child.totalCost) : child.totalCost;
+      },
+      undefined,
+    );
+
+    // Total = node cost + children costs
+    const totalCost =
+      nodeCost && childrenTotalCost
+        ? nodeCost.plus(childrenTotalCost)
+        : nodeCost || childrenTotalCost;
+
+    // Create TreeNode
+    const treeNode: TreeNode = {
+      id: obs.id,
+      type: obs.type,
+      name: obs.name ?? "",
+      startTime: obs.startTime,
+      endTime: obs.endTime,
+      level: obs.level,
+      children: childTreeNodes,
+      inputUsage: obs.inputUsage,
+      outputUsage: obs.outputUsage,
+      totalUsage: obs.totalUsage,
+      calculatedInputCost: obs.inputCost,
+      calculatedOutputCost: obs.outputCost,
+      calculatedTotalCost: obs.totalCost,
+      parentObservationId: obs.parentObservationId,
+      traceId: obs.traceId,
+      totalCost,
+    };
+
+    // Store in registry and nodeMap
+    currentNode.treeNode = treeNode;
+    nodeMap.set(currentId, treeNode);
+
+    // Decrement parent's in-degree and queue if ready
+    if (obs.parentObservationId) {
+      const parent = nodeRegistry.get(obs.parentObservationId);
+      if (parent) {
+        parent.inDegree--;
+        if (parent.inDegree === 0) {
+          queue.push(obs.parentObservationId);
+        }
+      }
+    } else {
+      // No parent = root observation
+      rootIds.push(currentId);
+    }
+  }
+
+  return rootIds;
+}
+
+/**
+ * Phase 4: Builds trace root node.
+ * Aggregates costs from all root observations.
+ */
+function buildTraceRoot(
   trace: TraceType,
-  observations: ObservationReturnType[],
-  minLevel?: ObservationLevelType,
-): {
-  tree: TreeNode;
-  hiddenObservationsCount: number;
-  nodeMap: Map<string, TreeNode>;
-} {
-  const { nestedObservations, hiddenObservationsCount } = nestObservations(
-    observations,
-    minLevel,
-  );
+  rootIds: string[],
+  nodeRegistry: Map<string, ProcessingNode>,
+  nodeMap: Map<string, TreeNode>,
+): TreeNode {
+  // Get root TreeNodes in sorted order
+  const rootTreeNodes = rootIds
+    .map((id) => nodeRegistry.get(id)!.treeNode!)
+    .filter((node) => node !== undefined);
 
-  const nodeMap = new Map<string, TreeNode>();
-
-  // Convert observations to TreeNodes
-  const convertObservationToTreeNode = (obs: NestedObservation): TreeNode => ({
-    id: obs.id,
-    type: obs.type,
-    name: obs.name ?? "",
-    startTime: obs.startTime,
-    endTime: obs.endTime,
-    level: obs.level,
-    children: obs.children.map(convertObservationToTreeNode),
-    inputUsage: obs.inputUsage,
-    outputUsage: obs.outputUsage,
-    totalUsage: obs.totalUsage,
-    calculatedInputCost: obs.inputCost,
-    calculatedOutputCost: obs.outputCost,
-    calculatedTotalCost: obs.totalCost,
-    parentObservationId: obs.parentObservationId,
-    traceId: obs.traceId,
-  });
-
-  // Convert and enrich with costs
-  const enrichedChildren = nestedObservations
-    .map(convertObservationToTreeNode)
-    .map((node) => enrichTreeNodeWithCosts(node, nodeMap));
-
-  // Calculate trace root total cost
-  const traceTotalCost = enrichedChildren.reduce<Decimal | undefined>(
+  // Calculate trace total cost
+  const traceTotalCost = rootTreeNodes.reduce<Decimal | undefined>(
     (acc, child) => {
       if (!child.totalCost) return acc;
       return acc ? acc.plus(child.totalCost) : child.totalCost;
@@ -237,7 +293,115 @@ function buildTraceTree(
     name: trace.name ?? "",
     startTime: trace.timestamp,
     endTime: null,
-    children: enrichedChildren,
+    children: rootTreeNodes,
+    latency: trace.latency,
+    totalCost: traceTotalCost,
+  };
+
+  nodeMap.set(tree.id, tree);
+  return tree;
+}
+
+/**
+ * Phase 5: Flattens tree to searchItems array using iterative pre-order traversal.
+ * Uses explicit stack to avoid recursion (handles unlimited depth).
+ */
+function buildSearchItemsIterative(
+  tree: TreeNode,
+  rootTotalCost: Decimal | undefined,
+  rootDuration: number | undefined,
+): TraceSearchListItem[] {
+  const searchItems: TraceSearchListItem[] = [];
+  const stack: TreeNode[] = [tree];
+
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+
+    searchItems.push({
+      node,
+      parentTotalCost: rootTotalCost,
+      parentTotalDuration: rootDuration,
+      observationId: node.type === "TRACE" ? undefined : node.id,
+    });
+
+    // Add children in reverse order for correct pre-order traversal
+    // (stack is LIFO, so reverse gives correct left-to-right order)
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      stack.push(node.children[i]);
+    }
+  }
+
+  return searchItems;
+}
+
+/**
+ * Builds hierarchical tree from trace and observations (ITERATIVE - optimal).
+ * Uses topological sort for bottom-up cost aggregation.
+ * Handles unlimited tree depth without stack overflow.
+ */
+function buildTraceTree(
+  trace: TraceType,
+  observations: ObservationReturnType[],
+  minLevel?: ObservationLevelType,
+): {
+  tree: TreeNode;
+  hiddenObservationsCount: number;
+  nodeMap: Map<string, TreeNode>;
+} {
+  // Phase 1: Filter and prepare observations
+  const { sortedObservations, hiddenObservationsCount } =
+    filterAndPrepareObservations(observations, minLevel);
+
+  // Handle empty case
+  if (sortedObservations.length === 0) {
+    const emptyTree: TreeNode = {
+      id: `trace-${trace.id}`,
+      type: "TRACE",
+      name: trace.name ?? "",
+      startTime: trace.timestamp,
+      endTime: null,
+      children: [],
+      latency: trace.latency,
+      totalCost: undefined,
+    };
+    const nodeMap = new Map<string, TreeNode>();
+    nodeMap.set(emptyTree.id, emptyTree);
+    return { tree: emptyTree, hiddenObservationsCount, nodeMap };
+  }
+
+  // Phase 2: Build dependency graph
+  const { nodeRegistry, leafIds } = buildDependencyGraph(sortedObservations);
+
+  // Phase 3: Build TreeNodes bottom-up with cost aggregation
+  const nodeMap = new Map<string, TreeNode>();
+  const rootIds = buildTreeNodesBottomUp(nodeRegistry, leafIds, nodeMap);
+
+  // Phase 4: Build trace root
+  const rootTreeNodes: TreeNode[] = [];
+  for (const rootId of rootIds) {
+    const rootNode = nodeRegistry.get(rootId)!;
+    if (rootNode.treeNode) {
+      rootTreeNodes.push(rootNode.treeNode);
+    }
+  }
+
+  // Calculate trace root total cost
+  const traceTotalCost = rootTreeNodes.reduce<Decimal | undefined>(
+    (acc, child) => {
+      if (!child.totalCost) return acc;
+      return acc ? acc.plus(child.totalCost) : child.totalCost;
+    },
+    undefined,
+  );
+
+  // Create trace root node
+  const tree: TreeNode = {
+    id: `trace-${trace.id}`,
+    type: "TRACE",
+    name: trace.name ?? "",
+    startTime: trace.timestamp,
+    endTime: null,
+    children: rootTreeNodes,
     latency: trace.latency,
     totalCost: traceTotalCost,
   };
@@ -272,22 +436,27 @@ export function buildTraceUiData(
     minLevel,
   );
 
-  // Use pre-computed totals for heatmap scaling (computed in enrichTreeNodeWithCosts)
+  // Use pre-computed totals for heatmap scaling (computed in buildTreeNodesBottomUp)
   const rootTotalCost = tree.totalCost;
   const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
 
-  // Build flat search items list
+  // Build flat search items list (iterative to avoid stack overflow on deep trees)
   const searchItems: TraceSearchListItem[] = [];
-  const visit = (node: TreeNode) => {
+  const stack: TreeNode[] = [tree];
+
+  while (stack.length > 0) {
+    const node = stack.pop()!;
     searchItems.push({
       node,
       parentTotalCost: rootTotalCost,
       parentTotalDuration: rootDuration,
       observationId: node.type === "TRACE" ? undefined : node.id,
     });
-    node.children.forEach(visit);
-  };
-  visit(tree);
+    // Push children in reverse order to maintain depth-first left-to-right traversal
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      stack.push(node.children[i]!);
+    }
+  }
 
   return { tree, hiddenObservationsCount, searchItems, nodeMap };
 }

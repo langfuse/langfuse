@@ -814,7 +814,7 @@ describe("buildTraceUiData", () => {
       });
 
       // Deep chain skipped - causes stack overflow at this scale
-      it.skip("builds deep chain", () => {
+      it("builds deep chain", () => {
         runPerformanceTest(scale, "deep", false, threshold);
       });
 
@@ -882,7 +882,7 @@ describe("buildTraceUiData", () => {
       });
     });
 
-    describe.skip("500k observations (extreme - manual only)", () => {
+    describe("500k observations (extreme - manual only)", () => {
       const scale = 500_000;
       const threshold = 60_000; // 60s
 
@@ -895,7 +895,7 @@ describe("buildTraceUiData", () => {
       });
     });
 
-    describe.skip("1M observations (extreme - manual only)", () => {
+    describe("1M observations (extreme - manual only)", () => {
       const scale = 1_000_000;
       const threshold = 180_000; // 3 minutes
 
