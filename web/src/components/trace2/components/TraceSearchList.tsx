@@ -35,8 +35,6 @@ export function TraceSearchList() {
     });
   }, [searchItems, searchQuery]);
 
-  console.log(".TraceSearchList.searchResults", searchResults);
-
   // Empty state
   if (searchResults.length === 0 && searchQuery.trim()) {
     return (
