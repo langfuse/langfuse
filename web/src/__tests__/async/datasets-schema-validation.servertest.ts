@@ -12,8 +12,8 @@ import {
   createOrgProjectAndApiKey,
   isValidJSONSchema,
   validateFieldAgainstSchema,
+  DatasetSchemaValidator,
 } from "@langfuse/shared/src/server";
-import { DatasetSchemaValidator } from "@langfuse/shared";
 
 // Test schemas
 const TEST_SCHEMAS = {
@@ -223,7 +223,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should validate both input and expectedOutput", () => {
-    const result = defaultValidator.validateDatasetItemData({
+    const result = defaultValidator.validateItem({
       input: DATA.validSimpleText,
       expectedOutput: DATA.validNumber,
     });
@@ -232,7 +232,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should return inputErrors when input invalid", () => {
-    const result = defaultValidator.validateDatasetItemData({
+    const result = defaultValidator.validateItem({
       input: DATA.invalidSimpleText,
       expectedOutput: DATA.validNumber,
     });
@@ -244,7 +244,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should return expectedOutputErrors when expectedOutput invalid", () => {
-    const result = defaultValidator.validateDatasetItemData({
+    const result = defaultValidator.validateItem({
       input: DATA.validSimpleText,
       expectedOutput: DATA.invalidNumber,
     });
@@ -256,7 +256,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should return both errors when both invalid", () => {
-    const result = defaultValidator.validateDatasetItemData({
+    const result = defaultValidator.validateItem({
       input: DATA.invalidSimpleText,
       expectedOutput: DATA.invalidNumber,
     });
@@ -273,7 +273,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
       expectedOutputSchema: TEST_SCHEMAS.requiresObject,
     });
 
-    const result = validator.validateDatasetItemData({
+    const result = validator.validateItem({
       input: undefined,
       expectedOutput: undefined,
       normalizeUndefinedToNull: true,
@@ -282,7 +282,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should reject null when schema doesn't allow null", () => {
-    const result = defaultValidator.validateDatasetItemData({
+    const result = defaultValidator.validateItem({
       input: null,
       expectedOutput: null,
       normalizeUndefinedToNull: true,
@@ -299,7 +299,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
       inputSchema: TEST_SCHEMAS.allowsNull,
       expectedOutputSchema: TEST_SCHEMAS.allowsNull,
     });
-    const result = validator.validateDatasetItemData({
+    const result = validator.validateItem({
       input: null,
       expectedOutput: null,
       normalizeUndefinedToNull: true,
