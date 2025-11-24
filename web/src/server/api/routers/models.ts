@@ -42,8 +42,8 @@ export const modelRouter = createTRPCRouter({
   getById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), modelId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const modelQueryResult = await ctx.prisma.$queryRaw`          
-          SELECT 
+      const modelQueryResult = await ctx.prisma.$queryRaw`
+          SELECT
             m.id,
             m.project_id as "projectId",
             m.model_name as "modelName",
@@ -53,14 +53,34 @@ export const modelRouter = createTRPCRouter({
             COALESCE(
               (
                 SELECT
-                  JSONB_OBJECT_AGG(usage_type, price)
+                  JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                      'id', mpt.id,
+                      'name', mpt.name,
+                      'isDefault', mpt.is_default,
+                      'priority', mpt.priority,
+                      'conditions', mpt.conditions,
+                      'prices', COALESCE(
+                        (
+                          SELECT
+                            JSONB_OBJECT_AGG(p.usage_type, p.price)
+                          FROM
+                            prices p
+                          WHERE
+                            p.pricing_tier_id = mpt.id
+                        ),
+                        '{}'::jsonb
+                      )
+                    )
+                    ORDER BY mpt.priority ASC
+                  )
                 FROM
-                  prices
+                  model_pricing_tiers mpt
                 WHERE
-                  model_id = m.id
+                  mpt.model_id = m.id
               ),
-              '{}'::jsonb
-            ) AS prices
+              '[]'::json
+            ) AS "pricingTiers"
           FROM
             models m
           WHERE
@@ -92,7 +112,7 @@ export const modelRouter = createTRPCRouter({
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
         ctx.prisma.$queryRaw`
-          SELECT DISTINCT ON (project_id, model_name) 
+          SELECT DISTINCT ON (project_id, model_name)
             m.id,
             m.project_id as "projectId",
             m.model_name as "modelName",
@@ -102,14 +122,34 @@ export const modelRouter = createTRPCRouter({
             COALESCE(
               (
                 SELECT
-                  JSONB_OBJECT_AGG(usage_type, price)
+                  JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                      'id', mpt.id,
+                      'name', mpt.name,
+                      'isDefault', mpt.is_default,
+                      'priority', mpt.priority,
+                      'conditions', mpt.conditions,
+                      'prices', COALESCE(
+                        (
+                          SELECT
+                            JSONB_OBJECT_AGG(p.usage_type, p.price)
+                          FROM
+                            prices p
+                          WHERE
+                            p.pricing_tier_id = mpt.id
+                        ),
+                        '{}'::jsonb
+                      )
+                    )
+                    ORDER BY mpt.priority ASC
+                  )
                 FROM
-                  prices
+                  model_pricing_tiers mpt
                 WHERE
-                  model_id = m.id
+                  mpt.model_id = m.id
               ),
-              '{}'::jsonb
-            ) AS prices
+              '[]'::json
+            ) AS "pricingTiers"
           FROM
             models m
           WHERE
@@ -118,7 +158,7 @@ export const modelRouter = createTRPCRouter({
           ORDER BY
             project_id,
             model_name,
-            m.created_at DESC NULLS LAST 
+            m.created_at DESC NULLS LAST
           `,
 
         // Total count

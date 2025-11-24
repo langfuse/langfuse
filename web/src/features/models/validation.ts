@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { PricingTierConditionSchema } from "@langfuse/shared";
 
 export const UsageTypeSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/);
 export const PriceSchema = z.number().nonnegative();
@@ -12,6 +13,17 @@ export const PriceMapSchema = z
   })
   .pipe(z.record(UsageTypeSchema, PriceSchema));
 
+export const PricingTierSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isDefault: z.boolean(),
+  priority: z.number(),
+  conditions: z.array(PricingTierConditionSchema),
+  prices: PriceMapSchema,
+});
+
+export type PricingTier = z.infer<typeof PricingTierSchema>;
+
 export const GetModelResultSchema = z.object({
   id: z.string(),
   projectId: z.string().nullable(),
@@ -22,7 +34,7 @@ export const GetModelResultSchema = z.object({
     z.string(),
   ]),
   tokenizerId: TokenizerSchema,
-  prices: PriceMapSchema,
+  pricingTiers: z.array(PricingTierSchema),
   lastUsed: z.date().nullish(),
 });
 

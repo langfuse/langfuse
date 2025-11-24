@@ -1,5 +1,5 @@
+import { PricingTierCondition } from "../../features/model-pricing";
 import type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
-import type { PricingTierCondition } from "./validation";
 
 /**
  * Pricing tier matching algorithm

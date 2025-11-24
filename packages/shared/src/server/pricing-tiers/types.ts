@@ -1,5 +1,5 @@
 import { type Decimal } from "decimal.js";
-import { type PricingTierCondition } from "./validation";
+import { PricingTierCondition } from "../../features/model-pricing";
 
 /**
  * Shared types for pricing tier functionality
