@@ -57,22 +57,16 @@ export function NavigationHeader() {
   return (
     <Command className="mt-1 flex h-auto flex-shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
       <div className="flex flex-row justify-between pl-1 pr-2">
-        {isTimelineView ? (
-          <span className="whitespace-nowrap px-1 py-1.5 text-sm text-muted-foreground">
-            Node display
-          </span>
-        ) : (
-          <div className="relative flex-1">
-            <CommandInput
-              showBorder={false}
-              placeholder="Search"
-              className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
-              value={searchInputValue}
-              onValueChange={setSearchInputValue}
-              onKeyDown={handleSearchKeyDown}
-            />
-          </div>
-        )}
+        <div className="relative flex-1">
+          <CommandInput
+            showBorder={false}
+            placeholder="Search"
+            className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
+            value={searchInputValue}
+            onValueChange={setSearchInputValue}
+            onKeyDown={handleSearchKeyDown}
+          />
+        </div>
         <div className="flex flex-row items-center gap-0.5">
           {/* Expand/Collapse All Button */}
           <Button
