@@ -22,7 +22,7 @@ import {
 import { useCollapsiblePanel } from "../contexts/CollapsiblePanelContext";
 import { usePanelSizeMemory } from "../hooks/usePanelSizeMemory";
 
-export interface CollapsiblePanelHandle {
+export interface CollapsiblePanelRef {
   collapse: () => void;
   expand: () => void;
   toggle: () => void;
@@ -46,7 +46,7 @@ interface CollapsiblePanelProps {
 }
 
 export const CollapsiblePanel = forwardRef<
-  CollapsiblePanelHandle,
+  CollapsiblePanelRef,
   CollapsiblePanelProps
 >(function CollapsiblePanel(
   {

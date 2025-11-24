@@ -16,7 +16,7 @@ import {
   CollapsiblePanelGroup,
   CollapsiblePanel,
   CollapsiblePanelHandle,
-} from "@/src/components/resizable-panels";
+} from "./components/_shared/resizable-panels";
 import { useMemo } from "react";
 
 export type TraceProps = {

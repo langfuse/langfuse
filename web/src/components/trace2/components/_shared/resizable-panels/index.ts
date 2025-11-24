@@ -32,6 +32,6 @@ export { usePanelSizeMemory } from "./hooks/usePanelSizeMemory";
 export { CollapsiblePanelGroup } from "./components/CollapsiblePanelGroup";
 export {
   CollapsiblePanel,
-  type CollapsiblePanelHandle,
+  type CollapsiblePanelRef,
 } from "./components/CollapsiblePanel";
 export { CollapsiblePanelHandle } from "./components/CollapsiblePanelHandle";
