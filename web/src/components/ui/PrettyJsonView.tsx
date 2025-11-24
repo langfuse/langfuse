@@ -648,23 +648,7 @@ function JsonPrettyTable({
                   : undefined
               }
               data-observation-id={row.id}
-              onClick={() =>
-                handleRowExpansion(
-                  row,
-                  onLazyLoadChildren,
-                  expandedCells,
-                  toggleCellExpansion,
-                )
-              }
               className={cn(
-                row.original.hasChildren ||
-                  (!row.original.hasChildren &&
-                    row.original.type !== "array" &&
-                    row.original.type !== "object" &&
-                    getValueStringLength(row.original.value) >
-                      MAX_CELL_DISPLAY_CHARS)
-                  ? "cursor-pointer"
-                  : "",
                 row.original.level === 0 && stickyTopLevelKey
                   ? "sticky z-10 bg-background shadow-sm"
                   : "",
