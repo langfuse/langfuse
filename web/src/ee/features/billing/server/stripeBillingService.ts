@@ -671,7 +671,8 @@ class BillingService {
         })();
 
         const returnUrl = `${env.NEXTAUTH_URL}/organization/${orgId}/settings/billing`;
-        const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
+        const stripeCustomerId =
+          parsedOrg.cloudConfig?.stripe?.customerId ?? undefined;
         const clientReferenceId = createStripeClientReference(orgId);
         const subscriptionMetadata: StripeSubscriptionMetadata = {
           orgId: orgId,
