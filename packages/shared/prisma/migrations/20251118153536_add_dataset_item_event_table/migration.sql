@@ -1,7 +1,7 @@
 -- CreateTable
 CREATE TABLE "dataset_item_events" (
-    "pk" BIGSERIAL NOT NULL,
     "id" TEXT NOT NULL,
+    "item_id" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
     "dataset_id" TEXT NOT NULL,
     "status" "DatasetStatus",
@@ -13,7 +13,7 @@ CREATE TABLE "dataset_item_events" (
     "created_at" TIMESTAMP(3),
     "deleted_at" TIMESTAMP(3),
 
-    CONSTRAINT "dataset_item_events_pkey" PRIMARY KEY ("pk")
+    CONSTRAINT "dataset_item_events_pkey" PRIMARY KEY ("id")
 );
 
 -- AddForeignKey

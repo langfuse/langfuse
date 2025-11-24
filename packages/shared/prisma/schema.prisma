@@ -639,8 +639,8 @@ model DatasetItem {
 }
 
 model DatasetItemEvent {
-  pk                  BigInt         @id @default(autoincrement())
-  id                  String         @map("id")
+  id                  String         @default(cuid())
+  itemId              String         @map("item_id")
   projectId           String         @map("project_id")
   datasetId           String         @map("dataset_id")
   dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
@@ -653,7 +653,8 @@ model DatasetItemEvent {
   createdAt           DateTime?      @map("created_at")
   deletedAt           DateTime?      @map("deleted_at")
 
-  @@index([projectId, datasetId, id, createdAt])
+  @@id([id, projectId])
+  @@index([projectId, datasetId, itemId, createdAt])
   @@map("dataset_item_events")
 }
 

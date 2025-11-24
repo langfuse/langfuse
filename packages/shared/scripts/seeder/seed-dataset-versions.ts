@@ -1,3 +1,4 @@
+import { v4 } from "uuid";
 import { PrismaClient } from "../../src/index";
 import { logger } from "../../src/server";
 
@@ -144,7 +145,8 @@ export async function seedDatasetVersions(
 
     for (const version of versions) {
       const items = version.operations.map((op) => ({
-        id: op.itemId,
+        id: v4(),
+        itemId: op.itemId,
         projectId,
         datasetId: dataset.id,
         input: op.input,

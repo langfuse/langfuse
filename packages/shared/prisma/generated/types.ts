@@ -431,8 +431,8 @@ export type DatasetItem = {
   updated_at: Generated<Timestamp>;
 };
 export type DatasetItemEvent = {
-  pk: Generated<string>;
   id: string;
+  item_id: string;
   project_id: string;
   dataset_id: string;
   status: DatasetStatus | null;
