@@ -13,9 +13,12 @@ export type PayloadError = {
 export type PreparePayloadResult =
   | {
       success: true;
-      input: Prisma.InputJsonValue | null | undefined;
-      expectedOutput: Prisma.InputJsonValue | null | undefined;
-      metadata: Prisma.InputJsonValue | null | undefined;
+      input: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+      expectedOutput:
+        | Prisma.NullTypes.DbNull
+        | Prisma.InputJsonValue
+        | undefined;
+      metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
     }
   | PayloadError;
 
@@ -33,9 +36,9 @@ export type CreateManyItemsInsert = {
   projectId: string;
   datasetId: string;
   status: DatasetStatus;
-  input: Prisma.InputJsonValue | null | undefined;
-  expectedOutput: Prisma.InputJsonValue | null | undefined;
-  metadata: Prisma.InputJsonValue | null | undefined;
+  input: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+  expectedOutput: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+  metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
   sourceTraceId?: string;
   sourceObservationId?: string;
 }[];

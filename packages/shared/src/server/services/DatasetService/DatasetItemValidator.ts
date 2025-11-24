@@ -85,6 +85,18 @@ export class DatasetItemValidator {
     return data;
   };
 
+  /**
+   * Converts normalized value to Prisma-safe value for database writes.
+   * - null → Prisma.DbNull (explicit NULL in DB)
+   * - undefined → undefined (skip field in updates)
+   * - other → passthrough
+   */
+  private toPrismaValue(
+    value: Prisma.InputJsonValue | null | undefined,
+  ): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined {
+    return value === null ? Prisma.DbNull : value;
+  }
+
   private normalize(
     data: string | unknown | null | undefined,
     opts?: { sanitizeControlChars?: boolean },
@@ -221,9 +233,9 @@ export class DatasetItemValidator {
 
     return {
       success: true,
-      input: normalizedInput,
-      expectedOutput: normalizedExpectedOutput,
-      metadata: normalizedMetadata,
+      input: this.toPrismaValue(normalizedInput),
+      expectedOutput: this.toPrismaValue(normalizedExpectedOutput),
+      metadata: this.toPrismaValue(normalizedMetadata),
     };
   }
 }
