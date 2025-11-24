@@ -16,6 +16,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
       warn: vi.fn(),
       error: vi.fn(),
     },
+    QueueName: {
+      TraceDelete: "trace-delete",
+      ScoreDelete: "score-delete",
+      DatasetDelete: "dataset-delete",
+      ProjectDelete: "project-delete",
+      DataRetentionProcessingQueue: "data-retention-processing-queue",
+    },
   };
 });
 
@@ -31,59 +38,294 @@ vi.mock("../env", () => ({
 }));
 
 describe("MutationMonitor", () => {
-  let mockWorker: Partial<Worker>;
-  let queryClickhouseMock: ReturnType<typeof vi.fn>;
+  // Test data
+  const queueTableMapping = {
+    "trace-delete": ["traces", "observations", "scores"],
+    "score-delete": ["scores"],
+    "dataset-delete": ["dataset_run_items_rmt"],
+    "project-delete": [
+      "traces",
+      "observations",
+      "scores",
+      "dataset_run_items_rmt",
+    ],
+    "data-retention-processing-queue": ["traces", "observations", "scores"],
+  };
 
-  beforeEach(() => {
-    // Reset state before each test
-    MutationMonitor.resetState();
-    MutationMonitor.stop();
+  describe("makeDecisions tests", () => {
+    it("should decide to pause queues when scores exceeds MAX", () => {
+      const counts = new Map([
+        ["traces", 10],
+        ["observations", 10],
+        ["scores", 50],
+      ]);
 
-    // Create mock worker with pause/resume methods
-    mockWorker = {
-      pause: vi.fn().mockResolvedValue(undefined),
-      resume: vi.fn().mockResolvedValue(undefined),
-    };
-
-    // Setup mocks
-    queryClickhouseMock = vi.mocked(shared.queryClickhouse);
-    vi.mocked(WorkerManager.getWorker).mockReturnValue(mockWorker as Worker);
-  });
-
-  afterEach(() => {
-    MutationMonitor.stop();
-    vi.clearAllMocks();
-  });
-
-  describe("start and stop", () => {
-    it("should stop the monitor", () => {
-      MutationMonitor.start();
-      // Verify it doesn't throw and logger is called
-      expect(shared.logger.info).toHaveBeenCalledWith(
-        "Starting mutation monitor",
-        expect.objectContaining({
-          checkIntervalMs: 1000,
-          maxCount: 40,
-          safeCount: 15,
-        }),
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40, // MAX
+        15, // SAFE
       );
+
+      // Pause decisions for queues affecting scores
+      const pauseDecisions = decisions.filter((d) => d.action === "pause");
+      expect(pauseDecisions).toHaveLength(4);
+      expect(pauseDecisions.map((d) => d.queueName)).toContain("trace-delete");
+      expect(pauseDecisions.map((d) => d.queueName)).toContain("score-delete");
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "project-delete",
+      );
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "data-retention-processing-queue",
+      );
+
+      // Also resume decision for DatasetDelete (its table is safe)
+      const resumeDecisions = decisions.filter((d) => d.action === "resume");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain(
+        "dataset-delete",
+      );
+    });
+
+    it("should decide to resume all queues when all tables are below SAFE", () => {
+      const counts = new Map([
+        ["traces", 10],
+        ["observations", 12],
+        ["scores", 14], // All < 15
+        ["dataset_run_items_rmt", 5],
+      ]);
+
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40,
+        15,
+      );
+
+      // All queues should have resume decisions (all tables safe)
+      expect(decisions.every((d) => d.action === "resume")).toBe(true);
+      expect(decisions).toHaveLength(5);
+      expect(decisions.map((d) => d.queueName)).toContain("trace-delete");
+      expect(decisions.map((d) => d.queueName)).toContain("score-delete");
+      expect(decisions.map((d) => d.queueName)).toContain("dataset-delete");
+      expect(decisions.map((d) => d.queueName)).toContain("project-delete");
+      expect(decisions.map((d) => d.queueName)).toContain(
+        "data-retention-processing-queue",
+      );
+    });
+
+    it("should NOT decide to resume queues if ANY of their tables is >= SAFE", () => {
+      const counts = new Map([
+        ["traces", 10],
+        ["observations", 12],
+        ["scores", 15], // At SAFE threshold
+        ["dataset_run_items_rmt", 5],
+      ]);
+
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40,
+        15,
+      );
+
+      // Only DatasetDelete should have resume (doesn't depend on scores)
+      const resumeDecisions = decisions.filter((d) => d.action === "resume");
+      expect(resumeDecisions).toHaveLength(1);
+      expect(resumeDecisions[0].queueName).toBe("dataset-delete");
+
+      // Queues depending on scores should NOT have resume decisions
+      expect(resumeDecisions.map((d) => d.queueName)).not.toContain(
+        "trace-delete",
+      );
+      expect(resumeDecisions.map((d) => d.queueName)).not.toContain(
+        "score-delete",
+      );
+    });
+
+    it("should handle multiple tables over threshold", () => {
+      const counts = new Map([
+        ["traces", 50],
+        ["scores", 45],
+        ["observations", 10],
+        ["dataset_run_items_rmt", 5],
+      ]);
+
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40,
+        15,
+      );
+
+      // Pause decisions for queues affecting traces/scores
+      const pauseDecisions = decisions.filter((d) => d.action === "pause");
+      expect(pauseDecisions.map((d) => d.queueName)).toContain("trace-delete");
+      expect(pauseDecisions.map((d) => d.queueName)).toContain("score-delete");
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "project-delete",
+      );
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "data-retention-processing-queue",
+      );
+
+      // Resume decision for DatasetDelete (its table is safe)
+      const resumeDecisions = decisions.filter((d) => d.action === "resume");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain(
+        "dataset-delete",
+      );
+    });
+
+    it("should decide to resume ScoreDelete independently", () => {
+      const counts = new Map([
+        ["traces", 20], // In hysteresis zone (between SAFE and MAX)
+        ["observations", 10],
+        ["scores", 10], // Below SAFE
+        ["dataset_run_items_rmt", 5],
+      ]);
+
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40,
+        15,
+      );
+
+      // ScoreDelete and DatasetDelete should resume (their tables are safe)
+      const resumeDecisions = decisions.filter((d) => d.action === "resume");
+      expect(resumeDecisions).toHaveLength(2);
+      expect(resumeDecisions.map((d) => d.queueName)).toContain("score-delete");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain(
+        "dataset-delete",
+      );
+
+      // TraceDelete should NOT resume (traces=20 >= SAFE=15)
+      expect(resumeDecisions.map((d) => d.queueName)).not.toContain(
+        "trace-delete",
+      );
+    });
+
+    it("should handle DatasetDelete independently", () => {
+      const counts = new Map([
+        ["traces", 10],
+        ["observations", 10],
+        ["scores", 10],
+        ["dataset_run_items_rmt", 50],
+      ]);
+
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40,
+        15,
+      );
+
+      // Pause decisions for queues affecting dataset_run_items_rmt
+      const pauseDecisions = decisions.filter((d) => d.action === "pause");
+      expect(pauseDecisions).toHaveLength(2);
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "dataset-delete",
+      );
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "project-delete",
+      );
+
+      // Resume decisions for queues only affecting traces/observations/scores
+      const resumeDecisions = decisions.filter((d) => d.action === "resume");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain("trace-delete");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain("score-delete");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain(
+        "data-retention-processing-queue",
+      );
+    });
+
+    it("should handle empty mutation counts", () => {
+      const counts = new Map([
+        ["traces", 0],
+        ["observations", 0],
+        ["scores", 0],
+        ["dataset_run_items_rmt", 0],
+      ]);
+
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40,
+        15,
+      );
+
+      // All queues should have resume decisions (all tables safe)
+      expect(decisions.every((d) => d.action === "resume")).toBe(true);
+      expect(decisions).toHaveLength(5);
+    });
+
+    it("should handle missing tables in mutation counts", () => {
+      const counts = new Map([
+        ["traces", 50],
+        // observations and scores missing (treated as 0)
+      ]);
+
+      const decisions = MutationMonitor.makeDecisions(
+        counts,
+        queueTableMapping,
+        40,
+        15,
+      );
+
+      // Pause decisions for queues affecting traces
+      const pauseDecisions = decisions.filter((d) => d.action === "pause");
+      expect(pauseDecisions.map((d) => d.queueName)).toContain("trace-delete");
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "project-delete",
+      );
+      expect(pauseDecisions.map((d) => d.queueName)).toContain(
+        "data-retention-processing-queue",
+      );
+
+      // Resume decisions for queues not affecting traces
+      const resumeDecisions = decisions.filter((d) => d.action === "resume");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain("score-delete");
+      expect(resumeDecisions.map((d) => d.queueName)).toContain(
+        "dataset-delete",
+      );
+    });
+  });
+
+  describe("integration tests", () => {
+    let mockWorkers: Map<string, Partial<Worker>>;
+    let queryClickhouseMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      MutationMonitor.resetState();
       MutationMonitor.stop();
-      expect(shared.logger.info).toHaveBeenCalledWith(
-        "Mutation monitor stopped",
+
+      mockWorkers = new Map();
+      const queueNames = [
+        "trace-delete",
+        "score-delete",
+        "dataset-delete",
+        "project-delete",
+        "data-retention-processing-queue",
+      ];
+
+      queueNames.forEach((queueName) => {
+        mockWorkers.set(queueName, {
+          pause: vi.fn().mockResolvedValue(undefined),
+          resume: vi.fn().mockResolvedValue(undefined),
+        });
+      });
+
+      queryClickhouseMock = vi.mocked(shared.queryClickhouse);
+      vi.mocked(WorkerManager.getWorker).mockImplementation(
+        (queueName: string) => mockWorkers.get(queueName) as Worker,
       );
     });
 
-    it("should not start multiple times", () => {
-      MutationMonitor.start();
-      MutationMonitor.start();
-      expect(shared.logger.warn).toHaveBeenCalledWith(
-        "Mutation monitor is already running",
-      );
+    afterEach(() => {
+      MutationMonitor.stop();
+      vi.clearAllMocks();
     });
-  });
 
-  describe("mutation checking logic", () => {
-    it("should pause workers when any table exceeds MAX_COUNT", async () => {
+    it("should execute pause decisions from ClickHouse data", async () => {
       queryClickhouseMock.mockResolvedValueOnce([
         { database: "default", table: "traces", mutation_count: 50 },
         { database: "default", table: "observations", mutation_count: 10 },
@@ -91,159 +333,42 @@ describe("MutationMonitor", () => {
       ]);
 
       MutationMonitor.start();
-
-      // Wait for the check to complete
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(mockWorker.pause).toHaveBeenCalledTimes(1);
-      expect(MutationMonitor.getIsPaused()).toBe(true);
-      expect(shared.logger.warn).toHaveBeenCalledWith(
-        "Mutation threshold exceeded, pausing TraceDelete workers",
-        expect.objectContaining({
-          threshold: 40,
-          maxMutationCount: 50,
-          tableWithMaxMutations: "traces",
-        }),
-      );
+      // TraceDelete should be paused
+      expect(mockWorkers.get("trace-delete")?.pause).toHaveBeenCalled();
+      expect(mockWorkers.get("project-delete")?.pause).toHaveBeenCalled();
+      expect(
+        mockWorkers.get("data-retention-processing-queue")?.pause,
+      ).toHaveBeenCalled();
     });
 
-    it("should resume workers when mutations drop below SAFE_COUNT", async () => {
-      // First, pause the workers
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 50 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(MutationMonitor.getIsPaused()).toBe(true);
-      vi.clearAllMocks();
-
-      // Now mutations drop below safe threshold
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 10 },
-        { database: "default", table: "observations", mutation_count: 5 },
-        { database: "default", table: "scores", mutation_count: 2 },
-      ]);
-
-      // Trigger another check manually by waiting
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-
-      expect(mockWorker.resume).toHaveBeenCalledTimes(1);
-      expect(MutationMonitor.getIsPaused()).toBe(false);
-      expect(shared.logger.info).toHaveBeenCalledWith(
-        "Mutations below safe threshold, resuming TraceDelete workers",
-        expect.objectContaining({
-          safeThreshold: 15,
-          maxMutationCount: 10,
-        }),
-      );
-    });
-
-    it("should not pause if already paused", async () => {
+    it("should execute resume decisions", async () => {
       // First pause
-      queryClickhouseMock.mockResolvedValue([
+      queryClickhouseMock.mockResolvedValueOnce([
         { database: "default", table: "traces", mutation_count: 50 },
       ]);
 
       MutationMonitor.start();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(mockWorker.pause).toHaveBeenCalledTimes(1);
+      expect(mockWorkers.get("trace-delete")?.pause).toHaveBeenCalled();
       vi.clearAllMocks();
 
-      // Wait for another check cycle
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-
-      // Should not call pause again
-      expect(mockWorker.pause).not.toHaveBeenCalled();
-    });
-
-    it("should not resume if already running", async () => {
-      queryClickhouseMock.mockResolvedValue([
-        { database: "default", table: "traces", mutation_count: 10 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Should not call resume since it's not paused
-      expect(mockWorker.resume).not.toHaveBeenCalled();
-    });
-
-    it("should check per-table and pause if ANY table exceeds threshold", async () => {
-      // Only observations exceeds threshold
+      // Then drop below SAFE
       queryClickhouseMock.mockResolvedValueOnce([
         { database: "default", table: "traces", mutation_count: 10 },
-        { database: "default", table: "observations", mutation_count: 45 },
-        { database: "default", table: "scores", mutation_count: 5 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(mockWorker.pause).toHaveBeenCalledTimes(1);
-      expect(MutationMonitor.getIsPaused()).toBe(true);
-      expect(shared.logger.warn).toHaveBeenCalledWith(
-        "Mutation threshold exceeded, pausing TraceDelete workers",
-        expect.objectContaining({
-          maxMutationCount: 45,
-          tableWithMaxMutations: "observations",
-        }),
-      );
-    });
-
-    it("should handle empty results (no pending mutations)", async () => {
-      queryClickhouseMock.mockResolvedValueOnce([]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Should not pause since all counts are 0
-      expect(mockWorker.pause).not.toHaveBeenCalled();
-      expect(MutationMonitor.getIsPaused()).toBe(false);
-    });
-
-    it("should handle partial results (some tables missing)", async () => {
-      // Only one table returned
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 50 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Should still pause because traces exceeds threshold
-      expect(mockWorker.pause).toHaveBeenCalledTimes(1);
-      expect(MutationMonitor.getIsPaused()).toBe(true);
-    });
-
-    it("should stay in hysteresis zone (between SAFE and MAX)", async () => {
-      // First, pause the workers
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 50 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      expect(MutationMonitor.getIsPaused()).toBe(true);
-      vi.clearAllMocks();
-
-      // Now mutations are between SAFE (15) and MAX (40)
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 25 },
+        { database: "default", table: "observations", mutation_count: 10 },
+        { database: "default", table: "scores", mutation_count: 10 },
       ]);
 
       await new Promise((resolve) => setTimeout(resolve, 1100));
 
-      // Should remain paused (hysteresis)
-      expect(mockWorker.resume).not.toHaveBeenCalled();
-      expect(MutationMonitor.getIsPaused()).toBe(true);
+      // Should resume
+      expect(mockWorkers.get("trace-delete")?.resume).toHaveBeenCalled();
     });
-  });
 
-  describe("error handling", () => {
-    it("should handle ClickHouse query errors gracefully", async () => {
+    it("should handle ClickHouse errors gracefully", async () => {
       queryClickhouseMock.mockRejectedValueOnce(new Error("ClickHouse error"));
 
       MutationMonitor.start();
@@ -251,69 +376,6 @@ describe("MutationMonitor", () => {
 
       expect(shared.logger.error).toHaveBeenCalledWith(
         "Error checking ClickHouse mutations",
-        expect.any(Error),
-      );
-      // Should not crash
-      expect(MutationMonitor.getIsPaused()).toBe(false);
-    });
-
-    it("should handle worker not found gracefully", async () => {
-      vi.mocked(WorkerManager.getWorker).mockReturnValueOnce(undefined);
-
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 50 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(shared.logger.warn).toHaveBeenCalledWith(
-        "TraceDelete worker not found, cannot pause",
-      );
-    });
-
-    it("should handle worker.pause errors gracefully", async () => {
-      mockWorker.pause = vi
-        .fn()
-        .mockRejectedValueOnce(new Error("Pause failed"));
-
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 50 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(shared.logger.error).toHaveBeenCalledWith(
-        "Error pausing TraceDelete workers",
-        expect.any(Error),
-      );
-    });
-
-    it("should handle worker.resume errors gracefully", async () => {
-      // First pause
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 50 },
-      ]);
-
-      MutationMonitor.start();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      vi.clearAllMocks();
-
-      // Mock resume to fail
-      mockWorker.resume = vi
-        .fn()
-        .mockRejectedValueOnce(new Error("Resume failed"));
-
-      // Now drop mutations
-      queryClickhouseMock.mockResolvedValueOnce([
-        { database: "default", table: "traces", mutation_count: 10 },
-      ]);
-
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-
-      expect(shared.logger.error).toHaveBeenCalledWith(
-        "Error resuming TraceDelete workers",
         expect.any(Error),
       );
     });

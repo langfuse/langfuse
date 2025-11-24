@@ -62,7 +62,9 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
       <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-        <span className="flex-shrink truncate text-xs">{node.name}</span>
+        <span className="flex-shrink truncate text-xs">
+          {node.name || `Unnamed ${node.type.toLowerCase()}`}
+        </span>
 
         <div className="flex items-center gap-x-2">
           {comments && showComments ? (

@@ -971,7 +971,10 @@ describe("queryBuilder", () => {
 
         // Execute query
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause is present in the query
         expect(compiledQuery).toContain("ORDER BY name asc");
@@ -1016,7 +1019,10 @@ describe("queryBuilder", () => {
 
         // Execute query
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause is present in the query
         expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
@@ -1064,7 +1070,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause is present in the query with both fields
         expect(compiledQuery).toContain(
@@ -1132,7 +1141,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause includes default time dimension ordering
         expect(compiledQuery).toContain("ORDER BY time_dimension asc");
@@ -1185,7 +1197,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause includes default metric ordering (descending)
         expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
@@ -1229,7 +1244,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause includes default dimension ordering (ascending)
         expect(compiledQuery).toContain("ORDER BY name asc");
@@ -1390,7 +1408,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify WITH FILL clause is present in the query
         expect(compiledQuery).toContain("WITH FILL");
@@ -1865,7 +1886,7 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery, parameters } = queryBuilder.build(
+        const { query: compiledQuery, parameters } = await queryBuilder.build(
           query,
           projectId,
         );
@@ -2085,7 +2106,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify joins included
         expect(compiledQuery).toContain("LEFT JOIN traces");
@@ -2360,7 +2384,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify the compiled query contains filtering on name
         expect(compiledQuery).toContain("scores_numeric.name");
@@ -2490,7 +2517,7 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery, parameters } = queryBuilder.build(
+        const { query: compiledQuery, parameters } = await queryBuilder.build(
           query,
           projectId,
         );
@@ -3149,7 +3176,7 @@ describe("queryBuilder", () => {
         const queryBuilder = new QueryBuilder(
           customBinHistogramQuery.chartConfig,
         );
-        const { query: compiledQuery } = queryBuilder.build(
+        const { query: compiledQuery } = await queryBuilder.build(
           customBinHistogramQuery,
           projectId,
         );

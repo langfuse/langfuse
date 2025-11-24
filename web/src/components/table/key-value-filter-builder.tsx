@@ -218,7 +218,10 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   </PopoverTrigger>
                   <PopoverContent className="w-[200px] p-0" align="start">
                     <InputCommand>
-                      <InputCommandInput placeholder="Search keys..." />
+                      <InputCommandInput
+                        placeholder="Search keys..."
+                        variant="bottom"
+                      />
                       <InputCommandList>
                         <InputCommandEmpty>No keys found.</InputCommandEmpty>
                         <InputCommandGroup>

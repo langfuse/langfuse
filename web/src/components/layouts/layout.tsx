@@ -13,8 +13,8 @@ import { env } from "@/src/env.mjs";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
-import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -47,6 +47,7 @@ import {
   type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { ErrorPage } from "@/src/components/error-page";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -149,6 +150,16 @@ export default function Layout(props: PropsWithChildren) {
 
   // project info based on projectId in the URL
   const { project, organization } = useQueryProjectOrOrganization();
+
+  // Check project access from session data (client-side)
+  const userProjects =
+    session.data?.user?.organizations
+      ?.flatMap((org) => org?.projects?.map((project) => project?.id))
+      .filter(Boolean) ?? [];
+  const userHasProjectAccess =
+    !routerProjectId ||
+    userProjects.includes(routerProjectId) ||
+    session.data?.user?.admin === true;
 
   // Helper function for precise path matching
   const isPathActive = (routePath: string, currentPath: string): boolean => {
@@ -292,27 +303,38 @@ export default function Layout(props: PropsWithChildren) {
     unauthenticatedPaths.includes(router.pathname)
   ) {
     const queryTargetPath = router.query.targetPath as string | undefined;
-
-    const sanitizedTargetPath = queryTargetPath
-      ? DOMPurify.sanitize(queryTargetPath)
-      : undefined;
-
-    // only allow relative links
-    const targetPath =
-      sanitizedTargetPath?.startsWith("/") &&
-      !sanitizedTargetPath.startsWith("//")
-        ? sanitizedTargetPath
-        : "/";
+    const targetPath = getSafeRedirectPath(queryTargetPath);
 
     void router.replace(targetPath);
     return <Spinner message="Redirecting" />;
+  }
+
+  // Handle project access verification failure (client-side check)
+  if (
+    session.status === "authenticated" &&
+    session.data &&
+    routerProjectId &&
+    router.pathname.includes("[projectId]") &&
+    !userHasProjectAccess
+  ) {
+    return (
+      <ErrorPage
+        title="Project Not Found"
+        message="The project you are trying to access does not exist or you do not have access to it."
+        additionalButton={{
+          label: "Go to Home",
+          href: "/",
+        }}
+      />
+    );
   }
 
   const hideNavigation =
     session.status === "unauthenticated" ||
     pathsWithoutNavigation.includes(router.pathname) ||
     router.pathname.startsWith("/public/");
-  if (hideNavigation)
+
+  if (hideNavigation) {
     return (
       <SidebarProvider className="bg-primary-foreground">
         <main className="min-h-dvh w-full overflow-y-scroll p-3 px-4 py-4 sm:px-6 lg:px-8">
@@ -320,6 +342,8 @@ export default function Layout(props: PropsWithChildren) {
         </main>
       </SidebarProvider>
     );
+  }
+
   return (
     <>
       <Head>

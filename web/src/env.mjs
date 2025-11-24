@@ -194,8 +194,6 @@ export const env = createEnv({
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
 
-    TURNSTILE_SECRET_KEY: z.string().optional(),
-
     // Otel
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
     OTEL_SERVICE_NAME: z.string().default("web"),
@@ -320,9 +318,9 @@ export const env = createEnv({
     LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
 
     // API Performance Flags
-    // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
-    // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
-    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
+    // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
+    // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
+    LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
     // Whether to propagate the toTimestamp restriction (including a server-side offset)
@@ -359,7 +357,6 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
     NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
@@ -566,8 +563,6 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
     // Worker
-    TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     // Other
@@ -652,8 +647,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS:
       process.env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS,
-    LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL:
-      process.env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL,
+    LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
+      process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
 
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:
