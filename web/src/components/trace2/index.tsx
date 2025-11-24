@@ -12,12 +12,16 @@ import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { NavigationPanel } from "./components/_layout/NavigationPanel";
 import { PreviewPanel } from "./components/_layout/PreviewPanel";
+import { CollapsedNavigationPanel } from "./components/_layout/CollapsedNavigationPanel";
 import {
   CollapsiblePanelGroup,
   CollapsiblePanel,
   CollapsiblePanelHandle,
+  usePanelState,
+  useCollapsiblePanel,
+  type CollapsiblePanelRef,
 } from "./components/_shared/resizable-panels";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -89,17 +93,42 @@ function TraceWithPreferences({
 }
 
 function TraceContent() {
+  // Dynamic panel constraints based on container width
+  const { minSize, maxSize } = usePanelState("trace2-layout", {
+    minWidthPx: 255, // Min width for navigation panel
+    maxWidthPx: 700, // Max width for navigation panel
+    maxPercentage: 50, // Never take more than 50% of screen
+  });
+
+  // Ref for programmatic panel control
+  const navigationPanelRef = useRef<CollapsiblePanelRef>(null);
+
+  // Check collapsed state from context (triggers re-renders)
+  const { isCollapsed } = useCollapsiblePanel();
+  const isPanelCollapsed = isCollapsed("trace2-navigation");
+
+  const handleTogglePanel = () => {
+    navigationPanelRef.current?.toggle();
+  };
+
   return (
     <div className="h-full w-full">
       <CollapsiblePanelGroup direction="horizontal" autoSaveId="trace2-layout">
         {/* Left panel - Navigation (tree/timeline/search) */}
         <CollapsiblePanel
+          ref={navigationPanelRef}
           id="trace2-navigation"
           defaultSize={30}
-          minSize={20}
-          maxSize={50}
+          minSize={minSize}
+          maxSize={maxSize}
+          renderCollapsed={() => (
+            <CollapsedNavigationPanel onExpand={handleTogglePanel} />
+          )}
         >
-          <NavigationPanel />
+          <NavigationPanel
+            onTogglePanel={handleTogglePanel}
+            isPanelCollapsed={isPanelCollapsed}
+          />
         </CollapsiblePanel>
 
         <CollapsiblePanelHandle withHandle />

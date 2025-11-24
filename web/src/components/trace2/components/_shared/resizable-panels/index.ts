@@ -27,6 +27,7 @@
 // Context and hooks
 export { useCollapsiblePanel } from "./contexts/CollapsiblePanelContext";
 export { usePanelSizeMemory } from "./hooks/usePanelSizeMemory";
+export { usePanelState } from "./hooks/usePanelState";
 
 // Components
 export { CollapsiblePanelGroup } from "./components/CollapsiblePanelGroup";

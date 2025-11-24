@@ -14,14 +14,28 @@ import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import { FoldVertical, UnfoldVertical, Download } from "lucide-react";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  Download,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
 import { TraceSettingsDropdown } from "../TraceSettingsDropdown";
 import { downloadTraceAsJson } from "../../lib/download-trace";
 
-export function NavigationHeader() {
+interface NavigationHeaderProps {
+  onTogglePanel: () => void;
+  isPanelCollapsed: boolean;
+}
+
+export function NavigationHeader({
+  onTogglePanel,
+  isPanelCollapsed,
+}: NavigationHeaderProps) {
   const { searchInputValue, setSearchInputValue } = useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { tree, trace, observations } = useTraceData();
@@ -77,6 +91,21 @@ export function NavigationHeader() {
           />
         </div>
         <div className="flex flex-row items-center gap-0.5">
+          {/* Panel Toggle Button */}
+          <Button
+            onClick={onTogglePanel}
+            variant="ghost"
+            size="icon"
+            title={isPanelCollapsed ? "Expand panel" : "Collapse panel"}
+            className="h-7 w-7"
+          >
+            {isPanelCollapsed ? (
+              <PanelLeftOpen className="h-3.5 w-3.5" />
+            ) : (
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            )}
+          </Button>
+
           {/* Expand/Collapse All Button */}
           <Button
             onClick={handleToggleExpandCollapseAll}
