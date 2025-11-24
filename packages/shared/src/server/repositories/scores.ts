@@ -1125,7 +1125,13 @@ export const deleteScoresByTraceIds = async (
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String}
-    AND trace_id IN ({traceIds: Array(String)});
+    AND trace_id IN ({traceIds: Array(String)})
+    AND (project_id, timestamp, name) IN (
+      SELECT project_id, timestamp, name
+      FROM scores
+      WHERE project_id = {projectId: String}
+      AND trace_id IN ({traceIds: Array(String)})
+    );
   `;
   await commandClickhouse({
     query: query,

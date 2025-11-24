@@ -28,10 +28,13 @@ export function nestObservations(
   );
   const hiddenObservationsCount = list.length - mutableList.length;
 
+  // Build a Set of all observation IDs for O(1) lookup instead of O(n) find
+  const observationIds = new Set(list.map((o) => o.id));
+
   mutableList.forEach((observation) => {
     if (
       observation.parentObservationId &&
-      !list.find((o) => o.id === observation.parentObservationId)
+      !observationIds.has(observation.parentObservationId)
     ) {
       observation.parentObservationId = null;
     }
@@ -194,6 +197,70 @@ export const unnestObservation = (nestedObservation: NestedObservation) => {
 };
 
 // Transform trace + observations into unified tree structure
+// Helper function to compute and enrich tree nodes with pre-computed costs
+// This is done bottom-up: compute children first, then sum up to parent
+// Also populates the nodeMap for O(1) lookup by ID
+function enrichTreeNodeWithCosts(
+  node: TreeNode,
+  nodeMap: Map<string, TreeNode>,
+): TreeNode {
+  // First, recursively enrich all children
+  const enrichedChildren = node.children.map((child) =>
+    enrichTreeNodeWithCosts(child, nodeMap),
+  );
+
+  // Calculate this node's own cost
+  let nodeCost: Decimal | undefined;
+
+  if (node.calculatedTotalCost != null) {
+    const cost = new Decimal(node.calculatedTotalCost);
+    if (!cost.isZero()) {
+      nodeCost = cost;
+    }
+  } else if (
+    node.calculatedInputCost != null ||
+    node.calculatedOutputCost != null
+  ) {
+    const inputCost =
+      node.calculatedInputCost != null
+        ? new Decimal(node.calculatedInputCost)
+        : new Decimal(0);
+    const outputCost =
+      node.calculatedOutputCost != null
+        ? new Decimal(node.calculatedOutputCost)
+        : new Decimal(0);
+    const combinedCost = inputCost.plus(outputCost);
+    if (!combinedCost.isZero()) {
+      nodeCost = combinedCost;
+    }
+  }
+
+  // Sum up all children's total costs
+  const childrenTotalCost = enrichedChildren.reduce<Decimal | undefined>(
+    (acc, child) => {
+      if (!child.totalCost) return acc;
+      return acc ? acc.plus(child.totalCost) : child.totalCost;
+    },
+    undefined,
+  );
+
+  // Total cost = this node's cost + all children's costs
+  const totalCost =
+    nodeCost && childrenTotalCost
+      ? nodeCost.plus(childrenTotalCost)
+      : nodeCost || childrenTotalCost;
+
+  const enrichedNode = {
+    ...node,
+    children: enrichedChildren,
+    totalCost,
+  };
+
+  nodeMap.set(enrichedNode.id, enrichedNode);
+
+  return enrichedNode;
+}
+
 // This function is only used internally by buildTraceUiData
 function buildTraceTree(
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -206,12 +273,16 @@ function buildTraceTree(
 ): {
   tree: TreeNode;
   hiddenObservationsCount: number;
+  nodeMap: Map<string, TreeNode>;
 } {
   // First, nest the observations as before
   const { nestedObservations, hiddenObservationsCount } = nestObservations(
     observations,
     minLevel,
   );
+
+  // Create nodeMap for O(1) lookup by ID
+  const nodeMap = new Map<string, TreeNode>();
 
   // Convert observations to TreeNodes
   const convertObservationToTreeNode = (obs: NestedObservation): TreeNode => ({
@@ -225,15 +296,26 @@ function buildTraceTree(
     inputUsage: obs.inputUsage,
     outputUsage: obs.outputUsage,
     totalUsage: obs.totalUsage,
-    calculatedInputCost:
-      "calculatedInputCost" in obs ? obs.calculatedInputCost : undefined,
-    calculatedOutputCost:
-      "calculatedOutputCost" in obs ? obs.calculatedOutputCost : undefined,
-    calculatedTotalCost:
-      "calculatedTotalCost" in obs ? obs.calculatedTotalCost : undefined,
+    calculatedInputCost: obs.inputCost,
+    calculatedOutputCost: obs.outputCost,
+    calculatedTotalCost: obs.totalCost,
     parentObservationId: obs.parentObservationId,
     traceId: obs.traceId,
   });
+
+  // Convert and enrich children with pre-computed costs and populate nodeMap
+  const enrichedChildren = nestedObservations
+    .map(convertObservationToTreeNode)
+    .map((node) => enrichTreeNodeWithCosts(node, nodeMap));
+
+  // Calculate total cost for trace root (sum of all top-level children)
+  const traceTotalCost = enrichedChildren.reduce<Decimal | undefined>(
+    (acc, child) => {
+      if (!child.totalCost) return acc;
+      return acc ? acc.plus(child.totalCost) : child.totalCost;
+    },
+    undefined,
+  );
 
   // Create the root tree node (trace)
   // Use a unique ID for the trace root to avoid conflicts with observations that might have the same ID
@@ -243,11 +325,15 @@ function buildTraceTree(
     name: trace.name ?? "",
     startTime: trace.timestamp,
     endTime: null, // traces don't have explicit end times
-    children: nestedObservations.map(convertObservationToTreeNode),
+    children: enrichedChildren,
     latency: trace.latency,
+    totalCost: traceTotalCost,
   };
 
-  return { tree, hiddenObservationsCount };
+  // Add trace root to nodeMap as well
+  nodeMap.set(tree.id, tree);
+
+  return { tree, hiddenObservationsCount, nodeMap };
 }
 
 // UI helper: build flat search items with per-node aggregated totals and root-level parent totals for heatmap scaling
@@ -264,8 +350,9 @@ export function buildTraceUiData(
   tree: TreeNode;
   hiddenObservationsCount: number;
   searchItems: TraceSearchListItem[];
+  nodeMap: Map<string, TreeNode>;
 } {
-  const { tree, hiddenObservationsCount } = buildTraceTree(
+  const { tree, hiddenObservationsCount, nodeMap } = buildTraceTree(
     trace,
     observations,
     minLevel,
@@ -278,7 +365,10 @@ export function buildTraceUiData(
     let nodeCost: Decimal | undefined;
 
     if (node.calculatedTotalCost != null) {
-      nodeCost = new Decimal(node.calculatedTotalCost);
+      const cost = new Decimal(node.calculatedTotalCost);
+      if (!cost.isZero()) {
+        nodeCost = cost;
+      }
     } else if (
       node.calculatedInputCost != null ||
       node.calculatedOutputCost != null
@@ -339,7 +429,7 @@ export function buildTraceUiData(
   };
   visit(tree);
 
-  return { tree, hiddenObservationsCount, searchItems: out };
+  return { tree, hiddenObservationsCount, searchItems: out, nodeMap };
 }
 
 /**

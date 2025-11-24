@@ -1,6 +1,10 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { logger, OtelIngestionProcessor } from "@langfuse/shared/src/server";
+import {
+  logger,
+  OtelIngestionProcessor,
+  markProjectAsOtelUser,
+} from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
@@ -25,6 +29,9 @@ export default withMiddlewares({
           "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
         );
       }
+
+      // Mark project as using OTEL API
+      await markProjectAsOtelUser(auth.scope.projectId);
 
       let body: Buffer;
       try {

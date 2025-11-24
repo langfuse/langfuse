@@ -48,5 +48,14 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   );
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
+
+  // Clean up the cookie from incident: https://status.langfuse.com/incident/770854
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    res.setHeader(
+      "Set-Cookie",
+      `__Secure-next-auth.session-token.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+    );
+  }
+
   return await NextAuth(req, res, authOptions);
 }

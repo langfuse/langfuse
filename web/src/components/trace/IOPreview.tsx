@@ -124,17 +124,27 @@ export const IOPreview: React.FC<{
       const message = messages[i];
       const isOutputMessage = i >= inputMessageCount; // Only output messages get numbered
 
-      if (message.tool_calls && Array.isArray(message.tool_calls)) {
+      const toolCallList = parseToolCallsFromMessage(message);
+
+      if (toolCallList.length > 0) {
         const messageToolNumbers: number[] = [];
 
-        for (const toolCall of message.tool_calls) {
-          if (toolCall.name && typeof toolCall.name === "string") {
+        for (const toolCall of toolCallList) {
+          const calledToolName =
+            toolCall.name && typeof toolCall.name === "string"
+              ? toolCall.name
+              : // AI SDK has 'toolName'
+                toolCall.toolName && typeof toolCall.toolName === "string"
+                ? toolCall.toolName
+                : undefined;
+
+          if (calledToolName) {
             // count tool calls from OUTPUT messages only, only those were called
             // in this generation
             if (isOutputMessage) {
               toolCallCounts.set(
-                toolCall.name,
-                (toolCallCounts.get(toolCall.name) || 0) + 1,
+                calledToolName,
+                (toolCallCounts.get(calledToolName) || 0) + 1,
               );
               toolCallCounter++;
               messageToolNumbers.push(toolCallCounter);
@@ -546,18 +556,17 @@ export const OpenAiMessageView: React.FC<{
                                     ) : undefined
                                   }
                                 />
-                                {message.tool_calls &&
-                                  Array.isArray(message.tool_calls) &&
-                                  message.tool_calls.length > 0 && (
-                                    <div className="mt-2">
-                                      <ToolCallInvocationsView
-                                        message={message}
-                                        toolCallNumbers={messageToToolCallNumbers?.get(
-                                          originalIndex,
-                                        )}
-                                      />
-                                    </div>
-                                  )}
+                                {parseToolCallsFromMessage(message).length >
+                                  0 && (
+                                  <div className="mt-2">
+                                    <ToolCallInvocationsView
+                                      message={message}
+                                      toolCallNumbers={messageToToolCallNumbers?.get(
+                                        originalIndex,
+                                      )}
+                                    />
+                                  </div>
+                                )}
                               </div>
                               <div
                                 style={{
@@ -589,18 +598,17 @@ export const OpenAiMessageView: React.FC<{
                                     ) : undefined
                                   }
                                 />
-                                {message.tool_calls &&
-                                  Array.isArray(message.tool_calls) &&
-                                  message.tool_calls.length > 0 && (
-                                    <div className="mt-2">
-                                      <ToolCallInvocationsView
-                                        message={message}
-                                        toolCallNumbers={messageToToolCallNumbers?.get(
-                                          originalIndex,
-                                        )}
-                                      />
-                                    </div>
-                                  )}
+                                {parseToolCallsFromMessage(message).length >
+                                  0 && (
+                                  <div className="mt-2">
+                                    <ToolCallInvocationsView
+                                      message={message}
+                                      toolCallNumbers={messageToToolCallNumbers?.get(
+                                        originalIndex,
+                                      )}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             </>
                           )}
@@ -626,9 +634,7 @@ export const OpenAiMessageView: React.FC<{
                             }
                           />
                         ) : !shouldRenderContent(message) &&
-                          message.tool_calls &&
-                          Array.isArray(message.tool_calls) &&
-                          message.tool_calls.length > 0 ? (
+                          parseToolCallsFromMessage(message).length > 0 ? (
                           // No content but has tool_calls - show tool invocations
                           <div>
                             <MarkdownJsonViewHeader
@@ -713,3 +719,13 @@ export const OpenAiMessageView: React.FC<{
     </div>
   );
 };
+
+function parseToolCallsFromMessage(
+  message: ReturnType<typeof combineInputOutputMessages>[0],
+) {
+  return message.tool_calls && Array.isArray(message.tool_calls)
+    ? message.tool_calls
+    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
+      ? message.json.tool_calls
+      : [];
+}

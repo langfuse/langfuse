@@ -1,5 +1,6 @@
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
+import { LATEST_PROMPT_LABEL } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -9,7 +10,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 const UpdatePromptBodySchema = z.object({
   newLabels: z
     .array(z.string())
-    .refine((labels) => !labels.includes("latest"), {
+    .refine((labels) => !labels.includes(LATEST_PROMPT_LABEL), {
       message: "Label 'latest' is always assigned to the latest prompt version",
     }),
 });

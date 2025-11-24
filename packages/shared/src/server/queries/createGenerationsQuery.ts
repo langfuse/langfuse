@@ -1,5 +1,9 @@
 import Decimal from "decimal.js";
-import { Observation, EventsObservation } from "../../domain";
+import {
+  type Observation,
+  type EventsObservation,
+  type ObservationCoreFields,
+} from "../../domain";
 
 export type ObservationPriceFields = {
   inputPrice: Decimal | null;
@@ -26,3 +30,10 @@ export type FullEventsObservation = AdditionalObservationFields &
   EventsObservation;
 
 export type FullEventsObservations = Array<FullEventsObservation>;
+
+// Public API version of EventsObservation, some fields are omitted because
+// V2 allows clients to specify fields
+export type EventsObservationPublic = Partial<
+  EventsObservation & ObservationPriceFields
+> &
+  ObservationCoreFields;

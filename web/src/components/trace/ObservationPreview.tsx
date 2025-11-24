@@ -21,7 +21,8 @@ import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
+import type Decimal from "decimal.js";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   TabsBar,
@@ -30,7 +31,7 @@ import {
   TabsBarContent,
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "./BreakdownToolTip";
-import { InfoIcon, PlusCircle } from "lucide-react";
+import { ExternalLinkIcon, InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -51,6 +52,7 @@ export const ObservationPreview = ({
   viewType = "detailed",
   isTimeline,
   showCommentButton = false,
+  precomputedCost,
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
@@ -61,6 +63,7 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   isTimeline?: boolean;
   showCommentButton?: boolean;
+  precomputedCost: Decimal | undefined;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -125,14 +128,7 @@ export const ObservationPreview = ({
       })
     : undefined;
 
-  const totalCost = useMemo(
-    () =>
-      calculateDisplayTotalCost({
-        allObservations: observations,
-        rootObservationId: currentObservationId,
-      }),
-    [observations, currentObservationId],
-  );
+  const totalCost = precomputedCost;
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
 
@@ -321,7 +317,10 @@ export const ObservationPreview = ({
                           className="flex items-center"
                           title="View model details"
                         >
-                          {preloadedObservation.model}
+                          <span className="truncate">
+                            {preloadedObservation.model}
+                          </span>
+                          <ExternalLinkIcon className="ml-1 h-3 w-3" />
                         </Link>
                       </Badge>
                     ) : (
@@ -525,9 +524,12 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
       className="inline-flex"
     >
       <Badge variant="tertiary">
-        Prompt: {prompt.data.name}
-        {" - v"}
-        {prompt.data.version}
+        <span className="truncate">
+          Prompt: {prompt.data.name}
+          {" - v"}
+          {prompt.data.version}
+        </span>
+        <ExternalLinkIcon className="ml-1 h-3 w-3" />
       </Badge>
     </Link>
   );
