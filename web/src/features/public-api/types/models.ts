@@ -12,7 +12,7 @@ import {
   PricingTierConditionSchema,
   PricingTierInputSchema,
   type PricingTierCondition,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared";
 
 /**
  * Objects

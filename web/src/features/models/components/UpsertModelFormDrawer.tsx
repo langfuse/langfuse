@@ -76,12 +76,14 @@ export const UpsertModelFormDrawer = ({
 
   let defaultValues: FormUpsertModel;
   if (props.action !== "create") {
+    // Get default tier prices for editing
+    const defaultTier = props.modelData.pricingTiers.find((t) => t.isDefault);
     defaultValues = {
       modelName: props.modelData.modelName,
       matchPattern: props.modelData.matchPattern,
       tokenizerId: props.modelData.tokenizerId,
       tokenizerConfig: JSON.stringify(props.modelData.tokenizerConfig ?? {}),
-      prices: props.modelData.prices,
+      prices: defaultTier?.prices ?? {},
     };
   } else {
     defaultValues = {

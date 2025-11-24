@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { clearModelCacheForProject } from "@langfuse/shared/src/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -134,7 +134,7 @@ export default withMiddlewares({
                     projectId: createdModel.projectId,
                     pricingTierId: createdTier.id,
                     usageType,
-                    price,
+                    price: new Prisma.Decimal(price),
                   },
                 }),
               ),
@@ -171,7 +171,7 @@ export default withMiddlewares({
                     projectId: createdModel.projectId,
                     pricingTierId: defaultTier.id,
                     usageType,
-                    price: price as number, // type guard checked in array filter
+                    price: new Prisma.Decimal(price as number), // type guard checked in array filter
                   },
                 }),
               ),

@@ -260,12 +260,16 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   );
 
   const convertToTableRow = (model: GetModelResult): ModelTableRow => {
+    // Get default tier prices for backward compatibility
+    const defaultTier = model.pricingTiers.find((t) => t.isDefault);
+    const prices = defaultTier?.prices;
+
     return {
       modelId: model.id,
       maintainer: model.projectId ? "User" : "Langfuse",
       modelName: model.modelName,
       matchPattern: model.matchPattern,
-      prices: model.prices,
+      prices,
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
       lastUsed: model.lastUsed,
