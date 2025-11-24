@@ -11,7 +11,6 @@
  */
 
 import { ObservationLevel } from "@langfuse/shared";
-import { Info } from "lucide-react";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 

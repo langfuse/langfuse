@@ -11,6 +11,12 @@ import {
 import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { NavigationPanel } from "./components/_layout/NavigationPanel";
+import { PreviewPanel } from "./components/_layout/PreviewPanel";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/src/components/ui/resizable";
 import { useMemo } from "react";
 
 export type TraceProps = {
@@ -85,7 +91,19 @@ function TraceWithPreferences({
 function TraceContent() {
   return (
     <div className="h-full w-full">
-      <NavigationPanel />
+      <ResizablePanelGroup direction="horizontal">
+        {/* Left panel - Navigation (tree/timeline/search) */}
+        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+          <NavigationPanel />
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        {/* Right panel - Preview (trace/observation details) */}
+        <ResizablePanel defaultSize={70} minSize={50}>
+          <PreviewPanel />
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
