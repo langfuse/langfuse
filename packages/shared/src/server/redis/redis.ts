@@ -48,6 +48,53 @@ const parseRedisNodes = (
 const parseClusterNodes = parseRedisNodes;
 const parseSentinelNodes = parseRedisNodes;
 
+/**
+ * Build TLS options for Redis connections from environment variables
+ * Returns an object with tls configuration if TLS is enabled, otherwise empty object
+ */
+const buildTlsOptions = (): Record<string, unknown> => {
+  if (env.REDIS_TLS_ENABLED !== "true") {
+    return {};
+  }
+
+  return {
+    tls: {
+      ca: env.REDIS_TLS_CA_PATH
+        ? fs.readFileSync(env.REDIS_TLS_CA_PATH)
+        : undefined,
+      cert: env.REDIS_TLS_CERT_PATH
+        ? fs.readFileSync(env.REDIS_TLS_CERT_PATH)
+        : undefined,
+      key: env.REDIS_TLS_KEY_PATH
+        ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
+        : undefined,
+      ...(env.REDIS_TLS_REJECT_UNAUTHORIZED
+        ? {
+            rejectUnauthorized: env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
+          }
+        : {}),
+      ...(env.REDIS_TLS_SERVERNAME
+        ? { servername: env.REDIS_TLS_SERVERNAME }
+        : {}),
+      ...(env.REDIS_TLS_CHECK_SERVER_IDENTITY === "false"
+        ? { checkServerIdentity: () => undefined }
+        : {}),
+      ...(env.REDIS_TLS_SECURE_PROTOCOL
+        ? { secureProtocol: env.REDIS_TLS_SECURE_PROTOCOL }
+        : {}),
+      ...(env.REDIS_TLS_CIPHERS ? { ciphers: env.REDIS_TLS_CIPHERS } : {}),
+      ...(env.REDIS_TLS_HONOR_CIPHER_ORDER
+        ? {
+            honorCipherOrder: env.REDIS_TLS_HONOR_CIPHER_ORDER === "true",
+          }
+        : {}),
+      ...(env.REDIS_TLS_KEY_PASSPHRASE
+        ? { passphrase: env.REDIS_TLS_KEY_PASSPHRASE }
+        : {}),
+    },
+  };
+};
+
 const createRedisClusterInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ): Cluster | null => {
@@ -59,48 +106,7 @@ const createRedisClusterInstance = (
   }
 
   const nodes = parseClusterNodes(env.REDIS_CLUSTER_NODES);
-  const tlsOptions =
-    env.REDIS_TLS_ENABLED === "true"
-      ? {
-          tls: {
-            ca: env.REDIS_TLS_CA_PATH
-              ? fs.readFileSync(env.REDIS_TLS_CA_PATH)
-              : undefined,
-            cert: env.REDIS_TLS_CERT_PATH
-              ? fs.readFileSync(env.REDIS_TLS_CERT_PATH)
-              : undefined,
-            key: env.REDIS_TLS_KEY_PATH
-              ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
-              : undefined,
-            ...(env.REDIS_TLS_REJECT_UNAUTHORIZED
-              ? {
-                  rejectUnauthorized:
-                    env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
-                }
-              : {}),
-            ...(env.REDIS_TLS_SERVERNAME
-              ? { servername: env.REDIS_TLS_SERVERNAME }
-              : {}),
-            ...(env.REDIS_TLS_CHECK_SERVER_IDENTITY === "false"
-              ? { checkServerIdentity: () => undefined }
-              : {}),
-            ...(env.REDIS_TLS_SECURE_PROTOCOL
-              ? { secureProtocol: env.REDIS_TLS_SECURE_PROTOCOL }
-              : {}),
-            ...(env.REDIS_TLS_CIPHERS
-              ? { ciphers: env.REDIS_TLS_CIPHERS }
-              : {}),
-            ...(env.REDIS_TLS_HONOR_CIPHER_ORDER
-              ? {
-                  honorCipherOrder: env.REDIS_TLS_HONOR_CIPHER_ORDER === "true",
-                }
-              : {}),
-            ...(env.REDIS_TLS_KEY_PASSPHRASE
-              ? { passphrase: env.REDIS_TLS_KEY_PASSPHRASE }
-              : {}),
-          },
-        }
-      : {};
+  const tlsOptions = buildTlsOptions();
 
   const clusterOptions: ClusterOptions = {
     // Return incoming addresses as-is - required for AWS ElastiCache Certificate resolution
@@ -146,48 +152,7 @@ const createRedisSentinelInstance = (
   }
 
   const sentinels = parseSentinelNodes(env.REDIS_SENTINEL_NODES);
-  const tlsOptions =
-    env.REDIS_TLS_ENABLED === "true"
-      ? {
-          tls: {
-            ca: env.REDIS_TLS_CA_PATH
-              ? fs.readFileSync(env.REDIS_TLS_CA_PATH)
-              : undefined,
-            cert: env.REDIS_TLS_CERT_PATH
-              ? fs.readFileSync(env.REDIS_TLS_CERT_PATH)
-              : undefined,
-            key: env.REDIS_TLS_KEY_PATH
-              ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
-              : undefined,
-            ...(env.REDIS_TLS_REJECT_UNAUTHORIZED
-              ? {
-                  rejectUnauthorized:
-                    env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
-                }
-              : {}),
-            ...(env.REDIS_TLS_SERVERNAME
-              ? { servername: env.REDIS_TLS_SERVERNAME }
-              : {}),
-            ...(env.REDIS_TLS_CHECK_SERVER_IDENTITY === "false"
-              ? { checkServerIdentity: () => undefined }
-              : {}),
-            ...(env.REDIS_TLS_SECURE_PROTOCOL
-              ? { secureProtocol: env.REDIS_TLS_SECURE_PROTOCOL }
-              : {}),
-            ...(env.REDIS_TLS_CIPHERS
-              ? { ciphers: env.REDIS_TLS_CIPHERS }
-              : {}),
-            ...(env.REDIS_TLS_HONOR_CIPHER_ORDER
-              ? {
-                  honorCipherOrder: env.REDIS_TLS_HONOR_CIPHER_ORDER === "true",
-                }
-              : {}),
-            ...(env.REDIS_TLS_KEY_PASSPHRASE
-              ? { passphrase: env.REDIS_TLS_KEY_PASSPHRASE }
-              : {}),
-          },
-        }
-      : {};
+  const tlsOptions = buildTlsOptions();
 
   const instance = new Redis({
     sentinels,
@@ -229,48 +194,7 @@ export const createNewRedisInstance = (
     return createRedisSentinelInstance(additionalOptions);
   }
 
-  const tlsOptions =
-    env.REDIS_TLS_ENABLED === "true"
-      ? {
-          tls: {
-            ca: env.REDIS_TLS_CA_PATH
-              ? fs.readFileSync(env.REDIS_TLS_CA_PATH)
-              : undefined,
-            cert: env.REDIS_TLS_CERT_PATH
-              ? fs.readFileSync(env.REDIS_TLS_CERT_PATH)
-              : undefined,
-            key: env.REDIS_TLS_KEY_PATH
-              ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
-              : undefined,
-            ...(env.REDIS_TLS_REJECT_UNAUTHORIZED
-              ? {
-                  rejectUnauthorized:
-                    env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
-                }
-              : {}),
-            ...(env.REDIS_TLS_SERVERNAME
-              ? { servername: env.REDIS_TLS_SERVERNAME }
-              : {}),
-            ...(env.REDIS_TLS_CHECK_SERVER_IDENTITY === "false"
-              ? { checkServerIdentity: () => undefined }
-              : {}),
-            ...(env.REDIS_TLS_SECURE_PROTOCOL
-              ? { secureProtocol: env.REDIS_TLS_SECURE_PROTOCOL }
-              : {}),
-            ...(env.REDIS_TLS_CIPHERS
-              ? { ciphers: env.REDIS_TLS_CIPHERS }
-              : {}),
-            ...(env.REDIS_TLS_HONOR_CIPHER_ORDER
-              ? {
-                  honorCipherOrder: env.REDIS_TLS_HONOR_CIPHER_ORDER === "true",
-                }
-              : {}),
-            ...(env.REDIS_TLS_KEY_PASSPHRASE
-              ? { passphrase: env.REDIS_TLS_KEY_PASSPHRASE }
-              : {}),
-          },
-        }
-      : {};
+  const tlsOptions = buildTlsOptions();
 
   const instance = env.REDIS_CONNECTION_STRING
     ? new Redis(env.REDIS_CONNECTION_STRING, {
