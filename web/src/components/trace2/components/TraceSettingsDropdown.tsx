@@ -74,15 +74,21 @@ export function TraceSettingsDropdown({
           <Settings2 className="h-3.5 w-3.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 px-0 space-y-0 space-x-0 p-0">
+      <DropdownMenuContent
+        align="end"
+        className="w-64 space-x-0 space-y-0 p-0 px-0"
+      >
         <DropdownMenuLabel>View Options</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
         <div className="space-y-0 p-0 py-1">
-        {/* Show Graph Toggle (only when available) */}
-        {isGraphViewAvailable && (
-          
-            <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()} className="py-1 px-2 space-y-0">
+          {/* Show Graph Toggle (only when available) */}
+          {isGraphViewAvailable && (
+            <DropdownMenuItem
+              asChild
+              onSelect={(e) => e.preventDefault()}
+              className="space-y-0 px-2 py-1"
+            >
               <div className="flex w-full items-center justify-between">
                 <span className="mr-2">Show Graph</span>
                 <Switch
@@ -92,11 +98,14 @@ export function TraceSettingsDropdown({
                 />
               </div>
             </DropdownMenuItem>
-        )}
+          )}
 
-        
           {/* Show Comments Toggle */}
-          <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}  className="py-1 px-2">
+          <DropdownMenuItem
+            asChild
+            onSelect={(e) => e.preventDefault()}
+            className="px-2 py-1"
+          >
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Comments</span>
               <Switch
@@ -108,7 +117,11 @@ export function TraceSettingsDropdown({
           </DropdownMenuItem>
 
           {/* Show Scores Toggle */}
-          <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()} className="py-1 px-2">
+          <DropdownMenuItem
+            asChild
+            onSelect={(e) => e.preventDefault()}
+            className="px-2 py-1"
+          >
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Scores</span>
               <Switch
@@ -125,7 +138,11 @@ export function TraceSettingsDropdown({
           </DropdownMenuItem>
 
           {/* Show Duration Toggle */}
-          <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()} className="py-1 px-2">
+          <DropdownMenuItem
+            asChild
+            onSelect={(e) => e.preventDefault()}
+            className="px-2 py-1"
+          >
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Duration</span>
               <Switch
@@ -137,7 +154,11 @@ export function TraceSettingsDropdown({
           </DropdownMenuItem>
 
           {/* Show Cost/Tokens Toggle */}
-          <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()} className="py-1 px-2">
+          <DropdownMenuItem
+            asChild
+            onSelect={(e) => e.preventDefault()}
+            className="px-2 py-1"
+          >
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Cost/Tokens</span>
               <Switch
@@ -153,8 +174,10 @@ export function TraceSettingsDropdown({
             asChild
             onSelect={(e) => e.preventDefault()}
             disabled={!isColorCodeEnabled}
-            className={cn(["py-1 px-2", isColorCodeEnabled ? "" : "cursor-not-allowed"])}
-
+            className={cn([
+              "px-2 py-1",
+              isColorCodeEnabled ? "" : "cursor-not-allowed",
+            ])}
           >
             <div
               className={cn(
