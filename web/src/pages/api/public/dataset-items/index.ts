@@ -54,7 +54,7 @@ export default withMiddlewares({
           sourceObservationId: sourceObservationId ?? undefined,
           status: status ?? undefined,
           normalizeOpts: { sanitizeControlChars: true },
-          validateOpts: { normalizeUndefinedToNull: true }, // Treat UPSERT as CREATE for validation
+          validateOpts: { normalizeUndefinedToNull: !!id ? false : true },
         });
         if (!result.success) {
           throw new InvalidRequestError(
