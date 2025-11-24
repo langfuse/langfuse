@@ -13,6 +13,8 @@ import { SearchProvider } from "./contexts/SearchContext";
 import { NavigationPanel } from "./components/_layout/NavigationPanel";
 import { PreviewPanel } from "./components/_layout/PreviewPanel";
 import { CollapsedNavigationPanel } from "./components/_layout/CollapsedNavigationPanel";
+import { MobileTraceLayout } from "./components/_layout/MobileTraceLayout";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import {
   CollapsiblePanelGroup,
   CollapsiblePanel,
@@ -93,6 +95,8 @@ function TraceWithPreferences({
 }
 
 function TraceContent() {
+  const isMobile = useIsMobile();
+
   // Dynamic panel constraints based on container width
   const { minSize, maxSize } = usePanelState("trace2-layout", {
     minWidthPx: 255, // Min width for navigation panel
@@ -111,6 +115,16 @@ function TraceContent() {
     navigationPanelRef.current?.toggle();
   };
 
+  // Mobile layout - vertical stack without resizing
+  if (isMobile) {
+    return (
+      <div className="h-full w-full">
+        <MobileTraceLayout />
+      </div>
+    );
+  }
+
+  // Desktop layout - resizable horizontal panels
   return (
     <div className="h-full w-full">
       <CollapsiblePanelGroup direction="horizontal" autoSaveId="trace2-layout">
