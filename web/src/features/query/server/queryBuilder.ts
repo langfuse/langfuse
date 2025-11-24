@@ -1,5 +1,8 @@
 import { type z } from "zod/v4";
-import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
+import {
+  convertDateToClickhouseDateTime,
+  shouldSkipObservationsFinal,
+} from "@langfuse/shared/src/server";
 import {
   type QueryType,
   type ViewDeclarationType,
@@ -359,6 +362,7 @@ export class QueryBuilder {
     view: ViewDeclarationType,
     filterList: FilterList,
     query: QueryType,
+    skipObservationsFinal: boolean,
   ) {
     const relationJoins = [];
     for (const relationTableName of relationTables) {
@@ -369,7 +373,11 @@ export class QueryBuilder {
       }
 
       const relation = view.tableRelations[relationTableName];
-      let joinStatement = `LEFT JOIN ${relation.name} FINAL ${relation.joinConditionSql}`;
+      // Conditionally add FINAL - skip for observations if flag is set
+      const shouldUseFinal = !(
+        relation.name === "observations" && skipObservationsFinal
+      );
+      let joinStatement = `LEFT JOIN ${relation.name}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
@@ -784,10 +792,10 @@ export class QueryBuilder {
    *   ORDER BY <fields with directions>
    * ```
    */
-  public build(
+  public async build(
     query: QueryType,
     projectId: string,
-  ): { query: string; parameters: Record<string, unknown> } {
+  ): Promise<{ query: string; parameters: Record<string, unknown> }> {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);
     if (!parseResult.success) {
@@ -799,8 +807,16 @@ export class QueryBuilder {
     // Initialize parameters object
     const parameters: Record<string, unknown> = {};
 
-    // Get view declaration
-    const view = this.getViewDeclaration(query.view);
+    // Check if we should skip FINAL modifier for observations (OTEL optimization)
+    const skipObservationsFinal = await shouldSkipObservationsFinal(projectId);
+    let view = this.getViewDeclaration(query.view);
+    // Skip FINAL on observations base table if OTEL project
+    if (view.name === "observations" && skipObservationsFinal) {
+      view = {
+        ...view,
+        baseCte: "observations", // Remove FINAL (was "observations FINAL")
+      };
+    }
 
     // Map dimensions and metrics
     const appliedDimensions = this.mapDimensions(query.dimensions, view);
@@ -834,6 +850,7 @@ export class QueryBuilder {
         view,
         filterList,
         query,
+        skipObservationsFinal,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }

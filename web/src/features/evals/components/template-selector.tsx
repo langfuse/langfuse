@@ -171,6 +171,7 @@ export const TemplateSelector = ({
               className="h-9"
               value={search}
               onValueChange={setSearch}
+              variant="bottom"
             />
             <div
               tabIndex={0}
