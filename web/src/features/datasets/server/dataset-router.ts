@@ -62,6 +62,9 @@ import {
 } from "@langfuse/shared/src/server";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 
+// Batch size kept small (100) as items may have large input/output/metadata JSON
+const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
+
 /**
  * Remove problematic C0 and C1 control characters from string values.
  * PostgreSQL TEXT columns cannot store NULL byte (\u0000) and other control characters.
@@ -1223,13 +1226,6 @@ export const datasetRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         },
-        include: {
-          datasetItems: {
-            orderBy: {
-              createdAt: "asc",
-            },
-          },
-        },
       });
       if (!dataset) {
         throw new TRPCError({
@@ -1277,19 +1273,42 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
       });
 
-      await ctx.prisma.datasetItem.createMany({
-        data: dataset.datasetItems.map((item) => ({
-          // the items get new ids as they need to be unique on project level
-          input: item.input ?? undefined,
-          expectedOutput: item.expectedOutput ?? undefined,
-          metadata: item.metadata ?? undefined,
-          sourceTraceId: item.sourceTraceId,
-          sourceObservationId: item.sourceObservationId,
-          status: item.status,
-          projectId: input.projectId,
-          datasetId: newDataset.id,
-        })),
-      });
+      // Copy items in batches to avoid 256MB JSONB limit
+      let offset = 0;
+
+      while (true) {
+        const itemsBatch = await ctx.prisma.datasetItem.findMany({
+          where: {
+            datasetId: input.datasetId,
+            projectId: input.projectId,
+          },
+          orderBy: {
+            createdAt: "asc",
+            id: "asc",
+          },
+          take: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
+          skip: offset,
+        });
+
+        if (itemsBatch.length === 0) break;
+
+        await ctx.prisma.datasetItem.createMany({
+          data: itemsBatch.map((item) => ({
+            // the items get new ids as they need to be unique on project level
+            input: item.input ?? undefined,
+            expectedOutput: item.expectedOutput ?? undefined,
+            metadata: item.metadata ?? undefined,
+            sourceTraceId: item.sourceTraceId,
+            sourceObservationId: item.sourceObservationId,
+            status: item.status,
+            projectId: input.projectId,
+            datasetId: newDataset.id,
+          })),
+        });
+
+        if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
+        offset += DUPLICATE_DATASET_ITEMS_BATCH_SIZE;
+      }
 
       await auditLog({
         session: ctx.session,
