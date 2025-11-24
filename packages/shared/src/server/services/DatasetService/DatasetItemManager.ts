@@ -15,6 +15,10 @@ import {
   executeWithDatasetServiceStrategy,
   OperationType,
 } from "../../datasets/executeWithDatasetServiceStrategy";
+import {
+  getDatasetItemsByVersion,
+  getDatasetItemsCountByVersion,
+} from "../../repositories/dataset-items";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
 
@@ -608,32 +612,6 @@ export class DatasetItemManager {
     };
   }
 
-  private static convertRowToItem<IncludeIO extends boolean = true>(
-    row: any,
-    includeIO: IncludeIO,
-  ): IncludeIO extends true ? ItemWithIO : ItemBase {
-    const base: ItemBase = {
-      id: row.id,
-      sourceTraceId: row.source_trace_id,
-      sourceObservationId: row.source_observation_id,
-      status: row.status,
-      createdAt: row.created_at,
-    };
-
-    return (
-      includeIO
-        ? {
-            ...base,
-            input: row.input,
-            expectedOutput: row.expected_output,
-            metadata: row.metadata,
-            status: row.status,
-            createdAt: row.created_at,
-          }
-        : base
-    ) as IncludeIO extends true ? ItemWithIO : ItemBase;
-  }
-
   private static async getItems<
     IncludeIO extends boolean,
     ReturnVersion extends boolean,
@@ -657,68 +635,30 @@ export class DatasetItemManager {
         }
       : Array<IncludeIO extends true ? ItemWithIO : ItemBase>
   > {
-    const ioFields = includeIO ? "input, expected_output, metadata," : "";
+    return executeWithDatasetServiceStrategy(OperationType.READ, {
+      [Implementation.STATEFUL]: async () => {
+        const items = await prisma.datasetItem.findMany({
+          where: { datasetId, projectId },
+        });
 
-    const versionField = returnVersionTimestamp
-      ? ", MAX(created_at) OVER () as latest_version"
-      : "";
-
-    const result = await prisma.$queryRawUnsafe<
-      Array<{
-        id: string;
-        input?: any;
-        expected_output?: any;
-        metadata?: any;
-        source_trace_id: string | null;
-        source_observation_id: string | null;
-        status: string;
-        created_at: Date | null;
-        latest_version?: Date;
-      }>
-    >(
-      `
-    WITH latest_events AS (
-      SELECT DISTINCT ON (id)
-        id,
-        ${ioFields}
-        source_trace_id,
-        source_observation_id,
-        status,
-        created_at,
-        deleted_at
-        ${versionField}
-      FROM dataset_item_events
-      WHERE project_id = ${projectId}
-      AND dataset_id = ${datasetId}
-      AND created_at <= ${version}
-      ORDER BY id, created_at DESC
-      )
-      SELECT
-      id,
-        ${ioFields}
-        source_trace_id,
-        source_observation_id,
-        status,
-        created_at
-        ${versionField ? ", latest_version" : ""}
-      FROM latest_events
-      WHERE deleted_at IS NULL
-       OR deleted_at > ${version}
-      ORDER BY id
-      `,
-    );
-
-    const items = result.map((row) => this.convertRowToItem(row, includeIO));
-
-    if (returnVersionTimestamp) {
-      const versionTimestamp =
-        result.length > 0 && result[0].latest_version
-          ? result[0].latest_version
-          : version;
-      return { items, versionTimestamp } as any;
-    }
-
-    return items as any;
+        if (returnVersionTimestamp) {
+          return {
+            items,
+            versionTimestamp: new Date(),
+          };
+        }
+        return items;
+      },
+      [Implementation.VERSIONED]: async () => {
+        return getDatasetItemsByVersion({
+          projectId,
+          datasetId,
+          version,
+          includeIO,
+          returnVersionTimestamp,
+        }) as any;
+      },
+    });
   }
 
   /**
@@ -795,6 +735,50 @@ export class DatasetItemManager {
       version: new Date(),
       includeIO: options.includeIO as IncludeIO,
       returnVersionTimestamp: true,
+    });
+  }
+
+  public static async getItemCountByVersion(props: {
+    projectId: string;
+    datasetId: string;
+    version: Date;
+  }): Promise<number> {
+    return executeWithDatasetServiceStrategy(OperationType.READ, {
+      [Implementation.STATEFUL]: async () => {
+        return await prisma.datasetItem.count({
+          where: { datasetId: props.datasetId, projectId: props.projectId },
+        });
+      },
+      [Implementation.VERSIONED]: async () => {
+        return await getDatasetItemsCountByVersion({
+          projectId: props.projectId,
+          datasetId: props.datasetId,
+          version: props.version,
+        });
+      },
+    });
+  }
+
+  public static async getItemCountByLatest(props: {
+    projectId: string;
+    datasetId: string;
+  }): Promise<number> {
+    return executeWithDatasetServiceStrategy(OperationType.READ, {
+      [Implementation.STATEFUL]: async () => {
+        return await prisma.datasetItem.count({
+          where: {
+            datasetId: props.datasetId,
+            projectId: props.projectId,
+          },
+        });
+      },
+      [Implementation.VERSIONED]: async () => {
+        return getDatasetItemsCountByVersion({
+          projectId: props.projectId,
+          datasetId: props.datasetId,
+          version: new Date(),
+        });
+      },
     });
   }
 }

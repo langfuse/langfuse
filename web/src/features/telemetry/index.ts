@@ -208,6 +208,7 @@ async function posthogTelemetry({
     });
 
     // Count dataset items
+    // TODO: fix
     const countDatasetItems = await prisma.datasetItem.count({
       where: {
         createdAt: {

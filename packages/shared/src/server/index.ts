@@ -96,6 +96,7 @@ export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
 export * from "./otel";
+export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";

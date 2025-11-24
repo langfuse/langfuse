@@ -49,6 +49,9 @@ import {
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
+  executeWithDatasetServiceStrategy,
+  OperationType,
+  Implementation,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -56,6 +59,7 @@ import {
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
+import { v4 } from "uuid";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -640,11 +644,9 @@ export const datasetRouter = createTRPCRouter({
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
-      return await ctx.prisma.datasetItem.count({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
-        },
+      return await DatasetItemManager.getItemCountByLatest({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
       });
     }),
   itemsByDatasetId: protectedProjectProcedure
@@ -1040,18 +1042,30 @@ export const datasetRouter = createTRPCRouter({
 
         if (itemsBatch.length === 0) break;
 
-        await ctx.prisma.datasetItem.createMany({
-          data: itemsBatch.map((item) => ({
-            // the items get new ids as they need to be unique on project level
-            input: item.input ?? undefined,
-            expectedOutput: item.expectedOutput ?? undefined,
-            metadata: item.metadata ?? undefined,
-            sourceTraceId: item.sourceTraceId,
-            sourceObservationId: item.sourceObservationId,
-            status: item.status,
-            projectId: input.projectId,
-            datasetId: newDataset.id,
-          })),
+        const preparedItems = itemsBatch.map((item) => ({
+          itemId: v4(),
+          input: item.input ?? undefined,
+          expectedOutput: item.expectedOutput ?? undefined,
+          metadata: item.metadata ?? undefined,
+          sourceTraceId: item.sourceTraceId,
+          sourceObservationId: item.sourceObservationId,
+          status: item.status,
+          projectId: input.projectId,
+          datasetId: newDataset.id,
+          createdAt: new Date(),
+        }));
+
+        await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+          [Implementation.STATEFUL]: async () => {
+            await ctx.prisma.datasetItem.createMany({
+              data: preparedItems,
+            });
+          },
+          [Implementation.VERSIONED]: async () => {
+            await ctx.prisma.datasetItemEvent.createMany({
+              data: preparedItems,
+            });
+          },
         });
 
         if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
@@ -1395,6 +1409,7 @@ export const datasetRouter = createTRPCRouter({
 
       const [runData, items] = await Promise.all([
         enrichAndMapToDatasetItemId(projectId, datasetRunItems),
+        // TODO: fix
         ctx.prisma.datasetItem.findMany({
           where: { id: { in: datasetItemIds } },
           select: {
@@ -1435,6 +1450,7 @@ export const datasetRouter = createTRPCRouter({
 
       // Approach 1: if no filters are set, query postgres for datasets' item count
       if (!filterByRun || filterByRun.length === 0) {
+        // TODO: fix
         const datasetItemCount = await ctx.prisma.datasetItem.count({
           where: { datasetId, projectId },
         });
@@ -1466,6 +1482,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      // TODO: fix
       return ctx.prisma.datasetItem.findMany({
         where: {
           projectId: input.projectId,
