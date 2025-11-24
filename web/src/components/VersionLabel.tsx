@@ -87,7 +87,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         <Button
           variant="ghost"
           size="xs"
-          className={cn("text-[0.625rem]", className)}
+          className={cn("mt-[0.1px] text-[0.625rem]", className)}
         >
           {VERSION}
           {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
