@@ -4,7 +4,7 @@ CREATE TABLE "dataset_item_events" (
     "id" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
     "dataset_id" TEXT NOT NULL,
-    "status" "DatasetStatus" NOT NULL DEFAULT 'ACTIVE',
+    "status" "DatasetStatus",
     "input" JSONB,
     "expected_output" JSONB,
     "metadata" JSONB,

@@ -615,11 +615,11 @@ model Dataset {
 }
 
 model DatasetItem {
-  id                  String        @default(cuid())
-  projectId           String        @map("project_id")
-  status              DatasetStatus @default(ACTIVE)
+  id                  String            @default(cuid())
+  projectId           String            @map("project_id")
+  status              DatasetStatus     @default(ACTIVE)
   input               Json?
-  expectedOutput      Json?         @map("expected_output")
+  expectedOutput      Json?             @map("expected_output")
   metadata            Json?
   sourceTraceId       String?           @map("source_trace_id")
   sourceObservationId String?           @map("source_observation_id")
@@ -639,19 +639,19 @@ model DatasetItem {
 }
 
 model DatasetItemEvent {
-  pk                  BigInt        @id @default(autoincrement())
-  id                  String        @map("id")
-  projectId           String        @map("project_id")
-  datasetId           String        @map("dataset_id")
-  dataset             Dataset       @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
-  status              DatasetStatus @default(ACTIVE)
+  pk                  BigInt         @id @default(autoincrement())
+  id                  String         @map("id")
+  projectId           String         @map("project_id")
+  datasetId           String         @map("dataset_id")
+  dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
+  status              DatasetStatus?
   input               Json?
-  expectedOutput      Json?         @map("expected_output")
+  expectedOutput      Json?          @map("expected_output")
   metadata            Json?
-  sourceTraceId       String?       @map("source_trace_id")
-  sourceObservationId String?       @map("source_observation_id")
-  createdAt           DateTime?     @map("created_at")
-  deletedAt           DateTime?     @map("deleted_at")
+  sourceTraceId       String?        @map("source_trace_id")
+  sourceObservationId String?        @map("source_observation_id")
+  createdAt           DateTime?      @map("created_at")
+  deletedAt           DateTime?      @map("deleted_at")
 
   @@index([projectId, datasetId, id, createdAt])
   @@map("dataset_item_events")

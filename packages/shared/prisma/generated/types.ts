@@ -435,7 +435,7 @@ export type DatasetItemEvent = {
   id: string;
   project_id: string;
   dataset_id: string;
-  status: Generated<DatasetStatus>;
+  status: DatasetStatus | null;
   input: unknown | null;
   expected_output: unknown | null;
   metadata: unknown | null;
