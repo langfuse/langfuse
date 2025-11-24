@@ -86,14 +86,17 @@ export const projectsRouter = createTRPCRouter({
       });
 
       // check if the project name is already taken by another project
-      const existingProject = await ctx.prisma.project.findFirst({
+      const otherProjectWithSameName = await ctx.prisma.project.findFirst({
         where: {
           name: input.newName,
           orgId: ctx.session.orgId,
           deletedAt: null,
+          id: {
+            not: input.projectId,
+          },
         },
       });
-      if (existingProject) {
+      if (otherProjectWithSameName) {
         throw new TRPCError({
           code: "CONFLICT",
           message:
