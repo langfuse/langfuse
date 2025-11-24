@@ -524,7 +524,7 @@ function FilterBuilderForm({
                           <InputCommand>
                             <InputCommandInput
                               placeholder="Search for column"
-                              onFocus={(e) => (e.target.style.border = "none")}
+                              variant="bottom"
                             />
                             <InputCommandList>
                               <InputCommandEmpty>
