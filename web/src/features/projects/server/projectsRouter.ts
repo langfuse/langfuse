@@ -85,6 +85,22 @@ export const projectsRouter = createTRPCRouter({
         scope: "project:update",
       });
 
+      // check if the project name is already taken by another project
+      const existingProject = await ctx.prisma.project.findFirst({
+        where: {
+          name: input.newName,
+          orgId: ctx.session.orgId,
+          deletedAt: null,
+        },
+      });
+      if (existingProject) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "A project with this name already exists in your organization",
+        });
+      }
+
       const project = await ctx.prisma.project.update({
         where: {
           id: input.projectId,
