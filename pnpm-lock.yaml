@@ -394,9 +394,6 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.1
         version: 1.2.1
-      '@marsidev/react-turnstile':
-        specifier: ^0.5.4
-        version: 0.5.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.20.2
         version: 1.22.0(@cfworker/json-schema@4.1.1)
@@ -3146,12 +3143,6 @@ packages:
 
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
-
-  '@marsidev/react-turnstile@0.5.4':
-    resolution: {integrity: sha512-cloUDkEcJm+G7p3J8DwPtRNNB2GZqVi/nlIbgu9o3VzNyV5K/bWcSfOyWouRiR3umAQZmsFpR3OFYa4mCmy4AQ==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
 
   '@mermaid-js/mermaid-cli@11.12.0':
     resolution: {integrity: sha512-a0swOS6PByXKi0dZnLQQIhbtUEu7ubc6bojmIqXqvUPq7mIJukCNEvVBTv6IAbuEWqB3Ti8QntupoGdz3ej+kg==}
@@ -17484,11 +17475,6 @@ snapshots:
       '@lezer/common': 1.3.0
 
   '@marijn/find-cluster-break@1.0.2': {}
-
-  '@marsidev/react-turnstile@0.5.4(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
-    dependencies:
-      react: 19.2.0
-      react-dom: 19.2.0(react@19.2.0)
 
   '@mermaid-js/mermaid-cli@11.12.0(@babel/core@7.28.4)(@babel/template@7.27.2)(@types/react@19.2.2)(puppeteer@19.11.1(typescript@5.9.2))(tsx@4.20.5)(yaml@2.8.1)':
     dependencies:

@@ -13,7 +13,7 @@ export async function executeQuery(
   projectId: string,
   query: QueryType,
 ): Promise<Array<Record<string, unknown>>> {
-  const { query: compiledQuery, parameters } = new QueryBuilder(
+  const { query: compiledQuery, parameters } = await new QueryBuilder(
     query.chartConfig,
   ).build(query, projectId);
 
