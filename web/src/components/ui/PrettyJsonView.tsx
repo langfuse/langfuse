@@ -8,6 +8,7 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
+import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import {
   ChevronDown,
   ChevronRight,
@@ -448,7 +449,7 @@ function JsonPrettyTable({
               )}
             </div>
             <span
-              className={`ml-1 ${MONO_TEXT_CLASSES} font-medium`}
+              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text font-medium`}
               style={{ maxWidth: availableTextWidth }}
             >
               {itemBadgeType && (
@@ -639,37 +640,59 @@ function JsonPrettyTable({
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map((row, rowIndex) => (
-            <TableRow
-              key={row.id}
-              ref={
-                rowIndex === 0 && row.original.level === 0
-                  ? topLevelRowRef
-                  : undefined
-              }
-              data-observation-id={row.id}
-              className={cn(
-                row.original.level === 0 && stickyTopLevelKey
-                  ? "sticky z-10 bg-background shadow-sm"
-                  : "",
-              )}
-              style={
-                row.original.level === 0 && stickyTopLevelKey
-                  ? { top: `${stickyOffsets.header}px` }
-                  : undefined
-              }
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell
-                  key={cell.id}
-                  className="whitespace-normal px-2 py-1 align-top"
-                  style={{ width: `${cell.column.columnDef.size}%` }}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
+          {table.getRowModel().rows.map((row, rowIndex) => {
+            // Determine if this row should be clickable for expansion
+            const isExpandable =
+              row.original.hasChildren ||
+              getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
+
+            // Use the hook to handle click vs text selection
+            const { props: rowClickProps } = useClickWithoutSelection({
+              onClick: () => {
+                handleRowExpansion(
+                  row,
+                  onLazyLoadChildren,
+                  expandedCells,
+                  toggleCellExpansion,
+                );
+              },
+              enabled: isExpandable,
+            });
+
+            return (
+              <TableRow
+                key={row.id}
+                ref={
+                  rowIndex === 0 && row.original.level === 0
+                    ? topLevelRowRef
+                    : undefined
+                }
+                data-observation-id={row.id}
+                {...rowClickProps}
+                className={cn(
+                  isExpandable ? "cursor-pointer" : "",
+                  row.original.level === 0 && stickyTopLevelKey
+                    ? "sticky z-10 bg-background shadow-sm"
+                    : "",
+                )}
+                style={
+                  row.original.level === 0 && stickyTopLevelKey
+                    ? { top: `${stickyOffsets.header}px` }
+                    : undefined
+                }
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell
+                    key={cell.id}
+                    className="whitespace-normal px-2 py-1 align-top"
+                    style={{ width: `${cell.column.columnDef.size}%` }}
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
