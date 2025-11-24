@@ -43,7 +43,7 @@ export const getTraceStream = async (props: {
   } = props;
 
   const clickhouseConfigs = {
-    request_timeout: 120_000,
+    request_timeout: 180_000,
     clickhouse_settings: {
       join_algorithm: "partial_merge" as const,
     },
