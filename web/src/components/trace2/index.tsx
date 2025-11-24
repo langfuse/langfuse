@@ -4,7 +4,10 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { TraceDataProvider } from "./contexts/TraceDataContext";
-import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
+import {
+  ViewPreferencesProvider,
+  useViewPreferences,
+} from "./contexts/ViewPreferencesContext";
 import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { NavigationPanel } from "./components/_layout/NavigationPanel";
@@ -36,21 +39,45 @@ export function Trace(props: TraceProps) {
   const commentsMap = useMemo(() => new Map<string, number>(), []);
 
   return (
+    <ViewPreferencesProvider
+      defaultMinObservationLevel={defaultMinObservationLevel}
+    >
+      <TraceWithPreferences
+        trace={trace}
+        observations={observations}
+        scores={scores}
+        commentsMap={commentsMap}
+      />
+    </ViewPreferencesProvider>
+  );
+}
+
+function TraceWithPreferences({
+  trace,
+  observations,
+  scores,
+  commentsMap,
+}: {
+  trace: TraceProps["trace"];
+  observations: TraceProps["observations"];
+  scores: TraceProps["scores"];
+  commentsMap: Map<string, number>;
+}) {
+  const { minObservationLevel } = useViewPreferences();
+
+  return (
     <TraceDataProvider
       trace={trace}
       observations={observations}
       scores={scores}
       comments={commentsMap}
+      minObservationLevel={minObservationLevel}
     >
-      <ViewPreferencesProvider
-        defaultMinObservationLevel={defaultMinObservationLevel}
-      >
-        <SelectionProvider>
-          <SearchProvider>
-            <TraceContent />
-          </SearchProvider>
-        </SelectionProvider>
-      </ViewPreferencesProvider>
+      <SelectionProvider>
+        <SearchProvider>
+          <TraceContent />
+        </SearchProvider>
+      </SelectionProvider>
     </TraceDataProvider>
   );
 }

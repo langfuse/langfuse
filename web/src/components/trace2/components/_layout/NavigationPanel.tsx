@@ -11,6 +11,7 @@
 
 import { useSearch } from "../../contexts/SearchContext";
 import { NavigationHeader } from "./NavigationHeader";
+import { HiddenObservationsNotice } from "./HiddenObservationsNotice";
 import { TraceTree } from "../TraceTree";
 import { TraceSearchList } from "../TraceSearchList";
 import { TraceTimeline } from "../TraceTimeline";
@@ -41,6 +42,9 @@ export function NavigationPanel() {
     <div className="flex h-full flex-col border-r">
       {/* Fixed height search bar */}
       <NavigationHeader />
+
+      {/* Fixed height notice (only shows when observations are hidden) */}
+      <HiddenObservationsNotice />
 
       {/* Scrollable content area */}
       <div className="flex-1 overflow-hidden">{renderContent()}</div>

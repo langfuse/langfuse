@@ -14,15 +14,17 @@ import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import { FoldVertical, UnfoldVertical } from "lucide-react";
+import { FoldVertical, UnfoldVertical, Download } from "lucide-react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
+import { TraceSettingsDropdown } from "../TraceSettingsDropdown";
+import { downloadTraceAsJson } from "../../lib/download-trace";
 
 export function NavigationHeader() {
   const { searchInputValue, setSearchInputValue } = useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
-  const { tree } = useTraceData();
+  const { tree, trace, observations } = useTraceData();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -51,6 +53,13 @@ export function NavigationHeader() {
       collapseAll(allIds);
     }
   }, [isEverythingCollapsed, expandAll, collapseAll, getAllNodeIds, tree]);
+
+  const handleDownload = useCallback(() => {
+    downloadTraceAsJson({
+      trace,
+      observations,
+    });
+  }, [trace, observations]);
 
   const isTimelineView = viewMode === "timeline";
 
@@ -81,6 +90,20 @@ export function NavigationHeader() {
             ) : (
               <FoldVertical className="h-3.5 w-3.5" />
             )}
+          </Button>
+
+          {/* Settings Dropdown */}
+          <TraceSettingsDropdown isGraphViewAvailable={false} />
+
+          {/* Download Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDownload}
+            title="Download trace as JSON"
+            className="h-7 w-7"
+          >
+            <Download className="h-3.5 w-3.5" />
           </Button>
 
           {/* Timeline Toggle Button */}
