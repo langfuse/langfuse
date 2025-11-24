@@ -80,9 +80,12 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
       );
 
       if (index !== -1) {
+        // Use behavior: "auto" for instant scroll on initial load to prevent
+        // visible scroll animation after page render. The synchronous scroll
+        // completes within useLayoutEffect, before browser paint.
         rowVirtualizer.scrollToIndex(index, {
           align: "center",
-          behavior: "smooth",
+          behavior: "auto",
         });
         hasScrolledRef.current = true;
       }
