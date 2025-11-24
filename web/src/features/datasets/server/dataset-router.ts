@@ -1284,6 +1284,7 @@ export const datasetRouter = createTRPCRouter({
           },
           orderBy: {
             createdAt: "asc",
+            // ensure consistent ordering for pagination; via bulk upload many items might have the same createdAt
             id: "asc",
           },
           take: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
