@@ -129,6 +129,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     <InputCommandInput
                       placeholder="Search prompts..."
                       className="h-9"
+                      variant="bottom"
                     />
                     <InputCommandList>
                       <InputCommandEmpty>No prompt found.</InputCommandEmpty>
@@ -299,6 +300,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                           <InputCommandInput
                             placeholder="Search schemas..."
                             className="h-9"
+                            variant="bottom"
                           />
                           <InputCommandList>
                             <InputCommandEmpty>

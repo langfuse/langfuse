@@ -26,11 +26,9 @@ import {
   type PageProps,
 } from "@/src/pages/auth/sign-in";
 import { PasswordInput } from "@/src/components/ui/password-input";
-import { Divider } from "@tremor/react";
-import { Turnstile } from "@marsidev/react-turnstile";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
-import DOMPurify from "dompurify";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
@@ -53,22 +51,9 @@ export default function SignIn({
   const emailParam = router.query.email as string | undefined;
 
   // Validate targetPath to prevent open redirect attacks
-  const sanitizedTargetPath = queryTargetPath
-    ? DOMPurify.sanitize(queryTargetPath)
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
     : undefined;
-
-  // Only allow relative links (must start with '/' but not '//')
-  const targetPath =
-    sanitizedTargetPath?.startsWith("/") &&
-    !sanitizedTargetPath.startsWith("//")
-      ? sanitizedTargetPath
-      : undefined;
-
-  const [turnstileToken, setTurnstileToken] = useState<string>();
-  // Used to refresh turnstile as the token can only be used once
-  const [turnstileCData, setTurnstileCData] = useState<string>(
-    new Date().getTime().toString(),
-  );
 
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -195,16 +180,9 @@ export default function SignIn({
           : isLangfuseCloud && region !== "DEV"
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`,
-        turnstileToken,
       });
     } catch (err) {
       setFormError("An error occurred. Please try again.");
-
-      // Refresh turnstile as the token can only be used once
-      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
-        setTurnstileCData(new Date().getTime().toString());
-        setTurnstileToken(undefined);
-      }
     }
   }
 
@@ -299,12 +277,9 @@ export default function SignIn({
                     : continueLoading
                 }
                 disabled={
-                  (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                    showPasswordStep &&
-                    turnstileToken === undefined) ||
-                  (showPasswordStep
+                  showPasswordStep
                     ? false // Form validation handles this via handleSubmit
-                    : form.watch("email") === "")
+                    : form.watch("email") === ""
                 }
                 data-testid="submit-email-password-sign-up-form"
               >
@@ -323,27 +298,6 @@ export default function SignIn({
             lastUsedMethod={lastUsedAuthMethod}
             onProviderSelect={setLastUsedAuthMethod}
           />
-          {
-            // Turnstile exists copy-paste also on sign-up.tsx
-            // Only show turnstile when we are on the password step (final submission)
-            // if SSO is enabled. If SSO is disabled, showPasswordStep is true, so it shows.
-            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-              showPasswordStep && (
-                <>
-                  <Divider className="text-muted-foreground" />
-                  <Turnstile
-                    siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                    options={{
-                      theme: "light",
-                      action: "sign-in",
-                      cData: turnstileCData,
-                    }}
-                    className="mx-auto"
-                    onSuccess={setTurnstileToken}
-                  />
-                </>
-              )
-          }
           <p className="mt-10 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link

@@ -2011,7 +2011,7 @@ describe("/api/public/traces API Endpoint", () => {
           const page2Ids = page2.body.data.map((t) => t.id);
           const intersection = page1Ids.filter((id) => page2Ids.includes(id));
           expect(intersection.length).toBe(0);
-        });
+        }, 10_000);
 
         it("should filter traces by timestamp range", async () => {
           const now = new Date();

@@ -50,6 +50,7 @@ langfuse/
 Uses **t3-oss/env-nextjs** for Next.js-specific validation with server/client separation.
 
 **Key Features:**
+
 - Separates server-side and client-side environment variables
 - Client variables must be prefixed with `NEXT_PUBLIC_`
 - Validates at build time (unless `DOCKER_BUILD=1`)
@@ -77,7 +78,6 @@ export const env = createEnv({
       .enum(["US", "EU", "STAGING", "DEV", "HIPAA"])
       .optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
     // ... client variables
   },
 
@@ -85,7 +85,8 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     // ... must map ALL variables
   },
 
@@ -122,7 +123,9 @@ import { removeEmptyEnvVariables } from "@langfuse/shared";
 
 const EnvSchema = z.object({
   BUILD_ID: z.string().optional(),
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
   DATABASE_URL: z.string(),
   PORT: z.coerce.number().positive().max(65536).default(3030),
 
@@ -137,12 +140,22 @@ const EnvSchema = z.object({
   }),
 
   // Queue concurrency settings
-  LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce.number().positive().default(20),
-  LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce.number().positive().default(5),
+  LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(20),
+  LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
 
   // Queue consumer toggles
-  QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z.enum(["true", "false"]).default("true"),
-  QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED: z.enum(["true", "false"]).default("true"),
+  QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
 
   // ... 150+ worker-specific variables
 });
@@ -173,7 +186,9 @@ import { z } from "zod/v4";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
 
   // Redis configuration
   REDIS_HOST: z.string().nullish(),
@@ -193,11 +208,19 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
 
   // Logging
-  LANGFUSE_LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).optional(),
+  LANGFUSE_LOG_LEVEL: z
+    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
+    .optional(),
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
 
   // Encryption
-  ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32").optional(),
+  ENCRYPTION_KEY: z
+    .string()
+    .length(
+      64,
+      "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
+    )
+    .optional(),
 
   // ... 80+ shared variables
 });
@@ -254,6 +277,7 @@ const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
 **Type:** `"US" | "EU" | "STAGING" | "DEV" | "HIPAA" | undefined`
 
 **Where Used:**
+
 - **web/src/env.mjs** - Client-side accessible (prefixed with `NEXT_PUBLIC_`)
 - **ee/src/env.ts** - Enterprise features
 - **packages/shared/src/env.ts** - Shared logic
@@ -261,13 +285,13 @@ const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
 
 **When Set:**
 
-| Environment | Value | Purpose |
-|-------------|-------|---------|
-| **Developer Laptop** | `"DEV"` or `"STAGING"` | Local development against cloud infrastructure |
-| **Langfuse Cloud US** | `"US"` | Production US region |
-| **Langfuse Cloud EU** | `"EU"` | Production EU region |
-| **Langfuse Cloud HIPAA** | `"HIPAA"` | HIPAA-compliant region |
-| **OSS Self-Hosted** | `undefined` (not set) | Self-hosted deployments don't have region |
+| Environment              | Value                  | Purpose                                        |
+| ------------------------ | ---------------------- | ---------------------------------------------- |
+| **Developer Laptop**     | `"DEV"` or `"STAGING"` | Local development against cloud infrastructure |
+| **Langfuse Cloud US**    | `"US"`                 | Production US region                           |
+| **Langfuse Cloud EU**    | `"EU"`                 | Production EU region                           |
+| **Langfuse Cloud HIPAA** | `"HIPAA"`              | HIPAA-compliant region                         |
+| **OSS Self-Hosted**      | `undefined` (not set)  | Self-hosted deployments don't have region      |
 
 **Use Cases:**
 
@@ -313,20 +337,22 @@ NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=US
 **Type:** `string | undefined`
 
 **Where Used:**
+
 - **web/src/env.mjs** - Web app EE features
 - **ee/src/env.ts** - EE package
 
 **When Set:**
 
-| Deployment | Value | Features Enabled |
-|------------|-------|------------------|
-| **Langfuse Cloud** | Not set | Cloud features controlled by `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` |
-| **OSS Self-Hosted** | Not set | Core open-source features only |
-| **EE Self-Hosted** | License key string | Enterprise features enabled |
+| Deployment          | Value              | Features Enabled                                                 |
+| ------------------- | ------------------ | ---------------------------------------------------------------- |
+| **Langfuse Cloud**  | Not set            | Cloud features controlled by `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` |
+| **OSS Self-Hosted** | Not set            | Core open-source features only                                   |
+| **EE Self-Hosted**  | License key string | Enterprise features enabled                                      |
 
 **Enterprise Features Controlled:**
 
 When `LANGFUSE_EE_LICENSE_KEY` is set and valid:
+
 - SSO integrations (custom OIDC, SAML)
 - Advanced RBAC
 - Audit logging
@@ -372,7 +398,7 @@ NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=US
 
 ```typescript
 // Skip validation during Docker builds
-skipValidation: process.env.DOCKER_BUILD === "1"
+skipValidation: process.env.DOCKER_BUILD === "1";
 ```
 
 **Purpose:** Docker builds happen before runtime env vars are available, so validation must be skipped.
@@ -382,7 +408,7 @@ skipValidation: process.env.DOCKER_BUILD === "1"
 ```typescript
 SALT: z.string({
   required_error: "A strong Salt is required to encrypt API keys securely.",
-})
+});
 ```
 
 **Purpose:** Required for encrypting API keys in database. Must be set in production.
@@ -390,7 +416,7 @@ SALT: z.string({
 **ENCRYPTION_KEY**
 
 ```typescript
-ENCRYPTION_KEY: z.string().length(64, "Must be 256 bits, 64 hex characters")
+ENCRYPTION_KEY: z.string().length(64, "Must be 256 bits, 64 hex characters");
 ```
 
 **Purpose:** Optional 256-bit key for encrypting sensitive database fields.
@@ -425,14 +451,14 @@ import { env } from "./env";
 import { env } from "@langfuse/shared/src/env";
 ```
 
-### 3. Client Variables Must Start with NEXT_PUBLIC_
+### 3. Client Variables Must Start with NEXT*PUBLIC*
 
 ```typescript
 // ❌ Won't work in browser
-API_KEY: z.string() // in server config
+API_KEY: z.string(); // in server config
 
 // ✅ Accessible in browser
-NEXT_PUBLIC_API_KEY: z.string() // in client config
+NEXT_PUBLIC_API_KEY: z.string(); // in client config
 ```
 
 ### 4. Provide Sensible Defaults for Development
@@ -447,7 +473,7 @@ REDIS_PORT: z.coerce.number().positive().default(6379),
 
 ```typescript
 // .env files are always strings
-PORT: z.coerce.number() // Converts "3000" to 3000
+PORT: z.coerce.number(); // Converts "3000" to 3000
 ```
 
 ### 6. Transform Complex Values
@@ -523,6 +549,7 @@ langfuse/
 ```
 
 **DO NOT commit:**
+
 - `.env`
 - `.env.local`
 - `.env.production`
