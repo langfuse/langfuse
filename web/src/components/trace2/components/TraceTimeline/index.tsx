@@ -3,7 +3,7 @@
  * Renders Gantt chart visualization with virtualized rows
  */
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useLayoutEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { useSelection } from "../../contexts/SelectionContext";
@@ -74,6 +74,33 @@ export function TraceTimeline() {
     estimateSize: () => 42, // Row height in pixels
     overscan: 500, // Large overscan for smooth scrolling with complex items
   });
+
+  // Auto-scroll to selected node on initial load (URL-based navigation only)
+  const initialNodeIdRef = useRef(selectedNodeId);
+  const hasScrolledRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (
+      selectedNodeId &&
+      !hasScrolledRef.current &&
+      selectedNodeId === initialNodeIdRef.current
+    ) {
+      const index = flattenedItems.findIndex(
+        (item) => item.node.id === selectedNodeId,
+      );
+
+      if (index !== -1) {
+        // Use behavior: "auto" for instant scroll on initial load to prevent
+        // visible scroll animation after page render. The synchronous scroll
+        // completes within useLayoutEffect, before browser paint.
+        rowVirtualizer.scrollToIndex(index, {
+          align: "center",
+          behavior: "auto",
+        });
+        hasScrolledRef.current = true;
+      }
+    }
+  }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 
   // Scroll sync handlers
   const handleTimeIndexScroll = (e: React.UIEvent<HTMLDivElement>) => {
