@@ -336,6 +336,59 @@ describe("Projects API", () => {
       expect(duplicateResult.status).toBe(409);
       expect(duplicateResult.body.message).toContain("already exists");
     });
+
+    it("should allow creating a project with the same name as a deleted project", async () => {
+      const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
+
+      // First create a project
+      const createResponse = await makeAPICall(
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(createResponse.status).toBe(201);
+      const firstProjectId = createResponse.body.id;
+
+      // Delete the project (soft delete)
+      const deleteResponse = await makeAPICall(
+        "DELETE",
+        `/api/public/projects/${firstProjectId}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(deleteResponse.status).toBe(202);
+
+      // Verify the project is soft-deleted
+      const deletedProject = await prisma.project.findUnique({
+        where: { id: firstProjectId },
+      });
+      expect(deletedProject?.deletedAt).not.toBeNull();
+
+      // Try to create another project with the same name - should succeed
+      const recreateResponse = await makeZodVerifiedAPICall(
+        ProjectCreationResponseSchema,
+        "POST",
+        "/api/public/projects",
+        {
+          name: uniqueProjectName,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        201,
+      );
+
+      expect(recreateResponse.status).toBe(201);
+      expect(recreateResponse.body.name).toBe(uniqueProjectName);
+      expect(recreateResponse.body.id).not.toBe(firstProjectId);
+
+      // Clean up the recreated project
+      await prisma.project.update({
+        where: { id: recreateResponse.body.id },
+        data: { deletedAt: new Date() },
+      });
+    });
   });
 
   describe("PUT /api/public/projects/[projectId]", () => {

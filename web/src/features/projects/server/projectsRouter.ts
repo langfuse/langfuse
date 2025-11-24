@@ -38,6 +38,7 @@ export const projectsRouter = createTRPCRouter({
         where: {
           name: input.name,
           orgId: input.orgId,
+          deletedAt: null,
         },
       });
 
