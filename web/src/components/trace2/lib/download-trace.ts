@@ -1,5 +1,5 @@
 /**
- * Helper functions for trace operations
+ * Helper function for downloading trace data as JSON
  */
 
 export interface DownloadTraceAsJsonParams {
