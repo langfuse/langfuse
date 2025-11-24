@@ -1282,11 +1282,11 @@ export const datasetRouter = createTRPCRouter({
             datasetId: input.datasetId,
             projectId: input.projectId,
           },
-          orderBy: {
-            createdAt: "asc",
+          orderBy: [
+            { createdAt: "asc" },
             // ensure consistent ordering for pagination; via bulk upload many items might have the same createdAt
-            id: "asc",
-          },
+            { id: "asc" },
+          ],
           take: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
           skip: offset,
         });
