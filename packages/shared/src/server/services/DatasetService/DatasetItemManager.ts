@@ -604,6 +604,7 @@ export class DatasetItemManager {
     }
 
     // 5. Bulk insert all valid items
+    // TODO: fix
     await prisma.datasetItem.createMany({ data: preparedItems });
 
     return {
