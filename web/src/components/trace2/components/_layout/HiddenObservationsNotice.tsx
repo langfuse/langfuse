@@ -30,7 +30,7 @@ export function HiddenObservationsNotice() {
 
   return (
     <div className="flex flex-shrink-0 items-center justify-end gap-1 border-b px-4 py-1">
-      <span className="flex flex-row gap-1 text-xs text-muted-foreground">
+      <span className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row">
         <p>
           {hiddenObservationsCount} hidden observations below{" "}
           {minObservationLevel} level.
