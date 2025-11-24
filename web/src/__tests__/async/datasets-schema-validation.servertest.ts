@@ -13,7 +13,7 @@ import {
   isValidJSONSchema,
   DatasetSchemaValidator,
 } from "@langfuse/shared/src/server";
-import { validateFieldAgainstSchema } from "@langfuse/shared/src/utils/jsonSchemaValidation";
+import { validateFieldAgainstSchema } from "@langfuse/shared";
 
 // Test schemas
 const TEST_SCHEMAS = {
