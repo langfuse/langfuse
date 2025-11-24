@@ -639,7 +639,7 @@ model DatasetItem {
 }
 
 model DatasetItemEvent {
-  id                  String         @default(cuid())
+  id                  String         @id @default(cuid())
   itemId              String         @map("item_id")
   projectId           String         @map("project_id")
   datasetId           String         @map("dataset_id")
@@ -653,7 +653,6 @@ model DatasetItemEvent {
   createdAt           DateTime?      @map("created_at")
   deletedAt           DateTime?      @map("deleted_at")
 
-  @@id([id, projectId])
   @@index([projectId, datasetId, itemId, createdAt])
   @@map("dataset_item_events")
 }
