@@ -90,7 +90,9 @@ export const getObservationStream = async (props: {
   } = props;
   const clickhouseConfigs = {
     request_timeout: 120_000,
-    join_algorithm: "partial_merge",
+    clickhouse_settings: {
+      join_algorithm: "partial_merge" as const,
+    },
   };
 
   // Filter out trace-level filters since we don't join the traces table for filtering
