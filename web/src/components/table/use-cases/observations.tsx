@@ -41,7 +41,10 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import {
+  BreakdownTooltip,
+  calculateAggregatedUsage,
+} from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -669,11 +672,9 @@ export default function ObservationsTable({
       id: "tokens",
       size: 150,
       cell: ({ row }) => {
-        const value: {
-          inputUsage: number;
-          outputUsage: number;
-          totalUsage: number;
-        } = row.getValue("usage");
+        const aggregatedUsage = calculateAggregatedUsage(
+          row.original.usageDetails,
+        );
         return (
           <BreakdownTooltip
             details={row.original.usageDetails}
@@ -681,9 +682,9 @@ export default function ObservationsTable({
           >
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                inputUsage={value.inputUsage}
-                outputUsage={value.outputUsage}
-                totalUsage={value.totalUsage}
+                inputUsage={aggregatedUsage.input}
+                outputUsage={aggregatedUsage.output}
+                totalUsage={aggregatedUsage.total}
                 inline
               />
               <InfoIcon className="h-3 w-3" />

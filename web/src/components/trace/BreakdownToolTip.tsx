@@ -12,6 +12,60 @@ interface Details {
   [key: string]: number | undefined;
 }
 
+/**
+ * Aggregates an array of detail objects into a single object by summing matching keys.
+ * If a single object is provided, returns it as-is.
+ */
+const aggregateDetailsArray = (details: Details | Details[]): Details => {
+  return Array.isArray(details)
+    ? details.reduce<Details>((acc, curr) => {
+        Object.entries(curr).forEach(([key, value]) => {
+          acc[key] = new Decimal(acc[key] || 0)
+            .plus(new Decimal(value || 0))
+            .toNumber();
+        });
+        return acc;
+      }, {})
+    : details;
+};
+
+/**
+ * Aggregates usage or cost details by summing values based on key patterns.
+ * Used to calculate input/output/total values from detailed breakdowns.
+ */
+export const calculateAggregatedUsage = (
+  details: Details | Details[],
+): {
+  input: number;
+  output: number;
+  total: number;
+} => {
+  const aggregatedDetails = aggregateDetailsArray(details);
+
+  // Sum all keys containing "input"
+  const input = Object.entries(aggregatedDetails)
+    .filter(([key]) => key.includes("input"))
+    .reduce(
+      (sum, [_, value]) =>
+        new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
+      0,
+    );
+
+  // Sum all keys containing "output"
+  const output = Object.entries(aggregatedDetails)
+    .filter(([key]) => key.includes("output"))
+    .reduce(
+      (sum, [_, value]) =>
+        new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
+      0,
+    );
+
+  // Get total or calculate from input + output
+  const total = aggregatedDetails.total ?? input + output;
+
+  return { input, output, total };
+};
+
 interface BreakdownTooltipProps {
   details: Details | Details[];
   children: React.ReactNode;
@@ -28,16 +82,7 @@ export const BreakdownTooltip = ({
   const [isOpen, setIsOpen] = useState(false);
 
   // Aggregate details if array is provided
-  const aggregatedDetails = Array.isArray(details)
-    ? details.reduce<Details>((acc, curr) => {
-        Object.entries(curr).forEach(([key, value]) => {
-          acc[key] = new Decimal(acc[key] || 0)
-            .plus(new Decimal(value || 0))
-            .toNumber();
-        });
-        return acc;
-      }, {})
-    : details;
+  const aggregatedDetails = aggregateDetailsArray(details);
 
   const formatValueWithPadding = (value: number, maxDecimals: number) => {
     return !value
@@ -158,10 +203,10 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
       {filteredEntries.map(([key, value]) => (
         <div
           key={key}
-          className="flex justify-between text-xs text-muted-foreground"
+          className="flex justify-between gap-4 text-xs text-muted-foreground"
         >
-          <span className="mr-4">{key}</span>
-          <span className="font-mono">{formatValue(value ?? 0)}</span>
+          <span className="break-words">{key}</span>
+          <span className="shrink-0 font-mono">{formatValue(value ?? 0)}</span>
         </div>
       ))}
     </div>
@@ -203,10 +248,10 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
       {otherEntries.map(([key, value]) => (
         <div
           key={key}
-          className="flex justify-between text-xs text-muted-foreground"
+          className="flex justify-between gap-4 text-xs text-muted-foreground"
         >
-          <span className="mr-4">{key}</span>
-          <span className="font-mono">{formatValue(value ?? 0)}</span>
+          <span className="break-words">{key}</span>
+          <span className="shrink-0 font-mono">{formatValue(value ?? 0)}</span>
         </div>
       ))}
     </div>

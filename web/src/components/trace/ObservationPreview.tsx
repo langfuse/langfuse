@@ -30,7 +30,7 @@ import {
   TabsBarTrigger,
   TabsBarContent,
 } from "@/src/components/ui/tabs-bar";
-import { BreakdownTooltip } from "./BreakdownToolTip";
+import { BreakdownTooltip, calculateAggregatedUsage } from "./BreakdownToolTip";
 import { ExternalLinkIcon, InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -286,30 +286,38 @@ export const ObservationPreview = ({
                       projectId={preloadedObservation.projectId}
                     />
                   ) : undefined}
-                  {isGenerationLike(preloadedObservation.type) && (
-                    <BreakdownTooltip
-                      details={preloadedObservation.usageDetails}
-                      isCost={false}
-                      pricingTierName={
-                        preloadedObservation.usagePricingTierName ?? undefined
-                      }
-                    >
-                      <Badge
-                        variant="tertiary"
-                        className="flex items-center gap-1"
-                      >
-                        <span>
-                          {formatTokenCounts(
-                            preloadedObservation.inputUsage,
-                            preloadedObservation.outputUsage,
-                            preloadedObservation.totalUsage,
-                            true,
-                          )}
-                        </span>
-                        <InfoIcon className="h-3 w-3" />
-                      </Badge>
-                    </BreakdownTooltip>
-                  )}
+                  {isGenerationLike(preloadedObservation.type) &&
+                    (() => {
+                      const aggregatedUsage = calculateAggregatedUsage(
+                        preloadedObservation.usageDetails,
+                      );
+
+                      return (
+                        <BreakdownTooltip
+                          details={preloadedObservation.usageDetails}
+                          isCost={false}
+                          pricingTierName={
+                            preloadedObservation.usagePricingTierName ??
+                            undefined
+                          }
+                        >
+                          <Badge
+                            variant="tertiary"
+                            className="flex items-center gap-1"
+                          >
+                            <span>
+                              {formatTokenCounts(
+                                aggregatedUsage.input,
+                                aggregatedUsage.output,
+                                aggregatedUsage.total,
+                                true,
+                              )}
+                            </span>
+                            <InfoIcon className="h-3 w-3" />
+                          </Badge>
+                        </BreakdownTooltip>
+                      );
+                    })()}
                   {preloadedObservation.version ? (
                     <Badge variant="tertiary">
                       Version: {preloadedObservation.version}
