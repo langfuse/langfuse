@@ -13,7 +13,7 @@ import { type PropsWithChildren, useEffect } from "react";
 import { useRouter } from "next/router";
 import { signOut } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPageWithSentry } from "@/src/components/error-page";
 
 // Layout variants
 import { LoadingLayout } from "./variants/LoadingLayout";
@@ -87,9 +87,13 @@ export function AppLayout(props: PropsWithChildren) {
     !projectAccess.hasAccess
   ) {
     return (
-      <ErrorPage
-        title="Unauthorized"
-        message="User is not a member of this project"
+      <ErrorPageWithSentry
+        title="Project Not Found"
+        message="The project you are trying to access does not exist or you do not have access to it."
+        additionalButton={{
+          label: "Go to Home",
+          href: "/",
+        }}
       />
     );
   }
