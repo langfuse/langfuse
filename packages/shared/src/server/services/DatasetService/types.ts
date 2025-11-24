@@ -41,6 +41,7 @@ export type CreateManyItemsInsert = {
   metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
   sourceTraceId?: string;
   sourceObservationId?: string;
+  createdAt: Date;
 }[];
 
 /**

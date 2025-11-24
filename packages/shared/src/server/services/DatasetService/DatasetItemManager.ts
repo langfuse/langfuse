@@ -537,6 +537,7 @@ export class DatasetItemManager {
     // 3. Validate all items, collect errors with original index
     const validationErrors: CreateManyValidationError[] = [];
     const preparedItems: CreateManyItemsInsert = [];
+    const createdAt = new Date();
 
     for (const datasetId of datasetIds) {
       const datasetItems = itemsByDataset[datasetId];
@@ -590,6 +591,7 @@ export class DatasetItemManager {
             metadata: result.metadata,
             sourceTraceId: item.sourceTraceId,
             sourceObservationId: item.sourceObservationId,
+            createdAt,
           });
         }
       }
@@ -604,8 +606,14 @@ export class DatasetItemManager {
     }
 
     // 5. Bulk insert all valid items
-    // TODO: fix
-    await prisma.datasetItem.createMany({ data: preparedItems });
+    await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+      [Implementation.STATEFUL]: async () => {
+        await prisma.datasetItem.createMany({ data: preparedItems });
+      },
+      [Implementation.VERSIONED]: async () => {
+        await prisma.datasetItemEvent.createMany({ data: preparedItems });
+      },
+    });
 
     return {
       success: true,
