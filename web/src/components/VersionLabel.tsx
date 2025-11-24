@@ -84,7 +84,11 @@ export const VersionLabel = ({ className }: { className?: string }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="xs" className={cn("text-xs", className)}>
+        <Button
+          variant="ghost"
+          size="xs"
+          className={cn("text-[0.625rem]", className)}
+        >
           {VERSION}
           {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
           {showBackgroundMigrationStatus && (
