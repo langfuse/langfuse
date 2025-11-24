@@ -84,7 +84,11 @@ export function TraceSettingsDropdown({
             <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
               <div className="flex w-full items-center justify-between">
                 <span className="mr-2">Show Graph</span>
-                <Switch checked={showGraph} onCheckedChange={setShowGraph} />
+                <Switch
+                  size="sm"
+                  checked={showGraph}
+                  onCheckedChange={setShowGraph}
+                />
               </div>
             </DropdownMenuItem>
           </div>
@@ -96,6 +100,7 @@ export function TraceSettingsDropdown({
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Comments</span>
               <Switch
+                size="sm"
                 checked={showComments}
                 onCheckedChange={setShowComments}
               />
@@ -107,6 +112,7 @@ export function TraceSettingsDropdown({
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Scores</span>
               <Switch
+                size="sm"
                 checked={showScores}
                 onCheckedChange={(checked) => {
                   capture("trace_detail:observation_tree_toggle_scores", {
@@ -123,6 +129,7 @@ export function TraceSettingsDropdown({
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Duration</span>
               <Switch
+                size="sm"
                 checked={showDuration}
                 onCheckedChange={setShowDuration}
               />
@@ -134,6 +141,7 @@ export function TraceSettingsDropdown({
             <div className="flex w-full items-center justify-between">
               <span className="mr-2">Show Cost/Tokens</span>
               <Switch
+                size="sm"
                 checked={showCostTokens}
                 onCheckedChange={setShowCostTokens}
               />
@@ -162,6 +170,7 @@ export function TraceSettingsDropdown({
                 Color Code Metrics
               </span>
               <Switch
+                size="sm"
                 checked={colorCodeMetrics}
                 onCheckedChange={setColorCodeMetrics}
                 disabled={!isColorCodeEnabled}
