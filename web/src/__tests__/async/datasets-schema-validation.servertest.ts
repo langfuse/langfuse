@@ -11,7 +11,7 @@ import {
 import {
   createOrgProjectAndApiKey,
   isValidJSONSchema,
-  DatasetSchemaValidator,
+  DatasetItemValidator,
 } from "@langfuse/shared/src/server";
 import { validateFieldAgainstSchema } from "@langfuse/shared";
 
@@ -217,94 +217,109 @@ describe("Unit Tests - validateFieldAgainstSchema", () => {
 });
 
 describe("Unit Tests - DatasetItemValidator", () => {
-  const defaultValidator = new DatasetSchemaValidator({
+  const defaultValidator = new DatasetItemValidator({
     inputSchema: TEST_SCHEMAS.simpleText,
     expectedOutputSchema: TEST_SCHEMAS.requiresObject,
   });
 
   it("should validate both input and expectedOutput", () => {
-    const result = defaultValidator.validateItem({
+    const result = defaultValidator.preparePayload({
       input: DATA.validSimpleText,
       expectedOutput: DATA.validNumber,
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
     });
 
-    expect(result.isValid).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it("should return inputErrors when input invalid", () => {
-    const result = defaultValidator.validateItem({
+    const result = defaultValidator.preparePayload({
       input: DATA.invalidSimpleText,
       expectedOutput: DATA.validNumber,
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
     });
-    expect(result.isValid).toBe(false);
-    if (!result.isValid) {
-      expect(result.inputErrors).toBeDefined();
-      expect(result.expectedOutputErrors).toBeUndefined();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.cause?.inputErrors).toBeDefined();
+      expect(result.cause?.expectedOutputErrors).toBeUndefined();
     }
   });
 
   it("should return expectedOutputErrors when expectedOutput invalid", () => {
-    const result = defaultValidator.validateItem({
+    const result = defaultValidator.preparePayload({
       input: DATA.validSimpleText,
       expectedOutput: DATA.invalidNumber,
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
     });
-    expect(result.isValid).toBe(false);
-    if (!result.isValid) {
-      expect(result.inputErrors).toBeUndefined();
-      expect(result.expectedOutputErrors).toBeDefined();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.cause?.inputErrors).toBeUndefined();
+      expect(result.cause?.expectedOutputErrors).toBeDefined();
     }
   });
 
   it("should return both errors when both invalid", () => {
-    const result = defaultValidator.validateItem({
+    const result = defaultValidator.preparePayload({
       input: DATA.invalidSimpleText,
       expectedOutput: DATA.invalidNumber,
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
     });
-    expect(result.isValid).toBe(false);
-    if (!result.isValid) {
-      expect(result.inputErrors).toBeDefined();
-      expect(result.expectedOutputErrors).toBeDefined();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.cause?.inputErrors).toBeDefined();
+      expect(result.cause?.expectedOutputErrors).toBeDefined();
+      expect(result.cause?.inputErrors?.length).toBeGreaterThan(0);
+      expect(result.cause?.expectedOutputErrors?.length).toBeGreaterThan(0);
     }
   });
 
   it("should treat undefined as null when normalizeUndefinedToNull=true", () => {
-    const validator = new DatasetSchemaValidator({
+    const validator = new DatasetItemValidator({
       inputSchema: TEST_SCHEMAS.requiresObject,
       expectedOutputSchema: TEST_SCHEMAS.requiresObject,
     });
 
-    const result = validator.validateItem({
+    const result = validator.preparePayload({
       input: undefined,
       expectedOutput: undefined,
-      normalizeUndefinedToNull: true,
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
     });
-    expect(result.isValid).toBe(false);
+    expect(result.success).toBe(false);
   });
 
   it("should reject null when schema doesn't allow null", () => {
-    const result = defaultValidator.validateItem({
+    const result = defaultValidator.preparePayload({
       input: null,
       expectedOutput: null,
-      normalizeUndefinedToNull: true,
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
     });
-    expect(result.isValid).toBe(false);
-    if (!result.isValid) {
-      expect(result.inputErrors).toBeDefined();
-      expect(result.expectedOutputErrors).toBeDefined();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.cause?.inputErrors).toBeDefined();
+      expect(result.cause?.inputErrors?.length).toBeGreaterThan(0);
+      expect(result.cause?.expectedOutputErrors).toBeDefined();
+      expect(result.cause?.expectedOutputErrors?.length).toBeGreaterThan(0);
     }
   });
 
   it("should pass when null is allowed in schema", () => {
-    const validator = new DatasetSchemaValidator({
+    const validator = new DatasetItemValidator({
       inputSchema: TEST_SCHEMAS.allowsNull,
       expectedOutputSchema: TEST_SCHEMAS.allowsNull,
     });
-    const result = validator.validateItem({
+    const result = validator.preparePayload({
       input: null,
       expectedOutput: null,
-      normalizeUndefinedToNull: true,
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
     });
-    expect(result.isValid).toBe(true);
+    expect(result.success).toBe(true);
   });
 });
 
