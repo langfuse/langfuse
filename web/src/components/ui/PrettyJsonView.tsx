@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -338,6 +338,82 @@ function handleRowExpansion(
   }
 }
 
+interface JsonTableRowProps {
+  row: Row<JsonTableRow>;
+  rowIndex: number;
+  topLevelRowRef?: React.RefObject<HTMLTableRowElement | null>;
+  onLazyLoadChildren?: (rowId: string) => void;
+  expandedCells: Set<string>;
+  toggleCellExpansion: (cellId: string) => void;
+  stickyTopLevelKey: boolean;
+  stickyOffsets: { header: number; row: number };
+}
+
+const JsonTableRowComponent = memo(
+  ({
+    row,
+    rowIndex,
+    topLevelRowRef,
+    onLazyLoadChildren,
+    expandedCells,
+    toggleCellExpansion,
+    stickyTopLevelKey,
+    stickyOffsets,
+  }: JsonTableRowProps) => {
+    // Hook is now at top level of this component ✅
+    const isExpandable =
+      row.original.hasChildren ||
+      getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
+
+    const { props: rowClickProps } = useClickWithoutSelection({
+      onClick: () => {
+        handleRowExpansion(
+          row,
+          onLazyLoadChildren,
+          expandedCells,
+          toggleCellExpansion,
+        );
+      },
+      enabled: isExpandable,
+    });
+
+    return (
+      <TableRow
+        ref={
+          rowIndex === 0 && row.original.level === 0
+            ? topLevelRowRef
+            : undefined
+        }
+        data-observation-id={row.id}
+        {...rowClickProps}
+        className={cn(
+          isExpandable ? "cursor-pointer" : "",
+          row.original.level === 0 && stickyTopLevelKey
+            ? "sticky z-10 bg-background shadow-sm"
+            : "",
+        )}
+        style={
+          row.original.level === 0 && stickyTopLevelKey
+            ? { top: `${stickyOffsets.header}px` }
+            : undefined
+        }
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className="whitespace-normal px-2 py-1 align-top"
+            style={{ width: `${cell.column.columnDef.size}%` }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+    );
+  },
+);
+
+JsonTableRowComponent.displayName = "JsonTableRow";
+
 function JsonPrettyTable({
   data,
   expandAllRef,
@@ -640,59 +716,23 @@ function JsonPrettyTable({
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map((row, rowIndex) => {
-            // Determine if this row should be clickable for expansion
-            const isExpandable =
-              row.original.hasChildren ||
-              getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
-
-            // Use the hook to handle click vs text selection
-            const { props: rowClickProps } = useClickWithoutSelection({
-              onClick: () => {
-                handleRowExpansion(
-                  row,
-                  onLazyLoadChildren,
-                  expandedCells,
-                  toggleCellExpansion,
-                );
-              },
-              enabled: isExpandable,
-            });
-
-            return (
-              <TableRow
-                key={row.id}
-                ref={
-                  rowIndex === 0 && row.original.level === 0
-                    ? topLevelRowRef
-                    : undefined
-                }
-                data-observation-id={row.id}
-                {...rowClickProps}
-                className={cn(
-                  isExpandable ? "cursor-pointer" : "",
-                  row.original.level === 0 && stickyTopLevelKey
-                    ? "sticky z-10 bg-background shadow-sm"
-                    : "",
-                )}
-                style={
-                  row.original.level === 0 && stickyTopLevelKey
-                    ? { top: `${stickyOffsets.header}px` }
-                    : undefined
-                }
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className="whitespace-normal px-2 py-1 align-top"
-                    style={{ width: `${cell.column.columnDef.size}%` }}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            );
-          })}
+          {table.getRowModel().rows.map((row, rowIndex) => (
+            <JsonTableRowComponent
+              key={row.id}
+              row={row}
+              rowIndex={rowIndex}
+              topLevelRowRef={
+                rowIndex === 0 && row.original.level === 0
+                  ? topLevelRowRef
+                  : undefined
+              }
+              onLazyLoadChildren={onLazyLoadChildren}
+              expandedCells={expandedCells}
+              toggleCellExpansion={toggleCellExpansion}
+              stickyTopLevelKey={stickyTopLevelKey}
+              stickyOffsets={stickyOffsets}
+            />
+          ))}
         </TableBody>
       </Table>
     </div>
