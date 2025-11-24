@@ -17,6 +17,21 @@ export type FieldValidationResult =
     };
 
 /**
+ * Creates a fresh Ajv instance for validation
+ */
+export const createAjvInstanceInternal = () => {
+  const ajv = new Ajv({
+    strict: true,
+    allErrors: false, // Return only the first error, not all
+    code: { optimize: true }, // Enable code optimization to improve performance and reduce DoS risk
+    validateFormats: false, // Prevent ReDoS via format validators
+  });
+  addFormats(ajv); // Formats added but not validated
+
+  return ajv;
+};
+
+/**
  * Validates if a given object is a valid JSON Schema
  * Used by Zod schema validation
  * Can be used in both client and server contexts
@@ -35,21 +50,6 @@ export function isValidJSONSchema(schema: unknown): boolean {
     return false;
   }
 }
-
-/**
- * Creates a fresh Ajv instance for validation
- */
-export const createAjvInstanceInternal = () => {
-  const ajv = new Ajv({
-    strict: true,
-    allErrors: false, // Return only the first error, not all
-    code: { optimize: true }, // Enable code optimization to improve performance and reduce DoS risk
-    validateFormats: false, // Prevent ReDoS via format validators
-  });
-  addFormats(ajv); // Formats added but not validated
-
-  return ajv;
-};
 
 /**
  * Validates data against a compiled schema validator
