@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -66,11 +67,13 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const [searchString, setSearchString] = useState<string>("");
   const models = api.models.getAll.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId,
+      searchString,
     },
     {
       refetchOnWindowFocus: false,
@@ -280,6 +283,12 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        searchConfig={{
+          updateQuery: (event: string) => {
+            setSearchString(event);
+          },
+          tableAllowsFullTextSearch: true,
+        }}
         actionButtons={
           <UpsertModelFormDrawer {...{ projectId, action: "create" }}>
             <ActionButton
@@ -294,7 +303,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         }
         className="px-0"
       />
-      <SettingsTableCard>
+      <SettingsTableCard className="max-h-[75dvh]">
         <DataTable
           tableName={"models"}
           columns={columns}

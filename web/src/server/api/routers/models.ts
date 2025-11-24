@@ -22,6 +22,7 @@ import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
+  searchString: z.string(),
   ...paginationZod,
 });
 
@@ -85,7 +86,8 @@ export const modelRouter = createTRPCRouter({
   getAll: protectedProjectProcedure
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
-      const { projectId, page, limit } = input;
+      const { projectId, page, limit, searchString } = input;
+      const searchStringCondition = `%${searchString}%`;
 
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
@@ -111,8 +113,8 @@ export const modelRouter = createTRPCRouter({
           FROM
             models m
           WHERE
-            project_id IS NULL
-            OR project_id = ${projectId}
+            (project_id IS NULL OR project_id = ${projectId})
+			      AND model_name ILIKE ${searchStringCondition}
           ORDER BY
             project_id,
             model_name,
@@ -127,8 +129,8 @@ export const modelRouter = createTRPCRouter({
         >`
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
-          WHERE project_id IS NULL 
-          OR project_id = ${projectId};
+          WHERE (project_id IS NULL OR project_id = ${projectId})
+          AND model_name ILIKE ${searchStringCondition};
         `,
       ]);
 
