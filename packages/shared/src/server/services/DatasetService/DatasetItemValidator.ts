@@ -88,9 +88,10 @@ export class DatasetItemValidator {
   private normalize(
     data: string | unknown | null | undefined,
     opts?: { sanitizeControlChars?: boolean },
-  ): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined {
-    if (data === "") return Prisma.DbNull;
-    if (data === undefined || data === null) return undefined;
+  ): Prisma.InputJsonValue | null | undefined {
+    if (data === "") return null;
+    if (data === undefined) return undefined;
+    if (data === null) return null;
 
     try {
       // Handle both string (tRPC) and already-parsed values (Public API)
