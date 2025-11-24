@@ -172,7 +172,7 @@ export function MultiSelect({
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="center">
         <InputCommand>
-          <InputCommandInput placeholder={title} />
+          <InputCommandInput placeholder={title} variant="bottom" />
           <InputCommandList>
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
             {!isCustomSelectEnabled && (
