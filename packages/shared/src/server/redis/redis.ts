@@ -72,6 +72,32 @@ const createRedisClusterInstance = (
             key: env.REDIS_TLS_KEY_PATH
               ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
               : undefined,
+            ...(env.REDIS_TLS_REJECT_UNAUTHORIZED
+              ? {
+                  rejectUnauthorized:
+                    env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
+                }
+              : {}),
+            ...(env.REDIS_TLS_SERVERNAME
+              ? { servername: env.REDIS_TLS_SERVERNAME }
+              : {}),
+            ...(env.REDIS_TLS_CHECK_SERVER_IDENTITY === "false"
+              ? { checkServerIdentity: () => undefined }
+              : {}),
+            ...(env.REDIS_TLS_SECURE_PROTOCOL
+              ? { secureProtocol: env.REDIS_TLS_SECURE_PROTOCOL }
+              : {}),
+            ...(env.REDIS_TLS_CIPHERS
+              ? { ciphers: env.REDIS_TLS_CIPHERS }
+              : {}),
+            ...(env.REDIS_TLS_HONOR_CIPHER_ORDER
+              ? {
+                  honorCipherOrder: env.REDIS_TLS_HONOR_CIPHER_ORDER === "true",
+                }
+              : {}),
+            ...(env.REDIS_TLS_KEY_PASSPHRASE
+              ? { passphrase: env.REDIS_TLS_KEY_PASSPHRASE }
+              : {}),
           },
         }
       : {};
@@ -133,6 +159,32 @@ const createRedisSentinelInstance = (
             key: env.REDIS_TLS_KEY_PATH
               ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
               : undefined,
+            ...(env.REDIS_TLS_REJECT_UNAUTHORIZED
+              ? {
+                  rejectUnauthorized:
+                    env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
+                }
+              : {}),
+            ...(env.REDIS_TLS_SERVERNAME
+              ? { servername: env.REDIS_TLS_SERVERNAME }
+              : {}),
+            ...(env.REDIS_TLS_CHECK_SERVER_IDENTITY === "false"
+              ? { checkServerIdentity: () => undefined }
+              : {}),
+            ...(env.REDIS_TLS_SECURE_PROTOCOL
+              ? { secureProtocol: env.REDIS_TLS_SECURE_PROTOCOL }
+              : {}),
+            ...(env.REDIS_TLS_CIPHERS
+              ? { ciphers: env.REDIS_TLS_CIPHERS }
+              : {}),
+            ...(env.REDIS_TLS_HONOR_CIPHER_ORDER
+              ? {
+                  honorCipherOrder: env.REDIS_TLS_HONOR_CIPHER_ORDER === "true",
+                }
+              : {}),
+            ...(env.REDIS_TLS_KEY_PASSPHRASE
+              ? { passphrase: env.REDIS_TLS_KEY_PASSPHRASE }
+              : {}),
           },
         }
       : {};
@@ -190,6 +242,32 @@ export const createNewRedisInstance = (
             key: env.REDIS_TLS_KEY_PATH
               ? fs.readFileSync(env.REDIS_TLS_KEY_PATH)
               : undefined,
+            ...(env.REDIS_TLS_REJECT_UNAUTHORIZED
+              ? {
+                  rejectUnauthorized:
+                    env.REDIS_TLS_REJECT_UNAUTHORIZED !== "false",
+                }
+              : {}),
+            ...(env.REDIS_TLS_SERVERNAME
+              ? { servername: env.REDIS_TLS_SERVERNAME }
+              : {}),
+            ...(env.REDIS_TLS_CHECK_SERVER_IDENTITY === "false"
+              ? { checkServerIdentity: () => undefined }
+              : {}),
+            ...(env.REDIS_TLS_SECURE_PROTOCOL
+              ? { secureProtocol: env.REDIS_TLS_SECURE_PROTOCOL }
+              : {}),
+            ...(env.REDIS_TLS_CIPHERS
+              ? { ciphers: env.REDIS_TLS_CIPHERS }
+              : {}),
+            ...(env.REDIS_TLS_HONOR_CIPHER_ORDER
+              ? {
+                  honorCipherOrder: env.REDIS_TLS_HONOR_CIPHER_ORDER === "true",
+                }
+              : {}),
+            ...(env.REDIS_TLS_KEY_PASSPHRASE
+              ? { passphrase: env.REDIS_TLS_KEY_PASSPHRASE }
+              : {}),
           },
         }
       : {};
