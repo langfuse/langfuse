@@ -12,7 +12,11 @@
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import {
+  type TraceDomain,
+  type ScoreDomain,
+  type ObservationLevelType,
+} from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type TreeNode, type TraceSearchListItem } from "../lib/types";
@@ -52,6 +56,7 @@ interface TraceDataProviderProps {
   observations: ObservationReturnTypeWithMetadata[];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   comments: Map<string, number>;
+  minObservationLevel?: ObservationLevelType;
   children: ReactNode;
 }
 
@@ -60,11 +65,12 @@ export function TraceDataProvider({
   observations,
   scores,
   comments,
+  minObservationLevel,
   children,
 }: TraceDataProviderProps) {
   const uiData = useMemo(() => {
-    return buildTraceUiData(trace, observations);
-  }, [trace, observations]);
+    return buildTraceUiData(trace, observations, minObservationLevel);
+  }, [trace, observations, minObservationLevel]);
 
   const value = useMemo<TraceDataContextValue>(
     () => ({

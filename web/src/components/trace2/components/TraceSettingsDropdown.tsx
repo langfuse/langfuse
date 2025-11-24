@@ -13,7 +13,7 @@
  * All preferences are managed via ViewPreferencesContext and persisted to localStorage.
  */
 
-import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
+import { ObservationLevel } from "@langfuse/shared";
 import { Settings2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
