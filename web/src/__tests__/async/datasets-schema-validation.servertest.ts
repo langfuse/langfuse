@@ -11,9 +11,9 @@ import {
 import {
   createOrgProjectAndApiKey,
   isValidJSONSchema,
-  validateFieldAgainstSchema,
   DatasetSchemaValidator,
 } from "@langfuse/shared/src/server";
+import { validateFieldAgainstSchema } from "@langfuse/shared/src/utils/jsonSchemaValidation";
 
 // Test schemas
 const TEST_SCHEMAS = {
