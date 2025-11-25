@@ -12,15 +12,12 @@
  */
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import {
-  type TraceDomain,
-  type ScoreDomain,
-  type ObservationLevelType,
-} from "@langfuse/shared";
+import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type TreeNode, type TraceSearchListItem } from "../lib/types";
 import { buildTraceUiData } from "../lib/tree-building";
+import { useViewPreferences } from "./ViewPreferencesContext";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,
@@ -56,18 +53,22 @@ interface TraceDataProviderProps {
   observations: ObservationReturnTypeWithMetadata[];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   comments: Map<string, number>;
-  minObservationLevel?: ObservationLevelType;
   children: ReactNode;
 }
 
+/**
+ * TraceDataProvider must be rendered within ViewPreferencesProvider.
+ * It consumes minObservationLevel directly from ViewPreferencesContext.
+ */
 export function TraceDataProvider({
   trace,
   observations,
   scores,
   comments,
-  minObservationLevel,
   children,
 }: TraceDataProviderProps) {
+  const { minObservationLevel } = useViewPreferences();
+
   const uiData = useMemo(() => {
     return buildTraceUiData(trace, observations, minObservationLevel);
   }, [trace, observations, minObservationLevel]);

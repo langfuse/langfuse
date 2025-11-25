@@ -34,6 +34,11 @@ function useLayoutContext() {
   return context;
 }
 
+// Export hook for use in TracePanelNavigationLayoutMobile
+export function useMobileLayoutContext() {
+  return useLayoutContext();
+}
+
 export function TraceLayoutMobile({ children }: { children: ReactNode }) {
   const [isNavigationExpanded, setIsNavigationExpanded] = useState(true);
 

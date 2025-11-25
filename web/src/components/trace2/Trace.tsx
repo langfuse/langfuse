@@ -4,10 +4,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { TraceDataProvider } from "./contexts/TraceDataContext";
-import {
-  ViewPreferencesProvider,
-  useViewPreferences,
-} from "./contexts/ViewPreferencesContext";
+import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { TraceLayoutMobile } from "./components/_layout/TraceLayoutMobile";
@@ -44,58 +41,19 @@ export function Trace({ trace, observations, scores }: TraceProps) {
 
   return (
     <ViewPreferencesProvider>
-      <TraceInternal
+      <TraceDataProvider
         trace={trace}
         observations={observations}
         scores={scores}
-        commentsMap={commentsMap}
-      />
+        comments={commentsMap}
+      >
+        <SelectionProvider>
+          <SearchProvider>
+            <TraceContent />
+          </SearchProvider>
+        </SelectionProvider>
+      </TraceDataProvider>
     </ViewPreferencesProvider>
-  );
-}
-
-interface TraceInternalProps {
-  trace: TraceProps["trace"];
-  observations: TraceProps["observations"];
-  scores: TraceProps["scores"];
-  commentsMap: Map<string, number>;
-}
-
-/**
- * TraceInternal - Internal component that bridges ViewPreferencesContext and TraceDataProvider
- *
- * Purpose:
- * - Consumes ViewPreferencesContext to get minObservationLevel
- * - Passes minObservationLevel to TraceDataProvider
- * - Wraps with remaining context providers (TraceData, Selection, Search)
- *
- * Why it exists:
- * - React hooks rules: Cannot call useViewPreferences() in the same component
- *   that renders ViewPreferencesProvider (the parent Trace component)
- * - Acts as a bridge between provider layers
- */
-function TraceInternal({
-  trace,
-  observations,
-  scores,
-  commentsMap,
-}: TraceInternalProps) {
-  const { minObservationLevel } = useViewPreferences();
-
-  return (
-    <TraceDataProvider
-      trace={trace}
-      observations={observations}
-      scores={scores}
-      comments={commentsMap}
-      minObservationLevel={minObservationLevel}
-    >
-      <SelectionProvider>
-        <SearchProvider>
-          <TraceContent />
-        </SearchProvider>
-      </SelectionProvider>
-    </TraceDataProvider>
   );
 }
 
