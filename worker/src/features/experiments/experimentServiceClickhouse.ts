@@ -208,7 +208,6 @@ async function getItemsToProcess(
   config: PromptExperimentConfig,
 ) {
   // Fetch all dataset items
-  // TODO: fix
   const datasetItems = await prisma.datasetItem.findMany({
     where: {
       datasetId,
@@ -347,7 +346,6 @@ async function createAllDatasetRunItemsWithConfigError(
   errorMessage: string,
 ) {
   // Fetch all dataset items
-  // TODO: fix
   const datasetItems = await prisma.datasetItem.findMany({
     where: {
       datasetId,

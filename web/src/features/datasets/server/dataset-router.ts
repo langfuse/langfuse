@@ -1412,7 +1412,6 @@ export const datasetRouter = createTRPCRouter({
 
       const [runData, items] = await Promise.all([
         enrichAndMapToDatasetItemId(projectId, datasetRunItems),
-        // TODO: fix
         ctx.prisma.datasetItem.findMany({
           where: { id: { in: datasetItemIds } },
           select: {
@@ -1453,7 +1452,6 @@ export const datasetRouter = createTRPCRouter({
 
       // Approach 1: if no filters are set, query postgres for datasets' item count
       if (!filterByRun || filterByRun.length === 0) {
-        // TODO: fix
         const datasetItemCount = await ctx.prisma.datasetItem.count({
           where: { datasetId, projectId },
         });
@@ -1485,7 +1483,6 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      // TODO: fix
       return ctx.prisma.datasetItem.findMany({
         where: {
           projectId: input.projectId,

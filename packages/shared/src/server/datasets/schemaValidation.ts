@@ -54,7 +54,6 @@ export async function validateAllDatasetItems(params: {
 
   while (errors.length < MAX_ERRORS) {
     // Fetch batch
-    // TODO: fix
     const items = await prisma.datasetItem.findMany({
       where: {
         datasetId,

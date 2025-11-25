@@ -35,7 +35,6 @@ export default withMiddlewares({
        **************/
       const { traceId, observationId, datasetItemId } = body;
 
-      // TODO: fix
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
           id_projectId: {
