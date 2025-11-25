@@ -131,6 +131,7 @@ const EnvSchema = z.object({
     .default("true"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  LANGFUSE_S3_SLOWDOWN_TTL_SECONDS: z.coerce.number().positive().default(14400), // 4 hours
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
