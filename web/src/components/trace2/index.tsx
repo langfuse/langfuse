@@ -222,10 +222,6 @@ function DesktopTraceLayout() {
     }
   }, [isTimelineView]);
 
-  console.log("[Trace2] minSize", navigationPanelMinSize);
-  console.log("[Trace2] collapsedSize", navigationPanelCollapsedSize);
-  console.log("[Trace2] isPanelCollapsed", isNavigationPanelCollapsed);
-
   return (
     <div className="h-full w-full">
       <PanelGroup direction="horizontal" id={RESIZABLE_PANEL_GROUP_ID}>
@@ -247,6 +243,7 @@ function DesktopTraceLayout() {
         <PanelResizeHandle
           id={RESIZABLE_PANEL_HANDLE_ID}
           className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100"
+          onDoubleClick={handleTogglePanel}
         />
         <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize={70} minSize={50}>
           <PreviewPanel />
