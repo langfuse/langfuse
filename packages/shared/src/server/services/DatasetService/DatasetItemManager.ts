@@ -360,6 +360,12 @@ export class DatasetItemManager {
       datasetId: props.datasetId,
     });
 
+    if (!item) {
+      throw new LangfuseNotFoundError(
+        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+      );
+    }
+
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
         await prisma.datasetItem.delete({
@@ -400,7 +406,7 @@ export class DatasetItemManager {
     projectId: string;
     datasetItemId: string;
     datasetId?: string;
-  }): Promise<DatasetItem> {
+  }): Promise<DatasetItem | null> {
     const item = await prisma.datasetItem.findUnique({
       where: {
         id_projectId: {
@@ -410,12 +416,8 @@ export class DatasetItemManager {
         ...(props.datasetId ? { datasetId: props.datasetId } : {}),
       },
     });
-    if (!item) {
-      throw new LangfuseNotFoundError(
-        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
-      );
-    }
-    return item;
+
+    return item ?? null;
   }
 
   /**
