@@ -146,7 +146,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     {
       enabled: evaluators.isSuccess && evaluatorIds.length > 0,
       meta: {
-        silentHttpCodes: [500],
+        silentHttpCodes: [503],
       },
     },
   );
