@@ -18,8 +18,10 @@ export function PreviewPanel() {
   const { trace, nodeMap, observations, scores } = useTraceData();
 
   // Determine what to show
-  const isObservationSelected = selectedNodeId !== null;
+  // Note: Trace root node has type "TRACE", observations have other types (SPAN, GENERATION, EVENT)
   const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : null;
+  const isObservationSelected =
+    selectedNodeId !== null && selectedNode?.type !== "TRACE";
 
   return (
     <div className="h-full w-full overflow-y-auto bg-background">

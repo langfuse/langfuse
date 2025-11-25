@@ -42,7 +42,7 @@ export interface TraceDetailViewProps {
 export function TraceDetailView({
   trace,
   observations,
-  scores,
+  scores: _scores,
   projectId,
 }: TraceDetailViewProps) {
   const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
@@ -168,15 +168,17 @@ export function TraceDetailView({
           </div>
         </TabsBarContent>
 
-        {/* Log tab content */}
+        {/* Log tab content - only mount when active to avoid fetching all observations upfront */}
         <TabsBarContent value="log">
-          <TraceLogView
-            observations={observations}
-            traceId={trace.id}
-            projectId={projectId}
-            currentView={currentView}
-            trace={trace}
-          />
+          {selectedTab === "log" && (
+            <TraceLogView
+              observations={observations}
+              traceId={trace.id}
+              projectId={projectId}
+              currentView={currentView}
+              trace={trace}
+            />
+          )}
         </TabsBarContent>
 
         {/* Scores tab content */}
