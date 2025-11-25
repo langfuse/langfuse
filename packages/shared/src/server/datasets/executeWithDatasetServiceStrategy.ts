@@ -2,12 +2,16 @@ import { env } from "../../env";
 import { logger } from "../logger";
 
 export enum OperationType {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   READ = "READ",
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   WRITE = "WRITE",
 }
 
 export enum Implementation {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   STATEFUL = "STATEFUL",
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   VERSIONED = "VERSIONED",
 }
 
