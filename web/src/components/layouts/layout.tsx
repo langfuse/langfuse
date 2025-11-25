@@ -47,7 +47,7 @@ import {
   type NavigationItem,
 } from "@/src/components/layouts/utilities/routes";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { ErrorPage } from "@/src/components/error-page";
+import { ErrorPageWithSentry } from "@/src/components/error-page";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -318,7 +318,7 @@ export default function Layout(props: PropsWithChildren) {
     !userHasProjectAccess
   ) {
     return (
-      <ErrorPage
+      <ErrorPageWithSentry
         title="Project Not Found"
         message="The project you are trying to access does not exist or you do not have access to it."
         additionalButton={{

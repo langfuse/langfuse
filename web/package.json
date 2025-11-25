@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.133.0",
+  "version": "3.134.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -42,7 +42,6 @@
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.1",
-    "@marsidev/react-turnstile": "^0.5.4",
     "@modelcontextprotocol/sdk": "^1.20.2",
     "@mui/material": "^7.3.1",
     "@mui/x-tree-view": "^8.17.0",

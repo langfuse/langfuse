@@ -10,6 +10,7 @@ import {
   deriveFilters,
   createPublicApiTracesColumnMapping,
   tracesTableUiColumnDefinitions,
+  shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import {
@@ -40,7 +41,7 @@ export type TraceQueryType = {
   useEventsTable?: boolean | null;
 };
 
-function buildTracesBaseQuery(
+async function buildTracesBaseQuery(
   props: TraceQueryType,
   select:
     | {
@@ -59,14 +60,15 @@ function buildTracesBaseQuery(
       },
   advancedFilters?: FilterState,
   orderBy?: OrderByState,
-): {
+): Promise<{
   query: string;
   params: Record<string, any>;
   fromTimeFilter?: DateTimeFilter | undefined;
-} {
+}> {
   // ClickHouse query optimizations for List Traces API
-  const disableObservationsFinal =
-    env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL === "true";
+  const disableObservationsFinal = await shouldSkipObservationsFinal(
+    props.projectId,
+  );
   const propagateObservationsTimeBounds =
     env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS === "true";
 
@@ -319,7 +321,7 @@ export const generateTracesForPublicApi = async ({
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
 
-  const { query, params, fromTimeFilter } = buildTracesBaseQuery(
+  const { query, params, fromTimeFilter } = await buildTracesBaseQuery(
     props,
     {
       includeIO,
@@ -399,7 +401,7 @@ export const getTracesCountForPublicApi = async ({
   };
 
   if (advancedFilters !== undefined && advancedFilters.length > 0) {
-    ({ query, params } = buildTracesBaseQuery(
+    ({ query, params } = await buildTracesBaseQuery(
       props,
       {
         includeObservations: false,
