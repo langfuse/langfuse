@@ -634,19 +634,22 @@ export const datasetRouter = createTRPCRouter({
         datasetItemId: z.string(),
       }),
     )
-    .query(async ({ input }) => {
-      return await DatasetItemManager.getItemById({
-        projectId: input.projectId,
-        datasetItemId: input.datasetItemId,
-        datasetId: input.datasetId,
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.datasetItem.findUnique({
+        where: {
+          id_projectId: { id: input.datasetItemId, projectId: input.projectId },
+          datasetId: input.datasetId,
+        },
       });
     }),
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
-      return await DatasetItemManager.getItemCountByLatest({
-        projectId: input.projectId,
-        datasetId: input.datasetId,
+      return await ctx.prisma.datasetItem.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
       });
     }),
   itemsByDatasetId: protectedProjectProcedure
@@ -1227,12 +1230,18 @@ export const datasetRouter = createTRPCRouter({
           : []),
       ] as FilterState;
 
-      // Verify item exists
-      await DatasetItemManager.getItemById({
-        projectId: input.projectId,
-        datasetItemId: datasetItemId,
-        datasetId: datasetId,
+      const datasetItem = await ctx.prisma.datasetItem.findFirst({
+        where: {
+          id: datasetItemId,
+          projectId: input.projectId,
+        },
       });
+      if (!datasetItem) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset item not found",
+        });
+      }
 
       const [runItems, totalRunItems] = await Promise.all([
         getDatasetRunItemsByDatasetIdCh({

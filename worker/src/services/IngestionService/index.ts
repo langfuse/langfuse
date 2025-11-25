@@ -462,11 +462,18 @@ export class IngestionService {
                   createdAt: true,
                 },
               }),
-              // TODO: verify item is ACTIVE
-              DatasetItemManager.getItemById({
-                projectId,
-                datasetItemId: event.body.datasetItemId,
-                datasetId: event.body.datasetId,
+              this.prisma.datasetItem.findFirst({
+                where: {
+                  datasetId: event.body.datasetId,
+                  projectId,
+                  id: event.body.datasetItemId,
+                  status: "ACTIVE",
+                },
+                select: {
+                  input: true,
+                  expectedOutput: true,
+                  metadata: true,
+                },
               }),
             ]);
 
