@@ -100,7 +100,7 @@
     "@trpc/server": "^11.4.4",
     "@uiw/codemirror-themes": "^4.23.7",
     "@uiw/react-codemirror": "^4.24.1",
-    "ai": "^3.4.9",
+    "ai": "^5.0.52",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.10",
     "chroma-js": "^3.1.2",
