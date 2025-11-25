@@ -1,5 +1,9 @@
 import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
-import { type UrlUpdateType } from "use-query-params";
+import {
+  type UrlUpdateType,
+  StringParam,
+  useQueryParam,
+} from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -12,18 +16,24 @@ import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { NavigationPanel } from "./components/_layout/NavigationPanel";
 import { PreviewPanel } from "./components/_layout/PreviewPanel";
-import { CollapsedNavigationPanel } from "./components/_layout/CollapsedNavigationPanel";
 import { MobileTraceLayout } from "./components/_layout/MobileTraceLayout";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+
 import {
-  CollapsiblePanelGroup,
-  CollapsiblePanel,
-  CollapsiblePanelHandle,
-  usePanelState,
-  useCollapsiblePanel,
-  type CollapsiblePanelRef,
-} from "./components/_shared/resizable-panels";
-import { useMemo, useRef } from "react";
+  PanelGroup,
+  PanelResizeHandle,
+  Panel,
+  type ImperativePanelHandle,
+} from "react-resizable-panels";
+import { useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
+
+const RESIZABLE_PANEL_GROUP_ID = "trace-layout";
+const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
+const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
+const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
+
+const NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS = 200;
+const NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS = 50;
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -111,51 +121,117 @@ function TraceContent() {
 }
 
 function DesktopTraceLayout() {
-  // Dynamic panel constraints based on container width
-  const { minSize, maxSize } = usePanelState("trace2-layout", {
-    minWidthPx: 255, // Min width for navigation panel
-    maxWidthPx: 700, // Max width for navigation panel
-    maxPercentage: 50, // Never take more than 50% of screen
-  });
+  // Get current view mode from URL
+  const [viewMode] = useQueryParam("view", StringParam);
+  const isTimelineView = viewMode === "timeline";
 
-  // Ref for programmatic panel control
-  const navigationPanelRef = useRef<CollapsiblePanelRef>(null);
+  const [minSize, setMinSize] = useState(10);
+  const [collapsedSize, setCollapsedSize] = useState(5);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
-  // Check collapsed state from context (triggers re-renders)
-  const { isCollapsed } = useCollapsiblePanel();
-  const isPanelCollapsed = isCollapsed("trace2-navigation");
+  // Ref to programmatically control the panel
+  const panelRef = useRef<ImperativePanelHandle>(null);
+
+  useLayoutEffect(() => {
+    const panelGroup = document.querySelector(
+      `#${RESIZABLE_PANEL_GROUP_ID}`,
+    ) as HTMLElement;
+    const resizeHandles = document.querySelectorAll(
+      `#${RESIZABLE_PANEL_HANDLE_ID}`,
+    ) as NodeListOf<HTMLElement>;
+
+    if (!panelGroup || !resizeHandles) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      // For horizontal panels, we need to use width, not height
+      let width = panelGroup.offsetWidth;
+
+      // Subtract the width of resize handles
+      resizeHandles.forEach((resizeHandle) => {
+        width -= resizeHandle.offsetWidth;
+      });
+
+      // Convert pixel values to percentages based on available width
+      const minSizePercentage =
+        (NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS / width) * 100;
+      const collapsedSizePercentage =
+        (NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS / width) * 100;
+
+      setMinSize(minSizePercentage);
+      setCollapsedSize(collapsedSizePercentage);
+    });
+    observer.observe(panelGroup);
+
+    resizeHandles.forEach((resizeHandle) => {
+      observer.observe(resizeHandle);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   const handleTogglePanel = () => {
-    navigationPanelRef.current?.toggle();
+    console.log("[Trace2 Toggle] Button clicked", {});
+
+    if (!panelRef.current) return;
+
+    // Programmatically collapse or expand the panel
+    if (isPanelCollapsed) {
+      panelRef.current.expand();
+      setIsPanelCollapsed(false);
+    } else {
+      // panelRef.current.collapse();
+      setIsPanelCollapsed(true);
+      panelRef.current.resize(collapsedSize);
+    }
   };
+
+  // Pulse animation: hint to user that panel can be collapsed when switching to timeline
+  const [shouldPulseToggle, setShouldPulseToggle] = useState(false);
+
+  useEffect(() => {
+    if (isTimelineView) {
+      setShouldPulseToggle(true);
+      const timeout = setTimeout(() => {
+        setShouldPulseToggle(false);
+      }, 2000); // Stop pulse after 2 seconds
+      return () => clearTimeout(timeout);
+    }
+  }, [isTimelineView]);
+
+  console.log("[Trace2] minSize", minSize);
+  console.log("[Trace2] collapsedSize", collapsedSize);
+  console.log("[Trace2] isPanelCollapsed", isPanelCollapsed);
 
   return (
     <div className="h-full w-full">
-      <CollapsiblePanelGroup direction="horizontal" autoSaveId="trace2-layout">
-        {/* Left panel - Navigation (tree/timeline/search) */}
-        <CollapsiblePanel
-          ref={navigationPanelRef}
-          id="trace2-navigation"
-          defaultSize={30}
+      <PanelGroup direction="horizontal" id={RESIZABLE_PANEL_GROUP_ID}>
+        <Panel
+          id={RESIZABLE_PANEL_NAVIGATION_ID}
+          ref={panelRef}
+          collapsible={true}
+          collapsedSize={collapsedSize}
           minSize={minSize}
-          maxSize={maxSize}
-          renderCollapsed={() => (
-            <CollapsedNavigationPanel onExpand={handleTogglePanel} />
-          )}
+          onCollapse={() => setIsPanelCollapsed(true)}
+          onExpand={() => setIsPanelCollapsed(false)}
         >
           <NavigationPanel
-            onTogglePanel={handleTogglePanel}
             isPanelCollapsed={isPanelCollapsed}
+            onTogglePanel={handleTogglePanel}
+            shouldPulseToggle={shouldPulseToggle}
           />
-        </CollapsiblePanel>
-
-        <CollapsiblePanelHandle withHandle />
-
-        {/* Right panel - Preview (trace/observation details) */}
-        <CollapsiblePanel id="trace2-preview" defaultSize={70} minSize={50}>
+        </Panel>
+        <PanelResizeHandle
+          id={RESIZABLE_PANEL_HANDLE_ID}
+          className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100"
+        />
+        <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize={70} minSize={50}>
           <PreviewPanel />
-        </CollapsiblePanel>
-      </CollapsiblePanelGroup>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }

@@ -18,13 +18,15 @@ import { TraceTimeline } from "../TraceTimeline";
 import { StringParam, useQueryParam } from "use-query-params";
 
 interface NavigationPanelProps {
-  onTogglePanel: () => void;
   isPanelCollapsed: boolean;
+  onTogglePanel: () => void;
+  shouldPulseToggle?: boolean;
 }
 
 export function NavigationPanel({
-  onTogglePanel,
   isPanelCollapsed,
+  onTogglePanel,
+  shouldPulseToggle = false,
 }: NavigationPanelProps) {
   const { searchQuery } = useSearch();
   const [viewMode] = useQueryParam("view", StringParam);
@@ -50,15 +52,20 @@ export function NavigationPanel({
     <div className="flex h-full flex-col border-r">
       {/* Fixed height search bar */}
       <NavigationHeader
-        onTogglePanel={onTogglePanel}
         isPanelCollapsed={isPanelCollapsed}
+        onTogglePanel={onTogglePanel}
+        shouldPulseToggle={shouldPulseToggle}
       />
 
-      {/* Fixed height notice (only shows when observations are hidden) */}
-      <HiddenObservationsNotice />
+      {!isPanelCollapsed && (
+        <>
+          {/* Fixed height notice (only shows when observations are hidden) */}
+          <HiddenObservationsNotice />
 
-      {/* Scrollable content area */}
-      <div className="flex-1 overflow-hidden">{renderContent()}</div>
+          {/* Scrollable content area */}
+          <div className="flex-1 overflow-hidden">{renderContent()}</div>
+        </>
+      )}
     </div>
   );
 }

@@ -14,36 +14,60 @@ import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import {
-  FoldVertical,
-  UnfoldVertical,
-  Download,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { FoldVertical, UnfoldVertical, Download } from "lucide-react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
 import { TraceSettingsDropdown } from "../TraceSettingsDropdown";
 import { downloadTraceAsJson } from "../../lib/download-trace";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { NavigationPanelToggleButton } from "./NavigationPanelToggleButton";
 
 interface NavigationHeaderProps {
-  onTogglePanel: () => void;
   isPanelCollapsed: boolean;
+  onTogglePanel: () => void;
+  shouldPulseToggle?: boolean;
 }
 
-export function NavigationHeader({
-  onTogglePanel,
+export function NavigationHeader(props: NavigationHeaderProps) {
+  if (props.isPanelCollapsed) {
+    return <NavigationHeaderCollapsed {...props} />;
+  }
+  return <NavigationHeaderExpanded {...props} />;
+}
+
+function NavigationHeaderCollapsed({
   isPanelCollapsed,
+  onTogglePanel,
+  shouldPulseToggle = false,
 }: NavigationHeaderProps) {
-  const { searchInputValue, setSearchInputValue } = useSearch();
+  return (
+    <div className="flex w-full flex-row items-center justify-center p-2">
+      <NavigationPanelToggleButton
+        isPanelCollapsed={isPanelCollapsed}
+        onTogglePanel={onTogglePanel}
+        shouldPulseToggle={shouldPulseToggle}
+      />
+    </div>
+  );
+}
+
+function NavigationHeaderExpanded({
+  isPanelCollapsed,
+  onTogglePanel,
+  shouldPulseToggle = false,
+}: NavigationHeaderProps) {
+  const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
+    useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { tree, trace, observations } = useTraceData();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
+  const capture = usePostHogClientCapture();
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      // TODO: Implement immediate search on Enter
+      // Skip debouncing and search immediately
+      setSearchQueryImmediate(searchInputValue);
     }
   };
 
@@ -59,7 +83,7 @@ export function NavigationHeader({
     return ids;
   }, []);
 
-  const handleToggleExpandCollapseAll = useCallback(() => {
+  const handleToggleTreeNodes = useCallback(() => {
     if (isEverythingCollapsed) {
       expandAll();
     } else {
@@ -80,6 +104,14 @@ export function NavigationHeader({
   return (
     <Command className="mt-1 flex h-auto flex-shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
       <div className="flex flex-row justify-between pl-1 pr-2">
+        <div className="flex flex-row items-center pl-1.5">
+          {/* Panel Toggle Button */}
+          <NavigationPanelToggleButton
+            isPanelCollapsed={isPanelCollapsed}
+            onTogglePanel={onTogglePanel}
+            shouldPulseToggle={shouldPulseToggle}
+          />
+        </div>
         <div className="relative flex-1">
           <CommandInput
             showBorder={false}
@@ -91,24 +123,9 @@ export function NavigationHeader({
           />
         </div>
         <div className="flex flex-row items-center gap-0.5">
-          {/* Panel Toggle Button */}
-          <Button
-            onClick={onTogglePanel}
-            variant="ghost"
-            size="icon"
-            title={isPanelCollapsed ? "Expand panel" : "Collapse panel"}
-            className="h-7 w-7"
-          >
-            {isPanelCollapsed ? (
-              <PanelLeftOpen className="h-3.5 w-3.5" />
-            ) : (
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            )}
-          </Button>
-
           {/* Expand/Collapse All Button */}
           <Button
-            onClick={handleToggleExpandCollapseAll}
+            onClick={handleToggleTreeNodes}
             variant="ghost"
             size="icon"
             title={isEverythingCollapsed ? "Expand all" : "Collapse all"}
