@@ -551,14 +551,14 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     });
 
     // Wait a short time to ensure query is registered
-    await sleep(2000);
+    await sleep(5000);
 
     // Verify query is running on server
     const status = await pollQueryStatus(queryId);
     if (status === "not_found") {
       // Query may have completed very quickly or failed to start
       // Wait a bit more and check again
-      await sleep(3000);
+      await sleep(15000);
       const retryStatus = await pollQueryStatus(queryId);
       if (retryStatus === "not_found") {
         throw new Error(`Query ${queryId} failed to start on server`);
