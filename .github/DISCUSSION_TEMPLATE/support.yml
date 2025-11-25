@@ -15,8 +15,12 @@ body:
       required: true
   - type: input
     attributes:
-      label: If self-hosted, what version are you running?
-      description: We may ask you to upgrade to the latest version, as many issues are continuously being fixed.
+      label: If Self-Hosted:
+      description: What version are you running? We may ask you to upgrade to the latest version, as many issues are continuously being fixed.
+  - type: input
+    attributes:
+      label: If Langfuse Cloud:
+      description: Please share the link to your Langfuse project or the specific view you have a question about. This helps us resolve requests faster.
   - type: textarea
     attributes:
       label: SDK and integration versions
