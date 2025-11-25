@@ -50,6 +50,7 @@ import {
   DatasetJSONSchema,
   type DatasetMutationResult,
   executeWithDatasetServiceStrategy,
+  toPostgresDatasetItem,
   OperationType,
   Implementation,
 } from "@langfuse/shared/src/server";
@@ -1061,10 +1062,7 @@ export const datasetRouter = createTRPCRouter({
         await executeWithDatasetServiceStrategy(OperationType.WRITE, {
           [Implementation.STATEFUL]: async () => {
             await ctx.prisma.datasetItem.createMany({
-              data: preparedItems.map((item) => ({
-                ...item,
-                id: item.itemId,
-              })),
+              data: preparedItems.map((item) => toPostgresDatasetItem(item)),
             });
           },
           [Implementation.VERSIONED]: async () => {
@@ -1188,7 +1186,7 @@ export const datasetRouter = createTRPCRouter({
             auditLog({
               session: ctx.session,
               resourceType: "datasetItem",
-              resourceId: item.id,
+              resourceId: item.itemId,
               action: "create",
               after: item,
             }),

@@ -12,6 +12,7 @@ import {
   Implementation,
   executeWithDatasetServiceStrategy,
   OperationType,
+  toPostgresDatasetItem,
 } from "../../datasets/executeWithDatasetServiceStrategy";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
@@ -174,10 +175,16 @@ export class DatasetItemManager {
         newData.metadata !== undefined
           ? newData.metadata
           : existingItem?.metadata,
-      sourceTraceId: newData.sourceTraceId ?? existingItem?.sourceTraceId,
+      sourceTraceId:
+        newData.sourceTraceId === undefined
+          ? existingItem?.sourceTraceId
+          : newData.sourceTraceId,
       sourceObservationId:
-        newData.sourceObservationId ?? existingItem?.sourceObservationId,
-      status: newData.status ?? existingItem?.status,
+        newData.sourceObservationId === undefined
+          ? existingItem?.sourceObservationId
+          : newData.sourceObservationId,
+      status:
+        newData.status === undefined ? existingItem?.status : newData.status,
     };
   }
 
@@ -264,6 +271,7 @@ export class DatasetItemManager {
 
     // 5. Prepare full item data for writing
     const itemData = {
+      itemId: itemId,
       input: itemPayload.input,
       expectedOutput: itemPayload.expectedOutput,
       metadata: itemPayload.metadata,
@@ -285,43 +293,41 @@ export class DatasetItemManager {
             datasetId: dataset.id,
           },
           create: {
-            id: itemId,
+            ...toPostgresDatasetItem(itemData),
             datasetId: dataset.id,
-            ...itemData,
             projectId: props.projectId,
           },
           update: {
-            ...itemData,
+            ...toPostgresDatasetItem(itemData),
           },
         });
         item = res;
       },
       [Implementation.VERSIONED]: async () => {
         // Write full item state to event table
-        const res = await prisma.datasetItemEvent.create({
+        await prisma.datasetItemEvent.create({
           data: {
-            itemId: itemId,
+            ...itemData,
             projectId: props.projectId,
             datasetId: dataset.id,
             createdAt: new Date(),
-            ...itemData,
           },
         });
 
-        // Map DatasetItemEvent to DatasetItem for return
-        item = {
-          id: res.itemId,
-          projectId: res.projectId,
-          datasetId: res.datasetId,
-          status: res.status ?? DatasetStatus.ACTIVE,
-          input: res.input,
-          expectedOutput: res.expectedOutput,
-          metadata: res.metadata,
-          sourceTraceId: res.sourceTraceId,
-          sourceObservationId: res.sourceObservationId,
-          createdAt: res.createdAt ?? new Date(),
-          updatedAt: res.createdAt ?? new Date(),
-        };
+        // Do not map to DatasetItem for return until we build out write execution path
+        // item = {
+        //   id: res.itemId,
+        //   projectId: res.projectId,
+        //   datasetId: res.datasetId,
+        //   status: res.status ?? DatasetStatus.ACTIVE,
+        //   input: res.input,
+        //   expectedOutput: res.expectedOutput,
+        //   metadata: res.metadata,
+        //   sourceTraceId: res.sourceTraceId,
+        //   sourceObservationId: res.sourceObservationId,
+        //   createdAt: res.createdAt ?? new Date(),
+        //   updatedAt: res.createdAt ?? new Date(),
+        // };
       },
     });
 
@@ -560,10 +566,7 @@ export class DatasetItemManager {
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
         await prisma.datasetItem.createMany({
-          data: preparedItems.map((item) => ({
-            ...item,
-            id: item.itemId,
-          })),
+          data: preparedItems.map(toPostgresDatasetItem),
         });
       },
       [Implementation.VERSIONED]: async () => {

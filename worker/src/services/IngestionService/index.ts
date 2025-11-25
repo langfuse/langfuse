@@ -44,7 +44,6 @@ import {
   hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
-  DatasetItemManager,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
