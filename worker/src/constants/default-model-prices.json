@@ -3303,22 +3303,24 @@
     "updated_at": "2025-11-24T20:53:27.571Z",
     "tokenizer_config": null,
     "tokenizer_id": "claude",
-    "pricing_tiers": {
-      "id": "cmdysde5w0000rkmzbc1g5au3_tier_default",
-      "name": "Standard",
-      "is_default": true,
-      "priority": 0,
-      "conditions": [],
-      "prices": {
-        "input": 5e-6,
-        "input_tokens": 5e-6,
-        "output": 25e-6,
-        "output_tokens": 25e-6,
-        "cache_creation_input_tokens": 6.25e-6,
-        "input_cache_creation": 6.25e-6,
-        "cache_read_input_tokens": 0.5e-6,
-        "input_cache_read": 0.5e-6
+    "pricing_tiers": [
+      {
+        "id": "cmdysde5w0000rkmzbc1g5au3_tier_default",
+        "name": "Standard",
+        "is_default": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_tokens": 5e-6,
+          "output": 25e-6,
+          "output_tokens": 25e-6,
+          "cache_creation_input_tokens": 6.25e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6
+        }
       }
-    }
+    ]
   }
 ]
