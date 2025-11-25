@@ -6,6 +6,7 @@
  * - Metadata badges (timestamp, session, user, environment, latency, cost)
  * - Tabs: Preview (I/O, tags, metadata), Log, Scores
  * - View toggle (Formatted/JSON)
+ * - Log view thresholds matching trace/ TracePreview behavior
  */
 
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
@@ -26,7 +27,27 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { TraceLogView } from "./TraceLogView";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
+
+// Match thresholds from trace/ TracePreview
+const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
+const LOG_VIEW_DISABLED_THRESHOLD = 350;
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -52,6 +73,42 @@ export function TraceDetailView({
     "jsonViewPreference",
     "pretty",
   );
+
+  // Log view thresholds - match trace/ TracePreview behavior
+  const isLogViewDisabled = observations.length > LOG_VIEW_DISABLED_THRESHOLD;
+  const requiresConfirmation =
+    observations.length > LOG_VIEW_CONFIRMATION_THRESHOLD && !isLogViewDisabled;
+  const showLogViewTab = observations.length > 0;
+
+  const [hasLogViewConfirmed, setHasLogViewConfirmed] = useState(false);
+  const [showLogViewDialog, setShowLogViewDialog] = useState(false);
+
+  // Reset confirmation when trace changes
+  useEffect(() => {
+    setHasLogViewConfirmed(false);
+  }, [trace.id]);
+
+  // Redirect from log tab if it becomes disabled
+  useEffect(() => {
+    if ((isLogViewDisabled || !showLogViewTab) && selectedTab === "log") {
+      setSelectedTab("preview");
+    }
+  }, [isLogViewDisabled, showLogViewTab, selectedTab]);
+
+  const handleConfirmLogView = () => {
+    setHasLogViewConfirmed(true);
+    setShowLogViewDialog(false);
+    setSelectedTab("log");
+  };
+
+  const handleTabChange = (value: string) => {
+    // Check if confirmation is needed for log view
+    if (value === "log" && requiresConfirmation && !hasLogViewConfirmed) {
+      setShowLogViewDialog(true);
+      return;
+    }
+    setSelectedTab(value as typeof selectedTab);
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -119,35 +176,50 @@ export function TraceDetailView({
       <TabsBar
         value={selectedTab}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        onValueChange={(value) => setSelectedTab(value as typeof selectedTab)}
+        onValueChange={handleTabChange}
       >
-        <TabsBarList>
-          <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-          {observations.length > 0 && (
-            <TabsBarTrigger value="log">Log View</TabsBarTrigger>
-          )}
-          <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+        <TooltipProvider>
+          <TabsBarList>
+            <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+            {showLogViewTab && (
+              <TabsBarTrigger value="log" disabled={isLogViewDisabled}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>Log View</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs">
+                    {isLogViewDisabled
+                      ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
+                      : requiresConfirmation
+                        ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
+                        : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
+                  </TooltipContent>
+                </Tooltip>
+              </TabsBarTrigger>
+            )}
+            <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-          {/* View toggle (Formatted/JSON) - only show for log tab */}
-          {selectedTab === "log" && (
-            <Tabs
-              className="ml-auto mr-1 h-fit px-2 py-0.5"
-              value={currentView}
-              onValueChange={(value) => {
-                setCurrentView(value as "pretty" | "json");
-              }}
-            >
-              <TabsList className="h-fit py-0.5">
-                <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                  Formatted
-                </TabsTrigger>
-                <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                  JSON
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
-        </TabsBarList>
+            {/* View toggle (Formatted/JSON) - show for preview and log tabs */}
+            {(selectedTab === "log" || selectedTab === "preview") && (
+              <Tabs
+                className="ml-auto mr-1 h-fit px-2 py-0.5"
+                value={currentView}
+                onValueChange={(value) => {
+                  setCurrentView(value as "pretty" | "json");
+                }}
+              >
+                <TabsList className="h-fit py-0.5">
+                  <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                    Formatted
+                  </TabsTrigger>
+                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                    JSON
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+          </TabsBarList>
+        </TooltipProvider>
 
         {/* Preview tab content */}
         <TabsBarContent
@@ -197,6 +269,27 @@ export function TraceDetailView({
           </div>
         </TabsBarContent>
       </TabsBar>
+
+      {/* Confirmation dialog for log view with many observations */}
+      <AlertDialog open={showLogViewDialog} onOpenChange={setShowLogViewDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sluggish Performance Warning</AlertDialogTitle>
+            <AlertDialogDescription>
+              This trace has {observations.length} observations. The log view
+              may be slow to load and interact with. Do you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowLogViewDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLogView}>
+              Show Log View
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
