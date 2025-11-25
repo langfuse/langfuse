@@ -36,7 +36,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
@@ -636,7 +636,7 @@ export default function ObservationsEventsTable({
         return modelId ? (
           <TableIdOrName value={model} />
         ) : (
-          <UpsertModelFormDrawer
+          <UpsertModelFormDialog
             action="create"
             projectId={projectId}
             prefilledModelData={{
@@ -660,7 +660,7 @@ export default function ObservationsEventsTable({
               <span>{model}</span>
               <PlusCircle className="h-3 w-3" />
             </span>
-          </UpsertModelFormDrawer>
+          </UpsertModelFormDialog>
         );
       },
     },

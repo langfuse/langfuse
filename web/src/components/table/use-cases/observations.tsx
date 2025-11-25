@@ -46,7 +46,7 @@ import {
   calculateAggregatedUsage,
 } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState, type Row } from "@tanstack/react-table";
@@ -711,7 +711,7 @@ export default function ObservationsTable({
         return modelId ? (
           <TableIdOrName value={model} />
         ) : (
-          <UpsertModelFormDrawer
+          <UpsertModelFormDialog
             action="create"
             projectId={projectId}
             prefilledModelData={{
@@ -735,7 +735,7 @@ export default function ObservationsTable({
               <span>{model}</span>
               <PlusCircle className="h-3 w-3" />
             </span>
-          </UpsertModelFormDrawer>
+          </UpsertModelFormDialog>
         );
       },
     },

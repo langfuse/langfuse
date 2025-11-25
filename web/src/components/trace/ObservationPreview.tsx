@@ -32,7 +32,7 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip, calculateAggregatedUsage } from "./BreakdownToolTip";
 import { ExternalLinkIcon, InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -338,7 +338,7 @@ export const ObservationPreview = ({
                         </Link>
                       </Badge>
                     ) : (
-                      <UpsertModelFormDrawer
+                      <UpsertModelFormDialog
                         action="create"
                         projectId={preloadedObservation.projectId}
                         prefilledModelData={{
@@ -366,7 +366,7 @@ export const ObservationPreview = ({
                           <span>{preloadedObservation.model}</span>
                           <PlusCircle className="h-3 w-3" />
                         </Badge>
-                      </UpsertModelFormDrawer>
+                      </UpsertModelFormDialog>
                     )
                   ) : null}
 

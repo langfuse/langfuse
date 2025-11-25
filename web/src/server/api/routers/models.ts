@@ -243,6 +243,7 @@ export const modelRouter = createTRPCRouter({
         matchPattern,
         tokenizerConfig,
         tokenizerId,
+        pricingTiers,
       } = input;
 
       throwIfNoProjectAccess({
@@ -323,41 +324,47 @@ export const modelRouter = createTRPCRouter({
           },
         });
 
+        // Delete all existing pricing tiers
         await tx.modelPricingTier.deleteMany({
           where: {
             modelId: upsertedModel.id,
           },
         });
 
-        await tx.modelPricingTier.create({
-          data: {
-            name: "Standard",
-            conditions: [],
-            priority: 0,
-            isDefault: true,
-            modelId,
-            prices: {
-              create: Object.entries(input.prices)
-                .filter(
-                  (priceEntry): priceEntry is [string, number] =>
-                    priceEntry[1] != null,
-                )
-                .map(([usageType, price]) => ({
+        // Create new pricing tiers
+        for (const tier of pricingTiers) {
+          const createdTier = await tx.modelPricingTier.create({
+            data: {
+              modelId: upsertedModel.id,
+              name: tier.name,
+              isDefault: tier.isDefault,
+              priority: tier.priority,
+              conditions: tier.conditions,
+            },
+          });
+
+          // Create prices for this tier
+          await Promise.all(
+            Object.entries(tier.prices).map(([usageType, price]) =>
+              tx.price.create({
+                data: {
                   modelId: upsertedModel.id,
                   projectId: upsertedModel.projectId,
+                  pricingTierId: createdTier.id,
                   usageType,
                   price,
-                })),
-            },
-          },
-        });
+                },
+              }),
+            ),
+          );
+        }
 
         await auditLog({
           session: ctx.session,
           resourceType: "model",
           resourceId: upsertedModel.id,
-          action: modelId ? "update" : "create",
-          after: upsertedModel,
+          action: providedModelId ? "update" : "create",
+          after: { model: upsertedModel, pricingTiers },
         });
 
         return upsertedModel;

@@ -25,7 +25,7 @@ import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -294,7 +294,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
           tableAllowsFullTextSearch: true,
         }}
         actionButtons={
-          <UpsertModelFormDrawer {...{ projectId, action: "create" }}>
+          <UpsertModelFormDialog {...{ projectId, action: "create" }}>
             <ActionButton
               variant="secondary"
               icon={<PlusIcon className="h-4 w-4" />}
@@ -303,7 +303,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
             >
               Add model definition
             </ActionButton>
-          </UpsertModelFormDrawer>
+          </UpsertModelFormDialog>
         }
         className="px-0"
       />
