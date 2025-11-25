@@ -2,18 +2,15 @@ import { z } from "zod/v4";
 import { prisma, PrismaClient } from "@langfuse/shared/src/db";
 import defaultModelPrices from "../constants/default-model-prices.json";
 import { clearFullModelCache, logger } from "@langfuse/shared/src/server";
-
-const PricingTierConditionSchema = z.object({
-  usageDetailPattern: z.string(),
-  operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
-  value: z.number(),
-  caseSensitive: z.boolean(),
-});
+import {
+  PricingTierConditionSchema,
+  validatePricingTiers,
+} from "@langfuse/shared";
 
 const PricingTierSchema = z.object({
   id: z.string(),
   name: z.string(),
-  is_default: z.boolean(),
+  isDefault: z.boolean(),
   priority: z.number().int(),
   conditions: z.array(PricingTierConditionSchema),
   prices: z.record(z.string(), z.number()),
@@ -22,26 +19,35 @@ const PricingTierSchema = z.object({
 const DefaultModelPriceSchema = z
   .object({
     id: z.string(),
-    model_name: z.string(),
-    match_pattern: z.string(),
-    created_at: z.coerce.date(),
-    updated_at: z.coerce.date(),
-    pricing_tiers: z.array(PricingTierSchema),
-    tokenizer_config: z
+    modelName: z.string(),
+    matchPattern: z.string(),
+    createdAt: z.coerce.date(),
+    updatedAt: z.coerce.date(),
+    pricingTiers: z.array(PricingTierSchema),
+    tokenizerConfig: z
       .record(z.string(), z.union([z.string(), z.number()]))
       .nullish(),
-    tokenizer_id: z.string().nullish(),
+    tokenizerId: z.string().nullish(),
   })
-  .refine(
-    (data) => {
-      const defaultTiers = data.pricing_tiers.filter((t) => t.is_default);
-      return defaultTiers.length === 1;
-    },
-    {
-      message:
-        "Each model must have exactly one default pricing tier (is_default: true)",
-    },
-  );
+  .superRefine((data, ctx) => {
+    const tierValidation = validatePricingTiers(data.pricingTiers);
+
+    if (!tierValidation.valid) {
+      ctx.addIssue({
+        message: tierValidation.error,
+      });
+    }
+
+    const defaultTiers = data.pricingTiers.filter((t) => t.isDefault);
+
+    if (defaultTiers.length !== 1) {
+      ctx.addIssue({
+        message:
+          "Each model must have exactly one default pricing tier (isDefault: true)",
+      });
+    }
+  });
+
 type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
 type PricingTier = z.infer<typeof PricingTierSchema>;
 
@@ -158,15 +164,15 @@ export const upsertDefaultModelPrices = async (force = false) => {
           isModelUpToDate(defaultModelPrice, existingModel)
         ) {
           logger.debug(
-            `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`,
+            `Default model ${defaultModelPrice.modelName} (${defaultModelPrice.id}) already up to date. Skipping.`,
           );
           continue;
         }
 
         // Skip if no tiers defined
-        if (defaultModelPrice.pricing_tiers.length === 0) {
+        if (defaultModelPrice.pricingTiers.length === 0) {
           logger.debug(
-            `No pricing tiers for ${defaultModelPrice.model_name} (${defaultModelPrice.id}). Skipping.`,
+            `No pricing tiers for ${defaultModelPrice.modelName} (${defaultModelPrice.id}). Skipping.`,
           );
           continue;
         }
@@ -176,7 +182,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
           upsertModelWithTiers(defaultModelPrice, existingModel).catch(
             (error) => {
               logger.error(
-                `Error upserting default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}): ${error.message}`,
+                `Error upserting default model ${defaultModelPrice.modelName} (${defaultModelPrice.id}): ${error.message}`,
                 { error },
               );
             },
@@ -237,27 +243,27 @@ async function upsertModelWithTiers(
         id: defaultModelPrice.id,
       },
       update: {
-        modelName: defaultModelPrice.model_name,
-        matchPattern: defaultModelPrice.match_pattern,
-        updatedAt: defaultModelPrice.updated_at,
-        tokenizerConfig: defaultModelPrice.tokenizer_config ?? undefined,
-        tokenizerId: defaultModelPrice.tokenizer_id,
+        modelName: defaultModelPrice.modelName,
+        matchPattern: defaultModelPrice.matchPattern,
+        updatedAt: defaultModelPrice.updatedAt,
+        tokenizerConfig: defaultModelPrice.tokenizerConfig ?? undefined,
+        tokenizerId: defaultModelPrice.tokenizerId,
       },
       create: {
         projectId: null,
         id: defaultModelPrice.id,
-        modelName: defaultModelPrice.model_name,
-        matchPattern: defaultModelPrice.match_pattern,
-        tokenizerConfig: defaultModelPrice.tokenizer_config ?? undefined,
-        tokenizerId: defaultModelPrice.tokenizer_id,
-        createdAt: defaultModelPrice.created_at,
-        updatedAt: defaultModelPrice.updated_at,
+        modelName: defaultModelPrice.modelName,
+        matchPattern: defaultModelPrice.matchPattern,
+        tokenizerConfig: defaultModelPrice.tokenizerConfig ?? undefined,
+        tokenizerId: defaultModelPrice.tokenizerId,
+        createdAt: defaultModelPrice.createdAt,
+        updatedAt: defaultModelPrice.updatedAt,
       },
     });
 
     // 2. Get tier IDs from JSON
     const jsonTierIds = new Set(
-      defaultModelPrice.pricing_tiers.map((t) => t.id),
+      defaultModelPrice.pricingTiers.map((t) => t.id),
     );
 
     // 3. Delete tiers that exist in DB but not in JSON (source of truth)
@@ -274,24 +280,24 @@ async function upsertModelWithTiers(
           },
         });
         logger.debug(
-          `Deleted ${tiersToDelete.length} obsolete tiers for model ${defaultModelPrice.model_name}`,
+          `Deleted ${tiersToDelete.length} obsolete tiers for model ${defaultModelPrice.modelName}`,
         );
       }
     }
 
     // 4. Upsert each tier and its prices
-    for (const tier of defaultModelPrice.pricing_tiers) {
+    for (const tier of defaultModelPrice.pricingTiers) {
       await upsertTierWithPrices(
         tx,
         defaultModelPrice.id,
-        defaultModelPrice.created_at,
-        defaultModelPrice.updated_at,
+        defaultModelPrice.createdAt,
+        defaultModelPrice.updatedAt,
         tier,
       );
     }
 
     logger.info(
-      `Upserted default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) with ${defaultModelPrice.pricing_tiers.length} tiers`,
+      `Upserted default model ${defaultModelPrice.modelName} (${defaultModelPrice.id}) with ${defaultModelPrice.pricingTiers.length} tiers`,
     );
   });
 }
@@ -314,7 +320,7 @@ async function upsertTierWithPrices(
     where: { id: tier.id },
     update: {
       name: tier.name,
-      isDefault: tier.is_default,
+      isDefault: tier.isDefault,
       priority: tier.priority,
       conditions: tier.conditions,
       updatedAt,
@@ -323,7 +329,7 @@ async function upsertTierWithPrices(
       id: tier.id,
       modelId,
       name: tier.name,
-      isDefault: tier.is_default,
+      isDefault: tier.isDefault,
       priority: tier.priority,
       conditions: tier.conditions,
       createdAt,
@@ -407,15 +413,14 @@ function isModelUpToDate(
 ): boolean {
   // Check if updated_at matches
   const isUpdatedAtSame =
-    existingModel.updatedAt.getTime() ===
-    defaultModelPrice.updated_at.getTime();
+    existingModel.updatedAt.getTime() === defaultModelPrice.updatedAt.getTime();
 
   if (!isUpdatedAtSame) {
     return false;
   }
 
   // Check if tiers match (same count and same IDs)
-  const jsonTierIds = new Set(defaultModelPrice.pricing_tiers.map((t) => t.id));
+  const jsonTierIds = new Set(defaultModelPrice.pricingTiers.map((t) => t.id));
   const dbTierIds = new Set(existingModel.tiers.map((t) => t.id));
 
   if (jsonTierIds.size !== dbTierIds.size) {
@@ -429,7 +434,7 @@ function isModelUpToDate(
   }
 
   // Check if tier properties match
-  for (const jsonTier of defaultModelPrice.pricing_tiers) {
+  for (const jsonTier of defaultModelPrice.pricingTiers) {
     const dbTier = existingModel.tiers.find((t) => t.id === jsonTier.id);
     if (!dbTier) {
       return false;
@@ -438,7 +443,7 @@ function isModelUpToDate(
     if (
       dbTier.name !== jsonTier.name ||
       dbTier.priority !== jsonTier.priority ||
-      dbTier.isDefault !== jsonTier.is_default
+      dbTier.isDefault !== jsonTier.isDefault
     ) {
       return false;
     }
