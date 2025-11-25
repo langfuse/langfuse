@@ -29,7 +29,9 @@ export function useAuthSession() {
           await getSession({ broadcast: true });
         } catch (error) {
           console.error("Error fetching session:", error);
-          // Don't throw - let it retry
+          // Don't throw - The /api/auth/session endpoint occasionally fails
+          // with transient errors. By not throwing, we allow the retry logic
+          // to attempt recovery on the next iteration.
         }
         setRetryCount((prevCount) => prevCount + 1);
       };

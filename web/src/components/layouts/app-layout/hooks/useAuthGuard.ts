@@ -10,11 +10,15 @@ import { PATH_CONSTANTS } from "../utils/pathClassification";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import type { useSession } from "next-auth/react";
 
-export type AuthGuardState =
-  | { type: "allow" }
-  | { type: "loading"; message: string }
-  | { type: "redirect"; url: string; message: string }
-  | { type: "sign-out"; message: string };
+/** Actions the auth guard can request */
+export type AuthGuardAction = "allow" | "loading" | "redirect" | "sign-out";
+
+/** Result of auth guard evaluation */
+export type AuthGuardResult =
+  | { action: "allow" }
+  | { action: "loading"; message: string }
+  | { action: "redirect"; url: string; message: string }
+  | { action: "sign-out"; message: string };
 
 /**
  * Evaluates authentication state and determines appropriate action
@@ -30,7 +34,7 @@ export type AuthGuardState =
 export function useAuthGuard(
   session: ReturnType<typeof useSession>,
   _hideNavigation: boolean,
-): AuthGuardState {
+): AuthGuardResult {
   const router = useRouter();
 
   return useMemo(() => {
@@ -39,16 +43,32 @@ export function useAuthGuard(
 
     // Loading state
     if (session.status === "loading") {
-      return { type: "loading", message: "Loading" };
+      return { action: "loading", message: "Loading" };
     }
 
     const isUnauthPath = PATH_CONSTANTS.unauthenticated.some((p) =>
       pathname.startsWith(p),
     );
-    const isPublishable = PATH_CONSTANTS.publishable.some(
-      (p) =>
-        pathname === p || pathname.startsWith(p.replace("[projectId]", "")),
-    );
+    const isPublicPath = pathname.startsWith("/public/");
+
+    // Check if path is publishable (can be accessed without authentication)
+    const isPublishable = PATH_CONSTANTS.publishable.some((path) => {
+      // Case 1: Exact match (e.g., pathname === "/auth/reset-password")
+      if (pathname === path) return true;
+
+      // Case 2: Prefix match for dynamic routes
+      // Example: path = "/project/[projectId]/traces/[traceId]"
+      //   -> pathPrefix = "/project/[^/]+/traces" (last segment removed, params converted to regex)
+      //   -> matches pathname like "/project/abc123/traces/xyz789"
+      // This allows shared trace/session links to be accessed without authentication
+      const pathPrefix = path
+        .split("/")
+        .slice(0, -1)
+        .join("/")
+        .replace(/\[([^\]]+)\]/g, "[^/]+");
+      const prefixRegex = new RegExp(`^${pathPrefix}/`);
+      return prefixRegex.test(pathname);
+    });
 
     // Invalid user - has session but no DB user
     // This can happen if user was deleted from DB but still has valid JWT
@@ -56,22 +76,24 @@ export function useAuthGuard(
       session.data &&
       session.data.user === null &&
       !isUnauthPath &&
-      !isPublishable
+      !isPublishable &&
+      !isPublicPath
     ) {
-      return { type: "sign-out", message: "Redirecting" };
+      return { action: "sign-out", message: "Redirecting" };
     }
 
     // Unauthenticated user trying to access protected route
     if (
       session.status === "unauthenticated" &&
       !isUnauthPath &&
-      !isPublishable
+      !isPublishable &&
+      !isPublicPath
     ) {
       const targetPath = encodeURIComponent(
         basePath + (pathname === "/" ? pathname : asPath),
       );
       return {
-        type: "redirect",
+        action: "redirect",
         url: `/auth/sign-in?targetPath=${targetPath}`,
         message: "Redirecting",
       };
@@ -81,10 +103,10 @@ export function useAuthGuard(
     if (session.status === "authenticated" && isUnauthPath) {
       const queryTargetPath = query.targetPath as string | undefined;
       const redirectUrl = getSafeRedirectPath(queryTargetPath);
-      return { type: "redirect", url: redirectUrl, message: "Redirecting" };
+      return { action: "redirect", url: redirectUrl, message: "Redirecting" };
     }
 
     // All checks passed - allow access
-    return { type: "allow" };
+    return { action: "allow" };
   }, [session.status, session.data, router]);
 }

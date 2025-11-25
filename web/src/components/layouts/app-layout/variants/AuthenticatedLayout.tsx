@@ -17,17 +17,27 @@ import {
 import { ResizableContent } from "../components/ResizableContent";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import type { Session } from "next-auth";
+import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
+import type { RouteGroup } from "@/src/components/layouts/routes";
+
+/** Grouped navigation structure returned by processNavigation */
+type GroupedNavigation = {
+  ungrouped: NavigationItem[];
+  grouped: Partial<Record<RouteGroup, NavigationItem[]>> | null;
+  flattened: NavigationItem[];
+};
 
 type AuthenticatedLayoutProps = PropsWithChildren<{
   session: Session;
   navigation: {
-    mainNavigation: any;
-    secondaryNavigation: any;
-    navigation: any[];
+    mainNavigation: GroupedNavigation;
+    secondaryNavigation: GroupedNavigation;
+    navigation: NavigationItem[];
   };
   metadata: {
     title: string;
     faviconPath: string;
+    favicon256Path: string;
     appleTouchIconPath: string;
   };
   onSignOut: () => void;
@@ -49,7 +59,13 @@ export function AuthenticatedLayout({
   metadata,
   onSignOut,
 }: AuthenticatedLayoutProps) {
-  const user = session.user!;
+  // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
+  // in AppLayout, which guarantees session.user exists at this point
+  const user = session.user;
+  if (!user) {
+    // This should never happen due to guards in AppLayout, but TypeScript needs this
+    return null;
+  }
 
   // User navigation items for sidebar dropdown
   const userNavProps = {
@@ -69,7 +85,13 @@ export function AuthenticatedLayout({
     <>
       <Head>
         <title>{metadata.title}</title>
-        <link rel="icon" href={metadata.faviconPath} />
+        <link rel="icon" type="image/svg+xml" href={metadata.faviconPath} />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="256x256"
+          href={metadata.favicon256Path}
+        />
         <link rel="apple-touch-icon" href={metadata.appleTouchIconPath} />
       </Head>
 
@@ -83,7 +105,7 @@ export function AuthenticatedLayout({
                 secondaryNavItems={navigation.secondaryNavigation}
                 userNavProps={userNavProps}
               />
-              <SidebarInset>
+              <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
                 <ResizableContent>{children}</ResizableContent>
                 <Toaster visibleToasts={1} />
                 <CommandMenu mainNavigation={navigation.navigation} />

@@ -7,6 +7,10 @@ import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import type { User } from "next-auth";
+
+/** Organization type from user session (can be null when not in project/org context) */
+type Organization = User["organizations"][number] | null | undefined;
 
 /**
  * Individual filter functions - each handles one concern
@@ -79,9 +83,13 @@ export const filters = {
   /**
    * Filter routes based on plan entitlements
    * OR logic - user needs at least one of the required entitlements
+   * Cloud admins bypass this check
    */
   entitlements: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.entitlements || route.entitlements.length === 0) return route;
+
+    // Cloud admins bypass entitlement checks
+    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one entitlement
     const hasEntitlement = route.entitlements.some((ent) =>
@@ -94,9 +102,13 @@ export const filters = {
   /**
    * Filter routes based on project-level RBAC scopes
    * OR logic - user needs at least one of the required scopes
+   * Cloud admins bypass this check
    */
   projectRbac: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (!route.projectRbacScopes || !ctx.routerProjectId) return route;
+
+    // Cloud admins bypass RBAC checks
+    if (ctx.cloudAdmin) return route;
 
     // OR logic - user needs at least one scope
     const hasScope = route.projectRbacScopes.some((scope) =>
@@ -112,12 +124,16 @@ export const filters = {
 
   /**
    * Filter routes based on organization-level RBAC scope
+   * Cloud admins bypass this check
    */
   organizationRbac: (
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
     if (!route.organizationRbacScope || !ctx.routerOrganizationId) return route;
+
+    // Cloud admins bypass RBAC checks
+    if (ctx.cloudAdmin) return route;
 
     const hasScope = hasOrganizationAccess({
       session: ctx.session,
@@ -134,11 +150,14 @@ export const filters = {
    */
   customShow: (
     route: Route,
-    ctx: NavigationFilterContext,
-    organization: any,
+    _ctx: NavigationFilterContext,
+    organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
-    return route.show({ organization }) ? route : null;
+    // Convert null to undefined for route.show compatibility
+    return route.show({ organization: organization ?? undefined })
+      ? route
+      : null;
   },
 };
 
@@ -150,34 +169,25 @@ export const filters = {
 function applyFiltersToRoute(
   route: Route,
   ctx: NavigationFilterContext,
-  organization: any,
+  organization: Organization | undefined,
 ): Route | null {
+  // Apply filters in sequence - chain short-circuits on first null
+  const filterChain = [
+    filters.projectScope,
+    filters.organizationScope,
+    filters.uiCustomization,
+    filters.featureFlags,
+    filters.entitlements,
+    filters.projectRbac,
+    filters.organizationRbac,
+    (r: Route) => filters.customShow(r, ctx, organization),
+  ];
+
   let filtered: Route | null = route;
-
-  // Apply each filter in sequence - short circuit on first null
-  filtered = filters.projectScope(filtered, ctx);
-  if (!filtered) return null;
-
-  filtered = filters.organizationScope(filtered, ctx);
-  if (!filtered) return null;
-
-  filtered = filters.uiCustomization(filtered, ctx);
-  if (!filtered) return null;
-
-  filtered = filters.featureFlags(filtered, ctx);
-  if (!filtered) return null;
-
-  filtered = filters.entitlements(filtered, ctx);
-  if (!filtered) return null;
-
-  filtered = filters.projectRbac(filtered, ctx);
-  if (!filtered) return null;
-
-  filtered = filters.organizationRbac(filtered, ctx);
-  if (!filtered) return null;
-
-  filtered = filters.customShow(filtered, ctx, organization);
-  if (!filtered) return null;
+  for (const filter of filterChain) {
+    filtered = filter(filtered, ctx);
+    if (!filtered) return null;
+  }
 
   // Process nested items recursively
   if (filtered.items && filtered.items.length > 0) {
@@ -208,7 +218,7 @@ function applyFiltersToRoute(
 export function applyNavigationFilters(
   routes: Route[],
   ctx: NavigationFilterContext,
-  organization: any,
+  organization: Organization,
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))

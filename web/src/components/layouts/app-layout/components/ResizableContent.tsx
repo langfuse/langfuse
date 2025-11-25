@@ -7,7 +7,7 @@
  */
 
 import { type PropsWithChildren, useRef, useLayoutEffect } from "react";
-import { useMediaQuery } from "react-responsive";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 import {
@@ -33,7 +33,8 @@ import {
  */
 export function ResizableContent({ children }: PropsWithChildren) {
   const { open, setOpen } = useSupportDrawer();
-  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const isMobile = useIsMobile();
+  const isDesktop = !isMobile;
 
   // 👉 DESKTOP: Always render ResizablePanelGroup to prevent remounting children
   // Use refs to programmatically control panel sizes when drawer opens/closes

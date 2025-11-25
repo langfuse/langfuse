@@ -31,12 +31,15 @@ export function useLayoutMetadata(
     const title = activePathName ? `${activePathName} | Langfuse` : "Langfuse";
 
     // Use dev favicon in DEV region for visual distinction
+    // Using SVG for modern browsers with PNG fallback specified in sizes
     const faviconPath =
       region === "DEV" ? `${basePath}/icon-dev.svg` : `${basePath}/icon.svg`;
 
     return {
       title,
       faviconPath,
+      // PNG icons with sizes for broader browser compatibility
+      favicon256Path: `${basePath}/icon256.png`,
       appleTouchIconPath: `${basePath}/apple-touch-icon.png`,
     };
   }, [activePathName, region]);

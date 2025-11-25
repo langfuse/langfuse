@@ -5,18 +5,62 @@
 
 import { useRouter } from "next/router";
 import { useMemo } from "react";
-import type { Session } from "next-auth";
+import type { Session, User } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import {
-  processNavigation,
-  type NavigationItem,
-} from "@/src/components/layouts/utilities/routes";
+  ROUTES,
+  RouteSection,
+  RouteGroup,
+  type Route,
+} from "@/src/components/layouts/routes";
+import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import { applyNavigationFilters } from "../utils/navigationFilters";
 import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
+
+/** Organization type from user session (can be null when not in project/org context) */
+type Organization = User["organizations"][number] | null | undefined;
+
+/** Grouped navigation structure */
+type GroupedNavigation = {
+  ungrouped: NavigationItem[];
+  grouped: Partial<Record<RouteGroup, NavigationItem[]>> | null;
+  flattened: NavigationItem[];
+};
+
+/**
+ * Groups navigation items by RouteGroup
+ */
+function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
+  const ungrouped = items.filter((item) => !item.group);
+  const grouped: Partial<Record<RouteGroup, NavigationItem[]>> = {};
+
+  items.forEach((item) => {
+    if (item.group) {
+      if (!grouped[item.group]) {
+        grouped[item.group] = [];
+      }
+      grouped[item.group]!.push(item);
+    }
+  });
+
+  const groupedResult = Object.keys(grouped).length > 0 ? grouped : null;
+  const groupedItems = groupedResult
+    ? [
+        ...(grouped[RouteGroup.Observability] || []),
+        ...(grouped[RouteGroup.PromptManagement] || []),
+        ...(grouped[RouteGroup.Evaluation] || []),
+      ]
+    : [];
+
+  return {
+    ungrouped,
+    grouped: groupedResult,
+    flattened: [...ungrouped, ...groupedItems],
+  };
+}
 
 /**
  * Filters and processes navigation items based on:
@@ -34,7 +78,7 @@ import { isPathActive } from "../utils/pathClassification";
  */
 export function useFilteredNavigation(
   session: Session | null,
-  organization: any,
+  organization: Organization,
 ) {
   const router = useRouter();
   const entitlements = useEntitlements();
@@ -78,44 +122,48 @@ export function useFilteredNavigation(
     return applyNavigationFilters(ROUTES, filterContext, organization);
   }, [filterContext, organization]);
 
-  // Create mapper function to add url and isActive properties
-  const mapRouteToNavigationItem = useMemo(
-    () =>
-      (route: Route): NavigationItem | null => {
-        const url = route.pathname
-          ?.replace("[projectId]", routerProjectId ?? "")
-          .replace("[organizationId]", routerOrganizationId ?? "");
-
-        // Recursively map nested items
-        const items: NavigationItem[] =
-          route.items
-            ?.map(mapRouteToNavigationItem)
-            .filter((item): item is NavigationItem => item !== null) ?? [];
-
-        return {
-          ...route,
-          url,
-          isActive: isPathActive(route.pathname, router.pathname),
-          items: items.length > 0 ? items : undefined,
-        };
-      },
-    [routerProjectId, routerOrganizationId, router.pathname],
-  );
-
-  // Memoize processed navigation
-  // processNavigation expects a mapper function, but we already have filtered routes
-  // So we need to create a wrapper that processes our filtered routes
+  // Map filtered routes to NavigationItems with url and isActive
+  // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
   return useMemo(() => {
-    const mapper = (route: Route): NavigationItem | null => {
-      // Check if this route is in our filtered list
-      const isFiltered = filteredRoutes.some(
-        (r) => r.pathname === route.pathname,
-      );
-      if (!isFiltered) return null;
+    const mapRouteToNavigationItem = (route: Route): NavigationItem => {
+      const url = route.pathname
+        .replace("[projectId]", routerProjectId ?? "")
+        .replace("[organizationId]", routerOrganizationId ?? "");
 
-      return mapRouteToNavigationItem(route);
+      // Recursively map nested items (already filtered by applyNavigationFilters)
+      const items: NavigationItem[] | undefined = route.items
+        ?.map(mapRouteToNavigationItem)
+        .filter((item): item is NavigationItem => item !== null);
+
+      return {
+        ...route,
+        url,
+        isActive: isPathActive(route.pathname, router.pathname),
+        items: items && items.length > 0 ? items : undefined,
+      };
     };
 
-    return processNavigation(mapper);
-  }, [filteredRoutes, mapRouteToNavigationItem]);
+    // Map filtered routes to navigation items
+    const allItems = filteredRoutes.map(mapRouteToNavigationItem);
+
+    // Split by section and group
+    const mainItems = allItems.filter(
+      (item) => item.section === RouteSection.Main,
+    );
+    const secondaryItems = allItems.filter(
+      (item) => item.section === RouteSection.Secondary,
+    );
+
+    const mainNavigation = groupNavigationItems(mainItems);
+    const secondaryNavigation = groupNavigationItems(secondaryItems);
+
+    return {
+      mainNavigation,
+      secondaryNavigation,
+      navigation: [
+        ...mainNavigation.flattened,
+        ...secondaryNavigation.flattened,
+      ],
+    };
+  }, [filteredRoutes, routerProjectId, routerOrganizationId, router.pathname]);
 }

@@ -63,18 +63,18 @@ export function AppLayout(props: PropsWithChildren) {
 
   // Handle auth guard actions (redirect or sign-out)
   useEffect(() => {
-    if (authGuard.type === "redirect") {
+    if (authGuard.action === "redirect") {
       void router.replace(authGuard.url);
-    } else if (authGuard.type === "sign-out") {
+    } else if (authGuard.action === "sign-out") {
       void signOut({ redirect: false });
     }
   }, [authGuard, router]);
 
   // Loading or redirecting state
   if (
-    authGuard.type === "loading" ||
-    authGuard.type === "redirect" ||
-    authGuard.type === "sign-out"
+    authGuard.action === "loading" ||
+    authGuard.action === "redirect" ||
+    authGuard.action === "sign-out"
   ) {
     return <LoadingLayout message={authGuard.message} />;
   }
@@ -98,12 +98,8 @@ export function AppLayout(props: PropsWithChildren) {
     );
   }
 
-  // Render minimal layout (onboarding, public routes)
-  if (hideNavigation) {
-    return <MinimalLayout>{props.children}</MinimalLayout>;
-  }
-
   // Unauthenticated layout (sign-in, sign-up)
+  // Must check variant BEFORE hideNavigation since auth pages set hideNavigation=true
   if (variant === "unauthenticated") {
     return <UnauthenticatedLayout>{props.children}</UnauthenticatedLayout>;
   }
@@ -114,14 +110,31 @@ export function AppLayout(props: PropsWithChildren) {
     return <MinimalLayout>{props.children}</MinimalLayout>;
   }
 
+  // Render minimal layout (onboarding, public routes)
+  if (hideNavigation) {
+    return <MinimalLayout>{props.children}</MinimalLayout>;
+  }
+
   // Authenticated layout
-  const handleSignOut = () => {
-    void signOut({ redirect: false });
+  // At this point, all auth guards have passed and session.data is guaranteed to exist
+  // The authGuard hook ensures we don't reach here without a valid session
+  if (!session.data) {
+    // This should never happen due to guards above, but TypeScript needs this
+    return <LoadingLayout message="Loading" />;
+  }
+
+  const handleSignOut = async () => {
+    sessionStorage.clear();
+    // Redirect to sign-in with current path as targetPath for post-login redirect
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    const targetPath = encodeURIComponent(basePath + router.asPath);
+    // explicitly set callbackUrl to avoid error pages when the user is currently on a publishable path without a published entity
+    await signOut({ callbackUrl: `/auth/sign-in?targetPath=${targetPath}` });
   };
 
   return (
     <AuthenticatedLayout
-      session={session.data!}
+      session={session.data}
       navigation={navigation}
       metadata={metadata}
       onSignOut={handleSignOut}
