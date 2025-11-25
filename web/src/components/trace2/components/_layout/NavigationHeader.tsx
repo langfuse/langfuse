@@ -20,7 +20,6 @@ import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
 import { TraceSettingsDropdown } from "../TraceSettingsDropdown";
 import { downloadTraceAsJson } from "../../lib/download-trace";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { NavigationPanelToggleButton } from "./NavigationPanelToggleButton";
 
 interface NavigationHeaderProps {
@@ -62,7 +61,6 @@ function NavigationHeaderExpanded({
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { tree, trace, observations } = useTraceData();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
-  const capture = usePostHogClientCapture();
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
