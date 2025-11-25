@@ -591,20 +591,21 @@ model CronJobs {
 }
 
 model Dataset {
-  id                      String        @default(cuid())
-  projectId               String        @map("project_id")
+  id                      String             @default(cuid())
+  projectId               String             @map("project_id")
   name                    String
   description             String?
   metadata                Json?
-  remoteExperimentUrl     String?       @map("remote_experiment_url")
-  remoteExperimentPayload Json?         @map("remote_experiment_payload")
-  inputSchema             Json?   @db.Json @map("input_schema")
-  expectedOutputSchema    Json?   @db.Json @map("expected_output_schema")
-  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt               DateTime      @default(now()) @map("created_at")
-  updatedAt               DateTime      @default(now()) @updatedAt @map("updated_at")
+  remoteExperimentUrl     String?            @map("remote_experiment_url")
+  remoteExperimentPayload Json?              @map("remote_experiment_payload")
+  inputSchema             Json?              @map("input_schema") @db.Json
+  expectedOutputSchema    Json?              @map("expected_output_schema") @db.Json
+  project                 Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @default(now()) @updatedAt @map("updated_at")
   datasetItems            DatasetItem[]
   datasetRuns             DatasetRuns[]
+  datasetItemEvents       DatasetItemEvent[]
 
   @@id([id, projectId])
   @@unique([projectId, name])
@@ -635,6 +636,25 @@ model DatasetItem {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_items")
+}
+
+model DatasetItemEvent {
+  id                  String         @id @default(cuid())
+  itemId              String         @map("item_id")
+  projectId           String         @map("project_id")
+  datasetId           String         @map("dataset_id")
+  dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
+  status              DatasetStatus?
+  input               Json?
+  expectedOutput      Json?          @map("expected_output")
+  metadata            Json?
+  sourceTraceId       String?        @map("source_trace_id")
+  sourceObservationId String?        @map("source_observation_id")
+  createdAt           DateTime?      @map("created_at")
+  deletedAt           DateTime?      @map("deleted_at")
+
+  @@index([projectId, datasetId, itemId, createdAt])
+  @@map("dataset_item_events")
 }
 
 enum DatasetStatus {
