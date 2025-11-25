@@ -32,8 +32,8 @@ const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
 const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
 
-const NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS = 200;
-const NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS = 50;
+const NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS = 360;
+const NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS = 40;
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;

@@ -104,14 +104,15 @@ function NavigationHeaderExpanded({
   return (
     <Command className="mt-1 flex h-auto flex-shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
       <div className="flex flex-row justify-between pl-1 pr-2">
-        <div className="flex flex-row items-center pl-1.5">
-          {/* Panel Toggle Button */}
+        {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
+        <div className="flex flex-row items-center p-0.5">
           <NavigationPanelToggleButton
             isPanelCollapsed={isPanelCollapsed}
             onTogglePanel={onTogglePanel}
             shouldPulseToggle={shouldPulseToggle}
           />
         </div>
+        {/* Search Input */}
         <div className="relative flex-1">
           <CommandInput
             showBorder={false}

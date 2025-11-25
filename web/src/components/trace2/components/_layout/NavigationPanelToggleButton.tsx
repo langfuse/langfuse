@@ -27,7 +27,7 @@ export function NavigationPanelToggleButton({
       variant="ghost"
       size="icon"
       title={isPanelCollapsed ? "Expand panel" : "Collapse panel"}
-      className={cn("h-7 w-7", shouldPulseToggle && "animate-pulse")}
+      className={cn("h-7 w-7 shrink-0", shouldPulseToggle && "animate-pulse")}
     >
       {isPanelCollapsed ? (
         <PanelLeftOpen className="h-3.5 w-3.5" />
