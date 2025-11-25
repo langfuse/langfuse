@@ -97,8 +97,8 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
       SELECT type, exception_code
       FROM clusterAllReplicas('default', 'system.query_log')
       WHERE query_id = {queryId: String}
-        AND type != 'QueryStart'
-      ORDER BY event_time DESC
+        -- AND type != 'QueryStart'
+      ORDER BY event_time_microseconds DESC
       LIMIT 1
       SETTINGS skip_unavailable_shards = 1
     `,
@@ -114,6 +114,10 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
   }
 
   const { type, exception_code } = result[0];
+  if (type === "QueryStart") {
+    return "running";
+  }
+
   if (
     type === "ExceptionBeforeStart" ||
     type === "ExceptionWhileProcessing" ||
@@ -122,7 +126,11 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
     return "failed";
   }
 
-  return "completed";
+  if (type === "QueryFinish") {
+    return "completed";
+  }
+
+  throw new Error(`Unknown query log type: ${type}`);
 }
 
 async function getQueryError(queryId: string): Promise<string | undefined> {
@@ -133,7 +141,7 @@ async function getQueryError(queryId: string): Promise<string | undefined> {
       WHERE query_id = {queryId: String}
         AND type != 'QueryStart'
         AND exception != ''
-      ORDER BY event_time DESC
+      ORDER BY event_time_microseconds DESC
       LIMIT 1
       SETTINGS skip_unavailable_shards = 1
     `,
@@ -449,7 +457,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
   // ============================================================================
 
   private buildQuery(todo: ChunkTodo): string {
-    // TODO: We're missing the partition filter here.
     const whereClause = todo.upperBound
       ? `WHERE (o.project_id, o.trace_id) >= ('${todo.lowerBound.projectId}', '${todo.lowerBound.traceId}')
            AND (o.project_id, o.trace_id) < ('${todo.upperBound.projectId}', '${todo.upperBound.traceId}')`
@@ -513,7 +520,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       ON o.project_id = t.project_id AND o.trace_id = t.id
       ${whereClause}
       AND o._partition_id = '${todo.partition}'
-      AND t._partition_id = '${todo.partition}'
+      AND (t._partition_id = '${todo.partition}' OR t._partition_id IS NULL)
       SETTINGS
         join_algorithm = 'full_sorting_merge',
         type_json_skip_duplicated_paths = 1
@@ -544,7 +551,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         request_timeout: timeoutMs,
       },
       clickhouseSettings: {
-        query_id: queryId,
         send_progress_in_http_headers: 1,
         http_headers_progress_interval_ms: "30000",
       },
