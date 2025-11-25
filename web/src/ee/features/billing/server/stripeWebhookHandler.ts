@@ -573,17 +573,15 @@ async function handleSubscriptionChanged(
       after: updatedCloudConfig,
     });
   } else if (action === "deleted") {
+    // When subscription is deleted, only keep customerId and remove all other subscription fields
+    // Note: We omit fields entirely rather than setting to undefined, as undefined gets converted
+    // to null in PostgreSQL JSONB, which can cause validation issues
     const updatedCloudConfig = {
       ...parsedOrg.cloudConfig,
       stripe: {
-        ...parsedOrg.cloudConfig?.stripe,
-        ...CloudConfigSchema.shape.stripe.parse({
-          customerId: stripeCustomerId,
-          activeProductId: undefined,
-          activeSubscriptionId: undefined,
-          activeUsageProductId: undefined,
-          subscriptionStatus: undefined,
-        }),
+        customerId: stripeCustomerId,
+        // Explicitly omit activeProductId, activeSubscriptionId, activeUsageProductId, subscriptionStatus
+        // They will not be present in the saved JSON rather than being null
       },
     };
 
