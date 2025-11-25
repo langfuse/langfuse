@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Decimal } from "decimal.js";
+import { validateRegexPattern } from "@langfuse/shared";
 import {
   matchPricingTier,
-  validateRegexPattern,
   type PricingTierWithPrices,
 } from "@langfuse/shared/src/server";
 
