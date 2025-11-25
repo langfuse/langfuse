@@ -67,7 +67,7 @@ export type ItemBase = {
 };
 
 export type ItemWithIO = ItemBase & {
-  input: any;
-  expectedOutput: any;
-  metadata: any;
+  input: Prisma.JsonValue;
+  expectedOutput: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
 };

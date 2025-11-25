@@ -16,7 +16,7 @@ type DatasetItemsByVersionQuery = {
  * Raw database row from dataset_item_events query
  */
 type DatasetItemEventRow = {
-  id: string;
+  item_id: string;
   input?: any;
   expected_output?: any;
   metadata?: any;
@@ -47,8 +47,8 @@ function buildDatasetItemsVersionQuery(
 
   return `
     WITH latest_events AS (
-      SELECT DISTINCT ON (id)
-        id,
+      SELECT DISTINCT ON (item_id)
+        item_id,
         ${ioFields}
         source_trace_id,
         source_observation_id,
@@ -60,10 +60,10 @@ function buildDatasetItemsVersionQuery(
       WHERE project_id = $1
       AND dataset_id = $2
       AND created_at <= $3
-      ORDER BY id, created_at DESC
+      ORDER BY item_id, created_at DESC
     )
     SELECT
-      id,
+      item_id,
       ${ioFields}
       source_trace_id,
       source_observation_id,
@@ -73,7 +73,7 @@ function buildDatasetItemsVersionQuery(
     FROM latest_events
     WHERE deleted_at IS NULL
      OR deleted_at > $3
-    ORDER BY id
+    ORDER BY item_id
   `;
 }
 
@@ -84,14 +84,14 @@ function buildDatasetItemsVersionQuery(
 function buildDatasetItemsVersionCountQuery(): string {
   return `
     WITH latest_events AS (
-      SELECT DISTINCT ON (id)
-        id,
+      SELECT DISTINCT ON (item_id)
+        item_id,
         deleted_at
       FROM dataset_item_events
       WHERE project_id = $1
       AND dataset_id = $2
       AND created_at <= $3
-      ORDER BY id, created_at DESC
+      ORDER BY item_id, created_at DESC
     )
     SELECT COUNT(*) as count
     FROM latest_events
@@ -108,7 +108,7 @@ function convertRowToItem<IncludeIO extends boolean = true>(
   includeIO: IncludeIO,
 ): IncludeIO extends true ? ItemWithIO : ItemBase {
   const base: ItemBase = {
-    id: row.id,
+    id: row.item_id,
     sourceTraceId: row.source_trace_id,
     sourceObservationId: row.source_observation_id,
     status: row.status,

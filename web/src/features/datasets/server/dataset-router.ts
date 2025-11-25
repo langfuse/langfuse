@@ -1058,7 +1058,10 @@ export const datasetRouter = createTRPCRouter({
         await executeWithDatasetServiceStrategy(OperationType.WRITE, {
           [Implementation.STATEFUL]: async () => {
             await ctx.prisma.datasetItem.createMany({
-              data: preparedItems,
+              data: preparedItems.map((item) => ({
+                ...item,
+                id: item.itemId,
+              })),
             });
           },
           [Implementation.VERSIONED]: async () => {
