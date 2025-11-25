@@ -1,16 +1,5 @@
 /**
  * TraceDetailView - Shows trace-level details when no observation is selected
- *
- * Current state: SCAFFOLDING ONLY
- * - Header with badge and trace name
- * - Metadata badges (timestamp, session, user, environment)
- * - Tab structure (Preview, Log View, Scores) with placeholder content
- * - View toggle (Formatted/JSON)
- *
- * Content implementation tracked in sub-issues:
- * - S5.4a: Preview tab content (IOPreview, Tags, Metadata)
- * - S5.4b: Log View tab content (TraceLogView component)
- * - S5.4c: Scores tab content (ScoresTable)
  */
 
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";

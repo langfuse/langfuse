@@ -12,13 +12,13 @@
  * - All content scrollable within sections
  */
 
-import { NavigationPanel } from "./NavigationPanel";
-import { PreviewPanel } from "./PreviewPanel";
+import { TracePanelNavigation } from "./TracePanelNavigation";
+import { TracePanelDetail } from "./TracePanelDetail";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-export function MobileTraceLayout() {
+export function TraceLayoutMobile() {
   const [isNavigationExpanded, setIsNavigationExpanded] = useState(true);
 
   return (
@@ -42,7 +42,7 @@ export function MobileTraceLayout() {
         {/* Navigation Content - Collapsible */}
         {isNavigationExpanded && (
           <div className="max-h-96 overflow-y-auto">
-            <NavigationPanel
+            <TracePanelNavigation
               onTogglePanel={() => setIsNavigationExpanded(false)}
               isPanelCollapsed={!isNavigationExpanded}
             />
@@ -52,7 +52,7 @@ export function MobileTraceLayout() {
 
       {/* Preview Section - Takes remaining space */}
       <div className="flex-1 overflow-y-auto">
-        <PreviewPanel />
+        <TracePanelDetail />
       </div>
     </div>
   );

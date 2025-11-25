@@ -1,23 +1,6 @@
-import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
-import {
-  type UrlUpdateType,
-  StringParam,
-  useQueryParam,
-} from "use-query-params";
-import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { type ScoreDomain } from "@langfuse/shared";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider } from "./contexts/TraceDataContext";
-import {
-  ViewPreferencesProvider,
-  useViewPreferences,
-} from "./contexts/ViewPreferencesContext";
-import { SelectionProvider } from "./contexts/SelectionContext";
-import { SearchProvider } from "./contexts/SearchContext";
-import { NavigationPanel } from "./components/_layout/NavigationPanel";
-import { PreviewPanel } from "./components/_layout/PreviewPanel";
-import { MobileTraceLayout } from "./components/_layout/MobileTraceLayout";
-import { useIsMobile } from "@/src/hooks/use-mobile";
+import { StringParam, useQueryParam } from "use-query-params";
+import { TracePanelNavigation } from "./TracePanelNavigation";
+import { TracePanelDetail } from "./TracePanelDetail";
 
 import {
   PanelGroup,
@@ -25,7 +8,7 @@ import {
   Panel,
   type ImperativePanelHandle,
 } from "react-resizable-panels";
-import { useMemo, useRef, useState, useEffect, useLayoutEffect } from "react";
+import { useRef, useState, useEffect, useLayoutEffect } from "react";
 
 const RESIZABLE_PANEL_GROUP_ID = "trace-layout";
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
@@ -36,92 +19,7 @@ const NAVIGATION_PANEL_DEFAULT_SIZE_IN_PIXELS = 450;
 const NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS = 360;
 const NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS = 40;
 
-export type TraceProps = {
-  observations: Array<ObservationReturnTypeWithMetadata>;
-  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
-    input: string | null;
-    output: string | null;
-  };
-  scores: WithStringifiedMetadata<ScoreDomain>[];
-  projectId: string;
-  viewType?: "detailed" | "focused";
-  context?: "peek" | "fullscreen";
-  isValidObservationId?: boolean;
-  defaultMinObservationLevel?: ObservationLevelType;
-  selectedTab?: string;
-  setSelectedTab?: (
-    newValue?: string | null,
-    updateType?: UrlUpdateType,
-  ) => void;
-};
-
-export function Trace(props: TraceProps) {
-  const { trace, observations, scores, defaultMinObservationLevel } = props;
-
-  // Build comments map (empty for now - will be populated from API in future)
-  const commentsMap = useMemo(() => new Map<string, number>(), []);
-
-  return (
-    <ViewPreferencesProvider
-      defaultMinObservationLevel={defaultMinObservationLevel}
-    >
-      <TraceWithPreferences
-        trace={trace}
-        observations={observations}
-        scores={scores}
-        commentsMap={commentsMap}
-      />
-    </ViewPreferencesProvider>
-  );
-}
-
-function TraceWithPreferences({
-  trace,
-  observations,
-  scores,
-  commentsMap,
-}: {
-  trace: TraceProps["trace"];
-  observations: TraceProps["observations"];
-  scores: TraceProps["scores"];
-  commentsMap: Map<string, number>;
-}) {
-  const { minObservationLevel } = useViewPreferences();
-
-  return (
-    <TraceDataProvider
-      trace={trace}
-      observations={observations}
-      scores={scores}
-      comments={commentsMap}
-      minObservationLevel={minObservationLevel}
-    >
-      <SelectionProvider>
-        <SearchProvider>
-          <TraceContent />
-        </SearchProvider>
-      </SelectionProvider>
-    </TraceDataProvider>
-  );
-}
-
-function TraceContent() {
-  const isMobile = useIsMobile();
-
-  // Mobile layout - vertical stack without resizing
-  if (isMobile) {
-    return (
-      <div className="h-full w-full">
-        <MobileTraceLayout />
-      </div>
-    );
-  }
-
-  // Desktop-only: resizable horizontal panels
-  return <DesktopTraceLayout />;
-}
-
-function DesktopTraceLayout() {
+export function TraceLayoutDesktop() {
   // Get current view mode from URL
   const [viewMode] = useQueryParam("view", StringParam);
   const isTimelineView = viewMode === "timeline";
@@ -237,7 +135,7 @@ function DesktopTraceLayout() {
           onCollapse={() => setIsNavigationPanelCollapsed(true)}
           onExpand={() => setIsNavigationPanelCollapsed(false)}
         >
-          <NavigationPanel
+          <TracePanelNavigation
             isPanelCollapsed={isNavigationPanelCollapsed}
             onTogglePanel={handleTogglePanel}
             shouldPulseToggle={shouldPulseToggle}
@@ -249,7 +147,7 @@ function DesktopTraceLayout() {
           onDoubleClick={handleTogglePanel}
         />
         <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize={70} minSize={50}>
-          <PreviewPanel />
+          <TracePanelDetail />
         </Panel>
       </PanelGroup>
     </div>

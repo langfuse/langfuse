@@ -7,7 +7,7 @@ import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { ErrorPage } from "@/src/components/error-page";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import Page from "@/src/components/layouts/page";
-import { Trace } from "@/src/components/trace2";
+import { Trace } from "@/src/components/trace2/Trace";
 
 export function TracePage({
   traceId,

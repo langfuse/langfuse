@@ -20,29 +20,31 @@ import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
 import { TraceSettingsDropdown } from "../TraceSettingsDropdown";
 import { downloadTraceAsJson } from "../../lib/download-trace";
-import { NavigationPanelToggleButton } from "./NavigationPanelToggleButton";
+import { TracePanelNavigationButton } from "./TracePanelNavigationButton";
 
-interface NavigationHeaderProps {
+interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
   onTogglePanel: () => void;
   shouldPulseToggle?: boolean;
 }
 
-export function NavigationHeader(props: NavigationHeaderProps) {
+export function TracePanelNavigationHeader(
+  props: TracePanelNavigationHeaderProps,
+) {
   if (props.isPanelCollapsed) {
-    return <NavigationHeaderCollapsed {...props} />;
+    return <TracePanelNavigationHeaderCollapsed {...props} />;
   }
-  return <NavigationHeaderExpanded {...props} />;
+  return <TracePanelNavigationHeaderExpanded {...props} />;
 }
 
-function NavigationHeaderCollapsed({
+function TracePanelNavigationHeaderCollapsed({
   isPanelCollapsed,
   onTogglePanel,
   shouldPulseToggle = false,
-}: NavigationHeaderProps) {
+}: TracePanelNavigationHeaderProps) {
   return (
     <div className="flex w-full flex-row items-center justify-center p-2">
-      <NavigationPanelToggleButton
+      <TracePanelNavigationButton
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanel={onTogglePanel}
         shouldPulseToggle={shouldPulseToggle}
@@ -51,11 +53,11 @@ function NavigationHeaderCollapsed({
   );
 }
 
-function NavigationHeaderExpanded({
+function TracePanelNavigationHeaderExpanded({
   isPanelCollapsed,
   onTogglePanel,
   shouldPulseToggle = false,
-}: NavigationHeaderProps) {
+}: TracePanelNavigationHeaderProps) {
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
@@ -104,7 +106,7 @@ function NavigationHeaderExpanded({
       <div className="flex flex-row justify-between pl-1 pr-2">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
         <div className="flex flex-row items-center p-0.5">
-          <NavigationPanelToggleButton
+          <TracePanelNavigationButton
             isPanelCollapsed={isPanelCollapsed}
             onTogglePanel={onTogglePanel}
             shouldPulseToggle={shouldPulseToggle}

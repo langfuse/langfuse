@@ -11,9 +11,9 @@
 
 import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
-import { TraceDetailView } from "../TraceDetailView";
+import { TraceDetailView } from "../TraceDetailView/TraceDetailView";
 
-export function PreviewPanel() {
+export function TracePanelDetail() {
   const { selectedNodeId } = useSelection();
   const { trace, nodeMap, observations, scores } = useTraceData();
 

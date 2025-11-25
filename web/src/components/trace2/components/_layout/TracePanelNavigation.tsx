@@ -10,24 +10,24 @@
  */
 
 import { useSearch } from "../../contexts/SearchContext";
-import { NavigationHeader } from "./NavigationHeader";
+import { TracePanelNavigationHeader } from "./TracePanelNavigationHeader";
 import { HiddenObservationsNotice } from "./HiddenObservationsNotice";
 import { TraceTree } from "../TraceTree";
 import { TraceSearchList } from "../TraceSearchList";
 import { TraceTimeline } from "../TraceTimeline";
 import { StringParam, useQueryParam } from "use-query-params";
 
-interface NavigationPanelProps {
+interface TracePanelNavigationProps {
   isPanelCollapsed: boolean;
   onTogglePanel: () => void;
   shouldPulseToggle?: boolean;
 }
 
-export function NavigationPanel({
+export function TracePanelNavigation({
   isPanelCollapsed,
   onTogglePanel,
   shouldPulseToggle = false,
-}: NavigationPanelProps) {
+}: TracePanelNavigationProps) {
   const { searchQuery } = useSearch();
   const [viewMode] = useQueryParam("view", StringParam);
 
@@ -51,7 +51,7 @@ export function NavigationPanel({
   return (
     <div className="flex h-full flex-col border-r">
       {/* Fixed height search bar */}
-      <NavigationHeader
+      <TracePanelNavigationHeader
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanel={onTogglePanel}
         shouldPulseToggle={shouldPulseToggle}
