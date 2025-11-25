@@ -13,14 +13,10 @@ body:
         - "Self-Hosted"
     validations:
       required: true
-  - type: textarea
+  - type: input
     attributes:
-      label: Self-Hosted
-      description: What version are you running? We may ask you to upgrade to the latest version, as many issues are being fixed continuously.
-  - type: textarea
-    attributes:
-      label: Langfuse Cloud
-      description: Please share the link to your Langfuse project or the specific view you have a question about. This helps us resolve requests faster.
+      label: If self-hosted, what version are you running?
+      description: We may ask you to upgrade to the latest version, as many issues are continuously being fixed.
   - type: textarea
     attributes:
       label: SDK and integration versions
