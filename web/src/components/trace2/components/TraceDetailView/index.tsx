@@ -22,6 +22,10 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import ScoresTable from "@/src/components/table/use-cases/scores";
+import { TraceLogView } from "./TraceLogView";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { useState } from "react";
 
 export interface TraceDetailViewProps {
@@ -43,6 +47,10 @@ export function TraceDetailView({
 }: TraceDetailViewProps) {
   const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
     "preview",
+  );
+  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
+    "jsonViewPreference",
+    "pretty",
   );
 
   return (
@@ -119,6 +127,26 @@ export function TraceDetailView({
             <TabsBarTrigger value="log">Log View</TabsBarTrigger>
           )}
           <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+
+          {/* View toggle (Formatted/JSON) - only show for log tab */}
+          {selectedTab === "log" && (
+            <Tabs
+              className="ml-auto mr-1 h-fit px-2 py-0.5"
+              value={currentView}
+              onValueChange={(value) => {
+                setCurrentView(value as "pretty" | "json");
+              }}
+            >
+              <TabsList className="h-fit py-0.5">
+                <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                  Formatted
+                </TabsTrigger>
+                <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                  JSON
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
         </TabsBarList>
 
         {/* Preview tab content */}
@@ -141,32 +169,29 @@ export function TraceDetailView({
         </TabsBarContent>
 
         {/* Log tab content */}
-        <TabsBarContent
-          value="log"
-          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
-        >
-          <div className="w-full overflow-y-auto p-4">
-            <p className="text-sm text-muted-foreground">
-              Log view content (TODO: Add TraceLogView)
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {observations.length} observations
-            </p>
-          </div>
+        <TabsBarContent value="log">
+          <TraceLogView
+            observations={observations}
+            traceId={trace.id}
+            projectId={projectId}
+            currentView={currentView}
+            trace={trace}
+          />
         </TabsBarContent>
 
         {/* Scores tab content */}
         <TabsBarContent
           value="scores"
-          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+          className="mb-2 mr-4 mt-0 flex h-full min-h-0 w-full overflow-hidden md:flex-1"
         >
-          <div className="w-full overflow-y-auto p-4">
-            <p className="text-sm text-muted-foreground">
-              Scores content (TODO: Add ScoresTable)
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {scores.length} scores
-            </p>
+          <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3 md:flex-1">
+            <ScoresTable
+              projectId={projectId}
+              omittedFilter={["Trace ID"]}
+              traceId={trace.id}
+              hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
+              localStorageSuffix="TracePreview"
+            />
           </div>
         </TabsBarContent>
       </TabsBar>
