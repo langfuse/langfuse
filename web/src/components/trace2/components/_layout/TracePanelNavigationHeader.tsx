@@ -20,16 +20,54 @@ import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
 import { TraceSettingsDropdown } from "../TraceSettingsDropdown";
 import { downloadTraceAsJson } from "../../lib/download-trace";
+import { TracePanelNavigationButton } from "./TracePanelNavigationButton";
 
-export function NavigationHeader() {
-  const { searchInputValue, setSearchInputValue } = useSearch();
+interface TracePanelNavigationHeaderProps {
+  isPanelCollapsed: boolean;
+  onTogglePanel: () => void;
+  shouldPulseToggle?: boolean;
+}
+
+export function TracePanelNavigationHeader(
+  props: TracePanelNavigationHeaderProps,
+) {
+  if (props.isPanelCollapsed) {
+    return <TracePanelNavigationHeaderCollapsed {...props} />;
+  }
+  return <TracePanelNavigationHeaderExpanded {...props} />;
+}
+
+function TracePanelNavigationHeaderCollapsed({
+  isPanelCollapsed,
+  onTogglePanel,
+  shouldPulseToggle = false,
+}: TracePanelNavigationHeaderProps) {
+  return (
+    <div className="flex w-full flex-row items-center justify-center p-2">
+      <TracePanelNavigationButton
+        isPanelCollapsed={isPanelCollapsed}
+        onTogglePanel={onTogglePanel}
+        shouldPulseToggle={shouldPulseToggle}
+      />
+    </div>
+  );
+}
+
+function TracePanelNavigationHeaderExpanded({
+  isPanelCollapsed,
+  onTogglePanel,
+  shouldPulseToggle = false,
+}: TracePanelNavigationHeaderProps) {
+  const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
+    useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { tree, trace, observations } = useTraceData();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      // TODO: Implement immediate search on Enter
+      // Skip debouncing and search immediately
+      setSearchQueryImmediate(searchInputValue);
     }
   };
 
@@ -45,7 +83,7 @@ export function NavigationHeader() {
     return ids;
   }, []);
 
-  const handleToggleExpandCollapseAll = useCallback(() => {
+  const handleToggleTreeNodes = useCallback(() => {
     if (isEverythingCollapsed) {
       expandAll();
     } else {
@@ -66,6 +104,15 @@ export function NavigationHeader() {
   return (
     <Command className="mt-1 flex h-auto flex-shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
       <div className="flex flex-row justify-between pl-1 pr-2">
+        {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
+        <div className="flex flex-row items-center p-0.5">
+          <TracePanelNavigationButton
+            isPanelCollapsed={isPanelCollapsed}
+            onTogglePanel={onTogglePanel}
+            shouldPulseToggle={shouldPulseToggle}
+          />
+        </div>
+        {/* Search Input */}
         <div className="relative flex-1">
           <CommandInput
             showBorder={false}
@@ -79,7 +126,7 @@ export function NavigationHeader() {
         <div className="flex flex-row items-center gap-0.5">
           {/* Expand/Collapse All Button */}
           <Button
-            onClick={handleToggleExpandCollapseAll}
+            onClick={handleToggleTreeNodes}
             variant="ghost"
             size="icon"
             title={isEverythingCollapsed ? "Expand all" : "Collapse all"}

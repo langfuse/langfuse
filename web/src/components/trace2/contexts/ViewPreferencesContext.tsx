@@ -47,12 +47,10 @@ export function useViewPreferences(): ViewPreferencesContextValue {
 
 interface ViewPreferencesProviderProps {
   children: ReactNode;
-  defaultMinObservationLevel?: ObservationLevelType;
 }
 
 export function ViewPreferencesProvider({
   children,
-  defaultMinObservationLevel,
 }: ViewPreferencesProviderProps) {
   const [showDuration, setShowDuration] = useLocalStorage(
     "durationOnObservationTree",
@@ -75,7 +73,7 @@ export function ViewPreferencesProvider({
   const [minObservationLevel, setMinObservationLevel] =
     useLocalStorage<ObservationLevelType>(
       "minObservationLevel",
-      defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
+      ObservationLevel.DEFAULT,
     );
 
   const value = useMemo<ViewPreferencesContextValue>(
