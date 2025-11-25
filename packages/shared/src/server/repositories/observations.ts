@@ -1778,6 +1778,7 @@ export const getCostByEvaluatorIds = async (
     FROM observations FINAL
     WHERE project_id = {projectId: String}
       AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
+      AND type = 'GENERATION'
       AND start_time > today() - 7
     GROUP BY metadata['job_configuration_id']
   `;

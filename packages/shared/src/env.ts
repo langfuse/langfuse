@@ -22,6 +22,13 @@ const EnvSchema = z.object({
   REDIS_TLS_CA_PATH: z.string().optional(),
   REDIS_TLS_CERT_PATH: z.string().optional(),
   REDIS_TLS_KEY_PATH: z.string().optional(),
+  REDIS_TLS_SERVERNAME: z.string().optional(),
+  REDIS_TLS_REJECT_UNAUTHORIZED: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_CHECK_SERVER_IDENTITY: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_SECURE_PROTOCOL: z.string().optional(),
+  REDIS_TLS_CIPHERS: z.string().optional(),
+  REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -53,6 +60,9 @@ const EnvSchema = z.object({
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
+    .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
+    .default("alter_update"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -226,6 +236,18 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+
+  // API Performance Flags
+  // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
+  // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
+  LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
+    .enum(["true", "false"])
+    .default("false"),
+  // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
+  // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
+  LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
+    .enum(["true", "false"])
+    .default("false"),
 
   // Langfuse AI Features
   LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),

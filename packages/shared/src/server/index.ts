@@ -10,6 +10,9 @@ export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
 export * from "./services/InMemoryFilterService";
+export * from "./services/DatasetService";
+export * from "./datasets/schemaValidation";
+export * from "./datasets/schemaTypes";
 export * from "./evalJobConfigCache";
 export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
@@ -72,6 +75,7 @@ export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/eventPropagationQueue";
+export * from "./redis/otelProjectTracking";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";
@@ -80,6 +84,7 @@ export * from "./instrumentation";
 export * from "./logger";
 export * from "./headerPropagation";
 export * from "./queries";
+export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
 export * from "./repositories/traces";
 export * from "./utils/rendering";
@@ -97,7 +102,6 @@ export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
 // dataset run items
-export * from "./datasets";
 export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils
