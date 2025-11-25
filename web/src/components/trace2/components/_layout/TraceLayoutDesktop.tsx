@@ -176,7 +176,7 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
 }
 
 // Compound component: Navigation panel
-TraceLayoutDesktop.Navigation = function Navigation({
+TraceLayoutDesktop.NavigationPanel = function Navigation({
   children,
 }: {
   children: ReactNode;
@@ -217,7 +217,7 @@ TraceLayoutDesktop.ResizeHandle = function ResizeHandle() {
 };
 
 // Compound component: Detail panel
-TraceLayoutDesktop.Detail = function Detail({
+TraceLayoutDesktop.DetailPanel = function Detail({
   children,
 }: {
   children: ReactNode;

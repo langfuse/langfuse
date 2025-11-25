@@ -1,4 +1,4 @@
-import { type ObservationLevelType, type TraceDomain } from "@langfuse/shared";
+import { type TraceDomain } from "@langfuse/shared";
 import { type UrlUpdateType } from "use-query-params";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type ScoreDomain } from "@langfuse/shared";
@@ -31,7 +31,6 @@ export type TraceProps = {
   viewType?: "detailed" | "focused";
   context?: "peek" | "fullscreen";
   isValidObservationId?: boolean;
-  defaultMinObservationLevel?: ObservationLevelType;
   selectedTab?: string;
   setSelectedTab?: (
     newValue?: string | null,
@@ -39,20 +38,13 @@ export type TraceProps = {
   ) => void;
 };
 
-export function Trace({
-  trace,
-  observations,
-  scores,
-  defaultMinObservationLevel,
-}: TraceProps) {
+export function Trace({ trace, observations, scores }: TraceProps) {
   // TODO: Build comments map (empty for now - will be populated from API in future)
   const commentsMap = useMemo(() => new Map<string, number>(), []);
 
   return (
-    <ViewPreferencesProvider
-      defaultMinObservationLevel={defaultMinObservationLevel}
-    >
-      <TraceWithPreferences
+    <ViewPreferencesProvider>
+      <TraceInternal
         trace={trace}
         observations={observations}
         scores={scores}
@@ -62,19 +54,32 @@ export function Trace({
   );
 }
 
-interface TraceWithPreferencesProps {
+interface TraceInternalProps {
   trace: TraceProps["trace"];
   observations: TraceProps["observations"];
   scores: TraceProps["scores"];
   commentsMap: Map<string, number>;
 }
 
-function TraceWithPreferences({
+/**
+ * TraceInternal - Internal component that bridges ViewPreferencesContext and TraceDataProvider
+ *
+ * Purpose:
+ * - Consumes ViewPreferencesContext to get minObservationLevel
+ * - Passes minObservationLevel to TraceDataProvider
+ * - Wraps with remaining context providers (TraceData, Selection, Search)
+ *
+ * Why it exists:
+ * - React hooks rules: Cannot call useViewPreferences() in the same component
+ *   that renders ViewPreferencesProvider (the parent Trace component)
+ * - Acts as a bridge between provider layers
+ */
+function TraceInternal({
   trace,
   observations,
   scores,
   commentsMap,
-}: TraceWithPreferencesProps) {
+}: TraceInternalProps) {
   const { minObservationLevel } = useViewPreferences();
 
   return (
@@ -94,40 +99,65 @@ function TraceWithPreferences({
   );
 }
 
+/**
+ * TraceContent - Platform detection and routing component
+ *
+ * Purpose:
+ * - Detects mobile vs desktop viewport
+ * - Routes to appropriate platform-specific implementation
+ *
+ * Hooks:
+ * - useIsMobile() - for responsive platform detection
+ */
 function TraceContent() {
   const isMobile = useIsMobile();
-
   return isMobile ? <MobileTraceContent /> : <DesktopTraceContent />;
 }
 
+/**
+ * DesktopTraceContent - Desktop layout composition
+ *
+ * Purpose:
+ * - Composes desktop-specific layout structure
+ * - Horizontal resizable panels with collapse functionality
+ * - Navigation panel (left) + Detail panel (right)
+ */
 function DesktopTraceContent() {
   return (
     <TraceLayoutDesktop>
-      <TraceLayoutDesktop.Navigation>
+      <TraceLayoutDesktop.NavigationPanel>
         <TracePanelNavigationLayoutDesktop>
           <TracePanelNavigation />
         </TracePanelNavigationLayoutDesktop>
-      </TraceLayoutDesktop.Navigation>
+      </TraceLayoutDesktop.NavigationPanel>
       <TraceLayoutDesktop.ResizeHandle />
-      <TraceLayoutDesktop.Detail>
+      <TraceLayoutDesktop.DetailPanel>
         <TracePanelDetail />
-      </TraceLayoutDesktop.Detail>
+      </TraceLayoutDesktop.DetailPanel>
     </TraceLayoutDesktop>
   );
 }
 
+/**
+ * MobileTraceContent - Mobile layout composition
+ *
+ * Purpose:
+ * - Composes mobile-specific layout structure
+ * - Vertical accordion-style panels
+ * - Navigation panel (top, collapsible) + Detail panel (bottom)
+ */
 function MobileTraceContent() {
   return (
     <div className="h-full w-full">
       <TraceLayoutMobile>
-        <TraceLayoutMobile.Navigation>
+        <TraceLayoutMobile.NavigationPanel>
           <TracePanelNavigationLayoutMobile>
             <TracePanelNavigation />
           </TracePanelNavigationLayoutMobile>
-        </TraceLayoutMobile.Navigation>
-        <TraceLayoutMobile.Detail>
+        </TraceLayoutMobile.NavigationPanel>
+        <TraceLayoutMobile.DetailPanel>
           <TracePanelDetail />
-        </TraceLayoutMobile.Detail>
+        </TraceLayoutMobile.DetailPanel>
       </TraceLayoutMobile>
     </div>
   );

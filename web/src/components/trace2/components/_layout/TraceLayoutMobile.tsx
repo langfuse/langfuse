@@ -50,7 +50,7 @@ export function TraceLayoutMobile({ children }: { children: ReactNode }) {
 }
 
 // Compound component: Navigation section with accordion
-TraceLayoutMobile.Navigation = function Navigation({
+TraceLayoutMobile.NavigationPanel = function Navigation({
   children,
 }: {
   children: ReactNode;
@@ -82,7 +82,7 @@ TraceLayoutMobile.Navigation = function Navigation({
 };
 
 // Compound component: Detail section
-TraceLayoutMobile.Detail = function Detail({
+TraceLayoutMobile.DetailPanel = function Detail({
   children,
 }: {
   children: ReactNode;
