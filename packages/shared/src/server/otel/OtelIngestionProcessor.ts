@@ -1080,12 +1080,29 @@ export class OtelIngestionProcessor {
 
     if (useArray) {
       const result: any[] = [];
+      const nested: Record<string, [number, string]> = {};
       for (const key of keys) {
-        const [index, ikey] = key.split(".", 2) as [number, string];
+        const [index, ikey, ...rest] = key.split(".") as [
+          number,
+          string,
+          ...string[],
+        ];
         if (!result[index]) {
           result[index] = {};
         }
-        result[index][ikey] = input[`${prefix}.${index}.${ikey}`];
+        // Handle nested arrays/objects
+        if (rest.length > 0) {
+          nested[`${prefix}.${index}.${ikey}`] = [index, ikey];
+        } else {
+          result[index][ikey] = input[`${prefix}.${index}.${ikey}`];
+        }
+      }
+      // Process nested structures
+      for (const [nestedKey, [index, ikey]] of Object.entries(nested)) {
+        result[index][ikey] = this.convertKeyPathToNestedObject(
+          input,
+          nestedKey,
+        );
       }
       return result;
     } else {
