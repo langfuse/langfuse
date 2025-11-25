@@ -217,8 +217,11 @@ function DesktopTraceLayout() {
       setShouldPulseToggle(true);
       const timeout = setTimeout(() => {
         setShouldPulseToggle(false);
-      }, 2000); // Stop pulse after 2 seconds
+      }, 12000); // Stop pulse after 12 seconds
       return () => clearTimeout(timeout);
+    } else {
+      // Reset pulse when leaving timeline view
+      setShouldPulseToggle(false);
     }
   }, [isTimelineView]);
 
