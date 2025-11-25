@@ -10,6 +10,7 @@ import {
 import { DeleteModelButton } from "@/src/features/models/components/DeleteModelButton";
 import { EditModelButton } from "@/src/features/models/components/EditModelButton";
 import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
+import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
@@ -34,12 +35,14 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { useEffect } from "react";
 
 export default function ModelDetailPage() {
   const router = useRouter();
   const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
   const projectId = router.query.projectId as string;
   const modelId = router.query.modelId as string;
+  const pricingTierParam = router.query.pricingTier as string | undefined;
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "models:CUD",
@@ -56,8 +59,22 @@ export default function ModelDetailPage() {
     return model.pricingTiers.find((t) => t.isDefault) || model.pricingTiers[0];
   }, [model?.pricingTiers]);
 
-  // State for selected pricing tier
-  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
+  // State for selected pricing tier - initialize from URL param
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(
+    pricingTierParam ?? null,
+  );
+
+  // Sync with URL parameter when it changes
+  useEffect(() => {
+    if (pricingTierParam && model?.pricingTiers) {
+      const tierExists = model.pricingTiers.some(
+        (t) => t.id === pricingTierParam,
+      );
+      if (tierExists) {
+        setSelectedTierId(pricingTierParam);
+      }
+    }
+  }, [pricingTierParam, model?.pricingTiers]);
 
   // Get the active tier (selected or default)
   const activeTier = useMemo(() => {
@@ -120,21 +137,27 @@ export default function ModelDetailPage() {
         ],
         actionButtonsRight: (
           <div className="flex gap-2">
-            {hasWriteAccess &&
-              (!isLangfuseModel ? (
-                <>
-                  <EditModelButton projectId={projectId} modelData={model} />
-                  <DeleteModelButton
-                    projectId={projectId}
-                    modelData={model}
-                    onSuccess={() => {
-                      void router.push(`/project/${projectId}/settings/models`);
-                    }}
-                  />
-                </>
-              ) : (
-                <CloneModelButton projectId={projectId} modelData={model} />
-              ))}
+            {hasWriteAccess && (
+              <>
+                <TestModelMatchButton projectId={projectId} />
+                {!isLangfuseModel ? (
+                  <>
+                    <EditModelButton projectId={projectId} modelData={model} />
+                    <DeleteModelButton
+                      projectId={projectId}
+                      modelData={model}
+                      onSuccess={() => {
+                        void router.push(
+                          `/project/${projectId}/settings/models`,
+                        );
+                      }}
+                    />
+                  </>
+                ) : (
+                  <CloneModelButton projectId={projectId} modelData={model} />
+                )}
+              </>
+            )}
           </div>
         ),
       }}
@@ -181,7 +204,7 @@ export default function ModelDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="pricing-section">
           <CardHeader>
             <div className="flex flex-col gap-2">
               <CardTitle>Pricing</CardTitle>

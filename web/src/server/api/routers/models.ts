@@ -17,6 +17,8 @@ import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
 import {
   clearModelCacheForProject,
   queryClickhouse,
+  findModel,
+  matchPricingTier,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -408,5 +410,93 @@ export const modelRouter = createTRPCRouter({
       await clearModelCacheForProject(input.projectId);
 
       return deletedModel;
+    }),
+  testMatch: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        modelName: z.string().min(1),
+        usageDetails: z.record(z.string(), z.number()).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { projectId, modelName, usageDetails } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "models:CUD",
+      });
+
+      // Step 1: Use existing findModel from shared
+      const { model, pricingTiers } = await findModel({
+        projectId,
+        model: modelName,
+      });
+
+      if (!model) {
+        return { matched: false as const };
+      }
+
+      // Step 2: If no usage details provided, return default tier
+      if (!usageDetails || Object.keys(usageDetails).length === 0) {
+        const defaultTier = pricingTiers.find((t) => t.isDefault);
+        if (!defaultTier) {
+          return { matched: false as const };
+        }
+
+        return {
+          matched: true as const,
+          model: {
+            id: model.id,
+            modelName: model.modelName,
+            matchPattern: model.matchPattern,
+            projectId: model.projectId,
+          },
+          matchedTier: {
+            id: defaultTier.id,
+            name: defaultTier.name,
+            priority: defaultTier.priority,
+            isDefault: true,
+            prices: Object.fromEntries(
+              defaultTier.prices.map((p) => [p.usageType, p.price.toNumber()]),
+            ),
+          },
+        };
+      }
+
+      // Step 3: Use matchPricingTier from shared
+      const matchResult = matchPricingTier(pricingTiers, usageDetails);
+
+      if (!matchResult) {
+        return { matched: false as const };
+      }
+
+      // Step 4: Find the full tier details
+      const matchedTier = pricingTiers.find(
+        (t) => t.id === matchResult.pricingTierId,
+      );
+      if (!matchedTier) {
+        return { matched: false as const };
+      }
+
+      return {
+        matched: true as const,
+        model: {
+          id: model.id,
+          modelName: model.modelName,
+          matchPattern: model.matchPattern,
+          projectId: model.projectId,
+        },
+        matchedTier: {
+          id: matchedTier.id,
+          name: matchedTier.name,
+          priority: matchedTier.priority,
+          isDefault: matchedTier.isDefault,
+          prices: Object.fromEntries(
+            matchedTier.prices.map((p) => [p.usageType, p.price.toNumber()]),
+          ),
+        },
+      };
     }),
 });
