@@ -6,16 +6,19 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type views, type metricAggregations } from "@/src/features/query";
-import { type z } from "zod";
+import { type z } from "zod/v4";
+import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 
 export default function EditWidget() {
   const router = useRouter();
-  const { projectId, widgetId } = router.query as {
+  const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;
     widgetId: string;
+    dashboardId?: string;
   };
 
   // Fetch the widget details
+  const utils = api.useUtils();
   const { data: widgetData, isLoading: isWidgetLoading } =
     api.dashboardWidgets.get.useQuery(
       {
@@ -29,13 +32,22 @@ export default function EditWidget() {
 
   // Update widget mutation
   const updateWidgetMutation = api.dashboardWidgets.update.useMutation({
+    onSettled: () => {
+      utils.dashboardWidgets.invalidate();
+    },
     onSuccess: () => {
       showSuccessToast({
         title: "Widget updated successfully",
         description: "Your widget has been updated.",
       });
-      // Navigate back to widgets list
-      void router.push(`/project/${projectId}/widgets`);
+      // Navigate back to dashboard if provided else widgets list
+      if (dashboardId) {
+        void router.push(
+          `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${widgetId}`,
+        );
+      } else {
+        void router.push(`/project/${projectId}/widgets`);
+      }
     },
     onError: (error) => {
       showErrorToast("Failed to update widget", error.message);
@@ -51,7 +63,7 @@ export default function EditWidget() {
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
-    chartConfig: { type: DashboardWidgetChartType; row_limit?: number };
+    chartConfig: WidgetChartConfig;
   }) => {
     if (!widgetId) return;
 
@@ -85,11 +97,16 @@ export default function EditWidget() {
       {!isWidgetLoading && widgetData ? (
         <WidgetForm
           projectId={projectId}
+          widgetId={widgetId}
           onSave={handleUpdateWidget}
           initialValues={{
             name: widgetData.name,
             description: widgetData.description,
             view: widgetData.view as z.infer<typeof views>,
+            // Pass complete arrays for editing mode
+            metrics: widgetData.metrics,
+            dimensions: widgetData.dimensions,
+            // Keep single values for backward compatibility and fallbacks
             dimension: widgetData.dimensions.slice().shift()?.field ?? "none",
             measure: widgetData.metrics.slice().shift()?.measure ?? "count",
             aggregation:

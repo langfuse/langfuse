@@ -21,7 +21,8 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo, useCallback } from "react";
+import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
 const getFreeTextInput = (
   isCustomSelectEnabled: boolean,
@@ -41,6 +42,7 @@ export function MultiSelect({
   className,
   disabled,
   isCustomSelectEnabled = false,
+  labelTruncateCutOff = 2,
 }: {
   title?: string;
   label?: string;
@@ -50,8 +52,9 @@ export function MultiSelect({
   className?: string;
   disabled?: boolean;
   isCustomSelectEnabled?: boolean;
+  labelTruncateCutOff?: number;
 }) {
-  const selectedValues = new Set(values);
+  const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
   const freeTextInput = getFreeTextInput(
     isCustomSelectEnabled,
@@ -59,6 +62,35 @@ export function MultiSelect({
     optionValues,
   );
   const [freeText, setFreeText] = useState(freeTextInput || "");
+
+  const selectableOptions = useMemo(
+    () => options.filter((option) => option.value.length > 0),
+    [options],
+  );
+
+  const allSelectedState = useMemo(() => {
+    if (selectableOptions.length === 0) return false;
+    return selectableOptions.every((option) =>
+      selectedValues.has(option.value),
+    );
+  }, [selectableOptions, selectedValues]);
+
+  const handleSelectAll = useCallback(() => {
+    const newSelectedValues = new Set(selectedValues);
+    if (allSelectedState) {
+      // Deselect all selectable options
+      selectableOptions.forEach((option) =>
+        newSelectedValues.delete(option.value),
+      );
+    } else {
+      // Select all selectable options
+      selectableOptions.forEach((option) =>
+        newSelectedValues.add(option.value),
+      );
+    }
+    const filterValues = Array.from(newSelectedValues);
+    onValueChange(filterValues.length ? filterValues : []);
+  }, [allSelectedState, selectableOptions, selectedValues, onValueChange]);
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const handleDebouncedChange = (value: string) => {
@@ -98,7 +130,7 @@ export function MultiSelect({
         <Button
           variant="outline"
           className={cn(
-            "flex h-8 w-full items-center justify-between gap-x-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "flex h-8 w-full items-center justify-between gap-x-2 rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -115,7 +147,7 @@ export function MultiSelect({
                 {selectedValues.size}
               </Badge>
               <div className="hidden space-x-1 lg:flex">
-                {selectedValues.size > 2 ? (
+                {selectedValues.size > labelTruncateCutOff ? (
                   <Badge
                     variant="secondary"
                     className="rounded-sm px-1 font-normal"
@@ -140,17 +172,37 @@ export function MultiSelect({
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="center">
         <InputCommand>
-          <InputCommandInput placeholder={title} />
+          <InputCommandInput placeholder={title} variant="bottom" />
           <InputCommandList>
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
             {!isCustomSelectEnabled && (
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup>
+              {selectableOptions.length > 0 && (
+                <>
+                  <InputCommandItem key="select-all" onSelect={handleSelectAll}>
+                    <div
+                      className={cn(
+                        "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                        allSelectedState
+                          ? "bg-primary text-primary-foreground"
+                          : "opacity-50 [&_svg]:invisible",
+                      )}
+                    >
+                      <Check className={cn("h-4 w-4")} />
+                    </div>
+                    <div className="font-medium">
+                      {allSelectedState ? "Deselect All" : "Select All"}
+                    </div>
+                  </InputCommandItem>
+                  <InputCommandSeparator />
+                </>
+              )}
               {options.map((option) => {
                 if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
-                return (
+                const commandItem = (
                   <InputCommandItem
                     key={option.value}
                     onSelect={() => {
@@ -185,6 +237,18 @@ export function MultiSelect({
                       </span>
                     ) : null}
                   </InputCommandItem>
+                );
+
+                return option.description ? (
+                  <PropertyHoverCard
+                    key={option.value}
+                    label={option.displayValue ?? option.value}
+                    description={option.description}
+                  >
+                    {commandItem}
+                  </PropertyHoverCard>
+                ) : (
+                  commandItem
                 );
               })}
             </InputCommandGroup>

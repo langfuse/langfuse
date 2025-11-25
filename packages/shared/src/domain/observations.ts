@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { jsonSchema } from "../utils/zod";
 import { MetadataDomain } from "./traces";
 
@@ -6,8 +6,27 @@ export const ObservationType = {
   SPAN: "SPAN",
   EVENT: "EVENT",
   GENERATION: "GENERATION",
+  AGENT: "AGENT",
+  TOOL: "TOOL",
+  CHAIN: "CHAIN",
+  RETRIEVER: "RETRIEVER",
+  EVALUATOR: "EVALUATOR",
+  EMBEDDING: "EMBEDDING",
+  GUARDRAIL: "GUARDRAIL",
 } as const;
-export const ObservationTypeDomain = z.enum(["SPAN", "EVENT", "GENERATION"]);
+
+export const ObservationTypeDomain = z.enum([
+  "SPAN",
+  "EVENT",
+  "GENERATION",
+  "AGENT",
+  "TOOL",
+  "CHAIN",
+  "RETRIEVER",
+  "EVALUATOR",
+  "EMBEDDING",
+  "GUARDRAIL",
+]);
 export type ObservationType = z.infer<typeof ObservationTypeDomain>;
 
 export const ObservationLevel = {
@@ -74,3 +93,46 @@ export const ObservationSchema = z.object({
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;
+
+export type ObservationCoreFields = Pick<
+  Observation,
+  "id" | "traceId" | "startTime" | "projectId" | "parentObservationId"
+>;
+
+export const EventsObservationSchema = ObservationSchema.extend({
+  userId: z.string().nullable(),
+  sessionId: z.string().nullable(),
+});
+
+export type EventsObservation = z.infer<typeof EventsObservationSchema>;
+
+export type PartialObservation = Partial<Observation> & ObservationCoreFields;
+
+export type PartialEventsObservation = Partial<EventsObservation> &
+  ObservationCoreFields;
+
+/**
+ * Returns true if an observation type is generation-like, meaning it could include LLM calls
+ * and potentially has similar input/output fields.
+ */
+const GenerationLikeObservationTypes = [
+  ObservationType.GENERATION,
+  ObservationType.AGENT,
+  ObservationType.TOOL,
+  ObservationType.CHAIN,
+  ObservationType.RETRIEVER,
+  ObservationType.EVALUATOR,
+  ObservationType.EMBEDDING,
+  ObservationType.GUARDRAIL,
+] as const;
+
+export const isGenerationLike = (observationType: ObservationType): boolean => {
+  return GenerationLikeObservationTypes.includes(observationType as any);
+};
+
+/**
+ * Returns all generation-like observation types for use in filters and queries.
+ */
+export const getGenerationLikeTypes = (): ObservationType[] => {
+  return [...GenerationLikeObservationTypes];
+};

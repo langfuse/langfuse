@@ -27,6 +27,9 @@ const events = {
     "io_pretty_format_toggle_group",
     "test_in_playground_button_click",
     "display_mode_switch",
+    "download_button_click",
+    "view_mode_switch",
+    "tree_panel_toggle",
   ],
   generations: ["export"],
   saved_views: [
@@ -56,6 +59,7 @@ const events = {
   ],
   score_configs: [
     "create_form_submit",
+    "update_form_submit",
     "manage_configs_item_click",
     "archive_form_open",
     "archive_form_submit",
@@ -76,7 +80,7 @@ const events = {
     "duplicate_button_click",
     "duplicate_form_submit",
   ],
-  session_detail: ["publish_button_click"],
+  session_detail: ["publish_button_click", "download_button_click"],
   eval_config: [
     "new_form_submit",
     "new_form_open",
@@ -95,8 +99,13 @@ const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
-  integrations: ["posthog_form_submitted", "blob_storage_form_submitted"],
+  integrations: [
+    "posthog_form_submitted",
+    "blob_storage_form_submitted",
+    "mixpanel_form_submitted",
+  ],
   sign_in: ["cloud_region_switch", "button_click"],
+  sign_up: ["button_click"],
   auth: ["reset_password_email_requested", "update_password_form_submit"],
   playground: [
     "execute_button_click",
@@ -104,12 +113,14 @@ const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "clone_dashboard",
     "chart_tab_switch",
     "date_range_changed",
     "new_widget_form_open",
     "new_dashboard_form_open",
     "delete_widget_form_open",
     "delete_dashboard_form_open",
+    "delete_dashboard_button_click",
   ],
   datasets: [
     "delete_form_open",
@@ -164,6 +175,7 @@ const events = {
     "api_key_create",
     "llm_api_key_delete",
     "llm_api_key_create",
+    "llm_api_key_update",
     "send_membership_invitation",
     "delete_membership_invitation",
     "delete_membership",
@@ -174,13 +186,17 @@ const events = {
     "send_membership_invitation",
     "delete_membership_invitation",
     "delete_membership",
+    "api_key_create",
+    "api_key_delete",
     "pricing_dialog_opened",
     "delete_organization",
+    "ai_features_toggle",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
   support_chat: ["initiated", "opened", "message_sent"], // also used on landing page for consistency
   cmd_k_menu: ["opened", "search_entered", "navigated"],
+  spend_alert: ["created", "updated", "deleted"],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

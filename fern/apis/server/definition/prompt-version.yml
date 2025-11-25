@@ -13,7 +13,9 @@ service:
       path-parameters:
         name:
           type: string
-          docs: The name of the prompt
+          docs: |
+            The name of the prompt. If the prompt is in a folder (e.g., "folder/subfolder/prompt-name"), 
+            the folder path must be URL encoded.
         version:
           type: integer
           docs: Version of the prompt to update

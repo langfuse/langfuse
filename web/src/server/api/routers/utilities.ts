@@ -1,5 +1,8 @@
-import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { z } from "zod";
+import {
+  createTRPCRouter,
+  authenticatedProcedure,
+} from "@/src/server/api/trpc";
+import { z } from "zod/v4";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
 import { logger } from "@langfuse/shared/src/server";
@@ -196,7 +199,7 @@ const isValidImageUrl = async (url: string): Promise<boolean> => {
 };
 
 export const utilsRouter = createTRPCRouter({
-  validateImgUrl: protectedProcedure
+  validateImgUrl: authenticatedProcedure
     .input(z.string().max(2048))
     .query(async ({ input: url }) => {
       const isValidUrl = await isValidAndSecureUrl(url);

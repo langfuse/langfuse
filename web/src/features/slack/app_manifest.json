@@ -1,0 +1,31 @@
+{
+  "display_information": {
+    "name": "Langfuse",
+    "description": "Receive real-time alerts and insights from Langfuse directly in Slack. Monitor traces, errors, and performance effortlessly.",
+    "background_color": "#0a60b5",
+    "long_description": "The Langfuse Slack App keeps your team in sync by delivering real-time observability and alerts directly to your Slack channels. Whether you’re monitoring AI traces, catching runtime errors, or tracking latency and performance metrics, Langfuse ensures that you’re always in the loop.\r\n\r\nWith flexible configuration per project, you can:\r\n\t•\tGet notified about critical errors and anomalies\r\n\t•\tReceive alerts on trace completions, slow response times, or quality degradations\r\n\t•\tQuickly jump from a Slack message to the exact trace in Langfuse\r\n\t•\tKeep dev, ops, and ML teams aligned without context switching\r\n\r\nStay on top of your LLM applications — without leaving Slack."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Langfuse",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "https://localhost:3000/api/public/slack/oauth",
+      "https://cloud.langfuse.com/api/public/slack/oauth",
+      "https://us.cloud.langfuse.com/api/public/slack/oauth",
+      "https://hipaa.cloud.langfuse.com/api/public/slack/oauth",
+      "https://staging.langfuse.com/api/public/slack/oauth"
+    ],
+    "scopes": {
+      "bot": ["channels:read", "chat:write", "chat:write.public"]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

@@ -34,7 +34,7 @@ export const DuplicateDatasetButton: React.FC<{
       onClick={handleDuplicate}
       variant="ghost"
       title="Duplicate dataset"
-      loading={duplicateDataset.isLoading}
+      loading={duplicateDataset.isPending}
       disabled={!hasAccess}
     >
       <Copy className="mr-2 h-4 w-4" />

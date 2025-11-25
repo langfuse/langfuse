@@ -1,12 +1,22 @@
-import z from "zod";
+import z from "zod/v4";
 
 export const langfuseObjects = [
   "trace",
   "span",
   "generation",
   "event",
+  "agent",
+  "tool",
+  "chain",
+  "retriever",
+  "evaluator",
+  "embedding",
+  "guardrail",
   "dataset_item",
 ] as const;
+
+const langfuseObject = z.enum(langfuseObjects);
+export type LangfuseEvaluationObject = z.infer<typeof langfuseObject>;
 
 // variable mapping stored in the db for eval templates
 export const variableMapping = z
@@ -15,7 +25,7 @@ export const variableMapping = z
     // name of the observation to extract the variable from
     // not required for trace, as we only have one.
     objectName: z.string().nullish(),
-    langfuseObject: z.enum(langfuseObjects),
+    langfuseObject: langfuseObject,
     selectedColumnId: z.string(),
     jsonSelector: z.string().nullish(),
   })
@@ -31,7 +41,7 @@ export const variableMappingList = z.array(variableMapping);
 export const wipVariableMapping = z.object({
   templateVariable: z.string(),
   objectName: z.string().nullish(),
-  langfuseObject: z.enum(langfuseObjects),
+  langfuseObject: langfuseObject,
   selectedColumnId: z.string().nullish(),
   jsonSelector: z.string().nullish(),
 });
@@ -49,6 +59,56 @@ const observationCols = [
 
 export const availableTraceEvalVariables = [
   {
+    id: "agent",
+    display: "Agent",
+    availableColumns: observationCols,
+  },
+  {
+    id: "chain",
+    display: "Chain",
+    availableColumns: observationCols,
+  },
+  {
+    id: "embedding",
+    display: "Embedding",
+    availableColumns: observationCols,
+  },
+  {
+    id: "evaluator",
+    display: "Evaluator",
+    availableColumns: observationCols,
+  },
+  {
+    id: "event",
+    display: "Event",
+    availableColumns: observationCols,
+  },
+  {
+    id: "generation",
+    display: "Generation",
+    availableColumns: observationCols,
+  },
+  {
+    id: "guardrail",
+    display: "Guardrail",
+    availableColumns: observationCols,
+  },
+  {
+    id: "retriever",
+    display: "Retriever",
+    availableColumns: observationCols,
+  },
+  {
+    id: "span",
+    display: "Span",
+    availableColumns: observationCols,
+  },
+  {
+    id: "tool",
+    display: "Tool",
+    availableColumns: observationCols,
+  },
+  {
     id: "trace",
     display: "Trace",
     availableColumns: [
@@ -61,21 +121,6 @@ export const availableTraceEvalVariables = [
       { name: "Input", id: "input", internal: 't."input"' },
       { name: "Output", id: "output", internal: 't."output"' },
     ],
-  },
-  {
-    id: "span",
-    display: "Span",
-    availableColumns: observationCols,
-  },
-  {
-    id: "generation",
-    display: "Generation",
-    availableColumns: observationCols,
-  },
-  {
-    id: "event",
-    display: "Event",
-    availableColumns: observationCols,
   },
 ];
 

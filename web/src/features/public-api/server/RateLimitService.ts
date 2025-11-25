@@ -1,5 +1,5 @@
-import type Redis from "ioredis";
-import { type z } from "zod";
+import { type Redis, type Cluster } from "ioredis";
+import { type z } from "zod/v4";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
@@ -24,7 +24,7 @@ import { type NextApiResponse } from "next";
 // - isRateLimited returns false for self-hosters
 // - sendRestResponseIfLimited sends a 429 response with headers if the rate limit is exceeded. Return this from the route handler.
 export class RateLimitService {
-  private static redis: Redis | null;
+  private static redis: Redis | Cluster | null;
   private static instance: RateLimitService | null = null;
 
   public static getInstance(redis: Redis | null = null) {
@@ -243,12 +243,24 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
-            points: 20,
+            points: 30,
+            durationInSec: 60,
+          };
+        case "datasets":
+          return {
+            resource: "datasets",
+            points: 100,
             durationInSec: 60,
           };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
+            points: 100,
+            durationInSec: 86400, // 100 requests per day
+          };
+        case "public-api-daily-metrics-legacy":
+          return {
+            resource: "public-api-daily-metrics-legacy",
             points: 10,
             durationInSec: 86400, // 10 requests per day
           };
@@ -257,11 +269,15 @@ const getPlanBasedRateLimitConfig = (
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     case "cloud:core":
+      // TEMPORARY: Expanded core plan rate limits to pro limits to enable legacy pro -> core migration
+      // Original core limits (commented out):
+      // ingestion: 4000, public-api: 100, datasets: 200, public-api-metrics: 200, public-api-daily-metrics-legacy: 20
       switch (resource) {
         case "ingestion":
           return {
             resource: "ingestion",
-            points: 4000,
+            // points: 4000, // original core limit
+            points: 20_000, // temporary: using pro limit
             durationInSec: 60,
           };
         case "legacy-ingestion":
@@ -279,14 +295,30 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
-            points: 100,
+            // points: 100, // original core limit
+            points: 1000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "datasets":
+          return {
+            resource: "datasets",
+            // points: 200, // original core limit
+            points: 1000, // temporary: using pro limit
             durationInSec: 60,
           };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
-            points: 20,
-            durationInSec: 86400, // 20 requests per day
+            // points: 200, // original core limit
+            points: 2000, // temporary: using pro limit
+            durationInSec: 86400, // 2000 requests per day
+          };
+        case "public-api-daily-metrics-legacy":
+          return {
+            resource: "public-api-daily-metrics-legacy",
+            // points: 20, // original core limit
+            points: 200, // temporary: using pro limit
+            durationInSec: 86400, // 200 requests per day
           };
         default:
           const exhaustiveCheck: never = resource;
@@ -320,9 +352,21 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 60,
           };
+        case "datasets":
+          return {
+            resource: "datasets",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
+            points: 2000,
+            durationInSec: 86400, // 2000 requests per day
+          };
+        case "public-api-daily-metrics-legacy":
+          return {
+            resource: "public-api-daily-metrics-legacy",
             points: 200,
             durationInSec: 86400, // 200 requests per day
           };

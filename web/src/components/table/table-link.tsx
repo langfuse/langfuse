@@ -6,6 +6,8 @@ export type TableLinkProps = {
   value: string;
   icon?: React.ReactNode;
   className?: string;
+  onClick?: (event: React.MouseEvent) => void;
+  title?: string;
 };
 
 export default function TableLink({
@@ -13,7 +15,16 @@ export default function TableLink({
   value,
   icon,
   className,
+  onClick,
+  title,
 }: TableLinkProps) {
+  const handleClick = (event: React.MouseEvent) => {
+    if (onClick) {
+      event.preventDefault();
+      onClick(event);
+    }
+  };
+
   return (
     <Link
       className={cn(
@@ -21,8 +32,9 @@ export default function TableLink({
         className,
       )}
       href={path}
-      title={value}
+      title={title || value}
       prefetch={false}
+      onClick={handleClick}
     >
       {icon ? icon : value}
     </Link>

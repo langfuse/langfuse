@@ -185,7 +185,7 @@ export const insertIntoS3RefsTableFromEventLog = async (
 ) => {
   const query = `
     INSERT INTO blob_storage_file_log
-    SELECT 
+    SELECT
       id,
       project_id,
       entity_type,
@@ -239,10 +239,10 @@ export const findS3RefsByPrimaryKey = async (primaryKey: {
   bucket_path: string;
 }) => {
   const query = `
-    SELECT * 
-    FROM blob_storage_file_log 
-    WHERE project_id = {project_id: String} 
-      AND entity_type = {entity_type: String} 
+    SELECT *
+    FROM blob_storage_file_log
+    WHERE project_id = {project_id: String}
+      AND entity_type = {entity_type: String}
       AND entity_id = {entity_id: String}
       AND bucket_path = {bucket_path: String}
   `;

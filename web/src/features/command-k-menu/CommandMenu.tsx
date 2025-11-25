@@ -1,4 +1,3 @@
-import { type NavigationItem } from "@/src/components/layouts/layout";
 import {
   CommandDialog,
   CommandEmpty,
@@ -17,7 +16,10 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useProjectSettingsPages } from "@/src/pages/project/[projectId]/settings";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
+import { useAccountSettingsPages } from "@/src/pages/account/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { api } from "@/src/utils/api";
+import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 
 export function CommandMenu({
   mainNavigation,
@@ -29,6 +31,7 @@ export function CommandMenu({
   const { allProjectItems } = useNavigationItems();
   const settingsPages = useProjectSettingsPages();
   const orgSettingsPages = useOrganizationSettingsPages();
+  const accountSettingsPages = useAccountSettingsPages();
   const { organization, project } = useQueryProjectOrOrganization();
 
   const projectSettingsItems = settingsPages
@@ -46,6 +49,12 @@ export function CommandMenu({
       url: `/organization/${organization?.id}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
       keywords: page.cmdKKeywords || [],
     }));
+
+  const accountSettingsItems = accountSettingsPages.map((page) => ({
+    title: `Account Settings > ${page.title}`,
+    url: `/account/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
+    keywords: page.cmdKKeywords || [],
+  }));
 
   const capture = usePostHogClientCapture();
 
@@ -80,6 +89,33 @@ export function CommandMenu({
         Boolean(item.url) && // no empty urls
         !item.url.includes("["), // no dynamic routes without inserted values
     );
+
+  const dashboardsQuery = api.dashboard.allDashboards.useQuery(
+    {
+      projectId: project?.id ?? "",
+      orderBy: {
+        column: "updatedAt",
+        order: "DESC",
+      },
+      limit: 100,
+      page: 0,
+    },
+    {
+      enabled: open && Boolean(project?.id),
+    },
+  );
+
+  const dashboardItems =
+    dashboardsQuery.data?.dashboards.map((d) => ({
+      title: `Dashboard > ${d.name}`,
+      url: `/project/${project?.id}/dashboards/${d.id}`,
+      keywords: [
+        "dashboard",
+        d.name.toLowerCase(),
+        (d.description ?? "").toLowerCase(),
+      ],
+      active: router.query.dashboardId === d.id,
+    })) ?? [];
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -164,6 +200,32 @@ export function CommandMenu({
             </CommandGroup>
           </>
         )}
+        {dashboardItems.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Dashboards">
+              {dashboardItems.map((item) => (
+                <CommandItem
+                  key={item.url}
+                  value={item.title}
+                  keywords={item.keywords}
+                  disabled={item.active}
+                  onSelect={() => {
+                    router.push(item.url);
+                    capture("cmd_k_menu:navigated", {
+                      type: "dashboard",
+                      title: item.title,
+                      url: item.url,
+                    });
+                    setOpen(false);
+                  }}
+                >
+                  {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
         {projectSettingsItems.length > 0 && (
           <>
             <CommandSeparator />
@@ -202,6 +264,31 @@ export function CommandMenu({
                     router.push(item.url);
                     capture("cmd_k_menu:navigated", {
                       type: "organization_settings",
+                      title: item.title,
+                      url: item.url,
+                    });
+                    setOpen(false);
+                  }}
+                >
+                  {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+        {accountSettingsItems.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Account Settings">
+              {accountSettingsItems.map((item) => (
+                <CommandItem
+                  key={item.url}
+                  value={item.title}
+                  keywords={item.keywords}
+                  onSelect={() => {
+                    router.push(item.url);
+                    capture("cmd_k_menu:navigated", {
+                      type: "account_settings",
                       title: item.title,
                       url: item.url,
                     });

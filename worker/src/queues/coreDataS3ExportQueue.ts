@@ -1,4 +1,4 @@
-import { Job, Processor } from "bullmq";
+import { Processor } from "bullmq";
 import {
   logger,
   StorageService,
@@ -19,14 +19,14 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
       region: env.LANGFUSE_S3_CORE_DATA_UPLOAD_REGION,
       forcePathStyle:
         env.LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE === "true",
+      awsSse: env.LANGFUSE_S3_CORE_DATA_UPLOAD_SSE,
+      awsSseKmsKeyId: env.LANGFUSE_S3_CORE_DATA_UPLOAD_SSE_KMS_KEY_ID,
     });
   }
   return s3StorageServiceClient;
 };
 
-export const coreDataS3ExportProcessor: Processor = async (
-  job: Job,
-): Promise<void> => {
+export const coreDataS3ExportProcessor: Processor = async (): Promise<void> => {
   if (!env.LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET) {
     logger.error("No bucket name provided for core data S3 export");
     throw new Error(
@@ -49,6 +49,7 @@ export const coreDataS3ExportProcessor: Processor = async (
     projectMemberships,
     prompts,
     billingMeterBackup,
+    surveys,
   ] = await Promise.all([
     prisma.project.findMany({
       select: {
@@ -108,6 +109,17 @@ export const coreDataS3ExportProcessor: Processor = async (
       },
     }),
     prisma.billingMeterBackup.findMany(),
+    prisma.survey.findMany({
+      select: {
+        id: true,
+        surveyName: true,
+        response: true,
+        userId: true,
+        userEmail: true,
+        orgId: true,
+        createdAt: true,
+      },
+    }),
   ]);
 
   // Iterate through the tables and upload them to S3 as JSONLs
@@ -120,12 +132,12 @@ export const coreDataS3ExportProcessor: Processor = async (
       projectMemberships,
       prompts,
       billingMeterBackup,
+      surveys,
     }).map(async ([key, value]) =>
       s3Client.uploadFile({
         fileName: `${env.LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX}${key}.jsonl`,
         fileType: "application/x-ndjson",
         data: value.map((item) => JSON.stringify(item)).join("\n"),
-        expiresInSeconds: 1, // not used as we only upload
       }),
     ),
   );

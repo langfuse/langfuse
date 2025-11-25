@@ -1,6 +1,7 @@
 import {
   type ColumnDefinition,
   type SingleValueOption,
+  type MultiValueOption,
 } from "../tableDefinitions/types";
 import { formatColumnOptions } from "./typeHelpers";
 
@@ -17,6 +18,14 @@ export const sessionsViewCols: ColumnDefinition[] = [
     id: "userIds",
     type: "arrayOptions",
     internal: 't."userIds"',
+    options: [], // to be filled in at runtime
+    nullable: true,
+  },
+  {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 't."environment"',
     options: [], // to be filled in at runtime
     nullable: true,
   },
@@ -87,11 +96,28 @@ export const sessionsViewCols: ColumnDefinition[] = [
     internal: 't."tags"',
     options: [], // to be filled in at runtime
   },
+  {
+    name: "Scores (numeric)",
+    id: "scores_avg",
+    type: "numberObject",
+    internal: "scores",
+  },
+  {
+    name: "Scores (categorical)",
+    id: "score_categories",
+    type: "categoryOptions",
+    internal: "score_categories",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
 ];
 
 export type SessionOptions = {
   userIds: Array<SingleValueOption>;
+  environment: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
+  scores_avg?: Array<string>;
+  score_categories?: Array<MultiValueOption>;
 };
 
 export function sessionsTableColsWithOptions(
@@ -101,8 +127,17 @@ export function sessionsTableColsWithOptions(
     if (col.id === "userIds") {
       return formatColumnOptions(col, options?.userIds ?? []);
     }
+    if (col.id === "environment") {
+      return formatColumnOptions(col, options?.environment ?? []);
+    }
     if (col.id === "tags") {
       return formatColumnOptions(col, options?.tags ?? []);
+    }
+    if (col.id === "scores_avg") {
+      return formatColumnOptions(col, options?.scores_avg ?? []);
+    }
+    if (col.id === "score_categories") {
+      return formatColumnOptions(col, options?.score_categories ?? []);
     }
     return col;
   });

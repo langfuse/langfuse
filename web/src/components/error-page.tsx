@@ -28,7 +28,7 @@ export const ErrorPage = ({
   const newTargetPath = router.asPath;
 
   return (
-    <div className="flex h-screen flex-col items-center justify-center">
+    <div className="flex h-full flex-col items-center justify-center">
       <AlertCircle className="mb-4 h-12 w-12 text-dark-red" />
       <h1 className="mb-4 text-xl font-bold">{title}</h1>
       <p className="mb-6 text-center">{message}</p>
@@ -63,9 +63,19 @@ export const ErrorPage = ({
 export const ErrorPageWithSentry = ({
   title = "Error",
   message,
+  additionalButton,
 }: {
   title?: string;
   message: string;
+  additionalButton?:
+    | {
+        label: string;
+        href: string;
+      }
+    | {
+        label: string;
+        onClick: () => void;
+      };
 }) => {
   useEffect(() => {
     // Capture the error with Sentry
@@ -75,5 +85,11 @@ export const ErrorPageWithSentry = ({
       );
   }, [title, message]); // Empty dependency array means this effect runs once on mount
 
-  return <ErrorPage title={title} message={message} />;
+  return (
+    <ErrorPage
+      title={title}
+      message={message}
+      additionalButton={additionalButton}
+    />
+  );
 };

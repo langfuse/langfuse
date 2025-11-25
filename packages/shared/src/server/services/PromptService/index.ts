@@ -1,8 +1,9 @@
 import { Prompt, PrismaClient } from "@prisma/client";
-import { Redis } from "ioredis";
+import { Redis, Cluster } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
+import { safeMultiDel } from "../../redis/redis";
 import {
   PromptGraph,
   PromptParams,
@@ -21,15 +22,21 @@ export class PromptService {
   private ttlSeconds: number;
 
   constructor(
+    // eslint-disable-next-line no-unused-vars
     private prisma: PrismaClient,
-    private redis: Redis | null,
+    private redis: Redis | Cluster | null,
+    // eslint-disable-next-line no-unused-vars
     private metricIncrementer?: // used for otel metrics
+    // eslint-disable-next-line no-unused-vars
     (name: string, value?: number) => void,
     cacheEnabled?: boolean, // used for testing
   ) {
-    this.cacheEnabled =
-      Boolean(redis) &&
-      (cacheEnabled || env.LANGFUSE_CACHE_PROMPT_ENABLED === "true");
+    if (cacheEnabled !== undefined) {
+      this.cacheEnabled = cacheEnabled;
+    } else {
+      this.cacheEnabled =
+        Boolean(redis) && env.LANGFUSE_CACHE_PROMPT_ENABLED === "true";
+    }
 
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
   }
@@ -56,10 +63,10 @@ export class PromptService {
     if ((await this.shouldUseCache(params)) && dbPrompt) {
       await this.cachePrompt({ ...params, prompt: dbPrompt });
 
-      this.logInfo("Successfully cached prompt for params", params);
+      this.logDebug("Successfully cached prompt for params", params);
     }
 
-    this.logInfo("Returning DB prompt for params", params);
+    this.logDebug("Returning DB prompt for params", params);
 
     return dbPrompt;
   }
@@ -100,7 +107,7 @@ export class PromptService {
     return null;
   }
 
-  private async resolvePrompt(
+  public async resolvePrompt(
     prompt: Prompt | null,
   ): Promise<PromptResult | null> {
     if (!prompt) return prompt;
@@ -157,6 +164,12 @@ export class PromptService {
     }
   }
 
+  /**
+   * Lock the cache so reads will go to the database and not to Redis
+   *
+   * This is useful in order to return consistent data during the
+   * invalidation of the cache where we are looping through the relevant cache keys
+   */
   public async lockCache(
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): Promise<void> {
@@ -228,13 +241,14 @@ export class PromptService {
     const legacyKeyIndexKey = `${keyIndexKey}:${params.promptName}`;
     const legacyKeys = await this.redis?.smembers(legacyKeyIndexKey);
 
-    // Delete all keys for the prefix and the key index
-    await this.redis?.del([
+    // Delete all keys for the prefix and the key index using safe multi-delete
+    const keysToDelete = [
       ...(keys ?? []),
       keyIndexKey,
       ...(legacyKeys ?? []),
       legacyKeyIndexKey,
-    ]);
+    ];
+    await safeMultiDel(this.redis, keysToDelete);
   }
 
   private getCacheKey(params: PromptParams): string {

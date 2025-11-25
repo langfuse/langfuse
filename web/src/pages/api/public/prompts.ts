@@ -4,11 +4,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
-import {
-  LegacyCreatePromptSchema,
-  GetPromptSchema,
-} from "@/src/features/prompts/server/utils/validation";
+import { z } from "zod/v4";
 import {
   UnauthorizedError,
   LangfuseNotFoundError,
@@ -16,6 +12,9 @@ import {
   MethodNotAllowedError,
   ForbiddenError,
   type Prompt,
+  GetPromptSchema,
+  LegacyCreatePromptSchema,
+  PRODUCTION_LABEL,
 } from "@langfuse/shared";
 import {
   PromptService,
@@ -24,7 +23,6 @@ import {
   traceException,
   logger,
 } from "@langfuse/shared/src/server";
-import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { telemetry } from "@/src/features/telemetry";
 
@@ -139,7 +137,7 @@ export default async function handler(
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         message: "Invalid request data",
-        error: error.errors,
+        error: error.issues,
       });
     }
 

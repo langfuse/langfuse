@@ -6,16 +6,17 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'Service to be deployed'
+        description: "Service to be deployed"
         type: choice
         options:
           - all
           - web
           - web-ingestion
+          - web-iso
           - worker
         required: true
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         type: choice
         options:
           - staging
@@ -43,12 +44,12 @@ jobs:
           script: |
             if (context.eventName === "workflow_dispatch") {
               if (context.payload.inputs.service === "all") {
-                return `["web", "web-ingestion", "worker"]`
+                return `["web", "web-ingestion", "web-iso", "worker"]`
               }
               return `["${context.payload.inputs.service}"]`
             }
             if (context.eventName === "push") {
-              return `["web", "web-ingestion", "worker"]`
+              return `["web", "web-ingestion", "web-iso", "worker"]`
             }
             return "[]"
           result-encoding: string

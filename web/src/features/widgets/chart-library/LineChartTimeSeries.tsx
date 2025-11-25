@@ -1,9 +1,5 @@
 import React, { useMemo } from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Line, LineChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
@@ -61,8 +57,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           />
         ))}
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          cursor={{ opacity: 0.8 }}
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
         />
       </LineChart>
     </ChartContainer>

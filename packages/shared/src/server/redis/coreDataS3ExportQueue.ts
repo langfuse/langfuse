@@ -1,6 +1,10 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 import { logger } from "../logger";
 import { env } from "../../env";
 
@@ -24,6 +28,7 @@ export class CoreDataS3ExportQueue {
     CoreDataS3ExportQueue.instance = newRedis
       ? new Queue(QueueName.CoreDataS3ExportQueue, {
           connection: newRedis,
+          prefix: getQueuePrefix(QueueName.CoreDataS3ExportQueue),
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

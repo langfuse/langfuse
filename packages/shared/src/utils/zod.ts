@@ -1,4 +1,5 @@
-import * as z from "zod";
+import { InputJsonValue } from "@prisma/client/runtime/library";
+import { z } from "zod/v4";
 
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type
@@ -24,7 +25,7 @@ type Json = Root | { [key: string]: JsonNested } | JsonNested[];
 export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
   z.union([
     z.array(jsonSchemaNullable),
-    z.record(jsonSchemaNullable),
+    z.record(z.string(), jsonSchemaNullable),
     nestedLiteralSchema,
   ]),
 );
@@ -33,7 +34,7 @@ export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
     z.array(jsonSchemaNullable),
-    z.record(jsonSchemaNullable),
+    z.record(z.string(), jsonSchemaNullable),
     rootLiteralSchema,
   ]),
 );
@@ -41,11 +42,11 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().default(1),
+    z.coerce.number().nonnegative().default(1),
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().lte(100).default(50),
+    z.coerce.number().nonnegative().lte(100).default(50),
   ),
 };
 
@@ -80,13 +81,23 @@ export const paginationMetaResponseZod = z.object({
   totalPages: z.number().int().nonnegative(),
 });
 
-export const htmlRegex = /<[^>]*>/;
-export const noHtmlCheck = (value: string) => !htmlRegex.test(value);
-
-const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
+export const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
 export const noUrlCheck = (value: string) => !urlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
+
+export const htmlRegex = /<[^>]*>/g;
+
+export const StringNoHTML = z.string().refine((val) => !htmlRegex.test(val), {
+  message: "Text cannot contain HTML tags",
+});
+
+export const StringNoHTMLNonEmpty = z
+  .string()
+  .min(1, "Text cannot be empty")
+  .refine((val) => !htmlRegex.test(val), {
+    message: "Text cannot contain HTML tags",
+  });
 
 /**
  * Validates an object against a Zod schema and helps with IDE type warnings.
@@ -101,3 +112,60 @@ export const validateZodSchema = <T extends z.ZodTypeAny>(
 ): z.infer<T> => {
   return schema.parse(object);
 };
+
+// JSON Schema validation
+export const JSONPrimitiveValueSchema = z.union([
+  z.string(),
+  z.number().finite(),
+  z.boolean(),
+]);
+
+export const JSONValueSchema: z.ZodType<InputJsonValue> = z.lazy(() =>
+  z.union([
+    JSONPrimitiveValueSchema,
+    z.array(JSONValueSchema),
+    z.record(z.string(), JSONValueSchema),
+  ]),
+);
+
+export const JSONObjectSchema = z.record(z.string(), JSONValueSchema);
+export const JSONArraySchema = z.array(JSONValueSchema);
+
+export type JSONPrimitiveValue = z.infer<typeof JSONPrimitiveValueSchema>;
+export type JSONValue = z.infer<typeof JSONValueSchema>;
+export type JSONObject = z.infer<typeof JSONObjectSchema>;
+export type JSONArray = z.infer<typeof JSONArraySchema>;
+
+/**
+ * Sanitizes a string for safe use in email subject lines.
+ * Prevents email header injection attacks by removing:
+ * - Newline characters (\r, \n) which can be used for CRLF injection
+ * - Control characters (ASCII 0-31 and 127) which can cause parsing issues
+ * - HTML tags (defensive, though nodemailer should handle this)
+ *
+ * This is critical for security compliance as it prevents attackers from:
+ * - Injecting additional email headers (BCC, CC, From, etc.)
+ * - Manipulating email routing
+ * - Executing XSS in email clients
+ *
+ * @param input - The string to sanitize (e.g., user name, project name)
+ * @returns Sanitized string safe for email subject lines
+ *
+ * @example
+ * sanitizeEmailSubject("John\r\nBCC: attacker@evil.com") // Returns "JohnBCC: attacker@evil.com"
+ * sanitizeEmailSubject("Test<script>alert(1)</script>") // Returns "Testscriptalert(1)/script"
+ */
+export function sanitizeEmailSubject(input: string): string {
+  return (
+    input
+      // Remove carriage return and line feed (CRLF injection prevention)
+      .replace(/[\r\n]/g, "")
+      // Remove all control characters (ASCII 0-31 and 127)
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\x00-\x1F\x7F]/g, "")
+      // Remove HTML tags (defensive layer)
+      .replace(htmlRegex, "")
+      // Trim whitespace
+      .trim()
+  );
+}

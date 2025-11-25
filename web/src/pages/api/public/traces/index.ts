@@ -12,18 +12,18 @@ import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   eventTypes,
   logger,
-  QueueJobs,
-  TraceDeleteQueue,
+  traceDeletionProcessor,
+  getTracesFromEventsTableForPublicApi,
+  getTracesCountFromEventsTableForPublicApi,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -67,6 +67,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
         limit: query.limit ?? undefined,
+        fields: query.fields ?? undefined,
         userId: query.userId ?? undefined,
         name: query.name ?? undefined,
         tags: query.tags ?? undefined,
@@ -78,12 +79,50 @@ export default withMiddlewares({
         toTimestamp: query.toTimestamp ?? undefined,
       };
 
+      // Use events table if query parameter is explicitly set, otherwise use environment variable
+      const useEventsTable =
+        query.useEventsTable !== undefined && query.useEventsTable !== null
+          ? query.useEventsTable === true
+          : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+
+      if (useEventsTable) {
+        const [items, count] = await Promise.all([
+          getTracesFromEventsTableForPublicApi({
+            ...filterProps,
+            advancedFilters: query.filter,
+            orderBy: query.orderBy ?? null,
+          }),
+          getTracesCountFromEventsTableForPublicApi({
+            ...filterProps,
+            advancedFilters: query.filter,
+          }),
+        ]);
+
+        return {
+          data: items.map((item) => ({
+            ...item,
+            externalId: null,
+          })),
+          meta: {
+            page: query.page,
+            limit: query.limit,
+            totalItems: count,
+            totalPages: Math.ceil(count / query.limit),
+          },
+        };
+      }
+
+      // Legacy code path using traces table
       const [items, count] = await Promise.all([
         generateTracesForPublicApi({
           props: filterProps,
+          advancedFilters: query.filter,
           orderBy: query.orderBy ?? null,
         }),
-        getTracesCountForPublicApi({ props: filterProps }),
+        getTracesCountForPublicApi({
+          props: filterProps,
+          advancedFilters: query.filter,
+        }),
       ]);
 
       const finalCount = count || 0;
@@ -109,14 +148,6 @@ export default withMiddlewares({
     fn: async ({ body, auth }) => {
       const { traceIds } = body;
 
-      const traceDeleteQueue = TraceDeleteQueue.getInstance();
-      if (!traceDeleteQueue) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "TraceDeleteQueue not initialized",
-        });
-      }
-
       await Promise.all(
         traceIds.map((traceId) =>
           auditLog({
@@ -130,15 +161,7 @@ export default withMiddlewares({
         ),
       );
 
-      await traceDeleteQueue.add(QueueJobs.TraceDelete, {
-        timestamp: new Date(),
-        id: randomUUID(),
-        payload: {
-          projectId: auth.scope.projectId,
-          traceIds: traceIds,
-        },
-        name: QueueJobs.TraceDelete,
-      });
+      await traceDeletionProcessor(auth.scope.projectId, traceIds);
 
       return { message: "Traces deleted successfully" };
     },

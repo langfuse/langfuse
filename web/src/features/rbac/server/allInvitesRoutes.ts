@@ -9,20 +9,21 @@ import {
 } from "@/src/server/api/trpc";
 import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const orgLevelInviteQuery = z.object({
   orgId: z.string(),
   ...paginationZod,
 });
-const projectLevelInviteQuery = orgLevelInviteQuery.extend({
+const projectLevelInviteQuery = z.object({
   projectId: z.string(),
+  ...paginationZod,
 });
 async function getInvites(
   prisma: PrismaClient,
   query:
     | z.infer<typeof orgLevelInviteQuery>
-    | z.infer<typeof projectLevelInviteQuery>,
+    | (z.infer<typeof projectLevelInviteQuery> & { orgId: string }),
   showAllOrgMembers: boolean = true,
 ) {
   const invitations = await prisma.membershipInvitation.findMany({
@@ -90,9 +91,10 @@ export const allInvitesRoutes = {
   allInvitesFromProject: protectedProjectProcedure
     .input(projectLevelInviteQuery)
     .query(async ({ input, ctx }) => {
+      const orgId = ctx.session.orgId;
       const orgAccess = hasOrganizationAccess({
         session: ctx.session,
-        organizationId: input.orgId,
+        organizationId: orgId,
         scope: "organizationMembers:read",
       });
       const projectAccess = hasProjectAccess({
@@ -106,6 +108,13 @@ export const allInvitesRoutes = {
           message: "You do not have the required access rights",
         });
       }
-      return getInvites(ctx.prisma, input, orgAccess);
+      return getInvites(
+        ctx.prisma,
+        {
+          ...input,
+          orgId,
+        },
+        orgAccess,
+      );
     }),
 };

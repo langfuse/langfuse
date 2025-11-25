@@ -1,5 +1,5 @@
 import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { api } from "@/src/utils/api";
 import { mapLegacyUiTableFilterToView } from "@/src/features/query";
@@ -21,9 +21,9 @@ export const getAllModels = (
           ...mapLegacyUiTableFilterToView("observations", globalFilterState),
           {
             column: "type",
-            operator: "=",
-            value: "GENERATION",
-            type: "string",
+            operator: "any of",
+            value: getGenerationLikeTypes(),
+            type: "stringOptions",
           },
         ],
         timeDimension: null,

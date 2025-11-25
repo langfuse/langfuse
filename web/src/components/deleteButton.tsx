@@ -28,7 +28,8 @@ export type DeleteButtonProps = {
   enabled?: boolean;
 };
 
-type BaseDeleteButtonProps = DeleteButtonProps & {
+type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
+  variant?: "outline" | "ghost";
   scope: NonNullable<DeleteButtonProps["scope"]>;
   invalidateFunc: NonNullable<DeleteButtonProps["invalidateFunc"]>;
   captureDeleteOpen: (
@@ -40,11 +41,14 @@ type BaseDeleteButtonProps = DeleteButtonProps & {
     isTableAction: boolean,
   ) => void;
   entityToDeleteName: string;
+  customDeletePrompt?: string;
   executeDeleteMutation: (onSuccess: () => void) => Promise<void>;
   isDeleteMutationLoading: boolean;
+  itemId?: string;
 };
 
 export function DeleteButton({
+  variant,
   itemId,
   projectId,
   isTableAction = false,
@@ -59,6 +63,7 @@ export function DeleteButton({
   entityToDeleteName,
   executeDeleteMutation,
   isDeleteMutationLoading,
+  customDeletePrompt,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
@@ -85,10 +90,10 @@ export function DeleteButton({
   ]);
 
   return (
-    <Popover key={itemId}>
+    <Popover key={itemId ?? "delete-action"}>
       <PopoverTrigger asChild>
         <Button
-          variant={icon ? "outline" : "ghost"}
+          variant={variant ?? (icon ? "outline" : "ghost")}
           size={icon ? "icon" : "default"}
           disabled={!hasAccess || !enabled}
           onClick={(e) => {
@@ -112,9 +117,10 @@ export function DeleteButton({
       </PopoverTrigger>
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-        <p className="mb-3 text-sm">
-          This action cannot be undone and removes all the data associated with
-          this {entityToDeleteName}.
+        <p className="mb-3 max-w-72 text-sm">
+          {customDeletePrompt ??
+            `This action cannot be undone and removes all the data associated with
+            this ${entityToDeleteName}.`}
         </p>
         {deleteConfirmation && (
           <div className="mb-4 grid w-full gap-1.5">
@@ -195,7 +201,7 @@ export function DeleteTraceButton(props: DeleteButtonProps) {
       }
       entityToDeleteName="trace"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={traceMutation.isLoading}
+      isDeleteMutationLoading={traceMutation.isPending}
       enabled={hasTraceDeletionEntitlement}
     />
   );
@@ -238,12 +244,55 @@ export function DeleteDatasetButton(props: DeleteButtonProps) {
       }
       entityToDeleteName="dataset"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={datasetMutation.isLoading}
+      isDeleteMutationLoading={datasetMutation.isPending}
     />
   );
 }
 
-export function DeleteEvaluatorButton(props: DeleteButtonProps) {
+export function DeleteDashboardButton(props: DeleteButtonProps) {
+  const utils = api.useUtils();
+  const {
+    itemId,
+    projectId,
+    scope = "dashboards:CUD",
+    invalidateFunc = () => void utils.dashboard.invalidate(),
+  } = props;
+  const dashboardMutation = api.dashboard.delete.useMutation();
+  const executeDeleteMutation = async (onSuccess: () => void) => {
+    try {
+      await dashboardMutation.mutateAsync({
+        dashboardId: itemId,
+        projectId,
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    showSuccessToast({
+      title: "Dashboard deleted",
+      description: "The dashboard has been deleted successfully",
+    });
+    onSuccess();
+  };
+
+  return (
+    <DeleteButton
+      {...props}
+      scope={scope}
+      invalidateFunc={invalidateFunc}
+      captureDeleteOpen={(capture) =>
+        capture("dashboard:delete_dashboard_form_open")
+      }
+      captureDeleteSuccess={(capture) =>
+        capture("dashboard:delete_dashboard_button_click")
+      }
+      entityToDeleteName="dashboard"
+      executeDeleteMutation={executeDeleteMutation}
+      isDeleteMutationLoading={dashboardMutation.isPending}
+    />
+  );
+}
+
+export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const utils = api.useUtils();
   const {
     itemId,
@@ -251,11 +300,77 @@ export function DeleteEvaluatorButton(props: DeleteButtonProps) {
     scope = "evalJob:CUD",
     invalidateFunc = () => void utils.evals.invalidate(),
   } = props;
-  const evaluatorMutation = api.evals.deleteEvalJob.useMutation();
+
+  const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Running evaluator deleted",
+        description: "The running evaluator has been deleted successfully",
+      });
+      void utils.evals.invalidate();
+    },
+  });
+
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {
       await evaluatorMutation.mutateAsync({
         evalConfigId: itemId,
+        projectId,
+      });
+      onSuccess();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  };
+
+  return (
+    <DeleteButton
+      {...props}
+      scope={scope}
+      invalidateFunc={invalidateFunc}
+      captureDeleteOpen={(capture, isTableAction) =>
+        capture("eval_config:delete_form_open", {
+          source: isTableAction ? "table-single-row" : "eval config detail",
+        })
+      }
+      captureDeleteSuccess={(capture, isTableAction) =>
+        capture("eval_config:delete_evaluator_button_click", {
+          source: isTableAction ? "table-single-row" : "eval config detail",
+        })
+      }
+      customDeletePrompt="This action cannot be undone and removes all logs associated with this running evaluator. Scores produced by this evaluator will not be deleted."
+      entityToDeleteName="running evaluator"
+      executeDeleteMutation={executeDeleteMutation}
+      isDeleteMutationLoading={evaluatorMutation.isPending}
+    />
+  );
+}
+
+export function DeleteEvaluationModelButton(
+  props: Omit<DeleteButtonProps, "itemId">,
+) {
+  const utils = api.useUtils();
+  const {
+    projectId,
+    scope = "evalDefaultModel:CUD",
+    invalidateFunc = () => void utils.defaultLlmModel.invalidate(),
+  } = props;
+
+  const { mutateAsync: deleteDefaultModel, isPending } =
+    api.defaultLlmModel.deleteDefaultModel.useMutation({
+      onSuccess: () => {
+        showSuccessToast({
+          title: "Default evaluation model deleted",
+          description:
+            "The default evaluation model has been deleted. Any running evaluations relying on the default model will be inactivated. Queued jobs will fail.",
+        });
+        utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
+      },
+    });
+
+  const executeDeleteMutation = async (onSuccess: () => void) => {
+    try {
+      await deleteDefaultModel({
         projectId,
       });
     } catch (error) {
@@ -263,12 +378,11 @@ export function DeleteEvaluatorButton(props: DeleteButtonProps) {
     }
     onSuccess();
   };
-  const hasModelBasedEvaluationEntitlement = useHasEntitlement(
-    "model-based-evaluations",
-  );
+
   return (
     <DeleteButton
       {...props}
+      variant="outline"
       scope={scope}
       invalidateFunc={invalidateFunc}
       captureDeleteOpen={(capture, isTableAction) =>
@@ -281,10 +395,11 @@ export function DeleteEvaluatorButton(props: DeleteButtonProps) {
           source: isTableAction ? "table-single-row" : "evaluator",
         })
       }
-      entityToDeleteName="evaluator"
+      entityToDeleteName="default evaluation model"
+      customDeletePrompt="Deleting this model might cause running evaluators to fail. Please make sure you have no running evaluators relying on this model."
+      deleteConfirmation="delete"
       executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={evaluatorMutation.isLoading}
-      enabled={hasModelBasedEvaluationEntitlement}
+      isDeleteMutationLoading={isPending}
     />
   );
 }

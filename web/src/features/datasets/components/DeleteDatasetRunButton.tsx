@@ -4,6 +4,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -18,10 +19,12 @@ export const DeleteDatasetRunButton = ({
   projectId,
   datasetRunId,
   redirectUrl,
+  datasetId,
 }: {
   projectId: string;
   datasetRunId: string;
   redirectUrl?: string;
+  datasetId: string;
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
@@ -55,7 +58,7 @@ export const DeleteDatasetRunButton = ({
     <Dialog
       open={isDialogOpen}
       onOpenChange={(isOpen) => {
-        if (!mutDelete.isLoading) {
+        if (!mutDelete.isPending) {
           setIsDialogOpen(isOpen);
         }
       }}
@@ -65,26 +68,29 @@ export const DeleteDatasetRunButton = ({
         <DialogHeader>
           <DialogTitle className="mb-4">Please confirm</DialogTitle>
           <DialogDescription className="text-md p-0">
-            This action cannot be undone and removes all the data associated
-            with this dataset run.
+            This action cannot be undone. Traces linked to this run must be
+            deleted manually.
           </DialogDescription>
         </DialogHeader>
-        <Button
-          variant="destructive"
-          loading={mutDelete.isLoading}
-          disabled={mutDelete.isLoading}
-          onClick={async (event) => {
-            event.preventDefault();
-            capture("dataset_run:delete_form_submit");
-            await mutDelete.mutateAsync({
-              projectId,
-              datasetRunIds: [datasetRunId],
-            });
-            setIsDialogOpen(false);
-          }}
-        >
-          Delete Dataset Run
-        </Button>
+        <DialogFooter>
+          <Button
+            variant="destructive"
+            loading={mutDelete.isPending}
+            disabled={mutDelete.isPending}
+            onClick={async (event) => {
+              event.preventDefault();
+              capture("dataset_run:delete_form_submit");
+              await mutDelete.mutateAsync({
+                projectId,
+                datasetId: datasetId,
+                datasetRunIds: [datasetRunId],
+              });
+              setIsDialogOpen(false);
+            }}
+          >
+            Delete Dataset Run
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   ) : (

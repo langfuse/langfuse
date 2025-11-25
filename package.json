@@ -1,11 +1,11 @@
 {
   "name": "langfuse",
-  "version": "3.55.0",
+  "version": "3.134.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
@@ -17,27 +17,30 @@
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
-    "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
-    "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset -f && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
-    "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "start": "turbo run start",
     "dev": "turbo run dev",
     "dev:worker": "turbo run dev --filter=worker",
-    "dev:web": "turbo run dev --filter=web",
+    "dev:web": "turbo run dev --filter=web -- --turbo",
+    "dev:web-no-turbo": "turbo run dev --filter=web",
     "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "prepare": "husky"
   },
   "devDependencies": {
-    "@release-it/bumper": "^7.0.1",
+    "@release-it/bumper": "^7.0.5",
     "braces": "3.0.3",
-    "dotenv-cli": "^7.4.2",
-    "husky": "^9.0.11",
-    "prettier": "^3.3.3",
-    "release-it": "^18.1.2",
-    "turbo": "^1.13.4"
+    "dotenv-cli": "^7.4.4",
+    "husky": "^9.1.7",
+    "prettier": "^3.6.2",
+    "release-it": "^19.0.4",
+    "turbo": "^2.6.1"
   },
   "release-it": {
     "git": {
@@ -86,10 +89,14 @@
   "pnpm": {
     "overrides": {
       "nanoid": "^3.3.8",
-      "katex": "^0.16.21"
+      "katex": "^0.16.21",
+      "tar-fs": "^2.1.2",
+      "rollup@^4.0.0": "^4.22.4",
+      "@types/node-fetch": "^2.6.13",
+      "glob": "^10.5.0"
     },
     "patchedDependencies": {
-      "next-auth@4.24.11": "patches/next-auth@4.24.11.patch"
+      "next-auth@4.24.12": "patches/next-auth@4.24.12.patch"
     }
   }
 }

@@ -13,9 +13,8 @@ import {
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { PromptLabelSchema } from "@/src/features/prompts/server/utils/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
@@ -31,11 +30,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import {
   LATEST_PROMPT_LABEL,
   PRODUCTION_LABEL,
-} from "@/src/features/prompts/constants";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+  PromptLabelSchema,
+} from "@langfuse/shared";
 
 const AddLabelFormSchema = z.object({
   label: PromptLabelSchema,
@@ -54,7 +55,7 @@ export default function ProtectedLabelsSettings({
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
 
-  const form = useForm<AddLabelFormSchemaType>({
+  const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
     defaultValues: {
       label: "",
@@ -212,7 +213,7 @@ export default function ProtectedLabelsSettings({
             <ActionButton
               type="submit"
               variant="secondary"
-              loading={addProtectedLabel.isLoading}
+              loading={addProtectedLabel.isPending}
               hasAccess={hasAccess}
               hasEntitlement={hasEntitlement}
             >

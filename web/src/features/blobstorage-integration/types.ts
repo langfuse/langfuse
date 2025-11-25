@@ -1,19 +1,17 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BlobStorageExportMode,
 } from "@langfuse/shared";
 
 export const blobStorageIntegrationFormSchema = z.object({
-  type: z.nativeEnum(BlobStorageIntegrationType),
+  type: z.enum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
   endpoint: z.string().url().optional().nullable(),
   region: z.string().default("auto"),
-  accessKeyId: z.string().min(1, { message: "Access key ID is required" }),
-  secretAccessKey: z
-    .string()
-    .min(1, { message: "Secret access key is required" })
-    .nullable(), // Only required on create
+  accessKeyId: z.string().optional(),
+  secretAccessKey: z.string().nullable().optional(),
   prefix: z
     .string()
     .refine((value) => !value || value === "" || value.endsWith("/"), {
@@ -25,8 +23,12 @@ export const blobStorageIntegrationFormSchema = z.object({
   enabled: z.boolean(),
   forcePathStyle: z.boolean(),
   fileType: z
-    .nativeEnum(BlobStorageIntegrationFileType)
+    .enum(BlobStorageIntegrationFileType)
     .default(BlobStorageIntegrationFileType.JSONL),
+  exportMode: z
+    .enum(BlobStorageExportMode)
+    .default(BlobStorageExportMode.FULL_HISTORY),
+  exportStartDate: z.coerce.date().optional().nullable(),
 });
 
 export type BlobStorageIntegrationFormSchema = z.infer<

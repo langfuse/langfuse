@@ -82,7 +82,7 @@ test.describe("Create project", () => {
     await page.click('button[type="submit"]');
     await page.waitForTimeout(5000);
     expect(page.url()).toContain("/project/");
-    expect(page.url()).toContain("/setup");
+    expect(page.url()).toContain("/traces");
 
     const projectUrl = new URL(page.url());
     const projectId = projectUrl.pathname.split("/")[2];
@@ -91,7 +91,6 @@ test.describe("Create project", () => {
     await page.goto("/project/" + projectId);
     await page.waitForTimeout(2000);
     expect(page.url()).toContain("/project/" + projectId);
-    expect(page.url()).not.toContain("/setup");
 
     const headings = await page.locator("h2").allTextContents();
     expect(headings).toContain("Home");
@@ -108,12 +107,14 @@ test.describe("Create project", () => {
   });
 
   [
-    { title: "Traces", url: "/traces" },
+    { title: "Tracing", url: "/traces", subTitle: "Traces" },
     { title: "Sessions", url: "/sessions" },
-    { title: "Observations", url: "/observations" },
+    { title: "Tracing", url: "/observations", subTitle: "Observations" },
     { title: "Scores", url: "/scores" },
-  ].forEach(({ title, url }) => {
-    test(`Check ${title} page`, async ({ page }) => {
+  ].forEach(({ title, url, subTitle }) => {
+    test(`Check ${title} ${subTitle ? `- ${subTitle}` : ""} page`, async ({
+      page,
+    }) => {
       // const errors = await checkConsoleErrors(page);
       await signin(page);
 

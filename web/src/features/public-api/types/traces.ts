@@ -4,9 +4,25 @@ import {
   paginationMetaResponseZod,
   orderBy,
   publicApiPaginationZod,
+  singleFilter,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
-import { z } from "zod";
+import { z } from "zod/v4";
+import { useEventsTableSchema } from "../../query";
+
+/**
+ * Field groups for selective field fetching
+ */
+export const TRACE_FIELD_GROUPS = [
+  "core",
+  "io",
+  "scores",
+  "observations",
+  "metrics",
+] as const;
+
+export type TraceFieldGroup = (typeof TRACE_FIELD_GROUPS)[number];
 
 /**
  * Objects
@@ -36,10 +52,10 @@ export const APITrace = z
   .strict();
 
 const APIExtendedTrace = APITrace.extend({
-  observations: z.array(z.string()),
-  scores: z.array(z.string()),
-  totalCost: z.number(),
-  latency: z.number(),
+  observations: z.array(z.string()).nullish(),
+  scores: z.array(z.string()).nullish(),
+  totalCost: z.number().nullish(),
+  latency: z.number().nullish(),
   htmlPath: z.string(),
 }).strict();
 
@@ -67,7 +83,33 @@ export const GetTracesV1Query = z.object({
       const [column, order] = v.split(".");
       return { column, order: order?.toUpperCase() };
     })
-    .pipe(orderBy.nullish()),
+    .pipe(orderBy.nullable()),
+  fields: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      return v
+        .split(",")
+        .map((f) => f.trim())
+        .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
+    })
+    .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
+  useEventsTable: useEventsTableSchema,
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
 });
 export const GetTracesV1Response = z
   .object({

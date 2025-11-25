@@ -5,8 +5,30 @@
 
 # Check if CLICKHOUSE_URL is configured
 if [ -z "${CLICKHOUSE_URL}" ]; then
-  echo "Info: CLICKHOUSE_URL not configured, skipping migration."
-  exit 0
+  echo "Error: CLICKHOUSE_URL is not configured."
+  echo "Please set CLICKHOUSE_URL in your environment variables."
+  exit 1
+fi
+
+# Check if CLICKHOUSE_MIGRATION_URL is configured
+if [ -z "${CLICKHOUSE_MIGRATION_URL}" ]; then
+  echo "Error: CLICKHOUSE_MIGRATION_URL is not configured."
+  echo "Please set CLICKHOUSE_MIGRATION_URL in your environment variables."
+  exit 1
+fi
+
+# Check if CLICKHOUSE_USER is set
+if [ -z "${CLICKHOUSE_USER}" ]; then
+  echo "Error: CLICKHOUSE_USER is not set."
+  echo "Please set CLICKHOUSE_USER in your environment variables."
+  exit 1
+fi
+
+# Check if CLICKHOUSE_PASSWORD is set
+if [ -z "${CLICKHOUSE_PASSWORD}" ]; then
+  echo "Error: CLICKHOUSE_PASSWORD is not set."
+  echo "Please set CLICKHOUSE_PASSWORD in your environment variables."
+  exit 1
 fi
 
 # Check if golang-migrate is installed

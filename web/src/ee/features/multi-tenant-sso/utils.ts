@@ -3,6 +3,8 @@ import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
+import AuthentikProvider from "next-auth/providers/authentik";
+import OneLoginProvider from "next-auth/providers/onelogin";
 import CognitoProvider from "next-auth/providers/cognito";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -14,6 +16,7 @@ import { SsoProviderSchema } from "./types";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
+  JumpCloudProvider,
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -178,6 +181,18 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
     });
+  else if (provider.authProvider === "authentik")
+    return AuthentikProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
+  else if (provider.authProvider === "onelogin")
+    return OneLoginProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+    });
   else if (provider.authProvider === "azure-ad")
     return AzureADProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
@@ -214,6 +229,15 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
         baseUrl: provider.authConfig.enterprise.baseUrl,
       },
     });
+  else if (provider.authProvider === "jumpcloud")
+    return JumpCloudProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      authorization: {
+        params: { scope: provider.authConfig.scope ?? "openid profile email" },
+      },
+    });
   else {
     // Type check to ensure we handle all providers
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -241,4 +265,31 @@ const getAuthProviderIdForSsoConfig = (
 ): string => {
   if (!dbSsoConfig.authConfig) return dbSsoConfig.authProvider;
   return `${dbSsoConfig.domain}.${dbSsoConfig.authProvider}`;
+};
+
+export const findMultiTenantSsoConfig = async ({
+  providerId,
+}: {
+  providerId: string;
+}): Promise<
+  | {
+      isMultiTenantSsoProvider: true;
+      domain: string;
+    }
+  | {
+      isMultiTenantSsoProvider: false;
+      domain: null;
+    }
+> => {
+  const allConfigs = await getSsoConfigs();
+
+  const config = allConfigs
+    .filter((config) => Boolean(config.authConfig)) // exclude all that don't use custom credentials (enforcement of social login)
+    .find((c) => getAuthProviderIdForSsoConfig(c) === providerId);
+
+  if (config) {
+    return { isMultiTenantSsoProvider: true, domain: config.domain };
+  } else {
+    return { isMultiTenantSsoProvider: false, domain: null };
+  }
 };

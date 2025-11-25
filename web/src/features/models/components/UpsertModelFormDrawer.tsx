@@ -2,7 +2,7 @@ import { MinusCircle, PlusCircle, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
+import * as z from "zod/v4";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Button } from "@/src/components/ui/button";
@@ -98,7 +98,7 @@ export const UpsertModelFormDrawer = ({
     };
   }
 
-  const form = useForm<FormUpsertModel>({
+  const form = useForm({
     resolver: zodResolver(
       props.action === "edit"
         ? FormUpsertModelSchema.omit({ modelName: true }).extend({
@@ -149,7 +149,10 @@ export const UpsertModelFormDrawer = ({
       .mutateAsync({
         modelId: props.action === "edit" ? props.modelData.id : null,
         projectId: props.projectId,
-        modelName: values.modelName,
+        modelName:
+          props.action === "edit"
+            ? props.modelData.modelName
+            : values.modelName,
         matchPattern: values.matchPattern,
         prices: values.prices,
         tokenizerId: values.tokenizerId,
@@ -472,7 +475,7 @@ export const UpsertModelFormDrawer = ({
               <Button
                 type="submit"
                 className="w-full"
-                loading={upsertModelMutation.isLoading}
+                loading={upsertModelMutation.isPending}
               >
                 Submit
               </Button>

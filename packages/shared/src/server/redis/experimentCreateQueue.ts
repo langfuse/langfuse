@@ -1,7 +1,11 @@
 import { Queue } from "bullmq";
 import { logger } from "../logger";
 import { TQueueJobTypes, QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 
 export class ExperimentCreateQueue {
   private static instance: Queue<
@@ -23,13 +27,14 @@ export class ExperimentCreateQueue {
           QueueName.ExperimentCreate,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(QueueName.ExperimentCreate),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,
               attempts: 10,
               backoff: {
                 type: "exponential",
-                delay: 1000,
+                delay: 10_000, // 10 seconds
               },
             },
           },

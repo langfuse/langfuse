@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export enum MediaEnabledFields {
   Input = "input",
@@ -19,6 +19,8 @@ export enum MediaContentType {
   SVG = "image/svg+xml",
   TIFF = "image/tiff",
   BMP = "image/bmp",
+  AVIF = "image/avif",
+  HEIC = "image/heic",
   MP3 = "audio/mpeg",
   MP3_LEGACY = "audio/mp3",
   WAV = "audio/wav",
@@ -27,19 +29,40 @@ export enum MediaContentType {
   AAC = "audio/aac",
   M4A = "audio/mp4",
   FLAC = "audio/flac",
+  OPUS = "audio/opus",
+  WEBA = "audio/webm",
   MP4 = "video/mp4",
   WEBM = "video/webm",
+  VIDEO_OGG = "video/ogg",
+  MPEG = "video/mpeg",
+  MOV = "video/quicktime",
+  AVI = "video/x-msvideo",
+  MKV = "video/x-matroska",
   TXT = "text/plain",
   HTML = "text/html",
   CSS = "text/css",
   CSV = "text/csv",
+  MARKDOWN = "text/markdown",
+  PYTHON = "text/x-python",
+  JAVASCRIPT = "application/javascript",
+  TYPESCRIPT = "text/x-typescript",
+  YAML = "application/x-yaml",
   PDF = "application/pdf",
   DOC = "application/msword",
   XLS = "application/vnd.ms-excel",
+  XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ZIP = "application/zip",
   JSON = "application/json",
   XML = "application/xml",
   BIN = "application/octet-stream",
+  DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  RTF = "application/rtf",
+  JSONL = "application/x-ndjson",
+  PARQUET = "application/vnd.apache.parquet",
+  GZIP = "application/gzip",
+  TAR = "application/x-tar",
+  SEVEN_Z = "application/x-7z-compressed",
 }
 
 export enum MediaFileExtension {
@@ -51,6 +74,8 @@ export enum MediaFileExtension {
   SVG = "svg",
   TIFF = "tiff",
   BMP = "bmp",
+  AVIF = "avif",
+  HEIC = "heic",
   MP3 = "mp3",
   WAV = "wav",
   OGG = "ogg",
@@ -58,25 +83,46 @@ export enum MediaFileExtension {
   AAC = "aac",
   M4A = "m4a",
   FLAC = "flac",
+  OPUS = "opus",
+  WEBA = "weba",
   MP4 = "mp4",
   WEBM = "webm",
+  OGV = "ogv",
+  MPEG = "mpeg",
+  MOV = "mov",
+  AVI = "avi",
+  MKV = "mkv",
   TXT = "txt",
   HTML = "html",
   CSS = "css",
   CSV = "csv",
+  MD = "md",
+  PY = "py",
+  JS = "js",
+  TS = "ts",
+  YAML = "yaml",
   PDF = "pdf",
   DOC = "doc",
   XLS = "xls",
+  XLSX = "xlsx",
   ZIP = "zip",
   JSON = "json",
   XML = "xml",
   BIN = "bin",
+  DOCX = "docx",
+  PPTX = "pptx",
+  RTF = "rtf",
+  JSONL = "jsonl",
+  PARQUET = "parquet",
+  GZ = "gz",
+  TAR = "tar",
+  SEVEN_Z = "7z",
 }
 
 export const GetMediaUploadUrlQuerySchema = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
-  contentType: z.nativeEnum(MediaContentType, {
+  contentType: z.enum(MediaContentType, {
     message: `Invalid content type. Only supporting ${Object.values(
       MediaContentType,
     ).join(", ")}`,
@@ -88,7 +134,7 @@ export const GetMediaUploadUrlQuerySchema = z.object({
       /^[A-Za-z0-9+/=]{44}$/,
       "Must be a 44 character base64 encoded SHA-256 hash",
     ),
-  field: z.nativeEnum(MediaEnabledFields, {
+  field: z.enum(MediaEnabledFields, {
     message: `Invalid field. Only supporting ${Object.values(
       MediaEnabledFields,
     ).join(", ")}`,
@@ -136,11 +182,11 @@ export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
 
 export const MediaReturnSchema = z.object({
   mediaId: z.string(),
-  contentType: z.nativeEnum(MediaContentType),
+  contentType: z.enum(MediaContentType),
   contentLength: z.coerce.number(),
   url: z.string(),
   urlExpiry: z.string(),
-  field: z.nativeEnum(MediaEnabledFields),
+  field: z.enum(MediaEnabledFields),
 });
 
 export type MediaReturnType = z.infer<typeof MediaReturnSchema>;

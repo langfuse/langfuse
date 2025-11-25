@@ -16,6 +16,7 @@ export default withMiddlewares({
     name: "Get Dataset Item",
     querySchema: GetDatasetItemV1Query,
     responseSchema: GetDatasetItemV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 
@@ -50,6 +51,7 @@ export default withMiddlewares({
     name: "Delete Dataset Item",
     querySchema: DeleteDatasetItemV1Query,
     responseSchema: DeleteDatasetItemV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 

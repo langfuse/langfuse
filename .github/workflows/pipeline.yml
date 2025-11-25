@@ -21,12 +21,28 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
+      llm_connections_changed: ${{ steps.filter.outputs.llm_connections }}
     timeout-minutes: 15
+    permissions:
+      pull-requests: read
     steps:
       - id: skip_check
         uses: fkirc/skip-duplicate-actions@v5
         with:
           do_not_skip: '["workflow_dispatch"]'
+      - uses: actions/checkout@v4
+        with:
+          # Recommended for paths-filter action
+          # may save additional git fetch roundtrip if
+          # merge-base is found within latest N commits
+          fetch-depth: 20
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            llm_connections:
+              - 'packages/shared/package.json'
+              - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
 
   lint:
     runs-on: ubuntu-latest
@@ -40,7 +56,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -51,6 +67,49 @@ jobs:
           cp .env.dev.example .env
       - name: lint web
         run: pnpm run lint
+
+  prettier-check:
+    runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm i
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+      - name: Check formatting on changed files
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+          else
+            BASE_SHA=$(git merge-base origin/main HEAD)
+          fi
+
+          echo "Checking files changed from $BASE_SHA to HEAD"
+
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | tr '\n' ' ')
+
+          if [ -n "$CHANGED_FILES" ] && [ "$CHANGED_FILES" != " " ]; then
+            echo "Files to check: $CHANGED_FILES"
+            pnpm prettier --check --experimental-cli $CHANGED_FILES
+          else
+            echo "No JS/TS/CSS files changed - skipping prettier check"
+          fi
 
   test-docker-build:
     timeout-minutes: 20
@@ -71,7 +130,9 @@ jobs:
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Build and run both images from compose
         run: |
-          docker compose -f docker-compose.build.yml up -d
+          docker compose --progress plain --verbose -f docker-compose.build.yml build --print > /tmp/bake.json
+          docker buildx bake -f /tmp/bake.json
+          docker compose --progress plain -f docker-compose.build.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure no unhealthy status
         run: |
@@ -97,17 +158,13 @@ jobs:
     name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
     steps:
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -133,6 +190,7 @@ jobs:
           cp .env.dev.example .env
           grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
       - name: Run dev containers
         run: |
@@ -147,6 +205,8 @@ jobs:
           pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -171,21 +231,17 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
+    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
-        blob-provider: ["", "-azure"]
+        deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -208,8 +264,8 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          cp .env.dev${{ matrix.blob-provider }}.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.deploy-mode }}.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
@@ -217,7 +273,7 @@ jobs:
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
       - name: Run dev containers
         run: |
-          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
         env:
@@ -226,8 +282,24 @@ jobs:
         run: |
           pnpm run db:migrate
           pnpm --filter=shared ch:up
+      - name: Download and extract ClickHouse client for dev-tables setup
+        if: matrix.deploy-mode == ''
+        run: |
+          CH_VERSION="24.9.3.128"
+          ARCH="amd64"
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+
+          # The binary is usually located in ./usr/bin/clickhouse in the archive
+          dpkg-deb -x clickhouse-client.deb ch_client_dir
+          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
+      - name: Setup Dev Tables
+        if: matrix.deploy-mode == ''
+        run: |
+          pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -250,17 +322,13 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
+    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: [24]
         postgres-version: [12, 15]
-        blob-provider: ["", "-azure"]
+        deploy-mode: ["", "-azure", "-redis-cluster"]
     steps:
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 10
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
         with:
@@ -282,17 +350,17 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
         run: |
-          cp .env.dev${{ matrix.blob-provider }}.example .env
-          cp .env.dev${{ matrix.blob-provider }}.example web/.env
-          cp .env.dev${{ matrix.blob-provider }}.example worker/.env
+          cp .env.dev${{ matrix.deploy-mode }}.example .env
+          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
+          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
       - name: Ensure no unhealthy status
@@ -311,7 +379,80 @@ jobs:
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run tests
-        run: pnpm --filter=worker run test
+        run: pnpm --filter=worker run test:exclude-llm-connections
+
+  test-worker-llm-connections:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: startsWith(github.ref, 'refs/tags/') || (needs.pre-job.outputs.should_skip != 'true' && (needs.pre-job.outputs.llm_connections_changed == 'true' || github.event_name == 'workflow_dispatch'))
+    name: test-worker-llm-connections (node24, pg15)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9.5.0
+      - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+          cp .env.dev.example web/.env
+          cp .env.dev.example worker/.env
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose ps
+        env:
+          POSTGRES_VERSION: 15
+      - name: Ensure no unhealthy status
+        run: |
+          if docker compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
+      - name: Seed DB
+        run: |
+          pnpm run db:migrate
+          pnpm run db:seed
+          pnpm run --filter=shared ch:up
+      - name: Build
+        run: pnpm --filter=worker... run build
+      - name: run llm connection tests
+        run: pnpm --filter=worker run test:llm-connections-only
+        env:
+          LANGFUSE_LLM_CONNECTION_OPENAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_OPENAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY }}
+          LANGFUSE_LLM_CONNECTION_AZURE_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_KEY }}
+          LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL }}
+          LANGFUSE_LLM_CONNECTION_AZURE_MODEL: ${{ secrets.LANGFUSE_LLM_CONNECTION_AZURE_MODEL }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY }}
+          LANGFUSE_LLM_CONNECTION_BEDROCK_REGION: ${{ secrets.LANGFUSE_LLM_CONNECTION_BEDROCK_REGION }}
+          LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY }}
+          LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY: ${{ secrets.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY }}
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -325,7 +466,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
@@ -343,7 +484,7 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -366,6 +507,8 @@ jobs:
           pnpm run db:seed
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps
       - name: Run e2e tests
@@ -389,7 +532,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -397,14 +540,12 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
-          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -425,6 +566,8 @@ jobs:
           pnpm run db:seed:examples
       - name: Build
         run: pnpm run build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
@@ -442,27 +585,51 @@ jobs:
     needs:
       [
         lint,
+        prettier-check,
         tests-web-sync,
         tests-worker,
+        test-worker-llm-connections,
         e2e-tests,
         test-docker-build,
         e2e-server-tests,
         tests-web-async,
       ]
     if: always()
+    outputs:
+      success: ${{ steps.set-success-output.outputs.success }}
     steps:
+      - name: Set check result as an output
+        id: set-success-output
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "success=false" >> $GITHUB_OUTPUT
+          else
+            echo "success=true" >> $GITHUB_OUTPUT
+          fi
       - name: Successful deploy
-        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: exit 0
         working-directory: .
       - name: Failing deploy
-        if: ${{ contains(needs.*.result, 'failure') }}
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
         working-directory: .
+      - name: Notify Slack
+        uses: ravsamhq/notify-slack-action@v2
+        if: always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        with:
+          status: ${{ job.status }}
+          notify_when: "failure"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Output job results
+        run: |
+          echo "Job results: ${{ steps.set-success-output.outputs.success }}"
 
   push-docker-image:
     needs: all-ci-passed
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
+    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     environment: "protected branches"
     runs-on: ubuntu-latest
     permissions:
@@ -476,7 +643,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@v4

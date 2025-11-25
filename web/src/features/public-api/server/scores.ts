@@ -1,7 +1,11 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
-import { convertToScore, StringFilter } from "@langfuse/shared/src/server";
-import { type ScoreRecordReadType } from "@langfuse/shared/src/server";
-import { queryClickhouse } from "@langfuse/shared/src/server";
+import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src/server";
+import {
+  convertClickhouseScoreToDomain,
+  StringFilter,
+  type ScoreRecordReadType,
+  queryClickhouse,
+  measureAndReturn,
+} from "@langfuse/shared/src/server";
 
 export type ScoreQueryType = {
   page: number;
@@ -16,6 +20,8 @@ export type ScoreQueryType = {
   value?: number;
   scoreId?: string;
   configId?: string;
+  sessionId?: string;
+  datasetRunId?: string;
   queueId?: string;
   traceTags?: string | string[];
   operator?: string;
@@ -65,8 +71,8 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.session_id as session_id,
           s.dataset_run_id as dataset_run_id
       FROM
-          scores s 
-          LEFT JOIN traces t ON s.trace_id = t.id
+          scores s
+          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
           s.project_id = {projectId: String}
@@ -92,42 +98,60 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY
-          s.timestamp desc
+          s.timestamp desc, s.event_ts desc
       LIMIT
           1 BY s.id, s.project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
-  const records = await queryClickhouse<
-    ScoreRecordReadType & {
-      tags: string[];
-      user_id: string;
-      trace_environment: string;
-    }
-  >({
-    query,
-    params: {
-      ...appliedScoresFilter.params,
-      ...appliedTracesFilter.params,
-      projectId: props.projectId,
-      ...(props.limit !== undefined ? { limit: props.limit } : {}),
-      ...(props.page !== undefined
-        ? { offset: (props.page - 1) * props.limit }
-        : {}),
+  return measureAndReturn({
+    operationName: "_handleGenerateScoresForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: {
+        ...appliedScoresFilter.params,
+        ...appliedTracesFilter.params,
+        projectId: props.projectId,
+        ...(props.limit !== undefined ? { limit: props.limit } : {}),
+        ...(props.page !== undefined
+          ? { offset: (props.page - 1) * props.limit }
+          : {}),
+      },
+      tags: {
+        feature: "scoring",
+        type: "score",
+        projectId: props.projectId,
+        scoreScope,
+        operation_name: "_handleGenerateScoresForPublicApi",
+      },
+    },
+    fn: async (input) => {
+      const records = await queryClickhouse<
+        ScoreRecordReadType & {
+          tags: string[];
+          user_id: string;
+          trace_environment: string;
+        }
+      >({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      });
+
+      return records.map((record) => ({
+        ...convertClickhouseScoreToDomain(record),
+        trace:
+          record.trace_id !== null
+            ? {
+                userId: record.user_id,
+                tags: record.tags,
+                environment: record.trace_environment,
+              }
+            : null,
+      }));
     },
   });
-
-  return records.map((record) => ({
-    ...convertToScore(record),
-    trace:
-      record.trace_id !== null
-        ? {
-            userId: record.user_id,
-            tags: record.tags,
-            environment: record.trace_environment,
-          }
-        : null,
-  }));
 };
 
 /**
@@ -151,8 +175,8 @@ export const _handleGetScoresCountForPublicApi = async ({
       SELECT
         count() as count
       FROM
-        scores s 
-          LEFT JOIN traces t ON s.trace_id = t.id
+        scores s
+          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
       WHERE
         s.project_id = {projectId: String}
@@ -178,15 +202,33 @@ export const _handleGetScoresCountForPublicApi = async ({
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
-  const records = await queryClickhouse<{ count: string }>({
-    query,
-    params: {
-      ...appliedScoresFilter.params,
-      ...appliedTracesFilter.params,
-      projectId: props.projectId,
+  return measureAndReturn({
+    operationName: "_handleGetScoresCountForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: {
+        ...appliedScoresFilter.params,
+        ...appliedTracesFilter.params,
+        projectId: props.projectId,
+      },
+      tags: {
+        feature: "scoring",
+        type: "score",
+        projectId: props.projectId,
+        scoreScope,
+        operation_name: "_handleGetScoresCountForPublicApi",
+      },
+    },
+    fn: async (input) => {
+      const records = await queryClickhouse<{ count: string }>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      });
+      return records.map((record) => Number(record.count)).shift();
     },
   });
-  return records.map((record) => Number(record.count)).shift();
 };
 
 const secureScoreFilterOptions = [
@@ -244,6 +286,20 @@ const secureScoreFilterOptions = [
   {
     id: "configId",
     clickhouseSelect: "config_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "datasetRunId",
+    clickhouseSelect: "dataset_run_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
     clickhousePrefix: "s",

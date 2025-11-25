@@ -5,7 +5,10 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import {
@@ -36,7 +39,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: {
-      granularity: "auto",
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -82,7 +86,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("observations", globalFilterState),
     timeDimension: {
-      granularity: "auto",
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -155,7 +160,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     <DashboardCard
       className={className}
       title="Traces by time"
-      isLoading={isLoading || traces.isLoading}
+      isLoading={isLoading || traces.isPending}
       cardContentClassName="flex flex-col content-end "
     >
       <TabComponent
@@ -174,7 +179,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
-                    className="h-full min-h-80 self-stretch"
+                    className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
                     data={item.data}
                     connectNulls={true}
@@ -182,9 +187,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   />
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || traces.isLoading}
+                    isLoading={isLoading || traces.isPending}
                     description="Traces contain details about LLM applications and can be created using the SDK."
-                    href="https://langfuse.com/docs/tracing"
+                    href="https://langfuse.com/docs/observability/overview"
                   />
                 )}
               </>

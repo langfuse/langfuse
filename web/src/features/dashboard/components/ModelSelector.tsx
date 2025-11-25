@@ -51,7 +51,7 @@ export const ModelSelectorPopover = ({
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0">
         <InputCommand>
-          <InputCommandInput placeholder="Search models..." />
+          <InputCommandInput placeholder="Search models..." variant="bottom" />
           <InputCommandEmpty>No model found.</InputCommandEmpty>
           <InputCommandGroup>
             <InputCommandItem onSelect={handleSelectAll}>

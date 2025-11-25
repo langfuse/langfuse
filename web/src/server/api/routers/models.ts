@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
@@ -14,7 +14,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
-import { queryClickhouse } from "@langfuse/shared/src/server";
+import {
+  clearModelCacheForProject,
+  queryClickhouse,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
@@ -221,7 +224,7 @@ export const modelRouter = createTRPCRouter({
 
       const modelId = providedModelId ?? uuidv4();
 
-      return await ctx.prisma.$transaction(async (tx) => {
+      const result = await ctx.prisma.$transaction(async (tx) => {
         // Check whether model belongs to project
         // This check is important to prevent users from updating prices for models that they do not have access to
         const existingModel = await tx.model.findUnique({
@@ -292,6 +295,7 @@ export const modelRouter = createTRPCRouter({
             )
             .map(([usageType, price]) => ({
               modelId: upsertedModel.id,
+              projectId: upsertedModel.projectId,
               usageType,
               price,
             })),
@@ -307,6 +311,11 @@ export const modelRouter = createTRPCRouter({
 
         return upsertedModel;
       });
+
+      // Clear model cache for the project after successful upsert
+      await clearModelCacheForProject(projectId);
+
+      return result;
     }),
   delete: protectedProjectProcedure
     .input(
@@ -336,6 +345,9 @@ export const modelRouter = createTRPCRouter({
         action: "delete",
         before: deletedModel,
       });
+
+      // Clear model cache for the project after successful deletion
+      await clearModelCacheForProject(input.projectId);
 
       return deletedModel;
     }),

@@ -5,9 +5,9 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
-  SYSTEM_ROLES,
   type ChatMessageWithId,
   type LLMToolCall,
+  type PlaceholderMessage,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
@@ -45,15 +45,17 @@ const ROLES: ChatMessageRole[] = [
 const getRoleNamePlaceholder = (role: string) => {
   switch (role) {
     case ChatMessageRole.System:
-      return "a system";
+      return "a system message";
     case ChatMessageRole.Developer:
-      return "a developer";
+      return "a developer message";
     case ChatMessageRole.Assistant:
-      return "an assistant";
+      return "an assistant message";
     case ChatMessageRole.User:
-      return "a user";
+      return "a user message";
     case ChatMessageRole.Tool:
-      return "a tool response";
+      return "a tool response message";
+    case "placeholder":
+      return "placeholder name (e.g. chat_history)";
     default:
       return `a ${role}`;
   }
@@ -77,7 +79,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   deleteMessage,
   replaceMessage,
   availableRoles,
-  index,
+  index: _index,
   toolCallIds,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
@@ -92,6 +94,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   } = useSortable({ id: message.id });
 
   const toggleRole = () => {
+    // Only allow role toggling for messages that have a role property (not placeholder messages)
+    if (!("role" in message)) return;
+
     // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
     if (!!availableRoles && Boolean(availableRoles.length)) {
       let randomRole = availableRoles[roleIndex % availableRoles.length];
@@ -106,103 +111,84 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       setRoleIndex(roleIndex + 1);
     } else {
       // if user has not set custom roles, we toggle through default roles (assistant, user)
-      if (index === 0) {
-        const eligibleRoles = ROLES.filter(
-          (r) =>
-            r !== ChatMessageRole.Tool ||
-            (toolCallIds && toolCallIds.length > 0),
-        );
-        const currentIndex = eligibleRoles.indexOf(
-          message.role as ChatMessageRole,
-        );
-        const nextRole =
-          eligibleRoles[(currentIndex + 1) % eligibleRoles.length];
+      // Allow all roles including system and developer at any position
+      const eligibleRoles = ROLES.filter(
+        (r) =>
+          r !== ChatMessageRole.Tool || (toolCallIds && toolCallIds.length > 0),
+      );
+      const currentIndex = eligibleRoles.indexOf(
+        ("role" in message
+          ? message.role
+          : ChatMessageRole.User) as ChatMessageRole,
+      );
+      const nextRole = eligibleRoles[(currentIndex + 1) % eligibleRoles.length];
 
-        if (nextRole === ChatMessageRole.User) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.User,
-          });
-        } else if (nextRole === ChatMessageRole.Assistant) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.AssistantText,
-          });
-        } else if (nextRole === ChatMessageRole.Tool) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.ToolResult,
-            toolCallId: toolCallIds?.[0] ?? "",
-          });
-        } else if (nextRole === ChatMessageRole.Developer) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.Developer,
-          });
-        } else if (nextRole === ChatMessageRole.System) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: nextRole,
-            type: ChatMessageType.System,
-          });
-        } else {
-          const exhaustiveCheck: never = nextRole;
-          console.error(`Unhandled role: ${exhaustiveCheck}`);
-        }
+      if (nextRole === ChatMessageRole.User) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.User,
+        });
+      } else if (nextRole === ChatMessageRole.Assistant) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.AssistantText,
+        });
+      } else if (nextRole === ChatMessageRole.Tool) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.ToolResult,
+          toolCallId: toolCallIds?.[0] ?? "",
+        });
+      } else if (nextRole === ChatMessageRole.Developer) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.Developer,
+        });
+      } else if (nextRole === ChatMessageRole.System) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.System,
+        });
+      } else if (nextRole === ChatMessageRole.Model) {
+        replaceMessage(message.id, {
+          content: message.content,
+          role: nextRole,
+          type: ChatMessageType.ModelText,
+        });
       } else {
-        // Instead of directly updating the role, we need to replace the message with a new one
-        // that has the appropriate type and role
-        const newRole:
-          | ChatMessageRole.User
-          | ChatMessageRole.Assistant
-          | ChatMessageRole.Tool =
-          message.role === ChatMessageRole.User
-            ? ChatMessageRole.Assistant
-            : message.role === ChatMessageRole.Assistant &&
-                toolCallIds &&
-                toolCallIds.length > 0
-              ? ChatMessageRole.Tool
-              : ChatMessageRole.User;
-
-        if (newRole === ChatMessageRole.User) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: newRole,
-            type: ChatMessageType.User,
-          });
-        } else if (newRole === ChatMessageRole.Assistant) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: newRole,
-            type: ChatMessageType.AssistantText,
-          });
-        } else if (newRole === ChatMessageRole.Tool) {
-          replaceMessage(message.id, {
-            content: message.content,
-            role: newRole,
-            type: ChatMessageType.ToolResult,
-            toolCallId: toolCallIds?.[0] ?? "",
-          });
-        } else {
-          const exhaustiveCheck: never = newRole;
-          console.error(`Unhandled role: ${exhaustiveCheck}`);
-        }
+        const exhaustiveCheck: never = nextRole;
+        console.error(`Unhandled role: ${exhaustiveCheck}`);
       }
     }
   };
 
   const onValueChange = useCallback(
-    (value: string) =>
-      updateMessage(message.type, message.id, "content", value),
+    (value: string) => {
+      if (message.type === ChatMessageType.Placeholder) {
+        updateMessage(message.type, message.id, "name", value);
+      } else {
+        updateMessage(message.type, message.id, "content", value);
+      }
+    },
     [message.id, message.type, updateMessage],
   );
 
-  const showDragHandle = !SYSTEM_ROLES.includes(message.role);
+  const onPlaceholderNameChange = useCallback(
+    (value: string) => {
+      if (message.type === ChatMessageType.Placeholder) {
+        updateMessage(message.type, message.id, "name", value);
+      }
+    },
+    [message.id, message.type, updateMessage],
+  );
+
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
+  const isPlaceholder = message.type === ChatMessageType.Placeholder;
 
   return (
     <Card
@@ -217,30 +203,31 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       )}
     >
       <div className="flex flex-row justify-center">
-        {showDragHandle && (
-          <div
-            {...attributes}
-            {...listeners}
-            className="flex w-3 cursor-move items-center justify-center opacity-50 transition-opacity hover:opacity-100"
-          >
-            <GripVertical className="h-3 w-3" />
-          </div>
-        )}
-        <CardContent
-          className={cn(
-            "flex flex-1 flex-row items-center gap-2 p-0",
-            showDragHandle ? "pl-1" : "pl-4",
-          )}
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex w-3 cursor-move items-center justify-center opacity-50 transition-opacity hover:opacity-100"
         >
-          <div className="flex w-[4rem] flex-shrink-0 flex-col gap-1">
-            <Button
-              onClick={toggleRole}
-              type="button"
-              variant="ghost"
-              className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-gray-500 hover:bg-gray-50"
-            >
-              {capitalize(message.role)}
-            </Button>
+          <GripVertical className="h-3 w-3" />
+        </div>
+        <CardContent
+          className={cn("flex flex-1 flex-row items-center gap-2 p-0 pl-1")}
+        >
+          <div className="sticky bottom-0 top-0 z-10 flex w-[4rem] flex-shrink-0 flex-col gap-1 bg-background">
+            {isPlaceholder ? (
+              <span className="inline-flex h-6 w-full items-center justify-center rounded-md bg-accent px-4 font-mono text-[9px] text-muted-foreground">
+                placeholder
+              </span>
+            ) : (
+              <Button
+                onClick={toggleRole}
+                type="button"
+                variant="ghost"
+                className="h-6 w-full px-1 py-0 text-[10px] font-semibold text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                {capitalize(message.role)}
+              </Button>
+            )}
           </div>
           <div className="flex flex-1 flex-col gap-1">
             <div className="flex gap-2">
@@ -271,11 +258,19 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                   </SelectContent>
                 </Select>
               )}
-              <MemoizedEditor
-                value={message.content}
-                onChange={onValueChange}
-                role={message.role}
-              />
+              {isPlaceholder ? (
+                <MemoizedEditor
+                  value={(message as PlaceholderMessage).name || ""}
+                  onChange={onPlaceholderNameChange}
+                  role={message.type}
+                />
+              ) : (
+                <MemoizedEditor
+                  value={message.content}
+                  onChange={onValueChange}
+                  role={message.role}
+                />
+              )}
             </div>
             {message.type === ChatMessageType.AssistantToolCall && (
               <ToolCalls toolCalls={message.toolCalls as LLMToolCall[]} />
@@ -303,7 +298,7 @@ const MemoizedEditor = memo(function MemoizedEditor(props: {
   onChange: (value: string) => void;
 }) {
   const { value, role, onChange } = props;
-  const placeholder = `Enter ${getRoleNamePlaceholder(role)} message here.`;
+  const placeholder = `Enter ${getRoleNamePlaceholder(role)} here.`;
 
   return (
     <CodeMirrorEditor

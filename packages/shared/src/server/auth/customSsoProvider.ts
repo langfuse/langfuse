@@ -12,9 +12,8 @@ interface CustomSSOUser extends Record<string, any> {
   verified: boolean;
 }
 
-
 export function CustomSSOProvider<P extends CustomSSOUser>(
-  options: OAuthUserConfig<P>
+  options: OAuthUserConfig<P>,
 ): OAuthConfig<P> {
   return {
     id: "custom",

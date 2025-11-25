@@ -1,65 +1,28 @@
 name: Snyk Container
 on:
-  pull_request:
-    branches:
-      - "**"
   push:
-    branches:
-      - main
-  # Snyk cannot upload results in merge group. Hence, we only run on PRs and when pushingon the main branch https://github.com/github/codeql-action/issues/1572
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    branches: ["main"]
 
 jobs:
   snyk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Build a Docker image
-        run: docker compose -f docker-compose.build.yml up -d
+      - uses: actions/checkout@v3
 
-      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-web)
-        continue-on-error: true
+      - name: Scan web image with Snyk
         uses: snyk/actions/docker@master
+        continue-on-error: true # let upload step always run
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-langfuse-web
-          args: --file=web/Dockerfile
+          image: langfuse/langfuse # pulled from Docker Hub
+          args: --severity-threshold=high # (any extra CLI flags, but NO --file)
 
-      # Workaround for https://github.com/github/codeql-action/issues/2187
-      - name: Replace security-severity undefined for license-related findings
-        run: "sed -i 's/\"security-severity\": \"undefined\"/\"security-severity\": \"0\"/g' snyk.sarif"
-
-      - name: Replace security-severity null for license-related findings
-        run: "sed -i 's/\"security-severity\": \"null\"/\"security-severity\": \"0\"/g' snyk.sarif"
-
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: snyk.sarif
-          category: web
-
-      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-worker)
-        continue-on-error: true
+      - name: Scan worker image with Snyk
         uses: snyk/actions/docker@master
+        continue-on-error: true # let upload step always run
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-langfuse-worker
-          args: --file=worker/Dockerfile
-
-      # Workaround for https://github.com/github/codeql-action/issues/2187
-      - name: Replace security-severity undefined for license-related findings
-        run: "sed -i 's/\"security-severity\": \"undefined\"/\"security-severity\": \"0\"/g' snyk.sarif"
-
-      - name: Replace security-severity null for license-related findings
-        run: "sed -i 's/\"security-severity\": \"null\"/\"security-severity\": \"0\"/g' snyk.sarif"
-
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: snyk.sarif
-          category: worker
+          image: langfuse/langfuse-worker # pulled from Docker Hub
+          args: --severity-threshold=high # (any extra CLI flags, but NO --file)

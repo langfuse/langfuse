@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
 import { isValidTableName } from "../../clickhouse/schemaUtils";

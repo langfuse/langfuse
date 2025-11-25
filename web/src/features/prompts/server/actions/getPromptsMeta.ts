@@ -1,6 +1,9 @@
-import { type GetPromptsMetaType } from "@/src/features/prompts/server/utils/validation";
-import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
-import { type FilterState } from "@langfuse/shared";
+import {
+  type GetPromptsMetaType,
+  type FilterState,
+  promptsTableCols,
+  type PromptType,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
@@ -12,10 +15,11 @@ export const getPromptsMeta = async (
   const { projectId, page, limit } = params;
 
   const promptsMeta = (await prisma.$queryRaw`
-    WITH latest_version_config AS (
+    WITH latest_version_details AS (
       SELECT
           p.name,
-          p.config
+          p.config,
+          p.type
       FROM
           prompts p
       WHERE
@@ -57,10 +61,11 @@ export const getPromptsMeta = async (
 
     SELECT
       v.*,
+      l.type AS type,
       l.config AS "lastConfig"
     FROM
       versions v
-    LEFT JOIN latest_version_config l ON v.name = l.name
+    LEFT JOIN latest_version_details l ON v.name = l.name
   `) as PromptsMeta[];
 
   const [{ count: totalItemsCount }] = (await prisma.$queryRaw`
@@ -89,6 +94,7 @@ type PromptsMeta = {
   labels: string[];
   tags: string[];
   lastUpdatedAt: Date;
+  type: PromptType;
   lastConfig: unknown; // json object
 };
 

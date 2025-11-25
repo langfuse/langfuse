@@ -7,7 +7,7 @@ export class BaseError extends Error {
     name: string,
     httpCode: number,
     description: string,
-    isOperational: boolean
+    isOperational: boolean,
   ) {
     super(description);
     Object.setPrototypeOf(this, new.target.prototype); // restore prototype chain
@@ -16,6 +16,8 @@ export class BaseError extends Error {
     this.httpCode = httpCode;
     this.isOperational = isOperational; // if error is part of known errors that our application can anticipate
 
-    Error.captureStackTrace(this);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this);
+    }
   }
 }

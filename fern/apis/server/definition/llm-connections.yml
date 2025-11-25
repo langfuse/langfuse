@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    list:
+      method: GET
+      docs: Get all LLM connections in a project
+      path: /llm-connections
+      request:
+        name: GetLlmConnectionsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedLlmConnections
+    upsert:
+      method: PUT
+      docs: Create or update an LLM connection. The connection is upserted on provider.
+      path: /llm-connections
+      request: UpsertLlmConnectionRequest
+      response: LlmConnection
+
+types:
+  LlmConnection:
+    docs: LLM API connection configuration (secrets excluded)
+    properties:
+      id: string
+      provider:
+        type: string
+        docs: Provider name (e.g., 'openai', 'my-gateway'). Must be unique in project, used for upserting.
+      adapter:
+        type: string
+        docs: The adapter used to interface with the LLM
+      displaySecretKey:
+        type: string
+        docs: Masked version of the secret key for display purposes
+      baseURL:
+        type: optional<string>
+        docs: Custom base URL for the LLM API
+      customModels:
+        type: list<string>
+        docs: List of custom model names available for this connection
+      withDefaultModels:
+        type: boolean
+        docs: Whether to include default models for this adapter
+      extraHeaderKeys:
+        type: list<string>
+        docs: Keys of extra headers sent with requests (values excluded for security)
+      createdAt: datetime
+      updatedAt: datetime
+
+  PaginatedLlmConnections:
+    properties:
+      data: list<LlmConnection>
+      meta: pagination.MetaResponse
+
+  UpsertLlmConnectionRequest:
+    docs: Request to create or update an LLM connection (upsert)
+    properties:
+      provider:
+        type: string
+        docs: Provider name (e.g., 'openai', 'my-gateway'). Must be unique in project, used for upserting.
+      adapter:
+        type: LlmAdapter
+        docs: The adapter used to interface with the LLM
+      secretKey:
+        type: string
+        docs: Secret key for the LLM API.
+      baseURL:
+        type: optional<string>
+        docs: Custom base URL for the LLM API
+      customModels:
+        type: optional<list<string>>
+        docs: List of custom model names
+      withDefaultModels:
+        type: optional<boolean>
+        docs: Whether to include default models. Default is true.
+      extraHeaders:
+        type: optional<map<string, string>>
+        docs: Extra headers to send with requests
+
+  LlmAdapter:
+    enum:
+      - value: anthropic
+        name: Anthropic
+      - value: openai
+        name: OpenAI
+      - value: azure
+        name: Azure
+      - value: bedrock
+        name: Bedrock
+      - value: google-vertex-ai
+        name: GoogleVertexAI
+      - value: google-ai-studio
+        name: GoogleAIStudio

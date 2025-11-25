@@ -4,14 +4,14 @@ import { ImageOff } from "lucide-react";
 import {
   MediaReferenceStringSchema,
   type ParsedMediaReferenceType,
-} from "@/src/components/schemas/ChatMlSchema";
+} from "@langfuse/shared";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
-import { FileIcon, ImageIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
+import { File, Image as ImageIcon, Volume2 } from "lucide-react";
 
 export const LangfuseMediaView = ({
   mediaReferenceString,
@@ -106,9 +106,11 @@ function FileViewer({
 }) {
   if (!src) return null;
 
+  const mimeType = String(contentType);
+
   const fileName = src.split("/").pop()?.split("?")[0] || "";
-  const fileType = contentType.split("/")[0];
-  const fileExtension = contentType.split("/")[1].toUpperCase();
+  const fileType = mimeType.split("/")[0];
+  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
 
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
@@ -125,9 +127,9 @@ function FileViewer({
         {fileType === "image" ? (
           <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
         ) : fileType === "audio" ? (
-          <SpeakerLoudIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+          <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
         ) : (
-          <FileIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+          <File className="h-5 w-5 transition-transform group-hover:scale-110" />
         )}
 
         <div className="flex flex-col items-center gap-1">

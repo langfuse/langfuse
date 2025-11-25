@@ -10,59 +10,96 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  useQueryParam,
-  StringParam,
-} from "use-query-params";
+import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { MoreVertical } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { TableViewPresetTableName, type Prisma } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
+import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import { buildFullPath } from "@/src/features/folders/utils";
+import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 
-type RowData = {
+type DatasetTableRow = {
   key: {
     id: string;
-    name: string;
+    name: string; // Display name (segment only)
   };
-  description?: string;
-  createdAt: Date;
-  lastRunAt?: Date;
-  countItems: number;
-  countRuns: number;
-  metadata: Prisma.JsonValue;
+  isFolder: boolean;
+  folderPath: string; // Full name-based path for folder navigation and dataset updates
+  description?: string | null;
+  createdAt?: Date | null;
+  lastRunAt: Date | null;
+  countItems: number | null;
+  countRuns: number | null;
+  metadata: Prisma.JsonValue | null;
+  inputSchema?: Prisma.JsonValue | null;
+  expectedOutputSchema?: Prisma.JsonValue | null;
 };
+
+function createRow(
+  data: Partial<DatasetTableRow> & {
+    key: {
+      id: string;
+      name: string;
+    };
+    folderPath: string;
+    isFolder: boolean;
+  },
+): DatasetTableRow {
+  return {
+    description: null,
+    createdAt: null,
+    lastRunAt: null,
+    countItems: null,
+    countRuns: null,
+    metadata: null,
+    inputSchema: null,
+    expectedOutputSchema: null,
+    ...data,
+  };
+}
 
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
-  });
+
+  const {
+    paginationState,
+    currentFolderPath,
+    navigateToFolder,
+    resetPaginationAndFolder,
+    setPaginationAndFolderState,
+  } = useFolderPagination();
 
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
   );
 
+  // Reset pagination when search query changes
+  useEffect(() => {
+    resetPaginationAndFolder();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   const datasets = api.datasets.allDatasets.useQuery({
     projectId: props.projectId,
     searchQuery,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    pathPrefix: currentFolderPath,
   });
 
   const metrics = api.datasets.allDatasetsMetrics.useQuery(
@@ -85,18 +122,29 @@ export function DatasetsTable(props: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasets.isSuccess, datasets.data]);
 
-  const columns: LangfuseColumnDef<RowData>[] = [
+  const columns: LangfuseColumnDef<DatasetTableRow>[] = [
     {
       accessorKey: "key",
       header: "Name",
       id: "key",
       size: 150,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
+        const key: DatasetTableRow["key"] = row.getValue("key");
+        const rowData = row.original;
+
+        if (rowData.isFolder) {
+          return (
+            <FolderBreadcrumbLink
+              name={key.name}
+              onClick={() => navigateToFolder(rowData.folderPath)}
+            />
+          );
+        }
+
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${key.id}`}
+            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}`}
             value={key.name}
           />
         );
@@ -109,8 +157,9 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 200,
       cell: ({ row }) => {
-        const description: RowData["description"] = row.getValue("description");
-        return <div className="h-full overflow-y-auto">{description}</div>;
+        const description: DatasetTableRow["description"] =
+          row.getValue("description");
+        return description;
       },
     },
     {
@@ -134,8 +183,8 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 150,
       cell: ({ row }) => {
-        const value: RowData["createdAt"] = row.getValue("createdAt");
-        return <LocalIsoDate date={value} />;
+        const value: DatasetTableRow["createdAt"] = row.getValue("createdAt");
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {
@@ -145,8 +194,45 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 150,
       cell: ({ row }) => {
-        const value: RowData["lastRunAt"] = row.getValue("lastRunAt");
+        const value: DatasetTableRow["lastRunAt"] = row.getValue("lastRunAt");
         return value ? <LocalIsoDate date={value} /> : undefined;
+      },
+    },
+    {
+      accessorKey: "inputSchema",
+      header: "Input Schema",
+      id: "inputSchema",
+      enableHiding: true,
+      size: 80,
+      cell: ({ row }) => {
+        const inputSchema: DatasetTableRow["inputSchema"] =
+          row.getValue("inputSchema");
+
+        if (!inputSchema) return null;
+
+        return (
+          <DatasetSchemaHoverCard schema={inputSchema} schemaType="input" />
+        );
+      },
+    },
+    {
+      accessorKey: "expectedOutputSchema",
+      header: "Expected Output Schema",
+      id: "expectedOutputSchema",
+      enableHiding: true,
+      size: 90,
+      cell: ({ row }) => {
+        const expectedOutputSchema: DatasetTableRow["expectedOutputSchema"] =
+          row.getValue("expectedOutputSchema");
+
+        if (!expectedOutputSchema) return null;
+
+        return (
+          <DatasetSchemaHoverCard
+            schema={expectedOutputSchema}
+            schemaType="expectedOutput"
+          />
+        );
       },
     },
     {
@@ -156,7 +242,7 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 300,
       cell: ({ row }) => {
-        const metadata: RowData["metadata"] = row.getValue("metadata");
+        const metadata: DatasetTableRow["metadata"] = row.getValue("metadata");
         return !!metadata ? (
           <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
         ) : null;
@@ -168,7 +254,12 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Actions",
       size: 70,
       cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
+        const key: DatasetTableRow["key"] = row.getValue("key");
+
+        if (row.original.isFolder) {
+          return null;
+        }
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -187,8 +278,13 @@ export function DatasetsTable(props: { projectId: string }) {
                   mode="update"
                   projectId={props.projectId}
                   datasetId={key.id}
-                  datasetName={key.name}
+                  datasetName={row.original.folderPath}
                   datasetDescription={row.getValue("description") ?? undefined}
+                  datasetMetadata={row.getValue("metadata") ?? undefined}
+                  datasetInputSchema={row.original.inputSchema ?? undefined}
+                  datasetExpectedOutputSchema={
+                    row.original.expectedOutputSchema ?? undefined
+                  }
                 />
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
@@ -196,7 +292,7 @@ export function DatasetsTable(props: { projectId: string }) {
                   mode="delete"
                   projectId={props.projectId}
                   datasetId={key.id}
-                  datasetName={key.name}
+                  datasetName={row.original.folderPath}
                 />
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -210,31 +306,15 @@ export function DatasetsTable(props: { projectId: string }) {
   type MetricsOutput =
     RouterOutput["datasets"]["allDatasetsMetrics"]["metrics"][number];
 
-  const datasetsRowData = joinTableCoreAndMetrics<CoreOutput, MetricsOutput>(
-    datasets.data?.datasets,
-    metrics.data?.metrics,
-  );
+  const datasetsDatasetTableRow = joinTableCoreAndMetrics<
+    CoreOutput,
+    MetricsOutput
+  >(datasets.data?.datasets, metrics.data?.metrics);
 
-  const convertToTableRow = (
-    row: CoreOutput & Partial<MetricsOutput>,
-  ): RowData => {
-    return {
-      key: { id: row.id, name: row.name },
-      description: row.description ?? "",
-      createdAt: row.createdAt,
-      lastRunAt: row.lastRunAt ?? undefined,
-      countItems: row.countDatasetItems ?? 0,
-      countRuns: row.countDatasetRuns ?? 0,
-      metadata: row.metadata,
-    };
-  };
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<DatasetTableRow>("datasetsColumnVisibility", columns);
 
-  const [columnVisibility, setColumnVisibility] = useColumnVisibility<RowData>(
-    "datasetsColumnVisibility",
-    columns,
-  );
-
-  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+  const [columnOrder, setColumnOrder] = useColumnOrder<DatasetTableRow>(
     "datasetsColumnOrder",
     columns,
   );
@@ -252,8 +332,56 @@ export function DatasetsTable(props: { projectId: string }) {
     },
   });
 
+  // Backend returns folder representatives with row_type metadata
+  const processedRowData = useMemo(() => {
+    if (!datasetsDatasetTableRow.rows)
+      return { ...datasetsDatasetTableRow, rows: [] };
+
+    const combinedRows: DatasetTableRow[] = [];
+
+    for (const dataset of datasetsDatasetTableRow.rows) {
+      const isFolder = dataset.row_type === "folder";
+      const itemName = dataset.name; // Backend returns folder segment name for folders
+      const folderPath = buildFullPath(currentFolderPath, itemName);
+
+      combinedRows.push(
+        createRow({
+          key: {
+            id: dataset.id,
+            name: dataset.name,
+          },
+          folderPath,
+          isFolder,
+          ...(isFolder
+            ? {}
+            : {
+                description: dataset.description,
+                createdAt: dataset.createdAt,
+                lastRunAt: dataset.lastRunAt,
+                countItems: dataset.countDatasetItems,
+                countRuns: dataset.countDatasetRuns,
+                metadata: dataset.metadata,
+                inputSchema: dataset.inputSchema,
+                expectedOutputSchema: dataset.expectedOutputSchema,
+              }),
+        }),
+      );
+    }
+
+    return {
+      ...datasetsDatasetTableRow,
+      rows: combinedRows,
+    };
+  }, [datasetsDatasetTableRow, currentFolderPath]);
+
   return (
     <>
+      {currentFolderPath && (
+        <FolderBreadcrumb
+          currentFolderPath={currentFolderPath}
+          navigateToFolder={navigateToFolder}
+        />
+      )}
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
@@ -263,9 +391,12 @@ export function DatasetsTable(props: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         searchConfig={{
-          placeholder: "Search by name",
+          metadataSearchFields: ["Name"],
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
         }}
         viewConfig={{
           tableName: TableViewPresetTableName.Datasets,
@@ -274,6 +405,7 @@ export function DatasetsTable(props: { projectId: string }) {
         }}
       />
       <DataTable
+        tableName={"datasets"}
         columns={columns}
         data={
           datasets.isLoading || isViewLoading
@@ -287,14 +419,12 @@ export function DatasetsTable(props: { projectId: string }) {
               : {
                   isLoading: false,
                   isError: false,
-                  data: (datasetsRowData.rows ?? []).map((t) =>
-                    convertToTableRow(t),
-                  ),
+                  data: processedRowData.rows,
                 }
         }
         pagination={{
           totalCount: datasets.data?.totalDatasets ?? null,
-          onChange: setPaginationState,
+          onChange: setPaginationAndFolderState,
           state: paginationState,
         }}
         columnVisibility={columnVisibility}

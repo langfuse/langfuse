@@ -1,9 +1,13 @@
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
-import { TraceRecordReadType } from "./definitions";
+import { TraceRecordExtraFieldsType, TraceRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { parseJsonPrioritised } from "../../utils/json";
 import { TraceDomain } from "../../domain";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import {
+  RenderingProps,
+  DEFAULT_RENDERING_PROPS,
+  applyInputOutputRendering,
+} from "../utils/rendering";
 
 export const convertTraceDomainToClickhouse = (
   trace: TraceDomain,
@@ -33,6 +37,7 @@ export const convertTraceDomainToClickhouse = (
 
 export const convertClickhouseToDomain = (
   record: TraceRecordReadType,
+  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
 ): TraceDomain => {
   return {
     id: record.id,
@@ -47,12 +52,31 @@ export const convertClickhouseToDomain = (
     userId: record.user_id ?? null,
     sessionId: record.session_id ?? null,
     public: record.public,
-    input: record.input ? (parseJsonPrioritised(record.input) ?? null) : null,
-    output: record.output
-      ? (parseJsonPrioritised(record.output) ?? null)
-      : null,
+    input: applyInputOutputRendering(record.input, renderingProps),
+    output: applyInputOutputRendering(record.output, renderingProps),
     metadata: parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
   };
+};
+
+export const convertClickhouseTracesListToDomain = (
+  result: Array<TraceRecordReadType & TraceRecordExtraFieldsType>,
+  include: { observations: boolean; scores: boolean; metrics: boolean },
+): Array<TraceDomain & TraceRecordExtraFieldsType> => {
+  return result.map((trace) => {
+    return {
+      ...convertClickhouseToDomain(trace, DEFAULT_RENDERING_PROPS),
+      // Conditionally include additional fields based on request
+      // We need to return empty list on excluded scores / observations
+      // and -1 on excluded metrics to not break the SDK API clients
+      // that expect those fields if they have not been excluded via 'fields' property
+      // See LFE-6361
+      observations: include.observations ? trace.observations : [],
+      scores: include.scores ? trace.scores : [],
+      totalCost: include.metrics ? trace.totalCost : -1,
+      latency: include.metrics ? trace.latency : -1,
+      htmlPath: trace.htmlPath,
+    };
+  });
 };

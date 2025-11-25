@@ -1,5 +1,5 @@
 import { jsonSchema } from "../../../utils/zod";
-import z from "zod";
+import z from "zod/v4";
 import { NonEmptyString } from "../../../utils/zod";
 
 /**
@@ -17,4 +17,5 @@ export const PostScoreBodyFoundationSchema = z.object({
   comment: z.string().nullish(),
   metadata: jsonSchema.nullish(),
   environment: z.string().default("default"),
+  queueId: z.string().nullish(),
 });

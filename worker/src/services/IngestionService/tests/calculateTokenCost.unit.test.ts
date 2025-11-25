@@ -11,7 +11,11 @@ import * as clickhouseWriteExports from "../../ClickhouseWriter";
 
 const mockAddToClickhouseWriter = vi.fn();
 const mockClickhouseClient = {
-  query: async () => ({ json: async () => [] }),
+  query: async () => ({
+    json: async () => [],
+    query_id: "1",
+    response_headers: { "x-clickhouse-summary": [] },
+  }),
 };
 
 vi.mock("../../ClickhouseWriter", async (importOriginal) => {
@@ -77,6 +81,7 @@ describe("Token Cost Calculation", () => {
       prisma.price.createMany({
         data: modelPrices.map((price) => ({
           modelId,
+          projectId: null,
           usageType: price.usageType,
           price: price.price,
         })),
@@ -1195,5 +1200,62 @@ describe("Token Cost Calculation", () => {
     expect(generation.usage_details.input).toBe(generationUsage1.usage.input);
     expect(generation.usage_details.output).toBe(generationUsage1.usage.output);
     expect(generation.usage_details.total).toBe(generationUsage1.usage.total);
+  });
+
+  it("should skip tokenization and cost calculation if generation status is ERROR", async () => {
+    const generationUsage1 = {
+      model: modelName,
+      input: "hello world",
+      output: "hey whassup",
+      usage: null,
+      level: "ERROR",
+    };
+
+    const events = [
+      {
+        id: uuidv4(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: generationId,
+          startTime: new Date().toISOString(),
+          ...generationUsage1,
+        },
+      },
+    ];
+
+    await (mockIngestionService as any).processObservationEventList({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(),
+      observationEventList: events,
+    });
+
+    expect(mockAddToClickhouseWriter).toHaveBeenCalled();
+    const args = mockAddToClickhouseWriter.mock.calls[0];
+    const tableName = args[0];
+    const generation = args[1];
+
+    expect(tableName).toBe("observations");
+    expect(generation).toBeDefined();
+    expect(generation.type).toBe("GENERATION");
+    expect(generation.level).toBe("ERROR");
+
+    // Model name should be matched
+    expect(generation.internal_model_id).toBe(tokenModelData.id);
+
+    // No user provided cost
+    expect(generation.provided_cost_details.input).toBeUndefined();
+    expect(generation.provided_cost_details.output).toBeUndefined();
+    expect(generation.provided_cost_details.total).toBeUndefined();
+
+    // No calculated cost
+    expect(generation.cost_details.input).toBeUndefined();
+    expect(generation.cost_details.output).toBeUndefined();
+    expect(generation.cost_details.total).toBeUndefined();
+
+    expect(generation.usage_details.input).toBeUndefined();
+    expect(generation.usage_details.output).toBeUndefined();
+    expect(generation.usage_details.total).toBeUndefined();
   });
 });

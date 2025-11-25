@@ -74,7 +74,10 @@ export const tableNames = [
   "sessions",
   "prompts",
   "users",
+  "job_configurations",
+  "job_executions",
   "dataset_items",
+  "annotation_queue_assignments",
 ] as const;
 
 export type TableNames = (typeof tableNames)[number];

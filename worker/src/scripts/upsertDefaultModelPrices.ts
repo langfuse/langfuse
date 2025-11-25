@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { prisma } from "@langfuse/shared/src/db";
 import defaultModelPrices from "../constants/default-model-prices.json";
-import { logger } from "@langfuse/shared/src/server";
+import { clearFullModelCache, logger } from "@langfuse/shared/src/server";
 
 const DefaultModelPriceSchema = z.object({
   id: z.string(),
@@ -9,8 +9,10 @@ const DefaultModelPriceSchema = z.object({
   match_pattern: z.string(),
   created_at: z.coerce.date(),
   updated_at: z.coerce.date(),
-  prices: z.record(z.number()),
-  tokenizer_config: z.record(z.union([z.string(), z.number()])).nullish(),
+  prices: z.record(z.string(), z.number()),
+  tokenizer_config: z
+    .record(z.string(), z.union([z.string(), z.number()]))
+    .nullish(),
   tokenizer_id: z.string().nullish(),
 });
 type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
@@ -48,6 +50,7 @@ const ExistingModelPriceSchema = z.object({
 export const upsertDefaultModelPrices = async (force = false) => {
   const startTime = Date.now();
   try {
+    let hasUpdates = false;
     logger.debug(`Starting upsert of default model prices (force = ${force})`);
 
     const parsedDefaultModelPrices = z
@@ -127,6 +130,17 @@ export const upsertDefaultModelPrices = async (force = false) => {
           continue;
         }
 
+        if (
+          !existingModelUpdateDate &&
+          Object.keys(defaultModelPrice.prices).length === 0
+        ) {
+          logger.debug(
+            `No new and existing prices for ${defaultModelPrice.model_name} (${defaultModelPrice.id}). Skipping.`,
+          );
+
+          continue;
+        }
+
         // Upsert model and prices in a transaction
         promises.push(
           prisma
@@ -176,6 +190,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
                     },
                     create: {
                       modelId: defaultModelPrice.id,
+                      projectId: null,
                       usageType,
                       price,
                       createdAt: defaultModelPrice.created_at,
@@ -202,8 +217,17 @@ export const upsertDefaultModelPrices = async (force = false) => {
         );
       }
 
+      if (promises.length > 0) {
+        hasUpdates = true;
+      }
+
       await Promise.all(promises);
+
       logger.debug(`Completed batch ${i + 1} of ${numBatches}`);
+    }
+
+    if (hasUpdates) {
+      await clearFullModelCache();
     }
 
     logger.info(

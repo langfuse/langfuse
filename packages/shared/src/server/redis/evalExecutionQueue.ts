@@ -1,7 +1,11 @@
 import { Queue } from "bullmq";
 import { logger } from "../logger";
 import { TQueueJobTypes, QueueName } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 
 export class EvalExecutionQueue {
   private static instance: Queue<
@@ -23,6 +27,7 @@ export class EvalExecutionQueue {
           QueueName.EvaluationExecution,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(QueueName.EvaluationExecution),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

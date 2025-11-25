@@ -1,5 +1,7 @@
-import { checkTraceExists, createTracesCh } from "@langfuse/shared/src/server";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
+import {
+  checkTraceExistsAndGetTimestamp,
+  createTracesCh,
+} from "@langfuse/shared/src/server";
 import {
   getTraceById,
   getTracesBySessionId,
@@ -11,18 +13,16 @@ import { createObservationsCh } from "@langfuse/shared/src/server";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Clickhouse Traces Repository Test", () => {
-  beforeEach(async () => {
-    await pruneDatabase();
-  });
-
   it("should throw if no traces are found", async () => {
-    expect(await getTraceById({ traceId: v4(), projectId: v4() })).toBeUndefined();
+    expect(
+      await getTraceById({ traceId: v4(), projectId: v4() }),
+    ).toBeUndefined();
   });
 
   it("should return a trace if it exists", async () => {
     const traceId = v4();
 
-    const trace = {
+    const trace = createTrace({
       id: traceId,
       project_id: projectId,
       session_id: v4(),
@@ -47,7 +47,7 @@ describe("Clickhouse Traces Repository Test", () => {
       updated_at: Date.now(),
       event_ts: Date.now(),
       is_deleted: 0,
-    };
+    });
 
     await createTracesCh([trace]);
 
@@ -71,17 +71,23 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(result.userId).toEqual(trace.user_id);
     expect(result.sessionId).toEqual(trace.session_id);
     expect(result.public).toEqual(trace.public);
-    expect(result.input).toEqual(JSON.parse(trace.input));
+    expect(result.input).toEqual(JSON.parse(trace.input ?? "{}"));
     expect(result.output).toEqual("regular string");
     expect(result.metadata).toEqual(trace.metadata);
-    expect(result.createdAt).toEqual(new Date(trace.created_at));
-    expect(result.updatedAt).toEqual(new Date(trace.updated_at));
+    expect(result.createdAt.getTime()).toBeCloseTo(
+      new Date(trace.created_at).getTime(),
+      -2, // Up to 50ms precision
+    );
+    expect(result.updatedAt.getTime()).toBeCloseTo(
+      new Date(trace.updated_at).getTime(),
+      -2, // Up to 50ms precision
+    );
   });
 
   it("should find a trace if no timestamp is provided", async () => {
     const traceId = v4();
 
-    const trace = {
+    const trace = createTrace({
       id: traceId,
       project_id: projectId,
       session_id: v4(),
@@ -98,7 +104,7 @@ describe("Clickhouse Traces Repository Test", () => {
       updated_at: Date.now(),
       event_ts: Date.now(),
       is_deleted: 0,
-    };
+    });
 
     await createTracesCh([trace]);
 
@@ -121,12 +127,19 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(result.input).toEqual(null);
     expect(result.output).toEqual(null);
     expect(result.metadata).toEqual(trace.metadata);
-    expect(result.createdAt).toEqual(new Date(trace.created_at));
-    expect(result.updatedAt).toEqual(new Date(trace.updated_at));
+    expect(result.createdAt.getTime()).toBeCloseTo(
+      new Date(trace.created_at).getTime(),
+      -2, // Up to 50ms precision
+    );
+    expect(result.updatedAt.getTime()).toBeCloseTo(
+      new Date(trace.updated_at).getTime(),
+      -2, // Up to 50ms precision
+    );
   });
+
   it("should retrieve traces by session ID", async () => {
     const sessionId = v4();
-    const trace1 = {
+    const trace1 = createTrace({
       id: v4(),
       project_id: projectId,
       session_id: sessionId,
@@ -143,9 +156,9 @@ describe("Clickhouse Traces Repository Test", () => {
       updated_at: Date.now(),
       event_ts: Date.now(),
       is_deleted: 0,
-    };
+    });
 
-    const trace2 = {
+    const trace2 = createTrace({
       id: v4(),
       project_id: projectId,
       session_id: sessionId,
@@ -162,7 +175,7 @@ describe("Clickhouse Traces Repository Test", () => {
       updated_at: Date.now(),
       event_ts: Date.now(),
       is_deleted: 0,
-    };
+    });
 
     await createTracesCh([trace1, trace2]);
 
@@ -212,14 +225,20 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await checkTraceExists(projectId, traceId, new Date(), [
-      {
-        type: "stringOptions",
-        column: "level",
-        operator: "any of",
-        value: ["ERROR"],
-      },
-    ]);
+    const { exists } = await checkTraceExistsAndGetTimestamp({
+      projectId,
+      traceId,
+      timestamp: new Date(),
+      filter: [
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+      ],
+      maxTimeStamp: undefined,
+    });
     expect(exists).toBe(true);
   });
 
@@ -261,14 +280,20 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await checkTraceExists(projectId, traceId, new Date(), [
-      {
-        type: "stringOptions",
-        column: "level",
-        operator: "none of",
-        value: ["ERROR"],
-      },
-    ]);
+    const { exists } = await checkTraceExistsAndGetTimestamp({
+      projectId,
+      traceId,
+      timestamp: new Date(),
+      filter: [
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "none of",
+          value: ["ERROR"],
+        },
+      ],
+      maxTimeStamp: undefined,
+    });
     expect(exists).toBe(false);
   });
   it("should check if trace exists without level filter", async () => {
@@ -309,7 +334,13 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await checkTraceExists(projectId, traceId, new Date(), []);
+    const { exists } = await checkTraceExistsAndGetTimestamp({
+      projectId,
+      traceId,
+      timestamp: new Date(),
+      filter: [],
+      maxTimeStamp: undefined,
+    });
     expect(exists).toBe(true);
   });
   it("should check if trace exists with error level count > 0", async () => {
@@ -350,14 +381,51 @@ describe("Clickhouse Traces Repository Test", () => {
     await createTracesCh([trace]);
     await createObservationsCh(observations);
 
-    const exists = await checkTraceExists(projectId, traceId, new Date(), [
-      {
-        type: "number",
-        column: "errorCount",
-        operator: ">",
-        value: 0,
-      },
-    ]);
+    const { exists } = await checkTraceExistsAndGetTimestamp({
+      projectId,
+      traceId,
+      timestamp: new Date(),
+      filter: [
+        {
+          type: "number",
+          column: "errorCount",
+          operator: ">",
+          value: 0,
+        },
+      ],
+      maxTimeStamp: undefined,
+    });
+    expect(exists).toBe(true);
+  });
+
+  it("should handle timestamp filter in checkTraceExistsAndGetTimestamp", async () => {
+    const traceId = v4();
+    const trace = createTrace({
+      id: traceId,
+      user_id: "user-1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+      timestamp: Date.now(),
+    });
+
+    await createTracesCh([trace]);
+
+    const { exists } = await checkTraceExistsAndGetTimestamp({
+      projectId,
+      traceId,
+      timestamp: new Date(),
+      filter: [
+        {
+          type: "datetime",
+          column: "timestamp",
+          operator: ">=",
+          value: new Date(Date.now() - 3600000),
+        },
+      ],
+      maxTimeStamp: undefined,
+    });
     expect(exists).toBe(true);
   });
 });

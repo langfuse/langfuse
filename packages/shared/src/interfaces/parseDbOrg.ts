@@ -1,11 +1,11 @@
 import { type Organization } from "@prisma/client";
 import { CloudConfigSchema } from "./cloudConfigSchema";
 
-type parsedOrg = Omit<Organization, "cloudConfig"> & {
+export type ParsedOrganization = Omit<Organization, "cloudConfig"> & {
   cloudConfig: CloudConfigSchema | null;
 };
 
-export function parseDbOrg(dbOrg: Organization): parsedOrg {
+export function parseDbOrg(dbOrg: Organization): ParsedOrganization {
   const { cloudConfig, ...org } = dbOrg;
 
   const parsedCloudConfig = CloudConfigSchema.safeParse(cloudConfig);

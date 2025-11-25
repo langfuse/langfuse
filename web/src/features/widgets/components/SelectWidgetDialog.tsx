@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
@@ -19,6 +20,8 @@ import {
   TableCell,
 } from "@/src/components/ui/table";
 import { startCase } from "lodash";
+import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
+import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 export type WidgetItem = {
   id: string;
@@ -35,6 +38,7 @@ interface SelectWidgetDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   onSelectWidget: (widget: WidgetItem) => void;
+  dashboardId: string;
 }
 
 export function SelectWidgetDialog({
@@ -42,6 +46,7 @@ export function SelectWidgetDialog({
   onOpenChange,
   projectId,
   onSelectWidget,
+  dashboardId,
 }: SelectWidgetDialogProps) {
   const router = useRouter();
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -61,7 +66,7 @@ export function SelectWidgetDialog({
   );
 
   const handleNavigateToNewWidget = () => {
-    router.push(`/project/${projectId}/widgets/new`);
+    router.push(`/project/${projectId}/widgets/new?dashboardId=${dashboardId}`);
   };
 
   const handleAddWidget = () => {
@@ -83,67 +88,61 @@ export function SelectWidgetDialog({
           <DialogTitle>Select widget to add</DialogTitle>
         </DialogHeader>
 
-        <div className="mt-4 max-h-[400px] overflow-y-auto">
-          {widgets.isLoading ? (
-            <div className="py-8 text-center">Loading widgets...</div>
-          ) : widgets.isError ? (
-            <div className="py-8 text-center text-destructive">
-              Error: {widgets.error.message}
-            </div>
-          ) : widgets.data?.widgets.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              No widgets found. Create a new widget to get started.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>View Type</TableHead>
-                  <TableHead>Chart Type</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {widgets.data?.widgets.map((widget) => (
-                  <TableRow
-                    key={widget.id}
-                    onClick={() => setSelectedWidgetId(widget.id)}
-                    className={`cursor-pointer hover:bg-muted ${
-                      selectedWidgetId === widget.id ? "bg-muted" : ""
-                    }`}
-                  >
-                    <TableCell className="font-medium">{widget.name}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {widget.description}
-                    </TableCell>
-                    <TableCell>
-                      {startCase(widget.view.toLowerCase())}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        switch (widget.chartType) {
-                          case "LINE_TIME_SERIES":
-                            return "Line Chart (Time Series)";
-                          case "BAR_TIME_SERIES":
-                            return "Bar Chart (Time Series)";
-                          case "HORIZONTAL_BAR":
-                            return "Horizontal Bar Chart (Total Value)";
-                          case "VERTICAL_BAR":
-                            return "Vertical Bar Chart (Total Value)";
-                          case "PIE":
-                            return "Pie Chart (Total Value)";
-                          default:
-                            return widget.chartType;
-                        }
-                      })()}
-                    </TableCell>
+        <DialogBody>
+          <div className="max-h-[400px] overflow-y-auto">
+            {widgets.isPending ? (
+              <div className="py-8 text-center">Loading widgets...</div>
+            ) : widgets.isError ? (
+              <div className="py-8 text-center text-destructive">
+                Error: {widgets.error.message}
+              </div>
+            ) : widgets.data?.widgets.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">
+                No widgets found. Create a new widget to get started.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>View Type</TableHead>
+                    <TableHead>Chart Type</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+                </TableHeader>
+                <TableBody>
+                  {widgets.data?.widgets.map((widget) => (
+                    <TableRow
+                      key={widget.id}
+                      onClick={() => setSelectedWidgetId(widget.id)}
+                      className={`cursor-pointer hover:bg-muted ${
+                        selectedWidgetId === widget.id ? "bg-muted" : ""
+                      }`}
+                    >
+                      <TableCell className="font-medium">
+                        {widget.name}
+                      </TableCell>
+                      <TableCell
+                        className="truncate"
+                        title={widget.description}
+                      >
+                        {widget.description}
+                      </TableCell>
+                      <TableCell>
+                        {startCase(widget.view.toLowerCase())}
+                      </TableCell>
+                      <TableCell>
+                        {getChartTypeDisplayName(
+                          widget.chartType as DashboardWidgetChartType,
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogBody>
 
         <DialogFooter className="mt-4 flex justify-between">
           <Button onClick={handleNavigateToNewWidget} variant="outline">

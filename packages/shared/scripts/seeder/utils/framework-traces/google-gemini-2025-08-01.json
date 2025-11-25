@@ -1,0 +1,239 @@
+{
+  "trace": {
+    "id": "9f2f0fe0228fd81a9fe75882934b384a",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "GenerateContent",
+    "timestamp": "2025-08-01T13:22:00.147Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": true,
+    "input": "\"{\\\"model\\\":\\\"gemini-2.5-flash\\\",\\\"contents\\\":\\\"What is Langfuse?\\\"}\"",
+    "output": "\"{\\\"sdk_http_response\\\":{\\\"headers\\\":{\\\"content-type\\\":\\\"application/json; charset=UTF-8\\\",\\\"vary\\\":\\\"Origin, X-Origin, Referer\\\",\\\"content-encoding\\\":\\\"gzip\\\",\\\"date\\\":\\\"Fri, 01 Aug 2025 13:22:12 GMT\\\",\\\"server\\\":\\\"scaffolding on HTTPServer2\\\",\\\"x-xss-protection\\\":\\\"0\\\",\\\"x-frame-options\\\":\\\"SAMEORIGIN\\\",\\\"x-content-type-options\\\":\\\"nosniff\\\",\\\"server-timing\\\":\\\"gfet4t7; dur=11935\\\",\\\"alt-svc\\\":\\\"h3=\\\\\\\":443\\\\\\\"; ma=2592000,h3-29=\\\\\\\":443\\\\\\\"; ma=2592000\\\",\\\"transfer-encoding\\\":\\\"chunked\\\"}},\\\"candidates\\\":[{\\\"content\\\":{\\\"parts\\\":[{\\\"text\\\":\\\"**Langfuse** is an **open-source observability and evaluation platform specifically designed for Large Language Model (LLM) applications.**\\\\n\\\\nIn essence, it acts as a \\\\\\\"flight recorder\\\\\\\" or \\\\\\\"black box\\\\\\\" for your AI applications, giving you deep insights into how they are performing in real-time and helping you iterate and improve them.\\\\n\\\\nHere's a breakdown of what Langfuse is and why it's important:\\\\n\\\\n### The Problem Langfuse Solves\\\\n\\\\nBuilding applications powered by LLMs (like chatbots, summarizers, RAG systems) presents unique challenges:\\\\n\\\\n1.  **Non-Determinism:** LLMs aren't like traditional code; their outputs can vary, making debugging difficult.\\\\n2.  **Opacity:** It's hard to see what's happening \\\\\\\"inside\\\\\\\" the LLM call – what prompt was sent, what response was received, how long it took, and what tools were used.\\\\n3.  **Performance & Cost Tracking:** Monitoring token usage, latency, and costs across various LLM calls and chains is complex.\\\\n4.  **Evaluation & Improvement:** How do you know if a change to your prompt or RAG system actually made your application better? How do you collect user feedback?\\\\n5.  **Debugging Production Issues:** When something goes wrong in production, tracing the exact cause (e.g., a bad prompt, a hallucination, a failed tool call) is crucial.\\\\n\\\\n### How Langfuse Works & Its Key Features\\\\n\\\\nLangfuse addresses these challenges by providing:\\\\n\\\\n1.  **Tracing & Observability:**\\\\n    *   **End-to-end visibility:** It captures every step of an LLM application's lifecycle, from user input, through various LLM calls, tool usage, RAG retrievals, and final output.\\\\n    *   **Detailed Spans:** Each step (e.g., an OpenAI call, a LlamaIndex query, a custom function) is recorded as a \\\\\\\"span,\\\\\\\" showing inputs, outputs, timestamps, costs (tokens, price), and associated metadata.\\\\n    *   **Visualizations:** Presents these traces in a clear, waterfall-style UI, making it easy to understand the flow and identify bottlenecks or errors.\\\\n\\\\n2.  **Debugging & Monitoring:**\\\\n    *   **Real-time Dashboards:** Provides metrics on latency, cost, token usage, and error rates across your application.\\\\n    *   **Error Identification:** Quickly pinpoint exactly which LLM call or step failed within a complex chain.\\\\n    *   **Search & Filtering:** Easily find specific traces based on user IDs, session IDs, error status, or custom tags.\\\\n\\\\n3.  **Evaluation & Feedback Loops:**\\\\n    *   **Manual Feedback:** Allows users (or developers) to provide direct feedback (e.g., \\\\\\\"good,\\\\\\\" \\\\\\\"bad,\\\\\\\" custom scores) on specific traces. This is invaluable for human-in-the-loop evaluation.\\\\n    *   **Automated Evaluation:** Integrates with evaluation frameworks (e.g., RAGAS) or custom scripts to automatically score LLM outputs, enabling A/B testing of prompts or models.\\\\n    *   **Prompt Comparison:** Helps you compare the performance of different prompt versions side-by-side based on collected metrics and evaluations.\\\\n\\\\n4.  **Prompt Management:**\\\\n    *   Store and version control your prompts.\\\\n    *   Attach evaluations to specific prompt versions to track their effectiveness over time.\\\\n\\\\n5.  **User & Session Tracking:**\\\\n    *   Associate traces with specific users or sessions, allowing you to understand individual user journeys and identify patterns.\\\\n\\\\n### Key Benefits\\\\n\\\\n*   **Faster Debugging:** Quickly diagnose and fix issues in your LLM applications.\\\\n*   **Improved Performance:** Identify and optimize slow or costly parts of your LLM chains.\\\\n*   **Data-Driven Iteration:** Make informed decisions about prompt engineering, model selection, and architecture based on real usage data and evaluations.\\\\n*   **Cost Control:** Monitor token usage and costs to prevent budget overruns.\\\\n*   **Enhanced Reliability:** Build more robust and production-ready LLM applications.\\\\n\\\\n### Integrations\\\\n\\\\nLangfuse integrates with popular LLM frameworks and libraries, including:\\\\n\\\\n*   LangChain\\\\n*   LlamaIndex\\\\n*   OpenAI API\\\\n*   Anthropic API\\\\n*   And can be used with any custom LLM integration.\\\\n\\\\nIn summary, Langfuse is a critical tool for any developer or team serious about building, deploying, and maintaining high-quality, performant, and reliable LLM-powered applications in production.\\\"}],\\\"role\\\":\\\"model\\\"},\\\"finish_reason\\\":\\\"STOP\\\",\\\"index\\\":0}],\\\"model_version\\\":\\\"gemini-2.5-flash\\\",\\\"usage_metadata\\\":{\\\"candidates_token_count\\\":951,\\\"prompt_token_count\\\":6,\\\"prompt_tokens_details\\\":[{\\\"modality\\\":\\\"TEXT\\\",\\\"token_count\\\":6}],\\\"thoughts_token_count\\\":1104,\\\"total_token_count\\\":2061},\\\"automatic_function_calling_history\\\":[]}\"",
+    "metadata": "{\"attributes\":{\"llm.input_messages.0.message.content\":\"What is Langfuse?\",\"llm.input_messages.0.message.role\":\"user\",\"output.value\":\"{\\\"sdk_http_response\\\":{\\\"headers\\\":{\\\"content-type\\\":\\\"application/json; charset=UTF-8\\\",\\\"vary\\\":\\\"Origin, X-Origin, Referer\\\",\\\"content-encoding\\\":\\\"gzip\\\",\\\"date\\\":\\\"Fri, 01 Aug 2025 13:22:12 GMT\\\",\\\"server\\\":\\\"scaffolding on HTTPServer2\\\",\\\"x-xss-protection\\\":\\\"0\\\",\\\"x-frame-options\\\":\\\"SAMEORIGIN\\\",\\\"x-content-type-options\\\":\\\"nosniff\\\",\\\"server-timing\\\":\\\"gfet4t7; dur=11935\\\",\\\"alt-svc\\\":\\\"h3=\\\\\\\":443\\\\\\\"; ma=2592000,h3-29=\\\\\\\":443\\\\\\\"; ma=2592000\\\",\\\"transfer-encoding\\\":\\\"chunked\\\"}},\\\"candidates\\\":[{\\\"content\\\":{\\\"parts\\\":[{\\\"text\\\":\\\"**Langfuse** is an **open-source observability and evaluation platform specifically designed for Large Language Model (LLM) applications.**\\\\n\\\\nIn essence, it acts as a \\\\\\\"flight recorder\\\\\\\" or \\\\\\\"black box\\\\\\\" for your AI applications, giving you deep insights into how they are performing in real-time and helping you iterate and improve them.\\\\n\\\\nHere's a breakdown of what Langfuse is and why it's important:\\\\n\\\\n### The Problem Langfuse Solves\\\\n\\\\nBuilding applications powered by LLMs (like chatbots, summarizers, RAG systems) presents unique challenges:\\\\n\\\\n1.  **Non-Determinism:** LLMs aren't like traditional code; their outputs can vary, making debugging difficult.\\\\n2.  **Opacity:** It's hard to see what's happening \\\\\\\"inside\\\\\\\" the LLM call – what prompt was sent, what response was received, how long it took, and what tools were used.\\\\n3.  **Performance & Cost Tracking:** Monitoring token usage, latency, and costs across various LLM calls and chains is complex.\\\\n4.  **Evaluation & Improvement:** How do you know if a change to your prompt or RAG system actually made your application better? How do you collect user feedback?\\\\n5.  **Debugging Production Issues:** When something goes wrong in production, tracing the exact cause (e.g., a bad prompt, a hallucination, a failed tool call) is crucial.\\\\n\\\\n### How Langfuse Works & Its Key Features\\\\n\\\\nLangfuse addresses these challenges by providing:\\\\n\\\\n1.  **Tracing & Observability:**\\\\n    *   **End-to-end visibility:** It captures every step of an LLM application's lifecycle, from user input, through various LLM calls, tool usage, RAG retrievals, and final output.\\\\n    *   **Detailed Spans:** Each step (e.g., an OpenAI call, a LlamaIndex query, a custom function) is recorded as a \\\\\\\"span,\\\\\\\" showing inputs, outputs, timestamps, costs (tokens, price), and associated metadata.\\\\n    *   **Visualizations:** Presents these traces in a clear, waterfall-style UI, making it easy to understand the flow and identify bottlenecks or errors.\\\\n\\\\n2.  **Debugging & Monitoring:**\\\\n    *   **Real-time Dashboards:** Provides metrics on latency, cost, token usage, and error rates across your application.\\\\n    *   **Error Identification:** Quickly pinpoint exactly which LLM call or step failed within a complex chain.\\\\n    *   **Search & Filtering:** Easily find specific traces based on user IDs, session IDs, error status, or custom tags.\\\\n\\\\n3.  **Evaluation & Feedback Loops:**\\\\n    *   **Manual Feedback:** Allows users (or developers) to provide direct feedback (e.g., \\\\\\\"good,\\\\\\\" \\\\\\\"bad,\\\\\\\" custom scores) on specific traces. This is invaluable for human-in-the-loop evaluation.\\\\n    *   **Automated Evaluation:** Integrates with evaluation frameworks (e.g., RAGAS) or custom scripts to automatically score LLM outputs, enabling A/B testing of prompts or models.\\\\n    *   **Prompt Comparison:** Helps you compare the performance of different prompt versions side-by-side based on collected metrics and evaluations.\\\\n\\\\n4.  **Prompt Management:**\\\\n    *   Store and version control your prompts.\\\\n    *   Attach evaluations to specific prompt versions to track their effectiveness over time.\\\\n\\\\n5.  **User & Session Tracking:**\\\\n    *   Associate traces with specific users or sessions, allowing you to understand individual user journeys and identify patterns.\\\\n\\\\n### Key Benefits\\\\n\\\\n*   **Faster Debugging:** Quickly diagnose and fix issues in your LLM applications.\\\\n*   **Improved Performance:** Identify and optimize slow or costly parts of your LLM chains.\\\\n*   **Data-Driven Iteration:** Make informed decisions about prompt engineering, model selection, and architecture based on real usage data and evaluations.\\\\n*   **Cost Control:** Monitor token usage and costs to prevent budget overruns.\\\\n*   **Enhanced Reliability:** Build more robust and production-ready LLM applications.\\\\n\\\\n### Integrations\\\\n\\\\nLangfuse integrates with popular LLM frameworks and libraries, including:\\\\n\\\\n*   LangChain\\\\n*   LlamaIndex\\\\n*   OpenAI API\\\\n*   Anthropic API\\\\n*   And can be used with any custom LLM integration.\\\\n\\\\nIn summary, Langfuse is a critical tool for any developer or team serious about building, deploying, and maintaining high-quality, performant, and reliable LLM-powered applications in production.\\\"}],\\\"role\\\":\\\"model\\\"},\\\"finish_reason\\\":\\\"STOP\\\",\\\"index\\\":0}],\\\"model_version\\\":\\\"gemini-2.5-flash\\\",\\\"usage_metadata\\\":{\\\"candidates_token_count\\\":951,\\\"prompt_token_count\\\":6,\\\"prompt_tokens_details\\\":[{\\\"modality\\\":\\\"TEXT\\\",\\\"token_count\\\":6}],\\\"thoughts_token_count\\\":1104,\\\"total_token_count\\\":2061},\\\"automatic_function_calling_history\\\":[]}\",\"output.mime_type\":\"application/json\",\"llm.provider\":\"google\",\"input.value\":\"{\\\"model\\\": \\\"gemini-2.5-flash\\\", \\\"contents\\\": \\\"What is Langfuse?\\\"}\",\"input.mime_type\":\"application/json\",\"llm.model_name\":\"gemini-2.5-flash\",\"llm.token_count.total\":\"2061\",\"llm.token_count.prompt\":\"6\",\"llm.token_count.completion_details.reasoning\":\"1104\",\"llm.token_count.completion\":\"2055\",\"llm.output_messages.0.message.content\":\"**Langfuse** is an **open-source observability and evaluation platform specifically designed for Large Language Model (LLM) applications.**\\n\\nIn essence, it acts as a \\\"flight recorder\\\" or \\\"black box\\\" for your AI applications, giving you deep insights into how they are performing in real-time and helping you iterate and improve them.\\n\\nHere's a breakdown of what Langfuse is and why it's important:\\n\\n### The Problem Langfuse Solves\\n\\nBuilding applications powered by LLMs (like chatbots, summarizers, RAG systems) presents unique challenges:\\n\\n1.  **Non-Determinism:** LLMs aren't like traditional code; their outputs can vary, making debugging difficult.\\n2.  **Opacity:** It's hard to see what's happening \\\"inside\\\" the LLM call – what prompt was sent, what response was received, how long it took, and what tools were used.\\n3.  **Performance & Cost Tracking:** Monitoring token usage, latency, and costs across various LLM calls and chains is complex.\\n4.  **Evaluation & Improvement:** How do you know if a change to your prompt or RAG system actually made your application better? How do you collect user feedback?\\n5.  **Debugging Production Issues:** When something goes wrong in production, tracing the exact cause (e.g., a bad prompt, a hallucination, a failed tool call) is crucial.\\n\\n### How Langfuse Works & Its Key Features\\n\\nLangfuse addresses these challenges by providing:\\n\\n1.  **Tracing & Observability:**\\n    *   **End-to-end visibility:** It captures every step of an LLM application's lifecycle, from user input, through various LLM calls, tool usage, RAG retrievals, and final output.\\n    *   **Detailed Spans:** Each step (e.g., an OpenAI call, a LlamaIndex query, a custom function) is recorded as a \\\"span,\\\" showing inputs, outputs, timestamps, costs (tokens, price), and associated metadata.\\n    *   **Visualizations:** Presents these traces in a clear, waterfall-style UI, making it easy to understand the flow and identify bottlenecks or errors.\\n\\n2.  **Debugging & Monitoring:**\\n    *   **Real-time Dashboards:** Provides metrics on latency, cost, token usage, and error rates across your application.\\n    *   **Error Identification:** Quickly pinpoint exactly which LLM call or step failed within a complex chain.\\n    *   **Search & Filtering:** Easily find specific traces based on user IDs, session IDs, error status, or custom tags.\\n\\n3.  **Evaluation & Feedback Loops:**\\n    *   **Manual Feedback:** Allows users (or developers) to provide direct feedback (e.g., \\\"good,\\\" \\\"bad,\\\" custom scores) on specific traces. This is invaluable for human-in-the-loop evaluation.\\n    *   **Automated Evaluation:** Integrates with evaluation frameworks (e.g., RAGAS) or custom scripts to automatically score LLM outputs, enabling A/B testing of prompts or models.\\n    *   **Prompt Comparison:** Helps you compare the performance of different prompt versions side-by-side based on collected metrics and evaluations.\\n\\n4.  **Prompt Management:**\\n    *   Store and version control your prompts.\\n    *   Attach evaluations to specific prompt versions to track their effectiveness over time.\\n\\n5.  **User & Session Tracking:**\\n    *   Associate traces with specific users or sessions, allowing you to understand individual user journeys and identify patterns.\\n\\n### Key Benefits\\n\\n*   **Faster Debugging:** Quickly diagnose and fix issues in your LLM applications.\\n*   **Improved Performance:** Identify and optimize slow or costly parts of your LLM chains.\\n*   **Data-Driven Iteration:** Make informed decisions about prompt engineering, model selection, and architecture based on real usage data and evaluations.\\n*   **Cost Control:** Monitor token usage and costs to prevent budget overruns.\\n*   **Enhanced Reliability:** Build more robust and production-ready LLM applications.\\n\\n### Integrations\\n\\nLangfuse integrates with popular LLM frameworks and libraries, including:\\n\\n*   LangChain\\n*   LlamaIndex\\n*   OpenAI API\\n*   Anthropic API\\n*   And can be used with any custom LLM integration.\\n\\nIn summary, Langfuse is a critical tool for any developer or team serious about building, deploying, and maintaining high-quality, performant, and reliable LLM-powered applications in production.\",\"llm.output_messages.0.message.role\":\"model\",\"openinference.span.kind\":\"LLM\"},\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.34.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"openinference.instrumentation.google_genai\",\"version\":\"0.1.5\",\"attributes\":{}}}",
+    "createdAt": "2025-08-01T13:22:14.000Z",
+    "updatedAt": "2025-08-01T13:22:40.620Z",
+    "scores": [
+      {
+        "id": "c5305319-a3f6-4922-943e-9f3b863b4bb3",
+        "timestamp": "2025-08-01T13:23:08.084Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "hallucination",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation provides a detailed and plausible description of Langfuse as an observability and evaluation platform for LLM applications, aligning with known concepts in AI development and observability tools.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-08-01T13:23:09.000Z",
+        "updatedAt": "2025-08-01T13:23:45.766Z",
+        "queueId": null,
+        "traceId": "9f2f0fe0228fd81a9fe75882934b384a",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0.1,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      },
+      {
+        "id": "31825812-baac-4ce9-874d-b6504baf1bf1",
+        "timestamp": "2025-08-01T13:23:07.172Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "toxicity",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation provides a detailed and informative explanation of Langfuse without any harmful, offensive, or disrespectful language, thus it is not toxic.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-08-01T13:23:08.000Z",
+        "updatedAt": "2025-08-01T13:23:44.647Z",
+        "queueId": null,
+        "traceId": "9f2f0fe0228fd81a9fe75882934b384a",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      }
+    ],
+    "latency": 12.032
+  },
+  "observations": [
+    {
+      "id": "b7a63ca7e1d083bc",
+      "traceId": "9f2f0fe0228fd81a9fe75882934b384a",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-08-01T13:22:00.147Z",
+      "endTime": "2025-08-01T13:22:12.179Z",
+      "name": "GenerateContent",
+      "metadata": {
+        "attributes": {
+          "llm.input_messages.0.message.content": "What is Langfuse?",
+          "llm.input_messages.0.message.role": "user",
+          "output.value": {
+            "sdk_http_response": {
+              "headers": {
+                "content-type": "application/json; charset=UTF-8",
+                "vary": "Origin, X-Origin, Referer",
+                "content-encoding": "gzip",
+                "date": "Fri, 01 Aug 2025 13:22:12 GMT",
+                "server": "scaffolding on HTTPServer2",
+                "x-xss-protection": "0",
+                "x-frame-options": "SAMEORIGIN",
+                "x-content-type-options": "nosniff",
+                "server-timing": "gfet4t7; dur=11935",
+                "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+                "transfer-encoding": "chunked"
+              }
+            },
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "**Langfuse** is an **open-source observability and evaluation platform specifically designed for Large Language Model (LLM) applications.**\n\nIn essence, it acts as a \"flight recorder\" or \"black box\" for your AI applications, giving you deep insights into how they are performing in real-time and helping you iterate and improve them.\n\nHere's a breakdown of what Langfuse is and why it's important:\n\n### The Problem Langfuse Solves\n\nBuilding applications powered by LLMs (like chatbots, summarizers, RAG systems) presents unique challenges:\n\n1.  **Non-Determinism:** LLMs aren't like traditional code; their outputs can vary, making debugging difficult.\n2.  **Opacity:** It's hard to see what's happening \"inside\" the LLM call – what prompt was sent, what response was received, how long it took, and what tools were used.\n3.  **Performance & Cost Tracking:** Monitoring token usage, latency, and costs across various LLM calls and chains is complex.\n4.  **Evaluation & Improvement:** How do you know if a change to your prompt or RAG system actually made your application better? How do you collect user feedback?\n5.  **Debugging Production Issues:** When something goes wrong in production, tracing the exact cause (e.g., a bad prompt, a hallucination, a failed tool call) is crucial.\n\n### How Langfuse Works & Its Key Features\n\nLangfuse addresses these challenges by providing:\n\n1.  **Tracing & Observability:**\n    *   **End-to-end visibility:** It captures every step of an LLM application's lifecycle, from user input, through various LLM calls, tool usage, RAG retrievals, and final output.\n    *   **Detailed Spans:** Each step (e.g., an OpenAI call, a LlamaIndex query, a custom function) is recorded as a \"span,\" showing inputs, outputs, timestamps, costs (tokens, price), and associated metadata.\n    *   **Visualizations:** Presents these traces in a clear, waterfall-style UI, making it easy to understand the flow and identify bottlenecks or errors.\n\n2.  **Debugging & Monitoring:**\n    *   **Real-time Dashboards:** Provides metrics on latency, cost, token usage, and error rates across your application.\n    *   **Error Identification:** Quickly pinpoint exactly which LLM call or step failed within a complex chain.\n    *   **Search & Filtering:** Easily find specific traces based on user IDs, session IDs, error status, or custom tags.\n\n3.  **Evaluation & Feedback Loops:**\n    *   **Manual Feedback:** Allows users (or developers) to provide direct feedback (e.g., \"good,\" \"bad,\" custom scores) on specific traces. This is invaluable for human-in-the-loop evaluation.\n    *   **Automated Evaluation:** Integrates with evaluation frameworks (e.g., RAGAS) or custom scripts to automatically score LLM outputs, enabling A/B testing of prompts or models.\n    *   **Prompt Comparison:** Helps you compare the performance of different prompt versions side-by-side based on collected metrics and evaluations.\n\n4.  **Prompt Management:**\n    *   Store and version control your prompts.\n    *   Attach evaluations to specific prompt versions to track their effectiveness over time.\n\n5.  **User & Session Tracking:**\n    *   Associate traces with specific users or sessions, allowing you to understand individual user journeys and identify patterns.\n\n### Key Benefits\n\n*   **Faster Debugging:** Quickly diagnose and fix issues in your LLM applications.\n*   **Improved Performance:** Identify and optimize slow or costly parts of your LLM chains.\n*   **Data-Driven Iteration:** Make informed decisions about prompt engineering, model selection, and architecture based on real usage data and evaluations.\n*   **Cost Control:** Monitor token usage and costs to prevent budget overruns.\n*   **Enhanced Reliability:** Build more robust and production-ready LLM applications.\n\n### Integrations\n\nLangfuse integrates with popular LLM frameworks and libraries, including:\n\n*   LangChain\n*   LlamaIndex\n*   OpenAI API\n*   Anthropic API\n*   And can be used with any custom LLM integration.\n\nIn summary, Langfuse is a critical tool for any developer or team serious about building, deploying, and maintaining high-quality, performant, and reliable LLM-powered applications in production."
+                    }
+                  ],
+                  "role": "model"
+                },
+                "finish_reason": "STOP",
+                "index": 0
+              }
+            ],
+            "model_version": "gemini-2.5-flash",
+            "usage_metadata": {
+              "candidates_token_count": 951,
+              "prompt_token_count": 6,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "thoughts_token_count": 1104,
+              "total_token_count": 2061
+            },
+            "automatic_function_calling_history": []
+          },
+          "output.mime_type": "application/json",
+          "llm.provider": "google",
+          "input.value": {
+            "model": "gemini-2.5-flash",
+            "contents": "What is Langfuse?"
+          },
+          "input.mime_type": "application/json",
+          "llm.model_name": "gemini-2.5-flash",
+          "llm.token_count.total": "2061",
+          "llm.token_count.prompt": "6",
+          "llm.token_count.completion_details.reasoning": "1104",
+          "llm.token_count.completion": "2055",
+          "llm.output_messages.0.message.content": "**Langfuse** is an **open-source observability and evaluation platform specifically designed for Large Language Model (LLM) applications.**\n\nIn essence, it acts as a \"flight recorder\" or \"black box\" for your AI applications, giving you deep insights into how they are performing in real-time and helping you iterate and improve them.\n\nHere's a breakdown of what Langfuse is and why it's important:\n\n### The Problem Langfuse Solves\n\nBuilding applications powered by LLMs (like chatbots, summarizers, RAG systems) presents unique challenges:\n\n1.  **Non-Determinism:** LLMs aren't like traditional code; their outputs can vary, making debugging difficult.\n2.  **Opacity:** It's hard to see what's happening \"inside\" the LLM call – what prompt was sent, what response was received, how long it took, and what tools were used.\n3.  **Performance & Cost Tracking:** Monitoring token usage, latency, and costs across various LLM calls and chains is complex.\n4.  **Evaluation & Improvement:** How do you know if a change to your prompt or RAG system actually made your application better? How do you collect user feedback?\n5.  **Debugging Production Issues:** When something goes wrong in production, tracing the exact cause (e.g., a bad prompt, a hallucination, a failed tool call) is crucial.\n\n### How Langfuse Works & Its Key Features\n\nLangfuse addresses these challenges by providing:\n\n1.  **Tracing & Observability:**\n    *   **End-to-end visibility:** It captures every step of an LLM application's lifecycle, from user input, through various LLM calls, tool usage, RAG retrievals, and final output.\n    *   **Detailed Spans:** Each step (e.g., an OpenAI call, a LlamaIndex query, a custom function) is recorded as a \"span,\" showing inputs, outputs, timestamps, costs (tokens, price), and associated metadata.\n    *   **Visualizations:** Presents these traces in a clear, waterfall-style UI, making it easy to understand the flow and identify bottlenecks or errors.\n\n2.  **Debugging & Monitoring:**\n    *   **Real-time Dashboards:** Provides metrics on latency, cost, token usage, and error rates across your application.\n    *   **Error Identification:** Quickly pinpoint exactly which LLM call or step failed within a complex chain.\n    *   **Search & Filtering:** Easily find specific traces based on user IDs, session IDs, error status, or custom tags.\n\n3.  **Evaluation & Feedback Loops:**\n    *   **Manual Feedback:** Allows users (or developers) to provide direct feedback (e.g., \"good,\" \"bad,\" custom scores) on specific traces. This is invaluable for human-in-the-loop evaluation.\n    *   **Automated Evaluation:** Integrates with evaluation frameworks (e.g., RAGAS) or custom scripts to automatically score LLM outputs, enabling A/B testing of prompts or models.\n    *   **Prompt Comparison:** Helps you compare the performance of different prompt versions side-by-side based on collected metrics and evaluations.\n\n4.  **Prompt Management:**\n    *   Store and version control your prompts.\n    *   Attach evaluations to specific prompt versions to track their effectiveness over time.\n\n5.  **User & Session Tracking:**\n    *   Associate traces with specific users or sessions, allowing you to understand individual user journeys and identify patterns.\n\n### Key Benefits\n\n*   **Faster Debugging:** Quickly diagnose and fix issues in your LLM applications.\n*   **Improved Performance:** Identify and optimize slow or costly parts of your LLM chains.\n*   **Data-Driven Iteration:** Make informed decisions about prompt engineering, model selection, and architecture based on real usage data and evaluations.\n*   **Cost Control:** Monitor token usage and costs to prevent budget overruns.\n*   **Enhanced Reliability:** Build more robust and production-ready LLM applications.\n\n### Integrations\n\nLangfuse integrates with popular LLM frameworks and libraries, including:\n\n*   LangChain\n*   LlamaIndex\n*   OpenAI API\n*   Anthropic API\n*   And can be used with any custom LLM integration.\n\nIn summary, Langfuse is a critical tool for any developer or team serious about building, deploying, and maintaining high-quality, performant, and reliable LLM-powered applications in production.",
+          "llm.output_messages.0.message.role": "model",
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.34.1",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.google_genai",
+          "version": "0.1.5",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-01T13:22:40.579Z",
+      "updatedAt": "2025-08-01T13:22:40.741Z",
+      "usageDetails": {
+        "total": 2061,
+        "input": 6,
+        "completion_details.reasoning": 1104,
+        "output": 2055
+      },
+      "costDetails": {
+        "input": 0.0000018,
+        "output": 0.0051375,
+        "total": 0.005139299999
+      },
+      "providedCostDetails": {},
+      "model": "gemini-2.5-flash",
+      "internalModelId": "cmcnjkfwn000107l43bf5e8ax",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 12032,
+      "timeToFirstToken": null,
+      "inputCost": 0.0000018,
+      "outputCost": 0.0051375,
+      "totalCost": 0.005139299999,
+      "inputUsage": 6,
+      "outputUsage": 2055,
+      "totalUsage": 2061,
+      "input": {
+        "model": "gemini-2.5-flash",
+        "contents": "What is Langfuse?"
+      },
+      "output": {
+        "sdk_http_response": {
+          "headers": {
+            "content-type": "application/json; charset=UTF-8",
+            "vary": "Origin, X-Origin, Referer",
+            "content-encoding": "gzip",
+            "date": "Fri, 01 Aug 2025 13:22:12 GMT",
+            "server": "scaffolding on HTTPServer2",
+            "x-xss-protection": "0",
+            "x-frame-options": "SAMEORIGIN",
+            "x-content-type-options": "nosniff",
+            "server-timing": "gfet4t7; dur=11935",
+            "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+            "transfer-encoding": "chunked"
+          }
+        },
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "**Langfuse** is an **open-source observability and evaluation platform specifically designed for Large Language Model (LLM) applications.**\n\nIn essence, it acts as a \"flight recorder\" or \"black box\" for your AI applications, giving you deep insights into how they are performing in real-time and helping you iterate and improve them.\n\nHere's a breakdown of what Langfuse is and why it's important:\n\n### The Problem Langfuse Solves\n\nBuilding applications powered by LLMs (like chatbots, summarizers, RAG systems) presents unique challenges:\n\n1.  **Non-Determinism:** LLMs aren't like traditional code; their outputs can vary, making debugging difficult.\n2.  **Opacity:** It's hard to see what's happening \"inside\" the LLM call – what prompt was sent, what response was received, how long it took, and what tools were used.\n3.  **Performance & Cost Tracking:** Monitoring token usage, latency, and costs across various LLM calls and chains is complex.\n4.  **Evaluation & Improvement:** How do you know if a change to your prompt or RAG system actually made your application better? How do you collect user feedback?\n5.  **Debugging Production Issues:** When something goes wrong in production, tracing the exact cause (e.g., a bad prompt, a hallucination, a failed tool call) is crucial.\n\n### How Langfuse Works & Its Key Features\n\nLangfuse addresses these challenges by providing:\n\n1.  **Tracing & Observability:**\n    *   **End-to-end visibility:** It captures every step of an LLM application's lifecycle, from user input, through various LLM calls, tool usage, RAG retrievals, and final output.\n    *   **Detailed Spans:** Each step (e.g., an OpenAI call, a LlamaIndex query, a custom function) is recorded as a \"span,\" showing inputs, outputs, timestamps, costs (tokens, price), and associated metadata.\n    *   **Visualizations:** Presents these traces in a clear, waterfall-style UI, making it easy to understand the flow and identify bottlenecks or errors.\n\n2.  **Debugging & Monitoring:**\n    *   **Real-time Dashboards:** Provides metrics on latency, cost, token usage, and error rates across your application.\n    *   **Error Identification:** Quickly pinpoint exactly which LLM call or step failed within a complex chain.\n    *   **Search & Filtering:** Easily find specific traces based on user IDs, session IDs, error status, or custom tags.\n\n3.  **Evaluation & Feedback Loops:**\n    *   **Manual Feedback:** Allows users (or developers) to provide direct feedback (e.g., \"good,\" \"bad,\" custom scores) on specific traces. This is invaluable for human-in-the-loop evaluation.\n    *   **Automated Evaluation:** Integrates with evaluation frameworks (e.g., RAGAS) or custom scripts to automatically score LLM outputs, enabling A/B testing of prompts or models.\n    *   **Prompt Comparison:** Helps you compare the performance of different prompt versions side-by-side based on collected metrics and evaluations.\n\n4.  **Prompt Management:**\n    *   Store and version control your prompts.\n    *   Attach evaluations to specific prompt versions to track their effectiveness over time.\n\n5.  **User & Session Tracking:**\n    *   Associate traces with specific users or sessions, allowing you to understand individual user journeys and identify patterns.\n\n### Key Benefits\n\n*   **Faster Debugging:** Quickly diagnose and fix issues in your LLM applications.\n*   **Improved Performance:** Identify and optimize slow or costly parts of your LLM chains.\n*   **Data-Driven Iteration:** Make informed decisions about prompt engineering, model selection, and architecture based on real usage data and evaluations.\n*   **Cost Control:** Monitor token usage and costs to prevent budget overruns.\n*   **Enhanced Reliability:** Build more robust and production-ready LLM applications.\n\n### Integrations\n\nLangfuse integrates with popular LLM frameworks and libraries, including:\n\n*   LangChain\n*   LlamaIndex\n*   OpenAI API\n*   Anthropic API\n*   And can be used with any custom LLM integration.\n\nIn summary, Langfuse is a critical tool for any developer or team serious about building, deploying, and maintaining high-quality, performant, and reliable LLM-powered applications in production."
+                }
+              ],
+              "role": "model"
+            },
+            "finish_reason": "STOP",
+            "index": 0
+          }
+        ],
+        "model_version": "gemini-2.5-flash",
+        "usage_metadata": {
+          "candidates_token_count": 951,
+          "prompt_token_count": 6,
+          "prompt_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 6
+            }
+          ],
+          "thoughts_token_count": 1104,
+          "total_token_count": 2061
+        },
+        "automatic_function_calling_history": []
+      }
+    }
+  ]
+}

@@ -2,7 +2,6 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { ChartLine } from "lucide-react";
 
 export function DatasetAnalytics(props: {
   projectId: string;
@@ -13,12 +12,12 @@ export function DatasetAnalytics(props: {
   const capture = usePostHogClientCapture();
   return (
     <MultiSelectKeyValues
-      className="max-w-full focus:!ring-0 focus:!ring-offset-0"
+      className="max-w-fit focus:!ring-0 focus:!ring-offset-0"
       placeholder="Search..."
-      title="Selected"
-      variant="ghost"
-      iconLeft={<ChartLine className="mr-1 h-4 w-4" />}
+      title="Charts"
+      variant="outline"
       hideClearButton
+      showSelectedValueStrings={false}
       onValueChange={(values, changedValue, selectedKeys) => {
         if (values.length === 0) props.setSelectedMetrics([]);
 

@@ -1,6 +1,10 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 import { logger } from "../logger";
 
 export class TraceDeleteQueue {
@@ -22,6 +26,7 @@ export class TraceDeleteQueue {
           QueueName.TraceDelete,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(QueueName.TraceDelete),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

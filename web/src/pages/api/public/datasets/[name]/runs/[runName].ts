@@ -4,19 +4,21 @@ import {
   GetDatasetRunV1Response,
   DeleteDatasetRunV1Query,
   DeleteDatasetRunV1Response,
-  transformDbDatasetRunItemToAPIDatasetRunItem,
   transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { addToDeleteDatasetQueue } from "@langfuse/shared/src/server";
+import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "get-dataset-run",
     querySchema: GetDatasetRunV1Query,
     responseSchema: GetDatasetRunV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const datasetRuns = await prisma.datasetRuns.findMany({
         where: {
@@ -28,7 +30,6 @@ export default withMiddlewares({
           },
         },
         include: {
-          datasetRunItems: true,
           dataset: {
             select: {
               name: true,
@@ -42,19 +43,22 @@ export default withMiddlewares({
       if (!datasetRuns[0])
         throw new LangfuseNotFoundError("Dataset run not found");
 
-      const { dataset, datasetRunItems, ...run } = datasetRuns[0];
+      const { dataset, ...run } = datasetRuns[0];
+
+      const datasetRunItems = await generateDatasetRunItemsForPublicApi({
+        props: {
+          datasetId: run.datasetId,
+          runId: run.id,
+          projectId: auth.scope.projectId,
+        },
+      });
 
       return {
         ...transformDbDatasetRunToAPIDatasetRun({
           ...run,
           datasetName: dataset.name,
         }),
-        datasetRunItems: datasetRunItems
-          .map((item) => ({
-            ...item,
-            datasetRunName: run.name,
-          }))
-          .map(transformDbDatasetRunItemToAPIDatasetRunItem),
+        datasetRunItems,
       };
     },
   }),
@@ -62,6 +66,7 @@ export default withMiddlewares({
     name: "delete-dataset-run",
     querySchema: DeleteDatasetRunV1Query,
     responseSchema: DeleteDatasetRunV1Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       // First get the dataset run to check if it exists
       const datasetRuns = await prisma.datasetRuns.findMany({
@@ -103,6 +108,14 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
         before: datasetRun,
+      });
+
+      // Trigger async delete of dataset run items
+      await addToDeleteDatasetQueue({
+        deletionType: "dataset-runs",
+        projectId: auth.scope.projectId,
+        datasetRunIds: [datasetRun.id],
+        datasetId: datasetRun.datasetId,
       });
 
       return {

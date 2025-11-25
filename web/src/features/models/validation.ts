@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const UsageTypeSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/);
 export const PriceSchema = z.number().nonnegative();
@@ -18,7 +18,7 @@ export const GetModelResultSchema = z.object({
   modelName: z.string(),
   matchPattern: z.string(),
   tokenizerConfig: z.union([
-    z.record(z.union([z.string(), z.coerce.number()])).nullable(),
+    z.record(z.string(), z.union([z.string(), z.coerce.number()])).nullable(),
     z.string(),
   ]),
   tokenizerId: TokenizerSchema,
@@ -41,7 +41,7 @@ export const UpsertModelSchema = z.object({
     })
     .pipe(TokenizerSchema.nullish()),
   tokenizerConfig: z
-    .record(z.union([z.string(), z.coerce.number()]))
+    .record(z.string(), z.union([z.string(), z.coerce.number()]))
     .optional(),
   prices: PriceMapSchema,
 });

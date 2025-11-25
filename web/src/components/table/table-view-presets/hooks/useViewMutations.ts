@@ -1,5 +1,6 @@
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 type UseViewMutationsProps = {
   handleSetViewId: (viewId: string | null) => void;
@@ -42,7 +43,7 @@ export const useViewMutations = ({
   const generatePermalinkMutation =
     api.TableViewPresets.generatePermalink.useMutation({
       onSuccess: (data) => {
-        navigator.clipboard.writeText(data);
+        copyTextToClipboard(data);
         showSuccessToast({
           title: "Permalink copied to clipboard",
           description: "You can now share the permalink with others",

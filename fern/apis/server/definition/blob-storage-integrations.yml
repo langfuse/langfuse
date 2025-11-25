@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+
+service:
+  auth: true
+  base-path: /api/public/integrations/blob-storage
+  endpoints:
+    getBlobStorageIntegrations:
+      docs: Get all blob storage integrations for the organization (requires organization-scoped API key)
+      method: GET
+      path: ""
+      response: BlobStorageIntegrationsResponse
+
+    upsertBlobStorageIntegration:
+      docs: Create or update a blob storage integration for a specific project (requires organization-scoped API key). The configuration is validated by performing a test upload to the bucket.
+      method: PUT
+      path: ""
+      request: CreateBlobStorageIntegrationRequest
+      response: BlobStorageIntegrationResponse
+
+    deleteBlobStorageIntegration:
+      docs: Delete a blob storage integration by ID (requires organization-scoped API key)
+      method: DELETE
+      path: "/{id}"
+      path-parameters:
+        id: string
+      response: BlobStorageIntegrationDeletionResponse
+
+types:
+  BlobStorageIntegrationType:
+    enum:
+      - S3
+      - S3_COMPATIBLE
+      - AZURE_BLOB_STORAGE
+
+  BlobStorageIntegrationFileType:
+    enum:
+      - JSON
+      - CSV
+      - JSONL
+
+  BlobStorageExportMode:
+    enum:
+      - FULL_HISTORY
+      - FROM_TODAY
+      - FROM_CUSTOM_DATE
+
+  BlobStorageExportFrequency:
+    enum:
+      - hourly
+      - daily
+      - weekly
+
+  CreateBlobStorageIntegrationRequest:
+    properties:
+      projectId:
+        type: string
+        docs: ID of the project in which to configure the blob storage integration
+      type: BlobStorageIntegrationType
+      bucketName:
+        type: string
+        docs: Name of the storage bucket
+      endpoint:
+        type: optional<string>
+        docs: Custom endpoint URL (required for S3_COMPATIBLE type)
+      region:
+        type: string
+        docs: Storage region
+      accessKeyId:
+        type: optional<string>
+        docs: Access key ID for authentication
+      secretAccessKey:
+        type: optional<string>
+        docs: Secret access key for authentication (will be encrypted when stored)
+      prefix:
+        type: optional<string>
+        docs: Path prefix for exported files (must end with forward slash if provided)
+      exportFrequency: BlobStorageExportFrequency
+      enabled:
+        type: boolean
+        docs: Whether the integration is active
+      forcePathStyle:
+        type: boolean
+        docs: Use path-style URLs for S3 requests
+      fileType: BlobStorageIntegrationFileType
+      exportMode: BlobStorageExportMode
+      exportStartDate:
+        type: optional<datetime>
+        docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE)
+
+  BlobStorageIntegrationResponse:
+    properties:
+      id: string
+      projectId: string
+      type: BlobStorageIntegrationType
+      bucketName: string
+      endpoint: optional<string>
+      region: string
+      accessKeyId: optional<string>
+      prefix: string
+      exportFrequency: BlobStorageExportFrequency
+      enabled: boolean
+      forcePathStyle: boolean
+      fileType: BlobStorageIntegrationFileType
+      exportMode: BlobStorageExportMode
+      exportStartDate: optional<datetime>
+      nextSyncAt: optional<datetime>
+      lastSyncAt: optional<datetime>
+      createdAt: datetime
+      updatedAt: datetime
+
+  BlobStorageIntegrationsResponse:
+    properties:
+      data: list<BlobStorageIntegrationResponse>
+
+  BlobStorageIntegrationDeletionResponse:
+    properties:
+      message: string

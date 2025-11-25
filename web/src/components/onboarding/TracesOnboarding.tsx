@@ -48,7 +48,7 @@ export function TracesOnboarding({ projectId }: TracesOnboardingProps) {
       }}
       secondaryAction={{
         label: "View Documentation",
-        href: "https://langfuse.com/docs/tracing",
+        href: "https://langfuse.com/docs/observability/overview",
       }}
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/tracing-overview-v1.mp4"
     />

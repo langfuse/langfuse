@@ -1,4 +1,6 @@
-import { type ZodSchema } from "zod";
+// We need to use Zod3 for structured outputs due to a bug in
+// ChatVertexAI. See issue: https://github.com/langfuse/langfuse/issues/7429
+import { type ZodSchema } from "zod/v3";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -16,42 +18,71 @@ import {
   StringOutputParser,
 } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI, AzureChatOpenAI } from "@langchain/openai";
+import { env } from "../../env";
 import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  VertexAIConfigSchema,
+  BEDROCK_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { processEventBatch } from "../ingestion/processEventBatch";
-import { logger } from "../logger";
 import {
   ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  isOpenAIReasoningModel,
   LLMAdapter,
   LLMJSONSchema,
   LLMToolDefinition,
   ModelParams,
+  OpenAIModel,
   ToolCallResponse,
   ToolCallResponseSchema,
-  TraceParams,
+  TraceSinkParams,
 } from "./types";
-import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { getInternalTracingHandler } from "./getInternalTracingHandler";
+import { decrypt } from "../../encryption";
+import { decryptAndParseExtraHeaders } from "./utils";
+import { logger } from "../logger";
+import { LLMCompletionError } from "./errors";
+
+const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
+  LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
+];
+
+const transformSystemMessageToUserMessage = (
+  messages: ChatMessage[],
+): BaseMessage[] => {
+  const safeContent =
+    typeof messages[0].content === "string"
+      ? messages[0].content
+      : JSON.stringify(messages[0].content);
+  return [new HumanMessage(safeContent)];
+};
 
 type ProcessTracedEvents = () => Promise<void>;
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
+  llmConnection: {
+    secretKey: string;
+    extraHeaders?: string | null;
+    baseURL?: string | null;
+    config?: Record<string, string> | null;
+  };
   structuredOutputSchema?: ZodSchema | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
-  baseURL?: string;
-  apiKey: string;
-  extraHeaders?: Record<string, string>;
   maxRetries?: number;
-  config?: Record<string, string> | null;
-  traceParams?: TraceParams;
-  throwOnError?: boolean; // default is true
+  traceSinkParams?: TraceSinkParams;
+  shouldUseLangfuseAPIKey?: boolean;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -60,119 +91,126 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: true;
   },
-): Promise<{
-  completion: IterableReadableStream<Uint8Array>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{
-  completion: string;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<string>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
-): Promise<{
-  completion: Record<string, unknown>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
-    tools: LLMToolDefinition[];
     streaming: false;
+    tools: LLMToolDefinition[];
   },
-): Promise<{
-  completion: ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<ToolCallResponse>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
-): Promise<{
-  completion:
-    | string
-    | IterableReadableStream<Uint8Array>
-    | Record<string, unknown>
-    | ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}> {
-  // the apiKey must never be printed to the console
+): Promise<
+  | string
+  | IterableReadableStream<Uint8Array>
+  | Record<string, unknown>
+  | ToolCallResponse
+> {
   const {
     messages,
     tools,
     modelParams,
     streaming,
     callbacks,
-    apiKey,
-    baseURL,
+    llmConnection,
     maxRetries,
-    config,
-    traceParams,
-    extraHeaders,
-    throwOnError = true,
+    traceSinkParams,
+    shouldUseLangfuseAPIKey = false,
   } = params;
+
+  const { baseURL, config } = llmConnection;
+  const apiKey = decrypt(llmConnection.secretKey); // the apiKey must never be printed to the console
+  const extraHeaders = decryptAndParseExtraHeaders(llmConnection.extraHeaders);
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
-  if (traceParams) {
-    const handler = new CallbackHandler({
-      _projectId: traceParams.projectId,
-      _isLocalEventExportEnabled: true,
-      tags: traceParams.tags,
-    });
-    finalCallbacks.push(handler);
+  if (traceSinkParams) {
+    // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
+    // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
+    // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
+    if (!traceSinkParams.environment?.startsWith("langfuse")) {
+      logger.warn(
+        "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
+        {
+          environment: traceSinkParams.environment,
+          traceId: traceSinkParams.traceId,
+        },
+      );
+    } else {
+      const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
+      processTracedEvents = internalTracingHandler.processTracedEvents;
 
-    processTracedEvents = async () => {
-      try {
-        const events = await handler.langfuse._exportLocalEvents(
-          traceParams.projectId,
-        );
-        await processEventBatch(
-          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
-          traceParams.authCheck,
-        );
-      } catch (e) {
-        logger.error("Failed to process traced events", { error: e });
-      }
-    };
+      finalCallbacks.push(internalTracingHandler.handler);
+    }
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
+  // Helper function to safely stringify content
+  const safeStringify = (content: any): string => {
+    try {
+      return JSON.stringify(content);
+    } catch {
+      return "[Unserializable content]";
+    }
+  };
+
   let finalMessages: BaseMessage[];
-  // VertexAI requires at least 1 user message
-  if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
-    finalMessages = [new HumanMessage(messages[0].content)];
+  // Some providers require at least 1 user message
+  if (
+    messages.length === 1 &&
+    PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(modelParams.adapter)
+  ) {
+    // Ensure provider schema compliance
+    finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
     finalMessages = messages.map((message) => {
+      // For arbitrary content types, convert to string safely
+      const safeContent =
+        typeof message.content === "string"
+          ? message.content
+          : safeStringify(message.content);
+
       if (message.role === ChatMessageRole.User)
-        return new HumanMessage(message.content);
+        return new HumanMessage(safeContent);
       if (
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
       )
-        return new SystemMessage(message.content);
+        return new SystemMessage(safeContent);
 
-      if (message.type === ChatMessageType.ToolResult)
+      if (message.type === ChatMessageType.ToolResult) {
         return new ToolMessage({
-          content: message.content,
+          content: safeContent,
           tool_call_id: message.toolCallId,
         });
+      }
 
       return new AIMessage({
-        content: message.content,
+        content: safeContent,
         tool_calls:
           message.type === ChatMessageType.AssistantToolCall
             ? (message.toolCalls as any)
@@ -185,6 +223,11 @@ export async function fetchLLMCompletion(
     (m) => m.content.length > 0 || "tool_calls" in m,
   );
 
+  // Common proxy configuration for all adapters
+  const proxyUrl = env.HTTPS_PROXY;
+  const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+  const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+
   let chatModel:
     | ChatOpenAI
     | ChatAnthropic
@@ -192,36 +235,70 @@ export async function fetchLLMCompletion(
     | ChatVertexAI
     | ChatGoogleGenerativeAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    chatModel = new ChatAnthropic({
+    const isClaude45Family =
+      modelParams.model?.includes("claude-sonnet-4-5") ||
+      modelParams.model?.includes("claude-opus-4-1") ||
+      modelParams.model?.includes("claude-haiku-4-5");
+
+    const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
-      anthropicApiUrl: baseURL,
+      anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
-      temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
       callbacks: finalCallbacks,
-      clientOptions: { maxRetries, timeout: 1000 * 60 * 2 }, // 2 minutes timeout
-    });
+      clientOptions: {
+        maxRetries,
+        timeout: timeoutMs,
+        ...(proxyAgent && { httpAgent: proxyAgent }),
+      },
+      temperature: modelParams.temperature,
+      topP: modelParams.top_p,
+      invocationKwargs: modelParams.providerOptions,
+    };
+    chatModel = new ChatAnthropic(chatOptions);
+    if (isClaude45Family) {
+      if (
+        modelParams.temperature !== undefined &&
+        modelParams.top_p === undefined
+      ) {
+        chatModel.topP = undefined;
+      }
+      if (
+        modelParams.top_p !== undefined &&
+        modelParams.temperature === undefined
+      ) {
+        chatModel.temperature = undefined;
+      }
+    }
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
+    const processedBaseURL = processOpenAIBaseURL({
+      url: baseURL,
+      modelName: modelParams.model,
+    });
+
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
       temperature: modelParams.temperature,
-      maxTokens: modelParams.max_tokens,
+      ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
+        ? { maxCompletionTokens: modelParams.max_tokens }
+        : { maxTokens: modelParams.max_tokens }),
       topP: modelParams.top_p,
       streamUsage: false, // https://github.com/langchain-ai/langchainjs/issues/6533
       callbacks: finalCallbacks,
       maxRetries,
       configuration: {
-        baseURL,
+        baseURL: processedBaseURL,
         defaultHeaders: extraHeaders,
+        ...(proxyAgent && { httpAgent: proxyAgent }),
       },
-      timeout: 1000 * 60 * 2, // 2 minutes timeout
+      modelKwargs: modelParams.providerOptions,
+      timeout: timeoutMs,
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {
-    chatModel = new ChatOpenAI({
+    chatModel = new AzureChatOpenAI({
       azureOpenAIApiKey: apiKey,
-      azureOpenAIBasePath: baseURL,
+      azureOpenAIBasePath: baseURL ?? undefined,
       azureOpenAIApiDeploymentName: modelParams.model,
       azureOpenAIApiVersion: "2025-02-01-preview",
       temperature: modelParams.temperature,
@@ -229,14 +306,26 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
-      timeout: 1000 * 60 * 2, // 2 minutes timeout
+      timeout: timeoutMs,
       configuration: {
         defaultHeaders: extraHeaders,
+        ...(proxyAgent && { httpAgent: proxyAgent }),
       },
+      modelKwargs: modelParams.providerOptions,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
-    const { region } = BedrockConfigSchema.parse(config);
-    const credentials = BedrockCredentialSchema.parse(JSON.parse(apiKey));
+    const { region } = shouldUseLangfuseAPIKey
+      ? { region: env.LANGFUSE_AWS_BEDROCK_REGION }
+      : BedrockConfigSchema.parse(config);
+
+    // Handle both explicit credentials and default provider chain
+    // Only allow default provider chain in self-hosted or internal AI features
+    const isSelfHosted = !isLangfuseCloud;
+    const credentials =
+      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
+      (isSelfHosted || shouldUseLangfuseAPIKey)
+        ? undefined // undefined = use AWS SDK default credential provider chain
+        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
@@ -247,10 +336,14 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
-      timeout: 1000 * 60 * 2, // 2 minutes timeout
+      timeout: timeoutMs,
+      additionalModelRequestFields: modelParams.providerOptions as any,
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
     const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
+    const { location } = config
+      ? VertexAIConfigSchema.parse(config)
+      : { location: undefined };
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
@@ -261,10 +354,14 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+      location,
       authOptions: {
         projectId: credentials.project_id,
         credentials,
       },
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
@@ -275,22 +372,9 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-    });
-  } else if (modelParams.adapter === LLMAdapter.Atla) {
-    // Atla models do not support:
-    // - temperature
-    // - max_tokens
-    // - top_p
-    chatModel = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: modelParams.model,
-      callbacks: finalCallbacks,
-      maxRetries,
-      configuration: {
-        baseURL: baseURL,
-        defaultHeaders: extraHeaders,
-      },
-      timeout: 1000 * 60, // 1 minute timeout
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else {
     // eslint-disable-next-line no-unused-vars
@@ -302,63 +386,19 @@ export async function fetchLLMCompletion(
 
   const runConfig = {
     callbacks: finalCallbacks,
-    runId: traceParams?.traceId,
-    runName: traceParams?.traceName,
+    runId: traceSinkParams?.traceId,
+    runName: traceSinkParams?.traceName,
+    metadata: traceSinkParams?.metadata,
   };
 
   try {
+    // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      return {
-        completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-          .withStructuredOutput(params.structuredOutputSchema)
-          .invoke(finalMessages, runConfig),
-        processTracedEvents,
-      };
-    }
+      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+        .withStructuredOutput(params.structuredOutputSchema)
+        .invoke(finalMessages, runConfig);
 
-    /*
-  Workaround OpenAI reasoning models:
-  
-  This is a temporary workaround to avoid sending unsupported parameters to OpenAI's O1 models.
-  O1 models do not support:
-  - system messages
-  - top_p
-  - max_tokens at all, one has to use max_completion_tokens instead
-  - temperature different than 1
-
-  Reference: https://platform.openai.com/docs/guides/reasoning/beta-limitations
-  */
-    if (
-      modelParams.model.startsWith("o1-") ||
-      modelParams.model.startsWith("o3-")
-    ) {
-      const filteredMessages = finalMessages.filter((message) => {
-        return (
-          modelParams.model.startsWith("o3-") || message._getType() !== "system"
-        );
-      });
-
-      return {
-        completion: await new ChatOpenAI({
-          openAIApiKey: apiKey,
-          modelName: modelParams.model,
-          temperature: 1,
-          maxTokens: undefined,
-          topP: undefined,
-          callbacks,
-          maxRetries,
-          modelKwargs: {
-            max_completion_tokens: modelParams.max_tokens,
-          },
-          configuration: {
-            baseURL,
-          },
-          timeout: 1000 * 60 * 2, // 2 minutes timeout
-        })
-          .pipe(new StringOutputParser())
-          .invoke(filteredMessages, runConfig),
-        processTracedEvents,
-      };
+      return structuredOutput;
     }
 
     if (tools && tools.length > 0) {
@@ -374,32 +414,87 @@ export async function fetchLLMCompletion(
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return {
-        completion: parsed.data,
-        processTracedEvents,
-      };
+      return parsed.data;
     }
 
-    if (streaming) {
-      return {
-        completion: await chatModel
-          .pipe(new BytesOutputParser())
-          .stream(finalMessages, runConfig),
-        processTracedEvents,
-      };
+    if (streaming)
+      return chatModel
+        .pipe(new BytesOutputParser())
+        .stream(finalMessages, runConfig);
+
+    const completion = await chatModel
+      .pipe(new StringOutputParser())
+      .invoke(finalMessages, runConfig);
+
+    return completion;
+  } catch (e) {
+    const responseStatusCode =
+      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+    const message = e instanceof Error ? e.message : String(e);
+
+    // Check for non-retryable error patterns in message
+    const nonRetryablePatterns = [
+      "Request timed out",
+      "is not valid JSON",
+      "Unterminated string in JSON at position",
+      "TypeError",
+    ];
+
+    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
+      message.includes(pattern),
+    );
+
+    // Determine retryability:
+    // - 429 (rate limit): retryable with custom delay
+    // - 5xx (server errors): retryable with custom delay
+    // - 4xx (client errors): not retryable
+    // - Non-retryable patterns: not retryable
+    let isRetryable = false;
+
+    if (
+      e instanceof Error &&
+      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
+    ) {
+      // Explicit 429 handling
+      isRetryable = true;
+    } else if (responseStatusCode >= 500) {
+      // 5xx errors are retryable (server issues)
+      isRetryable = true;
+    } else if (responseStatusCode === 429) {
+      // Rate limit is retryable
+      isRetryable = true;
     }
 
-    return {
-      completion: await chatModel
-        .pipe(new StringOutputParser())
-        .invoke(finalMessages, runConfig),
-      processTracedEvents,
-    };
-  } catch (error) {
-    if (throwOnError) {
-      throw error;
+    // Override if error message indicates non-retryable issue
+    if (hasNonRetryablePattern) {
+      isRetryable = false;
     }
 
-    return { completion: "", processTracedEvents };
+    throw new LLMCompletionError({
+      message,
+      responseStatusCode,
+      isRetryable,
+    });
+  } finally {
+    await processTracedEvents();
   }
+}
+
+/**
+ * Process baseURL template for OpenAI adapter only.
+ * Replaces {model} placeholder with actual model name.
+ * This is a workaround for proxies that require the model name in the URL azureOpenAIBasePath
+ * while having OpenAI compliance otherwise
+ */
+function processOpenAIBaseURL(params: {
+  url: string | null | undefined;
+  modelName: string;
+}): string | null | undefined {
+  const { url, modelName } = params;
+
+  if (!url || !url.includes("{model}")) {
+    return url;
+  }
+
+  return url.replace("{model}", modelName);
 }

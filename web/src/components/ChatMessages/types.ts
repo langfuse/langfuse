@@ -1,15 +1,19 @@
-import type { ChatMessage, ChatMessageWithId } from "@langfuse/shared";
+import type {
+  ChatMessage,
+  ChatMessageWithId,
+  PlaceholderMessage,
+} from "@langfuse/shared";
 
 export type MessagesContext = {
   messages: ChatMessageWithId[];
-  addMessage: (message: ChatMessage) => ChatMessageWithId;
+  addMessage: (message: ChatMessage | PlaceholderMessage) => ChatMessageWithId;
   setMessages: (messages: ChatMessageWithId[]) => void;
   deleteMessage: (id: string) => void;
   updateMessage: <
     T extends ChatMessageWithId["type"],
     Key extends keyof Omit<
       Extract<ChatMessageWithId, { type: T }>,
-      "id" | "type" | "role"
+      "id" | "type"
     >,
     Value = Extract<ChatMessageWithId, { type: T }>[Key],
   >(

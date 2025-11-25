@@ -1,11 +1,11 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { LLMJSONSchema } from "@langfuse/shared";
 
 export const LLMToolNameSchema = z
   .string()
   .regex(
-    /^[a-zA-Z0-9_-]+$/,
-    "Name must contain only alphanumeric letters, hyphens and underscores",
+    /^[a-zA-Z0-9\._-]+$/,
+    "Name must contain only alphanumeric letters, hyphens, periods and underscores",
   )
   .min(1, "Name is required");
 

@@ -11,42 +11,33 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
-import { useState } from "react";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import {
-  ChartLine,
-  Cog,
-  ExternalLink,
-  FlaskConical,
-  MoreVertical,
-} from "lucide-react";
+import { useState, useCallback } from "react";
+import { Bot, FlaskConical, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useMemo } from "react";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
-  TabsBarList,
-  TabsBarTrigger,
-  TabsBar,
-} from "@/src/components/ui/tabs-bar";
-import { Separator } from "@/src/components/ui/separator";
+  getDatasetTabs,
+  DATASET_TABS,
+} from "@/src/features/navigation/utils/dataset-tabs";
+import { TemplateSelector } from "@/src/features/evals/components/template-selector";
+import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
+import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
+import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 export default function Dataset() {
   const router = useRouter();
@@ -54,12 +45,13 @@ export default function Dataset() {
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
-  const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
+  const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
+    `${projectId}-dataset-chart-metrics`,
     RESOURCE_METRICS.map((metric) => metric.key),
   );
+
   const [scoreOptions, setScoreOptions] = useState<
     {
       key: string;
@@ -82,24 +74,6 @@ export default function Dataset() {
     scope: "promptExperiments:CUD",
   });
 
-  const evaluators = api.evals.jobConfigsByDatasetId.useQuery(
-    {
-      projectId,
-      datasetId,
-    },
-    {
-      enabled: hasReadAccess && hasEntitlement && dataset.isSuccess,
-    },
-  );
-
-  const evaluatorsOptions = useMemo(() => {
-    if (!evaluators.data) return [];
-    return evaluators.data?.map((evaluator) => ({
-      key: evaluator.id,
-      value: evaluator.scoreName,
-    }));
-  }, [evaluators.data]);
-
   const handleExperimentSuccess = async (data?: {
     success: boolean;
     datasetId: string;
@@ -111,7 +85,7 @@ export default function Dataset() {
     void utils.datasets.runsByDatasetId.invalidate();
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment run triggered successfully",
+      title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {
         text: "View experiment",
@@ -119,6 +93,61 @@ export default function Dataset() {
       },
     });
   };
+
+  const hasEvalReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:read",
+  });
+
+  const hasEvalWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:CUD",
+  });
+
+  const evalTemplates = api.evals.allTemplates.useQuery({
+    projectId,
+  });
+
+  const evaluators = api.evals.jobConfigsByTarget.useQuery(
+    { projectId, targetObject: "dataset" },
+    {
+      enabled: hasEvalReadAccess && !!datasetId,
+    },
+  );
+
+  const { createDefaultEvaluator } = useEvaluatorDefaults();
+
+  const {
+    activeEvaluators,
+    pausedEvaluators,
+    selectedEvaluatorData,
+    showEvaluatorForm,
+    handleConfigureEvaluator,
+    handleCloseEvaluatorForm,
+    handleEvaluatorSuccess,
+    handleSelectEvaluator,
+  } = useExperimentEvaluatorData({
+    datasetId,
+    createDefaultEvaluator,
+    evaluatorsData: evaluators.data,
+    evalTemplatesData: evalTemplates.data,
+    refetchEvaluators: evaluators.refetch,
+  });
+
+  // This function will be passed to the EvaluatorForm to modify form values before submission
+  const preprocessFormValues = useCallback((values: any) => {
+    // Ask the user if they want to run on historic data
+    const shouldRunOnHistoric = confirm(
+      "Do you also want to execute this evaluator on historic data? If not, click cancel.",
+    );
+
+    // If the user confirms, include EXISTING in the timeScope
+    if (shouldRunOnHistoric && !values.timeScope.includes("EXISTING")) {
+      values.timeScope = [...values.timeScope, "EXISTING"];
+    }
+
+    return values;
+  }, []);
 
   return (
     <Page
@@ -133,20 +162,10 @@ export default function Dataset() {
               description: dataset.data.description,
             }
           : undefined,
-        tabsComponent: (
-          <TabsBar value="runs">
-            <TabsBarList>
-              <TabsBarTrigger value="runs">Runs</TabsBarTrigger>
-              <TabsBarTrigger value="items" asChild>
-                <Link
-                  href={`/project/${projectId}/datasets/${datasetId}/items`}
-                >
-                  Items
-                </Link>
-              </TabsBarTrigger>
-            </TabsBarList>
-          </TabsBar>
-        ),
+        tabsProps: {
+          tabs: getDatasetTabs(projectId, datasetId),
+          activeTab: DATASET_TABS.RUNS,
+        },
         actionButtonsRight: (
           <>
             <Dialog
@@ -155,15 +174,14 @@ export default function Dataset() {
             >
               <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                 <Button
-                  variant="outline"
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2 hidden md:block">New experiment</span>
+                  <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
                 <CreateExperimentsForm
                   key={`create-experiment-form-${datasetId}`}
                   projectId={projectId as string}
@@ -177,62 +195,28 @@ export default function Dataset() {
               </DialogContent>
             </Dialog>
 
-            {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
-              <MultiSelectKeyValues
-                variant="outline"
-                className="max-w-fit"
-                placeholder="Search..."
-                title="Evaluators"
-                hideClearButton
-                onValueChange={(_values, changedValue) => {
-                  if (changedValue)
-                    window.open(
-                      `/project/${projectId}/evals/${changedValue}`,
-                      "_blank",
-                    );
-                }}
-                values={evaluatorsOptions}
-                options={evaluatorsOptions}
-                controlButtons={
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      window.open(`/project/${projectId}/evals`, "_blank");
-                    }}
-                  >
-                    Manage evaluators
-                    <ExternalLink className="ml-auto h-4 w-4" />
-                  </DropdownMenuItem>
-                }
-              />
+            {hasEvalReadAccess && (
+              <div className="w-fit">
+                <TemplateSelector
+                  projectId={projectId}
+                  datasetId={datasetId}
+                  evalTemplates={evalTemplates.data?.templates ?? []}
+                  onConfigureTemplate={handleConfigureEvaluator}
+                  onSelectEvaluator={handleSelectEvaluator}
+                  activeTemplateIds={activeEvaluators}
+                  inactiveTemplateIds={pausedEvaluators}
+                  disabled={!hasEvalWriteAccess}
+                />
+              </div>
             )}
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="focus-visible:ring-0 focus-visible:ring-offset-0"
-                >
-                  <div className="relative" title="Chart settings">
-                    <ChartLine className="h-4 w-4" />
-                    <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
-                  </div>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[250px] p-0">
-                <div className="px-3 py-2 font-medium">Chart settings</div>
-                <Separator />
-                <div onClick={(e) => e.stopPropagation()} className="p-1">
-                  <DatasetAnalytics
-                    key="dataset-analytics"
-                    projectId={projectId}
-                    scoreOptions={scoreOptions}
-                    selectedMetrics={selectedMetrics}
-                    setSelectedMetrics={setSelectedMetrics}
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
+            <DatasetAnalytics
+              key="dataset-analytics"
+              projectId={projectId}
+              scoreOptions={scoreOptions}
+              selectedMetrics={selectedMetrics}
+              setSelectedMetrics={setSelectedMetrics}
+            />
 
             <DetailPageNav
               currentId={datasetId}
@@ -254,6 +238,10 @@ export default function Dataset() {
                     datasetName={dataset.data?.name ?? ""}
                     datasetDescription={dataset.data?.description ?? undefined}
                     datasetMetadata={dataset.data?.metadata}
+                    datasetInputSchema={dataset.data?.inputSchema ?? undefined}
+                    datasetExpectedOutputSchema={
+                      dataset.data?.expectedOutputSchema ?? undefined
+                    }
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -262,7 +250,13 @@ export default function Dataset() {
                     projectId={projectId}
                   />
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem
+                  asChild
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    return false;
+                  }}
+                >
                   <DeleteDatasetButton
                     itemId={datasetId}
                     projectId={projectId}
@@ -270,6 +264,14 @@ export default function Dataset() {
                     deleteConfirmation={dataset.data?.name}
                   />
                 </DropdownMenuItem>
+                {hasReadAccess && (
+                  <DropdownMenuItem asChild>
+                    <Link href={`/project/${projectId}/evals?target=dataset`}>
+                      <Bot className="ml-1 mr-2 h-4 w-4" />
+                      Manage Evaluators
+                    </Link>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </>
@@ -282,6 +284,37 @@ export default function Dataset() {
         selectedMetrics={selectedMetrics}
         setScoreOptions={setScoreOptions}
       />
+      {/* Dialog for configuring evaluators */}
+      {selectedEvaluatorData && (
+        <Dialog
+          open={showEvaluatorForm}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseEvaluatorForm();
+            }
+          }}
+        >
+          <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
+                Evaluator
+              </DialogTitle>
+            </DialogHeader>
+            <EvaluatorForm
+              useDialog={true}
+              projectId={projectId}
+              evalTemplates={evalTemplates.data?.templates ?? []}
+              templateId={selectedEvaluatorData.templateId}
+              existingEvaluator={selectedEvaluatorData.evaluator}
+              mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
+              hideTargetSection={!selectedEvaluatorData.evaluator.id}
+              onFormSuccess={handleEvaluatorSuccess}
+              preprocessFormValues={preprocessFormValues}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Page>
   );
 }

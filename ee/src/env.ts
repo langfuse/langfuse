@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { removeEmptyEnvVariables } from "@langfuse/shared";
 
 const EnvSchema = z.object({

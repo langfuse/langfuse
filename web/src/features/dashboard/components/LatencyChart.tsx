@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
@@ -9,7 +9,10 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { latencyFormatter } from "@/src/utils/numbers";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   ModelSelectorPopover,
@@ -66,9 +69,9 @@ export const GenerationLatencyChart = ({
       ...mapLegacyUiTableFilterToView("observations", globalFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "GENERATION",
-        type: "string",
+        operator: "any of",
+        value: getGenerationLikeTypes(),
+        type: "stringOptions",
       },
       {
         column: "providedModelName",
@@ -78,7 +81,8 @@ export const GenerationLatencyChart = ({
       },
     ],
     timeDimension: {
-      granularity: "auto",
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -147,7 +151,7 @@ export const GenerationLatencyChart = ({
       title="Model latencies"
       description="Latencies (seconds) per LLM generation"
       isLoading={
-        isLoading || (latencies.isLoading && selectedModels.length > 0)
+        isLoading || (latencies.isPending && selectedModels.length > 0)
       }
       headerRight={
         <div className="flex items-center justify-end">
@@ -170,6 +174,7 @@ export const GenerationLatencyChart = ({
               <>
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
+                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
                     data={item.data}
                     connectNulls={true}
@@ -177,7 +182,7 @@ export const GenerationLatencyChart = ({
                   />
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || latencies.isLoading}
+                    isLoading={isLoading || latencies.isPending}
                   />
                 )}
               </>

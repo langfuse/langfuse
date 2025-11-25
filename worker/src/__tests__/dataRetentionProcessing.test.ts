@@ -41,12 +41,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${baseId}.json`;
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     await clickhouseClient().insert({
@@ -90,12 +89,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${baseId}.json`;
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     await clickhouseClient().insert({
@@ -138,12 +136,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     const mediaId = randomUUID();
@@ -181,7 +178,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeDefined();
 
@@ -196,12 +193,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     const mediaId = randomUUID();
@@ -239,7 +235,7 @@ describe("DataRetentionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media).toBeNull();
 
@@ -270,9 +266,15 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const traceOld = await getTraceById({ traceId: `${baseId}-trace-old`, projectId });
+    const traceOld = await getTraceById({
+      traceId: `${baseId}-trace-old`,
+      projectId,
+    });
     expect(traceOld).toBeUndefined();
-    const traceNew = await getTraceById({ traceId: `${baseId}-trace-new`, projectId });
+    const traceNew = await getTraceById({
+      traceId: `${baseId}-trace-new`,
+      projectId,
+    });
     expect(traceNew).toBeDefined();
   });
 
@@ -298,12 +300,12 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     expect(() =>
-      getObservationById(`${baseId}-observation-old`, projectId),
+      getObservationById({ id: `${baseId}-observation-old`, projectId }),
     ).rejects.toThrowError("not found");
-    const observationNew = await getObservationById(
-      `${baseId}-observation-new`,
+    const observationNew = await getObservationById({
+      id: `${baseId}-observation-new`,
       projectId,
-    );
+    });
     expect(observationNew).toBeDefined();
   });
 

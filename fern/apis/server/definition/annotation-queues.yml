@@ -22,6 +22,13 @@ service:
             docs: limit of items per page
       response: PaginatedAnnotationQueues
 
+    createQueue:
+      docs: Create an annotation queue
+      method: POST
+      path: /annotation-queues
+      request: CreateAnnotationQueueRequest
+      response: AnnotationQueue
+
     getQueue:
       docs: Get an annotation queue by ID
       method: GET
@@ -105,6 +112,28 @@ service:
           docs: The unique identifier of the annotation queue item
       response: DeleteAnnotationQueueItemResponse
 
+    createQueueAssignment:
+      docs: Create an assignment for a user to an annotation queue
+      method: POST
+      path: /annotation-queues/{queueId}/assignments
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+      request: AnnotationQueueAssignmentRequest
+      response: CreateAnnotationQueueAssignmentResponse
+
+    deleteQueueAssignment:
+      docs: Delete an assignment for a user to an annotation queue
+      method: DELETE
+      path: /annotation-queues/{queueId}/assignments
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+      request: AnnotationQueueAssignmentRequest
+      response: DeleteAnnotationQueueAssignmentResponse
+
 types:
   AnnotationQueueStatus:
     enum:
@@ -115,6 +144,7 @@ types:
     enum:
       - TRACE
       - OBSERVATION
+      - SESSION
 
   AnnotationQueue:
     properties:
@@ -146,6 +176,12 @@ types:
       data: list<AnnotationQueueItem>
       meta: pagination.MetaResponse
 
+  CreateAnnotationQueueRequest:
+    properties:
+      name: string
+      description: optional<string>
+      scoreConfigIds: list<string>
+
   CreateAnnotationQueueItemRequest:
     properties:
       objectId: string
@@ -163,3 +199,17 @@ types:
     properties:
       success: boolean
       message: string
+
+  AnnotationQueueAssignmentRequest:
+    properties:
+      userId: string
+
+  DeleteAnnotationQueueAssignmentResponse:
+    properties:
+      success: boolean
+
+  CreateAnnotationQueueAssignmentResponse:
+    properties:
+      userId: string
+      queueId: string
+      projectId: string

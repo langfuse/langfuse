@@ -14,6 +14,10 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
 import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
+import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { env } from "@/src/env.mjs";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -25,14 +29,17 @@ type OrganizationSettingsPage = {
 export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const { organization } = useQueryProjectOrOrganization();
   const showBillingSettings = useHasEntitlement("cloud-billing");
+  const showOrgApiKeySettings = useHasEntitlement("admin-api");
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
 
   if (!organization) return [];
 
   return getOrganizationSettingsPages({
     organization,
-    showBillingSettings,
+    showBillingSettings: showBillingSettings && isCloudBillingAvailable,
+    showOrgApiKeySettings,
     isLangfuseCloud,
   });
 }
@@ -40,10 +47,12 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
 export const getOrganizationSettingsPages = ({
   organization,
   showBillingSettings,
+  showOrgApiKeySettings,
   isLangfuseCloud,
 }: {
   organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
+  showOrgApiKeySettings: boolean;
   isLangfuseCloud: boolean;
 }): OrganizationSettingsPage[] => [
   {
@@ -61,9 +70,13 @@ export const getOrganizationSettingsPages = ({
               name: organization.name,
               id: organization.id,
               ...organization.metadata,
+              ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && {
+                cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+              }),
             }}
           />
         </div>
+        <AIFeatureSwitch />
         <SettingsDangerZone
           items={[
             {
@@ -76,6 +89,16 @@ export const getOrganizationSettingsPages = ({
         />
       </div>
     ),
+  },
+  {
+    title: "API Keys",
+    slug: "api-keys",
+    content: (
+      <div className="flex flex-col gap-6">
+        <ApiKeyList entityId={organization.id} scope="organization" />
+      </div>
+    ),
+    show: showOrgApiKeySettings,
   },
   {
     title: "Members",

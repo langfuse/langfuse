@@ -1,0 +1,135 @@
+{
+  "messages": [
+    {
+      "content": "what is the weather in sf",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "human",
+      "name": null,
+      "id": "2166b887-b9fb-4282-a9f7-828d4a6cca54",
+      "example": false
+    },
+    {
+      "content": "",
+      "additional_kwargs": {
+        "tool_calls": [
+          {
+            "id": "call_pNLR4DoZiptb5xGlb299QsoN",
+            "function": {
+              "arguments": "{\"query\":\"current weather in San Francisco\"}",
+              "name": "search"
+            },
+            "type": "function"
+          }
+        ],
+        "refusal": null
+      },
+      "response_metadata": {
+        "token_usage": {
+          "completion_tokens": 17,
+          "prompt_tokens": 48,
+          "total_tokens": 65,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 0,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "model_name": "gpt-4o-mini-2024-07-18",
+        "system_fingerprint": "fp_34a54ae93c",
+        "finish_reason": "tool_calls",
+        "logprobs": null
+      },
+      "type": "ai",
+      "name": null,
+      "id": "run-14c4801c-ae47-4c4a-8d49-29ba08c5679d-0",
+      "example": false,
+      "tool_calls": [
+        {
+          "name": "search",
+          "args": {
+            "query": "current weather in San Francisco"
+          },
+          "id": "call_pNLR4DoZiptb5xGlb299QsoN",
+          "type": "tool_call"
+        }
+      ],
+      "invalid_tool_calls": [],
+      "usage_metadata": {
+        "input_tokens": 48,
+        "output_tokens": 17,
+        "total_tokens": 65,
+        "input_token_details": {
+          "audio": 0,
+          "cache_read": 0
+        },
+        "output_token_details": {
+          "audio": 0,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "content": "It's 60 degrees and foggy.",
+      "additional_kwargs": {},
+      "response_metadata": {},
+      "type": "tool",
+      "name": "search",
+      "id": "220ba511-6816-4d1a-8acf-8e5791c2d88e",
+      "tool_call_id": "call_pNLR4DoZiptb5xGlb299QsoN",
+      "artifact": null,
+      "status": "success"
+    },
+    {
+      "content": "The current weather in San Francisco is 60 degrees and foggy.",
+      "additional_kwargs": {
+        "refusal": null
+      },
+      "response_metadata": {
+        "token_usage": {
+          "completion_tokens": 15,
+          "prompt_tokens": 80,
+          "total_tokens": 95,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 0,
+            "rejected_prediction_tokens": 0
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": 0,
+            "cached_tokens": 0
+          }
+        },
+        "model_name": "gpt-4o-mini-2024-07-18",
+        "system_fingerprint": "fp_34a54ae93c",
+        "finish_reason": "stop",
+        "logprobs": null
+      },
+      "type": "ai",
+      "name": null,
+      "id": "run-f051be3b-2656-4b19-8704-a2e492306131-0",
+      "example": false,
+      "tool_calls": [],
+      "invalid_tool_calls": [],
+      "usage_metadata": {
+        "input_tokens": 80,
+        "output_tokens": 15,
+        "total_tokens": 95,
+        "input_token_details": {
+          "audio": 0,
+          "cache_read": 0
+        },
+        "output_token_details": {
+          "audio": 0,
+          "reasoning": 0
+        }
+      }
+    }
+  ]
+}

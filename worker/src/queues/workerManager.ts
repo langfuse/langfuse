@@ -1,10 +1,14 @@
-import { Job, Processor, Queue, Worker, WorkerOptions } from "bullmq";
+import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   getQueue,
   convertQueueNameToMetricName,
   createNewRedisInstance,
+  getQueuePrefix,
   logger,
   QueueName,
+  IngestionQueue,
+  TraceUpsertQueue,
+  OtelIngestionQueue,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -14,10 +18,6 @@ import {
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
-
-  private static getQueue(queueName: QueueName): Queue | null {
-    return getQueue(queueName);
-  }
 
   private static metricWrapper(
     processor: Processor,
@@ -35,9 +35,24 @@ export class WorkerManager {
         },
       );
       const result = await processor(job);
-      const queue = WorkerManager.getQueue(queueName);
-      await Promise.allSettled([
-        queue?.count().then((count) => {
+      const queue = queueName.startsWith(QueueName.IngestionQueue)
+        ? IngestionQueue.getInstance({ shardName: queueName })
+        : queueName.startsWith(QueueName.TraceUpsert)
+          ? TraceUpsertQueue.getInstance({ shardName: queueName })
+          : queueName.startsWith(QueueName.OtelIngestionQueue)
+            ? OtelIngestionQueue.getInstance({ shardName: queueName })
+            : getQueue(
+                queueName as Exclude<
+                  QueueName,
+                  | QueueName.IngestionQueue
+                  | QueueName.TraceUpsert
+                  | QueueName.OtelIngestionQueue
+                >,
+              );
+      Promise.allSettled([
+        // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
+        // or "prioritized" or "waiting-children") that count provides
+        queue?.getWaitingCount().then((count) => {
           recordGauge(
             convertQueueNameToMetricName(queueName) + ".length",
             count,
@@ -55,7 +70,9 @@ export class WorkerManager {
             },
           );
         }),
-      ]);
+      ]).catch((err) => {
+        logger.error("Failed to record queue length", err);
+      });
       recordHistogram(
         convertQueueNameToMetricName(queueName) + ".processing_time",
         Date.now() - startTime,
@@ -70,6 +87,10 @@ export class WorkerManager {
       Object.values(WorkerManager.workers).map((worker) => worker.close()),
     );
     logger.info("All workers have been closed.");
+  }
+
+  public static getWorker(queueName: QueueName): Worker | undefined {
+    return WorkerManager.workers[queueName];
   }
 
   public static register(
@@ -95,6 +116,7 @@ export class WorkerManager {
       WorkerManager.metricWrapper(processor, queueName),
       {
         connection: redisInstance,
+        prefix: getQueuePrefix(queueName),
         ...additionalOptions,
       },
     );

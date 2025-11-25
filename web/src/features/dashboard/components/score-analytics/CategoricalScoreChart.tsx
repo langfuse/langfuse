@@ -1,7 +1,10 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
 import { DashboardCategoricalScoreAdapter } from "@/src/features/scores/adapters";
 import { type ScoreData } from "@/src/features/scores/types";
@@ -50,7 +53,8 @@ export function CategoricalScoreChart(props: {
     ],
     timeDimension: props.agg
       ? {
-          granularity: "day",
+          granularity:
+            dashboardDateRangeAggregationSettings[props.agg].dateTrunc ?? "day",
         }
       : null,
     fromTimestamp: props.fromTimestamp.toISOString(),

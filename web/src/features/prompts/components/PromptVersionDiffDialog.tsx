@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -18,6 +19,41 @@ type PromptVersionDiffDialogProps = {
   setIsOpen: (open: boolean) => void;
   leftPrompt: Prompt;
   rightPrompt: Prompt;
+};
+
+// Create a word-based diff that preserves JSON structure
+const createSmartDiff = (
+  oldPrompt: Prompt,
+  newPrompt: Prompt,
+): { oldString: string; newString: string } => {
+  if (oldPrompt.type === "text" || newPrompt.type === "text") {
+    return {
+      oldString:
+        oldPrompt.type === "text"
+          ? (oldPrompt.prompt as string)
+          : JSON.stringify(oldPrompt.prompt, null, 2),
+      newString:
+        newPrompt.type === "text"
+          ? (newPrompt.prompt as string)
+          : JSON.stringify(newPrompt.prompt, null, 2),
+    };
+  }
+
+  const formatMessages = (messages: any[]) =>
+    JSON.stringify(
+      messages.map((m) =>
+        Object.fromEntries(
+          Object.entries(m).sort(([a], [b]) => a.localeCompare(b)),
+        ),
+      ),
+      null,
+      2,
+    );
+
+  return {
+    oldString: formatMessages(oldPrompt.prompt as any[]),
+    newString: formatMessages(newPrompt.prompt as any[]),
+  };
 };
 
 export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
@@ -48,7 +84,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
       </DialogTrigger>
 
       <DialogContent
-        className="max-w-screen-xl"
+        size="xl"
         // prevent event bubbling up and triggering the row's click handler
         onClick={(event) => event.stopPropagation()}
         onPointerDownOutside={(e) => {
@@ -65,23 +101,13 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
             <span className="font-medium">Prompt {leftPrompt.name}</span>
           </DialogDescription>
         </DialogHeader>
-
-        <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+        <DialogBody>
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
                 <h3 className="mb-2 text-base font-medium">Content</h3>
                 <DiffViewer
-                  oldString={
-                    leftPrompt.type === "chat"
-                      ? JSON.stringify(leftPrompt.prompt, null, 2)
-                      : (leftPrompt.prompt as string)
-                  }
-                  newString={
-                    rightPrompt.type === "chat"
-                      ? JSON.stringify(rightPrompt.prompt, null, 2)
-                      : (rightPrompt.prompt as string)
-                  }
+                  {...createSmartDiff(leftPrompt, rightPrompt)}
                   oldLabel={`v${leftPrompt.version}`}
                   newLabel={`v${rightPrompt.version}`}
                   oldSubLabel={leftPrompt.commitMessage ?? undefined}
@@ -99,14 +125,13 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
               </div>
             </div>
           </div>
-        </div>
+        </DialogBody>
 
-        <DialogFooter className="flex flex-row">
+        <DialogFooter>
           <Button
             onClick={() => {
               setIsOpen(false);
             }}
-            className="w-full"
           >
             Close
           </Button>

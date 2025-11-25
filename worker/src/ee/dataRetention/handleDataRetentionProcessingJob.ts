@@ -5,6 +5,7 @@ import {
   logger,
   getS3MediaStorageClient,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
@@ -12,6 +13,13 @@ import { env } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
   const { projectId, retention } = job.data.payload;
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
+    span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+    span.setAttribute("messaging.bullmq.job.input.retentionId", retention);
+  }
 
   const cutoffDate = new Date(Date.now() - retention * 24 * 60 * 60 * 1000);
 
@@ -56,22 +64,23 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     );
   }
 
-  await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
-    projectId,
-    cutoffDate,
-  );
-
   // Delete ClickHouse (TTL / Delete Queries)
   logger.info(
-    `[Data Retention] Deleting ClickHouse data older than ${retention} days for project ${projectId}`,
+    `[Data Retention] Deleting ClickHouse and S3 data older than ${retention} days for project ${projectId}`,
   );
   await Promise.all([
+    env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
+      ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
+          projectId,
+          cutoffDate,
+        )
+      : Promise.resolve(),
     deleteTracesOlderThanDays(projectId, cutoffDate),
     deleteObservationsOlderThanDays(projectId, cutoffDate),
     deleteScoresOlderThanDays(projectId, cutoffDate),
   ]);
   logger.info(
-    `[Data Retention] Deleted ClickHouse data older than ${retention} days for project ${projectId}`,
+    `[Data Retention] Deleted ClickHouse and S3 data older than ${retention} days for project ${projectId}`,
   );
 
   // Set S3 Lifecycle for deletion (Future)

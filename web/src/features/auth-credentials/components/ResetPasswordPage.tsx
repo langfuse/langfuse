@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import * as z from "zod/v4";
 import Head from "next/head";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -57,7 +57,7 @@ export function ResetPasswordPage({
     session.data?.user?.emailVerified,
   );
 
-  const form = useForm<z.infer<typeof resetPasswordSchema>>({
+  const form = useForm({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
       email: session.data?.user?.email ?? "",
@@ -101,7 +101,7 @@ export function ResetPasswordPage({
         message="Password reset is not configured on this instance"
         additionalButton={{
           label: "Setup instructions",
-          href: "https://langfuse.com/docs/deployment/self-host#emailpassword",
+          href: "https://langfuse.com/self-hosting/security/authentication-and-sso#auth-email-password",
         }}
       />
     );
@@ -198,8 +198,8 @@ export function ResetPasswordPage({
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={mutResetPassword.isLoading}
-                      loading={mutResetPassword.isLoading}
+                      disabled={mutResetPassword.isPending}
+                      loading={mutResetPassword.isPending}
                       variant={
                         showResetPasswordEmailButton ? "secondary" : "default"
                       }

@@ -1,6 +1,10 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 import { logger } from "../logger";
 
 export class DatasetRunItemUpsertQueue {
@@ -24,6 +28,7 @@ export class DatasetRunItemUpsertQueue {
           QueueName.DatasetRunItemUpsert,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(QueueName.DatasetRunItemUpsert),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

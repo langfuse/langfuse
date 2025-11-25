@@ -258,7 +258,7 @@ types:
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
       queueId:
         type: optional<string>
-        docs: Reference an annotation queue on a score. Populated if the score was initially created in an annotation queue.
+        docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
       environment:
         type: optional<string>
         docs: The environment from which this score originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
@@ -281,8 +281,8 @@ types:
     extends: BaseScoreV1
     properties:
       value:
-        type: optional<double>
-        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
+        type: double
+        docs: Represents the numeric category mapping of the stringValue. If no config is linked, defaults to 0.
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
@@ -319,7 +319,7 @@ types:
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
       queueId:
         type: optional<string>
-        docs: Reference an annotation queue on a score. Populated if the score was initially created in an annotation queue.
+        docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
       environment:
         type: optional<string>
         docs: The environment from which this score originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
@@ -342,8 +342,8 @@ types:
     extends: BaseScore
     properties:
       value:
-        type: optional<double>
-        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
+        type: double
+        docs: Represents the numeric category mapping of the stringValue. If no config is linked, defaults to 0.
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
@@ -384,6 +384,12 @@ types:
       name: string
       description: optional<string>
       metadata: optional<unknown>
+      inputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item inputs
+      expectedOutputSchema:
+        type: optional<unknown>
+        docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime
       updatedAt: datetime
@@ -457,13 +463,13 @@ types:
         docs: Unit used by this model.
         type: optional<ModelUsageUnit>
       inputPrice:
-        docs: Price (USD) per input unit
+        docs: Deprecated. See 'prices' instead. Price (USD) per input unit
         type: optional<double>
       outputPrice:
-        docs: Price (USD) per output unit
+        docs: Deprecated. See 'prices' instead. Price (USD) per output unit
         type: optional<double>
       totalPrice:
-        docs: Price (USD) per total unit. Cannot be set if input or output price is set.
+        docs: Deprecated. See 'prices' instead. Price (USD) per total unit. Cannot be set if input or output price is set.
         type: optional<double>
       tokenizerId:
         docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
@@ -473,6 +479,13 @@ types:
         type: optional<unknown>
       isLangfuseManaged:
         type: boolean
+      prices:
+        docs: Price (USD) by usage type
+        type: map<string, ModelPrice>
+
+  ModelPrice:
+    properties:
+      price: double
 
   # Utilities
   ModelUsageUnit:

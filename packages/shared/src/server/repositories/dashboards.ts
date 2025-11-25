@@ -5,14 +5,14 @@ import {
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { FilterState } from "../../types";
 import { DateTimeFilter, FilterList } from "../queries";
-import { dashboardColumnDefinitions } from "../../tableDefinitions";
+import { dashboardColumnDefinitions } from "../tableMappings";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
 } from "./constants";
 
-export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";
+export type DateTrunc = "month" | "week" | "day" | "hour" | "minute";
 
 const extractEnvironmentFilterFromFilters = (
   filter: FilterState,

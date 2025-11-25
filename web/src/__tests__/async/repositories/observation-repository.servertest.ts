@@ -2,7 +2,6 @@ import {
   createObservation,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationById,
   getObservationsForTrace,
@@ -12,12 +11,13 @@ import { v4 } from "uuid";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Clickhouse Observations Repository Test", () => {
-  beforeEach(async () => {
-    await pruneDatabase();
-  });
-
   it("should throw if no observations are found", async () => {
-    await expect(getObservationById(v4(), v4())).rejects.toThrow();
+    await expect(
+      getObservationById({
+        id: v4(),
+        projectId: v4(),
+      }),
+    ).rejects.toThrow();
   });
 
   it("should return an observation if exists", async () => {
@@ -58,14 +58,21 @@ describe("Clickhouse Observations Repository Test", () => {
 
     await createObservationsCh([observation]);
 
-    const result = await getObservationById(observationId, projectId, true);
+    const result = await getObservationById({
+      id: observationId,
+      projectId,
+      fetchWithInputOutput: true,
+    });
+
     if (!result) {
       throw new Error("Observation not found");
     }
+
     expect(result.id).toEqual(observation.id);
     expect(result.traceId).toEqual(observation.trace_id);
     expect(result.projectId).toEqual(observation.project_id);
     expect(result.type).toEqual(observation.type);
+
     expect(result.metadata).toEqual(observation.metadata);
     expect(result.createdAt).toEqual(new Date(observation.created_at));
     expect(result.updatedAt).toEqual(new Date(observation.updated_at));
@@ -87,6 +94,59 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(result.inputUsage).toEqual(1234);
     expect(result.outputUsage).toEqual(5678);
     expect(result.totalUsage).toEqual(6912);
+  });
+
+  it("should return an observation if exists by traceId", async () => {
+    const observationId = v4();
+    const traceId = v4();
+
+    const observation = createObservation({
+      id: observationId,
+      trace_id: traceId,
+      project_id: projectId,
+      type: "sample_type",
+      metadata: {},
+      provided_usage_details: { input: 1234, output: 5678, total: 6912 },
+      provided_cost_details: { input: 100, output: 200, total: 300 },
+      usage_details: { input: 1234, output: 5678, total: 6912 },
+      cost_details: { input: 100, output: 200, total: 300 },
+      is_deleted: 0,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      start_time: Date.now(),
+      event_ts: Date.now(),
+      name: "sample_name",
+      level: "sample_level",
+      status_message: "sample_status",
+      version: "1.0",
+      input: "sample_input",
+      output: "sample_output",
+      provided_model_name: "sample_model",
+      internal_model_id: "sample_internal_model_id",
+      model_parameters: '{"something":"sample_param"}',
+      total_cost: 300,
+      prompt_id: "sample_prompt_id",
+      prompt_name: "sample_prompt_name",
+      prompt_version: 1,
+      end_time: Date.now(),
+      completion_start_time: Date.now(),
+    });
+
+    await createObservationsCh([observation]);
+
+    const result = await getObservationById({
+      id: observationId,
+      projectId,
+      traceId,
+      fetchWithInputOutput: true,
+    });
+    if (!result) {
+      throw new Error("Observation not found");
+    }
+    expect(result.id).toEqual(observation.id);
+    expect(result.traceId).toEqual(observation.trace_id);
+    expect(result.projectId).toEqual(observation.project_id);
+    expect(result.type).toEqual(observation.type);
   });
   it("should return an observation view", async () => {
     const observationId = v4();
@@ -126,7 +186,11 @@ describe("Clickhouse Observations Repository Test", () => {
 
     await createObservationsCh([observation]);
 
-    const result = await getObservationsForTrace(traceId, projectId);
+    const result = await getObservationsForTrace({
+      traceId,
+      projectId,
+      includeIO: true,
+    });
     if (!result || result.length === 0) {
       throw new Error("Observation not found");
     }

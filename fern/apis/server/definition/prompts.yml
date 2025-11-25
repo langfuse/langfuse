@@ -13,7 +13,9 @@ service:
       path-parameters:
         promptName:
           type: string
-          docs: The name of the prompt
+          docs: |
+            The name of the prompt. If the prompt is in a folder (e.g., "folder/subfolder/prompt-name"), 
+            the folder path must be URL encoded.
       request:
         name: GetPromptRequest
         query-parameters:
@@ -66,6 +68,9 @@ types:
   PromptMeta:
     properties:
       name: string
+      type:
+        type: PromptType
+        docs: Indicates whether the prompt is a text or chat prompt.
       versions: list<integer>
       labels: list<string>
       tags: list<string>
@@ -82,7 +87,7 @@ types:
   CreateChatPromptRequest:
     properties:
       name: string
-      prompt: list<ChatMessage>
+      prompt: list<ChatMessageWithPlaceholders>
       config: optional<unknown>
       labels:
         type: optional<list<string>>
@@ -114,6 +119,11 @@ types:
       chat: ChatPrompt
       text: TextPrompt
 
+  PromptType:
+    enum:
+      - chat
+      - text
+
   BasePrompt:
     properties:
       name: string
@@ -132,11 +142,21 @@ types:
         type: optional<map<string, unknown>>
         docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
 
+  ChatMessageWithPlaceholders:
+    union:
+      chatmessage: ChatMessage
+      placeholder: PlaceholderMessage
+
   ChatMessage:
     properties:
       role:
         type: string
       content:
+        type: string
+
+  PlaceholderMessage:
+    properties:
+      name:
         type: string
 
   TextPrompt:
@@ -147,4 +167,4 @@ types:
   ChatPrompt:
     extends: BasePrompt
     properties:
-      prompt: list<ChatMessage>
+      prompt: list<ChatMessageWithPlaceholders>

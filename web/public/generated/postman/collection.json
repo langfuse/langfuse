@@ -80,6 +80,39 @@
         },
         {
           "_type": "endpoint",
+          "name": "Create Queue",
+          "request": {
+            "description": "Create an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\",\n    \"scoreConfigIds\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get Queue",
           "request": {
             "description": "Get an annotation queue by ID",
@@ -315,6 +348,188 @@
                   "key": "itemId",
                   "value": "",
                   "description": "The unique identifier of the annotation queue item"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create Queue Assignment",
+          "request": {
+            "description": "Create an assignment for a user to an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "assignments"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Queue Assignment",
+          "request": {
+            "description": "Delete an assignment for a user to an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/assignments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "assignments"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Blob Storage Integrations",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Blob Storage Integrations",
+          "request": {
+            "description": "Get all blob storage integrations for the organization (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Upsert Blob Storage Integration",
+          "request": {
+            "description": "Create or update a blob storage integration for a specific project (requires organization-scoped API key). The configuration is validated by performing a test upload to the bucket.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"projectId\": \"example\",\n    \"type\": \"S3\",\n    \"bucketName\": \"example\",\n    \"endpoint\": \"example\",\n    \"region\": \"example\",\n    \"accessKeyId\": \"example\",\n    \"secretAccessKey\": \"example\",\n    \"prefix\": \"example\",\n    \"exportFrequency\": \"hourly\",\n    \"enabled\": true,\n    \"forcePathStyle\": true,\n    \"fileType\": \"JSON\",\n    \"exportMode\": \"FULL_HISTORY\",\n    \"exportStartDate\": \"1994-11-05T13:15:30Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Blob Storage Integration",
+          "request": {
+            "description": "Delete a blob storage integration by ID (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/integrations/blob-storage/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "integrations",
+                "blob-storage",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
                 }
               ]
             },
@@ -642,6 +857,52 @@
             }
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "List dataset run items",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-run-items?datasetId=&runName=&page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-run-items"
+              ],
+              "query": [
+                {
+                  "key": "datasetId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "runName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
@@ -744,7 +1005,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\",\n    \"metadata\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"name\": \"example\",\n    \"description\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"inputSchema\": \"UNKNOWN\",\n    \"expectedOutputSchema\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -919,7 +1180,7 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+            "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
               "host": [
@@ -958,7 +1219,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -1000,7 +1261,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -1042,7 +1303,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "**Legacy endpoint for batch ingestion for Langfuse Observability.**\n\n-> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`). Learn more: https://langfuse.com/integrations/native/opentelemetry\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/observability/data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -1080,6 +1341,82 @@
               "_postman_previewlanguage": "json"
             }
           ]
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Llm Connections",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "List",
+          "request": {
+            "description": "Get all LLM connections in a project",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/llm-connections?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "llm-connections"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Upsert",
+          "request": {
+            "description": "Create or update an LLM connection. The connection is upserted on provider.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/llm-connections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "llm-connections"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -1198,205 +1535,28 @@
     {
       "_type": "container",
       "description": null,
-      "name": "Memberships",
-      "item": [
-        {
-          "_type": "endpoint",
-          "name": "Get Organization Memberships",
-          "request": {
-            "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "organizations",
-                "memberships"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "GET",
-            "auth": null,
-            "body": null
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update Organization Membership",
-          "request": {
-            "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/organizations/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "organizations",
-                "memberships"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "header": [],
-            "method": "PUT",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Get Project Memberships",
-          "request": {
-            "description": "Get all memberships for a specific project (requires organization-scoped API key)",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "projects",
-                ":projectId",
-                "memberships"
-              ],
-              "query": [],
-              "variable": [
-                {
-                  "key": "projectId",
-                  "value": "",
-                  "description": null
-                }
-              ]
-            },
-            "header": [],
-            "method": "GET",
-            "auth": null,
-            "body": null
-          },
-          "response": []
-        },
-        {
-          "_type": "endpoint",
-          "name": "Update Project Membership",
-          "request": {
-            "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
-            "url": {
-              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "public",
-                "projects",
-                ":projectId",
-                "memberships"
-              ],
-              "query": [],
-              "variable": [
-                {
-                  "key": "projectId",
-                  "value": "",
-                  "description": null
-                }
-              ]
-            },
-            "header": [],
-            "method": "PUT",
-            "auth": null,
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "_type": "container",
-      "description": null,
       "name": "Metrics",
       "item": [
         {
           "_type": "endpoint",
-          "name": "Daily",
+          "name": "Metrics",
           "request": {
-            "description": "Get daily metrics of the Langfuse project",
+            "description": "Get metrics from the Langfuse project using a query object.\n\nFor more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).",
             "url": {
-              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=&environment=&fromTimestamp=&toTimestamp=",
+              "raw": "{{baseUrl}}/api/public/metrics?query=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
-                "metrics",
-                "daily"
+                "metrics"
               ],
               "query": [
                 {
-                  "key": "page",
+                  "key": "query",
                   "value": "",
-                  "description": "page number, starts at 1"
-                },
-                {
-                  "key": "limit",
-                  "value": "",
-                  "description": "limit of items per page"
-                },
-                {
-                  "key": "traceName",
-                  "value": "",
-                  "description": "Optional filter by the name of the trace"
-                },
-                {
-                  "key": "userId",
-                  "value": "",
-                  "description": "Optional filter by the userId associated with the trace"
-                },
-                {
-                  "key": "tags",
-                  "value": "",
-                  "description": "Optional filter for metrics where traces include all of these tags"
-                },
-                {
-                  "key": "environment",
-                  "value": "",
-                  "description": "Optional filter for metrics where events include any of these environments"
-                },
-                {
-                  "key": "fromTimestamp",
-                  "value": "",
-                  "description": "Optional filter to only include traces and observations on or after a certain datetime (ISO 8601)"
-                },
-                {
-                  "key": "toTimestamp",
-                  "value": "",
-                  "description": "Optional filter to only include traces and observations before a certain datetime (ISO 8601)"
+                  "description": "JSON string containing the query parameters with the following structure:\n```json\n{\n  \"view\": string,           // Required. One of \"traces\", \"observations\", \"scores-numeric\", \"scores-categorical\"\n  \"dimensions\": [           // Optional. Default: []\n    {\n      \"field\": string       // Field to group by, e.g. \"name\", \"userId\", \"sessionId\"\n    }\n  ],\n  \"metrics\": [              // Required. At least one metric must be provided\n    {\n      \"measure\": string,    // What to measure, e.g. \"count\", \"latency\", \"value\"\n      \"aggregation\": string // How to aggregate, e.g. \"count\", \"sum\", \"avg\", \"p95\", \"histogram\"\n    }\n  ],\n  \"filters\": [              // Optional. Default: []\n    {\n      \"column\": string,     // Column to filter on\n      \"operator\": string,   // Operator, e.g. \"=\", \">\", \"<\", \"contains\"\n      \"value\": any,         // Value to compare against\n      \"type\": string,       // Data type, e.g. \"string\", \"number\", \"stringObject\"\n      \"key\": string         // Required only when filtering on metadata\n    }\n  ],\n  \"timeDimension\": {        // Optional. Default: null. If provided, results will be grouped by time\n    \"granularity\": string   // One of \"minute\", \"hour\", \"day\", \"week\", \"month\", \"auto\"\n  },\n  \"fromTimestamp\": string,  // Required. ISO datetime string for start of time range\n  \"toTimestamp\": string,    // Required. ISO datetime string for end of time range\n  \"orderBy\": [              // Optional. Default: null\n    {\n      \"field\": string,      // Field to order by\n      \"direction\": string   // \"asc\" or \"desc\"\n    }\n  ],\n  \"config\": {               // Optional. Query-specific configuration\n    \"bins\": number,         // Optional. Number of bins for histogram (1-100), default: 10\n    \"row_limit\": number     // Optional. Row limit for results (1-1000)\n  }\n}\n```"
                 }
               ],
               "variable": []
@@ -1593,7 +1753,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=&filter=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1634,6 +1794,11 @@
                   "description": null
                 },
                 {
+                  "key": "level",
+                  "value": "",
+                  "description": "Optional filter for observations with a specific level (e.g. \"DEBUG\", \"DEFAULT\", \"WARNING\", \"ERROR\")."
+                },
+                {
                   "key": "parentObservationId",
                   "value": "",
                   "description": null
@@ -1646,7 +1811,7 @@
                 {
                   "key": "fromStartTime",
                   "value": "",
-                  "description": "Retrieve only observations with a start_time or or after this datetime (ISO 8601)."
+                  "description": "Retrieve only observations with a start_time on or after this datetime (ISO 8601)."
                 },
                 {
                   "key": "toStartTime",
@@ -1657,8 +1822,374 @@
                   "key": "version",
                   "value": "",
                   "description": "Optional filter to only include observations with a certain version."
+                },
+                {
+                  "key": "filter",
+                  "value": "",
+                  "description": "JSON string containing an array of filter conditions. When provided, this takes precedence over query parameter filters (userId, name, type, level, environment, fromStartTime, ...).\n\n## Filter Structure\nEach filter condition has the following structure:\n```json\n[\n  {\n    \"type\": string,           // Required. One of: \"datetime\", \"string\", \"number\", \"stringOptions\", \"categoryOptions\", \"arrayOptions\", \"stringObject\", \"numberObject\", \"boolean\", \"null\"\n    \"column\": string,         // Required. Column to filter on (see available columns below)\n    \"operator\": string,       // Required. Operator based on type:\n                              // - datetime: \">\", \"<\", \">=\", \"<=\"\n                              // - string: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - stringOptions: \"any of\", \"none of\"\n                              // - categoryOptions: \"any of\", \"none of\"\n                              // - arrayOptions: \"any of\", \"none of\", \"all of\"\n                              // - number: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - stringObject: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - numberObject: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - boolean: \"=\", \"<>\"\n                              // - null: \"is null\", \"is not null\"\n    \"value\": any,             // Required (except for null type). Value to compare against. Type depends on filter type\n    \"key\": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata\n  }\n]\n```\n\n## Available Columns\n\n### Core Observation Fields\n- `id` (string) - Observation ID\n- `type` (string) - Observation type (SPAN, GENERATION, EVENT)\n- `name` (string) - Observation name\n- `traceId` (string) - Associated trace ID\n- `startTime` (datetime) - Observation start time\n- `endTime` (datetime) - Observation end time\n- `environment` (string) - Environment tag\n- `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)\n- `statusMessage` (string) - Status message\n- `version` (string) - Version tag\n\n### Performance Metrics\n- `latency` (number) - Latency in seconds (calculated: end_time - start_time)\n- `timeToFirstToken` (number) - Time to first token in seconds\n- `tokensPerSecond` (number) - Output tokens per second\n\n### Token Usage\n- `inputTokens` (number) - Number of input tokens\n- `outputTokens` (number) - Number of output tokens\n- `totalTokens` (number) - Total tokens (alias: `tokens`)\n\n### Cost Metrics\n- `inputCost` (number) - Input cost in USD\n- `outputCost` (number) - Output cost in USD\n- `totalCost` (number) - Total cost in USD\n\n### Model Information\n- `model` (string) - Provided model name\n- `promptName` (string) - Associated prompt name\n- `promptVersion` (number) - Associated prompt version\n\n### Structured Data\n- `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Use `key` parameter to filter on specific metadata keys.\n\n### Associated Trace Fields (requires join with traces table)\n- `userId` (string) - User ID from associated trace\n- `traceName` (string) - Name from associated trace\n- `traceEnvironment` (string) - Environment from associated trace\n- `traceTags` (arrayOptions) - Tags from associated trace\n\n## Filter Examples\n```json\n[\n  {\n    \"type\": \"string\",\n    \"column\": \"type\",\n    \"operator\": \"=\",\n    \"value\": \"GENERATION\"\n  },\n  {\n    \"type\": \"number\",\n    \"column\": \"latency\",\n    \"operator\": \">=\",\n    \"value\": 2.5\n  },\n  {\n    \"type\": \"stringObject\",\n    \"column\": \"metadata\",\n    \"key\": \"environment\",\n    \"operator\": \"=\",\n    \"value\": \"production\"\n  }\n]\n```"
                 }
               ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Opentelemetry",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Export Traces",
+          "request": {
+            "description": "**OpenTelemetry Traces Ingestion Endpoint**\n\nThis endpoint implements the OTLP/HTTP specification for trace ingestion, providing native OpenTelemetry integration for Langfuse Observability.\n\n**Supported Formats:**\n- Binary Protobuf: `Content-Type: application/x-protobuf`\n- JSON Protobuf: `Content-Type: application/json`\n- Supports gzip compression via `Content-Encoding: gzip` header\n\n**Specification Compliance:**\n- Conforms to [OTLP/HTTP Trace Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)\n- Implements `ExportTraceServiceRequest` message format\n\n**Documentation:**\n- Integration guide: https://langfuse.com/integrations/native/opentelemetry\n- Data model: https://langfuse.com/docs/observability/data-model",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/otel/v1/traces",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "otel",
+                "v1",
+                "traces"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "type": "text",
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resourceSpans\": [\n        {\n            \"resource\": {\n                \"attributes\": [\n                    {\n                        \"key\": \"service.name\",\n                        \"value\": {\n                            \"stringValue\": \"my-service\"\n                        }\n                    },\n                    {\n                        \"key\": \"service.version\",\n                        \"value\": {\n                            \"stringValue\": \"1.0.0\"\n                        }\n                    }\n                ]\n            },\n            \"scopeSpans\": [\n                {\n                    \"scope\": {\n                        \"name\": \"langfuse-sdk\",\n                        \"version\": \"2.60.3\"\n                    },\n                    \"spans\": [\n                        {\n                            \"traceId\": \"0123456789abcdef0123456789abcdef\",\n                            \"spanId\": \"0123456789abcdef\",\n                            \"name\": \"my-operation\",\n                            \"kind\": 1,\n                            \"startTimeUnixNano\": \"1747872000000000000\",\n                            \"endTimeUnixNano\": \"1747872001000000000\",\n                            \"attributes\": [\n                                {\n                                    \"key\": \"langfuse.observation.type\",\n                                    \"value\": {\n                                        \"stringValue\": \"generation\"\n                                    }\n                                }\n                            ],\n                            \"status\": {}\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "originalRequest": {
+                "description": "**OpenTelemetry Traces Ingestion Endpoint**\n\nThis endpoint implements the OTLP/HTTP specification for trace ingestion, providing native OpenTelemetry integration for Langfuse Observability.\n\n**Supported Formats:**\n- Binary Protobuf: `Content-Type: application/x-protobuf`\n- JSON Protobuf: `Content-Type: application/json`\n- Supports gzip compression via `Content-Encoding: gzip` header\n\n**Specification Compliance:**\n- Conforms to [OTLP/HTTP Trace Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)\n- Implements `ExportTraceServiceRequest` message format\n\n**Documentation:**\n- Integration guide: https://langfuse.com/integrations/native/opentelemetry\n- Data model: https://langfuse.com/docs/observability/data-model",
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/otel/v1/traces",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "otel",
+                    "v1",
+                    "traces"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "type": "text",
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "auth": null,
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"resourceSpans\": [\n        {\n            \"resource\": {\n                \"attributes\": [\n                    {\n                        \"key\": \"service.name\",\n                        \"value\": {\n                            \"stringValue\": \"my-service\"\n                        }\n                    },\n                    {\n                        \"key\": \"service.version\",\n                        \"value\": {\n                            \"stringValue\": \"1.0.0\"\n                        }\n                    }\n                ]\n            },\n            \"scopeSpans\": [\n                {\n                    \"scope\": {\n                        \"name\": \"langfuse-sdk\",\n                        \"version\": \"2.60.3\"\n                    },\n                    \"spans\": [\n                        {\n                            \"traceId\": \"0123456789abcdef0123456789abcdef\",\n                            \"spanId\": \"0123456789abcdef\",\n                            \"name\": \"my-operation\",\n                            \"kind\": 1,\n                            \"startTimeUnixNano\": \"1747872000000000000\",\n                            \"endTimeUnixNano\": \"1747872001000000000\",\n                            \"attributes\": [\n                                {\n                                    \"key\": \"langfuse.observation.type\",\n                                    \"value\": {\n                                        \"stringValue\": \"generation\"\n                                    }\n                                }\n                            ],\n                            \"status\": {}\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "description": null,
+              "body": "{}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Organizations",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Memberships",
+          "request": {
+            "description": "Get all memberships for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Organization Membership",
+          "request": {
+            "description": "Create or update a membership for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Organization Membership",
+          "request": {
+            "description": "Delete a membership from the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "memberships"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Project Memberships",
+          "request": {
+            "description": "Get all memberships for a specific project (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Project Membership",
+          "request": {
+            "description": "Create or update a membership for a specific project (requires organization-scoped API key). The user must already be a member of the organization.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "PUT",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\",\n    \"role\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Project Membership",
+          "request": {
+            "description": "Delete a membership from a specific project (requires organization-scoped API key). The user must be a member of the organization.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/projects/:projectId/memberships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "projects",
+                ":projectId",
+                "memberships"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Projects",
+          "request": {
+            "description": "Get all projects for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "projects"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Organization Api Keys",
+          "request": {
+            "description": "Get all API keys for the organization associated with the API key (requires organization-scoped API key)",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/organizations/apiKeys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "organizations",
+                "apiKeys"
+              ],
+              "query": [],
               "variable": []
             },
             "header": [],
@@ -1869,7 +2400,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"note\": \"example\"\n}",
+              "raw": "{\n    \"note\": \"example\",\n    \"publicKey\": \"example\",\n    \"secretKey\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1949,7 +2480,7 @@
                 {
                   "key": "name",
                   "value": "",
-                  "description": "The name of the prompt"
+                  "description": "The name of the prompt. If the prompt is in a folder (e.g., \"folder/subfolder/prompt-name\"), \nthe folder path must be URL encoded."
                 },
                 {
                   "key": "version",
@@ -2013,7 +2544,7 @@
                 {
                   "key": "promptName",
                   "value": "",
-                  "description": "The name of the prompt"
+                  "description": "The name of the prompt. If the prompt is in a folder (e.g., \"folder/subfolder/prompt-name\"), \nthe folder path must be URL encoded."
                 }
               ]
             },
@@ -2110,7 +2641,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ],\n    \"tags\": [\n        \"example\"\n    ],\n    \"commitMessage\": \"example\"\n}",
+              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"type\": \"chatmessage\",\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ],\n    \"tags\": [\n        \"example\"\n    ],\n    \"commitMessage\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2454,6 +2985,46 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update a score config",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/score-configs/:configId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "score-configs",
+                ":configId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "configId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a score config"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"isArchived\": true,\n    \"name\": \"example\",\n    \"categories\": [\n        {\n            \"value\": 0,\n            \"label\": \"example\"\n        }\n    ],\n    \"minValue\": 0,\n    \"maxValue\": 0,\n    \"description\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -2468,7 +3039,7 @@
           "request": {
             "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&datasetRunId=&traceId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2538,6 +3109,21 @@
                   "key": "configId",
                   "value": "",
                   "description": "Retrieve only scores with a specific configId."
+                },
+                {
+                  "key": "sessionId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific sessionId."
+                },
+                {
+                  "key": "datasetRunId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific datasetRunId."
+                },
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific traceId."
                 },
                 {
                   "key": "queueId",
@@ -2836,7 +3422,7 @@
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=&fields=&filter=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2905,6 +3491,16 @@
                   "key": "environment",
                   "value": "",
                   "description": "Optional filter for traces where the environment is one of the provided values."
+                },
+                {
+                  "key": "fields",
+                  "value": "",
+                  "description": "Comma-separated list of fields to include in the response. Available field groups: 'core' (always included), 'io' (input, output, metadata), 'scores', 'observations', 'metrics'. If not specified, all fields are returned. Example: 'core,scores,metrics'. Note: Excluded 'observations' or 'scores' fields return empty arrays; excluded 'metrics' returns -1 for 'totalCost' and 'latency'."
+                },
+                {
+                  "key": "filter",
+                  "value": "",
+                  "description": "JSON string containing an array of filter conditions. When provided, this takes precedence over query parameter filters (userId, name, sessionId, tags, version, release, environment, fromTimestamp, toTimestamp).\n\n## Filter Structure\nEach filter condition has the following structure:\n```json\n[\n  {\n    \"type\": string,           // Required. One of: \"datetime\", \"string\", \"number\", \"stringOptions\", \"categoryOptions\", \"arrayOptions\", \"stringObject\", \"numberObject\", \"boolean\", \"null\"\n    \"column\": string,         // Required. Column to filter on (see available columns below)\n    \"operator\": string,       // Required. Operator based on type:\n                              // - datetime: \">\", \"<\", \">=\", \"<=\"\n                              // - string: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - stringOptions: \"any of\", \"none of\"\n                              // - categoryOptions: \"any of\", \"none of\"\n                              // - arrayOptions: \"any of\", \"none of\", \"all of\"\n                              // - number: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - stringObject: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - numberObject: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - boolean: \"=\", \"<>\"\n                              // - null: \"is null\", \"is not null\"\n    \"value\": any,             // Required (except for null type). Value to compare against. Type depends on filter type\n    \"key\": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata\n  }\n]\n```\n\n## Available Columns\n\n### Core Trace Fields\n- `id` (string) - Trace ID\n- `name` (string) - Trace name\n- `timestamp` (datetime) - Trace timestamp\n- `userId` (string) - User ID\n- `sessionId` (string) - Session ID\n- `environment` (string) - Environment tag\n- `version` (string) - Version tag\n- `release` (string) - Release tag\n- `tags` (arrayOptions) - Array of tags\n- `bookmarked` (boolean) - Bookmark status\n\n### Structured Data\n- `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Use `key` parameter to filter on specific metadata keys.\n\n### Aggregated Metrics (from observations)\nThese metrics are aggregated from all observations within the trace:\n- `latency` (number) - Latency in seconds (time from first observation start to last observation end)\n- `inputTokens` (number) - Total input tokens across all observations\n- `outputTokens` (number) - Total output tokens across all observations\n- `totalTokens` (number) - Total tokens (alias: `tokens`)\n- `inputCost` (number) - Total input cost in USD\n- `outputCost` (number) - Total output cost in USD\n- `totalCost` (number) - Total cost in USD\n\n### Observation Level Aggregations\nThese fields aggregate observation levels within the trace:\n- `level` (string) - Highest severity level (ERROR > WARNING > DEFAULT > DEBUG)\n- `warningCount` (number) - Count of WARNING level observations\n- `errorCount` (number) - Count of ERROR level observations\n- `defaultCount` (number) - Count of DEFAULT level observations\n- `debugCount` (number) - Count of DEBUG level observations\n\n### Scores (requires join with scores table)\n- `scores_avg` (number) - Average of numeric scores (alias: `scores`)\n- `score_categories` (categoryOptions) - Categorical score values\n\n## Filter Examples\n```json\n[\n  {\n    \"type\": \"datetime\",\n    \"column\": \"timestamp\",\n    \"operator\": \">=\",\n    \"value\": \"2024-01-01T00:00:00Z\"\n  },\n  {\n    \"type\": \"string\",\n    \"column\": \"userId\",\n    \"operator\": \"=\",\n    \"value\": \"user-123\"\n  },\n  {\n    \"type\": \"number\",\n    \"column\": \"totalCost\",\n    \"operator\": \">=\",\n    \"value\": 0.01\n  },\n  {\n    \"type\": \"arrayOptions\",\n    \"column\": \"tags\",\n    \"operator\": \"all of\",\n    \"value\": [\"production\", \"critical\"]\n  },\n  {\n    \"type\": \"stringObject\",\n    \"column\": \"metadata\",\n    \"key\": \"customer_tier\",\n    \"operator\": \"=\",\n    \"value\": \"enterprise\"\n  }\n]\n```\n\n## Performance Notes\n- Filtering on `userId`, `sessionId`, or `metadata` may enable skip indexes for better query performance\n- Score filters require a join with the scores table and may impact query performance"
                 }
               ],
               "variable": []

@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "zod/v4";
 import { paginationMetaResponseZod } from "../../../../../utils/zod";
 import { GetScoreQuery, GetScoresQuery } from "../shared";
 import { APIScoreSchemaV2 } from "./schemas";
@@ -8,7 +8,11 @@ export const GetScoreQueryV2 = GetScoreQuery;
 export const GetScoreResponseV2 = APIScoreSchemaV2;
 
 // GET /scores v2
-export const GetScoresQueryV2 = GetScoresQuery;
+export const GetScoresQueryV2 = GetScoresQuery.extend({
+  sessionId: z.string().nullish(),
+  traceId: z.string().nullish(),
+  datasetRunId: z.string().nullish(),
+});
 export const GetScoreResponseDataV2 = z.intersection(
   APIScoreSchemaV2,
   z.object({

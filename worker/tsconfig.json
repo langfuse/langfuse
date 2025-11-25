@@ -2,12 +2,12 @@
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "esModuleInterop": true,
-    "module": "Node16",
-    "moduleResolution": "Node16",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "declaration": false,
     "declarationMap": false,
-    "lib": ["ES2021"],
     "outDir": "./dist",
+    "target": "es2024",
     "types": ["node"],
     "downlevelIteration": true,
     "resolveJsonModule": true

@@ -1,0 +1,148 @@
+services:
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:24.3
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    ports:
+      - 127.0.0.1:8123:8123
+      - 127.0.0.1:9000:9000
+    depends_on:
+      - postgres
+
+  minio:
+    image: docker.io/minio/minio
+    entrypoint: sh
+    # create the 'langfuse' bucket before starting the service
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+    ports:
+      - 127.0.0.1:9090:9000
+      - 127.0.0.1:9091:9001
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+
+  postgres:
+    image: docker.io/postgres:${POSTGRES_VERSION:-17}
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    command: ["postgres", "-c", "log_statement=all"]
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - TZ=UTC
+      - PGTZ=UTC
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+
+  # Redis Cluster. Requires a Unix host to work for network_mode: host. I.e. tests will fail on windows and mac with this setup.
+  redis-node-0:
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
+    network_mode: host
+    volumes:
+      - redis-cluster_data-0:/bitnami/redis/data
+    environment:
+      REDIS_PASSWORD: bitnami
+      REDIS_PORT_NUMBER: 6370
+      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+
+  redis-node-1:
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
+    network_mode: host
+    volumes:
+      - redis-cluster_data-1:/bitnami/redis/data
+    environment:
+      REDIS_PASSWORD: bitnami
+      REDIS_PORT_NUMBER: 6371
+      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+
+  redis-node-2:
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
+    network_mode: host
+    volumes:
+      - redis-cluster_data-2:/bitnami/redis/data
+    environment:
+      REDIS_PASSWORD: bitnami
+      REDIS_PORT_NUMBER: 6372
+      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+
+  redis-node-3:
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
+    network_mode: host
+    volumes:
+      - redis-cluster_data-3:/bitnami/redis/data
+    environment:
+      REDIS_PASSWORD: bitnami
+      REDIS_PORT_NUMBER: 6373
+      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+
+  redis-node-4:
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
+    network_mode: host
+    volumes:
+      - redis-cluster_data-4:/bitnami/redis/data
+    environment:
+      REDIS_PASSWORD: bitnami
+      REDIS_PORT_NUMBER: 6374
+      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+
+  redis-node-5:
+    image: docker.io/bitnamilegacy/redis-cluster:8.0
+    network_mode: host
+    volumes:
+      - redis-cluster_data-5:/bitnami/redis/data
+    depends_on:
+      - redis-node-0
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+    environment:
+      REDISCLI_AUTH: bitnami
+      REDIS_CLUSTER_REPLICAS: 1
+      REDIS_PASSWORD: bitnami
+      REDIS_PORT_NUMBER: 6375
+      REDIS_NODES: 127.0.0.1:6370 127.0.0.1:6371 127.0.0.1:6372 127.0.0.1:6373 127.0.0.1:6374 127.0.0.1:6375
+      REDIS_CLUSTER_CREATOR: yes
+
+volumes:
+  langfuse_postgres_data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
+    driver: local
+  langfuse_minio_data:
+    driver: local
+  redis-cluster_data-0:
+    driver: local
+  redis-cluster_data-1:
+    driver: local
+  redis-cluster_data-2:
+    driver: local
+  redis-cluster_data-3:
+    driver: local
+  redis-cluster_data-4:
+    driver: local
+  redis-cluster_data-5:
+    driver: local

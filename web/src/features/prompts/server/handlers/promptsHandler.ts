@@ -2,15 +2,15 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 import { getPromptsMeta } from "@/src/features/prompts/server/actions/getPromptsMeta";
-import {
-  CreatePromptSchema,
-  GetPromptsMetaSchema,
-} from "@/src/features/prompts/server/utils/validation";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { InvalidRequestError } from "@langfuse/shared";
+import {
+  CreatePromptSchema,
+  GetPromptsMetaSchema,
+  InvalidRequestError,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const getPromptsHandler = async (req: NextApiRequest, res: NextApiResponse) => {

@@ -44,6 +44,10 @@ export const DetailPageNav = (props: {
       ) {
         return;
       }
+      // don't trigger shortcuts if modifier keys are pressed (e.g., Cmd+K for universal search)
+      if (event.metaKey || event.ctrlKey) {
+        return;
+      }
 
       if (event.key === "k" && previousPageEntry) {
         void router.push(
@@ -72,6 +76,7 @@ export const DetailPageNav = (props: {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
+              type="button"
               className="p-2"
               disabled={!previousPageEntry}
               onClick={() => {
@@ -104,6 +109,7 @@ export const DetailPageNav = (props: {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
+              type="button"
               className="p-2"
               disabled={!nextPageEntry}
               onClick={() => {

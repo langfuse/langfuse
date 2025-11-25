@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
@@ -8,28 +8,28 @@ import { DataTable } from "@/src/components/table/data-table";
 import {
   type ScoreDataType,
   type Prisma,
-  type ConfigCategory,
+  type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "../../ui/IOTableCell";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
-import { Archive } from "lucide-react";
+import { Edit, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
-import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/src/components/ui/dropdown-menu";
+import { ArchiveScoreConfigButton } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
+import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -40,7 +40,7 @@ type ScoreConfigTableRow = {
   range: {
     maxValue?: number | null;
     minValue?: number | null;
-    categories?: ConfigCategory[] | null;
+    categories?: ScoreConfigCategoryDomain[] | null;
   };
   description?: string | null;
   isArchived: boolean;
@@ -72,20 +72,16 @@ function getConfigRange(
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
-  const utils = api.useUtils();
-  const capture = usePostHogClientCapture();
-  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
-    string[]
-  >("emptySelectedConfigIds", []);
-
-  const hasAccess = useHasProjectAccess({
-    projectId: projectId,
-    scope: "scoreConfigs:CUD",
-  });
-
+  const [editConfigId, setEditConfigId] = useState<string | null>(null);
+  const [createConfigOpen, setCreateConfigOpen] = useState(false);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
+  });
+
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "scoreConfigs:CUD",
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
@@ -93,11 +89,19 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     "s",
   );
 
-  const configs = api.scoreConfigs.all.useQuery({
-    projectId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
+  const configs = api.scoreConfigs.all.useQuery(
+    {
+      projectId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    { enabled: hasAccess },
+  );
+
+  const configQuery = api.scoreConfigs.byId.useQuery(
+    { projectId, id: editConfigId as string },
+    { enabled: !!editConfigId && hasAccess },
+  );
 
   const totalCount = configs.data?.totalCount ?? null;
 
@@ -171,58 +175,37 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "action",
       header: "Action",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       enableHiding: true,
       cell: ({ row }) => {
         const { id: configId, isArchived, name } = row.original;
-        const configMutation = api.scoreConfigs.update.useMutation({
-          onSuccess: () => void utils.scoreConfigs.invalidate(),
-        });
 
         return (
-          <Popover key={configId}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="xs"
-                disabled={!hasAccess}
-                onClick={() => capture("score_configs:archive_form_open")}
-              >
-                <Archive className="h-4 w-4"></Archive>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost">
+                <MoreVertical className="h-4 w-4" />
               </Button>
-            </PopoverTrigger>
-            <PopoverContent>
-              <h2 className="text-md mb-3 font-semibold">
-                {isArchived ? "Restore config" : "Archive config"}
-              </h2>
-              <p className="mb-3 text-sm">
-                Your config is currently{" "}
-                {isArchived
-                  ? `archived. Restore if you want to use "${name}" in annotation again.`
-                  : `active. Archive if you no longer want to use "${name}" in annotation. Historic "${name}" scores will still be shown and can be deleted. You can restore your config at any point.`}
-              </p>
-              <div className="flex justify-end space-x-4">
-                <Button
-                  type="button"
-                  variant={isArchived ? "default" : "destructive"}
-                  loading={configMutation.isLoading}
-                  onClick={() => {
-                    void configMutation.mutateAsync({
-                      projectId,
-                      id: configId,
-                      isArchived: !isArchived,
-                    });
-                    setEmptySelectedConfigIds(
-                      emptySelectedConfigIds.filter((id) => id !== configId),
-                    );
-                    capture("score_configs:archive_form_submit");
-                  }}
-                >
-                  Confirm
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                key={configId}
+                aria-label="edit"
+                onClick={() => setEditConfigId(configId)}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild key="archive">
+                <ArchiveScoreConfigButton
+                  configId={configId}
+                  projectId={projectId}
+                  isArchived={isArchived}
+                  name={name}
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       },
     },
@@ -249,14 +232,22 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={<CreateScoreConfigButton projectId={projectId} />}
+        actionButtons={
+          <UpsertScoreConfigDialog
+            key="new-config-dialog"
+            projectId={projectId}
+            open={createConfigOpen}
+            onOpenChange={setCreateConfigOpen}
+          />
+        }
         className="px-0"
       />
       <SettingsTableCard>
         <DataTable
+          tableName={"scoreConfigs"}
           columns={columns}
           data={
-            configs.isLoading
+            configs.isPending
               ? { isLoading: true, isError: false }
               : configs.isError
                 ? {
@@ -296,6 +287,33 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
           className="gap-2"
         />
       </SettingsTableCard>
+
+      {!!editConfigId && configQuery.isSuccess && (
+        <UpsertScoreConfigDialog
+          key={editConfigId}
+          id={editConfigId}
+          projectId={projectId}
+          open={!!editConfigId && configQuery.isSuccess}
+          onOpenChange={(open) => {
+            if (!open) setEditConfigId(null);
+          }}
+          defaultValues={
+            configQuery.data
+              ? {
+                  id: editConfigId,
+                  name: configQuery.data.name,
+                  dataType: configQuery.data.dataType,
+                  minValue: configQuery.data.minValue ?? undefined,
+                  maxValue: configQuery.data.maxValue ?? undefined,
+                  description: configQuery.data.description ?? undefined,
+                  categories: configQuery.data.categories?.length
+                    ? configQuery.data.categories
+                    : undefined,
+                }
+              : undefined
+          }
+        />
+      )}
     </>
   );
 }

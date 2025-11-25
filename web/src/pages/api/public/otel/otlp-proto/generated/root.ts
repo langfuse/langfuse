@@ -16397,3 +16397,16 @@ $root.opentelemetry = (function () {
   })();
   return opentelemetry;
 })();
+
+// Next.js API route config - this file contains protobuf definitions, not an API handler
+export const config = {
+  api: {
+    externalResolver: true,
+  },
+};
+
+// Dummy default export to satisfy Next.js 15 API route requirements
+export default function handler() {
+  // This should never be called because it is only used for protobuf imports
+  throw new Error("This endpoint should not be called directly");
+}

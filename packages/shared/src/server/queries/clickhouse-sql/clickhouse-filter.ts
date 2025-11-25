@@ -7,6 +7,7 @@ export type ClickhouseOperator =
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
+  tablePrefix?: string;
   operator: ClickhouseOperator;
   field: string;
 }
@@ -20,7 +21,7 @@ export class StringFilter implements Filter {
   public field: string;
   public value: string;
   public operator: (typeof filterOperators)["string"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -74,7 +75,7 @@ export class NumberFilter implements Filter {
   public value: number;
   public operator: (typeof filterOperators)["number"][number] | "!=";
   public clickhouseTypeOverwrite?: string;
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -108,7 +109,7 @@ export class DateTimeFilter implements Filter {
   public field: string;
   public value: Date;
   public operator: (typeof filterOperators)["datetime"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -139,7 +140,7 @@ export class StringOptionsFilter implements Filter {
   public field: string;
   public values: string[];
   public operator: (typeof filterOperators.stringOptions)[number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -174,7 +175,7 @@ export class CategoryOptionsFilter implements Filter {
   public key: string;
   public values: string[];
   public operator: (typeof filterOperators.categoryOptions)[number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -221,15 +222,17 @@ export class CategoryOptionsFilter implements Filter {
   }
 }
 
-// stringObject filter is used when we want to filter on a key value pair in a clickhouse map.
-// As we use the MAP form clickhouse, we can only filter efficiently on the first level of a json obj.
+// stringObject filter is used when we want to filter on a key value pair in metadata.
+// For observations/traces tables: uses Map column (metadata)
+// For events table: uses Array columns (metadata_names/metadata_prefixes)
+// We can only filter efficiently on the first level of a json obj.
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public key: string;
   public value: string;
   public operator: (typeof filterOperators)["stringObject"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -250,28 +253,61 @@ export class StringObjectFilter implements Filter {
   apply(): ClickhouseFilter {
     const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
-    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
 
-    //  const query: `${column}['{varKeyName: String}'] ${this.operator} {${varValueName}: String}`,
+    // Events table uses array columns (metadata_names/metadata_prefixes)
+    // Observations/traces tables use Map column (metadata)
+    const isEventsTable = this.clickhouseTable === "events";
+
     let query: string;
-    switch (this.operator) {
-      case "=":
-        query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
-        break;
-      case "contains":
-        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
-        break;
-      case "does not contain":
-        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
-        break;
-      case "starts with":
-        query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
-        break;
-      case "ends with":
-        query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
-        break;
-      default:
-        throw new Error(`Unsupported operator: ${this.operator}`);
+    if (isEventsTable) {
+      // For events table, use array access: metadata_prefixes[indexOf(metadata_names, key)]
+      const namesColumn = `${prefix}metadata_names`;
+      const valuesColumn = `${prefix}metadata_prefixes`;
+      const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
+
+      switch (this.operator) {
+        case "=":
+          query = `${valueAccessor} = {${varValueName}: String}`;
+          break;
+        case "contains":
+          query = `position(${valueAccessor}, {${varValueName}: String}) > 0`;
+          break;
+        case "does not contain":
+          query = `position(${valueAccessor}, {${varValueName}: String}) = 0`;
+          break;
+        case "starts with":
+          query = `startsWith(${valueAccessor}, {${varValueName}: String})`;
+          break;
+        case "ends with":
+          query = `endsWith(${valueAccessor}, {${varValueName}: String})`;
+          break;
+        default:
+          throw new Error(`Unsupported operator: ${this.operator}`);
+      }
+    } else {
+      // For observations/traces tables, use Map access: metadata[key]
+      const column = `${prefix}${this.field}`;
+
+      switch (this.operator) {
+        case "=":
+          query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+          break;
+        case "contains":
+          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+          break;
+        case "does not contain":
+          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+          break;
+        case "starts with":
+          query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          break;
+        case "ends with":
+          query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          break;
+        default:
+          throw new Error(`Unsupported operator: ${this.operator}`);
+      }
     }
 
     return {
@@ -287,7 +323,7 @@ export class ArrayOptionsFilter implements Filter {
   public field: string;
   public values: string[];
   public operator: (typeof filterOperators.arrayOptions)[number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -333,7 +369,7 @@ export class NullFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public operator: (typeof filterOperators)["null"][number];
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -361,7 +397,7 @@ export class NumberObjectFilter implements Filter {
   public key: string;
   public value: number;
   public operator: (typeof filterOperators)["numberObject"][number] | "!=";
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -395,7 +431,7 @@ export class BooleanFilter implements Filter {
   public field: string;
   public operator: (typeof filterOperators)["boolean"][number];
   public value: boolean;
-  protected tablePrefix?: string;
+  public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -432,18 +468,27 @@ export class FilterList {
     this.filters.push(...filter);
   }
 
+  // eslint-disable-next-line no-unused-vars
   find(predicate: (filter: Filter) => boolean) {
     return this.filters.find(predicate);
   }
 
+  // eslint-disable-next-line no-unused-vars
   filter(predicate: (filter: Filter) => boolean) {
     return new FilterList(this.filters.filter(predicate));
   }
 
+  // eslint-disable-next-line no-unused-vars
+  map(predicate: (filter: Filter) => Filter) {
+    return new FilterList(this.filters.map(predicate));
+  }
+
+  // eslint-disable-next-line no-unused-vars
   some(predicate: (filter: Filter) => boolean) {
     return this.filters.some(predicate);
   }
 
+  // eslint-disable-next-line no-unused-vars
   forEach(callback: (filter: Filter) => void) {
     this.filters.forEach(callback);
   }

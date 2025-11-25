@@ -8,8 +8,11 @@ import {
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import {
+  type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
+} from "@/src/utils/date-range-utils";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
@@ -35,7 +38,8 @@ export function ChartScores(props: {
       props.globalFilterState,
     ),
     timeDimension: {
-      granularity: "auto",
+      granularity:
+        dashboardDateRangeAggregationSettings[props.agg].dateTrunc ?? "day",
     },
     fromTimestamp: props.fromTimestamp.toISOString(),
     toTimestamp: props.toTimestamp.toISOString(),
@@ -84,19 +88,20 @@ export function ChartScores(props: {
       className={props.className}
       title="Scores"
       description="Moving average per score"
-      isLoading={props.isLoading || scores.isLoading}
+      isLoading={props.isLoading || scores.isPending}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
+          className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
           agg={props.agg}
           data={extractedScores}
           connectNulls
         />
       ) : (
         <NoDataOrLoading
-          isLoading={props.isLoading || scores.isLoading}
+          isLoading={props.isLoading || scores.isPending}
           description="Scores evaluate LLM quality and can be created manually or using the SDK."
-          href="https://langfuse.com/docs/scores"
+          href="https://langfuse.com/docs/evaluation/overview"
           className="h-full"
         />
       )}

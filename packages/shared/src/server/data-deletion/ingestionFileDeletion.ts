@@ -1,11 +1,11 @@
 import {
-  BlobStorageFileRefRecordReadType,
   getBlobStorageByProjectId,
   getBlobStorageByProjectIdAndEntityIds,
   getBlobStorageByProjectIdAndTraceIds,
   getBlobStorageByProjectIdBeforeDate,
-  logger,
-} from "..";
+} from "../repositories/blobStorageLog";
+import { BlobStorageFileRefRecordReadType } from "../repositories/definitions";
+import { logger } from "../logger";
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
 import { getS3EventStorageClient } from "../s3";
@@ -88,7 +88,7 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
   );
   await softDeleteInClickhouse(blobStorageRefs);
   logger.info(
-    `Deleted batch ${batch} of size ${blobStorageRefs.length} for ${projectId} of deleting s3 refs`,
+    `Deleted last batch ${batch} of size ${blobStorageRefs.length} for ${projectId} of deleting s3 refs`,
   );
 }
 

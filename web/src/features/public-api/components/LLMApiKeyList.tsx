@@ -1,6 +1,5 @@
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
-
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -26,26 +25,23 @@ import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
-import { useEntitlements } from "@/src/features/entitlements/hooks";
+import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 
 export function LlmApiKeyList(props: { projectId: string }) {
+  const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
   });
-
-  // only show if the user has access to features that require LLM API keys
-  const entitlements = useEntitlements();
-  const isAvailable =
-    entitlements.includes("playground") ||
-    entitlements.includes("model-based-evaluations");
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
       projectId: props.projectId,
     },
     {
-      enabled: hasAccess && isAvailable,
+      enabled: hasAccess,
     },
   );
 
@@ -53,12 +49,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
     (key) => key.extraHeaderKeys.length > 0,
   );
 
-  if (!isAvailable) return null;
-
   if (!hasAccess) {
     return (
       <div>
-        <Header title="LLM API Keys" />
+        <Header title="LLM Connections" />
         <Alert>
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
@@ -71,18 +65,15 @@ export function LlmApiKeyList(props: { projectId: string }) {
 
   return (
     <div id="llm-api-keys">
-      <Header title="LLM API keys" />
+      <Header title="LLM Connections" />
       <p className="mb-4 text-sm">
-        These keys are used to power the Langfuse playground and evaluations
-        feature and will incur costs based on usage with your key provider.
+        Connect your LLM services to enable evaluations and playground features.
+        Your provider will charge based on usage.
       </p>
       <Card className="mb-4 overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden text-primary md:table-cell">
-                Created
-              </TableHead>
               <TableHead className="text-primary md:table-cell">
                 Provider
               </TableHead>
@@ -92,7 +83,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
               <TableHead className="text-primary md:table-cell">
                 Base URL
               </TableHead>
-              <TableHead className="text-primary">Secret Key</TableHead>
+              <TableHead className="text-primary">API Key</TableHead>
               {hasExtraHeaderKeys ? (
                 <TableHead className="text-primary">Extra headers</TableHead>
               ) : null}
@@ -110,11 +101,9 @@ export function LlmApiKeyList(props: { projectId: string }) {
               apiKeys.data?.data.map((apiKey) => (
                 <TableRow
                   key={apiKey.id}
-                  className="hover:bg-primary-foreground"
+                  className="cursor-default hover:bg-primary-foreground"
+                  onClick={() => setEditingKeyId(apiKey.id)}
                 >
-                  <TableCell className="hidden md:table-cell">
-                    {apiKey.createdAt.toLocaleDateString()}
-                  </TableCell>
                   <TableCell className="font-mono">{apiKey.provider}</TableCell>
                   <TableCell className="font-mono">{apiKey.adapter}</TableCell>
                   <TableCell className="max-w-md overflow-auto font-mono">
@@ -126,11 +115,33 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   {hasExtraHeaderKeys ? (
                     <TableCell> {apiKey.extraHeaderKeys.join(", ")} </TableCell>
                   ) : null}
-                  <TableCell>
-                    <DeleteApiKeyButton
-                      projectId={props.projectId}
-                      apiKeyId={apiKey.id}
-                    />
+                  <TableCell className="text-right">
+                    <div
+                      className="flex justify-end space-x-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <UpdateLLMApiKeyDialog
+                        apiKey={{
+                          ...apiKey,
+                          secretKey: apiKey.displaySecretKey,
+                          extraHeaders: apiKey.extraHeaderKeys.join(","),
+                          config: apiKey.config ?? null,
+                        }}
+                        projectId={props.projectId}
+                        open={editingKeyId === apiKey.id}
+                        onOpenChange={(open: boolean) => {
+                          if (open) {
+                            setEditingKeyId(apiKey.id);
+                          } else {
+                            setEditingKeyId(null);
+                          }
+                        }}
+                      />
+                      <DeleteApiKeyButton
+                        projectId={props.projectId}
+                        apiKeyId={apiKey.id}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -138,7 +149,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
           </TableBody>
         </Table>
       </Card>
-      <CreateLLMApiKeyDialog />
+      <CreateLLMApiKeyDialog open={open} setOpen={setOpen} />
     </div>
   );
 }
@@ -168,12 +179,13 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="mb-5">Delete LLM provider</DialogTitle>
+          <DialogTitle className="mb-5">Delete LLM Connection</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this connection? This action cannot
+            be undone.
+          </DialogDescription>
         </DialogHeader>
-        <DialogDescription>
-          Are you sure you want to delete this LLM provider? This action cannot
-          be undone.
-        </DialogDescription>
+
         <DialogFooter>
           <Button
             variant="destructive"
@@ -191,7 +203,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
                   console.error(error);
                 });
             }}
-            loading={mutDeleteApiKey.isLoading}
+            loading={mutDeleteApiKey.isPending}
           >
             Permanently delete
           </Button>

@@ -50,17 +50,31 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
     }
 
     setMessages(
-      parsedMessages.data.map((message) => ({
-        ...message,
-        id: uuidv4(),
-        type: ChatMessageType.PublicAPICreated,
-      })),
+      parsedMessages.data.map((message) => {
+        const id = uuidv4();
+        // TODO: clean up - Placeholder messages could also be API created..
+        if ("type" in message && message.type === ChatMessageType.Placeholder) {
+          return {
+            ...message,
+            id,
+            type: ChatMessageType.Placeholder,
+          } as ChatMessageWithId;
+        } else {
+          return {
+            ...message,
+            id,
+            type: ChatMessageType.PublicAPICreated,
+          } as ChatMessageWithId;
+        }
+      }),
     );
 
     const customRoles = parsedMessages.data.reduce((acc, message) => {
-      const { role } = message;
-      if (ChatMessageDefaultRoleSchema.safeParse(role).error) {
-        acc.add(role);
+      if ("role" in message) {
+        const { role } = message;
+        if (ChatMessageDefaultRoleSchema.safeParse(role).error) {
+          acc.add(role);
+        }
       }
       return acc;
     }, new Set<string>());

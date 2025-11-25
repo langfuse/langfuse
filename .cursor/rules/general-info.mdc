@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# General rules
+
+- Linting in this repo only works if the development server is running
+- Always run the full mono-repo via `pnpm run dx` (use `pnpm dx-f` when you run this in a background agent). Thereby the database will also be seeded.

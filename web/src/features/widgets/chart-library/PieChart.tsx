@@ -1,9 +1,5 @@
 import React, { useMemo } from "react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Label, Pie, PieChart as PieChartComponent } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -27,7 +23,7 @@ export const PieChart: React.FC<ChartProps> = ({
 }) => {
   // Calculate total metric value for center label
   const totalValue = useMemo(() => {
-    return data.reduce((acc, curr) => acc + curr.metric, 0);
+    return data.reduce((acc, curr) => acc + (curr.metric as number), 0);
   }, [data]);
 
   // Transform data for PieChart
@@ -43,8 +39,8 @@ export const PieChart: React.FC<ChartProps> = ({
     <ChartContainer config={config}>
       <PieChartComponent accessibilityLayer={accessibilityLayer}>
         <ChartTooltip
-          content={<ChartTooltipContent />}
-          cursor={{ opacity: 0.8 }}
+          contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          itemStyle={{ color: "hsl(var(--foreground))" }}
         />
         <Pie
           data={chartData}

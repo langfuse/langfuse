@@ -5,7 +5,7 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import {
   handleUpdateProject,
   handleDeleteProject,
-} from "@/src/ee/features/admin-api/public/projects/projectById";
+} from "@/src/ee/features/admin-api/server/projects/projectById";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
@@ -67,6 +67,7 @@ export default async function handler(
     where: {
       id: projectId,
       orgId: authCheck.scope.orgId,
+      deletedAt: null,
     },
   });
 

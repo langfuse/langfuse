@@ -2,14 +2,21 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
+  protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import * as z from "zod";
+import * as z from "zod/v4";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
+import {
+  type FilterState,
+  optionalPaginationZod,
+  Prisma,
+  type PrismaClient,
+  Role,
+} from "@langfuse/shared";
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -20,6 +27,26 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+import {
+  getUserProjectRoles,
+  getUserProjectRolesCount,
+} from "@langfuse/shared/src/server";
+
+function buildUserSearchFilter(searchQuery: string | undefined | null) {
+  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const q = searchQuery;
+  const searchConditions: Prisma.Sql[] = [];
+
+  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
+  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+
+  return searchConditions.length > 0
+    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+    : Prisma.empty;
+}
 
 // Record as it allows to type check that all roles are included
 function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
@@ -86,10 +113,10 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         email: z.string().email(),
-        orgRole: z.nativeEnum(Role),
+        orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
-        projectRole: z.nativeEnum(Role).optional(),
+        projectRole: z.enum(Role).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -276,6 +303,8 @@ export const membersRouter = createTRPCRouter({
           inviterName: ctx.session.user.name!,
           to: input.email,
           orgName: org.name,
+          orgId: input.orgId,
+          userExists: true,
           env: env,
         });
       } else {
@@ -309,6 +338,8 @@ export const membersRouter = createTRPCRouter({
             inviterName: ctx.session.user.name!,
             to: input.email,
             orgName: org.name,
+            orgId: input.orgId,
+            userExists: false,
             env: env,
           });
 
@@ -465,7 +496,7 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         orgMembershipId: z.string(),
-        role: z.nativeEnum(Role),
+        role: z.enum(Role),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -539,7 +570,7 @@ export const membersRouter = createTRPCRouter({
         orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
-        projectRole: z.nativeEnum(Role).nullable(),
+        projectRole: z.enum(Role).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -664,5 +695,62 @@ export const membersRouter = createTRPCRouter({
       });
 
       return updatedProjectMembership;
+    }),
+  byProjectId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        searchQuery: z.string().optional(),
+        excludeUserIds: z.array(z.string()).optional(),
+        ...optionalPaginationZod,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "projectMembers:read",
+      });
+
+      const searchFilter = buildUserSearchFilter(input.searchQuery);
+
+      const filterCondition: FilterState =
+        input.excludeUserIds && input.excludeUserIds.length > 0
+          ? [
+              {
+                column: "userId",
+                operator: "none of",
+                value: input.excludeUserIds,
+                type: "stringOptions",
+              },
+            ]
+          : [];
+
+      const [users, totalCount] = await Promise.all([
+        getUserProjectRoles({
+          projectId: input.projectId,
+          orgId: ctx.session.orgId,
+          searchFilter: searchFilter,
+          filterCondition,
+          limit: input.limit,
+          page: input.page,
+          orderBy: Prisma.sql`ORDER BY all_eligible_users.name ASC NULLS LAST, all_eligible_users.email ASC NULLS LAST`,
+        }),
+        getUserProjectRolesCount({
+          projectId: input.projectId,
+          orgId: ctx.session.orgId,
+          searchFilter: searchFilter,
+          filterCondition,
+        }),
+      ]);
+
+      return {
+        users: users.map((user) => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        })),
+        totalCount,
+      };
     }),
 });

@@ -21,6 +21,9 @@ import {
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useRouter } from "next/router";
+import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
+import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 
 type WidgetTableRow = {
   id: string;
@@ -30,13 +33,22 @@ type WidgetTableRow = {
   chartType: string;
   createdAt: Date;
   updatedAt: Date;
+  owner: "PROJECT" | "LANGFUSE";
 };
 
-export function DeleteWidget({ widgetId }: { widgetId: string }) {
+export function DeleteWidget({
+  widgetId,
+  owner,
+}: {
+  widgetId: string;
+  owner: "PROJECT" | "LANGFUSE";
+}) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
   const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
+  const hasAccess =
+    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
+    owner !== "LANGFUSE";
   const capture = usePostHogClientCapture();
 
   const mutDeleteWidget = api.dashboardWidgets.delete.useMutation({
@@ -74,7 +86,7 @@ export function DeleteWidget({ widgetId }: { widgetId: string }) {
           <Button
             type="button"
             variant="destructive"
-            loading={mutDeleteWidget.isLoading}
+            loading={mutDeleteWidget.isPending}
             onClick={() => {
               if (!projectId) {
                 console.error("Project ID is missing");
@@ -99,6 +111,7 @@ export function DeleteWidget({ widgetId }: { widgetId: string }) {
 export function DashboardWidgetTable() {
   const projectId = useProjectIdFromURL();
   const { setDetailPageList } = useDetailPageLists();
+  const router = useRouter();
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "updatedAt",
@@ -175,22 +188,8 @@ export function DashboardWidgetTable() {
       id: "chartType",
       enableSorting: true,
       size: 100,
-      cell: (row) => {
-        switch (row.getValue()) {
-          case "LINE_TIME_SERIES":
-            return "Line Chart (Time Series)";
-          case "BAR_TIME_SERIES":
-            return "Bar Chart (Time Series)";
-          case "HORIZONTAL_BAR":
-            return "Horizontal Bar Chart (Total Value)";
-          case "VERTICAL_BAR":
-            return "Vertical Bar Chart (Total Value)";
-          case "PIE":
-            return "Pie Chart (Total Value)";
-          default:
-            return "Unknown Chart Type";
-        }
-      },
+      cell: (row) =>
+        getChartTypeDisplayName(row.getValue() as DashboardWidgetChartType),
     }),
     columnHelper.accessor("createdAt", {
       header: "Created At",
@@ -218,13 +217,18 @@ export function DashboardWidgetTable() {
       size: 70,
       cell: (row) => {
         const id = row.row.original.id;
-        return <DeleteWidget widgetId={id} />;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DeleteWidget widgetId={id} owner={row.row.original.owner} />
+          </div>
+        );
       },
     }),
   ] as LangfuseColumnDef<WidgetTableRow>[];
 
   return (
     <DataTable
+      tableName={"widgets"}
       columns={widgetColumns}
       data={
         widgets.isLoading
@@ -238,7 +242,7 @@ export function DashboardWidgetTable() {
             : {
                 isLoading: false,
                 isError: false,
-                data: widgets.data.widgets,
+                data: widgets.data?.widgets ?? [],
               }
       }
       orderBy={orderByState}
@@ -247,6 +251,11 @@ export function DashboardWidgetTable() {
         totalCount: widgets.data?.totalCount ?? null,
         onChange: setPaginationState,
         state: paginationState,
+      }}
+      onRowClick={(row) => {
+        router.push(
+          `/project/${projectId}/widgets/${encodeURIComponent(row.id)}`,
+        );
       }}
     />
   );

@@ -1,10 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import React, {
-  type Dispatch,
-  type SetStateAction,
-  useEffect,
-  useState,
-} from "react";
+import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -14,6 +9,7 @@ import {
   type OrderByState,
   type TableViewPresetDomain,
   type TableViewPresetTableName,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import {
   type RowSelectionState,
@@ -25,17 +21,32 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Search } from "lucide-react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { TableDateRangeDropdown } from "@/src/components/date-range-dropdowns";
 import {
-  type TableDateRange,
-  type TableDateRangeOptions,
+  Search,
+  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import {
+  type TimeRange,
+  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { cn } from "@/src/utils/tailwind";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { useDataTableControls } from "@/src/components/table/data-table-controls";
+import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -48,9 +59,17 @@ export interface MultiSelect {
 }
 
 interface SearchConfig {
-  placeholder: string;
-  updateQuery(event: string): void;
+  metadataSearchFields: string[];
+  updateQuery: (event: string) => void;
   currentQuery?: string;
+  tableAllowsFullTextSearch?: boolean;
+  setSearchType: ((newSearchType: TracingSearchType[]) => void) | undefined;
+  searchType: TracingSearchType[] | undefined;
+  customDropdownLabels?: {
+    metadata: string;
+    fullText: string;
+  };
+  hidePerformanceWarning?: boolean;
 }
 
 interface TableViewControllers {
@@ -81,11 +100,8 @@ interface DataTableToolbarProps<TData, TValue> {
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
   columnsWithCustomSelect?: string[];
-  selectedOption?: TableDateRangeOptions;
-  setDateRangeAndOption?: (
-    option: TableDateRangeOptions,
-    date?: TableDateRange,
-  ) => void;
+  timeRange?: TimeRange;
+  setTimeRange?: (timeRange: TimeRange) => void;
   multiSelect?: MultiSelect;
   environmentFilter?: {
     values: string[];
@@ -94,6 +110,7 @@ interface DataTableToolbarProps<TData, TValue> {
   };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
+  filterWithAI?: boolean;
   className?: string;
 }
 
@@ -111,62 +128,188 @@ export function DataTableToolbar<TData, TValue>({
   rowHeight,
   setRowHeight,
   columnsWithCustomSelect,
-  selectedOption,
-  setDateRangeAndOption,
+  timeRange,
+  setTimeRange,
   multiSelect,
   environmentFilter,
   className,
   orderByState,
   viewConfig,
+  filterWithAI = false,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+
   const capture = usePostHogClientCapture();
+  const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
+    useDataTableControls();
 
-  // Update searchString when searchConfig.currentQuery changes to account for saved view selection
-  // Only update once on initial value of searchConfig.currentQuery, to allow for initial value to be set
-  useEffect(() => {
-    if (searchConfig?.currentQuery !== searchString) {
-      setSearchString(searchConfig?.currentQuery ?? "");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchConfig?.currentQuery]);
-
+  // Only show the toggle button when we're using the new sidebar
+  const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
+        {hasNewSidebar && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
+            className="flex h-8 items-center gap-2 text-sm"
+          >
+            {controlsPanelOpen ? (
+              <PanelLeftClose className="h-4 w-4" />
+            ) : (
+              <PanelLeftOpen className="h-4 w-4" />
+            )}
+            <span>{controlsPanelOpen ? "Hide" : "Show"} filters</span>
+            {filterState && filterState.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {filterState.length}
+              </Badge>
+            )}
+          </Button>
+        )}
         {searchConfig && (
-          <div className="flex max-w-md items-center rounded-md border">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                capture("table:search_submit");
-                searchConfig.updateQuery(searchString);
-              }}
+          <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
+            <div
+              className={cn(
+                "flex h-8 flex-1 items-center border border-input bg-background pl-2",
+                searchConfig.setSearchType
+                  ? "rounded-l-md rounded-r-none border-r-0"
+                  : "rounded-l-md rounded-r-md",
+              )}
             >
-              <Search className="h-4 w-4" />
-            </Button>
-            <Input
-              autoFocus
-              placeholder={searchConfig.placeholder}
-              value={searchString}
-              onChange={(event) => setSearchString(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mr-1"
+                onClick={() => {
                   capture("table:search_submit");
                   searchConfig.updateQuery(searchString);
+                }}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              <Input
+                autoFocus
+                placeholder={
+                  searchConfig.tableAllowsFullTextSearch
+                    ? "Search..."
+                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
                 }
-              }}
-              className="min-w-0 max-w-fit border-none px-0"
-            />
+                value={searchString}
+                onChange={(event) => {
+                  const newValue = event.currentTarget.value;
+                  setSearchString(newValue);
+                  // If user cleared the search, update URL immediately
+                  if (newValue === "") {
+                    searchConfig.updateQuery("");
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    capture("table:search_submit");
+                    searchConfig.updateQuery(searchString);
+                  }
+                }}
+                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:outline-none focus-visible:ring-0"
+              />
+            </div>
+            {searchConfig.setSearchType && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="default"
+                    className="w-30 flex items-center justify-between gap-1 rounded-l-none border-l-0"
+                  >
+                    <span className="flex items-center gap-1 truncate">
+                      {searchConfig.tableAllowsFullTextSearch &&
+                      (searchConfig.searchType ?? []).includes("content")
+                        ? (searchConfig.customDropdownLabels?.fullText ??
+                          "Full Text")
+                        : (searchConfig.customDropdownLabels?.metadata ??
+                          "IDs / Names")}
+                      <DocPopup
+                        description={
+                          searchConfig.tableAllowsFullTextSearch &&
+                          (searchConfig.searchType ?? []).includes(
+                            "content",
+                          ) ? (
+                            <p className="text-xs font-normal text-primary">
+                              Searches in Input/Output and{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {!searchConfig.hidePerformanceWarning &&
+                                " For improved performance, please filter the table down."}
+                            </p>
+                          ) : (
+                            <p className="text-xs font-normal text-primary">
+                              Searches in{" "}
+                              {searchConfig.metadataSearchFields.join(", ")}.
+                            </p>
+                          )
+                        }
+                      />
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuRadioGroup
+                    value={
+                      searchConfig.tableAllowsFullTextSearch &&
+                      (searchConfig.searchType ?? []).includes("content")
+                        ? "metadata_fulltext"
+                        : "metadata"
+                    }
+                    onValueChange={(value) => {
+                      if (
+                        !searchConfig.tableAllowsFullTextSearch &&
+                        value === "metadata_fulltext"
+                      )
+                        return;
+
+                      const newSearchType =
+                        value === "metadata_fulltext"
+                          ? ["id" as const, "content" as const]
+                          : ["id" as const];
+                      searchConfig.setSearchType?.(newSearchType);
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="metadata">
+                      {searchConfig.customDropdownLabels?.metadata ??
+                        "IDs / Names"}
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="metadata_fulltext"
+                      disabled={!searchConfig.tableAllowsFullTextSearch}
+                    >
+                      {searchConfig.customDropdownLabels?.fullText ??
+                        "Full Text"}
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         )}
-        {selectedOption && setDateRangeAndOption && (
-          <TableDateRangeDropdown
-            selectedOption={selectedOption}
-            setDateRangeAndOption={setDateRangeAndOption}
+        {timeRange && setTimeRange && (
+          <TimeRangePicker
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+            className="my-0 max-w-full overflow-x-auto"
+          />
+        )}
+        {environmentFilter && (
+          <MultiSelectFilter
+            title="Environment"
+            label="Env"
+            values={environmentFilter.values}
+            onValueChange={environmentFilter.onValueChange}
+            options={environmentFilter.options}
+            className="my-0 w-auto overflow-hidden"
           />
         )}
         {!!filterColumnDefinition && !!filterState && !!setFilterState && (
@@ -175,16 +318,7 @@ export function DataTableToolbar<TData, TValue>({
             filterState={filterState}
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
-          />
-        )}
-        {environmentFilter && (
-          <MultiSelect
-            title="Environment"
-            label="Env"
-            values={environmentFilter.values}
-            onValueChange={environmentFilter.onValueChange}
-            options={environmentFilter.options}
-            className="my-0 w-auto overflow-hidden"
+            filterWithAI={filterWithAI}
           />
         )}
 

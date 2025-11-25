@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   GetDatasetV2Query,
   GetDatasetV2Response,
+  transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -12,6 +13,7 @@ export default withMiddlewares({
     name: "get-dataset",
     querySchema: GetDatasetV2Query,
     responseSchema: GetDatasetV2Response,
+    rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
       const { datasetName } = query;
 
@@ -25,7 +27,7 @@ export default withMiddlewares({
       if (!dataset) {
         throw new LangfuseNotFoundError("Dataset not found");
       }
-      return dataset;
+      return transformDbDatasetToAPIDataset(dataset);
     },
   }),
 });

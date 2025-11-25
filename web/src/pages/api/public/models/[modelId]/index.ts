@@ -10,6 +10,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { clearModelCacheForProject } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -34,6 +35,11 @@ export default withMiddlewares({
               ],
             },
           ],
+        },
+        include: {
+          Price: {
+            select: { usageType: true, price: true },
+          },
         },
       });
       if (!model) {
@@ -73,6 +79,9 @@ export default withMiddlewares({
         apiKeyId: auth.scope.apiKeyId,
         before: model,
       });
+
+      // Clear model cache for the project after successful deletion
+      await clearModelCacheForProject(auth.scope.projectId);
 
       return {
         message: "Model successfully deleted" as const,

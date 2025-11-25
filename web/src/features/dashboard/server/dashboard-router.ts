@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -16,18 +16,23 @@ import {
   logger,
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
-  queryClickhouse,
   DashboardService,
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import { paginationZod, orderBy } from "@langfuse/shared";
+import {
+  paginationZod,
+  orderBy,
+  StringNoHTML,
+  InvalidRequestError,
+  singleFilter,
+} from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -49,11 +54,32 @@ const UpdateDashboardDefinitionInput = z.object({
   definition: DashboardDefinitionSchema,
 });
 
+// Update dashboard input schema
+const UpdateDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
+  description: StringNoHTML,
+});
+
 // Create dashboard input schema
 const CreateDashboardInput = z.object({
   projectId: z.string(),
-  name: z.string().min(1, "Dashboard name is required"),
-  description: z.string(),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
+  description: StringNoHTML,
+});
+
+// Clone dashboard input schema
+const CloneDashboardInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+});
+
+// Update dashboard filters input schema
+const UpdateDashboardFiltersInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  filters: z.array(singleFilter),
 });
 
 export const dashboardRouter = createTRPCRouter({
@@ -138,7 +164,22 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return executeQuery(input.projectId, input.query as QueryType);
+      try {
+        return executeQuery(input.projectId, input.query as QueryType);
+      } catch (error) {
+        if (error instanceof InvalidRequestError) {
+          logger.warn("Bad request in query execution", error, {
+            projectId: input.projectId,
+            query: input.query,
+          });
+          throw error;
+        }
+        logger.error("Error executing query", error, {
+          projectId: input.projectId,
+          query: input.query,
+        });
+        throw error;
+      }
     }),
 
   allDashboards: protectedProjectProcedure
@@ -222,6 +263,79 @@ export const dashboardRouter = createTRPCRouter({
       return dashboard;
     }),
 
+  updateDashboardMetadata: protectedProjectProcedure
+    .input(UpdateDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboard(
+        input.dashboardId,
+        input.projectId,
+        input.name,
+        input.description,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
+  cloneDashboard: protectedProjectProcedure
+    .input(CloneDashboardInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      // Get the source dashboard
+      const sourceDashboard = await DashboardService.getDashboard(
+        input.dashboardId,
+        input.projectId,
+      );
+
+      if (!sourceDashboard) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Source dashboard not found",
+        });
+      }
+
+      // Create a new dashboard with the same data but modified name
+      const clonedDashboard = await DashboardService.createDashboard(
+        input.projectId,
+        `${sourceDashboard.name} (Clone)`,
+        sourceDashboard.description,
+        ctx.session.user.id,
+        sourceDashboard.definition,
+      );
+
+      return clonedDashboard;
+    }),
+
+  updateDashboardFilters: protectedProjectProcedure
+    .input(UpdateDashboardFiltersInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboardFilters(
+        input.dashboardId,
+        input.projectId,
+        input.filters,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
   // Delete dashboard input schema
   delete: protectedProjectProcedure
     .input(
@@ -245,46 +359,3 @@ export const dashboardRouter = createTRPCRouter({
       return { success: true };
     }),
 });
-
-/**
- * Execute a query using the QueryBuilder.
- *
- * @param projectId - The project ID
- * @param query - The query configuration as defined in QueryType
- * @returns The query result data
- */
-export async function executeQuery(
-  projectId: string,
-  query: QueryType,
-): Promise<Array<Record<string, unknown>>> {
-  try {
-    const { query: compiledQuery, parameters } = new QueryBuilder().build(
-      query,
-      projectId,
-    );
-
-    const result = await queryClickhouse<Record<string, unknown>>({
-      query: compiledQuery,
-      params: parameters,
-      clickhouseConfigs: {
-        clickhouse_settings: {
-          date_time_output_format: "iso",
-        },
-      },
-      tags: {
-        feature: "custom-queries",
-        type: query.view,
-        kind: "analytic",
-        projectId,
-      },
-    });
-    return result;
-  } catch (error) {
-    logger.error("Error executing query", error, { projectId, query });
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to execute query",
-      cause: error,
-    });
-  }
-}

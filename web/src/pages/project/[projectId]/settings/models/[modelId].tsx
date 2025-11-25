@@ -19,8 +19,8 @@ import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSel
 import { useMemo } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import Generations from "@/src/components/table/use-cases/observations";
-import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import Page from "@/src/components/layouts/page";
+import { SquareArrowOutUpRight } from "lucide-react";
 
 export default function ModelDetailPage() {
   const router = useRouter();
@@ -77,6 +77,10 @@ export default function ModelDetailPage() {
           href: "https://langfuse.com/docs/model-usage-and-cost",
         },
         breadcrumb: [
+          {
+            name: "Settings",
+            href: `/project/${router.query.projectId as string}/settings`,
+          },
           {
             name: "Models",
             href: `/project/${router.query.projectId as string}/settings/models`,
@@ -187,7 +191,7 @@ export default function ModelDetailPage() {
                   className="flex items-center gap-1"
                 >
                   <span className="text-sm">View all</span>
-                  <ArrowTopRightIcon className="h-4 w-4" />
+                  <SquareArrowOutUpRight className="h-4 w-4" />
                 </Link>
               </Button>
             </CardTitle>

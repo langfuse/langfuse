@@ -1,25 +1,17 @@
 "use client";
-
-import { ChevronRight, type LucideIcon } from "lucide-react";
-
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
+import { type LucideIcon } from "lucide-react";
 import {
   SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  useSidebar,
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
+import { type RouteGroup } from "@/src/components/layouts/routes";
 
 export type NavMainItem = {
   title: string;
@@ -59,77 +51,68 @@ function NavItemContent({ item }: { item: NavMainItem }) {
   );
 }
 
-export function NavMain({ items }: { items: NavMainItem[] }) {
-  const { open, setOpen } = useSidebar();
+export function NavMain({
+  items,
+}: {
+  items: {
+    grouped: Partial<Record<RouteGroup, NavMainItem[]>> | null;
+    ungrouped: NavMainItem[];
+  };
+}) {
   return (
-    <SidebarGroup>
-      <SidebarMenu>
-        {items.map((item) =>
-          item.items && item.items.length > 0 ? (
-            <Collapsible
-              key={item.title}
-              asChild
-              defaultOpen={item.isActive || item.items.some((i) => i.isActive)}
-              className="group/collapsible"
-            >
-              <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
+    <>
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {items.ungrouped.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                {item.menuNode || (
                   <SidebarMenuButton
+                    asChild
                     tooltip={item.title}
-                    onClick={(e) => {
-                      if (!open) {
-                        e.preventDefault();
-                        setOpen(true);
-                      }
-                    }}
-                    // when closed, the parent should be active if any of the children are active
-                    isActive={!open && item.items.some((i) => i.isActive)}
+                    isActive={item.isActive}
                   >
-                    <NavItemContent item={item} />
-                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    <Link
+                      href={item.url}
+                      target={item.newTab ? "_blank" : undefined}
+                    >
+                      <NavItemContent item={item} />
+                    </Link>
                   </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    {item.items.map((subItem) => (
-                      <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton
-                          asChild
-                          isActive={subItem.isActive}
-                        >
-                          <Link
-                            href={subItem.url}
-                            target={subItem.newTab ? "_blank" : undefined}
-                          >
-                            <span>{subItem.title}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </CollapsibleContent>
+                )}
               </SidebarMenuItem>
-            </Collapsible>
-          ) : (
-            <SidebarMenuItem key={item.title}>
-              {item.menuNode || (
-                <SidebarMenuButton
-                  asChild
-                  tooltip={item.title}
-                  isActive={item.isActive}
-                >
-                  <Link
-                    href={item.url}
-                    target={item.newTab ? "blank" : undefined}
-                  >
-                    <NavItemContent item={item} />
-                  </Link>
-                </SidebarMenuButton>
-              )}
-            </SidebarMenuItem>
-          ),
-        )}
-      </SidebarMenu>
-    </SidebarGroup>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      {items.grouped &&
+        Object.entries(items.grouped).map(([group, items]) => (
+          <SidebarGroup key={group}>
+            <SidebarGroupLabel>{group}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    {item.menuNode || (
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.title}
+                        isActive={item.isActive}
+                      >
+                        <Link
+                          href={item.url}
+                          target={item.newTab ? "_blank" : undefined}
+                        >
+                          <NavItemContent item={item} />
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+    </>
   );
 }

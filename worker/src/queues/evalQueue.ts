@@ -1,7 +1,6 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError } from "@langfuse/shared";
-import { kyselyPrisma } from "@langfuse/shared/src/db";
-import { sql } from "kysely";
+import { JobExecutionStatus } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
   TQueueJobTypes,
@@ -9,16 +8,22 @@ import {
   traceException,
   EvalExecutionQueue,
   QueueJobs,
-  recordIncrement,
+  getCurrentSpan,
+  isLLMCompletionError,
 } from "@langfuse/shared/src/server";
-import { createEvalJobs, evaluate } from "../ee/evaluation/evalService";
-import { randomUUID } from "crypto";
+import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
+import { delayInMs } from "./utils/delays";
+import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
+import { isUnrecoverableError } from "../errors/UnrecoverableError";
+import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
+import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
     await createEvalJobs({
+      sourceEventType: "trace-upsert",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
       enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
@@ -39,12 +44,44 @@ export const evalJobDatasetCreatorQueueProcessor = async (
 ) => {
   try {
     await createEvalJobs({
+      sourceEventType: "dataset-run-item-upsert",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
       enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
     });
     return true;
   } catch (e) {
+    // Handle observation-not-found errors with manual retry
+    if (isObservationNotFoundError(e)) {
+      const shouldRetry = await retryObservationNotFound(e, {
+        data: {
+          projectId: job.data.payload.projectId,
+          datasetItemId: job.data.payload.datasetItemId,
+          traceId: job.data.payload.traceId,
+          observationId: job.data.payload.observationId,
+          retryBaggage: job.data.retryBaggage,
+        },
+      });
+
+      if (shouldRetry) {
+        // Retry was scheduled, complete this job successfully
+        return true;
+      } else {
+        // Max attempts reached, log warning and complete successfully
+        logger.warn(
+          `Observation not found after max retries. Completing job without creating eval.`,
+          {
+            projectId: job.data.payload.projectId,
+            datasetItemId: job.data.payload.datasetItemId,
+            observationId: job.data.payload.observationId,
+            traceId: job.data.payload.traceId,
+          },
+        );
+        return true;
+      }
+    }
+
+    // All other errors should be logged and propagated for BullMQ retry
     logger.error(
       `Failed job Evaluation for dataset item: ${job.data.payload.datasetItemId}`,
       e,
@@ -59,6 +96,7 @@ export const evalJobCreatorQueueProcessor = async (
 ) => {
   try {
     await createEvalJobs({
+      sourceEventType: "ui-create-eval",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
     });
@@ -78,88 +116,106 @@ export const evalJobExecutorQueueProcessor = async (
 ) => {
   try {
     logger.info("Executing Evaluation Execution Job", job.data);
-    await evaluate({ event: job.data.payload });
 
+    const span = getCurrentSpan();
+
+    if (span) {
+      span.setAttribute(
+        "messaging.bullmq.job.input.jobExecutionId",
+        job.data.payload.jobExecutionId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.projectId",
+        job.data.payload.projectId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.retryBaggage.attempt",
+        job.data.retryBaggage?.attempt ?? 0,
+      );
+    }
+
+    await evaluate({ event: job.data.payload });
     return true;
   } catch (e) {
-    // If the job fails with a 429, we want to retry it unless it's older than 24h.
-    if (e instanceof ApiError && e.httpCode === 429) {
-      try {
-        // Check if the job execution is older than 24h
-        const jobExecution = await kyselyPrisma.$kysely
-          .selectFrom("job_executions")
-          .select("created_at")
-          .where("id", "=", job.data.payload.jobExecutionId)
-          .where("project_id", "=", job.data.payload.projectId)
-          .executeTakeFirstOrThrow();
-        if (
-          // Do nothing if job execution is older than 24h
-          jobExecution.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
-        ) {
-          logger.info(
-            `Job ${job.data.payload.jobExecutionId} is rate limited for more than 24h. Stop retrying.`,
-          );
-        } else {
-          // Add the job into the queue with a random delay between 1 and 10min and return
-          const delay = Math.floor(Math.random() * 9 + 1) * 60 * 1000;
-          logger.info(
-            `Job ${job.data.payload.jobExecutionId} is rate limited. Retrying in ${delay}ms.`,
-          );
-          recordIncrement("langfuse.evaluation-execution.rate-limited");
-          await EvalExecutionQueue.getInstance()?.add(
-            QueueName.EvaluationExecution,
-            {
-              name: QueueJobs.EvaluationExecution,
-              id: randomUUID(),
-              timestamp: new Date(),
-              payload: job.data.payload,
-            },
-            {
-              delay,
-            },
-          );
-          return;
-        }
-      } catch (innerErr) {
-        logger.error(
-          `Failed to handle 429 retry for ${job.data.payload.jobExecutionId}. Continuing regular processing.`,
-          innerErr,
-        );
-      }
-    }
+    // ┌─────────────────────────┐
+    // │   Job Fails with Error  │
+    // └───────────┬─────────────┘
+    //             │
+    //             ▼
+    // ┌────────────────────────────────────────┐
+    // │ Is it LLMCompletionError with          │
+    // │ isRetryable=true (429/5xx)?            │
+    // └─────┬──────────────────────────────┬───┘
+    //       │ Yes                          │ No
+    //       ▼                              ▼
+    // ┌──────────────────┐       ┌───────────────────────┐
+    // │ Is job < 24h old?│       │ Is it retryable?      │
+    // └─────┬──────┬─────┘       │ (shouldRetryJob)      │
+    //   Yes │      │ No          └─────┬─────────────┬───┘
+    //       ▼      ▼                Yes│             │No
+    // ┌─────────┐ ┌────────┐          ▼             ▼
+    // │Set:     │ │Set:    │    ┌─────────┐  ┌──────────┐
+    // │DELAYED  │ │ERROR   │    │BullMQ   │  │Set:      │
+    // │Retry in │ │Stop    │    │retry    │  │ERROR     │
+    // │1-25 min │ │        │    │w/ exp.  │  │Done      │
+    // └─────────┘ └────────┘    │backoff  │  └──────────┘
+    //                           └─────────┘
 
-    const displayError =
-      e instanceof BaseError ? e.message : "An internal error occurred";
+    const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
 
-    await kyselyPrisma.$kysely
-      .updateTable("job_executions")
-      .set("status", sql`'ERROR'::"JobExecutionStatus"`)
-      .set("end_time", new Date())
-      .set("error", displayError)
-      .where("id", "=", job.data.payload.jobExecutionId)
-      .where("project_id", "=", job.data.payload.projectId)
-      .execute();
+    if (isLLMCompletionError(e) && e.isRetryable) {
+      await retryLLMRateLimitError(job, {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: EvalExecutionQueue.getInstance(),
+        queueName: QueueName.EvaluationExecution,
+        jobName: QueueJobs.EvaluationExecution,
+        delayFn: delayInMs,
+      });
 
-    // do not log expected errors (api failures + missing api keys not provided by the user)
-    if (
-      (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
-      (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
-      (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
-      (e instanceof ApiError &&
-        e.message.includes("Error: Unterminated string in JSON at position")) || // When evaluator model is configured with too low max_tokens, the structured output response is invalid JSON
-      (e instanceof BaseError &&
-        e.message.includes(
-          "Please ensure the mapped data exists and consider extending the job delay.",
-        )) // Trace not found.
-    ) {
+      // Use the deterministic execution trace ID to update the job execution
+      await prisma.jobExecution.update({
+        where: {
+          id: job.data.payload.jobExecutionId,
+          projectId: job.data.payload.projectId,
+        },
+        data: {
+          status: JobExecutionStatus.DELAYED,
+          executionTraceId,
+        },
+      });
+
+      // Return early as we have already scheduled a delayed retry
       return;
     }
+
+    // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
+    await prisma.jobExecution.update({
+      where: {
+        id: job.data.payload.jobExecutionId,
+        projectId: job.data.payload.projectId,
+      },
+      data: {
+        status: JobExecutionStatus.ERROR,
+        endTime: new Date(),
+        // Show user-facing error messages (LLM and config errors)
+        error:
+          isLLMCompletionError(e) || isUnrecoverableError(e)
+            ? e.message
+            : "An internal error occurred",
+        executionTraceId,
+      },
+    });
+
+    if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
 
     traceException(e);
     logger.error(
       `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
       e,
     );
+
+    // Retry job by rethrowing error
     throw e;
   }
 };

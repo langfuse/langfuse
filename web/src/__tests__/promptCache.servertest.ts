@@ -97,7 +97,7 @@ describe("PromptService", () => {
         "prompt:project1:testPrompt:1",
         JSON.stringify(mockPrompt),
         "EX",
-        3600,
+        300,
       );
 
       expect(mockRedis.sadd).toHaveBeenCalledWith(
@@ -200,7 +200,6 @@ describe("PromptService", () => {
         mockPrisma,
         null,
         mockMetricIncrementer,
-        true,
       );
     });
 

@@ -1,5 +1,5 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { singleFilter } from "../../../";
 
 export const BaseTimeSeriesChartConfig = z.object({});
@@ -24,6 +24,25 @@ export const PieChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("PIE"),
 });
 
+export const BigNumberChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("NUMBER"),
+});
+
+export const HistogramChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("HISTOGRAM"),
+  bins: z.number().int().min(1).max(100).optional().default(10),
+});
+
+export const PivotTableChartConfig = BaseTotalValueChartConfig.extend({
+  type: z.literal("PIVOT_TABLE"),
+  defaultSort: z
+    .object({
+      column: z.string(),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
+});
+
 // Define dimension schema
 export const DimensionSchema = z.object({
   field: z.string(),
@@ -42,6 +61,9 @@ export const ChartConfigSchema = z.discriminatedUnion("type", [
   HorizontalBarChartConfig,
   VerticalBarChartConfig,
   PieChartConfig,
+  BigNumberChartConfig,
+  HistogramChartConfig,
+  PivotTableChartConfig,
 ]);
 
 export const DashboardDefinitionWidgetWidgetSchema = z.object({
@@ -62,6 +84,8 @@ export const DashboardDefinitionSchema = z.object({
   widgets: z.array(DashboardDefinitionWidgetSchema),
 });
 
+export const OwnerEnum = z.enum(["PROJECT", "LANGFUSE"]);
+
 // Define the dashboard domain object
 export const DashboardDomainSchema = z.object({
   id: z.string(),
@@ -73,6 +97,8 @@ export const DashboardDomainSchema = z.object({
   name: z.string(),
   description: z.string(),
   definition: DashboardDefinitionSchema,
+  filters: z.array(singleFilter).default([]),
+  owner: OwnerEnum,
 });
 
 // Define the dashboard list response
@@ -91,23 +117,24 @@ export const WidgetDomainSchema = z.object({
   projectId: z.string().nullable(),
   name: z.string(),
   description: z.string(),
-  view: z.nativeEnum(DashboardWidgetViews),
+  view: z.enum(DashboardWidgetViews),
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  owner: OwnerEnum,
 });
 
 // Define create widget input schema
 export const CreateWidgetInputSchema = z.object({
   name: z.string().min(1, "Widget name is required"),
   description: z.string(),
-  view: z.nativeEnum(DashboardWidgetViews),
+  view: z.enum(DashboardWidgetViews),
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.nativeEnum(DashboardWidgetChartType),
+  chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
 

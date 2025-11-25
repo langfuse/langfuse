@@ -22,6 +22,7 @@ const errorTitleMap = {
   TOO_MANY_REQUESTS: "Too Many Requests",
   CLIENT_CLOSED_REQUEST: "Client Closed Request",
   INTERNAL_SERVER_ERROR: "Internal Server Error",
+  SERVICE_UNAVAILABLE: "Backend Service Overloaded",
 } as const;
 
 const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
@@ -50,6 +51,10 @@ const getErrorDescription = (httpStatus: number) => {
     case 524:
       return "Request took too long to process. Please try again later.";
     default:
+      // Check if it's a 5xx server error
+      if (httpStatus >= 500 && httpStatus < 600) {
+        return "Internal server error. We've received an alert about this issue and will be working on fixing it. Please reach out to support if this persists.";
+      }
       return "Internal error";
   }
 };

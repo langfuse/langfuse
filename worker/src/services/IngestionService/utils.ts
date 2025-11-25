@@ -1,4 +1,4 @@
-import { JsonNested } from "@langfuse/shared";
+import { JsonNested, Prisma } from "@langfuse/shared";
 import { mergeWith, merge } from "lodash";
 
 // Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
@@ -23,14 +23,34 @@ export const convertJsonSchemaToRecord = (
   return jsonSchema as Record<string, string>;
 };
 
+export const convertPostgresJsonToMetadataRecord = (
+  metadata: Prisma.JsonValue,
+): Record<string, string> => {
+  if (
+    typeof metadata === "string" ||
+    typeof metadata === "number" ||
+    typeof metadata === "boolean"
+  ) {
+    return { metadata: String(metadata) };
+  }
+  if (Array.isArray(metadata)) {
+    return { metadata: JSON.stringify(metadata) };
+  }
+  if (metadata && typeof metadata === "object") {
+    return convertRecordValuesToString(metadata as Record<string, unknown>);
+  }
+  return {};
+};
+
 export const convertRecordValuesToString = (
   record: Record<string, unknown>,
 ): Record<string, string> => {
+  const result: Record<string, string> = {};
   for (const key in record) {
     const value = record[key];
-    record[key] = typeof value === "string" ? value : JSON.stringify(value);
+    result[key] = typeof value === "string" ? value : JSON.stringify(value);
   }
-  return record as Record<string, string>;
+  return result;
 };
 
 export function overwriteObject(

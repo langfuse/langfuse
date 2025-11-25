@@ -11,7 +11,7 @@ service:
       method: GET
       path: /projects
       response: Projects
-    
+
     create:
       docs: Create a new project (requires organization-scoped API key)
       method: POST
@@ -26,9 +26,9 @@ service:
               docs: Optional metadata for the project
             retention:
               type: integer
-              docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
+              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
       response: Project
-    
+
     update:
       docs: Update a project by ID (requires organization-scoped API key).
       method: PUT
@@ -45,9 +45,9 @@ service:
               docs: Optional metadata for the project
             retention:
               type: integer
-              docs: Number of days to retain data. Must be 0 or at least 7 days. Requires data-retention entitlement for non-zero values. Optional.
+              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
       response: Project
-    
+
     delete:
       docs: Delete a project by ID (requires organization-scoped API key). Project deletion is processed asynchronously.
       method: DELETE
@@ -57,7 +57,7 @@ service:
       response:
         status-code: 202
         type: ProjectDeletionResponse
-        
+
     # API Key endpoints
     getApiKeys:
       docs: Get all API keys for a project (requires organization-scoped API key)
@@ -80,6 +80,12 @@ service:
             note:
               type: optional<string>
               docs: Optional note for the API key
+            publicKey:
+              type: optional<string>
+              docs: Optional predefined public key. Must start with 'pk-lf-'. If provided, secretKey must also be provided.
+            secretKey:
+              type: optional<string>
+              docs: Optional predefined secret key. Must start with 'sk-lf-'. If provided, publicKey must also be provided.
       response: ApiKeyResponse
 
     deleteApiKey:
@@ -104,14 +110,14 @@ types:
         type: map<string, unknown>
         docs: Metadata for the project
       retentionDays:
-        type: integer
+        type: optional<integer>
         docs: Number of days to retain data. Null or 0 means no retention. Omitted if no retention is configured.
 
   ProjectDeletionResponse:
     properties:
       success: boolean
       message: string
-      
+
   ApiKeyList:
     docs: List of API keys for a project
     properties:
@@ -137,7 +143,7 @@ types:
       secretKey: string
       displaySecretKey: string
       note: optional<string>
-      
+
   ApiKeyDeletionResponse:
     docs: Response for API key deletion
     properties:

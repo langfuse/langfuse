@@ -1,15 +1,16 @@
 import { expect, describe, it, beforeEach, afterEach } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 import {
   findModel,
   findModelInPostgres,
   getRedisModelKey,
-} from "../services/modelMatch";
+  clearModelCacheForProject,
+} from "@langfuse/shared/src/server";
 
 describe("modelMatch", () => {
   describe("findModel", () => {
-    it("should return model from Redis if available", async () => {
+    it("should return model with prices from Redis if available", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       // First create a model in Postgres
       const mockModel = await prisma.model.create({
@@ -19,6 +20,15 @@ describe("modelMatch", () => {
           matchPattern: "gpt-4",
           unit: "TOKENS",
           inputPrice: "1.0123",
+        },
+      });
+
+      // Create prices for the model
+      const mockPrice = await prisma.price.create({
+        data: {
+          modelId: mockModel.id,
+          usageType: "input",
+          price: "0.03",
         },
       });
 
@@ -34,36 +44,43 @@ describe("modelMatch", () => {
         model: "gpt-4",
       });
 
-      expect(result).not.toBeNull();
-      if (!result) {
-        throw new Error("Result is null");
+      expect(result.model).not.toBeNull();
+      if (!result.model) {
+        throw new Error("Result model is null");
       }
-      expect(result.id).toEqual(mockModel.id);
-      expect(result.projectId).toEqual(mockModel.projectId);
-      expect(result.modelName).toEqual(mockModel.modelName);
-      expect(result.matchPattern).toEqual(mockModel.matchPattern);
-      expect(result.unit).toEqual(mockModel.unit);
-      expect(result.inputPrice?.toString()).toEqual(
+      expect(result.model.id).toEqual(mockModel.id);
+      expect(result.model.projectId).toEqual(mockModel.projectId);
+      expect(result.model.modelName).toEqual(mockModel.modelName);
+      expect(result.model.matchPattern).toEqual(mockModel.matchPattern);
+      expect(result.model.unit).toEqual(mockModel.unit);
+      expect(result.model.inputPrice?.toString()).toEqual(
         mockModel.inputPrice?.toString(),
       );
-      expect(result.outputPrice?.toString()).toEqual(
+      expect(result.model.outputPrice?.toString()).toEqual(
         mockModel.outputPrice?.toString(),
       );
-      expect(result.totalPrice?.toString()).toEqual(
+      expect(result.model.totalPrice?.toString()).toEqual(
         mockModel.totalPrice?.toString(),
       );
 
-      // Verify the model exists in Redis
+      // Verify prices are included
+      expect(result.prices).toHaveLength(1);
+      expect(result.prices[0].id).toEqual(mockPrice.id);
+      expect(result.prices[0].usageType).toEqual(mockPrice.usageType);
+
+      // Verify the model with prices exists in Redis
       const redisKey = getRedisModelKey({
         projectId,
         model: "gpt-4",
       });
 
-      const cachedModel = await redis?.get(redisKey);
-      expect(cachedModel).not.toBeNull();
-      const parsedModel = JSON.parse(cachedModel!);
-      expect(parsedModel.id).toEqual(mockModel.id);
-      expect(parsedModel.projectId).toEqual(mockModel.projectId);
+      const cachedValue = await redis?.get(redisKey);
+      expect(cachedValue).not.toBeNull();
+      const parsed = JSON.parse(cachedValue!);
+      expect(parsed.model.id).toEqual(mockModel.id);
+      expect(parsed.model.projectId).toEqual(mockModel.projectId);
+      expect(parsed.prices).toHaveLength(1);
+      expect(parsed.prices[0].id).toEqual(mockPrice.id);
     });
 
     it("should query Postgres if Redis cache misses", async () => {
@@ -82,7 +99,8 @@ describe("modelMatch", () => {
         model: "gpt-4",
       });
 
-      expect(result).toEqual(mockModel);
+      expect(result.model).toEqual(mockModel);
+      expect(result.prices).toEqual([]);
     });
 
     it("should cache not found models in Redis", async () => {
@@ -94,14 +112,16 @@ describe("modelMatch", () => {
         projectId,
         model: nonExistentModel,
       });
-      expect(result1).toBeNull();
+      expect(result1.model).toBeNull();
+      expect(result1.prices).toEqual([]);
 
       // Second lookup should use the cached not-found result
       const result2 = await findModel({
         projectId,
         model: nonExistentModel,
       });
-      expect(result2).toBeNull();
+      expect(result2.model).toBeNull();
+      expect(result2.prices).toEqual([]);
 
       // Verify the not-found token exists in Redis
       const redisKey = getRedisModelKey({
@@ -160,6 +180,77 @@ describe("modelMatch", () => {
       });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("clearModelCacheForProject", () => {
+    it("should clear all cached models for a project", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      // Create and cache multiple models
+      await prisma.model.create({
+        data: {
+          projectId,
+          modelName: "gpt-4",
+          matchPattern: "gpt-4",
+          unit: "TOKENS",
+          inputPrice: "1.0",
+        },
+      });
+
+      await prisma.model.create({
+        data: {
+          projectId,
+          modelName: "gpt-3.5-turbo",
+          matchPattern: "gpt-3.5-turbo",
+          unit: "TOKENS",
+          inputPrice: "0.5",
+        },
+      });
+
+      // Cache both models by finding them
+      await findModel({ projectId, model: "gpt-4" });
+      await findModel({ projectId, model: "gpt-3.5-turbo" });
+
+      // Verify models are cached in Redis
+      const redisKey1 = getRedisModelKey({ projectId, model: "gpt-4" });
+      const redisKey2 = getRedisModelKey({ projectId, model: "gpt-3.5-turbo" });
+
+      const cachedModel1 = await redis?.get(redisKey1);
+      const cachedModel2 = await redis?.get(redisKey2);
+
+      expect(cachedModel1).not.toBeNull();
+      expect(cachedModel2).not.toBeNull();
+
+      // Clear the cache for the project
+      await clearModelCacheForProject(projectId);
+
+      // Verify models are no longer cached
+      const clearedModel1 = await redis?.get(redisKey1);
+      const clearedModel2 = await redis?.get(redisKey2);
+
+      expect(clearedModel1).toBeNull();
+      expect(clearedModel2).toBeNull();
+    });
+
+    it("should clear cached not-found tokens for a project", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const nonExistentModel = "nonexistent-model";
+
+      // Cache a not-found result
+      await findModel({ projectId, model: nonExistentModel });
+
+      // Verify the not-found token is cached
+      const redisKey = getRedisModelKey({ projectId, model: nonExistentModel });
+      const cachedValue = await redis?.get(redisKey);
+      expect(cachedValue).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
+
+      // Clear the cache for the project
+      await clearModelCacheForProject(projectId);
+
+      // Verify the not-found token is cleared
+      const clearedValue = await redis?.get(redisKey);
+      expect(clearedValue).toBeNull();
     });
   });
 });

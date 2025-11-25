@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import type { Session } from "next-auth";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -16,8 +15,6 @@ import { randomUUID } from "crypto";
 
 describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
-  beforeEach(async () => await pruneDatabase());
 
   const session: Session = {
     expires: "1",
@@ -55,7 +52,7 @@ describe("traces trpc", () => {
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
-  describe("sessions.byId", () => {
+  describe("sessions.byIdWithScores", () => {
     it("access private session", async () => {
       const sessionId = randomUUID();
 
@@ -95,7 +92,7 @@ describe("traces trpc", () => {
 
       await createObservationsCh([observation, observation2, observation3]);
 
-      const sessionRes = await caller.sessions.byId({
+      const sessionRes = await caller.sessions.byIdWithScores({
         projectId,
         sessionId,
       });
@@ -108,6 +105,7 @@ describe("traces trpc", () => {
         environment: "default",
         bookmarked: false,
         public: false,
+        scores: [],
         traces: expect.arrayContaining([
           expect.objectContaining({
             id: trace.id,
@@ -139,6 +137,8 @@ describe("traces trpc", () => {
       // When
       const sessions = await caller.sessions.all({
         projectId,
+        limit: 50,
+        page: 0,
         orderBy: {
           column: "createdAt",
           order: "DESC",
@@ -155,6 +155,55 @@ describe("traces trpc", () => {
 
       // Then
       expect(sessions.sessions).toBeDefined();
+    });
+
+    it("should return empty when filtering by session_id and mismatched environment", async () => {
+      // Setup - create a session with non-default environment
+      const sessionId = randomUUID();
+      const testEnvironment = "staging";
+
+      await prisma.traceSession.create({
+        data: {
+          id: sessionId,
+          projectId,
+          environment: testEnvironment,
+        },
+      });
+
+      const trace = createTrace({
+        project_id: projectId,
+        session_id: sessionId,
+        environment: testEnvironment,
+      });
+      await createTracesCh([trace]);
+
+      // When - filter by correct session_id but wrong environment
+      const sessions = await caller.sessions.all({
+        projectId,
+        limit: 50,
+        page: 0,
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        filter: [
+          {
+            column: "ID",
+            operator: "=",
+            value: sessionId,
+            type: "string",
+          },
+          {
+            column: "environment",
+            operator: "=",
+            value: "production",
+            type: "string",
+          },
+        ],
+      });
+
+      // Then - should return empty result
+      expect(sessions.sessions).toEqual([]);
     });
   });
 
@@ -179,6 +228,8 @@ describe("traces trpc", () => {
       // When
       const sessions = await caller.sessions.countAll({
         projectId,
+        limit: 50,
+        page: 0,
         filter: null,
         orderBy: null,
       });

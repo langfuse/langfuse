@@ -15,7 +15,7 @@ import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetScoreResponseV2, GetScoresResponseV2 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 describe("/api/public/v2/scores API Endpoint", () => {
   describe("GET /api/public/v2/scores/:scoreId", () => {
@@ -475,10 +475,9 @@ describe("/api/public/v2/scores API Endpoint", () => {
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
-          expect(val).toMatchObject({
-            traceId: traceId,
-            trace: { tags: ["prod", "test"], userId: "user-name" },
-          });
+          expect(val.traceId).toBe(traceId);
+          expect(val.trace?.tags?.sort()).toEqual(["prod", "test"].sort());
+          expect(val.trace?.userId).toBe("user-name");
         }
       });
 
@@ -811,7 +810,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
             );
           } catch (error) {
             expect((error as Error).message).toBe(
-              `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
+              `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]}`,
             );
           }
         });
@@ -830,7 +829,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
             );
           } catch (error) {
             expect((error as Error).message).toBe(
-              'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
+              'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]}',
             );
           }
         });
@@ -862,6 +861,111 @@ describe("/api/public/v2/scores API Endpoint", () => {
               id: scoreId_1,
               name: scoreName,
               value: 10.5,
+            }),
+          ]),
+        );
+      });
+
+      it("should filter scores by session ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?sessionId=${sessionId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_6,
+              sessionId: sessionId,
+              name: scoreName,
+              value: 100.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_7,
+              sessionId: sessionId,
+              name: "session-score-name",
+              value: 100.5,
+            }),
+          ]),
+        );
+      });
+
+      it("should filter scores by dataset run ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?datasetRunId=${runId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_8,
+              datasetRunId: runId,
+              name: scoreName,
+              value: 100.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_9,
+              datasetRunId: runId,
+              name: scoreName,
+              value: 100.5,
+            }),
+          ]),
+        );
+      });
+
+      it("should filter scores by trace ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?traceId=${traceId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 3,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_1,
+              traceId: traceId,
+              name: scoreName,
+              value: 10.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_2,
+              traceId: traceId,
+              name: scoreName,
+              value: 50.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_3,
+              traceId: traceId,
+              name: scoreName,
+              value: 100.8,
             }),
           ]),
         );

@@ -1,11 +1,23 @@
-import { PlusCircleIcon } from "lucide-react";
+import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
   ChatMessageRole,
   ChatMessageType,
-  SYSTEM_ROLES,
+  type ChatMessageWithId,
 } from "@langfuse/shared";
 
 import { ChatMessageComponent } from "./ChatMessageComponent";
@@ -60,10 +72,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
         if (newIndex < 0 || oldIndex < 0) {
           return;
         }
-        // prevent reordering system messages
-        if (SYSTEM_ROLES.includes(messages[newIndex].role)) {
-          return;
-        }
+        // allow any message to be reordered
         const newMessages = arrayMove(messages, oldIndex, newIndex);
         props.setMessages(newMessages);
       }
@@ -79,7 +88,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
     >
       <div className="flex h-full flex-col">
         <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
-          <div className="mb-4 flex-1 space-y-2">
+          <div className="flex-1 space-y-2">
             <SortableContext
               items={props.messages.map((message) => message.id)}
               strategy={verticalListSortingStrategy}
@@ -99,10 +108,10 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
                 );
               })}
             </SortableContext>
+            <div className="mb-4 py-3">
+              <AddMessageButton {...props} />
+            </div>
           </div>
-        </div>
-        <div className="py-3">
-          <AddMessageButton {...props} />
         </div>
       </div>
     </DndContext>
@@ -114,35 +123,159 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
   messages,
   addMessage,
 }) => {
-  const lastMessageRole = messages[messages.length - 1]?.role;
+  // Skip placeholder messages when determining last roles
+  const lastMessageWithRole = messages
+    .slice()
+    .reverse()
+    .find(
+      (msg): msg is ChatMessageWithId & { role: string } =>
+        msg.type !== ChatMessageType.Placeholder,
+    );
+  const lastMessageRole = lastMessageWithRole?.role;
   const nextMessageRole =
     lastMessageRole === ChatMessageRole.User
       ? ChatMessageRole.Assistant
       : ChatMessageRole.User;
 
+  const addRegularMessage = () => {
+    if (nextMessageRole === ChatMessageRole.User) {
+      addMessage({
+        role: nextMessageRole,
+        content: "",
+        type: ChatMessageType.User,
+      });
+    } else {
+      addMessage({
+        role: nextMessageRole,
+        content: "",
+        type: ChatMessageType.AssistantText,
+      });
+    }
+  };
+
+  const addMessageWithRole = (role: ChatMessageRole) => {
+    switch (role) {
+      case ChatMessageRole.User:
+        addMessage({
+          role: ChatMessageRole.User,
+          content: "",
+          type: ChatMessageType.User,
+        });
+        break;
+      case ChatMessageRole.Assistant:
+        addMessage({
+          role: ChatMessageRole.Assistant,
+          content: "",
+          type: ChatMessageType.AssistantText,
+        });
+        break;
+      case ChatMessageRole.System:
+        addMessage({
+          role: ChatMessageRole.System,
+          content: "",
+          type: ChatMessageType.System,
+        });
+        break;
+      case ChatMessageRole.Developer:
+        addMessage({
+          role: ChatMessageRole.Developer,
+          content: "",
+          type: ChatMessageType.Developer,
+        });
+        break;
+      case ChatMessageRole.Tool:
+        addMessage({
+          role: ChatMessageRole.Tool,
+          content: "",
+          type: ChatMessageType.ToolResult,
+          toolCallId: "",
+        });
+        break;
+      default:
+        addRegularMessage();
+    }
+  };
+
+  const addPlaceholderMessage = () => {
+    addMessage({
+      type: ChatMessageType.Placeholder,
+      name: "",
+    });
+  };
+
   return (
-    <Button
-      type="button" // prevents submitting a form if this button is inside a form
-      variant="outline"
-      className="w-full"
-      onClick={() => {
-        if (nextMessageRole === ChatMessageRole.User) {
-          addMessage({
-            role: nextMessageRole,
-            content: "",
-            type: ChatMessageType.User,
-          });
-        } else {
-          addMessage({
-            role: nextMessageRole,
-            content: "",
-            type: ChatMessageType.AssistantText,
-          });
-        }
-      }}
-    >
-      <PlusCircleIcon size={14} className="mr-2" />
-      <p>Add message</p>
-    </Button>
+    <div className="flex gap-2">
+      <div className="flex flex-1 gap-0">
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1 rounded-r-none border-r-0"
+          onClick={addRegularMessage}
+        >
+          <PlusCircleIcon size={14} className="mr-2" />
+          <p>Message</p>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-l-none border-l px-2"
+            >
+              <ChevronDownIcon size={14} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.User)}
+            >
+              User Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Assistant)}
+            >
+              Assistant Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.System)}
+            >
+              System Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Developer)}
+            >
+              Developer Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Tool)}
+            >
+              Tool Message
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={addPlaceholderMessage}
+            >
+              <PlusCircleIcon size={14} className="mr-2" />
+              <p>Placeholder</p>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">
+              Adds a placeholder to inject message pairs, e.g. a message history
+              (with &quot;role&quot;, &quot;content&quot; pairs) when compiling
+              the message in the SDK.
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
   );
 };

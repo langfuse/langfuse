@@ -2,7 +2,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
-import { handleCreateProject } from "@/src/ee/features/admin-api/public/projects/createProject";
+import { handleCreateProject } from "@/src/ee/features/admin-api/server/projects/createProject";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
@@ -53,7 +53,7 @@ export default async function handler(
         },
         where: {
           id: authCheck.scope.projectId,
-          // deletedAt: null, // here we want to include deleted projects and grey them in the UI.
+          deletedAt: null,
         },
       });
 

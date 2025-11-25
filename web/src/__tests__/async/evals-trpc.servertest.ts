@@ -25,6 +25,7 @@ async function prepare() {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
           projects: [
             {
               id: project.id,
@@ -32,6 +33,7 @@ async function prepare() {
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
+              metadata: {},
             },
           ],
         },
@@ -123,6 +125,11 @@ describe("evals trpc", () => {
 
       const response = await caller.evals.allConfigs({
         projectId: project.id,
+        filter: [],
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
         limit: 10,
         page: 0,
       });

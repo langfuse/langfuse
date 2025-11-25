@@ -135,12 +135,18 @@ describe("ProjectDeletionProcessingJob", () => {
     } as Job);
 
     // Then
-    const trace = await getTraceById({ traceId: `${baseId}-trace`, projectId });
+    const trace = await getTraceById({
+      traceId: `${baseId}-trace`,
+      projectId,
+    });
     expect(trace).toBeUndefined();
     expect(() =>
-      getObservationById(`${baseId}-observation`, projectId),
+      getObservationById({ id: `${baseId}-observation`, projectId }),
     ).rejects.toThrowError("not found");
-    const score = await getScoreById({ projectId, scoreId: `${baseId}-score` });
+    const score = await getScoreById({
+      projectId,
+      scoreId: `${baseId}-score`,
+    });
     expect(score).toBeUndefined();
   });
 
@@ -198,12 +204,11 @@ describe("ProjectDeletionProcessingJob", () => {
     const fileName = `${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     const mediaId = randomUUID();
@@ -241,7 +246,7 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
-      where: { id: mediaId },
+      where: { projectId_id: { id: mediaId, projectId } },
     });
     expect(media).toBeNull();
 

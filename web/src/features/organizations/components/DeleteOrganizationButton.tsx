@@ -1,8 +1,10 @@
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -16,7 +18,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import * as z from "zod";
+import * as z from "zod/v4";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -46,7 +48,7 @@ export function DeleteOrganizationButton() {
   const deleteOrganization = api.organizations.delete.useMutation();
   const hasProjects = !!organization && organization.projects.length > 0;
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
@@ -96,28 +98,32 @@ export function DeleteOrganizationButton() {
             className="space-y-8"
           >
             {!hasProjects && (
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Input placeholder={confirmMessage} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <DialogBody>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder={confirmMessage} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </DialogBody>
             )}
-            <Button
-              type="submit"
-              variant="destructive"
-              loading={deleteOrganization.isLoading}
-              disabled={hasProjects}
-              className="w-full"
-            >
-              Delete Organization
-            </Button>
+            <DialogFooter>
+              <Button
+                type="submit"
+                variant="destructive"
+                loading={deleteOrganization.isPending}
+                disabled={hasProjects}
+                className="w-full"
+              >
+                Delete Organization
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

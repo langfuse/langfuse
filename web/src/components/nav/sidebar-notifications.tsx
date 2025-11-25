@@ -12,10 +12,13 @@ import useLocalStorage from "../useLocalStorage";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
+const NOTIFICATION_TTL_MS = 14 * 24 * 60 * 60 * 1000; // two weeks
+
 type SidebarNotification = {
   id: string; // Add unique ID for each notification
   title: string;
   description: React.ReactNode;
+  createdAt?: string; // optional, used to expire the notification
   link?: string;
   // defaults to "Learn more" if no linkContent and no linkTitle
   linkTitle?: string;
@@ -32,7 +35,7 @@ const notifications: SidebarNotification[] = [
     linkContent: (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        alt="Langfuse Github stars"
+        alt="Langfuse GitHub stars"
         src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
       />
     ),
@@ -51,17 +54,21 @@ export function SidebarNotifications() {
     string[]
   >(STORAGE_KEY, []);
 
+  const isExpired = (notif: SidebarNotification) => {
+    if (!notif.createdAt) return false;
+    const created = new Date(notif.createdAt).getTime();
+    return Date.now() > created + NOTIFICATION_TTL_MS;
+  };
+
   // Find the oldest non-dismissed notification on mount or when dismissed list changes
   useEffect(() => {
-    const lastAvailableIndex = notifications
-      .slice()
-      .reverse()
-      .findIndex((notif) => !dismissedNotifications.includes(notif.id));
+    const firstAvailableIndex = notifications.findIndex(
+      (notif) =>
+        !dismissedNotifications.includes(notif.id) && !isExpired(notif),
+    );
 
     setCurrentNotificationIndex(
-      lastAvailableIndex === -1
-        ? null
-        : notifications.length - 1 - lastAvailableIndex,
+      firstAvailableIndex === -1 ? null : firstAvailableIndex,
     );
   }, [dismissedNotifications]);
 
@@ -80,7 +87,7 @@ export function SidebarNotifications() {
       <Button
         variant="ghost"
         size="sm"
-        className="absolute right-2 top-2 h-6 w-6 p-0"
+        className="absolute right-1.5 top-2.5 h-5 w-5 p-0"
         onClick={() => {
           capture("notification:dismiss_notification", {
             notification_id: currentNotification.id,
@@ -89,13 +96,15 @@ export function SidebarNotifications() {
         }}
         title="Dismiss"
       >
-        <X className="h-4 w-4" />
+        <X className="h-3.5 w-3.5" />
       </Button>
-      <CardHeader className="p-4 pb-0">
+      <CardHeader className="px-3 pb-0 pr-6 pt-2.5">
         <CardTitle className="text-sm">{currentNotification.title}</CardTitle>
-        <CardDescription>{currentNotification.description}</CardDescription>
+        <CardDescription className="mt-1">
+          {currentNotification.description}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="p-4 pt-2">
+      <CardContent className="px-3 pb-2.5 pt-1.5">
         {currentNotification.link &&
           (currentNotification.linkContent ? (
             <Link
@@ -110,7 +119,7 @@ export function SidebarNotifications() {
               {currentNotification.linkContent}
             </Link>
           ) : (
-            <Button variant="secondary" size="sm" asChild>
+            <Button variant="secondary" size="sm" className="w-full" asChild>
               <Link
                 href={currentNotification.link}
                 target="_blank"
