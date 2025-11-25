@@ -416,7 +416,6 @@ const getDatasetRunsTableInternal = async <T>(
       FROM dataset_run_items_deduped dri
       JOIN observations_filtered of ON dri.trace_id = of.trace_id
         AND dri.project_id = of.project_id
-      WHERE dri.observation_id IS NULL  -- Only for trace-level dataset run items
       GROUP BY dri.trace_id, dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
     ),
   `;
@@ -442,8 +441,8 @@ const getDatasetRunsTableInternal = async <T>(
         AVG(CASE WHEN dri.observation_id IS NOT NULL THEN
           dateDiff('millisecond', of.start_time, of.end_time) / 1000.0
         ELSE NULL END) as obs_avg_latency,
-        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_avg_cost,
-        SUM(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_total_cost
+        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN tm.total_cost ELSE NULL END) as obs_avg_cost,
+        SUM(CASE WHEN dri.observation_id IS NOT NULL THEN tm.total_cost ELSE NULL END) as obs_total_cost
 
       FROM dataset_run_items_deduped dri
       LEFT JOIN observations_filtered of ON dri.observation_id = of.id
