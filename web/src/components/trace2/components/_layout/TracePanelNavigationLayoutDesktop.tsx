@@ -1,10 +1,10 @@
 /**
- * TracePanelNavigationWrapper - Layout wrapper for navigation panel
+ * TracePanelNavigationLayoutDesktop - Desktop-specific layout wrapper for navigation panel
  *
  * Responsibility:
  * - Wrap navigation content with header and collapsible layout structure
  * - Handle panel collapse/expand state for desktop
- * - Position HiddenObservationsNotice above content
+ * - Position TracePanelNavigationHiddenNotice above content
  *
  * Hooks:
  * - useDesktopLayoutContext() - for panel collapse state
@@ -17,9 +17,9 @@
 import { type ReactNode } from "react";
 import { useDesktopLayoutContext } from "./TraceLayoutDesktop";
 import { TracePanelNavigationHeader } from "./TracePanelNavigationHeader";
-import { HiddenObservationsNotice } from "./HiddenObservationsNotice";
+import { TracePanelNavigationHiddenNotice } from "./TracePanelNavigationHiddenNotice";
 
-export function TracePanelNavigationWrapper({
+export function TracePanelNavigationLayoutDesktop({
   children,
 }: {
   children: ReactNode;
@@ -36,7 +36,7 @@ export function TracePanelNavigationWrapper({
       />
       {!isNavigationPanelCollapsed && (
         <>
-          <HiddenObservationsNotice />
+          <TracePanelNavigationHiddenNotice />
           <div className="flex-1 overflow-hidden">{children}</div>
         </>
       )}

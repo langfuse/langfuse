@@ -12,10 +12,10 @@ import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { TraceLayoutMobile } from "./components/_layout/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "./components/_layout/TraceLayoutDesktop";
-import { HiddenObservationsNotice } from "./components/_layout/HiddenObservationsNotice";
 import { TracePanelNavigation } from "./components/_layout/TracePanelNavigation";
 import { TracePanelDetail } from "./components/_layout/TracePanelDetail";
-import { TracePanelNavigationWrapper } from "./components/_layout/TracePanelNavigationWrapper";
+import { TracePanelNavigationLayoutDesktop } from "./components/_layout/TracePanelNavigationLayoutDesktop";
+import { TracePanelNavigationLayoutMobile } from "./components/_layout/TracePanelNavigationLayoutMobile";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 
 import { useMemo } from "react";
@@ -104,9 +104,9 @@ function DesktopTraceContent() {
   return (
     <TraceLayoutDesktop>
       <TraceLayoutDesktop.Navigation>
-        <TracePanelNavigationWrapper>
+        <TracePanelNavigationLayoutDesktop>
           <TracePanelNavigation />
-        </TracePanelNavigationWrapper>
+        </TracePanelNavigationLayoutDesktop>
       </TraceLayoutDesktop.Navigation>
       <TraceLayoutDesktop.ResizeHandle />
       <TraceLayoutDesktop.Detail>
@@ -121,12 +121,9 @@ function MobileTraceContent() {
     <div className="h-full w-full">
       <TraceLayoutMobile>
         <TraceLayoutMobile.Navigation>
-          <div className="flex h-full flex-col">
-            <HiddenObservationsNotice />
-            <div className="flex-1 overflow-hidden">
-              <TracePanelNavigation />
-            </div>
-          </div>
+          <TracePanelNavigationLayoutMobile>
+            <TracePanelNavigation />
+          </TracePanelNavigationLayoutMobile>
         </TraceLayoutMobile.Navigation>
         <TraceLayoutMobile.Detail>
           <TracePanelDetail />

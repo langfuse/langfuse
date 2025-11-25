@@ -14,7 +14,7 @@ import { ObservationLevel } from "@langfuse/shared";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 
-export function HiddenObservationsNotice() {
+export function TracePanelNavigationHiddenNotice() {
   const { hiddenObservationsCount } = useTraceData();
   const { minObservationLevel, setMinObservationLevel } = useViewPreferences();
 
