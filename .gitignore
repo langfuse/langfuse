@@ -56,6 +56,8 @@ yarn-error.log*
 # openapi spec that is copied during build
 /public/openapi*.yml
 
+# claude meta files
+./claude/tsc-cache/*
 
 # vscode
 node_modules

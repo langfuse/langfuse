@@ -1,7 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { v4 as uuidv4 } from "uuid";
 import {
   GetDatasetItemsV1Query,
   GetDatasetItemsV1Response,
@@ -10,12 +9,11 @@ import {
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import {
-  type DatasetItem,
   LangfuseNotFoundError,
   InvalidRequestError,
   Prisma,
 } from "@langfuse/shared";
-import { logger, validateDatasetItemData } from "@langfuse/shared/src/server";
+import { logger, DatasetItemManager } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -44,77 +42,39 @@ export default withMiddlewares({
         status,
       } = body;
 
-      const dataset = await prisma.dataset.findFirst({
-        where: {
-          projectId: auth.scope.projectId,
-          name: datasetName,
-        },
-        select: {
-          id: true,
-          name: true,
-          inputSchema: true,
-          expectedOutputSchema: true,
-        },
-      });
-      if (!dataset) {
-        throw new LangfuseNotFoundError("Dataset not found");
-      }
-
-      const itemId = id ?? uuidv4();
-
-      // Validate input and expectedOutput against schemas before upsert
-      // For UPSERT (which handles both CREATE and UPDATE), we validate as CREATE
-      // because the data is always being set (not partial update)
-      const validationResult = validateDatasetItemData({
-        input: input ?? undefined,
-        expectedOutput: expectedOutput ?? undefined,
-        inputSchema: dataset.inputSchema as Record<string, unknown> | null,
-        expectedOutputSchema: dataset.expectedOutputSchema as Record<
-          string,
-          unknown
-        > | null,
-        normalizeUndefinedToNull: true, // UPSERT behaves like CREATE for validation
-      });
-
-      if (!validationResult.isValid) {
-        const errorDetails = {
-          inputErrors: validationResult.inputErrors,
-          expectedOutputErrors: validationResult.expectedOutputErrors,
-        };
-        throw new InvalidRequestError(
-          `Dataset item validation failed: ${JSON.stringify(errorDetails)}`,
-        );
-      }
-
-      let item: DatasetItem;
       try {
-        item = await prisma.datasetItem.upsert({
-          where: {
-            datasetId: dataset.id,
-            id_projectId: {
-              projectId: auth.scope.projectId,
-              id: itemId,
-            },
-          },
-          create: {
-            id: itemId,
-            input: input ?? undefined,
-            expectedOutput: expectedOutput ?? undefined,
-            datasetId: dataset.id,
-            metadata: metadata ?? undefined,
-            sourceTraceId: sourceTraceId ?? undefined,
-            sourceObservationId: sourceObservationId ?? undefined,
-            status: status ?? undefined,
-            projectId: auth.scope.projectId,
-          },
-          update: {
-            input: input ?? undefined,
-            expectedOutput: expectedOutput ?? undefined,
-            metadata: metadata ?? undefined,
-            sourceTraceId: sourceTraceId ?? undefined,
-            sourceObservationId: sourceObservationId ?? undefined,
-            status: status ?? undefined,
-          },
+        const result = await DatasetItemManager.upsertItem({
+          projectId: auth.scope.projectId,
+          datasetName: datasetName,
+          datasetItemId: id ?? undefined,
+          input: input ?? undefined,
+          expectedOutput: expectedOutput ?? undefined,
+          metadata: metadata ?? undefined,
+          sourceTraceId: sourceTraceId ?? undefined,
+          sourceObservationId: sourceObservationId ?? undefined,
+          status: status ?? undefined,
+          normalizeOpts: { sanitizeControlChars: true },
+          validateOpts: { normalizeUndefinedToNull: !!id ? false : true },
+        });
+        if (!result.success) {
+          throw new InvalidRequestError(
+            `Dataset item validation failed: ${result.message}`,
+          );
+        }
+
+        await auditLog({
+          action: "create",
+          resourceType: "datasetItem",
+          resourceId: result.datasetItem.id,
+          projectId: auth.scope.projectId,
+          orgId: auth.scope.orgId,
+          apiKeyId: auth.scope.apiKeyId,
+          after: result.datasetItem,
+        });
+
+        return transformDbDatasetItemToAPIDatasetItem({
+          ...result.datasetItem,
+          datasetName: datasetName,
         });
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -124,38 +84,15 @@ export default withMiddlewares({
             // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
             // If this record does not exist, the database will throw an error.
             logger.warn(
-              `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
+              `Failed to upsert dataset item. Dataset item ${id} in project ${auth.scope.projectId} already exists for a different dataset than ${datasetName}`,
             );
             throw new LangfuseNotFoundError(
-              `The dataset item with id ${itemId} already exists in a dataset other than ${dataset.name}`,
-            );
-          } else if (e.code === "22P05") {
-            // Input includes control characters incompatible with postgres.
-            logger.warn(
-              `Failed to upsert dataset item. Unsupported unicode escape sequence.`,
-            );
-            throw new InvalidRequestError(
-              `The dataset item with id ${itemId} contains unsupported unicode escape sequences`,
+              `The dataset item with id ${id} already exists in a dataset other than ${datasetName}`,
             );
           }
         }
         throw e;
       }
-
-      await auditLog({
-        action: "create",
-        resourceType: "datasetItem",
-        resourceId: item.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        after: item,
-      });
-
-      return transformDbDatasetItemToAPIDatasetItem({
-        ...item,
-        datasetName: dataset.name,
-      });
     },
   }),
   GET: createAuthedProjectAPIRoute({
