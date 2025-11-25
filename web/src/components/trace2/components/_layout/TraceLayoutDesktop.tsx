@@ -1,14 +1,19 @@
 import { StringParam, useQueryParam } from "use-query-params";
-import { TracePanelNavigation } from "./TracePanelNavigation";
-import { TracePanelDetail } from "./TracePanelDetail";
-
 import {
   PanelGroup,
   PanelResizeHandle,
   Panel,
   type ImperativePanelHandle,
 } from "react-resizable-panels";
-import { useRef, useState, useEffect, useLayoutEffect } from "react";
+import {
+  useRef,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  createContext,
+  useContext,
+  type ReactNode,
+} from "react";
 
 const RESIZABLE_PANEL_GROUP_ID = "trace-layout";
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
@@ -19,7 +24,35 @@ const NAVIGATION_PANEL_DEFAULT_SIZE_IN_PIXELS = 450;
 const NAVIGATION_PANEL_MIN_SIZE_IN_PIXELS = 360;
 const NAVIGATION_PANEL_COLLAPSED_SIZE_IN_PIXELS = 40;
 
-export function TraceLayoutDesktop() {
+// Context for sharing panel state with compound components
+interface TraceLayoutDesktopContext {
+  navigationPanelMinSize: number;
+  navigationPanelCollapsedSize: number;
+  isNavigationPanelCollapsed: boolean;
+  setIsNavigationPanelCollapsed: (collapsed: boolean) => void;
+  panelRef: React.RefObject<ImperativePanelHandle | null>;
+  handleTogglePanel: () => void;
+  shouldPulseToggle: boolean;
+}
+
+const LayoutContext = createContext<TraceLayoutDesktopContext | null>(null);
+
+function useLayoutContext() {
+  const context = useContext(LayoutContext);
+  if (!context) {
+    throw new Error(
+      "TraceLayoutDesktop compound components must be used within TraceLayoutDesktop",
+    );
+  }
+  return context;
+}
+
+// Export hook for use in Trace.tsx
+export function useDesktopLayoutContext() {
+  return useLayoutContext();
+}
+
+export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   // Get current view mode from URL
   const [viewMode] = useQueryParam("view", StringParam);
   const isTimelineView = viewMode === "timeline";
@@ -42,7 +75,7 @@ export function TraceLayoutDesktop() {
   const panelRef = useRef<ImperativePanelHandle>(null);
 
   useLayoutEffect(() => {
-    // Note: react-resizable-panels does not pixel-based values
+    // Note: react-resizable-panels does not support pixel-based values
     // this is a workaround to get the correct values
     const panelGroup = document.querySelector(
       `#${RESIZABLE_PANEL_GROUP_ID}`,
@@ -88,13 +121,11 @@ export function TraceLayoutDesktop() {
   }, []);
 
   const handleTogglePanel = () => {
-    console.log("[Trace2 Toggle] Button clicked", {});
-
     if (!panelRef.current) return;
 
     // Programmatically collapse or expand the panel
     if (isNavigationPanelCollapsed) {
-      // Expanding: restore to last size or use minSize as fallback
+      // Expanding: restore to last size or use defaultSize as fallback
       const targetSize = lastNavigationPanelSize ?? navigationPanelDefaultSize;
       panelRef.current.resize(targetSize);
       setIsNavigationPanelCollapsed(false);
@@ -123,33 +154,77 @@ export function TraceLayoutDesktop() {
     }
   }, [isTimelineView]);
 
+  const contextValue: TraceLayoutDesktopContext = {
+    navigationPanelMinSize,
+    navigationPanelCollapsedSize,
+    isNavigationPanelCollapsed,
+    setIsNavigationPanelCollapsed,
+    panelRef,
+    handleTogglePanel,
+    shouldPulseToggle,
+  };
+
   return (
-    <div className="h-full w-full">
-      <PanelGroup direction="horizontal" id={RESIZABLE_PANEL_GROUP_ID}>
-        <Panel
-          id={RESIZABLE_PANEL_NAVIGATION_ID}
-          ref={panelRef}
-          collapsible={true}
-          collapsedSize={navigationPanelCollapsedSize}
-          minSize={navigationPanelMinSize}
-          onCollapse={() => setIsNavigationPanelCollapsed(true)}
-          onExpand={() => setIsNavigationPanelCollapsed(false)}
-        >
-          <TracePanelNavigation
-            isPanelCollapsed={isNavigationPanelCollapsed}
-            onTogglePanel={handleTogglePanel}
-            shouldPulseToggle={shouldPulseToggle}
-          />
-        </Panel>
-        <PanelResizeHandle
-          id={RESIZABLE_PANEL_HANDLE_ID}
-          className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100"
-          onDoubleClick={handleTogglePanel}
-        />
-        <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize={70} minSize={50}>
-          <TracePanelDetail />
-        </Panel>
-      </PanelGroup>
-    </div>
+    <LayoutContext.Provider value={contextValue}>
+      <div className="h-full w-full">
+        <PanelGroup direction="horizontal" id={RESIZABLE_PANEL_GROUP_ID}>
+          {children}
+        </PanelGroup>
+      </div>
+    </LayoutContext.Provider>
   );
 }
+
+// Compound component: Navigation panel
+TraceLayoutDesktop.Navigation = function Navigation({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const {
+    navigationPanelMinSize,
+    navigationPanelCollapsedSize,
+    setIsNavigationPanelCollapsed,
+    panelRef,
+  } = useLayoutContext();
+
+  return (
+    <Panel
+      id={RESIZABLE_PANEL_NAVIGATION_ID}
+      ref={panelRef}
+      collapsible={true}
+      collapsedSize={navigationPanelCollapsedSize}
+      minSize={navigationPanelMinSize}
+      onCollapse={() => setIsNavigationPanelCollapsed(true)}
+      onExpand={() => setIsNavigationPanelCollapsed(false)}
+    >
+      {children}
+    </Panel>
+  );
+};
+
+// Compound component: Resize handle
+TraceLayoutDesktop.ResizeHandle = function ResizeHandle() {
+  const { handleTogglePanel } = useLayoutContext();
+
+  return (
+    <PanelResizeHandle
+      id={RESIZABLE_PANEL_HANDLE_ID}
+      className="relative w-px bg-border transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 data-[resize-handle-state='drag']:after:opacity-100"
+      onDoubleClick={handleTogglePanel}
+    />
+  );
+};
+
+// Compound component: Detail panel
+TraceLayoutDesktop.Detail = function Detail({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize={70} minSize={50}>
+      {children}
+    </Panel>
+  );
+};

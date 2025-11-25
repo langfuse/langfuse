@@ -1,59 +1,91 @@
 /**
- * MobileTraceLayout - Touch-friendly vertical layout for mobile devices
+ * TraceLayoutMobile - Touch-friendly vertical layout for mobile devices
  *
  * Purpose:
  * - Provide mobile-optimized UI without resizable panels
- * - Vertical stack: navigation at top, preview below
+ * - Vertical stack: navigation at top, detail below
  * - No drag handles (confusing on touch devices)
  *
  * Layout:
  * - Navigation is collapsible (accordion-style)
- * - Preview takes remaining space
+ * - Detail takes remaining space
  * - All content scrollable within sections
  */
 
-import { TracePanelNavigation } from "./TracePanelNavigation";
-import { TracePanelDetail } from "./TracePanelDetail";
-import { useState } from "react";
+import { useState, createContext, useContext, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-export function TraceLayoutMobile() {
+// Context for sharing accordion state with compound components
+interface TraceLayoutMobileContext {
+  isNavigationExpanded: boolean;
+  setIsNavigationExpanded: (expanded: boolean) => void;
+}
+
+const LayoutContext = createContext<TraceLayoutMobileContext | null>(null);
+
+function useLayoutContext() {
+  const context = useContext(LayoutContext);
+  if (!context) {
+    throw new Error(
+      "TraceLayoutMobile compound components must be used within TraceLayoutMobile",
+    );
+  }
+  return context;
+}
+
+export function TraceLayoutMobile({ children }: { children: ReactNode }) {
   const [isNavigationExpanded, setIsNavigationExpanded] = useState(true);
 
+  const contextValue: TraceLayoutMobileContext = {
+    isNavigationExpanded,
+    setIsNavigationExpanded,
+  };
+
   return (
-    <div className="flex h-full w-full flex-col">
-      {/* Navigation Section - Collapsible */}
-      <div className="flex flex-shrink-0 flex-col border-b">
-        {/* Accordion Header */}
-        <Button
-          variant="ghost"
-          className="flex w-full justify-between rounded-none px-4 py-3 text-left"
-          onClick={() => setIsNavigationExpanded(!isNavigationExpanded)}
-        >
-          <span className="font-medium">Navigation</span>
-          {isNavigationExpanded ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </Button>
-
-        {/* Navigation Content - Collapsible */}
-        {isNavigationExpanded && (
-          <div className="max-h-96 overflow-y-auto">
-            <TracePanelNavigation
-              onTogglePanel={() => setIsNavigationExpanded(false)}
-              isPanelCollapsed={!isNavigationExpanded}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Preview Section - Takes remaining space */}
-      <div className="flex-1 overflow-y-auto">
-        <TracePanelDetail />
-      </div>
-    </div>
+    <LayoutContext.Provider value={contextValue}>
+      <div className="flex h-full w-full flex-col">{children}</div>
+    </LayoutContext.Provider>
   );
 }
+
+// Compound component: Navigation section with accordion
+TraceLayoutMobile.Navigation = function Navigation({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const { isNavigationExpanded, setIsNavigationExpanded } = useLayoutContext();
+
+  return (
+    <div className="flex flex-shrink-0 flex-col border-b">
+      {/* Accordion Header */}
+      <Button
+        variant="ghost"
+        className="flex w-full justify-between rounded-none px-4 py-3 text-left"
+        onClick={() => setIsNavigationExpanded(!isNavigationExpanded)}
+      >
+        <span className="font-medium">Navigation</span>
+        {isNavigationExpanded ? (
+          <ChevronUp className="h-4 w-4" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
+      </Button>
+
+      {/* Navigation Content - Collapsible */}
+      {isNavigationExpanded && (
+        <div className="max-h-96 overflow-y-auto">{children}</div>
+      )}
+    </div>
+  );
+};
+
+// Compound component: Detail section
+TraceLayoutMobile.Detail = function Detail({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return <div className="flex-1 overflow-y-auto">{children}</div>;
+};
