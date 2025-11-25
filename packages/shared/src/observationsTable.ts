@@ -11,6 +11,7 @@ export const observationsTableCols: ColumnDefinition[] = [
   {
     name: "ID",
     id: "id",
+    // stringOptions type needed for comment filtering to inject "any of" filter with matching object IDs
     type: "stringOptions",
     internal: 'o."id"',
     options: [], // to be added at runtime

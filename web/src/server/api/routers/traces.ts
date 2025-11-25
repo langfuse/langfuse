@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { processCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
+import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
@@ -111,31 +111,15 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      // Process comment filters and get matching trace IDs
-      const { updatedFilterState, matchingObjectIds } =
-        await processCommentFilters({
-          filterState: input.filter ?? [],
-          prisma: ctx.prisma,
-          projectId: ctx.session.projectId,
-          objectType: "TRACE",
-        });
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "TRACE",
+      });
 
-      let filterState = updatedFilterState;
-
-      // Handle comment filter results
-      if (matchingObjectIds !== null) {
-        if (matchingObjectIds.length === 0) {
-          // No traces match comment filters - return empty result
-          return { traces: [] };
-        }
-
-        // Inject matching trace IDs as StringOptionsFilter for ClickHouse
-        filterState.push({
-          type: "stringOptions",
-          operator: "any of",
-          column: "id",
-          value: matchingObjectIds,
-        });
+      if (hasNoMatches) {
+        return { traces: [] };
       }
 
       const traces = await getTracesTable({
@@ -152,31 +136,15 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
-      // Process comment filters and get matching trace IDs
-      const { updatedFilterState, matchingObjectIds } =
-        await processCommentFilters({
-          filterState: input.filter ?? [],
-          prisma: ctx.prisma,
-          projectId: ctx.session.projectId,
-          objectType: "TRACE",
-        });
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "TRACE",
+      });
 
-      let filterState = updatedFilterState;
-
-      // Handle comment filter results
-      if (matchingObjectIds !== null) {
-        if (matchingObjectIds.length === 0) {
-          // No traces match comment filters - return 0 count
-          return { totalCount: 0 };
-        }
-
-        // Inject matching trace IDs as StringOptionsFilter for ClickHouse
-        filterState.push({
-          type: "stringOptions",
-          operator: "any of",
-          column: "id",
-          value: matchingObjectIds,
-        });
+      if (hasNoMatches) {
+        return { totalCount: 0 };
       }
 
       const count = await getTracesTableCount({
@@ -203,27 +171,23 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       if (input.traceIds.length === 0) return [];
 
-      // Process comment filters and get matching trace IDs
-      const { updatedFilterState, matchingObjectIds } =
-        await processCommentFilters({
+      const { filterState, hasNoMatches, matchingIds } =
+        await applyCommentFilters({
           filterState: input.filter ?? [],
           prisma: ctx.prisma,
           projectId: ctx.session.projectId,
           objectType: "TRACE",
         });
 
+      if (hasNoMatches) {
+        return [];
+      }
+
+      // If comment filters returned matching IDs, intersect with input.traceIds
       let filteredTraceIds = input.traceIds;
-
-      // Handle comment filter results
-      if (matchingObjectIds !== null) {
-        if (matchingObjectIds.length === 0) {
-          // No traces match comment filters - return empty result
-          return [];
-        }
-
-        // Filter input.traceIds to only include traces matching comment filters
+      if (matchingIds !== null) {
         filteredTraceIds = input.traceIds.filter((id) =>
-          matchingObjectIds.includes(id),
+          matchingIds.includes(id),
         );
 
         if (filteredTraceIds.length === 0) {
@@ -231,10 +195,20 @@ export const traceRouter = createTRPCRouter({
         }
       }
 
+      // Remove the comment filter's ID injection and use filteredTraceIds instead
+      const filterWithoutCommentIds = filterState.filter(
+        (f) =>
+          !(
+            f.type === "stringOptions" &&
+            f.column === "id" &&
+            f.operator === "any of"
+          ),
+      );
+
       const res = await getTracesTableMetrics({
         projectId: ctx.session.projectId,
         filter: [
-          ...updatedFilterState,
+          ...filterWithoutCommentIds,
           {
             type: "stringOptions",
             operator: "any of",

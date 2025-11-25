@@ -1,34 +1,21 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { Prisma } from "@langfuse/shared/src/db";
 import { type singleFilter } from "@langfuse/shared";
+import {
+  type CommentObjectType,
+  type CommentCountOperator,
+  type CommentContentOperator,
+  getObjectIdsByCommentCount,
+  getObjectIdsByCommentContent,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import type { z } from "zod/v4";
 
 /**
- * Maximum number of trace IDs that can be returned from comment filters.
+ * Maximum number of object IDs that can be returned from comment filters.
  * This protects ClickHouse from processing excessively large IN clauses.
- * Typical scenarios: 10K comments → 1K-5K distinct trace IDs (well under limit)
+ * Typical scenarios: 10K comments → 1K-5K distinct object IDs (well under limit)
  */
 export const COMMENT_FILTER_THRESHOLD = 50000;
-
-/**
- * Supported object types for comment filtering
- */
-export type CommentObjectType = "TRACE" | "OBSERVATION" | "SESSION" | "PROMPT";
-
-/**
- * Supported operators for comment count filters
- */
-export type CommentCountOperator = ">=" | "<=" | "=" | ">" | "<" | "!=";
-
-/**
- * Supported operators for comment content filters
- */
-export type CommentContentOperator =
-  | "contains"
-  | "does not contain"
-  | "starts with"
-  | "ends with";
 
 /**
  * Validates that the number of object IDs is within acceptable limits.
@@ -48,198 +35,75 @@ export function validateObjectIdCount(
 }
 
 /**
- * Query PostgreSQL for object IDs that have a specific number of comments.
- * Uses GROUP BY + HAVING to efficiently filter by comment count.
+ * Checks if the comment count filters include items with zero comments.
+ * This is true when:
+ * - There's no lower bound filter (defaults to >= 0)
+ * - The lower bound allows 0 (>= 0, >= negative, or > negative)
  *
- * @example
- * // Get traces with >= 3 comments
- * await getObjectIdsByCommentCount({
- *   prisma,
- *   projectId: "abc123",
- *   objectType: "TRACE",
- *   operator: ">=",
- *   value: 3
- * });
+ * When true, we need to use exclusion logic instead of inclusion logic,
+ * since items with 0 comments don't exist in the comments table.
  */
-export async function getObjectIdsByCommentCount({
-  prisma,
-  projectId,
-  objectType,
-  operator,
-  value,
-}: {
-  prisma: PrismaClient;
-  projectId: string;
-  objectType: CommentObjectType;
-  operator: CommentCountOperator;
-  value: number;
-}): Promise<string[]> {
-  // Validate operator to prevent SQL injection
-  const validOperators: CommentCountOperator[] = [
-    ">=",
-    "<=",
-    "=",
-    ">",
-    "<",
-    "!=",
-  ];
-  if (!validOperators.includes(operator)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid operator: ${operator}`,
-    });
+function filterRangeIncludesZero(
+  filters: Array<{ type: string; operator: string; value: number }>,
+): boolean {
+  const lowerBoundFilters = filters.filter(
+    (f) => f.type === "number" && (f.operator === ">=" || f.operator === ">"),
+  );
+
+  // No lower bound = includes 0
+  if (lowerBoundFilters.length === 0) {
+    return true;
   }
 
-  const rawQuery = Prisma.sql`
-    SELECT object_id
-    FROM comments
-    WHERE project_id = ${projectId} AND object_type = ${objectType}::"CommentObjectType"
-    GROUP BY object_id
-    HAVING COUNT(*) ${Prisma.raw(operator)} ${value}
-  `;
-
-  const results = await prisma.$queryRaw<{ object_id: string }[]>(rawQuery);
-  return results.map((r) => r.object_id);
+  // Check if any lower bound allows 0
+  return lowerBoundFilters.some(
+    (f) =>
+      (f.operator === ">=" && f.value <= 0) ||
+      (f.operator === ">" && f.value < 0),
+  );
 }
 
 /**
- * Query PostgreSQL for object IDs where comments match a text search query.
- * Uses PostgreSQL's full-text search with GIN index for "contains" operator.
- * Falls back to ILIKE for other operators.
- *
- * @example
- * // Get traces with comments containing "bug"
- * await getObjectIdsByCommentContent({
- *   prisma,
- *   projectId: "abc123",
- *   objectType: "TRACE",
- *   searchQuery: "bug",
- *   operator: "contains"
- * });
- */
-export async function getObjectIdsByCommentContent({
-  prisma,
-  projectId,
-  objectType,
-  searchQuery,
-  operator = "contains",
-}: {
-  prisma: PrismaClient;
-  projectId: string;
-  objectType: CommentObjectType;
-  searchQuery: string;
-  operator?: CommentContentOperator;
-}): Promise<string[]> {
-  if (operator === "contains") {
-    // Use full-text search with GIN index for best performance
-    // plainto_tsquery() automatically sanitizes special characters and handles tokenization
-    const trimmedQuery = searchQuery.trim();
-
-    if (!trimmedQuery) {
-      return [];
-    }
-
-    const rawResults = await prisma.$queryRaw<{ object_id: string }[]>`
-      SELECT DISTINCT object_id
-      FROM comments
-      WHERE project_id = ${projectId}
-        AND object_type = ${objectType}::"CommentObjectType"
-        AND to_tsvector('english', content) @@ plainto_tsquery('english', ${trimmedQuery})
-    `;
-
-    return rawResults.map((r) => r.object_id);
-  }
-
-  // For other operators, use Prisma's query builder with ILIKE
-  let whereCondition: Prisma.CommentWhereInput;
-
-  if (operator === "does not contain") {
-    whereCondition = {
-      projectId,
-      objectType,
-      NOT: {
-        content: {
-          contains: searchQuery,
-          mode: "insensitive",
-        },
-      },
-    };
-  } else if (operator === "starts with") {
-    whereCondition = {
-      projectId,
-      objectType,
-      content: {
-        startsWith: searchQuery,
-        mode: "insensitive",
-      },
-    };
-  } else if (operator === "ends with") {
-    whereCondition = {
-      projectId,
-      objectType,
-      content: {
-        endsWith: searchQuery,
-        mode: "insensitive",
-      },
-    };
-  } else {
-    // Default to contains
-    whereCondition = {
-      projectId,
-      objectType,
-      content: {
-        contains: searchQuery,
-        mode: "insensitive",
-      },
-    };
-  }
-
-  const comments = await prisma.comment.findMany({
-    where: whereCondition,
-    select: { objectId: true },
-    distinct: ["objectId"],
-  });
-
-  return comments.map((c) => c.objectId);
-}
-
-/**
- * Processes comment filters from filter state and returns matching object IDs.
- * Extracts comment filters, queries PostgreSQL, and removes them from filter state.
- * This consolidates the duplicated logic across all endpoints (traces, sessions, prompts, observations).
+ * Processes comment filters from filter state and returns the updated filter state
+ * with matching object IDs injected. This abstracts the duplicated logic across
+ * all endpoints (traces, sessions, observations).
  *
  * @returns Object with:
- *   - updatedFilterState: Filter state with comment filters removed
- *   - matchingObjectIds: null if no comment filters, [] if no matches, or array of matching object IDs
+ *   - filterState: Updated filter state with comment filters replaced by object ID filter
+ *   - hasNoMatches: true if comment filters were present but matched nothing (caller should return empty result)
+ *   - matchingIds: The object IDs matching comment filters (null if no comment filters). Useful for
+ *                  cases that need to intersect with another ID list (e.g., metrics endpoint).
  *
  * @example
- * const { updatedFilterState, matchingObjectIds } = await processCommentFilters({
- *   filterState: input.filter,
- *   prisma,
+ * const { filterState, hasNoMatches } = await applyCommentFilters({
+ *   filterState: input.filter ?? [],
+ *   prisma: ctx.prisma,
  *   projectId: ctx.session.projectId,
- *   objectType: "TRACE"
+ *   objectType: "TRACE",
  * });
  *
- * if (matchingObjectIds !== null) {
- *   if (matchingObjectIds.length === 0) {
- *     return { traces: [] }; // No matches
- *   }
- *   // Use matchingObjectIds to filter query
+ * if (hasNoMatches) {
+ *   return { traces: [] };
  * }
+ *
+ * // Use filterState directly in query
  */
-export async function processCommentFilters({
+export async function applyCommentFilters({
   filterState,
   prisma,
   projectId,
   objectType,
+  idColumn = "id",
 }: {
   filterState: z.infer<typeof singleFilter>[];
   prisma: PrismaClient;
   projectId: string;
   objectType: CommentObjectType;
+  idColumn?: string;
 }): Promise<{
-  updatedFilterState: z.infer<typeof singleFilter>[];
-  matchingObjectIds: string[] | null;
+  filterState: z.infer<typeof singleFilter>[];
+  hasNoMatches: boolean;
+  matchingIds: string[] | null;
 }> {
   // Extract comment filters from filterState
   const commentCountFilters = filterState.filter(
@@ -251,11 +115,12 @@ export async function processCommentFilters({
     (f) => f.type === "string" && f.column === "commentContent",
   );
 
-  // If no comment filters, return early
+  // If no comment filters, return original filter state
   if (commentCountFilters.length === 0 && !commentContentFilter) {
     return {
-      updatedFilterState: filterState,
-      matchingObjectIds: null,
+      filterState,
+      hasNoMatches: false,
+      matchingIds: null,
     };
   }
 
@@ -263,7 +128,7 @@ export async function processCommentFilters({
   const hasCommentCountFilters = commentCountFilters.length > 0;
 
   // Remove comment filters from filterState
-  let updatedFilterState = filterState.filter(
+  const updatedFilterState = filterState.filter(
     (f) =>
       !(
         ((f.type === "number" || f.type === "datetime") &&
@@ -274,28 +139,141 @@ export async function processCommentFilters({
 
   // Handle comment count filters (may be multiple for ranges like >= 1 AND <= 100)
   if (commentCountFilters.length > 0) {
-    // Process each comment count filter and intersect results
-    let isFirstCommentCountFilter = true;
-    for (const commentCountFilter of commentCountFilters) {
-      if (commentCountFilter.type === "number") {
-        const filterObjectIds = await getObjectIdsByCommentCount({
+    // Check if the filter range includes zero-comment items
+    // e.g., >= 0, <= 100, or >= 0 AND <= 100 all include items with 0 comments
+    const numberFilters = commentCountFilters
+      .filter((f) => f.type === "number")
+      .map((f) => ({
+        type: f.type,
+        operator: f.operator,
+        value: (f as { value: number }).value,
+      }));
+
+    if (filterRangeIncludesZero(numberFilters)) {
+      // When range includes zero, use EXCLUSION logic instead of inclusion
+      // Find the upper bound filter (if any)
+      const upperBoundFilter = numberFilters.find(
+        (f) => f.operator === "<=" || f.operator === "<",
+      );
+
+      if (!upperBoundFilter) {
+        // No upper bound + includes zero = match everything, skip comment count filter
+        // But still process content filter if present
+        if (!commentContentFilter) {
+          return {
+            filterState: updatedFilterState,
+            hasNoMatches: false,
+            matchingIds: null,
+          };
+        }
+        // Continue to content filter handling below
+      } else {
+        // Get IDs that EXCEED the upper bound (to exclude them)
+        const excludeOperator = upperBoundFilter.operator === "<=" ? ">" : ">=";
+        const idsToExclude = await getObjectIdsByCommentCount({
           prisma,
           projectId,
           objectType,
-          operator: commentCountFilter.operator as CommentCountOperator,
-          value: commentCountFilter.value,
+          operator: excludeOperator as CommentCountOperator,
+          value: upperBoundFilter.value,
         });
 
-        validateObjectIdCount(filterObjectIds, objectType);
+        validateObjectIdCount(idsToExclude, objectType);
 
-        // Intersect with previous results (AND logic for multiple filters)
-        if (isFirstCommentCountFilter) {
-          objectIdsFromComments = filterObjectIds;
-          isFirstCommentCountFilter = false;
-        } else {
-          objectIdsFromComments = objectIdsFromComments.filter((id) =>
-            filterObjectIds.includes(id),
+        // Handle content filter intersection if present
+        if (commentContentFilter && commentContentFilter.type === "string") {
+          const contentObjectIds = await getObjectIdsByCommentContent({
+            prisma,
+            projectId,
+            objectType,
+            searchQuery: commentContentFilter.value,
+            operator: commentContentFilter.operator as CommentContentOperator,
+          });
+
+          validateObjectIdCount(contentObjectIds, objectType);
+
+          // For content filter with zero-inclusive count filter:
+          // Include items matching content AND not exceeding upper bound
+          // This is complex - items with matching content that have 0 comments
+          // won't be in contentObjectIds (they have no comments to search)
+          // So we can only return items that HAVE comments matching content
+          // and also don't exceed the upper bound
+          const matchingIds = contentObjectIds.filter(
+            (id) => !idsToExclude.includes(id),
           );
+
+          if (matchingIds.length === 0) {
+            return {
+              filterState: updatedFilterState,
+              hasNoMatches: true,
+              matchingIds: [],
+            };
+          }
+
+          return {
+            filterState: [
+              ...updatedFilterState,
+              {
+                type: "stringOptions" as const,
+                operator: "any of" as const,
+                column: idColumn,
+                value: matchingIds,
+              },
+            ],
+            hasNoMatches: false,
+            matchingIds,
+          };
+        }
+
+        // No content filter - just exclude items exceeding upper bound
+        if (idsToExclude.length > 0) {
+          return {
+            filterState: [
+              ...updatedFilterState,
+              {
+                type: "stringOptions" as const,
+                operator: "none of" as const,
+                column: idColumn,
+                value: idsToExclude,
+              },
+            ],
+            hasNoMatches: false,
+            matchingIds: null,
+          };
+        }
+
+        // No items exceed limit, return all (no filter needed)
+        return {
+          filterState: updatedFilterState,
+          hasNoMatches: false,
+          matchingIds: null,
+        };
+      }
+    } else {
+      // Standard inclusion logic for filters that don't include zero
+      // (e.g., >= 1, > 0, = 5, etc.)
+      let isFirstCommentCountFilter = true;
+      for (const commentCountFilter of commentCountFilters) {
+        if (commentCountFilter.type === "number") {
+          const filterObjectIds = await getObjectIdsByCommentCount({
+            prisma,
+            projectId,
+            objectType,
+            operator: commentCountFilter.operator as CommentCountOperator,
+            value: commentCountFilter.value,
+          });
+
+          validateObjectIdCount(filterObjectIds, objectType);
+
+          // Intersect with previous results (AND logic for multiple filters)
+          if (isFirstCommentCountFilter) {
+            objectIdsFromComments = filterObjectIds;
+            isFirstCommentCountFilter = false;
+          } else {
+            objectIdsFromComments = objectIdsFromComments.filter((id) =>
+              filterObjectIds.includes(id),
+            );
+          }
         }
       }
     }
@@ -324,8 +302,27 @@ export async function processCommentFilters({
     }
   }
 
+  // If no objects match, signal caller to return empty result
+  if (objectIdsFromComments.length === 0) {
+    return {
+      filterState: updatedFilterState,
+      hasNoMatches: true,
+      matchingIds: [],
+    };
+  }
+
+  // Inject matching object IDs as filter
   return {
-    updatedFilterState,
-    matchingObjectIds: objectIdsFromComments,
+    filterState: [
+      ...updatedFilterState,
+      {
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        column: idColumn,
+        value: objectIdsFromComments,
+      },
+    ],
+    hasNoMatches: false,
+    matchingIds: objectIdsFromComments,
   };
 }
