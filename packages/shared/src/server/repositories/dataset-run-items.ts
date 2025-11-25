@@ -453,7 +453,6 @@ const getDatasetRunsTableInternal = async <T>(
         AND dri.dataset_id = tm.dataset_id
         AND dri.dataset_run_id = tm.dataset_run_id
         AND dri.dataset_item_id = tm.dataset_item_id
-        AND dri.observation_id IS NULL
       WHERE ${baseFilter.query}
       GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_run_name, dri.dataset_run_description, dri.dataset_run_metadata, dri.dataset_run_created_at
     )
