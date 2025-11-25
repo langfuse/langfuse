@@ -6,8 +6,6 @@ import type {
   CreateManyItemsInsert,
   CreateManyItemsPayload,
   CreateManyValidationError,
-  ItemBase,
-  ItemWithIO,
   PayloadError,
 } from "./types";
 import {
@@ -15,10 +13,6 @@ import {
   executeWithDatasetServiceStrategy,
   OperationType,
 } from "../../datasets/executeWithDatasetServiceStrategy";
-import {
-  getDatasetItemsByVersion,
-  getDatasetItemsCountByVersion,
-} from "../../repositories/dataset-items";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
 
@@ -42,11 +36,6 @@ type IdOrName = { datasetId: string } | { datasetName: string };
  * await DatasetItemManager.upsertItem({ projectId, datasetId, datasetItemId, ... });
  */
 export class DatasetItemManager {
-  private static DEFAULT_OPTIONS = {
-    includeIO: true,
-    returnVersionTimestamp: false,
-  };
-
   private static async getDatasets(props: {
     projectId: string;
     datasetIds: string[];
@@ -156,6 +145,7 @@ export class DatasetItemManager {
 
     const datasetItem = {
       ...result.datasetItems[0],
+      id: result.datasetItems[0].itemId,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as DatasetItem;
@@ -310,7 +300,7 @@ export class DatasetItemManager {
         // Write full item state to event table
         const res = await prisma.datasetItemEvent.create({
           data: {
-            id: itemId,
+            itemId: itemId,
             projectId: props.projectId,
             datasetId: dataset.id,
             createdAt: new Date(),
@@ -320,10 +310,10 @@ export class DatasetItemManager {
 
         // Map DatasetItemEvent to DatasetItem for return
         item = {
-          id: res.id,
+          id: res.itemId,
           projectId: res.projectId,
           datasetId: res.datasetId,
-          status: res.status,
+          status: res.status ?? DatasetStatus.ACTIVE,
           input: res.input,
           expectedOutput: res.expectedOutput,
           metadata: res.metadata,
@@ -378,7 +368,7 @@ export class DatasetItemManager {
       [Implementation.VERSIONED]: async () => {
         await prisma.datasetItemEvent.create({
           data: {
-            id: props.datasetItemId,
+            itemId: props.datasetItemId,
             projectId: props.projectId,
             datasetId: item.datasetId,
             deletedAt: new Date(),
@@ -400,65 +390,26 @@ export class DatasetItemManager {
    * @param props.datasetId - Required to ensure item belongs to correct dataset
    * @returns The dataset item or null if not found
    */
-  public static async getItemById(props: {
+  private static async getItemById(props: {
     projectId: string;
     datasetItemId: string;
     datasetId?: string;
   }): Promise<DatasetItem> {
-    return executeWithDatasetServiceStrategy(OperationType.READ, {
-      [Implementation.STATEFUL]: async () => {
-        const item = await prisma.datasetItem.findUnique({
-          where: {
-            id_projectId: {
-              id: props.datasetItemId,
-              projectId: props.projectId,
-            },
-            ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-          },
-        });
-        if (!item) {
-          throw new LangfuseNotFoundError(
-            `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
-          );
-        }
-        return item;
-      },
-      [Implementation.VERSIONED]: async () => {
-        // Fetch the latest event for this item (deleted or not)
-        const latestEvent = await prisma.datasetItemEvent.findFirst({
-          where: {
-            id: props.datasetItemId,
-            projectId: props.projectId,
-            ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-
-        // If the latest event is a deletion, the item doesn't exist
-        if (!latestEvent || latestEvent.deletedAt) {
-          throw new LangfuseNotFoundError(
-            `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
-          );
-        }
-
-        // Map DatasetItemEvent to DatasetItem
-        return {
-          id: latestEvent.id,
-          projectId: latestEvent.projectId,
-          datasetId: latestEvent.datasetId,
-          status: latestEvent.status,
-          input: latestEvent.input,
-          expectedOutput: latestEvent.expectedOutput,
-          metadata: latestEvent.metadata,
-          sourceTraceId: latestEvent.sourceTraceId,
-          sourceObservationId: latestEvent.sourceObservationId,
-          createdAt: latestEvent.createdAt ?? new Date(),
-          updatedAt: latestEvent.createdAt ?? new Date(),
-        } as DatasetItem;
+    const item = await prisma.datasetItem.findUnique({
+      where: {
+        id_projectId: {
+          id: props.datasetItemId,
+          projectId: props.projectId,
+        },
+        ...(props.datasetId ? { datasetId: props.datasetId } : {}),
       },
     });
+    if (!item) {
+      throw new LangfuseNotFoundError(
+        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+      );
+    }
+    return item;
   }
 
   /**
@@ -582,7 +533,7 @@ export class DatasetItemManager {
         } else {
           // Validation passed - prepare for insert
           preparedItems.push({
-            id: v4(),
+            itemId: v4(),
             projectId: props.projectId,
             status: DatasetStatus.ACTIVE,
             datasetId: item.datasetId,
@@ -608,7 +559,12 @@ export class DatasetItemManager {
     // 5. Bulk insert all valid items
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
-        await prisma.datasetItem.createMany({ data: preparedItems });
+        await prisma.datasetItem.createMany({
+          data: preparedItems.map((item) => ({
+            ...item,
+            id: item.itemId,
+          })),
+        });
       },
       [Implementation.VERSIONED]: async () => {
         await prisma.datasetItemEvent.createMany({ data: preparedItems });
@@ -619,175 +575,5 @@ export class DatasetItemManager {
       success: true,
       datasetItems: preparedItems,
     };
-  }
-
-  private static async getItems<
-    IncludeIO extends boolean,
-    ReturnVersion extends boolean,
-  >({
-    projectId,
-    datasetId,
-    version,
-    includeIO,
-    returnVersionTimestamp,
-  }: {
-    projectId: string;
-    datasetId: string;
-    version: Date;
-    includeIO: IncludeIO;
-    returnVersionTimestamp: ReturnVersion;
-  }): Promise<
-    ReturnVersion extends true
-      ? {
-          items: Array<IncludeIO extends true ? ItemWithIO : ItemBase>;
-          versionTimestamp: Date;
-        }
-      : Array<IncludeIO extends true ? ItemWithIO : ItemBase>
-  > {
-    return executeWithDatasetServiceStrategy(OperationType.READ, {
-      [Implementation.STATEFUL]: async () => {
-        const items = await prisma.datasetItem.findMany({
-          where: { datasetId, projectId },
-        });
-
-        if (returnVersionTimestamp) {
-          return {
-            items,
-            versionTimestamp: new Date(),
-          };
-        }
-        return items;
-      },
-      [Implementation.VERSIONED]: async () => {
-        return getDatasetItemsByVersion({
-          projectId,
-          datasetId,
-          version,
-          includeIO,
-          returnVersionTimestamp,
-        }) as any;
-      },
-    });
-  }
-
-  /**
-   * Retrieves a list of dataset versions (distinct createdAt timestamps) for a given dataset.
-   * Returns timestamps in descending order (newest first).
-   */
-  public static async listVersions(props: {
-    projectId: string;
-    datasetId: string;
-  }): Promise<Date[]> {
-    const result = await prisma.$queryRaw<{ created_at: Date }[]>`
-      SELECT DISTINCT created_at
-      FROM dataset_item_events
-      WHERE project_id = ${props.projectId}
-        AND dataset_id = ${props.datasetId}
-      ORDER BY created_at DESC
-    `;
-
-    return result.map((row) => row.created_at);
-  }
-
-  /**
-   * Retrieves the complete state of dataset items at a given version timestamp.
-   * For each unique item ID, returns the latest event where:
-   * - createdAt <= version
-   * - deletedAt IS NULL OR deletedAt > version
-   */
-  public static async getItemsByVersion<
-    IncludeIO extends boolean = true,
-    ReturnVersion extends boolean = false,
-  >(props: {
-    projectId: string;
-    datasetId: string;
-    version: Date;
-    includeIO?: IncludeIO;
-    returnVersionTimestamp?: ReturnVersion;
-  }): Promise<
-    ReturnVersion extends true
-      ? {
-          items: Array<IncludeIO extends true ? ItemWithIO : ItemBase>;
-          versionTimestamp: Date;
-        }
-      : Array<IncludeIO extends true ? ItemWithIO : ItemBase>
-  > {
-    const options = { ...this.DEFAULT_OPTIONS, ...props };
-
-    return this.getItems({
-      ...props,
-      includeIO: options.includeIO as IncludeIO,
-      returnVersionTimestamp: options.returnVersionTimestamp as ReturnVersion,
-    });
-  }
-
-  /**
-   * Retrieves the complete state of dataset items at a given version timestamp.
-   * For each unique item ID, returns the latest event where:
-   * - createdAt <= version
-   * - deletedAt IS NULL OR deletedAt > version
-   */
-  public static async getItemsByLatest<
-    IncludeIO extends boolean = true,
-  >(props: {
-    projectId: string;
-    datasetId: string;
-    includeIO?: IncludeIO;
-  }): Promise<{
-    versionTimestamp: Date;
-    items: Array<IncludeIO extends true ? ItemWithIO : ItemBase>;
-  }> {
-    const options = { ...this.DEFAULT_OPTIONS, ...props };
-
-    return this.getItems({
-      ...props,
-      version: new Date(),
-      includeIO: options.includeIO as IncludeIO,
-      returnVersionTimestamp: true,
-    });
-  }
-
-  public static async getItemCountByVersion(props: {
-    projectId: string;
-    datasetId: string;
-    version: Date;
-  }): Promise<number> {
-    return executeWithDatasetServiceStrategy(OperationType.READ, {
-      [Implementation.STATEFUL]: async () => {
-        return await prisma.datasetItem.count({
-          where: { datasetId: props.datasetId, projectId: props.projectId },
-        });
-      },
-      [Implementation.VERSIONED]: async () => {
-        return await getDatasetItemsCountByVersion({
-          projectId: props.projectId,
-          datasetId: props.datasetId,
-          version: props.version,
-        });
-      },
-    });
-  }
-
-  public static async getItemCountByLatest(props: {
-    projectId: string;
-    datasetId: string;
-  }): Promise<number> {
-    return executeWithDatasetServiceStrategy(OperationType.READ, {
-      [Implementation.STATEFUL]: async () => {
-        return await prisma.datasetItem.count({
-          where: {
-            datasetId: props.datasetId,
-            projectId: props.projectId,
-          },
-        });
-      },
-      [Implementation.VERSIONED]: async () => {
-        return getDatasetItemsCountByVersion({
-          projectId: props.projectId,
-          datasetId: props.datasetId,
-          version: new Date(),
-        });
-      },
-    });
   }
 }

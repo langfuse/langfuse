@@ -32,7 +32,7 @@ export type CreateManyItemsPayload = {
 }[];
 
 export type CreateManyItemsInsert = {
-  id: string;
+  itemId: string;
   projectId: string;
   datasetId: string;
   status: DatasetStatus;
