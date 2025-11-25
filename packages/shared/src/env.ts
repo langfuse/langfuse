@@ -22,6 +22,13 @@ const EnvSchema = z.object({
   REDIS_TLS_CA_PATH: z.string().optional(),
   REDIS_TLS_CERT_PATH: z.string().optional(),
   REDIS_TLS_KEY_PATH: z.string().optional(),
+  REDIS_TLS_SERVERNAME: z.string().optional(),
+  REDIS_TLS_REJECT_UNAUTHORIZED: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_CHECK_SERVER_IDENTITY: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_SECURE_PROTOCOL: z.string().optional(),
+  REDIS_TLS_CIPHERS: z.string().optional(),
+  REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),

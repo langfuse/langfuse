@@ -10,19 +10,18 @@ export const CloudConfigSchema = z.object({
   // need to update stripe webhook if you change this, it fetches from db via these fields
   stripe: z
     .object({
-      customerId: z.string().optional(),
-      activeSubscriptionId: z.string().optional(),
-      activeProductId: z.string().optional(),
-      activeUsageProductId: z.string().optional(),
-      subscriptionStatus: z.string().optional(), // should be one of ["active","past_due", "unpaid", "canceled", "incomplete", "incomplete_expired", "paused"]; we don't enforce to have a backwards compatibility for this field
+      customerId: z.string().nullish(),
+      activeSubscriptionId: z.string().nullish(),
+      activeProductId: z.string().nullish(),
+      activeUsageProductId: z.string().nullish(),
+      subscriptionStatus: z.string().nullish(), // should be one of ["active","past_due", "unpaid", "canceled", "incomplete", "incomplete_expired", "paused"]; we don't enforce to have a backwards compatibility for this field
     })
     .transform((data) => ({
       ...data,
       isLegacySubscription:
-        data?.activeProductId !== undefined &&
-        data?.activeUsageProductId === undefined,
+        data?.activeProductId != null && data?.activeUsageProductId == null,
     }))
-    .optional(),
+    .nullish(),
 
   // custom rate limits for an organization
   rateLimitOverrides: CloudConfigRateLimit.optional(),
