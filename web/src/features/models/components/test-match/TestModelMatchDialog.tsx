@@ -70,7 +70,7 @@ export function TestModelMatchDialog({
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
           <DialogHeader>
             <DialogTitle>Test Model Match</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="mt-1">
               Test which model and pricing tier your ingestion data would match
               against.
             </DialogDescription>
