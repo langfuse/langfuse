@@ -9,11 +9,16 @@ import type { FormUpsertModel } from "../../validation";
 type TierPriceEditorProps = {
   tierIndex: number;
   form: UseFormReturn<FormUpsertModel>;
+  isDefault: boolean;
 };
 
 export type { TierPriceEditorProps };
 
-export function TierPriceEditor({ tierIndex, form }: TierPriceEditorProps) {
+export function TierPriceEditor({
+  tierIndex,
+  form,
+  isDefault,
+}: TierPriceEditorProps) {
   const prices = form.watch(`pricingTiers.${tierIndex}.prices`) || {};
 
   return (
@@ -28,6 +33,7 @@ export function TierPriceEditor({ tierIndex, form }: TierPriceEditorProps) {
           <Input
             placeholder="Key (e.g. input, output)"
             value={key}
+            disabled={!isDefault}
             onChange={(e) => {
               const newPrices = { ...prices };
               const oldValue = newPrices[key];
@@ -35,6 +41,7 @@ export function TierPriceEditor({ tierIndex, form }: TierPriceEditorProps) {
               newPrices[e.target.value] = oldValue;
               form.setValue(`pricingTiers.${tierIndex}.prices`, newPrices);
             }}
+            className={!isDefault ? "cursor-not-allowed bg-muted" : ""}
           />
           <div className="flex gap-1">
             <Input
@@ -49,36 +56,47 @@ export function TierPriceEditor({ tierIndex, form }: TierPriceEditorProps) {
                 });
               }}
             />
-            <Button
-              type="button"
-              variant="outline"
-              title="Remove price"
-              size="icon"
-              onClick={() => {
-                const newPrices = { ...prices };
-                delete newPrices[key];
-                form.setValue(`pricingTiers.${tierIndex}.prices`, newPrices);
-              }}
-            >
-              <MinusCircle className="h-4 w-4" />
-            </Button>
+            {isDefault && (
+              <Button
+                type="button"
+                variant="outline"
+                title="Remove price"
+                size="icon"
+                onClick={() => {
+                  const newPrices = { ...prices };
+                  delete newPrices[key];
+                  form.setValue(`pricingTiers.${tierIndex}.prices`, newPrices);
+                }}
+              >
+                <MinusCircle className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       ))}
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={() => {
-          form.setValue(`pricingTiers.${tierIndex}.prices`, {
-            ...prices,
-            new_usage_type: 0.000001,
-          });
-        }}
-        className="flex items-center gap-1"
-      >
-        <PlusCircle className="h-4 w-4" />
-        <span>Add Price</span>
-      </Button>
+      {isDefault && (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            // Generate unique key name
+            let counter = 1;
+            let newKey = "new_usage_type";
+            while (prices[newKey] !== undefined) {
+              newKey = `new_usage_type_${counter}`;
+              counter++;
+            }
+            form.setValue(`pricingTiers.${tierIndex}.prices`, {
+              ...prices,
+              [newKey]: 0.000001,
+            });
+          }}
+          className="flex items-center gap-1"
+        >
+          <PlusCircle className="h-4 w-4" />
+          <span>Add Price</span>
+        </Button>
+      )}
       <PricePreview prices={prices} />
     </div>
   );

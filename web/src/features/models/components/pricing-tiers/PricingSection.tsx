@@ -45,7 +45,11 @@ export function PricingSection({
         </div>
 
         <TierPrefillButtons tierIndex={defaultTierIndex} form={form} />
-        <TierPriceEditor tierIndex={defaultTierIndex} form={form} />
+        <TierPriceEditor
+          tierIndex={defaultTierIndex}
+          form={form}
+          isDefault={true}
+        />
       </div>
     );
   }

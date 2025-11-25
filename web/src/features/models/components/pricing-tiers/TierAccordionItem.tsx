@@ -88,7 +88,7 @@ export function TierAccordionItem({
 
         {/* Prices */}
         {isDefault && <TierPrefillButtons tierIndex={index} form={form} />}
-        <TierPriceEditor tierIndex={index} form={form} />
+        <TierPriceEditor tierIndex={index} form={form} isDefault={isDefault} />
       </AccordionContent>
     </AccordionItem>
   );

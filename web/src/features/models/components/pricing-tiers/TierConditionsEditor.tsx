@@ -60,9 +60,10 @@ export function TierConditionsEditor({
       </div>
 
       {fields.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No conditions. Tier will never match (use for manual testing).
-        </p>
+        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <strong>Warning:</strong> Non-default tiers require at least one
+          condition. This tier will fail validation.
+        </div>
       )}
 
       {fields.map((condition, conditionIndex) => (

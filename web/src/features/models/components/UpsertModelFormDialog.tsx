@@ -77,19 +77,21 @@ export const UpsertModelFormDialog = (({
   const defaultValues: FormUpsertModel = useMemo(() => {
     if (props.action !== "create") {
       // EDIT or CLONE: Load all tiers
+      const loadedTiers = props.modelData.pricingTiers.map((tier) => ({
+        id: tier.id,
+        name: tier.name,
+        isDefault: tier.isDefault,
+        priority: tier.priority,
+        conditions: tier.conditions,
+        prices: tier.prices,
+      }));
+
       return {
         modelName: props.modelData.modelName,
         matchPattern: props.modelData.matchPattern,
         tokenizerId: props.modelData.tokenizerId,
         tokenizerConfig: JSON.stringify(props.modelData.tokenizerConfig ?? {}),
-        pricingTiers: props.modelData.pricingTiers.map((tier) => ({
-          id: tier.id,
-          name: tier.name,
-          isDefault: tier.isDefault,
-          priority: tier.priority,
-          conditions: tier.conditions,
-          prices: tier.prices,
-        })),
+        pricingTiers: loadedTiers,
       };
     } else {
       // CREATE: Start with 1 default tier
@@ -130,6 +132,19 @@ export const UpsertModelFormDialog = (({
     name: "pricingTiers",
   });
 
+  // Watch default tier prices for syncing
+  const defaultTierIndex = fields.findIndex((f) => f.isDefault);
+  const defaultTierPrices =
+    defaultTierIndex !== -1
+      ? form.watch(`pricingTiers.${defaultTierIndex}.prices`)
+      : undefined;
+
+  // Compute keys signature - memoized to prevent unnecessary updates
+  const defaultKeysSignature = useMemo(() => {
+    if (!defaultTierPrices) return "";
+    return Object.keys(defaultTierPrices).sort().join(",");
+  }, [defaultTierPrices]);
+
   // Auto-assign priorities based on order
   useEffect(() => {
     fields.forEach((field, index) => {
@@ -140,6 +155,34 @@ export const UpsertModelFormDialog = (({
       }
     });
   }, [fields, form]);
+
+  // Sync usage keys from default tier to all non-default tiers
+  useEffect(() => {
+    if (!defaultTierPrices || defaultTierIndex === -1 || !defaultKeysSignature)
+      return;
+
+    const defaultKeys = defaultKeysSignature.split(",");
+
+    fields.forEach((field, index) => {
+      if (field.isDefault) return;
+
+      const currentPrices = form.getValues(`pricingTiers.${index}.prices`);
+      const currentKeys = Object.keys(currentPrices).sort();
+
+      // Only update if keys don't match
+      const keysMatch =
+        defaultKeys.length === currentKeys.length &&
+        defaultKeys.every((key, i) => key === currentKeys[i]);
+
+      if (!keysMatch) {
+        const newPrices: Record<string, number> = {};
+        defaultKeys.forEach((key) => {
+          newPrices[key] = currentPrices[key] ?? 0;
+        });
+        form.setValue(`pricingTiers.${index}.prices`, newPrices);
+      }
+    });
+  }, [defaultKeysSignature, defaultTierPrices, defaultTierIndex, fields, form]);
 
   // prefill match pattern if model name changes
   useEffect(() => {
@@ -212,7 +255,14 @@ export const UpsertModelFormDialog = (({
       name: `Custom Tier ${fields.length}`,
       isDefault: false,
       priority: fields.length,
-      conditions: [],
+      conditions: [
+        {
+          usageDetailPattern: "^input",
+          operator: "gt",
+          value: 0,
+          caseSensitive: false,
+        },
+      ],
       prices: { ...defaultTier.prices }, // Copy default tier prices
     });
   };

@@ -138,6 +138,16 @@ export function validatePricingTiers(
     };
   }
 
+  // Validate non-default tiers have at least 1 condition
+  for (const tier of tiers) {
+    if (!tier.isDefault && tier.conditions.length === 0) {
+      return {
+        valid: false,
+        error: `Non-default pricing tier "${tier.name}" must have at least one condition`,
+      };
+    }
+  }
+
   // Check for unique priorities
   const priorities = tiers.map((t) => t.priority);
   const uniquePriorities = new Set(priorities);
@@ -178,6 +188,33 @@ export function validatePricingTiers(
         valid: false,
         error: `Pricing tier "${tier.name}" must have at least one price defined`,
       };
+    }
+  }
+
+  // Validate all tiers have the same usage keys
+  if (tiers.length > 1) {
+    const defaultTierForKeys = tiers.find((t) => t.isDefault);
+    if (!defaultTierForKeys) {
+      return { valid: false, error: "No default tier found" };
+    }
+
+    const defaultKeys = Object.keys(defaultTierForKeys.prices).sort();
+
+    for (const tier of tiers) {
+      if (tier.isDefault) continue;
+
+      const tierKeys = Object.keys(tier.prices).sort();
+
+      // Check if keys match
+      if (
+        defaultKeys.length !== tierKeys.length ||
+        !defaultKeys.every((key, index) => key === tierKeys[index])
+      ) {
+        return {
+          valid: false,
+          error: `Pricing tier "${tier.name}" must have the same usage keys as the default tier. Expected: [${defaultKeys.join(", ")}], Got: [${tierKeys.join(", ")}]`,
+        };
+      }
     }
   }
 

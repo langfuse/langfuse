@@ -13,12 +13,12 @@ import {
 } from "@/src/features/public-api/types/models";
 
 import {
-  createOrgProjectAndApiKey,
   validateRegexPattern,
   validatePricingTiers,
   validatePricingMethod,
   type PricingTierInput,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 describe("validation methods", () => {
   describe("validateRegexPattern", () => {
@@ -303,6 +303,108 @@ describe("validation methods", () => {
       const result = validatePricingTiers(tiers);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("must have at least one price defined");
+    });
+
+    it("should reject non-default tier with no conditions", () => {
+      const tiers: PricingTierInput[] = [
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 3.0 },
+        },
+        {
+          name: "Custom Tier",
+          isDefault: false,
+          priority: 1,
+          conditions: [], // Invalid: non-default must have conditions
+          prices: { input: 5.0 },
+        },
+      ];
+
+      const result = validatePricingTiers(tiers);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain(
+        'Non-default pricing tier "Custom Tier" must have at least one condition',
+      );
+    });
+
+    it("should reject tiers with mismatched usage keys", () => {
+      const tiers: PricingTierInput[] = [
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 3.0, output: 6.0 },
+        },
+        {
+          name: "High Volume",
+          isDefault: false,
+          priority: 1,
+          conditions: [
+            {
+              usageDetailPattern: "^input",
+              operator: "gt",
+              value: 100000,
+              caseSensitive: false,
+            },
+          ],
+          prices: { input: 2.5, output_tokens: 5.0 }, // Different keys!
+        },
+      ];
+
+      const result = validatePricingTiers(tiers);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain(
+        'Pricing tier "High Volume" must have the same usage keys as the default tier',
+      );
+      expect(result.error).toContain("Expected: [input, output]");
+    });
+
+    it("should accept tiers with same keys in different order", () => {
+      const tiers: PricingTierInput[] = [
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 3.0, output: 6.0, cache_read: 1.5 },
+        },
+        {
+          name: "High Volume",
+          isDefault: false,
+          priority: 1,
+          conditions: [
+            {
+              usageDetailPattern: "^input",
+              operator: "gt",
+              value: 100000,
+              caseSensitive: false,
+            },
+          ],
+          prices: { cache_read: 1.0, input: 2.5, output: 5.0 }, // Same keys, different order
+        },
+      ];
+
+      const result = validatePricingTiers(tiers);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should accept single default tier without key consistency check", () => {
+      const tiers: PricingTierInput[] = [
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 3.0, output: 6.0 },
+        },
+      ];
+
+      const result = validatePricingTiers(tiers);
+      expect(result.valid).toBe(true);
     });
   });
 

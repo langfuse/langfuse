@@ -101,6 +101,19 @@ export default withMiddlewares({
       const { tokenizerConfig, pricingTiers: tierData, ...rest } = body;
 
       const model = await prisma.$transaction(async (tx) => {
+        const existingModelName = await tx.model.findFirst({
+          where: {
+            projectId: auth.scope.projectId,
+            modelName: body.modelName,
+          },
+        });
+
+        if (existingModelName) {
+          throw new InvalidRequestError(
+            `Model name '${body.modelName}' already exists in project`,
+          );
+        }
+
         // 1. Create model
         const createdModel = await tx.model.create({
           data: {
