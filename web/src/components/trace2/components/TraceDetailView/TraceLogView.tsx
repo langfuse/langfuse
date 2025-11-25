@@ -6,10 +6,10 @@
  * - Renders as concatenated PrettyJsonView list
  * - Loading state while fetching
  * - Download button for trace + observations
- * - Expansion state management
+ * - Opt-in loading for large traces (>20 observations)
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -18,6 +18,8 @@ import { type JsonNested } from "@langfuse/shared";
 import { Download } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { downloadTraceAsJson } from "../../lib/download-trace";
+
+const LARGE_TRACE_THRESHOLD = 20;
 
 export interface TraceLogViewProps {
   observations: ObservationReturnTypeWithMetadata[];
@@ -39,16 +41,31 @@ export function TraceLogView({
 }: TraceLogViewProps) {
   const utils = api.useUtils();
 
+  // For large traces, require user opt-in before fetching all observations
+  const isLargeTrace = observations.length > LARGE_TRACE_THRESHOLD;
+  const [shouldLoadData, setShouldLoadData] = useState(!isLargeTrace);
+
+  // Create a Map for O(1) lookup of observation index by id
+  const observationIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    observations.forEach((obs, index) => {
+      map.set(obs.id, index);
+    });
+    return map;
+  }, [observations]);
+
   // Load all observations with their input/output for the log view
+  // Only fetch when shouldLoadData is true (automatically for small traces, opt-in for large)
   const observationsWithIO = useQueries({
-    queries: observations.map((obs) =>
-      utils.observations.byId.queryOptions({
+    queries: observations.map((obs) => ({
+      ...utils.observations.byId.queryOptions({
         observationId: obs.id,
         startTime: obs.startTime,
         traceId: traceId,
         projectId: projectId,
       }),
-    ),
+      enabled: shouldLoadData,
+    })),
   });
 
   const logData = useMemo(() => {
@@ -90,8 +107,10 @@ export function TraceLogView({
     > = {};
 
     sortedObservations.forEach((obs) => {
-      const index = observations.findIndex((o) => o.id === obs.id);
-      const obsWithIO = observationsWithIO[index]?.data;
+      // Use Map for O(1) lookup instead of O(n) findIndex
+      const index = observationIndexMap.get(obs.id) ?? -1;
+      const obsWithIO =
+        index >= 0 ? observationsWithIO[index]?.data : undefined;
 
       const displayName = `${obs.name || obs.type} (${obs.id.substring(0, 8)})`;
 
@@ -108,9 +127,12 @@ export function TraceLogView({
         modelParameters: obs.modelParameters,
         promptName: obs.promptName,
         promptVersion: obs.promptVersion,
-        input: obsWithIO?.input,
-        output: obsWithIO?.output,
-        metadata: obsWithIO?.metadata,
+        input:
+          obsWithIO?.input ?? (shouldLoadData ? undefined : "[Not loaded]"),
+        output:
+          obsWithIO?.output ?? (shouldLoadData ? undefined : "[Not loaded]"),
+        metadata:
+          obsWithIO?.metadata ?? (shouldLoadData ? undefined : "[Not loaded]"),
         statusMessage: obs.statusMessage,
         inputUsage: obs.inputUsage,
         outputUsage: obs.outputUsage,
@@ -120,10 +142,11 @@ export function TraceLogView({
     });
 
     return allObsData;
-  }, [observations, observationsWithIO]);
+  }, [observations, observationsWithIO, observationIndexMap, shouldLoadData]);
 
   // Check if any data is still loading
-  const isLoading = observationsWithIO.some((query) => query.isPending);
+  const isLoading =
+    shouldLoadData && observationsWithIO.some((query) => query.isPending);
 
   // Download trace + observations with full I/O
   const downloadLogAsJson = useCallback(() => {
@@ -143,6 +166,30 @@ export function TraceLogView({
       filename: `trace-with-observations-${traceId}.json`,
     });
   }, [trace, observations, observationsWithIO, traceId]);
+
+  // Show opt-in prompt for large traces before loading data
+  if (isLargeTrace && !shouldLoadData) {
+    return (
+      <div className="flex h-full w-full flex-col overflow-hidden px-2">
+        <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+          <div className="rounded-md border p-4">
+            <div className="text-sm text-muted-foreground">
+              This trace has {observations.length} observations. Loading all
+              observation data may take a moment.
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => setShouldLoadData(true)}
+            >
+              Load Log View
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading state while fetching
   if (isLoading) {
