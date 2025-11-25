@@ -1,12 +1,16 @@
 /**
  * TraceDetailView - Shows trace-level details when no observation is selected
  *
- * Features:
+ * Current state: SCAFFOLDING ONLY
  * - Header with badge and trace name
- * - Metadata badges (timestamp, session, user, environment, latency, cost)
- * - Tabs: Preview (I/O, tags, metadata), Log, Scores
+ * - Metadata badges (timestamp, session, user, environment)
+ * - Tab structure (Preview, Log View, Scores) with placeholder content
  * - View toggle (Formatted/JSON)
- * - Log view thresholds matching trace/ TracePreview behavior
+ *
+ * Content implementation tracked in sub-issues:
+ * - S5.4a: Preview tab content (IOPreview, Tags, Metadata)
+ * - S5.4b: Log View tab content (TraceLogView component)
+ * - S5.4c: Scores tab content (ScoresTable)
  */
 
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
@@ -24,30 +28,8 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import ScoresTable from "@/src/components/table/use-cases/scores";
-import { TraceLogView } from "./TraceLogView";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useState, useEffect } from "react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/src/components/ui/alert-dialog";
-
-// Match thresholds from trace/ TracePreview
-const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
-const LOG_VIEW_DISABLED_THRESHOLD = 350;
+import { useState } from "react";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -74,41 +56,7 @@ export function TraceDetailView({
     "pretty",
   );
 
-  // Log view thresholds - match trace/ TracePreview behavior
-  const isLogViewDisabled = observations.length > LOG_VIEW_DISABLED_THRESHOLD;
-  const requiresConfirmation =
-    observations.length > LOG_VIEW_CONFIRMATION_THRESHOLD && !isLogViewDisabled;
   const showLogViewTab = observations.length > 0;
-
-  const [hasLogViewConfirmed, setHasLogViewConfirmed] = useState(false);
-  const [showLogViewDialog, setShowLogViewDialog] = useState(false);
-
-  // Reset confirmation when trace changes
-  useEffect(() => {
-    setHasLogViewConfirmed(false);
-  }, [trace.id]);
-
-  // Redirect from log tab if it becomes disabled
-  useEffect(() => {
-    if ((isLogViewDisabled || !showLogViewTab) && selectedTab === "log") {
-      setSelectedTab("preview");
-    }
-  }, [isLogViewDisabled, showLogViewTab, selectedTab]);
-
-  const handleConfirmLogView = () => {
-    setHasLogViewConfirmed(true);
-    setShowLogViewDialog(false);
-    setSelectedTab("log");
-  };
-
-  const handleTabChange = (value: string) => {
-    // Check if confirmation is needed for log view
-    if (value === "log" && requiresConfirmation && !hasLogViewConfirmed) {
-      setShowLogViewDialog(true);
-      return;
-    }
-    setSelectedTab(value as typeof selectedTab);
-  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -176,120 +124,74 @@ export function TraceDetailView({
       <TabsBar
         value={selectedTab}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        onValueChange={handleTabChange}
+        onValueChange={(value) =>
+          setSelectedTab(value as "preview" | "log" | "scores")
+        }
       >
-        <TooltipProvider>
-          <TabsBarList>
-            <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-            {showLogViewTab && (
-              <TabsBarTrigger value="log" disabled={isLogViewDisabled}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>Log View</span>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-xs">
-                    {isLogViewDisabled
-                      ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
-                      : requiresConfirmation
-                        ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
-                        : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
-                  </TooltipContent>
-                </Tooltip>
-              </TabsBarTrigger>
-            )}
-            <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+        <TabsBarList>
+          <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+          {showLogViewTab && (
+            <TabsBarTrigger value="log">Log View</TabsBarTrigger>
+          )}
+          <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-            {/* View toggle (Formatted/JSON) - show for preview and log tabs */}
-            {(selectedTab === "log" || selectedTab === "preview") && (
-              <Tabs
-                className="ml-auto mr-1 h-fit px-2 py-0.5"
-                value={currentView}
-                onValueChange={(value) => {
-                  setCurrentView(value as "pretty" | "json");
-                }}
-              >
-                <TabsList className="h-fit py-0.5">
-                  <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                    Formatted
-                  </TabsTrigger>
-                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                    JSON
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            )}
-          </TabsBarList>
-        </TooltipProvider>
+          {/* View toggle (Formatted/JSON) - show for preview and log tabs */}
+          {(selectedTab === "log" || selectedTab === "preview") && (
+            <Tabs
+              className="ml-auto mr-1 h-fit px-2 py-0.5"
+              value={currentView}
+              onValueChange={(value) => {
+                setCurrentView(value as "pretty" | "json");
+              }}
+            >
+              <TabsList className="h-fit py-0.5">
+                <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                  Formatted
+                </TabsTrigger>
+                <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                  JSON
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </TabsBarList>
 
-        {/* Preview tab content */}
+        {/* Preview tab content - placeholder */}
         <TabsBarContent
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="w-full overflow-y-auto p-4">
+          <div className="flex h-full w-full items-center justify-center p-4">
             <p className="text-sm text-muted-foreground">
-              Preview content (TODO: Add IOPreview, Tags, Metadata)
+              Preview tab content (S5.4a)
             </p>
-            <pre className="mt-2 text-xs">
-              {JSON.stringify(
-                { input: trace.input, output: trace.output },
-                null,
-                2,
-              )}
-            </pre>
           </div>
         </TabsBarContent>
 
-        {/* Log tab content - only mount when active to avoid fetching all observations upfront */}
-        <TabsBarContent value="log">
-          {selectedTab === "log" && (
-            <TraceLogView
-              observations={observations}
-              traceId={trace.id}
-              projectId={projectId}
-              currentView={currentView}
-              trace={trace}
-            />
-          )}
+        {/* Log View tab content - placeholder */}
+        <TabsBarContent
+          value="log"
+          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+        >
+          <div className="flex h-full w-full items-center justify-center p-4">
+            <p className="text-sm text-muted-foreground">
+              Log View tab content (S5.4b)
+            </p>
+          </div>
         </TabsBarContent>
 
-        {/* Scores tab content */}
+        {/* Scores tab content - placeholder */}
         <TabsBarContent
           value="scores"
-          className="mb-2 mr-4 mt-0 flex h-full min-h-0 w-full overflow-hidden md:flex-1"
+          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3 md:flex-1">
-            <ScoresTable
-              projectId={projectId}
-              omittedFilter={["Trace ID"]}
-              traceId={trace.id}
-              hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
-              localStorageSuffix="TracePreview"
-            />
+          <div className="flex h-full w-full items-center justify-center p-4">
+            <p className="text-sm text-muted-foreground">
+              Scores tab content (S5.4c)
+            </p>
           </div>
         </TabsBarContent>
       </TabsBar>
-
-      {/* Confirmation dialog for log view with many observations */}
-      <AlertDialog open={showLogViewDialog} onOpenChange={setShowLogViewDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sluggish Performance Warning</AlertDialogTitle>
-            <AlertDialogDescription>
-              This trace has {observations.length} observations. The log view
-              may be slow to load and interact with. Do you want to continue?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowLogViewDialog(false)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmLogView}>
-              Show Log View
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
