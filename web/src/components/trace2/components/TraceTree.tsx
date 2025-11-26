@@ -24,7 +24,7 @@ export function TraceTree() {
   // Calculate root totals for heatmap color scaling
   // These values are used as the "max" reference for all nodes
   const rootTotalCost = tree.totalCost;
-  const rootTotalDuration = tree.latency ? tree.latency * 1000 : undefined;
+  const rootTotalDuration = tree.latency != null ? tree.latency * 1000 : undefined;
 
   return (
     <VirtualizedTree
