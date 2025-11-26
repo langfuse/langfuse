@@ -828,7 +828,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain(
+      expect(JSON.stringify(response.body)).toContain(
         "Must provide either flat prices",
       );
     });
@@ -850,7 +850,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain(
+      expect(JSON.stringify(response.body)).toContain(
         "Must provide either flat prices",
       );
     });
@@ -880,7 +880,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("isDefault: true");
+      expect(JSON.stringify(response.body)).toContain("isDefault: true");
     });
 
     it("should reject pricing tiers with multiple defaults", async () => {
@@ -915,7 +915,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("Only one pricing tier");
+      expect(JSON.stringify(response.body)).toContain("Only one pricing tier");
     });
 
     it("should reject pricing tiers with duplicate priorities", async () => {
@@ -971,7 +971,9 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("priorities must be unique");
+      expect(JSON.stringify(response.body)).toContain(
+        "priorities must be unique",
+      );
     });
 
     it("should reject pricing tiers with duplicate names", async () => {
@@ -1013,7 +1015,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("names must be unique");
+      expect(JSON.stringify(response.body)).toContain("names must be unique");
     });
 
     it("should reject pricing tiers with invalid regex pattern", async () => {
@@ -1055,7 +1057,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("regex");
+      expect(JSON.stringify(response.body)).toContain("regex");
     });
 
     it("should reject default tier with non-zero priority", async () => {
@@ -1083,7 +1085,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("priority: 0");
+      expect(JSON.stringify(response.body)).toContain("priority: 0");
     });
 
     it("should reject default tier with conditions", async () => {
@@ -1119,7 +1121,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain("empty conditions");
+      expect(JSON.stringify(response.body)).toContain("empty conditions");
     });
   });
 });
