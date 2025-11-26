@@ -15,6 +15,7 @@ import {
   logger,
   processEventBatch,
   getObservationById,
+  DatasetItemManager,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
@@ -35,21 +36,10 @@ export default withMiddlewares({
        **************/
       const { traceId, observationId, datasetItemId } = body;
 
-      const datasetItem = await prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: datasetItemId,
-          },
-          status: "ACTIVE",
-        },
-        select: {
-          id: true,
-          datasetId: true,
-          input: true,
-          expectedOutput: true,
-          metadata: true,
-        },
+      // TODO: verify item is ACTIVE
+      const datasetItem = await DatasetItemManager.getItemById({
+        projectId: auth.scope.projectId,
+        datasetItemId: datasetItemId,
       });
 
       if (!datasetItem) {
