@@ -78,7 +78,7 @@ describe("Token Cost Calculation", () => {
       data: tokenModelData,
     });
     const pricingTierId = uuidv4();
-    await prisma.modelPricingTier.create({
+    await prisma.pricingTier.create({
       data: {
         id: pricingTierId,
         name: "Standard",

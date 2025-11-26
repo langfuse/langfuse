@@ -102,7 +102,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
         t.is_default AS "tierIsDefault"
       FROM
         models m
-        INNER JOIN model_pricing_tiers t ON t.model_id = m.id
+        INNER JOIN pricing_tiers t ON t.model_id = m.id
       WHERE
         m.project_id IS NULL
     `;
@@ -273,7 +273,7 @@ async function upsertModelWithTiers(
         .map((t) => t.id);
 
       if (tiersToDelete.length > 0) {
-        await tx.modelPricingTier.deleteMany({
+        await tx.pricingTier.deleteMany({
           where: {
             id: { in: tiersToDelete },
             modelId: defaultModelPrice.id,
@@ -316,7 +316,7 @@ async function upsertTierWithPrices(
   tier: PricingTier,
 ) {
   // Upsert tier
-  await tx.modelPricingTier.upsert({
+  await tx.pricingTier.upsert({
     where: { id: tier.id },
     update: {
       name: tier.name,

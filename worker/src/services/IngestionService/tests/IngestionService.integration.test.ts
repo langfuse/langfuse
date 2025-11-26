@@ -1425,7 +1425,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
-    await prisma.modelPricingTier.create({
+    await prisma.pricingTier.create({
       data: {
         id: pricingTierId,
         name: "Standard",
@@ -1559,7 +1559,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
-    await prisma.modelPricingTier.create({
+    await prisma.pricingTier.create({
       data: {
         id: pricingTierId,
         name: "Standard",

@@ -464,7 +464,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       });
 
       // Create default tier
-      const defaultTier = await prisma.modelPricingTier.create({
+      const defaultTier = await prisma.pricingTier.create({
         data: {
           modelId: model.id,
           name: "Standard Pricing",
@@ -494,7 +494,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       });
 
       // Create large context tier
-      const largeTier = await prisma.modelPricingTier.create({
+      const largeTier = await prisma.pricingTier.create({
         data: {
           modelId: model.id,
           name: "Large Context",
@@ -602,7 +602,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       });
 
       // Create default tier
-      const defaultTier = await prisma.modelPricingTier.create({
+      const defaultTier = await prisma.pricingTier.create({
         data: {
           modelId: model.id,
           name: "Standard Pricing",
@@ -683,7 +683,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       const modelId = response.body.id;
 
       // Verify default tier was created
-      const tiers = await prisma.modelPricingTier.findMany({
+      const tiers = await prisma.pricingTier.findMany({
         where: { modelId },
         include: { prices: true },
       });
@@ -762,7 +762,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       const modelId = response.body.id;
 
       // Verify tiers were created in database
-      const tiers = await prisma.modelPricingTier.findMany({
+      const tiers = await prisma.pricingTier.findMany({
         where: { modelId },
         include: { prices: true },
         orderBy: { priority: "asc" },

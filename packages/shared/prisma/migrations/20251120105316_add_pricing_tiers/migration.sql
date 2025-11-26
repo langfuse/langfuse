@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "model_pricing_tiers" (
+CREATE TABLE "pricing_tiers" (
     "id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -9,27 +9,27 @@ CREATE TABLE "model_pricing_tiers" (
     "priority" INTEGER NOT NULL,
     "conditions" JSONB NOT NULL,
 
-    CONSTRAINT "model_pricing_tiers_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "pricing_tiers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE INDEX "model_pricing_tiers_model_id_is_default_idx" ON "model_pricing_tiers"("model_id", "is_default");
+CREATE INDEX "pricing_tiers_model_id_is_default_idx" ON "pricing_tiers"("model_id", "is_default");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "model_pricing_tiers_model_id_priority_key" ON "model_pricing_tiers"("model_id", "priority");
+CREATE UNIQUE INDEX "pricing_tiers_model_id_priority_key" ON "pricing_tiers"("model_id", "priority");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "model_pricing_tiers_model_id_name_key" ON "model_pricing_tiers"("model_id", "name");
+CREATE UNIQUE INDEX "pricing_tiers_model_id_name_key" ON "pricing_tiers"("model_id", "name");
 
 -- AddForeignKey
-ALTER TABLE "model_pricing_tiers" ADD CONSTRAINT "model_pricing_tiers_model_id_fkey" FOREIGN KEY ("model_id") REFERENCES "models"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pricing_tiers" ADD CONSTRAINT "pricing_tiers_model_id_fkey" FOREIGN KEY ("model_id") REFERENCES "models"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AlterTable
 ALTER TABLE "prices" ADD COLUMN "pricing_tier_id" TEXT;
 
 -- Data Migration: Create default pricing tiers with DETERMINISTIC IDs
 -- Pattern: {model_id}_tier_default
-INSERT INTO "model_pricing_tiers" (id, model_id, name, is_default, priority, conditions)
+INSERT INTO "pricing_tiers" (id, model_id, name, is_default, priority, conditions)
 SELECT
   model_id || '_tier_default',
   model_id,
@@ -53,7 +53,7 @@ WHERE pricing_tier_id IS NULL;
 ALTER TABLE "prices" ALTER COLUMN "pricing_tier_id" SET NOT NULL;
 
 -- AddForeignKey
-ALTER TABLE "prices" ADD CONSTRAINT "prices_pricing_tier_id_fkey" FOREIGN KEY ("pricing_tier_id") REFERENCES "model_pricing_tiers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "prices" ADD CONSTRAINT "prices_pricing_tier_id_fkey" FOREIGN KEY ("pricing_tier_id") REFERENCES "pricing_tiers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- DropIndex
 DROP INDEX IF EXISTS "prices_model_id_usage_type_key";

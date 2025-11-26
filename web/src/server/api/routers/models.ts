@@ -77,7 +77,7 @@ export const modelRouter = createTRPCRouter({
                     ORDER BY mpt.priority ASC
                   )
                 FROM
-                  model_pricing_tiers mpt
+                  pricing_tiers mpt
                 WHERE
                   mpt.model_id = m.id
               ),
@@ -146,7 +146,7 @@ export const modelRouter = createTRPCRouter({
                     ORDER BY mpt.priority ASC
                   )
                 FROM
-                  model_pricing_tiers mpt
+                  pricing_tiers mpt
                 WHERE
                   mpt.model_id = m.id
               ),
@@ -327,7 +327,7 @@ export const modelRouter = createTRPCRouter({
         });
 
         // Delete all existing pricing tiers
-        await tx.modelPricingTier.deleteMany({
+        await tx.pricingTier.deleteMany({
           where: {
             modelId: upsertedModel.id,
           },
@@ -335,7 +335,7 @@ export const modelRouter = createTRPCRouter({
 
         // Create new pricing tiers
         for (const tier of pricingTiers) {
-          const createdTier = await tx.modelPricingTier.create({
+          const createdTier = await tx.pricingTier.create({
             data: {
               modelId: upsertedModel.id,
               name: tier.name,

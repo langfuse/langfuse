@@ -128,7 +128,7 @@ export default withMiddlewares({
           // NEW: Create pricing tiers
           for (const tier of tierData) {
             // Create tier (Prisma generates CUID)
-            const createdTier = await tx.modelPricingTier.create({
+            const createdTier = await tx.pricingTier.create({
               data: {
                 modelId: createdModel.id,
                 name: tier.name,
@@ -157,7 +157,7 @@ export default withMiddlewares({
           // BACKWARD COMPATIBLE: Create default tier from flat prices
           const defaultTierId = `${createdModel.id}_tier_default`;
 
-          const defaultTier = await tx.modelPricingTier.create({
+          const defaultTier = await tx.pricingTier.create({
             data: {
               id: defaultTierId,
               modelId: createdModel.id,

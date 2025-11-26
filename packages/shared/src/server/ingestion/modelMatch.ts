@@ -175,7 +175,7 @@ const getModelWithPricesFromRedis = async (
 export async function findPricingTiersForModel(
   modelId: string,
 ): Promise<PricingTierWithPrices[]> {
-  const tiers = await prisma.modelPricingTier.findMany({
+  const tiers = await prisma.pricingTier.findMany({
     where: { modelId },
     include: {
       prices: {

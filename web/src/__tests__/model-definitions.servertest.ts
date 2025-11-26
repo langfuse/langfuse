@@ -41,7 +41,7 @@ describe("/models API Endpoints", () => {
       },
     });
     const pricingTierId1 = v4();
-    await prisma.modelPricingTier.create({
+    await prisma.pricingTier.create({
       data: {
         id: pricingTierId1,
         isDefault: true,
@@ -91,7 +91,7 @@ describe("/models API Endpoints", () => {
       },
     });
     const pricingTierId2 = v4();
-    await prisma.modelPricingTier.create({
+    await prisma.pricingTier.create({
       data: {
         id: pricingTierId2,
         isDefault: true,

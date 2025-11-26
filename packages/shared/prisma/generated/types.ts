@@ -677,7 +677,7 @@ export type Model = {
   tokenizer_id: string | null;
   tokenizer_config: unknown | null;
 };
-export type ModelPricingTier = {
+export type PricingTier = {
   id: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
@@ -946,7 +946,7 @@ export type DB = {
   media: Media;
   membership_invitations: MembershipInvitation;
   mixpanel_integrations: MixpanelIntegration;
-  model_pricing_tiers: ModelPricingTier;
+  pricing_tiers: PricingTier;
   models: Model;
   notification_preferences: NotificationPreference;
   observation_media: ObservationMedia;
