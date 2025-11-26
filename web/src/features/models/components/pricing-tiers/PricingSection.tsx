@@ -30,18 +30,12 @@ export function PricingSection({
     // SIMPLE VIEW: Just show prices for the single default tier
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <FormLabel>Prices</FormLabel>
-            <FormDescription>
-              Set prices per usage type for this model. Usage types must exactly
-              match the keys of the ingested usage details.
-            </FormDescription>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={addTier}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add Custom Pricing Tier
-          </Button>
+        <div>
+          <FormLabel>Prices</FormLabel>
+          <FormDescription>
+            Set prices per usage type for this model. Usage types must exactly
+            match the keys of the ingested usage details.
+          </FormDescription>
         </div>
 
         <TierPrefillButtons tierIndex={defaultTierIndex} form={form} />
@@ -50,6 +44,11 @@ export function PricingSection({
           form={form}
           isDefault={true}
         />
+
+        <Button type="button" variant="ghost" onClick={addTier}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Add Custom Pricing Tier
+        </Button>
       </div>
     );
   }
