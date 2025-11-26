@@ -3274,7 +3274,7 @@
         "priority": 1,
         "conditions": [
           {
-            "usageDetailPattern": "(input|prompt)",
+            "usageDetailPattern": "(input|prompt|cached)",
             "operator": "gt",
             "value": 200000,
             "caseSensitive": false
@@ -3334,7 +3334,7 @@
         "priority": 1,
         "conditions": [
           {
-            "usageDetailPattern": "(input|prompt)",
+            "usageDetailPattern": "(input|prompt|cached)",
             "operator": "gt",
             "value": 200000,
             "caseSensitive": false
