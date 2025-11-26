@@ -13,7 +13,6 @@ import {
   PostModelsV1Response,
 } from "@/src/features/public-api/types/models";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { uuid, uuidv4 } from "zod/v4";
 import { v4 } from "uuid";
 
 describe("/models API Endpoints", () => {
