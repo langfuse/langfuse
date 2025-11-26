@@ -871,6 +871,7 @@ model Price {
   price     Decimal
 
   @@unique([modelId, usageType, pricingTierId])
+  @@index(pricingTierId)
   @@map("prices")
 }
 
