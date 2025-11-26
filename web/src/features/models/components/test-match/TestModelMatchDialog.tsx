@@ -66,7 +66,7 @@ export function TestModelMatchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" className="min-h-[62vh]">
+      <DialogContent size="lg" className="min-h-[62vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
           <DialogHeader>
             <DialogTitle>Test Model Match</DialogTitle>
