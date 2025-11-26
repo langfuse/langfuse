@@ -1,0 +1,196 @@
+/**
+ * ObservationDetailView - Shows observation-level details when an observation is selected
+ *
+ * Responsibility:
+ * - Display observation metadata (type, timestamp, model, environment, etc.)
+ * - Show cost and token usage with tooltips
+ * - Provide tabbed interface (Preview, Scores)
+ * - Support Formatted/JSON toggle for preview content
+ *
+ * Hooks:
+ * - useLocalStorage() - for JSON view preference
+ * - useState() - for tab selection
+ *
+ * Re-renders when:
+ * - Observation prop changes (new observation selected)
+ * - Tab selection changes
+ * - View mode toggle changes
+ */
+
+import { type ObservationType } from "@langfuse/shared";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { ItemBadge } from "@/src/components/ItemBadge";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  TabsBar,
+  TabsBarContent,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { useMemo, useState } from "react";
+import {
+  LatencyBadge,
+  TimeToFirstTokenBadge,
+  EnvironmentBadge,
+  VersionBadge,
+  LevelBadge,
+  StatusMessageBadge,
+} from "./ObservationMetadataBadgesSimple";
+import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
+import { ModelBadge } from "./ObservationMetadataBadgeModel";
+import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
+
+export interface ObservationDetailViewProps {
+  observation: ObservationReturnTypeWithMetadata;
+  projectId: string;
+}
+
+export function ObservationDetailView({
+  observation,
+  projectId,
+}: ObservationDetailViewProps) {
+  const [selectedTab, setSelectedTab] = useState<"preview" | "scores">(
+    "preview",
+  );
+  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
+    "jsonViewPreference",
+    "pretty",
+  );
+
+  // Calculate latency in seconds if not provided
+  const latencySeconds = useMemo(() => {
+    if (observation.latency) {
+      return observation.latency;
+    }
+    if (observation.startTime && observation.endTime) {
+      return (
+        (observation.endTime.getTime() - observation.startTime.getTime()) / 1000
+      );
+    }
+    return null;
+  }, [observation.latency, observation.startTime, observation.endTime]);
+
+  // Format cost and usage values
+  const totalCost = observation.totalCost;
+  const totalUsage = observation.totalUsage;
+  const inputUsage = observation.inputUsage;
+  const outputUsage = observation.outputUsage;
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Header section */}
+      <div className="flex-shrink-0 space-y-2 border-b p-4">
+        {/* Title row */}
+        <div className="flex items-start gap-2">
+          <div className="mt-1">
+            <ItemBadge type={observation.type as ObservationType} isSmall />
+          </div>
+          <span className="min-w-0 break-all font-medium">
+            {observation.name || observation.id}
+          </span>
+        </div>
+
+        {/* Metadata badges */}
+        <div className="flex flex-col gap-1">
+          {/* Timestamp on its own row */}
+          <div className="flex items-center">
+            <LocalIsoDate
+              date={observation.startTime}
+              accuracy="millisecond"
+              className="text-xs"
+            />
+          </div>
+          {/* Other badges on second row */}
+          <div className="flex flex-wrap items-center gap-1">
+            <LatencyBadge latencySeconds={latencySeconds} />
+            <TimeToFirstTokenBadge
+              timeToFirstToken={observation.timeToFirstToken}
+            />
+            <EnvironmentBadge environment={observation.environment} />
+            <CostBadge
+              totalCost={totalCost}
+              costDetails={observation.costDetails}
+            />
+            <UsageBadge
+              type={observation.type}
+              inputUsage={inputUsage}
+              outputUsage={outputUsage}
+              totalUsage={totalUsage}
+              usageDetails={observation.usageDetails}
+            />
+            <VersionBadge version={observation.version} />
+            <ModelBadge
+              model={observation.model}
+              internalModelId={observation.internalModelId}
+              projectId={projectId}
+              usageDetails={observation.usageDetails}
+            />
+            <ModelParametersBadges
+              modelParameters={observation.modelParameters}
+            />
+            <LevelBadge level={observation.level} />
+            <StatusMessageBadge statusMessage={observation.statusMessage} />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs section */}
+      <TabsBar
+        value={selectedTab}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        onValueChange={(value) => setSelectedTab(value as "preview" | "scores")}
+      >
+        <TabsBarList>
+          <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+          <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+
+          {/* View toggle (Formatted/JSON) - show for preview tab */}
+          {selectedTab === "preview" && (
+            <Tabs
+              className="ml-auto mr-1 h-fit px-2 py-0.5"
+              value={currentView}
+              onValueChange={(value) => {
+                setCurrentView(value as "pretty" | "json");
+              }}
+            >
+              <TabsList className="h-fit py-0.5">
+                <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                  Formatted
+                </TabsTrigger>
+                <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                  JSON
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </TabsBarList>
+
+        {/* Preview tab content - placeholder */}
+        <TabsBarContent
+          value="preview"
+          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+        >
+          <div className="flex h-full w-full items-center justify-center p-4">
+            <p className="text-sm text-muted-foreground">
+              Preview tab content (S5.1)
+            </p>
+          </div>
+        </TabsBarContent>
+
+        {/* Scores tab content - placeholder */}
+        <TabsBarContent
+          value="scores"
+          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+        >
+          <div className="flex h-full w-full items-center justify-center p-4">
+            <p className="text-sm text-muted-foreground">
+              Scores tab content (S5.5)
+            </p>
+          </div>
+        </TabsBarContent>
+      </TabsBar>
+    </div>
+  );
+}
