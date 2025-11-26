@@ -41,15 +41,18 @@ import {
 import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
+import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
   projectId: string;
+  traceId: string;
 }
 
 export function ObservationDetailView({
   observation,
   projectId,
+  traceId,
 }: ObservationDetailViewProps) {
   const [selectedTab, setSelectedTab] = useState<"preview" | "scores">(
     "preview",
@@ -179,15 +182,25 @@ export function ObservationDetailView({
           </div>
         </TabsBarContent>
 
-        {/* Scores tab content - placeholder */}
+        {/* Scores tab content */}
         <TabsBarContent
           value="scores"
-          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+          className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
         >
-          <div className="flex h-full w-full items-center justify-center p-4">
-            <p className="text-sm text-muted-foreground">
-              Scores tab content (S5.5)
-            </p>
+          <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+            <ScoresTable
+              projectId={projectId}
+              traceId={traceId}
+              observationId={observation.id}
+              hiddenColumns={[
+                "traceId",
+                "observationId",
+                "traceName",
+                "jobConfigurationId",
+                "userId",
+              ]}
+              localStorageSuffix="ObservationPreview"
+            />
           </div>
         </TabsBarContent>
       </TabsBar>
