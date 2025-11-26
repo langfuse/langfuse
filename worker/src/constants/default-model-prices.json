@@ -3237,5 +3237,125 @@
         }
       }
     ]
+  },
+  {
+    "id": "cmig1hb7i000104l72qrzgc6h",
+    "modelName": "gemini-2.5-pro",
+    "matchPattern": "(?i)^(gemini-2.5-pro)$",
+    "createdAt": "2025-11-26T13:27:53.545Z",
+    "updatedAt": "2025-11-26T13:27:53.545Z",
+    "pricingTiers": [
+      {
+        "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.25e-6,
+          "input_modality_1": 1.25e-6,
+          "prompt_token_count": 1.25e-6,
+          "promptTokenCount": 1.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "cached_content_token_count": 0.125e-6,
+          "output": 10e-6,
+          "output_modality_1": 10e-6,
+          "candidates_token_count": 10e-6,
+          "candidatesTokenCount": 10e-6,
+          "thoughtsTokenCount": 10e-6,
+          "thoughts_token_count": 10e-6,
+          "output_reasoning": 10e-6
+        }
+      },
+      {
+        "id": "bcf39e8f-9969-455f-be9a-541a00256092",
+        "name": "Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|prompt)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_modality_1": 2.5e-6,
+          "prompt_token_count": 2.5e-6,
+          "promptTokenCount": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "cached_content_token_count": 0.25e-6,
+          "output": 15e-6,
+          "output_modality_1": 15e-6,
+          "candidates_token_count": 15e-6,
+          "candidatesTokenCount": 15e-6,
+          "thoughtsTokenCount": 15e-6,
+          "thoughts_token_count": 15e-6,
+          "output_reasoning": 15e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "cmig1wmep000404l7fh6q5uog",
+    "modelName": "gemini-3-pro-preview",
+    "matchPattern": "(?i)^(gemini-3-pro-preview)$",
+    "createdAt": "2025-11-26T13:27:53.545Z",
+    "updatedAt": "2025-11-26T13:27:53.545Z",
+    "pricingTiers": [
+      {
+        "id": "cmig1wmep000404l7fh6q5uog_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_modality_1": 2e-6,
+          "prompt_token_count": 2e-6,
+          "promptTokenCount": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "cached_content_token_count": 0.2e-6,
+          "output": 12e-6,
+          "output_modality_1": 12e-6,
+          "candidates_token_count": 12e-6,
+          "candidatesTokenCount": 12e-6,
+          "thoughtsTokenCount": 12e-6,
+          "thoughts_token_count": 12e-6,
+          "output_reasoning": 12e-6
+        }
+      },
+      {
+        "id": "4da930c8-7146-4e27-b66c-b62f2c2ec357",
+        "name": "Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|prompt)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_modality_1": 4e-6,
+          "prompt_token_count": 4e-6,
+          "promptTokenCount": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "cached_content_token_count": 0.4e-6,
+          "output": 18e-6,
+          "output_modality_1": 18e-6,
+          "candidates_token_count": 18e-6,
+          "candidatesTokenCount": 18e-6,
+          "thoughtsTokenCount": 18e-6,
+          "thoughts_token_count": 18e-6,
+          "output_reasoning": 18e-6
+        }
+      }
+    ]
   }
 ]
