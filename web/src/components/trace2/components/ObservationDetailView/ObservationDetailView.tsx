@@ -42,6 +42,9 @@ import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { api } from "@/src/utils/api";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -60,6 +63,35 @@ export function ObservationDetailView({
   const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
     "jsonViewPreference",
     "pretty",
+  );
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+
+  // Fetch observation input/output (not included in ObservationReturnTypeWithMetadata)
+  const observationWithIO = api.observations.byId.useQuery(
+    {
+      observationId: observation.id,
+      traceId: traceId,
+      projectId: projectId,
+      startTime: observation.startTime,
+    },
+    {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  );
+
+  // Fetch media for this observation
+  const observationMedia = api.media.getByTraceOrObservationId.useQuery(
+    {
+      traceId: traceId,
+      observationId: observation.id,
+      projectId: projectId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: 50 * 60 * 1000, // 50 minutes
+    },
   );
 
   // Calculate latency in seconds if not provided
@@ -149,8 +181,8 @@ export function ObservationDetailView({
           <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
           <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-          {/* View toggle (Formatted/JSON) - show for preview tab */}
-          {selectedTab === "preview" && (
+          {/* View toggle (Formatted/JSON) - show for preview tab when pretty view is available */}
+          {selectedTab === "preview" && isPrettyViewAvailable && (
             <Tabs
               className="ml-auto mr-1 h-fit px-2 py-0.5"
               value={currentView}
@@ -170,15 +202,36 @@ export function ObservationDetailView({
           )}
         </TabsBarList>
 
-        {/* Preview tab content - placeholder */}
+        {/* Preview tab content */}
         <TabsBarContent
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex h-full w-full items-center justify-center p-4">
-            <p className="text-sm text-muted-foreground">
-              Preview tab content (S5.1)
-            </p>
+          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+            <IOPreview
+              key={observation.id}
+              observationName={observation.name ?? undefined}
+              input={observationWithIO.data?.input ?? undefined}
+              output={observationWithIO.data?.output ?? undefined}
+              metadata={observationWithIO.data?.metadata ?? undefined}
+              isLoading={observationWithIO.isLoading}
+              media={observationMedia.data}
+              currentView={currentView}
+              setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+            />
+            {observationWithIO.data?.metadata && (
+              <div className="px-2">
+                <PrettyJsonView
+                  key={observationWithIO.data.id + "-metadata"}
+                  title="Metadata"
+                  json={observationWithIO.data.metadata}
+                  media={observationMedia.data?.filter(
+                    (m) => m.field === "metadata",
+                  )}
+                  currentView={currentView}
+                />
+              </div>
+            )}
           </div>
         </TabsBarContent>
 

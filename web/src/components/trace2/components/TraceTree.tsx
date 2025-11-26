@@ -21,6 +21,12 @@ export function TraceTree() {
   const { selectedNodeId, setSelectedNodeId, collapsedNodes, toggleCollapsed } =
     useSelection();
 
+  // Calculate root totals for heatmap color scaling
+  // These values are used as the "max" reference for all nodes
+  const rootTotalCost = tree.totalCost;
+  const rootTotalDuration =
+    tree.latency != null ? tree.latency * 1000 : undefined;
+
   return (
     <VirtualizedTree
       tree={tree}
@@ -50,12 +56,8 @@ export function TraceTree() {
           >
             <SpanContent
               node={typedNode}
-              parentTotalCost={typedNode.totalCost}
-              parentTotalDuration={
-                typedNode.endTime && typedNode.startTime
-                  ? typedNode.endTime.getTime() - typedNode.startTime.getTime()
-                  : undefined
-              }
+              parentTotalCost={rootTotalCost}
+              parentTotalDuration={rootTotalDuration}
               commentCount={comments.get(typedNode.id)}
               onSelect={onSelect}
             />
