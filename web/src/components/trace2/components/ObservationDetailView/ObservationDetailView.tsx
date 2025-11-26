@@ -17,7 +17,7 @@
  * - View mode toggle changes
  */
 
-import { type ObservationType } from "@langfuse/shared";
+import { type ObservationType, isGenerationLike } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { Badge } from "@/src/components/ui/badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -34,7 +34,9 @@ import { useState, Fragment } from "react";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, ExternalLinkIcon, PlusCircle } from "lucide-react";
+import Link from "next/link";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -43,7 +45,7 @@ export interface ObservationDetailViewProps {
 
 export function ObservationDetailView({
   observation,
-  projectId: _projectId,
+  projectId,
 }: ObservationDetailViewProps) {
   const [selectedTab, setSelectedTab] = useState<"preview" | "scores">(
     "preview",
@@ -67,7 +69,6 @@ export function ObservationDetailView({
   const outputUsage = observation.outputUsage;
 
   const hasCostData = totalCost !== null && totalCost !== undefined;
-  const hasUsageData = totalUsage > 0;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -118,7 +119,7 @@ export function ObservationDetailView({
                 </Badge>
               </BreakdownTooltip>
             )}
-            {hasUsageData && observation.usageDetails && (
+            {isGenerationLike(observation.type) && observation.usageDetails && (
               <BreakdownTooltip
                 details={observation.usageDetails}
                 isCost={false}
@@ -139,9 +140,46 @@ export function ObservationDetailView({
             {observation.version && (
               <Badge variant="tertiary">Version: {observation.version}</Badge>
             )}
-            {observation.model && (
-              <Badge variant="tertiary">{observation.model}</Badge>
-            )}
+            {observation.model &&
+              (observation.internalModelId ? (
+                <Badge>
+                  <Link
+                    href={`/project/${projectId}/settings/models/${observation.internalModelId}`}
+                    className="flex items-center"
+                    title="View model details"
+                  >
+                    <span className="truncate">{observation.model}</span>
+                    <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                  </Link>
+                </Badge>
+              ) : (
+                <UpsertModelFormDrawer
+                  action="create"
+                  projectId={projectId}
+                  prefilledModelData={{
+                    modelName: observation.model,
+                    prices:
+                      observation.usageDetails &&
+                      Object.keys(observation.usageDetails).length > 0
+                        ? Object.keys(observation.usageDetails)
+                            .filter((key) => key !== "total")
+                            .reduce(
+                              (acc, key) => {
+                                acc[key] = 0.000001;
+                                return acc;
+                              },
+                              {} as Record<string, number>,
+                            )
+                        : undefined,
+                  }}
+                  className="cursor-pointer"
+                >
+                  <Badge variant="tertiary" className="flex items-center gap-1">
+                    <span>{observation.model}</span>
+                    <PlusCircle className="h-3 w-3" />
+                  </Badge>
+                </UpsertModelFormDrawer>
+              ))}
             <Fragment>
               {observation.modelParameters &&
               typeof observation.modelParameters === "object"
