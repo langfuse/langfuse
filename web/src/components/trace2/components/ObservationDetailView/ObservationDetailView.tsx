@@ -43,6 +43,7 @@ import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { api } from "@/src/utils/api";
 
 export interface ObservationDetailViewProps {
@@ -218,6 +219,19 @@ export function ObservationDetailView({
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
             />
+            {observationWithIO.data?.metadata && (
+              <div className="px-2">
+                <PrettyJsonView
+                  key={observationWithIO.data.id + "-metadata"}
+                  title="Metadata"
+                  json={observationWithIO.data.metadata}
+                  media={observationMedia.data?.filter(
+                    (m) => m.field === "metadata",
+                  )}
+                  currentView={currentView}
+                />
+              </div>
+            )}
           </div>
         </TabsBarContent>
 
