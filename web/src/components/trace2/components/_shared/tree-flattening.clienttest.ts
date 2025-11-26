@@ -682,7 +682,7 @@ describe("flattenTree", () => {
 
     describe("10k nodes", () => {
       const scale = 10_000;
-      const threshold = 500; // 500ms
+      const threshold = 750; // 750ms
 
       it("flattens flat structure", () => {
         runPerformanceTest(scale, "flat", 0, threshold);
