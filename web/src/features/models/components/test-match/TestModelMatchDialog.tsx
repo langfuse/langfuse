@@ -89,7 +89,7 @@ export function TestModelMatchDialog({
                   <Input
                     placeholder="e.g. gpt-4-turbo"
                     value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
+                    onChange={(e) => setModelName(e.target.value.trim())}
                     autoFocus
                     required
                   />
