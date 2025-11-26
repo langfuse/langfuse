@@ -7,7 +7,7 @@ import {
   validatePricingTiers,
 } from "@langfuse/shared";
 
-const PricingTierSchema = z.object({
+export const PricingTierSchema = z.object({
   id: z.string(),
   name: z.string(),
   isDefault: z.boolean(),
@@ -16,7 +16,7 @@ const PricingTierSchema = z.object({
   prices: z.record(z.string(), z.number()),
 });
 
-const DefaultModelPriceSchema = z
+export const DefaultModelPriceSchema = z
   .object({
     id: z.string(),
     modelName: z.string(),
@@ -48,8 +48,8 @@ const DefaultModelPriceSchema = z
     }
   });
 
-type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
-type PricingTier = z.infer<typeof PricingTierSchema>;
+export type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
+export type PricingTier = z.infer<typeof PricingTierSchema>;
 
 const ExistingModelTierSchema = z.object({
   modelId: z.string(),

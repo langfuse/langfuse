@@ -1,10 +1,249 @@
 import { describe, expect, it } from "vitest";
 import { Decimal } from "decimal.js";
+import { z } from "zod/v4";
 import { validateRegexPattern } from "@langfuse/shared";
 import {
   matchPricingTier,
   type PricingTierWithPrices,
 } from "@langfuse/shared/src/server";
+import { DefaultModelPriceSchema } from "../scripts/upsertDefaultModelPrices";
+import defaultModelPrices from "../constants/default-model-prices.json";
+
+describe("default-model-prices.json", () => {
+  it("should parse successfully with Zod schema (same validation as upsertDefaultModelPrices)", () => {
+    expect(() =>
+      z.array(DefaultModelPriceSchema).parse(defaultModelPrices),
+    ).not.toThrow();
+  });
+
+  it("should have unique model IDs", () => {
+    const ids = defaultModelPrices.map((model) => model.id);
+    const uniqueIds = new Set(ids);
+    expect(ids.length).toBe(uniqueIds.size);
+  });
+
+  it("should have unique pricing tier IDs globally", () => {
+    const allTierIds: string[] = [];
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        allTierIds.push(tier.id);
+      }
+    }
+    const uniqueTierIds = new Set(allTierIds);
+    expect(allTierIds.length).toBe(uniqueTierIds.size);
+  });
+
+  it("should have unique model names", () => {
+    const modelNames = defaultModelPrices.map((model) => model.modelName);
+    const uniqueNames = new Set(modelNames);
+    expect(modelNames.length).toBe(uniqueNames.size);
+  });
+
+  it("should have updatedAt greater than or equal to createdAt", () => {
+    for (const model of defaultModelPrices) {
+      const created = new Date(model.createdAt);
+      const updated = new Date(model.updatedAt);
+      expect(updated.getTime()).toBeGreaterThanOrEqual(created.getTime());
+    }
+  });
+
+  it("should have valid date formats for all timestamps", () => {
+    for (const model of defaultModelPrices) {
+      const created = new Date(model.createdAt);
+      const updated = new Date(model.updatedAt);
+      expect(created.toString()).not.toBe("Invalid Date");
+      expect(updated.toString()).not.toBe("Invalid Date");
+    }
+  });
+
+  it("should have at least one pricing tier per model", () => {
+    for (const model of defaultModelPrices) {
+      expect(model.pricingTiers.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("should have exactly one default tier per model", () => {
+    for (const model of defaultModelPrices) {
+      const defaultTiers = model.pricingTiers.filter((t) => t.isDefault);
+      expect(defaultTiers.length).toBe(1);
+    }
+  });
+
+  it("should have default tier with priority 0 and no conditions", () => {
+    for (const model of defaultModelPrices) {
+      const defaultTier = model.pricingTiers.find((t) => t.isDefault);
+      expect(defaultTier).toBeDefined();
+      expect(defaultTier!.priority).toBe(0);
+      expect(defaultTier!.conditions).toEqual([]);
+    }
+  });
+
+  it("should have unique priorities within each model", () => {
+    for (const model of defaultModelPrices) {
+      const priorities = model.pricingTiers.map((t) => t.priority);
+      const uniquePriorities = new Set(priorities);
+      expect(priorities.length).toBe(uniquePriorities.size);
+    }
+  });
+
+  it("should have unique tier names within each model", () => {
+    for (const model of defaultModelPrices) {
+      const names = model.pricingTiers.map((t) => t.name);
+      const uniqueNames = new Set(names);
+      expect(names.length).toBe(uniqueNames.size);
+    }
+  });
+
+  it("should have non-negative priority values", () => {
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        expect(tier.priority).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it("should have integer priority values", () => {
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        expect(Number.isInteger(tier.priority)).toBe(true);
+      }
+    }
+  });
+
+  it("should have at least one price per tier", () => {
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        expect(Object.keys(tier.prices).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("should have non-negative price values", () => {
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        for (const [usageType, price] of Object.entries(tier.prices)) {
+          expect(price).toBeGreaterThanOrEqual(0);
+        }
+      }
+    }
+  });
+
+  it("should have valid number values for all prices (no NaN or Infinity)", () => {
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        for (const [usageType, price] of Object.entries(tier.prices)) {
+          expect(Number.isFinite(price)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("should have same price keys across all tiers within a model", () => {
+    for (const model of defaultModelPrices) {
+      if (model.pricingTiers.length <= 1) continue;
+
+      const defaultTier = model.pricingTiers.find((t) => t.isDefault);
+      expect(defaultTier).toBeDefined();
+
+      const defaultKeys = Object.keys(defaultTier!.prices).sort();
+
+      for (const tier of model.pricingTiers) {
+        if (tier.isDefault) continue;
+
+        const tierKeys = Object.keys(tier.prices).sort();
+        expect(tierKeys).toEqual(defaultKeys);
+      }
+    }
+  });
+
+  it("should have valid condition structures for non-default tiers", () => {
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        if (tier.isDefault) continue;
+
+        // Non-default tiers must have at least one condition
+        expect(tier.conditions.length).toBeGreaterThan(0);
+
+        for (const condition of tier.conditions) {
+          expect(condition).toHaveProperty("usageDetailPattern");
+          expect(condition).toHaveProperty("operator");
+          expect(condition).toHaveProperty("value");
+          expect(condition).toHaveProperty("caseSensitive");
+
+          // Validate operator
+          expect(["gt", "gte", "lt", "lte", "eq", "neq"]).toContain(
+            condition.operator,
+          );
+
+          // Validate value is a number
+          expect(typeof condition.value).toBe("number");
+
+          // Validate caseSensitive is boolean
+          expect(typeof condition.caseSensitive).toBe("boolean");
+
+          // Validate pattern is a string
+          expect(typeof condition.usageDetailPattern).toBe("string");
+          expect(condition.usageDetailPattern.length).toBeGreaterThan(0);
+          expect(condition.usageDetailPattern.length).toBeLessThanOrEqual(200);
+        }
+      }
+    }
+  });
+
+  it("should have valid regex patterns in all conditions", () => {
+    for (const model of defaultModelPrices) {
+      for (const tier of model.pricingTiers) {
+        for (const condition of tier.conditions) {
+          expect(() =>
+            validateRegexPattern(condition.usageDetailPattern),
+          ).not.toThrow();
+        }
+      }
+    }
+  });
+
+  it("should correctly match claude-sonnet-4-5 model with tiered pricing", () => {
+    const claudeModel = defaultModelPrices.find(
+      (m) => m.id === "c5qmrqolku82tra3vgdixmys",
+    );
+    expect(claudeModel).toBeDefined();
+    expect(claudeModel!.modelName).toBe("claude-sonnet-4-5-20250929");
+    expect(claudeModel!.pricingTiers.length).toBe(2);
+
+    // Convert to PricingTierWithPrices format
+    const tiers: PricingTierWithPrices[] = claudeModel!.pricingTiers.map(
+      (tier) => ({
+        id: tier.id,
+        name: tier.name,
+        isDefault: tier.isDefault,
+        priority: tier.priority,
+        conditions: tier.conditions,
+        prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+          usageType,
+          price: new Decimal(price),
+        })),
+      }),
+    );
+
+    // Test standard pricing (input <= 200K)
+    const standardResult = matchPricingTier(tiers, {
+      input: 150000,
+      output: 5000,
+    });
+    expect(standardResult).not.toBeNull();
+    expect(standardResult?.pricingTierName).toBe("Standard");
+    expect(standardResult?.prices.input.toNumber()).toBe(0.000003);
+
+    // Test large context pricing (input > 200K)
+    const largeContextResult = matchPricingTier(tiers, {
+      input: 250000,
+      output: 5000,
+    });
+    expect(largeContextResult).not.toBeNull();
+    expect(largeContextResult?.pricingTierName).toBe("Large Context");
+    expect(largeContextResult?.prices.input.toNumber()).toBe(0.000006);
+  });
+});
 
 describe("validateRegexPattern", () => {
   it("should accept valid regex patterns", () => {
