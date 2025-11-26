@@ -17,9 +17,8 @@
  * - View mode toggle changes
  */
 
-import { type ObservationType, isGenerationLike } from "@langfuse/shared";
+import { type ObservationType } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { Badge } from "@/src/components/ui/badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import {
@@ -30,13 +29,18 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useState, Fragment } from "react";
-import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { formatIntervalSeconds } from "@/src/utils/dates";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { InfoIcon, ExternalLinkIcon, PlusCircle } from "lucide-react";
-import Link from "next/link";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { useMemo, useState } from "react";
+import {
+  LatencyBadge,
+  TimeToFirstTokenBadge,
+  EnvironmentBadge,
+  VersionBadge,
+  LevelBadge,
+  StatusMessageBadge,
+} from "./ObservationMetadataBadgesSimple";
+import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
+import { ModelBadge } from "./ObservationMetadataBadgeModel";
+import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -56,19 +60,23 @@ export function ObservationDetailView({
   );
 
   // Calculate latency in seconds if not provided
-  const latencySeconds =
-    observation.latency ??
-    (observation.startTime && observation.endTime
-      ? (observation.endTime.getTime() - observation.startTime.getTime()) / 1000
-      : null);
+  const latencySeconds = useMemo(() => {
+    if (observation.latency) {
+      return observation.latency;
+    }
+    if (observation.startTime && observation.endTime) {
+      return (
+        (observation.endTime.getTime() - observation.startTime.getTime()) / 1000
+      );
+    }
+    return null;
+  }, [observation.latency, observation.startTime, observation.endTime]);
 
   // Format cost and usage values
   const totalCost = observation.totalCost;
   const totalUsage = observation.totalUsage;
   const inputUsage = observation.inputUsage;
   const outputUsage = observation.outputUsage;
-
-  const hasCostData = totalCost !== null && totalCost !== undefined;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -96,134 +104,34 @@ export function ObservationDetailView({
           </div>
           {/* Other badges on second row */}
           <div className="flex flex-wrap items-center gap-1">
-            {latencySeconds !== null && latencySeconds !== undefined && (
-              <Badge variant="tertiary">
-                Latency: {formatIntervalSeconds(latencySeconds)}
-              </Badge>
-            )}
-            {observation.timeToFirstToken !== null &&
-              observation.timeToFirstToken !== undefined && (
-                <Badge variant="tertiary">
-                  Time to first token:{" "}
-                  {formatIntervalSeconds(observation.timeToFirstToken)}
-                </Badge>
-              )}
-            {observation.environment && (
-              <Badge variant="tertiary">Env: {observation.environment}</Badge>
-            )}
-            {hasCostData && observation.costDetails && (
-              <BreakdownTooltip details={observation.costDetails} isCost={true}>
-                <Badge variant="tertiary" className="flex items-center gap-1">
-                  <span>{usdFormatter(totalCost)}</span>
-                  <InfoIcon className="h-3 w-3" />
-                </Badge>
-              </BreakdownTooltip>
-            )}
-            {isGenerationLike(observation.type) && observation.usageDetails && (
-              <BreakdownTooltip
-                details={observation.usageDetails}
-                isCost={false}
-              >
-                <Badge variant="tertiary" className="flex items-center gap-1">
-                  <span>
-                    {formatTokenCounts(
-                      inputUsage,
-                      outputUsage,
-                      totalUsage,
-                      true,
-                    )}
-                  </span>
-                  <InfoIcon className="h-3 w-3" />
-                </Badge>
-              </BreakdownTooltip>
-            )}
-            {observation.version && (
-              <Badge variant="tertiary">Version: {observation.version}</Badge>
-            )}
-            {observation.model &&
-              (observation.internalModelId ? (
-                <Badge>
-                  <Link
-                    href={`/project/${projectId}/settings/models/${observation.internalModelId}`}
-                    className="flex items-center"
-                    title="View model details"
-                  >
-                    <span className="truncate">{observation.model}</span>
-                    <ExternalLinkIcon className="ml-1 h-3 w-3" />
-                  </Link>
-                </Badge>
-              ) : (
-                <UpsertModelFormDrawer
-                  action="create"
-                  projectId={projectId}
-                  prefilledModelData={{
-                    modelName: observation.model,
-                    prices:
-                      observation.usageDetails &&
-                      Object.keys(observation.usageDetails).length > 0
-                        ? Object.keys(observation.usageDetails)
-                            .filter((key) => key !== "total")
-                            .reduce(
-                              (acc, key) => {
-                                acc[key] = 0.000001;
-                                return acc;
-                              },
-                              {} as Record<string, number>,
-                            )
-                        : undefined,
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Badge variant="tertiary" className="flex items-center gap-1">
-                    <span>{observation.model}</span>
-                    <PlusCircle className="h-3 w-3" />
-                  </Badge>
-                </UpsertModelFormDrawer>
-              ))}
-            <Fragment>
-              {observation.modelParameters &&
-              typeof observation.modelParameters === "object"
-                ? Object.entries(observation.modelParameters)
-                    .filter(([_, value]) => value !== null)
-                    .map(([key, value]) => {
-                      const valueString =
-                        Object.prototype.toString.call(value) ===
-                        "[object Object]"
-                          ? JSON.stringify(value)
-                          : value?.toString();
-                      return (
-                        <Badge
-                          variant="tertiary"
-                          key={key}
-                          className="h-6 max-w-md"
-                        >
-                          <span
-                            className="overflow-hidden text-ellipsis whitespace-nowrap"
-                            title={valueString}
-                          >
-                            {key}: {valueString}
-                          </span>
-                        </Badge>
-                      );
-                    })
-                : null}
-            </Fragment>
-            {observation.level && observation.level !== "DEFAULT" && (
-              <Badge
-                variant={
-                  observation.level === "ERROR"
-                    ? "destructive"
-                    : observation.level === "WARNING"
-                      ? "warning"
-                      : "tertiary"
-                }
-              >
-                {observation.level}
-              </Badge>
-            )}
-            {observation.statusMessage && (
-              <Badge variant="tertiary">{observation.statusMessage}</Badge>
-            )}
+            <LatencyBadge latencySeconds={latencySeconds} />
+            <TimeToFirstTokenBadge
+              timeToFirstToken={observation.timeToFirstToken}
+            />
+            <EnvironmentBadge environment={observation.environment} />
+            <CostBadge
+              totalCost={totalCost}
+              costDetails={observation.costDetails}
+            />
+            <UsageBadge
+              type={observation.type}
+              inputUsage={inputUsage}
+              outputUsage={outputUsage}
+              totalUsage={totalUsage}
+              usageDetails={observation.usageDetails}
+            />
+            <VersionBadge version={observation.version} />
+            <ModelBadge
+              model={observation.model}
+              internalModelId={observation.internalModelId}
+              projectId={projectId}
+              usageDetails={observation.usageDetails}
+            />
+            <ModelParametersBadges
+              modelParameters={observation.modelParameters}
+            />
+            <LevelBadge level={observation.level} />
+            <StatusMessageBadge statusMessage={observation.statusMessage} />
           </div>
         </div>
       </div>
