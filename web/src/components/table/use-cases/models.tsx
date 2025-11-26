@@ -1,11 +1,15 @@
-import { useState } from "react";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import {
+  useQueryParams,
+  withDefault,
+  NumberParam,
+  StringParam,
+} from "use-query-params";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -68,7 +72,10 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-  const [searchString, setSearchString] = useState<string>("");
+  const [queryParams, setQueryParams] = useQueryParams({
+    search: withDefault(StringParam, ""),
+  });
+  const searchString = queryParams.search;
   const models = api.models.getAll.useQuery(
     {
       page: paginationState.pageIndex,
@@ -290,9 +297,10 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         setRowHeight={setRowHeight}
         searchConfig={{
           updateQuery: (event: string) => {
-            setSearchString(event);
+            setQueryParams({ search: event });
           },
           tableAllowsFullTextSearch: true,
+          currentQuery: searchString,
         }}
         actionButtons={
           <>
