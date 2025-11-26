@@ -51,6 +51,7 @@ export function TracePanelDetail() {
         <ObservationDetailView
           observation={observationData}
           projectId={trace.projectId}
+          traceId={trace.id}
         />
       );
     }
