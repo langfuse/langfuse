@@ -78,6 +78,15 @@ describe("default-model-prices.json", () => {
     }
   });
 
+  it("should have default tier IDs in the form of ${modelId}_tier_default", () => {
+    for (const model of defaultModelPrices) {
+      const defaultTier = model.pricingTiers.find((t) => t.isDefault);
+      expect(defaultTier).toBeDefined();
+      const expectedId = `${model.id}_tier_default`;
+      expect(defaultTier!.id).toBe(expectedId);
+    }
+  });
+
   it("should have unique priorities within each model", () => {
     for (const model of defaultModelPrices) {
       const priorities = model.pricingTiers.map((t) => t.priority);

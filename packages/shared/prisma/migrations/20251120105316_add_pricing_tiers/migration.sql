@@ -13,9 +13,6 @@ CREATE TABLE "pricing_tiers" (
 );
 
 -- CreateIndex
-CREATE INDEX "pricing_tiers_model_id_is_default_idx" ON "pricing_tiers"("model_id", "is_default");
-
--- CreateIndex
 CREATE UNIQUE INDEX "pricing_tiers_model_id_priority_key" ON "pricing_tiers"("model_id", "priority");
 
 -- CreateIndex

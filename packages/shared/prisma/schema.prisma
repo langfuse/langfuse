@@ -891,7 +891,6 @@ model PricingTier {
 
   @@unique([modelId, priority])
   @@unique([modelId, name])
-  @@index([modelId, isDefault])
   @@map("pricing_tiers")
 }
 

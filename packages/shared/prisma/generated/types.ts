@@ -677,16 +677,6 @@ export type Model = {
   tokenizer_id: string | null;
   tokenizer_config: unknown | null;
 };
-export type PricingTier = {
-  id: string;
-  created_at: Generated<Timestamp>;
-  updated_at: Generated<Timestamp>;
-  model_id: string;
-  name: string;
-  is_default: Generated<boolean>;
-  priority: number;
-  conditions: unknown;
-};
 export type NotificationPreference = {
   id: string;
   user_id: string;
@@ -754,6 +744,16 @@ export type Price = {
   pricing_tier_id: string;
   usage_type: string;
   price: string;
+};
+export type PricingTier = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  model_id: string;
+  name: string;
+  is_default: Generated<boolean>;
+  priority: number;
+  conditions: unknown;
 };
 export type Project = {
   id: string;
@@ -946,7 +946,6 @@ export type DB = {
   media: Media;
   membership_invitations: MembershipInvitation;
   mixpanel_integrations: MixpanelIntegration;
-  pricing_tiers: PricingTier;
   models: Model;
   notification_preferences: NotificationPreference;
   observation_media: ObservationMedia;
@@ -956,6 +955,7 @@ export type DB = {
   pending_deletions: PendingDeletion;
   posthog_integrations: PosthogIntegration;
   prices: Price;
+  pricing_tiers: PricingTier;
   project_memberships: ProjectMembership;
   projects: Project;
   prompt_dependencies: PromptDependency;
