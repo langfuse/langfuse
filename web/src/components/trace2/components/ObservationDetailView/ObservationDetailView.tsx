@@ -30,13 +30,11 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useState } from "react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { useState, Fragment } from "react";
+import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { InfoIcon } from "lucide-react";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -55,17 +53,15 @@ export function ObservationDetailView({
     "pretty",
   );
 
-  // Calculate latency if not provided
-  const latency =
+  // Calculate latency in seconds if not provided
+  const latencySeconds =
     observation.latency ??
     (observation.startTime && observation.endTime
-      ? observation.endTime.getTime() - observation.startTime.getTime()
+      ? (observation.endTime.getTime() - observation.startTime.getTime()) / 1000
       : null);
 
   // Format cost and usage values
   const totalCost = observation.totalCost;
-  const inputCost = observation.inputCost;
-  const outputCost = observation.outputCost;
   const totalUsage = observation.totalUsage;
   const inputUsage = observation.inputUsage;
   const outputUsage = observation.outputUsage;
@@ -99,57 +95,46 @@ export function ObservationDetailView({
           </div>
           {/* Other badges on second row */}
           <div className="flex flex-wrap items-center gap-1">
-            {latency !== null && latency !== undefined && (
+            {latencySeconds !== null && latencySeconds !== undefined && (
               <Badge variant="tertiary">
-                Latency: {(latency / 1000).toFixed(2)}s
+                Latency: {formatIntervalSeconds(latencySeconds)}
               </Badge>
             )}
+            {observation.timeToFirstToken !== null &&
+              observation.timeToFirstToken !== undefined && (
+                <Badge variant="tertiary">
+                  Time to first token:{" "}
+                  {formatIntervalSeconds(observation.timeToFirstToken)}
+                </Badge>
+              )}
             {observation.environment && (
               <Badge variant="tertiary">Env: {observation.environment}</Badge>
             )}
-            {hasCostData && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Badge variant="tertiary">
-                      Cost: ${totalCost.toFixed(6)}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="space-y-1 text-xs">
-                      {inputCost !== null && inputCost !== undefined && (
-                        <div>Input: ${inputCost.toFixed(6)}</div>
-                      )}
-                      {outputCost !== null && outputCost !== undefined && (
-                        <div>Output: ${outputCost.toFixed(6)}</div>
-                      )}
-                      <div className="font-semibold">
-                        Total: ${totalCost.toFixed(6)}
-                      </div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            {hasCostData && observation.costDetails && (
+              <BreakdownTooltip details={observation.costDetails} isCost={true}>
+                <Badge variant="tertiary" className="flex items-center gap-1">
+                  <span>{usdFormatter(totalCost)}</span>
+                  <InfoIcon className="h-3 w-3" />
+                </Badge>
+              </BreakdownTooltip>
             )}
-            {hasUsageData && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Badge variant="tertiary">
-                      Tokens: {totalUsage.toLocaleString()}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="space-y-1 text-xs">
-                      <div>Input: {inputUsage.toLocaleString()}</div>
-                      <div>Output: {outputUsage.toLocaleString()}</div>
-                      <div className="font-semibold">
-                        Total: {totalUsage.toLocaleString()}
-                      </div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            {hasUsageData && observation.usageDetails && (
+              <BreakdownTooltip
+                details={observation.usageDetails}
+                isCost={false}
+              >
+                <Badge variant="tertiary" className="flex items-center gap-1">
+                  <span>
+                    {formatTokenCounts(
+                      inputUsage,
+                      outputUsage,
+                      totalUsage,
+                      true,
+                    )}
+                  </span>
+                  <InfoIcon className="h-3 w-3" />
+                </Badge>
+              </BreakdownTooltip>
             )}
             {observation.version && (
               <Badge variant="tertiary">Version: {observation.version}</Badge>
@@ -157,6 +142,34 @@ export function ObservationDetailView({
             {observation.model && (
               <Badge variant="tertiary">{observation.model}</Badge>
             )}
+            <Fragment>
+              {observation.modelParameters &&
+              typeof observation.modelParameters === "object"
+                ? Object.entries(observation.modelParameters)
+                    .filter(([_, value]) => value !== null)
+                    .map(([key, value]) => {
+                      const valueString =
+                        Object.prototype.toString.call(value) ===
+                        "[object Object]"
+                          ? JSON.stringify(value)
+                          : value?.toString();
+                      return (
+                        <Badge
+                          variant="tertiary"
+                          key={key}
+                          className="h-6 max-w-md"
+                        >
+                          <span
+                            className="overflow-hidden text-ellipsis whitespace-nowrap"
+                            title={valueString}
+                          >
+                            {key}: {valueString}
+                          </span>
+                        </Badge>
+                      );
+                    })
+                : null}
+            </Fragment>
             {observation.level && observation.level !== "DEFAULT" && (
               <Badge
                 variant={
