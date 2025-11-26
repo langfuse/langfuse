@@ -6,7 +6,7 @@ import {
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 
-const { Readable } = require('stream');
+const { Readable } = require("stream");
 
 describe("StorageService", () => {
   let storageService: StorageService;
@@ -113,7 +113,7 @@ describe("StorageService", () => {
     await storageService.uploadFile({
       fileName,
       fileType,
-      data:  Readable.from(data),
+      data: Readable.from(data),
     });
 
     // When
