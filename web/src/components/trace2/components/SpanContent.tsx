@@ -24,7 +24,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
+import { heatMapTextColor } from "@/src/components/trace2/lib/helpers";
 import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 import { useTraceData } from "../contexts/TraceDataContext";
 import type Decimal from "decimal.js";

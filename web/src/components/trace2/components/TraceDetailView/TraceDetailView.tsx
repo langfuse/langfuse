@@ -2,7 +2,11 @@
  * TraceDetailView - Shows trace-level details when no observation is selected
  */
 
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import {
+  type TraceDomain,
+  type ScoreDomain,
+  AnnotationQueueObjectType,
+} from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { Badge } from "@/src/components/ui/badge";
@@ -18,7 +22,15 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+// Header action components
+import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -34,7 +46,7 @@ export interface TraceDetailViewProps {
 export function TraceDetailView({
   trace,
   observations,
-  scores: _scores,
+  scores,
   projectId,
 }: TraceDetailViewProps) {
   const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
@@ -45,20 +57,73 @@ export function TraceDetailView({
     "pretty",
   );
 
+  // Get comments from context
+  const { comments } = useTraceData();
+
+  // Filter scores for trace-level only (no observationId)
+  const traceScores = useMemo(
+    () => scores.filter((s) => !s.observationId),
+    [scores],
+  );
+
   const showLogViewTab = observations.length > 0;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header section */}
       <div className="flex-shrink-0 space-y-2 border-b p-4">
-        {/* Title row */}
-        <div className="flex items-start gap-2">
-          <div className="mt-1">
-            <ItemBadge type="TRACE" isSmall />
+        {/* Title row with actions */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <div className="mt-1">
+              <ItemBadge type="TRACE" isSmall />
+            </div>
+            <span className="min-w-0 break-all font-medium">
+              {trace.name || trace.id}
+            </span>
+            <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
-          <span className="min-w-0 break-all font-medium">
-            {trace.name || trace.id}
-          </span>
+          {/* Action buttons */}
+          <div className="flex flex-shrink-0 flex-wrap items-start gap-0.5">
+            <NewDatasetItemFromExistingObject
+              traceId={trace.id}
+              projectId={projectId}
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              key={trace.id}
+              size="sm"
+            />
+            <div className="flex items-start">
+              <AnnotateDrawer
+                key={"annotation-drawer-" + trace.id}
+                projectId={projectId}
+                scoreTarget={{
+                  type: "trace",
+                  traceId: trace.id,
+                }}
+                scores={traceScores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: trace.environment,
+                }}
+                size="sm"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={trace.id}
+                objectType={AnnotationQueueObjectType.TRACE}
+                size="sm"
+              />
+            </div>
+            <CommentDrawerButton
+              projectId={projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              count={comments.get(trace.id)}
+              size="sm"
+            />
+          </div>
         </div>
 
         {/* Metadata badges */}
