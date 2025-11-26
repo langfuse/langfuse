@@ -19,6 +19,7 @@ import {
   isClickhouseFilterColumn,
   optionalPaginationZod,
   LangfuseConflictError,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -635,22 +636,23 @@ export const datasetRouter = createTRPCRouter({
         datasetItemId: z.string(),
       }),
     )
-    .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: { id: input.datasetItemId, projectId: input.projectId },
-          datasetId: input.datasetId,
-        },
+    .query(async ({ input }) => {
+      const item = await DatasetItemManager.getItemById({
+        projectId: input.projectId,
+        datasetItemId: input.datasetItemId,
+        datasetId: input.datasetId,
       });
+      if (!item) {
+        throw new LangfuseNotFoundError("Dataset item not found");
+      }
+      return item;
     }),
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      return await ctx.prisma.datasetItem.count({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
-        },
+    .query(async ({ input }) => {
+      return await DatasetItemManager.getItemCountByLatest({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
       });
     }),
   itemsByDatasetId: protectedProjectProcedure
@@ -1206,7 +1208,7 @@ export const datasetRouter = createTRPCRouter({
         ...optionalPaginationZod,
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { datasetItemId, datasetId } = input;
 
       const filter = [
@@ -1228,11 +1230,11 @@ export const datasetRouter = createTRPCRouter({
           : []),
       ] as FilterState;
 
-      const datasetItem = await ctx.prisma.datasetItem.findFirst({
-        where: {
-          id: datasetItemId,
-          projectId: input.projectId,
-        },
+      // Verify item exists
+      const datasetItem = await DatasetItemManager.getItemById({
+        projectId: input.projectId,
+        datasetItemId: datasetItemId,
+        datasetId: datasetId,
       });
       if (!datasetItem) {
         throw new TRPCError({

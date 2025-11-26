@@ -44,6 +44,7 @@ import {
   hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
+  DatasetItemManager,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -461,18 +462,11 @@ export class IngestionService {
                   createdAt: true,
                 },
               }),
-              this.prisma.datasetItem.findFirst({
-                where: {
-                  datasetId: event.body.datasetId,
-                  projectId,
-                  id: event.body.datasetItemId,
-                  status: "ACTIVE",
-                },
-                select: {
-                  input: true,
-                  expectedOutput: true,
-                  metadata: true,
-                },
+              // TODO: verify item is ACTIVE
+              DatasetItemManager.getItemById({
+                projectId,
+                datasetItemId: event.body.datasetItemId,
+                datasetId: event.body.datasetId,
               }),
             ]);
 
