@@ -61,7 +61,7 @@ export const PricingTierConditionSchema = z.object({
       },
     ),
   operator: z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]),
-  value: z.number(),
+  value: z.number().nonnegative(),
   caseSensitive: z.boolean().default(false),
 });
 
