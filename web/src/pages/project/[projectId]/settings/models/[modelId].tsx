@@ -139,7 +139,7 @@ export default function ModelDetailPage() {
           <div className="flex gap-2">
             {hasWriteAccess && (
               <>
-                <TestModelMatchButton projectId={projectId} />
+                <TestModelMatchButton projectId={projectId} variant="outline" />
                 {!isLangfuseModel ? (
                   <>
                     <EditModelButton projectId={projectId} modelData={model} />
