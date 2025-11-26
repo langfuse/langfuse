@@ -1,3 +1,5 @@
+BEGIN;
+
 -- CreateTable
 CREATE TABLE "pricing_tiers" (
     "id" TEXT NOT NULL,
@@ -57,3 +59,5 @@ DROP INDEX IF EXISTS "prices_model_id_usage_type_key";
 
 -- CreateIndex
 CREATE UNIQUE INDEX "prices_model_id_usage_type_pricing_tier_id_key" ON "prices"("model_id", "usage_type", "pricing_tier_id");
+
+COMMIT;
