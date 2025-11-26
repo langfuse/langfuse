@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, AlertCircle, Settings } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
@@ -8,6 +8,9 @@ import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnte
 import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import Link from "next/link";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /**
  * PlaygroundPage Component
@@ -31,6 +34,7 @@ import MultiWindowPlayground from "@/src/features/playground/page/components/Mul
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
+  const projectId = useProjectIdFromURL();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
 
@@ -39,6 +43,7 @@ export default function PlaygroundPage() {
     executeAllWindows,
     getExecutionStatus,
     isExecutingAll: globalIsExecutingAll,
+    hasAnyModelConfigured,
   } = useWindowCoordination();
 
   /**
@@ -105,7 +110,7 @@ export default function PlaygroundPage() {
     ? getExecutionStatus() ||
       `Executing ${windowIds.length} window${windowIds.length === 1 ? "" : "s"}`
     : getExecutionStatus();
-  const isRunAllDisabled = globalIsExecutingAll;
+  const isRunAllDisabled = globalIsExecutingAll || !hasAnyModelConfigured;
 
   const windowState: MultiWindowState = {
     windowIds,
@@ -166,11 +171,36 @@ export default function PlaygroundPage() {
         ),
       }}
     >
-      <MultiWindowPlayground
-        windowState={windowState}
-        onRemoveWindow={removeWindow}
-        onAddWindow={addWindow}
-      />
+      <div className="flex h-full flex-col">
+        {!hasAnyModelConfigured && (
+          <Alert
+            variant="default"
+            className="m-4 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
+          >
+            <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+            <AlertTitle className="text-yellow-800 dark:text-yellow-400">
+              No Model Configured
+            </AlertTitle>
+            <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+              To use the playground, you need to configure a model first. Go to{" "}
+              <Link
+                href={`/project/${projectId}/settings`}
+                className="font-medium underline underline-offset-4 hover:text-yellow-900 dark:hover:text-yellow-300"
+              >
+                <Settings className="inline h-3 w-3" /> Project Settings
+              </Link>{" "}
+              to add an LLM API key and configure your models.
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className="flex-1 overflow-hidden">
+          <MultiWindowPlayground
+            windowState={windowState}
+            onRemoveWindow={removeWindow}
+            onAddWindow={addWindow}
+          />
+        </div>
+      </div>
     </Page>
   );
 }
