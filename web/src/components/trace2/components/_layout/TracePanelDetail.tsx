@@ -18,6 +18,7 @@
 import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { TraceDetailView } from "../TraceDetailView/TraceDetailView";
+import { ObservationDetailView } from "../ObservationDetailView/ObservationDetailView";
 import { useMemo } from "react";
 
 export function TracePanelDetail() {
@@ -31,17 +32,26 @@ export function TracePanelDetail() {
       selectedNodeId !== null && selectedNode?.type !== "TRACE";
 
     if (isObservationSelected && selectedNode) {
-      // TODO: Replace with ObservationDetailView in Phase 3
+      // Find the full observation data from observations array
+      const observationData = observations.find(
+        (obs) => obs.id === selectedNode.id,
+      );
+
+      if (!observationData) {
+        return (
+          <div className="flex h-full w-full items-center justify-center p-4">
+            <p className="text-sm text-muted-foreground">
+              Observation not found
+            </p>
+          </div>
+        );
+      }
+
       return (
-        <div className="p-4">
-          <h2 className="text-lg font-semibold">Observation Details</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Selected: {selectedNode.name} ({selectedNode.type})
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            ID: {selectedNode.id}
-          </p>
-        </div>
+        <ObservationDetailView
+          observation={observationData}
+          projectId={trace.projectId}
+        />
       );
     }
 
