@@ -282,20 +282,23 @@ export default function ModelDetailPage() {
                 </span>
               </div>
               {activeTier &&
-                Object.entries(activeTier.prices).map(([usageType, price]) => (
-                  <div
-                    key={usageType}
-                    className="grid grid-cols-2 gap-2 rounded px-1 py-0.5 text-sm"
-                  >
-                    <span className="break-all">{usageType}</span>
-                    <span className="text-left font-mono">
-                      $
-                      {new Decimal(price)
-                        .mul(priceUnitMultiplier)
-                        .toFixed(maxDecimals)}
-                    </span>
-                  </div>
-                ))}
+                Object.entries(activeTier.prices)
+                  // Sort by price ascending
+                  .sort((a, b) => a[1] - b[1])
+                  .map(([usageType, price]) => (
+                    <div
+                      key={usageType}
+                      className="grid grid-cols-2 gap-2 rounded px-1 py-0.5 text-sm"
+                    >
+                      <span className="break-all">{usageType}</span>
+                      <span className="text-left font-mono">
+                        $
+                        {new Decimal(price)
+                          .mul(priceUnitMultiplier)
+                          .toFixed(maxDecimals)}
+                      </span>
+                    </div>
+                  ))}
             </div>
           </CardContent>
         </Card>
