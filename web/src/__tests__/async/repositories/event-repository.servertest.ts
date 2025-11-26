@@ -51,21 +51,33 @@ describe("Clickhouse Events Repository Test", () => {
           matchPattern: `(?i)^(gpt-?4-${modelId})$`,
           startDate: new Date("2023-01-01"),
           unit: "TOKENS",
-          Price: {
-            create: [
-              {
-                usageType: "input",
-                price: 0.03,
+
+          pricingTiers: {
+            create: {
+              isDefault: true,
+              conditions: [],
+              name: "Standard",
+              priority: 0,
+              prices: {
+                create: [
+                  {
+                    usageType: "input",
+                    price: 0.03,
+                    modelId,
+                  },
+                  {
+                    usageType: "output",
+                    price: 0.06,
+                    modelId,
+                  },
+                  {
+                    usageType: "total",
+                    price: 0.09,
+                    modelId,
+                  },
+                ],
               },
-              {
-                usageType: "output",
-                price: 0.06,
-              },
-              {
-                usageType: "total",
-                price: 0.09,
-              },
-            ],
+            },
           },
         },
       });
@@ -1460,17 +1472,27 @@ describe("Clickhouse Events Repository Test", () => {
           matchPattern: `(?i)^(test-model-${modelId})$`,
           startDate: new Date("2023-01-01"),
           unit: "TOKENS",
-          Price: {
-            create: [
-              {
-                usageType: "input",
-                price: 0.01,
+          pricingTiers: {
+            create: {
+              isDefault: true,
+              conditions: [],
+              name: "Standard",
+              priority: 0,
+              prices: {
+                create: [
+                  {
+                    usageType: "input",
+                    price: 0.01,
+                    modelId,
+                  },
+                  {
+                    usageType: "output",
+                    price: 0.02,
+                    modelId,
+                  },
+                ],
               },
-              {
-                usageType: "output",
-                price: 0.02,
-              },
-            ],
+            },
           },
         },
       });

@@ -41,9 +41,12 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import {
+  BreakdownTooltip,
+  calculateAggregatedUsage,
+} from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState, type Row } from "@tanstack/react-table";
@@ -85,6 +88,7 @@ export type ObservationsTableRow = {
   usageDetails: Record<string, number>;
   totalCost?: number;
   costDetails: Record<string, number>;
+  usagePricingTierName?: string | null;
   model?: string;
   promptName?: string;
   environment?: string;
@@ -629,7 +633,11 @@ export default function ObservationsTable({
         const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
+          <BreakdownTooltip
+            details={row.original.costDetails}
+            isCost
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
@@ -664,18 +672,19 @@ export default function ObservationsTable({
       id: "tokens",
       size: 150,
       cell: ({ row }) => {
-        const value: {
-          inputUsage: number;
-          outputUsage: number;
-          totalUsage: number;
-        } = row.getValue("usage");
+        const aggregatedUsage = calculateAggregatedUsage(
+          row.original.usageDetails,
+        );
         return (
-          <BreakdownTooltip details={row.original.usageDetails}>
+          <BreakdownTooltip
+            details={row.original.usageDetails}
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                inputUsage={value.inputUsage}
-                outputUsage={value.outputUsage}
-                totalUsage={value.totalUsage}
+                inputUsage={aggregatedUsage.input}
+                outputUsage={aggregatedUsage.output}
+                totalUsage={aggregatedUsage.total}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
@@ -702,7 +711,7 @@ export default function ObservationsTable({
         return modelId ? (
           <TableIdOrName value={model} />
         ) : (
-          <UpsertModelFormDrawer
+          <UpsertModelFormDialog
             action="create"
             projectId={projectId}
             prefilledModelData={{
@@ -726,7 +735,7 @@ export default function ObservationsTable({
               <span>{model}</span>
               <PlusCircle className="h-3 w-3" />
             </span>
-          </UpsertModelFormDrawer>
+          </UpsertModelFormDialog>
         );
       },
     },
@@ -1132,6 +1141,7 @@ export default function ObservationsTable({
             timestamp: generation.traceTimestamp ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
+            usagePricingTierName: generation.usagePricingTierName ?? undefined,
             environment: generation.environment ?? undefined,
           };
         })
