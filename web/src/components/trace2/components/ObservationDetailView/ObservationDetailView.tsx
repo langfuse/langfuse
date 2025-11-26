@@ -87,87 +87,93 @@ export function ObservationDetailView({
           </span>
         </div>
 
-        {/* Metadata badges - all on one row like traces/ */}
-        <div className="flex flex-wrap items-center gap-1">
-          <LocalIsoDate
-            date={observation.startTime}
-            accuracy="millisecond"
-            className="text-sm"
-          />
-          {latency !== null && latency !== undefined && (
-            <Badge variant="tertiary">
-              Latency: {(latency / 1000).toFixed(2)}s
-            </Badge>
-          )}
-          {observation.environment && (
-            <Badge variant="tertiary">Env: {observation.environment}</Badge>
-          )}
-          {hasCostData && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Badge variant="tertiary">
-                    Cost: ${totalCost.toFixed(6)}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="space-y-1 text-xs">
-                    {inputCost !== null && inputCost !== undefined && (
-                      <div>Input: ${inputCost.toFixed(6)}</div>
-                    )}
-                    {outputCost !== null && outputCost !== undefined && (
-                      <div>Output: ${outputCost.toFixed(6)}</div>
-                    )}
-                    <div className="font-semibold">
-                      Total: ${totalCost.toFixed(6)}
+        {/* Metadata badges */}
+        <div className="flex flex-col gap-1">
+          {/* Timestamp on its own row */}
+          <div className="flex items-center">
+            <LocalIsoDate
+              date={observation.startTime}
+              accuracy="millisecond"
+              className="text-xs"
+            />
+          </div>
+          {/* Other badges on second row */}
+          <div className="flex flex-wrap items-center gap-1">
+            {latency !== null && latency !== undefined && (
+              <Badge variant="tertiary">
+                Latency: {(latency / 1000).toFixed(2)}s
+              </Badge>
+            )}
+            {observation.environment && (
+              <Badge variant="tertiary">Env: {observation.environment}</Badge>
+            )}
+            {hasCostData && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="tertiary">
+                      Cost: ${totalCost.toFixed(6)}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1 text-xs">
+                      {inputCost !== null && inputCost !== undefined && (
+                        <div>Input: ${inputCost.toFixed(6)}</div>
+                      )}
+                      {outputCost !== null && outputCost !== undefined && (
+                        <div>Output: ${outputCost.toFixed(6)}</div>
+                      )}
+                      <div className="font-semibold">
+                        Total: ${totalCost.toFixed(6)}
+                      </div>
                     </div>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {hasUsageData && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Badge variant="tertiary">
-                    Tokens: {totalUsage.toLocaleString()}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="space-y-1 text-xs">
-                    <div>Input: {inputUsage.toLocaleString()}</div>
-                    <div>Output: {outputUsage.toLocaleString()}</div>
-                    <div className="font-semibold">
-                      Total: {totalUsage.toLocaleString()}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {hasUsageData && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="tertiary">
+                      Tokens: {totalUsage.toLocaleString()}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1 text-xs">
+                      <div>Input: {inputUsage.toLocaleString()}</div>
+                      <div>Output: {outputUsage.toLocaleString()}</div>
+                      <div className="font-semibold">
+                        Total: {totalUsage.toLocaleString()}
+                      </div>
                     </div>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {observation.version && (
-            <Badge variant="tertiary">Version: {observation.version}</Badge>
-          )}
-          {observation.model && (
-            <Badge variant="tertiary">{observation.model}</Badge>
-          )}
-          {observation.level && observation.level !== "DEFAULT" && (
-            <Badge
-              variant={
-                observation.level === "ERROR"
-                  ? "destructive"
-                  : observation.level === "WARNING"
-                    ? "warning"
-                    : "tertiary"
-              }
-            >
-              {observation.level}
-            </Badge>
-          )}
-          {observation.statusMessage && (
-            <Badge variant="tertiary">{observation.statusMessage}</Badge>
-          )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {observation.version && (
+              <Badge variant="tertiary">Version: {observation.version}</Badge>
+            )}
+            {observation.model && (
+              <Badge variant="tertiary">{observation.model}</Badge>
+            )}
+            {observation.level && observation.level !== "DEFAULT" && (
+              <Badge
+                variant={
+                  observation.level === "ERROR"
+                    ? "destructive"
+                    : observation.level === "WARNING"
+                      ? "warning"
+                      : "tertiary"
+                }
+              >
+                {observation.level}
+              </Badge>
+            )}
+            {observation.statusMessage && (
+              <Badge variant="tertiary">{observation.statusMessage}</Badge>
+            )}
+          </div>
         </div>
       </div>
 
