@@ -42,7 +42,7 @@ import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { IOPreview } from "@/src/components/trace/IOPreview";
+import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { api } from "@/src/utils/api";
 
 export interface ObservationDetailViewProps {
