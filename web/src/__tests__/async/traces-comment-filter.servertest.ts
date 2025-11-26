@@ -383,6 +383,7 @@ describe("Traces Comment Filtering", () => {
 
   describe("Edge Cases", () => {
     it("should handle range filters correctly (>=1 AND <=100)", async () => {
+      const uniqueId = randomUUID();
       const trace = createTrace({
         project_id: projectId,
         id: randomUUID(),
@@ -394,7 +395,7 @@ describe("Traces Comment Filtering", () => {
           projectId,
           objectType: "TRACE",
           objectId: trace.id,
-          content: "Test comment",
+          content: `Test comment ${uniqueId}`,
           authorUserId: "user-1",
         },
       });
@@ -406,6 +407,12 @@ describe("Traces Comment Filtering", () => {
             column: "timestamp",
             operator: ">=",
             value: new Date(Date.now() - 5000).toISOString(),
+          },
+          {
+            type: "string",
+            column: "commentContent",
+            operator: "contains",
+            value: uniqueId,
           },
           {
             type: "number",
