@@ -60,14 +60,13 @@ export function VirtualizedTreeNodeWrapper({
   return (
     <div
       className={cn(
-        "relative flex w-full cursor-pointer rounded-md px-0",
+        "relative flex w-full cursor-pointer px-0",
         isSelected ? "bg-muted" : "hover:bg-muted/50",
         className,
       )}
       style={{
         paddingTop: 0,
         paddingBottom: 0,
-        borderRadius: "0.5rem",
       }}
       onClick={(e) => {
         if (!e.currentTarget?.closest("[data-expand-button]")) {
