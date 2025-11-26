@@ -2320,7 +2320,7 @@ describe("Ingestion end-to-end tests", () => {
           pricingTiers: {
             create: [
               {
-                name: "Standard Pricing",
+                name: "Standard",
                 isDefault: true,
                 priority: 0,
                 conditions: [],
@@ -2432,7 +2432,7 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.usage_details.output).toBe(2000);
 
       // Verify default tier was used
-      expect(generation.usage_pricing_tier_name).toBe("Standard Pricing");
+      expect(generation.usage_pricing_tier_name).toBe("Standard");
       expect(generation.usage_pricing_tier_id).toBeDefined();
 
       // Verify cost calculation with default tier prices ($3/M input, $15/M output)
@@ -2458,7 +2458,7 @@ describe("Ingestion end-to-end tests", () => {
           pricingTiers: {
             create: [
               {
-                name: "Standard Pricing",
+                name: "Standard",
                 isDefault: true,
                 priority: 0,
                 conditions: [],
@@ -2596,7 +2596,7 @@ describe("Ingestion end-to-end tests", () => {
           pricingTiers: {
             create: [
               {
-                name: "Standard Pricing",
+                name: "Standard",
                 isDefault: true,
                 priority: 0,
                 conditions: [],
@@ -2714,7 +2714,7 @@ describe("Ingestion end-to-end tests", () => {
           pricingTiers: {
             create: [
               {
-                name: "Standard Pricing",
+                name: "Standard",
                 isDefault: true,
                 priority: 0,
                 conditions: [],
@@ -2812,7 +2812,7 @@ describe("Ingestion end-to-end tests", () => {
       );
 
       // At exactly 200K, should use default tier (operator is "gt", not "gte")
-      expect(generation.usage_pricing_tier_name).toBe("Standard Pricing");
+      expect(generation.usage_pricing_tier_name).toBe("Standard");
       expect(generation.cost_details.input).toBeCloseTo(0.6, 6); // 200K * $3/M
     });
   });

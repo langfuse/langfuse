@@ -586,7 +586,7 @@ types:
         docs: |
           Name of the pricing tier for display and identification purposes.
 
-          Examples: "Standard Pricing", "High Volume Tier", "Large Context", "Extended Context Tier"
+          Examples: "Standard", "High Volume Tier", "Large Context", "Extended Context Tier"
         type: string
       isDefault:
         docs: |
@@ -643,7 +643,7 @@ types:
         docs: |
           Name of the pricing tier for display and identification purposes.
 
-          Must be unique within the model. Common patterns: "Standard Pricing", "High Volume Tier", "Extended Context"
+          Must be unique within the model. Common patterns: "Standard", "High Volume Tier", "Extended Context"
         type: string
       isDefault:
         docs: |

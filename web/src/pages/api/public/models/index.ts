@@ -161,7 +161,7 @@ export default withMiddlewares({
             data: {
               id: defaultTierId,
               modelId: createdModel.id,
-              name: "Standard Pricing",
+              name: "Standard",
               isDefault: true,
               priority: 0,
               conditions: [],

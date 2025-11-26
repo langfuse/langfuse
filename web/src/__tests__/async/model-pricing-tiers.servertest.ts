@@ -67,7 +67,7 @@ describe("validation methods", () => {
     it("should accept valid pricing tiers", () => {
       const tiers: PricingTierInput[] = [
         {
-          name: "Standard Pricing",
+          name: "Standard",
           isDefault: true,
           priority: 0,
           conditions: [],
@@ -467,7 +467,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       const defaultTier = await prisma.pricingTier.create({
         data: {
           modelId: model.id,
-          name: "Standard Pricing",
+          name: "Standard",
           isDefault: true,
           priority: 0,
           conditions: [],
@@ -558,7 +558,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
         (t) => t.isDefault,
       );
       expect(defaultTierResponse).toMatchObject({
-        name: "Standard Pricing",
+        name: "Standard",
         isDefault: true,
         priority: 0,
         conditions: [],
@@ -605,7 +605,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       const defaultTier = await prisma.pricingTier.create({
         data: {
           modelId: model.id,
-          name: "Standard Pricing",
+          name: "Standard",
           isDefault: true,
           priority: 0,
           conditions: [],
@@ -650,7 +650,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       // Check pricingTiers
       expect(response.body.pricingTiers).toHaveLength(1);
       expect(response.body.pricingTiers[0]).toMatchObject({
-        name: "Standard Pricing",
+        name: "Standard",
         isDefault: true,
         priority: 0,
         conditions: [],
@@ -690,7 +690,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
 
       expect(tiers).toHaveLength(1);
       expect(tiers[0]).toMatchObject({
-        name: "Standard Pricing",
+        name: "Standard",
         isDefault: true,
         priority: 0,
         conditions: [],
@@ -706,7 +706,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       // Verify response includes pricingTiers
       expect(response.body.pricingTiers).toHaveLength(1);
       expect(response.body.pricingTiers[0]).toMatchObject({
-        name: "Standard Pricing",
+        name: "Standard",
         isDefault: true,
         priority: 0,
         prices: { input: 2.5, output: 10.0 },
@@ -733,7 +733,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
           unit: "TOKENS",
           pricingTiers: [
             {
-              name: "Standard Pricing",
+              name: "Standard",
               isDefault: true,
               priority: 0,
               conditions: [],
@@ -772,7 +772,7 @@ describe("/models API Endpoints - Pricing Tiers", () => {
 
       // Verify default tier
       expect(tiers[0]).toMatchObject({
-        name: "Standard Pricing",
+        name: "Standard",
         isDefault: true,
         priority: 0,
       });

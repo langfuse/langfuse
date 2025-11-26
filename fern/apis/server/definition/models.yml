@@ -87,7 +87,7 @@ types:
           - Each tier must define at least one price
 
           If omitted, you must provide flat prices instead (inputPrice/outputPrice/totalPrice),
-          which will automatically create a single default tier named "Standard Pricing".
+          which will automatically create a single default tier named "Standard".
         type: optional<list<commons.PricingTierInput>>
       tokenizerId:
         docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.

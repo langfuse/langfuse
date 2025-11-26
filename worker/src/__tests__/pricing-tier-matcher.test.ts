@@ -304,7 +304,7 @@ describe("matchPricingTier", () => {
       const tiers: PricingTierWithPrices[] = [
         {
           id: "tier-default",
-          name: "Standard Pricing",
+          name: "Standard",
           isDefault: true,
           priority: 0,
           conditions: [],
@@ -339,7 +339,7 @@ describe("matchPricingTier", () => {
 
       expect(result).not.toBeNull();
       expect(result?.pricingTierId).toBe("tier-default");
-      expect(result?.pricingTierName).toBe("Standard Pricing");
+      expect(result?.pricingTierName).toBe("Standard");
       expect(result?.prices.input.toNumber()).toBe(0.000003);
       expect(result?.prices.output.toNumber()).toBe(0.000015);
     });
@@ -348,7 +348,7 @@ describe("matchPricingTier", () => {
       const tiers: PricingTierWithPrices[] = [
         {
           id: "tier-default",
-          name: "Standard Pricing",
+          name: "Standard",
           isDefault: true,
           priority: 0,
           conditions: [],
@@ -981,7 +981,7 @@ describe("matchPricingTier", () => {
       const tiers: PricingTierWithPrices[] = [
         {
           id: "tier-standard",
-          name: "Standard Pricing",
+          name: "Standard",
           isDefault: true,
           priority: 0,
           conditions: [],
@@ -1015,7 +1015,7 @@ describe("matchPricingTier", () => {
         input: 150000,
         output: 2000,
       });
-      expect(resultBelow?.pricingTierName).toBe("Standard Pricing");
+      expect(resultBelow?.pricingTierName).toBe("Standard");
       expect(resultBelow?.prices.input.toNumber()).toBe(0.000003);
 
       // Above threshold
@@ -1031,7 +1031,7 @@ describe("matchPricingTier", () => {
       const tiers: PricingTierWithPrices[] = [
         {
           id: "tier-standard",
-          name: "Standard Pricing",
+          name: "Standard",
           isDefault: true,
           priority: 0,
           conditions: [],

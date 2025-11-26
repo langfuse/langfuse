@@ -6834,7 +6834,7 @@ components:
             Name of the pricing tier for display and identification purposes.
 
 
-            Examples: "Standard Pricing", "High Volume Tier", "Large Context",
+            Examples: "Standard", "High Volume Tier", "Large Context",
             "Extended Context Tier"
         isDefault:
           type: boolean
@@ -8325,7 +8325,7 @@ components:
             (inputPrice/outputPrice/totalPrice),
 
             which will automatically create a single default tier named
-            "Standard Pricing".
+            "Standard".
         tokenizerId:
           type: string
           nullable: true
