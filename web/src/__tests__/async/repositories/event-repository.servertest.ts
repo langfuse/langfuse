@@ -71,7 +71,7 @@ describe("Clickhouse Events Repository Test", () => {
                     modelId,
                   },
                   {
-                    usageType: "output",
+                    usageType: "total",
                     price: 0.09,
                     modelId,
                   },
