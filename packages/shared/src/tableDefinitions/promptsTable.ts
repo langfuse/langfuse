@@ -4,6 +4,12 @@ import { ColumnDefinition, SingleValueOption } from "./types";
 
 export const promptsTableCols: ColumnDefinition[] = [
   {
+    name: "ID",
+    id: "id",
+    type: "string",
+    internal: 'p."id"',
+  },
+  {
     name: "Name",
     id: "name",
     type: "string",
