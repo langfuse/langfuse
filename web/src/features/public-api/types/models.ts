@@ -86,19 +86,19 @@ export function prismaToApiModelDefinition({
   const defaultTier = pricingTiers?.find((t) => t.isDefault);
   const defaultTierPrices = defaultTier?.prices;
 
-  if (!defaultTierPrices)
-    throw Error(
-      `Missing default pricing tier for model=${model.modelName} and model_id=${model.id}`,
-    );
+  let flatPrices: Record<string, { price: number }> = {};
 
-  // Build backward-compatible flat prices from default tier
-  const flatPrices = defaultTierPrices.reduce(
-    (acc, p) => {
-      acc[p.usageType] = { price: p.price.toNumber() };
-      return acc;
-    },
-    {} as Record<string, { price: number }>,
-  );
+  if (defaultTierPrices) {
+    // Build backward-compatible flat prices from default tier
+    flatPrices = defaultTierPrices.reduce(
+      (acc, p) => {
+        acc[p.usageType] = { price: p.price.toNumber() };
+
+        return acc;
+      },
+      {} as Record<string, { price: number }>,
+    );
+  }
 
   return {
     ...model,
