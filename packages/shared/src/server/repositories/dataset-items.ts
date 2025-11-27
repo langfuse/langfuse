@@ -1,22 +1,115 @@
 import { Dataset, DatasetItem, DatasetStatus, prisma, Prisma } from "../../db";
-import type {
-  ItemBase,
-  ItemWithIO,
-  DatasetItemFilters,
-  PayloadError,
-  CreateManyItemsInsert,
-  CreateManyValidationError,
-  CreateManyItemsPayload,
-} from "../services/DatasetService/types";
 import type { FilterState } from "../../types";
 import { tableColumnsToSqlFilterAndPrefix } from "../filterToPrisma";
 import { datasetItemsFilterCols } from "./dataset-items-columns";
-import { InternalServerError, InvalidRequestError, LangfuseNotFoundError } from "../../errors";
+import {
+  InternalServerError,
+  InvalidRequestError,
+  LangfuseNotFoundError,
+} from "../../errors";
 import { DatasetItemValidator } from "../services/DatasetService";
-import { executeWithDatasetServiceStrategy, Implementation, OperationType, toPostgresDatasetItem } from "../datasets/executeWithDatasetServiceStrategy";
+import {
+  executeWithDatasetServiceStrategy,
+  Implementation,
+  OperationType,
+  toPostgresDatasetItem,
+} from "../datasets/executeWithDatasetServiceStrategy";
 import { v4 } from "uuid";
+import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
+
+export type PayloadError = {
+  success: false;
+  message: string;
+  cause?: {
+    inputErrors?: FieldValidationError[];
+    expectedOutputErrors?: FieldValidationError[];
+  };
+};
+
+export type ValidateAndNormalizeResult =
+  | {
+      success: true;
+      input: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+      expectedOutput:
+        | Prisma.NullTypes.DbNull
+        | Prisma.InputJsonValue
+        | undefined;
+      metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+    }
+  | PayloadError;
+
+export type CreateManyItemsPayload = {
+  datasetId: string;
+  input?: string | unknown | null;
+  expectedOutput?: string | unknown | null;
+  metadata?: string | unknown | null;
+  sourceTraceId?: string;
+  sourceObservationId?: string;
+}[];
+
+export type CreateManyItemsInsert = {
+  itemId: string;
+  projectId: string;
+  datasetId: string;
+  status: DatasetStatus;
+  input: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+  expectedOutput: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+  metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
+  sourceTraceId?: string;
+  sourceObservationId?: string;
+  createdAt: Date;
+}[];
+
+/**
+ * Type for bulk dataset item validation errors
+ * Used when validating multiple items before creation (e.g., CSV upload)
+ */
+export type CreateManyValidationError = {
+  itemIndex: number;
+  field: "input" | "expectedOutput";
+  errors: Array<{
+    path: string;
+    message: string;
+    keyword?: string;
+  }>;
+};
+
+export type ItemBase = Omit<
+  DatasetItem,
+  "input" | "expectedOutput" | "metadata"
+>;
+
+export type ItemWithIO = ItemBase & {
+  input: Prisma.JsonValue;
+  expectedOutput: Prisma.JsonValue;
+  metadata: Prisma.JsonValue;
+};
+
+/**
+ * Utility type to add datasetName to an item type
+ */
+export type ItemWithDatasetName<T> = T & {
+  datasetName: string;
+};
+
+/**
+ * Filter options for querying dataset items
+ * Used by dataset-items repository for clean API
+ */
+export type DatasetItemFilters = {
+  datasetId?: string;
+  itemIds?: string[];
+  sourceTraceId?: string | null; // null = filter for IS NULL, undefined = no filter
+  sourceObservationId?: string | null; // null = filter for IS NULL, undefined = no filter
+  status?: "ACTIVE" | "ALL"; // Defaults to 'ACTIVE' at manager level
+};
+
+const DEFAULT_OPTIONS = {
+  includeIO: true,
+  returnVersionTimestamp: false,
+};
 
 /**
  * Raw database row for getting dataset items by version from dataset_item_events table
@@ -317,7 +410,7 @@ function convertRowToItem<
  * @param params.offset - Optional OFFSET for pagination
  * @returns Array of items, or object with items + versionTimestamp if requested
  */
-export async function getDatasetItemsByVersion<
+async function getDatasetItemsByVersionInternal<
   IncludeIO extends boolean = true,
   IncludeDatasetName extends boolean = false,
   ReturnVersion extends boolean = false,
@@ -389,7 +482,7 @@ export async function getDatasetItemsByVersion<
  * @param params.filters - Optional filters to apply (defaults to ACTIVE status)
  * @returns Number of items matching filters at the specified version
  */
-export async function getDatasetItemsCountByVersion(params: {
+export async function getDatasetItemsCountByVersionInternal(params: {
   projectId: string;
   version: Date;
   filters?: DatasetItemFilters;
@@ -406,7 +499,7 @@ export async function getDatasetItemsCountByVersion(params: {
   const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
 
   return result.length > 0 ? Number(result[0].count) : 0;
-
+}
 
 /**
  * Repository for dataset item CRUD operations.
@@ -520,24 +613,6 @@ function mergeItemData(
   };
 }
 
-async function getItemById(props: {
-  projectId: string;
-  datasetItemId: string;
-  datasetId?: string;
-}): Promise<DatasetItem | null> {
-  const item = await prisma.datasetItem.findUnique({
-    where: {
-      id_projectId: {
-        id: props.datasetItemId,
-        projectId: props.projectId,
-      },
-      ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-    },
-  });
-
-  return item ?? null;
-}
-
 /**
  * Creates a single dataset item with validation.
  * Validates input/expectedOutput against dataset schemas before insertion.
@@ -638,10 +713,11 @@ export async function upsertDatasetItem(
   // This ensures we validate and write the complete merged state
   let existingItem: DatasetItem | null = null;
   if (props.datasetItemId) {
-    existingItem = await getItemById({
+    existingItem = await getDatasetItemById({
       projectId: props.projectId,
       datasetItemId: props.datasetItemId,
       datasetId: dataset.id,
+      status: "ALL",
     });
   }
 
@@ -738,10 +814,11 @@ export async function deleteDatasetItem(props: {
   datasetItemId: string;
   datasetId?: string;
 }): Promise<{ success: true; deletedItem: DatasetItem }> {
-  const item = await getItemById({
+  const item = await getDatasetItemById({
     projectId: props.projectId,
     datasetItemId: props.datasetItemId,
     datasetId: props.datasetId,
+    status: "ALL", // Allow deleting archived items
   });
 
   if (!item) {
@@ -936,4 +1013,383 @@ export async function createManyDatasetItems(props: {
     success: true,
     datasetItems: preparedItems,
   };
+}
+
+async function getItems<
+  IncludeIO extends boolean,
+  IncludeDatasetName extends boolean,
+  ReturnVersion extends boolean,
+>({
+  projectId,
+  version,
+  includeIO,
+  includeDatasetName,
+  returnVersionTimestamp,
+  filters,
+  limit,
+  offset,
+}: {
+  projectId: string;
+  version: Date;
+  includeIO: IncludeIO;
+  includeDatasetName?: IncludeDatasetName;
+  returnVersionTimestamp: ReturnVersion;
+  filters?: DatasetItemFilters;
+  limit?: number;
+  offset?: number;
+}): Promise<
+  ReturnVersion extends true
+    ? {
+        items: Array<
+          IncludeIO extends true
+            ? IncludeDatasetName extends true
+              ? ItemWithIO & { datasetName: string }
+              : ItemWithIO
+            : IncludeDatasetName extends true
+              ? ItemBase & { datasetName: string }
+              : ItemBase
+        >;
+        versionTimestamp: Date;
+      }
+    : Array<
+        IncludeIO extends true
+          ? IncludeDatasetName extends true
+            ? ItemWithIO & { datasetName: string }
+            : ItemWithIO
+          : IncludeDatasetName extends true
+            ? ItemBase & { datasetName: string }
+            : ItemBase
+      >
+> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      const defaultFilters = filters ?? {};
+      const status = defaultFilters.status ?? "ACTIVE";
+
+      const items = await prisma.datasetItem.findMany({
+        where: {
+          projectId,
+          ...(defaultFilters.datasetId && {
+            datasetId: defaultFilters.datasetId,
+          }),
+          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+          ...(defaultFilters.itemIds && {
+            id: { in: defaultFilters.itemIds },
+          }),
+          ...(defaultFilters.sourceTraceId !== undefined && {
+            sourceTraceId: defaultFilters.sourceTraceId,
+          }),
+          ...(defaultFilters.sourceObservationId !== undefined && {
+            sourceObservationId: defaultFilters.sourceObservationId,
+          }),
+        },
+        ...(limit !== undefined && { take: limit }),
+        ...(offset !== undefined && { skip: offset }),
+        ...(includeDatasetName && {
+          include: { dataset: { select: { name: true } } },
+        }),
+      });
+
+      const itemsWithDatasetName = includeDatasetName
+        ? items.map((item: any) => ({
+            ...item,
+            datasetName: item.dataset.name,
+            dataset: undefined,
+          }))
+        : items;
+
+      if (returnVersionTimestamp) {
+        return {
+          items: itemsWithDatasetName,
+          versionTimestamp: new Date(),
+        };
+      }
+      return itemsWithDatasetName;
+    },
+    [Implementation.VERSIONED]: async () => {
+      const filtersWithDefaults = applyDefaultFilters(filters);
+
+      // Convert to FilterState
+      const filterState = convertFiltersToFilterState(filtersWithDefaults);
+
+      return getDatasetItemsByVersionInternal({
+        projectId,
+        version,
+        includeIO,
+        includeDatasetName,
+        returnVersionTimestamp,
+        filter: filterState,
+        limit,
+        offset,
+      }) as any;
+    },
+  });
+}
+
+/**
+ * Retrieves a list of dataset versions (distinct createdAt timestamps) for a given dataset.
+ * Returns timestamps in descending order (newest first).
+ */
+async function listVersions(props: {
+  projectId: string;
+  datasetId: string;
+}): Promise<Date[]> {
+  const result = await prisma.$queryRaw<{ created_at: Date }[]>`
+      SELECT DISTINCT created_at
+      FROM dataset_item_events
+      WHERE project_id = ${props.projectId}
+        AND dataset_id = ${props.datasetId}
+      ORDER BY created_at DESC
+    `;
+
+  return result.map((row) => row.created_at);
+}
+
+/**
+ * Retrieves a single dataset item by ID.
+ * Always returns the latest version of the item.
+ * Used by API layers to fetch current state before merging partial updates.
+ *
+ * Call this BEFORE validation to merge existing data with updates.
+ *
+ * @param props.datasetId - Required to ensure item belongs to correct dataset
+ * @param props.status - Filter by status ('ACTIVE' for active items only, 'ALL' to include archived items)
+ * @returns The dataset item or null if not found
+ */
+export async function getDatasetItemById(props: {
+  projectId: string;
+  datasetItemId: string;
+  status: "ACTIVE" | "ALL";
+  datasetId?: string;
+}): Promise<DatasetItem | null> {
+  const status = props.status;
+
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      const item = await prisma.datasetItem.findUnique({
+        where: {
+          id_projectId: {
+            id: props.datasetItemId,
+            projectId: props.projectId,
+          },
+          ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+        },
+      });
+      return item ?? null;
+    },
+    [Implementation.VERSIONED]: async () => {
+      // Fetch the latest event for this item (deleted or not)
+      const latestEvent = await prisma.datasetItemEvent.findFirst({
+        where: {
+          itemId: props.datasetItemId,
+          projectId: props.projectId,
+          ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      // If the latest event is a deletion, the item doesn't exist
+      if (!latestEvent || latestEvent.deletedAt) {
+        return null;
+      }
+
+      // Map DatasetItemEvent to DatasetItem
+      return {
+        id: latestEvent.id,
+        projectId: latestEvent.projectId,
+        datasetId: latestEvent.datasetId,
+        status: latestEvent.status,
+        input: latestEvent.input,
+        expectedOutput: latestEvent.expectedOutput,
+        metadata: latestEvent.metadata,
+        sourceTraceId: latestEvent.sourceTraceId,
+        sourceObservationId: latestEvent.sourceObservationId,
+        createdAt: latestEvent.createdAt ?? new Date(),
+        updatedAt: latestEvent.createdAt ?? new Date(),
+      } as DatasetItem;
+    },
+  });
+}
+
+/**
+ * Retrieves the complete state of dataset items at a given version timestamp.
+ * For each unique item ID, returns the latest event where:
+ * - createdAt <= version
+ * - deletedAt IS NULL OR deletedAt > version
+ */
+export async function getDatasetItemsByVersion<
+  IncludeIO extends boolean = true,
+  IncludeDatasetName extends boolean = false,
+  ReturnVersion extends boolean = false,
+>(props: {
+  projectId: string;
+  version: Date;
+  filters?: DatasetItemFilters;
+  limit?: number;
+  page?: number;
+  includeIO?: IncludeIO;
+  includeDatasetName?: IncludeDatasetName;
+  returnVersionTimestamp?: ReturnVersion;
+}): Promise<
+  ReturnVersion extends true
+    ? {
+        items: Array<
+          IncludeIO extends true
+            ? IncludeDatasetName extends true
+              ? ItemWithIO & { datasetName: string }
+              : ItemWithIO
+            : IncludeDatasetName extends true
+              ? ItemBase & { datasetName: string }
+              : ItemBase
+        >;
+        versionTimestamp: Date;
+      }
+    : Array<
+        IncludeIO extends true
+          ? IncludeDatasetName extends true
+            ? ItemWithIO & { datasetName: string }
+            : ItemWithIO
+          : IncludeDatasetName extends true
+            ? ItemBase & { datasetName: string }
+            : ItemBase
+      >
+> {
+  const options = { ...DEFAULT_OPTIONS, ...props };
+
+  return getItems({
+    ...props,
+    offset:
+      props.limit !== undefined && props.page !== undefined
+        ? props.page * props.limit
+        : undefined,
+    includeIO: options.includeIO as IncludeIO,
+    includeDatasetName: props.includeDatasetName,
+    returnVersionTimestamp: options.returnVersionTimestamp as ReturnVersion,
+  });
+}
+
+/**
+ * Retrieves the complete state of dataset items at a given version timestamp.
+ * For each unique item ID, returns the latest event where:
+ * - createdAt <= version
+ * - deletedAt IS NULL OR deletedAt > version
+ */
+export async function getDatasetItemsByLatest<
+  IncludeIO extends boolean = true,
+  IncludeDatasetName extends boolean = false,
+>(props: {
+  projectId: string;
+  includeIO?: IncludeIO;
+  includeDatasetName?: IncludeDatasetName;
+  filters?: DatasetItemFilters;
+  limit?: number;
+  page?: number;
+}): Promise<{
+  versionTimestamp: Date;
+  items: Array<
+    IncludeIO extends true
+      ? IncludeDatasetName extends true
+        ? ItemWithIO & { datasetName: string }
+        : ItemWithIO
+      : IncludeDatasetName extends true
+        ? ItemBase & { datasetName: string }
+        : ItemBase
+  >;
+}> {
+  const options = { ...DEFAULT_OPTIONS, ...props };
+
+  return getItems({
+    projectId: props.projectId,
+    version: new Date(),
+    includeIO: options.includeIO as IncludeIO,
+    includeDatasetName: props.includeDatasetName,
+    returnVersionTimestamp: true,
+    filters: props.filters,
+    limit: props.limit,
+    offset:
+      props.limit !== undefined && props.page !== undefined
+        ? props.page * props.limit
+        : undefined,
+  });
+}
+
+export async function getDatasetItemsCountByVersion(props: {
+  projectId: string;
+  version: Date;
+  filters?: DatasetItemFilters;
+}): Promise<number> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      const defaultFilters = props.filters ?? {};
+      const status = defaultFilters.status ?? "ACTIVE";
+
+      return await prisma.datasetItem.count({
+        where: {
+          projectId: props.projectId,
+          ...(defaultFilters.datasetId && {
+            datasetId: defaultFilters.datasetId,
+          }),
+          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+          ...(defaultFilters.itemIds && {
+            id: { in: defaultFilters.itemIds },
+          }),
+          ...(defaultFilters.sourceTraceId !== undefined && {
+            sourceTraceId: defaultFilters.sourceTraceId,
+          }),
+          ...(defaultFilters.sourceObservationId !== undefined && {
+            sourceObservationId: defaultFilters.sourceObservationId,
+          }),
+        },
+      });
+    },
+    [Implementation.VERSIONED]: async () => {
+      return await getDatasetItemsCountByVersionInternal({
+        projectId: props.projectId,
+        version: props.version,
+        filters: props.filters,
+      });
+    },
+  });
+}
+
+export async function getDatasetItemsCountByLatest(props: {
+  projectId: string;
+  filters?: DatasetItemFilters;
+}): Promise<number> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      const defaultFilters = props.filters ?? {};
+      const status = defaultFilters.status ?? "ACTIVE";
+
+      return await prisma.datasetItem.count({
+        where: {
+          projectId: props.projectId,
+          ...(defaultFilters.datasetId && {
+            datasetId: defaultFilters.datasetId,
+          }),
+          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+          ...(defaultFilters.itemIds && {
+            id: { in: defaultFilters.itemIds },
+          }),
+          ...(defaultFilters.sourceTraceId !== undefined && {
+            sourceTraceId: defaultFilters.sourceTraceId,
+          }),
+          ...(defaultFilters.sourceObservationId !== undefined && {
+            sourceObservationId: defaultFilters.sourceObservationId,
+          }),
+        },
+      });
+    },
+    [Implementation.VERSIONED]: async () => {
+      return getDatasetItemsCountByVersionInternal({
+        projectId: props.projectId,
+        version: new Date(),
+        filters: props.filters,
+      });
+    },
+  });
 }

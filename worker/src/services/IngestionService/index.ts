@@ -45,7 +45,7 @@ import {
   hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
-  DatasetItemManager,
+  getDatasetItemById,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -463,7 +463,7 @@ export class IngestionService {
                   createdAt: true,
                 },
               }),
-              DatasetItemManager.getItemById({
+              await getDatasetItemById({
                 projectId,
                 datasetItemId: event.body.datasetItemId,
                 datasetId: event.body.datasetId,

@@ -15,7 +15,7 @@ import {
   logger,
   processEventBatch,
   getObservationById,
-  DatasetItemManager,
+  getDatasetItemById,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
@@ -36,7 +36,7 @@ export default withMiddlewares({
        **************/
       const { traceId, observationId, datasetItemId } = body;
 
-      const datasetItem = await DatasetItemManager.getItemById({
+      const datasetItem = await getDatasetItemById({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
         status: "ACTIVE",

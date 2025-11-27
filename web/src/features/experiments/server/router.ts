@@ -2,8 +2,8 @@ import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
-  DatasetItemManager,
   ExperimentCreateQueue,
+  getDatasetItemsByLatest,
   PromptService,
   QueueJobs,
   QueueName,
@@ -140,7 +140,7 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const res = await DatasetItemManager.getItemsByLatest({
+      const res = await getDatasetItemsByLatest({
         projectId: input.projectId,
         filters: {
           datasetId: input.datasetId,

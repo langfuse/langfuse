@@ -1,10 +1,10 @@
 import {
   ChatMessage,
-  DatasetItemManager,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
   fetchLLMCompletion,
+  getDatasetItemsByVersion,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
@@ -220,7 +220,7 @@ async function getItemsToProcess(
 
   // Fetch dataset items in batches
   while (true) {
-    const items = await DatasetItemManager.getItemsByVersion({
+    const items = await getDatasetItemsByVersion({
       projectId,
       version,
       includeIO: true,
@@ -377,7 +377,7 @@ async function createAllDatasetRunItemsWithConfigError(
 
   // Fetch dataset items in batches
   while (true) {
-    const items = await DatasetItemManager.getItemsByVersion({
+    const items = await getDatasetItemsByVersion({
       projectId,
       version,
       includeIO: true,

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../../db";
-import { DatasetItemManager } from "../services/DatasetService";
+import { getDatasetItemsByVersion } from "../repositories";
 import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
 import type { DatasetSchemaValidationError } from "./schemaTypes";
 
@@ -21,7 +21,7 @@ export type ValidationResult = {
  *
  * **When NOT to use:**
  * - DO NOT use for validating new items during creation/update
- * - Use DatasetItemManager methods instead, which handle per-item validation
+ * - Use dataset-items repository instead, which handle per-item validation
  *
  * **Performance:**
  * - Batched validation: processes 5000 items at a time
@@ -57,7 +57,7 @@ export async function validateAllDatasetItems(params: {
   while (errors.length < MAX_ERRORS) {
     // Fetch batch
 
-    const items = await DatasetItemManager.getItemsByVersion({
+    const items = await getDatasetItemsByVersion({
       projectId,
       filters: {
         datasetId,
