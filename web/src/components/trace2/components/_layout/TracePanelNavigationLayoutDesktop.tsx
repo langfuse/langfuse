@@ -5,19 +5,31 @@
  * - Wrap navigation content with header and collapsible layout structure
  * - Handle panel collapse/expand state for desktop
  * - Position TracePanelNavigationHiddenNotice above content
+ * - Render graph view panel below tree/timeline when enabled
  *
  * Hooks:
  * - useDesktopLayoutContext() - for panel collapse state
+ * - useViewPreferences() - for showGraph preference
+ * - useGraphData() - for isGraphViewAvailable
  *
  * Re-renders when:
  * - Panel collapse/expand state changes
+ * - showGraph or isGraphViewAvailable changes
  * - Does NOT re-render when search/selection changes (isolated)
  */
 
 import { type ReactNode } from "react";
+import {
+  ResizablePanel,
+  ResizablePanelGroup,
+  ResizableHandle,
+} from "@/src/components/ui/resizable";
 import { useDesktopLayoutContext } from "./TraceLayoutDesktop";
 import { TracePanelNavigationHeader } from "./TracePanelNavigationHeader";
 import { TracePanelNavigationHiddenNotice } from "./TracePanelNavigationHiddenNotice";
+import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
+import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
+import { TraceGraphView } from "../TraceGraphView/TraceGraphView";
 
 export function TracePanelNavigationLayoutDesktop({
   children,
@@ -26,6 +38,10 @@ export function TracePanelNavigationLayoutDesktop({
 }) {
   const { isNavigationPanelCollapsed, handleTogglePanel, shouldPulseToggle } =
     useDesktopLayoutContext();
+  const { showGraph } = useViewPreferences();
+  const { isGraphViewAvailable } = useTraceGraphData();
+
+  const shouldShowGraph = showGraph && isGraphViewAvailable;
 
   return (
     <div className="flex h-full flex-col border-r">
@@ -37,7 +53,24 @@ export function TracePanelNavigationLayoutDesktop({
       {!isNavigationPanelCollapsed && (
         <>
           <TracePanelNavigationHiddenNotice />
-          <div className="flex-1 overflow-hidden">{children}</div>
+          {shouldShowGraph ? (
+            <ResizablePanelGroup
+              direction="vertical"
+              className="flex-1 overflow-hidden"
+            >
+              <ResizablePanel defaultSize={60} minSize={20}>
+                <div className="h-full overflow-hidden">{children}</div>
+              </ResizablePanel>
+              <ResizableHandle className="h-px bg-border" />
+              <ResizablePanel defaultSize={40} minSize={20}>
+                <div className="h-full overflow-hidden">
+                  <TraceGraphView />
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            <div className="flex-1 overflow-hidden">{children}</div>
+          )}
         </>
       )}
     </div>
