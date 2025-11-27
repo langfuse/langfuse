@@ -33,7 +33,6 @@ import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
 import { LogViewTreeIndent } from "./LogViewTreeIndent";
 import { LogViewJsonMode } from "./LogViewJsonMode";
-import { LOG_VIEW_CONFIRMATION_THRESHOLD } from "./useLogViewConfirmation";
 import {
   formatDisplayName,
   formatRelativeTime,
@@ -43,6 +42,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
 import { usePrefetchObservation } from "@/src/components/trace2/api/usePrefetchObservation";
+import { useObservationIOLoadedCount } from "./useLogViewObservationIO";
 
 export interface TraceLogViewProps {
   traceId: string;
@@ -57,6 +57,9 @@ const EXPANDED_ROW_HEIGHT = 150;
 // Disable indent visualization when tree is deeper than this threshold
 const INDENT_DEPTH_THRESHOLD = 5;
 
+// Threshold for enabling virtualization (observation count)
+export const LOG_VIEW_VIRTUALIZATION_THRESHOLD = 100;
+
 export const TraceLogView = ({
   traceId,
   projectId,
@@ -67,7 +70,8 @@ export const TraceLogView = ({
   const { expansionState, setFieldExpansion } = useJsonExpansion();
 
   // Determine if we should virtualize based on observation count
-  const isVirtualized = observations.length >= LOG_VIEW_CONFIRMATION_THRESHOLD;
+  const isVirtualized =
+    observations.length >= LOG_VIEW_VIRTUALIZATION_THRESHOLD;
 
   // Get expanded keys from context (persisted in sessionStorage)
   // Uses dynamic key format: logViewRows:${traceId}
@@ -239,6 +243,7 @@ export const TraceLogView = ({
   );
 
   // Render expanded content with JSON expansion context integration
+  // Always persist expansion state regardless of virtualization mode
   const renderExpanded = useCallback(
     (item: FlatLogItem) => {
       const observationExpansionKey = `log:${item.node.id}`;
@@ -249,25 +254,14 @@ export const TraceLogView = ({
           traceId={traceId}
           projectId={projectId}
           currentView={currentView}
-          externalExpansionState={
-            !isVirtualized ? expansionState[observationExpansionKey] : undefined
-          }
-          onExternalExpansionChange={
-            !isVirtualized
-              ? (exp) => setFieldExpansion(observationExpansionKey, exp)
-              : undefined
+          externalExpansionState={expansionState[observationExpansionKey]}
+          onExternalExpansionChange={(exp) =>
+            setFieldExpansion(observationExpansionKey, exp)
           }
         />
       );
     },
-    [
-      traceId,
-      projectId,
-      currentView,
-      isVirtualized,
-      expansionState,
-      setFieldExpansion,
-    ],
+    [traceId, projectId, currentView, expansionState, setFieldExpansion],
   );
 
   // Track if all rows are expanded (for non-virtualized mode)
@@ -328,6 +322,14 @@ export const TraceLogView = ({
   const hasNoObservations = allItems.length === 0;
   const hasNoSearchResults = !hasNoObservations && flatItems.length === 0;
 
+  // Track loaded observation count for virtualized mode
+  const { loaded: loadedCount, total: totalCount } =
+    useObservationIOLoadedCount({
+      items: flatItems,
+      traceId,
+      projectId,
+    });
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Toolbar with search and actions */}
@@ -345,6 +347,8 @@ export const TraceLogView = ({
         onToggleIndent={() => setIndentEnabled(!indentEnabledPref)}
         showMilliseconds={showMilliseconds}
         onToggleMilliseconds={() => setShowMilliseconds(!showMilliseconds)}
+        loadedCount={isVirtualized ? loadedCount : undefined}
+        totalCount={isVirtualized ? totalCount : undefined}
       />
 
       {/* Empty states */}

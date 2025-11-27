@@ -19,6 +19,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command, CommandInput } from "@/src/components/ui/command";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 export interface LogViewToolbarProps {
@@ -48,6 +53,10 @@ export interface LogViewToolbarProps {
   showMilliseconds?: boolean;
   /** Callback to toggle milliseconds display */
   onToggleMilliseconds?: () => void;
+  /** Number of observations with I/O loaded (virtualized mode) */
+  loadedCount?: number;
+  /** Total number of observations (virtualized mode) */
+  totalCount?: number;
 }
 
 /**
@@ -67,6 +76,8 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   onToggleIndent,
   showMilliseconds = false,
   onToggleMilliseconds,
+  loadedCount,
+  totalCount,
 }: LogViewToolbarProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -147,51 +158,83 @@ export const LogViewToolbar = memo(function LogViewToolbar({
           </Button>
         )}
 
-        {/* Expand/Collapse All - only in non-virtualized table mode */}
-        {!isVirtualized && currentView === "pretty" && onToggleExpandAll && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={onToggleExpandAll}
-            title={allRowsExpanded ? "Collapse all" : "Expand all"}
-          >
-            {allRowsExpanded ? (
-              <FoldVertical className="h-3.5 w-3.5" />
-            ) : (
-              <UnfoldVertical className="h-3.5 w-3.5" />
-            )}
-          </Button>
+        {/* Expand/Collapse All - show disabled with tooltip when virtualized */}
+        {currentView === "pretty" && onToggleExpandAll && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7",
+                    isVirtualized && "cursor-not-allowed opacity-50",
+                  )}
+                  onClick={isVirtualized ? undefined : onToggleExpandAll}
+                  disabled={isVirtualized}
+                >
+                  {allRowsExpanded && !isVirtualized ? (
+                    <FoldVertical className="h-3.5 w-3.5" />
+                  ) : (
+                    <UnfoldVertical className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isVirtualized
+                ? "Disabled for performance with 100+ observations"
+                : allRowsExpanded
+                  ? "Collapse all"
+                  : "Expand all"}
+            </TooltipContent>
+          </Tooltip>
         )}
 
         {/* Copy JSON */}
         {onCopyJson && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleCopyClick}
-            title="Copy as JSON"
-          >
-            {isCopied ? (
-              <Check className="h-3.5 w-3.5" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleCopyClick}
+              >
+                {isCopied ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isVirtualized && loadedCount !== undefined && totalCount
+                ? `Copy JSON (${loadedCount}/${totalCount} loaded)`
+                : "Copy as JSON"}
+            </TooltipContent>
+          </Tooltip>
         )}
 
         {/* Download JSON */}
         {onDownloadJson && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={onDownloadJson}
-            title="Download as JSON"
-          >
-            <Download className="h-3.5 w-3.5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={onDownloadJson}
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isVirtualized && loadedCount !== undefined && totalCount
+                ? `Download JSON (${loadedCount}/${totalCount} loaded)`
+                : "Download as JSON"}
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
     </div>

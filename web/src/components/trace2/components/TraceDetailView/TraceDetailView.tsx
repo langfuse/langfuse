@@ -32,16 +32,12 @@ import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext"
 import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import {
-  useLogViewConfirmation,
-  LOG_VIEW_DISABLED_THRESHOLD,
-  LOG_VIEW_CONFIRMATION_THRESHOLD,
-} from "@/src/components/trace2/components/TraceLogView/useLogViewConfirmation";
-
 // Extracted components
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
-import { TraceLogViewConfirmationDialog } from "../TraceLogView/TraceLogViewConfirmationDialog";
-import { TraceLogView } from "../TraceLogView/TraceLogView";
+import {
+  TraceLogView,
+  LOG_VIEW_VIRTUALIZATION_THRESHOLD,
+} from "../TraceLogView/TraceLogView";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export interface TraceDetailViewProps {
@@ -81,27 +77,18 @@ export function TraceDetailView({
     [scores],
   );
 
-  // Log view confirmation logic
-  const logViewConfirmation = useLogViewConfirmation({
-    observationCount: observations.length,
-    traceId: trace.id,
-  });
-
   const showLogViewTab = observations.length > 0;
 
   // Check if log view will be virtualized (affects JSON tab availability)
   const isLogViewVirtualized =
-    observations.length >= LOG_VIEW_CONFIRMATION_THRESHOLD;
+    observations.length >= LOG_VIEW_VIRTUALIZATION_THRESHOLD;
 
   // Auto-redirect from invalid tab state
   useEffect(() => {
-    if (
-      (logViewConfirmation.isDisabled || !showLogViewTab) &&
-      selectedTab === "log"
-    ) {
+    if (!showLogViewTab && selectedTab === "log") {
       setSelectedTab("preview");
     }
-  }, [logViewConfirmation.isDisabled, showLogViewTab, selectedTab]);
+  }, [showLogViewTab, selectedTab]);
 
   // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
   const { isPeekMode } = useViewPreferences();
@@ -109,19 +96,9 @@ export function TraceDetailView({
     useIsAuthenticatedAndProjectMember(projectId);
   const showScoresTab = isAuthenticatedAndProjectMember && !isPeekMode;
 
-  // Handle tab change with log view confirmation
+  // Handle tab change
   const handleTabChange = (value: string) => {
-    if (value === "log") {
-      const canProceed = logViewConfirmation.attemptLogView();
-      if (!canProceed) return;
-    }
     setSelectedTab(value as "preview" | "log" | "scores");
-  };
-
-  // Handle log view confirmation
-  const handleLogViewConfirm = () => {
-    logViewConfirmation.confirmLogView();
-    setSelectedTab("log");
   };
 
   return (
@@ -144,20 +121,15 @@ export function TraceDetailView({
           <TabsBarList>
             <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
             {showLogViewTab && (
-              <TabsBarTrigger
-                value="log"
-                disabled={logViewConfirmation.isDisabled}
-              >
+              <TabsBarTrigger value="log">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span>Log View</span>
                   </TooltipTrigger>
                   <TooltipContent className="text-xs">
-                    {logViewConfirmation.isDisabled
-                      ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
-                      : logViewConfirmation.requiresConfirmation
-                        ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
-                        : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
+                    {isLogViewVirtualized
+                      ? `Shows all ${observations.length} observations with virtualization enabled.`
+                      : "Shows all observations concatenated. Great for quickly scanning through them."}
                   </TooltipContent>
                 </Tooltip>
               </TabsBarTrigger>
@@ -291,14 +263,6 @@ export function TraceDetailView({
           </TabsBarContent>
         )}
       </TabsBar>
-
-      {/* Confirmation dialog for log view with many observations (extracted component) */}
-      <TraceLogViewConfirmationDialog
-        open={logViewConfirmation.showDialog}
-        onOpenChange={logViewConfirmation.setShowDialog}
-        observationCount={observations.length}
-        onConfirm={handleLogViewConfirm}
-      />
     </div>
   );
 }

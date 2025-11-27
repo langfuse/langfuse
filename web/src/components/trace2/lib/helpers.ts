@@ -289,36 +289,47 @@ function buildTraceTree(
     traceStartTime: Date,
     parentStartTime: Date | null,
     depth: number,
-  ): TreeNode => ({
-    id: obs.id,
-    type: obs.type,
-    name: obs.name ?? "",
-    startTime: obs.startTime,
-    endTime: obs.endTime,
-    level: obs.level,
-    children: obs.children.map((child) =>
+  ): TreeNode => {
+    const children = obs.children.map((child) =>
       convertObservationToTreeNode(
         child,
         traceStartTime,
         obs.startTime,
         depth + 1,
       ),
-    ),
-    inputUsage: obs.inputUsage,
-    outputUsage: obs.outputUsage,
-    totalUsage: obs.totalUsage,
-    calculatedInputCost: obs.inputCost,
-    calculatedOutputCost: obs.outputCost,
-    calculatedTotalCost: obs.totalCost,
-    parentObservationId: obs.parentObservationId,
-    traceId: obs.traceId,
-    startTimeSinceTrace: obs.startTime.getTime() - traceStartTime.getTime(),
-    startTimeSinceParentStart:
-      parentStartTime !== null
-        ? obs.startTime.getTime() - parentStartTime.getTime()
-        : null,
-    depth,
-  });
+    );
+
+    // Calculate childrenDepth (max depth of subtree rooted at this node)
+    const childrenDepth =
+      children.length > 0
+        ? Math.max(...children.map((c) => c.childrenDepth)) + 1
+        : 0;
+
+    return {
+      id: obs.id,
+      type: obs.type,
+      name: obs.name ?? "",
+      startTime: obs.startTime,
+      endTime: obs.endTime,
+      level: obs.level,
+      children,
+      inputUsage: obs.inputUsage,
+      outputUsage: obs.outputUsage,
+      totalUsage: obs.totalUsage,
+      calculatedInputCost: obs.inputCost,
+      calculatedOutputCost: obs.outputCost,
+      calculatedTotalCost: obs.totalCost,
+      parentObservationId: obs.parentObservationId,
+      traceId: obs.traceId,
+      startTimeSinceTrace: obs.startTime.getTime() - traceStartTime.getTime(),
+      startTimeSinceParentStart:
+        parentStartTime !== null
+          ? obs.startTime.getTime() - parentStartTime.getTime()
+          : null,
+      depth,
+      childrenDepth,
+    };
+  };
 
   // Convert and enrich children with pre-computed costs and populate nodeMap
   const enrichedChildren = nestedObservations
@@ -334,6 +345,12 @@ function buildTraceTree(
     undefined,
   );
 
+  // Calculate childrenDepth for trace root
+  const traceChildrenDepth =
+    enrichedChildren.length > 0
+      ? Math.max(...enrichedChildren.map((c) => c.childrenDepth)) + 1
+      : 0;
+
   // Create the root tree node (trace)
   // Use a unique ID for the trace root to avoid conflicts with observations that might have the same ID
   const tree: TreeNode = {
@@ -348,6 +365,7 @@ function buildTraceTree(
     startTimeSinceTrace: 0,
     startTimeSinceParentStart: null,
     depth: -1,
+    childrenDepth: traceChildrenDepth,
   };
 
   // Add trace root to nodeMap as well

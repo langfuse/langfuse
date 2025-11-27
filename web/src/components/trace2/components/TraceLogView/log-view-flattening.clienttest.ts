@@ -23,6 +23,7 @@ function createNode(
     startTimeSinceTrace: overrides.startTimeSinceTrace ?? 0,
     startTimeSinceParentStart: overrides.startTimeSinceParentStart ?? null,
     depth: overrides.depth ?? 0,
+    childrenDepth: overrides.childrenDepth ?? 0,
     ...overrides,
   };
 }

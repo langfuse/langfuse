@@ -97,7 +97,7 @@ export function JSONTableView<T>({
     count: virtualized ? items.length : 0,
     getScrollElement: () => parentRef.current,
     estimateSize,
-    overscan: 10,
+    overscan: 50,
     measureElement:
       typeof window !== "undefined"
         ? (element) => element.getBoundingClientRect().height
