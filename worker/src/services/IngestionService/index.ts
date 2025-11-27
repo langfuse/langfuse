@@ -462,11 +462,11 @@ export class IngestionService {
                   createdAt: true,
                 },
               }),
-              // TODO: verify item is ACTIVE
               DatasetItemManager.getItemById({
                 projectId,
                 datasetItemId: event.body.datasetItemId,
                 datasetId: event.body.datasetId,
+                status: "ACTIVE",
               }),
             ]);
 

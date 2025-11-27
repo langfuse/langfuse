@@ -1,5 +1,3 @@
-import { DatasetItemDomain, DatasetStatus, Prisma } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessage,
   DatasetItemManager,
@@ -27,11 +25,13 @@ import {
 import {
   validateDatasetItem,
   normalizeDatasetItemInput,
+  Prisma,
+  type DatasetItem,
 } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
 
-type DatasetItemToProcess = Omit<DatasetItemDomain, "input"> & {
+type DatasetItemToProcess = Omit<DatasetItem, "input"> & {
   input: Prisma.JsonObject;
 };
 
@@ -220,12 +220,13 @@ async function getItemsToProcess(
 
   // Fetch dataset items in batches
   while (true) {
-    // TODO: fetch ACTIVE items only
     const items = await DatasetItemManager.getItemsByVersion({
       projectId,
-      datasetId,
       version,
       includeIO: true,
+      filters: {
+        datasetId,
+      },
       limit: EXPERIMENT_BATCH_SIZE,
       page,
     });
@@ -376,12 +377,13 @@ async function createAllDatasetRunItemsWithConfigError(
 
   // Fetch dataset items in batches
   while (true) {
-    // TODO: fetch ACTIVE items only
     const items = await DatasetItemManager.getItemsByVersion({
       projectId,
-      datasetId,
       version,
       includeIO: true,
+      filters: {
+        datasetId,
+      },
       limit: EXPERIMENT_BATCH_SIZE,
       page,
     });

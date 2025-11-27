@@ -59,7 +59,9 @@ export async function validateAllDatasetItems(params: {
 
     const items = await DatasetItemManager.getItemsByVersion({
       projectId,
-      datasetId,
+      filters: {
+        datasetId,
+      },
       version,
       limit: BATCH_SIZE,
       page,

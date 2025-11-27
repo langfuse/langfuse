@@ -9,6 +9,7 @@ import type {
   PayloadError,
   ItemBase,
   ItemWithIO,
+  DatasetItemFilters,
 } from "./types";
 import {
   Implementation,
@@ -19,6 +20,8 @@ import {
 import {
   getDatasetItemsByVersion,
   getDatasetItemsCountByVersion,
+  convertFiltersToFilterState,
+  applyDefaultFilters,
 } from "../../repositories";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
@@ -251,6 +254,7 @@ export class DatasetItemManager {
         projectId: props.projectId,
         datasetItemId: props.datasetItemId,
         datasetId: dataset.id,
+        status: "ALL", // Allow upserting archived items
       });
     }
 
@@ -370,6 +374,7 @@ export class DatasetItemManager {
       projectId: props.projectId,
       datasetItemId: props.datasetItemId,
       datasetId: props.datasetId,
+      status: "ALL", // Allow deleting archived items
     });
 
     if (!item) {
@@ -568,54 +573,108 @@ export class DatasetItemManager {
 
   private static async getItems<
     IncludeIO extends boolean,
+    IncludeDatasetName extends boolean,
     ReturnVersion extends boolean,
   >({
     projectId,
-    datasetId,
     version,
     includeIO,
+    includeDatasetName,
     returnVersionTimestamp,
+    filters,
     limit,
     offset,
   }: {
     projectId: string;
-    datasetId: string;
     version: Date;
     includeIO: IncludeIO;
+    includeDatasetName?: IncludeDatasetName;
     returnVersionTimestamp: ReturnVersion;
+    filters?: DatasetItemFilters;
     limit?: number;
     offset?: number;
   }): Promise<
     ReturnVersion extends true
       ? {
-          items: Array<IncludeIO extends true ? ItemWithIO : ItemBase>;
+          items: Array<
+            IncludeIO extends true
+              ? IncludeDatasetName extends true
+                ? ItemWithIO & { datasetName: string }
+                : ItemWithIO
+              : IncludeDatasetName extends true
+                ? ItemBase & { datasetName: string }
+                : ItemBase
+          >;
           versionTimestamp: Date;
         }
-      : Array<IncludeIO extends true ? ItemWithIO : ItemBase>
+      : Array<
+          IncludeIO extends true
+            ? IncludeDatasetName extends true
+              ? ItemWithIO & { datasetName: string }
+              : ItemWithIO
+            : IncludeDatasetName extends true
+              ? ItemBase & { datasetName: string }
+              : ItemBase
+        >
   > {
     return executeWithDatasetServiceStrategy(OperationType.READ, {
       [Implementation.STATEFUL]: async () => {
+        const defaultFilters = filters ?? {};
+        const status = defaultFilters.status ?? "ACTIVE";
+
         const items = await prisma.datasetItem.findMany({
-          where: { datasetId, projectId },
+          where: {
+            projectId,
+            ...(defaultFilters.datasetId && {
+              datasetId: defaultFilters.datasetId,
+            }),
+            ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+            ...(defaultFilters.itemIds && {
+              id: { in: defaultFilters.itemIds },
+            }),
+            ...(defaultFilters.sourceTraceId !== undefined && {
+              sourceTraceId: defaultFilters.sourceTraceId,
+            }),
+            ...(defaultFilters.sourceObservationId !== undefined && {
+              sourceObservationId: defaultFilters.sourceObservationId,
+            }),
+          },
           ...(limit !== undefined && { take: limit }),
           ...(offset !== undefined && { skip: offset }),
+          ...(includeDatasetName && {
+            include: { dataset: { select: { name: true } } },
+          }),
         });
+
+        const itemsWithDatasetName = includeDatasetName
+          ? items.map((item: any) => ({
+              ...item,
+              datasetName: item.dataset.name,
+              dataset: undefined,
+            }))
+          : items;
 
         if (returnVersionTimestamp) {
           return {
-            items,
+            items: itemsWithDatasetName,
             versionTimestamp: new Date(),
           };
         }
-        return items;
+        return itemsWithDatasetName;
       },
       [Implementation.VERSIONED]: async () => {
+        const filtersWithDefaults = applyDefaultFilters(filters);
+
+        // Convert to FilterState
+        const filterState = convertFiltersToFilterState(filtersWithDefaults);
+
         return getDatasetItemsByVersion({
           projectId,
-          datasetId,
           version,
           includeIO,
+          includeDatasetName,
           returnVersionTimestamp,
+          filter: filterState,
           limit,
           offset,
         }) as any;
@@ -650,13 +709,17 @@ export class DatasetItemManager {
    * Call this BEFORE validation to merge existing data with updates.
    *
    * @param props.datasetId - Required to ensure item belongs to correct dataset
+   * @param props.status - Filter by status ('ACTIVE' for active items only, 'ALL' to include archived items)
    * @returns The dataset item or null if not found
    */
   public static async getItemById(props: {
     projectId: string;
     datasetItemId: string;
+    status: "ACTIVE" | "ALL";
     datasetId?: string;
   }): Promise<DatasetItem | null> {
+    const status = props.status;
+
     return executeWithDatasetServiceStrategy(OperationType.READ, {
       [Implementation.STATEFUL]: async () => {
         const item = await prisma.datasetItem.findUnique({
@@ -666,6 +729,7 @@ export class DatasetItemManager {
               projectId: props.projectId,
             },
             ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+            ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
           },
         });
         return item ?? null;
@@ -677,6 +741,7 @@ export class DatasetItemManager {
             itemId: props.datasetItemId,
             projectId: props.projectId,
             ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+            ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
           },
           orderBy: {
             createdAt: "desc",
@@ -714,22 +779,40 @@ export class DatasetItemManager {
    */
   public static async getItemsByVersion<
     IncludeIO extends boolean = true,
+    IncludeDatasetName extends boolean = false,
     ReturnVersion extends boolean = false,
   >(props: {
     projectId: string;
-    datasetId: string;
     version: Date;
+    filters?: DatasetItemFilters;
     limit?: number;
     page?: number;
     includeIO?: IncludeIO;
+    includeDatasetName?: IncludeDatasetName;
     returnVersionTimestamp?: ReturnVersion;
   }): Promise<
     ReturnVersion extends true
       ? {
-          items: Array<IncludeIO extends true ? ItemWithIO : ItemBase>;
+          items: Array<
+            IncludeIO extends true
+              ? IncludeDatasetName extends true
+                ? ItemWithIO & { datasetName: string }
+                : ItemWithIO
+              : IncludeDatasetName extends true
+                ? ItemBase & { datasetName: string }
+                : ItemBase
+          >;
           versionTimestamp: Date;
         }
-      : Array<IncludeIO extends true ? ItemWithIO : ItemBase>
+      : Array<
+          IncludeIO extends true
+            ? IncludeDatasetName extends true
+              ? ItemWithIO & { datasetName: string }
+              : ItemWithIO
+            : IncludeDatasetName extends true
+              ? ItemBase & { datasetName: string }
+              : ItemBase
+        >
   > {
     const options = { ...this.DEFAULT_OPTIONS, ...props };
 
@@ -740,6 +823,7 @@ export class DatasetItemManager {
           ? props.page * props.limit
           : undefined,
       includeIO: options.includeIO as IncludeIO,
+      includeDatasetName: props.includeDatasetName,
       returnVersionTimestamp: options.returnVersionTimestamp as ReturnVersion,
     });
   }
@@ -752,23 +836,35 @@ export class DatasetItemManager {
    */
   public static async getItemsByLatest<
     IncludeIO extends boolean = true,
+    IncludeDatasetName extends boolean = false,
   >(props: {
     projectId: string;
-    datasetId: string;
+    includeIO?: IncludeIO;
+    includeDatasetName?: IncludeDatasetName;
+    filters?: DatasetItemFilters;
     limit?: number;
     page?: number;
-    includeIO?: IncludeIO;
   }): Promise<{
     versionTimestamp: Date;
-    items: Array<IncludeIO extends true ? ItemWithIO : ItemBase>;
+    items: Array<
+      IncludeIO extends true
+        ? IncludeDatasetName extends true
+          ? ItemWithIO & { datasetName: string }
+          : ItemWithIO
+        : IncludeDatasetName extends true
+          ? ItemBase & { datasetName: string }
+          : ItemBase
+    >;
   }> {
     const options = { ...this.DEFAULT_OPTIONS, ...props };
 
     return this.getItems({
-      ...props,
+      projectId: props.projectId,
       version: new Date(),
       includeIO: options.includeIO as IncludeIO,
+      includeDatasetName: props.includeDatasetName,
       returnVersionTimestamp: true,
+      filters: props.filters,
       limit: props.limit,
       offset:
         props.limit !== undefined && props.page !== undefined
@@ -779,20 +875,38 @@ export class DatasetItemManager {
 
   public static async getItemCountByVersion(props: {
     projectId: string;
-    datasetId: string;
     version: Date;
+    filters?: DatasetItemFilters;
   }): Promise<number> {
     return executeWithDatasetServiceStrategy(OperationType.READ, {
       [Implementation.STATEFUL]: async () => {
+        const defaultFilters = props.filters ?? {};
+        const status = defaultFilters.status ?? "ACTIVE";
+
         return await prisma.datasetItem.count({
-          where: { datasetId: props.datasetId, projectId: props.projectId },
+          where: {
+            projectId: props.projectId,
+            ...(defaultFilters.datasetId && {
+              datasetId: defaultFilters.datasetId,
+            }),
+            ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+            ...(defaultFilters.itemIds && {
+              id: { in: defaultFilters.itemIds },
+            }),
+            ...(defaultFilters.sourceTraceId !== undefined && {
+              sourceTraceId: defaultFilters.sourceTraceId,
+            }),
+            ...(defaultFilters.sourceObservationId !== undefined && {
+              sourceObservationId: defaultFilters.sourceObservationId,
+            }),
+          },
         });
       },
       [Implementation.VERSIONED]: async () => {
         return await getDatasetItemsCountByVersion({
           projectId: props.projectId,
-          datasetId: props.datasetId,
           version: props.version,
+          filters: props.filters,
         });
       },
     });
@@ -800,22 +914,37 @@ export class DatasetItemManager {
 
   public static async getItemCountByLatest(props: {
     projectId: string;
-    datasetId: string;
+    filters?: DatasetItemFilters;
   }): Promise<number> {
     return executeWithDatasetServiceStrategy(OperationType.READ, {
       [Implementation.STATEFUL]: async () => {
+        const defaultFilters = props.filters ?? {};
+        const status = defaultFilters.status ?? "ACTIVE";
+
         return await prisma.datasetItem.count({
           where: {
-            datasetId: props.datasetId,
             projectId: props.projectId,
+            ...(defaultFilters.datasetId && {
+              datasetId: defaultFilters.datasetId,
+            }),
+            ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
+            ...(defaultFilters.itemIds && {
+              id: { in: defaultFilters.itemIds },
+            }),
+            ...(defaultFilters.sourceTraceId !== undefined && {
+              sourceTraceId: defaultFilters.sourceTraceId,
+            }),
+            ...(defaultFilters.sourceObservationId !== undefined && {
+              sourceObservationId: defaultFilters.sourceObservationId,
+            }),
           },
         });
       },
       [Implementation.VERSIONED]: async () => {
         return getDatasetItemsCountByVersion({
           projectId: props.projectId,
-          datasetId: props.datasetId,
           version: new Date(),
+          filters: props.filters,
         });
       },
     });

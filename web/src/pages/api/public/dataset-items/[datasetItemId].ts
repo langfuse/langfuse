@@ -24,6 +24,7 @@ export default withMiddlewares({
       const datasetItem = await DatasetItemManager.getItemById({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
+        status: "ALL",
       });
 
       if (!datasetItem) {

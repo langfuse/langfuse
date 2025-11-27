@@ -118,21 +118,25 @@ export default withMiddlewares({
         datasetId = dataset.id;
       }
 
-      // TODO: needs to include dataset name also
-      const items = await DatasetItemManager.getItemsByLatest({
+      const { items } = await DatasetItemManager.getItemsByLatest({
         projectId: auth.scope.projectId,
-        datasetId: datasetId ?? undefined,
-        // sourceTraceId: sourceTraceId ?? undefined,
-        // sourceObservationId: sourceObservationId ?? undefined,
+        includeDatasetName: true,
+        filters: {
+          datasetId,
+          sourceTraceId: sourceTraceId ?? undefined,
+          sourceObservationId: sourceObservationId ?? undefined,
+        },
         limit: limit,
         page: page - 1,
       });
 
       const totalItems = await DatasetItemManager.getItemCountByLatest({
         projectId: auth.scope.projectId,
-        datasetId: datasetId ?? undefined,
-        // sourceTraceId: sourceTraceId ?? undefined,
-        // sourceObservationId: sourceObservationId ?? undefined,
+        filters: {
+          datasetId,
+          sourceTraceId: sourceTraceId ?? undefined,
+          sourceObservationId: sourceObservationId ?? undefined,
+        },
       });
 
       return {

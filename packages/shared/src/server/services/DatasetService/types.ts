@@ -1,5 +1,4 @@
-import { DatasetStatus, Prisma } from "../../../db";
-import { DatasetItemDomain } from "../../../domain";
+import { DatasetItem, DatasetStatus, Prisma } from "../../../db";
 import { FieldValidationError } from "../../../utils/jsonSchemaValidation";
 
 export type PayloadError = {
@@ -60,7 +59,7 @@ export type CreateManyValidationError = {
 };
 
 export type ItemBase = Omit<
-  DatasetItemDomain,
+  DatasetItem,
   "input" | "expectedOutput" | "metadata"
 >;
 
@@ -68,4 +67,23 @@ export type ItemWithIO = ItemBase & {
   input: Prisma.JsonValue;
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
+};
+
+/**
+ * Utility type to add datasetName to an item type
+ */
+export type ItemWithDatasetName<T> = T & {
+  datasetName: string;
+};
+
+/**
+ * Filter options for querying dataset items
+ * Used by DatasetItemManager for clean API
+ */
+export type DatasetItemFilters = {
+  datasetId?: string;
+  itemIds?: string[];
+  sourceTraceId?: string | null; // null = filter for IS NULL, undefined = no filter
+  sourceObservationId?: string | null; // null = filter for IS NULL, undefined = no filter
+  status?: "ACTIVE" | "ALL"; // Defaults to 'ACTIVE' at manager level
 };

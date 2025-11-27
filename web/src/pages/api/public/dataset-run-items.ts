@@ -36,14 +36,16 @@ export default withMiddlewares({
        **************/
       const { traceId, observationId, datasetItemId } = body;
 
-      // TODO: verify item is ACTIVE
       const datasetItem = await DatasetItemManager.getItemById({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
+        status: "ACTIVE",
       });
 
       if (!datasetItem) {
-        throw new LangfuseNotFoundError("Dataset item not found");
+        throw new LangfuseNotFoundError(
+          "Dataset item not found or is not active",
+        );
       }
 
       let finalTraceId = traceId;

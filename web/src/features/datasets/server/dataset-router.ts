@@ -641,6 +641,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         datasetItemId: input.datasetItemId,
         datasetId: input.datasetId,
+        status: "ALL",
       });
       if (!item) {
         throw new LangfuseNotFoundError("Dataset item not found");
@@ -652,7 +653,9 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input }) => {
       return await DatasetItemManager.getItemCountByLatest({
         projectId: input.projectId,
-        datasetId: input.datasetId,
+        filters: {
+          datasetId: input.datasetId,
+        },
       });
     }),
   itemsByDatasetId: protectedProjectProcedure
@@ -1035,8 +1038,10 @@ export const datasetRouter = createTRPCRouter({
       while (true) {
         const itemsBatch = await DatasetItemManager.getItemsByVersion({
           projectId: input.projectId,
-          datasetId: input.datasetId,
           version,
+          filters: {
+            datasetId: input.datasetId,
+          },
           limit: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
           page,
         });
@@ -1230,6 +1235,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         datasetItemId: datasetItemId,
         datasetId: datasetId,
+        status: "ALL",
       });
       if (!datasetItem) {
         throw new TRPCError({
@@ -1414,22 +1420,19 @@ export const datasetRouter = createTRPCRouter({
         datasetItemIds,
       });
 
-      const [runData, items] = await Promise.all([
+      const [runData, itemResult] = await Promise.all([
         enrichAndMapToDatasetItemId(projectId, datasetRunItems),
-        // TODO: replace with DatasetItemManager.getItemsByLatest
-        ctx.prisma.datasetItem.findMany({
-          where: { id: { in: datasetItemIds } },
-          select: {
-            id: true,
-            input: true,
-            expectedOutput: true,
-            metadata: true,
+        DatasetItemManager.getItemsByLatest({
+          projectId: input.projectId,
+          filters: {
+            datasetId: datasetId,
+            itemIds: datasetItemIds,
           },
         }),
       ]);
 
       return {
-        data: items.map((item) => ({
+        data: itemResult.items.map((item) => ({
           id: item.id,
           input: item.input,
           expectedOutput: item.expectedOutput,
@@ -1475,29 +1478,17 @@ export const datasetRouter = createTRPCRouter({
         observationId: z.string().optional(),
       }),
     )
-    .query(async ({ input, ctx }) => {
-      // TODO: replace with DatasetItemManager.getItemsByLatest
-      return ctx.prisma.datasetItem.findMany({
-        where: {
-          projectId: input.projectId,
+    .query(async ({ input }) => {
+      const res = await DatasetItemManager.getItemsByLatest({
+        projectId: input.projectId,
+        filters: {
           sourceTraceId: input.traceId,
-          sourceObservationId: input.observationId ?? null, // null as it should not include observations from the same trace
+          sourceObservationId: input.observationId ?? null, // null -> should not include observations from the same trace
         },
-        select: {
-          dataset: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          id: true,
-        },
-        orderBy: {
-          dataset: {
-            name: "asc",
-          },
-        },
+        includeDatasetName: true,
       });
+
+      return res.items;
     }),
   deleteDatasetRuns: protectedProjectProcedure
     .input(

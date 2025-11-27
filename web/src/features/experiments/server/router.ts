@@ -22,7 +22,7 @@ import {
   extractPlaceholderNames,
   type PromptMessage,
   isPresent,
-  type DatasetItemDomain,
+  type DatasetItem,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -43,7 +43,7 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
 ]);
 
 const countValidDatasetItems = (
-  datasetItems: DatasetItemDomain[],
+  datasetItems: DatasetItem[],
   variables: string[],
 ): Record<string, number> => {
   const variableMap: Record<string, number> = {};
@@ -140,10 +140,11 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      // TODO: filter by ACTIVE status
       const res = await DatasetItemManager.getItemsByLatest({
         projectId: input.projectId,
-        datasetId: input.datasetId,
+        filters: {
+          datasetId: input.datasetId,
+        },
       });
 
       if (!Boolean(res.items.length)) {
