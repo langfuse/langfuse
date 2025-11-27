@@ -6,7 +6,7 @@
 import { Badge } from "@/src/components/ui/badge";
 import { ExternalLinkIcon, PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 
 export function ModelBadge({
   model,
@@ -39,7 +39,7 @@ export function ModelBadge({
 
   // Unlinked model - show create form drawer
   return (
-    <UpsertModelFormDrawer
+    <UpsertModelFormDialog
       action="create"
       projectId={projectId}
       prefilledModelData={{
@@ -63,6 +63,6 @@ export function ModelBadge({
         <span>{model}</span>
         <PlusCircle className="h-3 w-3" />
       </Badge>
-    </UpsertModelFormDrawer>
+    </UpsertModelFormDialog>
   );
 }
