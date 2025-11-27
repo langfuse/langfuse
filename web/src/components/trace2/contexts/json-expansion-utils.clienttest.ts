@@ -1,3 +1,12 @@
+/**
+ * Tests for JSON expansion state normalization utilities.
+ *
+ * These functions handle translation between actual observation keys and
+ * normalized keys for persistent storage across different traces.
+ *
+ * Run with: pnpm test-client --testPathPattern="json-expansion-utils"
+ */
+
 import {
   normalizeKey,
   normalizeExpansionState,
@@ -189,6 +198,251 @@ describe("json-expansion-utils", () => {
       ).toEqual({
         "filter (abc12345)": true,
         // "non.existent" is not in output
+      });
+    });
+  });
+
+  describe("Performance Tests", () => {
+    // Helper to generate random 8-char hex ID
+    const generateHexId = (): string => {
+      return Math.random().toString(16).slice(2, 10).padEnd(8, "0");
+    };
+
+    // Helper to generate observation keys at scale
+    const generateObservationKeys = (count: number): string[] => {
+      const keys: string[] = [];
+      const names = [
+        "filter",
+        "llm-call",
+        "retriever",
+        "agent-step",
+        "embedding",
+        "tool-call",
+        "chain",
+        "prompt",
+        "output-parser",
+        "memory-lookup",
+      ];
+
+      for (let i = 0; i < count; i++) {
+        const name = names[i % names.length];
+        const hexId = generateHexId();
+        keys.push(`${name} (${hexId})`);
+      }
+      return keys;
+    };
+
+    // Helper to generate expansion state from observation keys
+    const generateExpansionState = (
+      observationKeys: string[],
+      nestedPathsPerKey: number = 0,
+    ): Record<string, boolean> => {
+      const state: Record<string, boolean> = {};
+      const nestedPaths = ["input", "output", "metadata", "messages", "config"];
+
+      observationKeys.forEach((key, i) => {
+        // Top-level expansion
+        state[key] = i % 2 === 0;
+
+        // Add nested paths
+        for (let j = 0; j < nestedPathsPerKey; j++) {
+          const nestedPath = nestedPaths[j % nestedPaths.length];
+          state[`${key}.${nestedPath}`] = (i + j) % 2 === 0;
+        }
+      });
+
+      return state;
+    };
+
+    // Helper to generate normalized state for denormalization tests
+    const generateNormalizedState = (
+      count: number,
+      nestedPathsPerKey: number = 0,
+    ): Record<string, boolean> => {
+      const state: Record<string, boolean> = {};
+      const names = [
+        "filter",
+        "llm.call",
+        "retriever",
+        "agent.step",
+        "embedding",
+        "tool.call",
+        "chain",
+        "prompt",
+        "output.parser",
+        "memory.lookup",
+      ];
+      const nestedPaths = ["input", "output", "metadata", "messages", "config"];
+
+      for (let i = 0; i < count; i++) {
+        const name = names[i % names.length];
+        state[name] = i % 2 === 0;
+
+        for (let j = 0; j < nestedPathsPerKey; j++) {
+          const nestedPath = nestedPaths[j % nestedPaths.length];
+          state[`${name}.${nestedPath}`] = (i + j) % 2 === 0;
+        }
+      }
+
+      return state;
+    };
+
+    const runNormalizeKeyTest = (count: number, threshold: number) => {
+      const keys = generateObservationKeys(count);
+
+      const start = Date.now();
+      keys.forEach((key) => normalizeKey(key));
+      const duration = Date.now() - start;
+
+      console.log(`normalizeKey x${count.toLocaleString()}: ${duration}ms`);
+      expect(duration).toBeLessThan(threshold);
+      return duration;
+    };
+
+    const runNormalizeStateTest = (
+      keyCount: number,
+      nestedPaths: number,
+      threshold: number,
+    ) => {
+      const observationKeys = generateObservationKeys(keyCount);
+      const state = generateExpansionState(observationKeys, nestedPaths);
+      const totalKeys = Object.keys(state).length;
+
+      const start = Date.now();
+      const result = normalizeExpansionState(state);
+      const duration = Date.now() - start;
+
+      expect(typeof result).toBe("object");
+      console.log(
+        `normalizeExpansionState (${totalKeys.toLocaleString()} keys): ${duration}ms`,
+      );
+      expect(duration).toBeLessThan(threshold);
+      return duration;
+    };
+
+    const runDenormalizeStateTest = (
+      keyCount: number,
+      observationCount: number,
+      nestedPaths: number,
+      threshold: number,
+    ) => {
+      const normalizedState = generateNormalizedState(keyCount, nestedPaths);
+      const observationKeys = generateObservationKeys(observationCount);
+      const totalNormalizedKeys = Object.keys(normalizedState).length;
+
+      const start = Date.now();
+      const result = denormalizeExpansionState(
+        normalizedState,
+        observationKeys,
+      );
+      const duration = Date.now() - start;
+
+      expect(typeof result).toBe("object");
+      console.log(
+        `denormalizeExpansionState (${totalNormalizedKeys.toLocaleString()} normalized keys, ${observationCount.toLocaleString()} observations): ${duration}ms`,
+      );
+      expect(duration).toBeLessThan(threshold);
+      return duration;
+    };
+
+    describe("1k scale", () => {
+      const scale = 1_000;
+      const threshold = 50; // 50ms
+
+      it("normalizes 1k keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 1k keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("normalizes expansion state with 1k keys and nested paths", () => {
+        runNormalizeStateTest(scale, 3, threshold);
+      });
+
+      it("denormalizes state with 1k observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
+      });
+
+      it("denormalizes state with 1k observations and nested paths", () => {
+        runDenormalizeStateTest(100, scale, 3, threshold);
+      });
+    });
+
+    describe("10k scale", () => {
+      const scale = 10_000;
+      const threshold = 200; // 200ms
+
+      it("normalizes 10k keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 10k keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("normalizes expansion state with 10k keys and nested paths", () => {
+        runNormalizeStateTest(scale, 3, threshold);
+      });
+
+      it("denormalizes state with 10k observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
+      });
+
+      it("denormalizes state with 10k observations and nested paths", () => {
+        runDenormalizeStateTest(100, scale, 3, threshold);
+      });
+    });
+
+    describe("25k scale", () => {
+      const scale = 25_000;
+      const threshold = 500; // 500ms
+
+      it("normalizes 25k keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 25k keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("denormalizes state with 25k observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
+      });
+    });
+
+    describe("50k scale", () => {
+      const scale = 50_000;
+      const threshold = 1_000; // 1s
+
+      it("normalizes 50k keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 50k keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("denormalizes state with 50k observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
+      });
+    });
+
+    describe("100k scale", () => {
+      const scale = 100_000;
+      const threshold = 2_000; // 2s
+
+      it("normalizes 100k keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 100k keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("denormalizes state with 100k observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
       });
     });
   });
