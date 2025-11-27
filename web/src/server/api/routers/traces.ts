@@ -609,6 +609,9 @@ export const traceRouter = createTRPCRouter({
         traceId: z.string(),
         minStartTime: z.string(),
         maxStartTime: z.string(),
+        // Optional fields for enforceTraceAccess middleware (supports public traces)
+        timestamp: z.date().nullish(),
+        fromTimestamp: z.date().nullish(),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {

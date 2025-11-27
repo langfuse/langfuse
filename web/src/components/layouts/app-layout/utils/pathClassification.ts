@@ -15,6 +15,7 @@ export const PATH_CONSTANTS = {
   publishable: [
     "/project/[projectId]/sessions/[sessionId]",
     "/project/[projectId]/traces/[traceId]",
+    "/project/[projectId]/traces2/[traceId]",
     "/auth/reset-password",
   ] as const,
 };
