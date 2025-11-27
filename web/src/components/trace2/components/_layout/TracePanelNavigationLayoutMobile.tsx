@@ -22,26 +22,21 @@ import { type ReactNode, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { TracePanelNavigationHiddenNotice } from "./TracePanelNavigationHiddenNotice";
-import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
-import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
-import { TraceGraphView } from "../TraceGraphView/TraceGraphView";
 
 export function TracePanelNavigationLayoutMobile({
   children,
+  secondaryContent,
 }: {
   children: ReactNode;
+  secondaryContent?: ReactNode;
 }) {
-  const { showGraph } = useViewPreferences();
-  const { isGraphViewAvailable } = useTraceGraphData();
   const [isGraphExpanded, setIsGraphExpanded] = useState(false);
-
-  const shouldShowGraph = showGraph && isGraphViewAvailable;
 
   return (
     <div className="flex h-full flex-col">
       <TracePanelNavigationHiddenNotice />
       <div className="flex-1 overflow-hidden">{children}</div>
-      {shouldShowGraph && (
+      {secondaryContent && (
         <div className="border-t">
           <Button
             variant="ghost"
@@ -57,9 +52,7 @@ export function TracePanelNavigationLayoutMobile({
             )}
           </Button>
           {isGraphExpanded && (
-            <div className="h-64 overflow-hidden">
-              <TraceGraphView />
-            </div>
+            <div className="h-64 overflow-hidden">{secondaryContent}</div>
           )}
         </div>
       )}
