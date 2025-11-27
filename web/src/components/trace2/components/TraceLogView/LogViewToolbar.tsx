@@ -60,7 +60,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   };
 
   return (
-    <div className="flex h-9 flex-shrink-0 items-center gap-1.5 bg-background px-2">
+    <div className="flex h-9 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
       {/* Debug: Virtual indicator */}
       <span
         className={cn(

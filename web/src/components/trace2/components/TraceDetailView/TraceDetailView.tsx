@@ -12,7 +12,6 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { useEffect, useMemo, useState } from "react";
 import {
   Tooltip,
@@ -31,6 +30,7 @@ import { useMedia } from "@/src/components/trace2/api/useMedia";
 // Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
+import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   useLogViewConfirmation,
@@ -61,15 +61,12 @@ export function TraceDetailView({
   scores,
   projectId,
 }: TraceDetailViewProps) {
-  // Tab and view state
-  const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
-    "preview",
-  );
-  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
-    "jsonViewPreference",
-    "pretty",
-  );
+  // Tab and view state from URL (via SelectionContext)
+  const { selectedTab, setSelectedTab, viewPref, setViewPref } = useSelection();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+
+  // Map viewPref to currentView format expected by child components
+  const currentView = viewPref === "json" ? "json" : "pretty";
 
   // Context hooks
   const { comments } = useTraceData();
@@ -184,7 +181,7 @@ export function TraceDetailView({
                   ) {
                     return;
                   }
-                  setCurrentView(value as "pretty" | "json");
+                  setViewPref(value === "json" ? "json" : "formatted");
                 }}
               >
                 <TabsList className="h-fit py-0.5">
@@ -222,7 +219,7 @@ export function TraceDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+          <div className="flex w-full flex-col gap-2 overflow-y-auto">
             {/* I/O Preview */}
             <IOPreview
               key={trace.id + "-io"}

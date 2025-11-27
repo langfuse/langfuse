@@ -71,7 +71,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
             scrollable={false}
             externalJsonCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
-            className="h-full"
+            className="h-full [&_.io-message-content]:border-none"
             codeClassName="min-h-full"
           />
         </div>
