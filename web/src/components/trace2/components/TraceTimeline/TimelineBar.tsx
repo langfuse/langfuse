@@ -10,7 +10,7 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
+import { heatMapTextColor } from "@/src/components/trace2/lib/helpers";
 import { isPresent } from "@langfuse/shared";
 
 export function TimelineBar({

@@ -37,11 +37,17 @@ export function useTraceComments({
     },
   );
 
+  // Extract trace comment count from the Map response
+  const traceCommentCountMap = traceCommentCounts.data
+    ? castToNumberMap(traceCommentCounts.data)
+    : undefined;
+  const traceCount = traceCommentCountMap?.get(traceId) ?? 0;
+
   return {
     observationCommentCounts: observationCommentCounts.data
       ? castToNumberMap(observationCommentCounts.data)
       : new Map<string, number>(),
-    traceCommentCount: traceCommentCounts.data ?? 0,
+    traceCommentCount: traceCount,
     isLoading:
       observationCommentCounts.isLoading || traceCommentCounts.isLoading,
   };

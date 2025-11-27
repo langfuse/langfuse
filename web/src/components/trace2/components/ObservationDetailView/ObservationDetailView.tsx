@@ -17,7 +17,11 @@
  * - View mode toggle changes
  */
 
-import { type ObservationType } from "@langfuse/shared";
+import {
+  type ObservationType,
+  AnnotationQueueObjectType,
+  isGenerationLike,
+} from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -45,6 +49,17 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { api } from "@/src/utils/api";
+import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { useMedia } from "@/src/components/trace2/api/useMedia";
+
+// Header action components
+import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -66,6 +81,14 @@ export function ObservationDetailView({
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
+  // Get comments, scores, and expansion state from contexts
+  const { comments, scores } = useTraceData();
+  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const observationScores = useMemo(
+    () => scores.filter((s) => s.observationId === observation.id),
+    [scores, observation.id],
+  );
+
   // Fetch observation input/output (not included in ObservationReturnTypeWithMetadata)
   const observationWithIO = api.observations.byId.useQuery(
     {
@@ -80,19 +103,11 @@ export function ObservationDetailView({
   );
 
   // Fetch media for this observation
-  const observationMedia = api.media.getByTraceOrObservationId.useQuery(
-    {
-      traceId: traceId,
-      observationId: observation.id,
-      projectId: projectId,
-    },
-    {
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 50 * 60 * 1000, // 50 minutes
-    },
-  );
+  const observationMedia = useMedia({
+    projectId,
+    traceId,
+    observationId: observation.id,
+  });
 
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
@@ -117,14 +132,76 @@ export function ObservationDetailView({
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header section */}
       <div className="flex-shrink-0 space-y-2 border-b p-4">
-        {/* Title row */}
-        <div className="flex items-start gap-2">
-          <div className="mt-1">
-            <ItemBadge type={observation.type as ObservationType} isSmall />
+        {/* Title row with actions */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <div className="mt-1">
+              <ItemBadge type={observation.type as ObservationType} isSmall />
+            </div>
+            <span className="min-w-0 break-all font-medium">
+              {observation.name || observation.id}
+            </span>
+            <CopyIdsPopover
+              idItems={[
+                { id: traceId, name: "Trace ID" },
+                { id: observation.id, name: "Observation ID" },
+              ]}
+            />
           </div>
-          <span className="min-w-0 break-all font-medium">
-            {observation.name || observation.id}
-          </span>
+          {/* Action buttons */}
+          <div className="flex flex-shrink-0 flex-wrap items-start gap-0.5">
+            {observationWithIO.data && (
+              <NewDatasetItemFromExistingObject
+                traceId={traceId}
+                observationId={observation.id}
+                projectId={projectId}
+                input={observationWithIO.data.input}
+                output={observationWithIO.data.output}
+                metadata={observationWithIO.data.metadata}
+                key={observation.id}
+                size="sm"
+              />
+            )}
+            <div className="flex items-start">
+              <AnnotateDrawer
+                key={"annotation-drawer-" + observation.id}
+                projectId={projectId}
+                scoreTarget={{
+                  type: "trace",
+                  traceId: traceId,
+                  observationId: observation.id,
+                }}
+                scores={observationScores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: observation.environment,
+                }}
+                size="sm"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={observation.id}
+                objectType={AnnotationQueueObjectType.OBSERVATION}
+                size="sm"
+              />
+            </div>
+            {observationWithIO.data &&
+              isGenerationLike(observationWithIO.data.type) && (
+                <JumpToPlaygroundButton
+                  source="generation"
+                  generation={observationWithIO.data}
+                  analyticsEventName="trace_detail:test_in_playground_button_click"
+                  size="sm"
+                />
+              )}
+            <CommentDrawerButton
+              projectId={projectId}
+              objectId={observation.id}
+              objectType="OBSERVATION"
+              count={comments.get(observation.id)}
+              size="sm"
+            />
+          </div>
         </div>
 
         {/* Metadata badges */}
@@ -218,6 +295,12 @@ export function ObservationDetailView({
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+              inputExpansionState={expansionState.input}
+              outputExpansionState={expansionState.output}
+              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              onOutputExpansionChange={(exp) =>
+                setFieldExpansion("output", exp)
+              }
             />
             {observationWithIO.data?.metadata && (
               <div className="px-2">
@@ -229,6 +312,10 @@ export function ObservationDetailView({
                     (m) => m.field === "metadata",
                   )}
                   currentView={currentView}
+                  externalExpansionState={expansionState.metadata}
+                  onExternalExpansionChange={(exp) =>
+                    setFieldExpansion("metadata", exp)
+                  }
                 />
               </div>
             )}

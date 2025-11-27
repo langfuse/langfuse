@@ -7,6 +7,7 @@ import { TraceDataProvider } from "./contexts/TraceDataContext";
 import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
+import { JsonExpansionProvider } from "./contexts/JsonExpansionContext";
 import { TraceLayoutMobile } from "./components/_layout/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "./components/_layout/TraceLayoutDesktop";
 import { TracePanelNavigation } from "./components/_layout/TracePanelNavigation";
@@ -14,6 +15,7 @@ import { TracePanelDetail } from "./components/_layout/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "./components/_layout/TracePanelNavigationLayoutDesktop";
 import { TracePanelNavigationLayoutMobile } from "./components/_layout/TracePanelNavigationLayoutMobile";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useTraceComments } from "./api/useTraceComments";
 
 import { useMemo } from "react";
 
@@ -35,9 +37,21 @@ export type TraceProps = {
   ) => void;
 };
 
-export function Trace({ trace, observations, scores }: TraceProps) {
-  // TODO: Build comments map (empty for now - will be populated from API in future)
-  const commentsMap = useMemo(() => new Map<string, number>(), []);
+export function Trace({ trace, observations, scores, projectId }: TraceProps) {
+  // Fetch comment counts using existing hook
+  const { observationCommentCounts, traceCommentCount } = useTraceComments({
+    projectId,
+    traceId: trace.id,
+  });
+
+  // Merge observation + trace comments into single Map for TraceDataContext
+  const commentsMap = useMemo(() => {
+    const map = new Map(observationCommentCounts);
+    if (traceCommentCount > 0) {
+      map.set(trace.id, traceCommentCount);
+    }
+    return map;
+  }, [observationCommentCounts, traceCommentCount, trace.id]);
 
   return (
     <ViewPreferencesProvider>
@@ -49,7 +63,9 @@ export function Trace({ trace, observations, scores }: TraceProps) {
       >
         <SelectionProvider>
           <SearchProvider>
-            <TraceContent />
+            <JsonExpansionProvider>
+              <TraceContent />
+            </JsonExpansionProvider>
           </SearchProvider>
         </SelectionProvider>
       </TraceDataProvider>

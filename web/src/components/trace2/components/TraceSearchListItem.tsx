@@ -9,6 +9,7 @@ import { type TraceSearchListItem } from "../lib/types";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { SpanContent } from "./SpanContent";
 import { cn } from "@/src/utils/tailwind";
+import { useTraceData } from "../contexts/TraceDataContext";
 
 interface TraceSearchListItemProps {
   item: TraceSearchListItem;
@@ -22,6 +23,7 @@ export function TraceSearchListItem({
   onSelect,
 }: TraceSearchListItemProps) {
   const { node, parentTotalCost, parentTotalDuration } = item;
+  const { comments } = useTraceData();
 
   return (
     <div
@@ -37,6 +39,7 @@ export function TraceSearchListItem({
           node={node}
           parentTotalCost={parentTotalCost}
           parentTotalDuration={parentTotalDuration}
+          commentCount={comments.get(node.id)}
           onSelect={onSelect}
         />
       </div>

@@ -2,7 +2,11 @@
  * TraceDetailView - Shows trace-level details when no observation is selected
  */
 
-import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import {
+  type TraceDomain,
+  type ScoreDomain,
+  AnnotationQueueObjectType,
+} from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { Badge } from "@/src/components/ui/badge";
@@ -18,7 +22,21 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+// Preview tab components
+import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import TagList from "@/src/features/tag/components/TagList";
+import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { useMedia } from "@/src/components/trace2/api/useMedia";
+
+// Header action components
+import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -34,7 +52,7 @@ export interface TraceDetailViewProps {
 export function TraceDetailView({
   trace,
   observations,
-  scores: _scores,
+  scores,
   projectId,
 }: TraceDetailViewProps) {
   const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
@@ -44,6 +62,20 @@ export function TraceDetailView({
     "jsonViewPreference",
     "pretty",
   );
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+
+  // Get comments and expansion state from contexts
+  const { comments } = useTraceData();
+  const { expansionState, setFieldExpansion } = useJsonExpansion();
+
+  // Fetch media for trace-level I/O
+  const traceMedia = useMedia({ projectId, traceId: trace.id });
+
+  // Filter scores for trace-level only (no observationId)
+  const traceScores = useMemo(
+    () => scores.filter((s) => !s.observationId),
+    [scores],
+  );
 
   const showLogViewTab = observations.length > 0;
 
@@ -51,14 +83,58 @@ export function TraceDetailView({
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header section */}
       <div className="flex-shrink-0 space-y-2 border-b p-4">
-        {/* Title row */}
-        <div className="flex items-start gap-2">
-          <div className="mt-1">
-            <ItemBadge type="TRACE" isSmall />
+        {/* Title row with actions */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
+            <div className="mt-1">
+              <ItemBadge type="TRACE" isSmall />
+            </div>
+            <span className="min-w-0 break-all font-medium">
+              {trace.name || trace.id}
+            </span>
+            <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
           </div>
-          <span className="min-w-0 break-all font-medium">
-            {trace.name || trace.id}
-          </span>
+          {/* Action buttons */}
+          <div className="flex flex-shrink-0 flex-wrap items-start gap-0.5">
+            <NewDatasetItemFromExistingObject
+              traceId={trace.id}
+              projectId={projectId}
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              key={trace.id}
+              size="sm"
+            />
+            <div className="flex items-start">
+              <AnnotateDrawer
+                key={"annotation-drawer-" + trace.id}
+                projectId={projectId}
+                scoreTarget={{
+                  type: "trace",
+                  traceId: trace.id,
+                }}
+                scores={traceScores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: trace.environment,
+                }}
+                size="sm"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={trace.id}
+                objectType={AnnotationQueueObjectType.TRACE}
+                size="sm"
+              />
+            </div>
+            <CommentDrawerButton
+              projectId={projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              count={comments.get(trace.id)}
+              size="sm"
+            />
+          </div>
         </div>
 
         {/* Metadata badges */}
@@ -124,8 +200,9 @@ export function TraceDetailView({
           )}
           <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-          {/* View toggle (Formatted/JSON) - show for preview and log tabs */}
-          {(selectedTab === "log" || selectedTab === "preview") && (
+          {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
+          {(selectedTab === "log" ||
+            (selectedTab === "preview" && isPrettyViewAvailable)) && (
             <Tabs
               className="ml-auto mr-1 h-fit px-2 py-0.5"
               value={currentView}
@@ -145,15 +222,50 @@ export function TraceDetailView({
           )}
         </TabsBarList>
 
-        {/* Preview tab content - placeholder */}
+        {/* Preview tab content */}
         <TabsBarContent
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex h-full w-full items-center justify-center p-4">
-            <p className="text-sm text-muted-foreground">
-              Preview tab content (S5.4a)
-            </p>
+          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+            {/* I/O Preview */}
+            <IOPreview
+              key={trace.id + "-io"}
+              input={trace.input ?? undefined}
+              output={trace.output ?? undefined}
+              media={traceMedia.data}
+              currentView={currentView}
+              setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+              inputExpansionState={expansionState.input}
+              outputExpansionState={expansionState.output}
+              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              onOutputExpansionChange={(exp) =>
+                setFieldExpansion("output", exp)
+              }
+            />
+
+            {/* Tags Section */}
+            <div className="px-2 text-sm font-medium">Tags</div>
+            <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
+              <TagList selectedTags={trace.tags} isLoading={false} />
+            </div>
+
+            {/* Metadata Section */}
+            {trace.metadata && (
+              <div className="px-2">
+                <PrettyJsonView
+                  key={trace.id + "-metadata"}
+                  title="Metadata"
+                  json={trace.metadata}
+                  media={traceMedia.data?.filter((m) => m.field === "metadata")}
+                  currentView={currentView}
+                  externalExpansionState={expansionState.metadata}
+                  onExternalExpansionChange={(exp) =>
+                    setFieldExpansion("metadata", exp)
+                  }
+                />
+              </div>
+            )}
           </div>
         </TabsBarContent>
 
