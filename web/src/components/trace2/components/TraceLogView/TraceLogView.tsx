@@ -1,224 +1,205 @@
-import { useMemo, useEffect, useCallback } from "react";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { api } from "@/src/utils/api";
-import { StringParam, useQueryParam } from "use-query-params";
-import { useQueries } from "@tanstack/react-query";
-import { type JsonNested } from "@langfuse/shared";
-import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+/**
+ * TraceLogView - Virtualized log view of trace observations.
+ *
+ * Features:
+ * - Virtualized rendering using @tanstack/react-virtual
+ * - Lazy I/O loading (data fetched only when row is expanded)
+ * - Two view modes: chronological (by time) and tree-order (DFS hierarchy)
+ * - Search filtering by name, type, or ID
+ * - Expandable rows with full I/O preview
+ * - Sticky header showing topmost visible observation
+ *
+ * State management:
+ * - expandedRows: Set<string> managed locally for virtualizer estimateSize
+ * - searchQuery: Local state for search filtering
+ * - Mode/style preferences from ViewPreferencesContext
+ * - Tree data from TraceDataContext
+ */
+
+import { useState, useMemo, useRef, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import {
-  normalizeExpansionState,
-  denormalizeExpansionState,
-} from "@/src/components/trace2/contexts/json-expansion-utils";
-import { Download } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
-import { downloadTraceAsJson as downloadTraceUtil } from "@/src/components/trace2/lib/download-trace";
+  flattenChronological,
+  flattenTreeOrder,
+  filterBySearch,
+} from "./log-view-flattening";
+import { LogViewRow } from "./LogViewRow";
+import { LogViewStickyHeader } from "./LogViewStickyHeader";
+import { LogViewTableHeader } from "./LogViewTableHeader";
+import { LogViewToolbar } from "./LogViewToolbar";
+import { useTopmostVisibleItem } from "./useTopmostVisibleItem";
 
 export interface TraceLogViewProps {
-  observations: ObservationReturnTypeWithMetadata[];
   traceId: string;
   projectId: string;
-  currentView: "pretty" | "json";
-  trace: {
-    id: string;
-    [key: string]: unknown;
-  };
 }
 
-export const TraceLogView = ({
-  observations,
-  traceId,
-  projectId,
-  currentView,
-  trace,
-}: TraceLogViewProps) => {
-  const [currentObservationId] = useQueryParam("observation", StringParam);
-  const [selectedTab] = useQueryParam("view", StringParam);
-  const utils = api.useUtils();
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+// Row height constants for virtualization
+const COLLAPSED_ROW_HEIGHT = 28; // min-h-6 (24px) + py-0.5 (2px each side) + border
+const EXPANDED_ROW_HEIGHT = 150; // Estimated, will be measured dynamically
 
-  // Load all observations with their input/output for the log view
-  const observationsWithIO = useQueries({
-    queries: observations.map((obs) =>
-      utils.observations.byId.queryOptions({
-        observationId: obs.id,
-        startTime: obs.startTime,
-        traceId: traceId,
-        projectId: projectId,
-      }),
-    ),
+export const TraceLogView = ({ traceId, projectId }: TraceLogViewProps) => {
+  const { tree } = useTraceData();
+  const { logViewMode, setLogViewMode, logViewTreeStyle, setLogViewTreeStyle } =
+    useViewPreferences();
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // Lifted state for expand/collapse - needed for virtualizer estimateSize
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Local state for search
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Flatten tree based on mode
+  const allItems = useMemo(() => {
+    return logViewMode === "chronological"
+      ? flattenChronological(tree)
+      : flattenTreeOrder(tree);
+  }, [tree, logViewMode]);
+
+  // Apply search filter
+  const flatItems = useMemo(() => {
+    return filterBySearch(allItems, searchQuery);
+  }, [allItems, searchQuery]);
+
+  // Toggle expand/collapse for a row
+  const handleToggle = useCallback((nodeId: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Estimate row size based on expand state
+  const estimateSize = useCallback(
+    (index: number) => {
+      const item = flatItems[index];
+      if (!item) return COLLAPSED_ROW_HEIGHT;
+      return expandedRows.has(item.node.id)
+        ? EXPANDED_ROW_HEIGHT
+        : COLLAPSED_ROW_HEIGHT;
+    },
+    [flatItems, expandedRows],
+  );
+
+  // Set up virtualizer
+  const rowVirtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize,
+    overscan: 10, // Render 10 extra items outside viewport
+    measureElement:
+      typeof window !== "undefined"
+        ? (element) => element.getBoundingClientRect().height
+        : undefined,
   });
 
-  const logData = useMemo(() => {
-    // Sort observations by start time
-    const sortedObservations = [...observations].sort(
-      (a, b) => a.startTime.getTime() - b.startTime.getTime(),
-    );
+  // Tree style: flat for chronological, use preference for tree-order
+  const treeStyle = logViewMode === "chronological" ? "flat" : logViewTreeStyle;
 
-    const allObsData: Record<
-      string,
-      {
-        id: string;
-        type: string;
-        name: string | null;
-        startTime: string;
-        endTime: string | null;
-        latency: number | null;
-        level: string;
-        parentObservationId: string | null;
-        model: string | null;
-        modelParameters:
-          | string
-          | number
-          | boolean
-          | JsonNested[]
-          | { [key: string]: JsonNested }
-          | null;
-        promptName: string | null;
-        promptVersion: number | null;
-        input: unknown;
-        output: unknown;
-        metadata: unknown;
-        statusMessage: string | null;
-        inputUsage: number;
-        outputUsage: number;
-        totalUsage: number;
-        totalCost: number | null;
-      }
-    > = {};
+  // Track the topmost visible item for sticky header
+  const { item: topmostItem, index: topmostIndex } = useTopmostVisibleItem({
+    virtualizer: rowVirtualizer,
+    items: flatItems,
+  });
 
-    const idToDisplayName = new Map<string, string>();
-
-    sortedObservations.forEach((obs) => {
-      const index = observations.findIndex((o) => o.id === obs.id);
-      const obsWithIO = observationsWithIO[index]?.data;
-
-      const displayName = `${obs.name || obs.type} (${obs.id.substring(0, 8)})`;
-      idToDisplayName.set(obs.id, displayName);
-
-      allObsData[displayName] = {
-        id: obs.id,
-        type: obs.type,
-        name: obs.name,
-        startTime: obs.startTime.toISOString(),
-        endTime: obs.endTime?.toISOString() || null,
-        latency: obs.latency,
-        level: obs.level,
-        parentObservationId: obs.parentObservationId,
-        model: obs.model,
-        modelParameters: obs.modelParameters,
-        promptName: obs.promptName,
-        promptVersion: obs.promptVersion,
-        input: obsWithIO?.input,
-        output: obsWithIO?.output,
-        metadata: obsWithIO?.metadata,
-        statusMessage: obs.statusMessage,
-        inputUsage: obs.inputUsage,
-        outputUsage: obs.outputUsage,
-        totalUsage: obs.totalUsage,
-        totalCost: obs.totalCost,
-      };
-    });
-
-    return { data: allObsData, idToDisplayName };
-  }, [observations, observationsWithIO]);
-
-  // Check if any data is still loading
-  const isLoading = observationsWithIO.some((query) => query.isPending);
-
-  // Scroll to observation when clicked in trace tree
-  useEffect(() => {
-    if (currentObservationId && selectedTab === "log") {
-      const displayName = logData.idToDisplayName.get(currentObservationId);
-      if (displayName) {
-        // Convert display name format: hyphens to dots to match convertRowIdToKeyPath
-        const keyPathFormat = displayName.replace(/-/g, ".");
-        const element = document.querySelector(
-          `[data-observation-id="${keyPathFormat}"]`,
-        );
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }
-    }
-  }, [currentObservationId, selectedTab, logData]);
-
-  // Get top-level observation keys for denormalization
-  const observationKeys = useMemo(
-    () => Object.keys(logData.data),
-    [logData.data],
-  );
-
-  // Convert normalized state from context to actual state with observation IDs
-  const denormalizedState = useMemo(
-    () => denormalizeExpansionState(expansionState.log, observationKeys),
-    [expansionState.log, observationKeys],
-  );
-
-  // download includes trace + observations with full I/O
-  const downloadLogAsJson = useCallback(() => {
-    const observationsWithFullData = observations.map((obs, index) => {
-      const obsWithIO = observationsWithIO[index]?.data;
-      return {
-        ...obs,
-        input: obsWithIO?.input,
-        output: obsWithIO?.output,
-        metadata: obsWithIO?.metadata,
-      };
-    });
-
-    downloadTraceUtil({
-      trace,
-      observations: observationsWithFullData,
-      filename: `trace-with-observations-${traceId}.json`,
-    });
-  }, [trace, observations, observationsWithIO, traceId]);
-
-  // Only render the actual log view when all data is loaded
-  // prevents partial rendering and improves performance
-  if (isLoading) {
-    return (
-      <div className="flex h-full w-full flex-col overflow-hidden px-2">
-        <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
-          <div className="rounded-md border p-4">
-            <div className="text-sm text-muted-foreground">
-              Loading {observations.length} observations...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Check if there are any observations at all
+  const hasNoObservations = allItems.length === 0;
+  const hasNoSearchResults = !hasNoObservations && flatItems.length === 0;
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden pr-2">
-      <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto px-2">
-        <PrettyJsonView
-          key="trace-log-view"
-          title="Concatenated Observation Log"
-          json={logData.data}
-          currentView={currentView}
-          isLoading={false}
-          showNullValues={false}
-          externalExpansionState={denormalizedState}
-          onExternalExpansionChange={(expansion) =>
-            setFieldExpansion("log", normalizeExpansionState(expansion))
-          }
-          stickyTopLevelKey={true}
-          showObservationTypeBadge={true}
-          controlButtons={
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={downloadLogAsJson}
-              title="Download trace log as JSON"
-              className="-mr-2"
-            >
-              <Download className="h-3 w-3" />
-            </Button>
-          }
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      {/* Toolbar with mode toggle and search */}
+      <LogViewToolbar
+        mode={logViewMode}
+        onModeChange={setLogViewMode}
+        treeStyle={logViewTreeStyle}
+        onTreeStyleChange={setLogViewTreeStyle}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        totalCount={allItems.length}
+        filteredCount={flatItems.length}
+      />
+
+      {/* Empty states */}
+      {hasNoObservations && (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-sm text-muted-foreground">
+            No observations in this trace
+          </div>
+        </div>
+      )}
+
+      {hasNoSearchResults && (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-sm text-muted-foreground">
+            No observations match &quot;{searchQuery}&quot;
+          </div>
+        </div>
+      )}
+
+      {/* Sticky header showing topmost visible observation */}
+      {flatItems.length > 0 && (
+        <LogViewStickyHeader
+          item={topmostItem}
+          totalCount={flatItems.length}
+          currentIndex={topmostIndex}
         />
-      </div>
+      )}
+
+      {/* Sticky table header with column labels */}
+      {flatItems.length > 0 && <LogViewTableHeader treeStyle={treeStyle} />}
+
+      {/* Virtualized list container */}
+      {flatItems.length > 0 && (
+        <div ref={parentRef} className="flex-1 overflow-y-scroll">
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const item = flatItems[virtualRow.index];
+              if (!item) return null;
+
+              const isExpanded = expandedRows.has(item.node.id);
+
+              return (
+                <div
+                  key={item.node.id}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <LogViewRow
+                    item={item}
+                    isExpanded={isExpanded}
+                    onToggle={handleToggle}
+                    treeStyle={treeStyle}
+                    traceId={traceId}
+                    projectId={projectId}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

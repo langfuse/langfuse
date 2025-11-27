@@ -239,13 +239,7 @@ export function TraceDetailView({
           value="log"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <TraceLogView
-            observations={observations}
-            traceId={trace.id}
-            projectId={projectId}
-            currentView={currentView}
-            trace={trace}
-          />
+          <TraceLogView traceId={trace.id} projectId={projectId} />
         </TabsBarContent>
 
         {/* Scores tab content */}
