@@ -14,6 +14,7 @@ import {
   Copy,
   Download,
   Check,
+  IndentIncrease,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -36,6 +37,10 @@ export interface LogViewToolbarProps {
   onDownloadJson?: () => void;
   /** Current view type (pretty/json) */
   currentView?: "pretty" | "json";
+  /** Whether indent visualization is enabled */
+  indentEnabled?: boolean;
+  /** Callback to toggle indent visualization */
+  onToggleIndent?: () => void;
 }
 
 /**
@@ -50,6 +55,8 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   onCopyJson,
   onDownloadJson,
   currentView = "pretty",
+  indentEnabled = false,
+  onToggleIndent,
 }: LogViewToolbarProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -90,6 +97,22 @@ export const LogViewToolbar = memo(function LogViewToolbar({
 
       {/* Action buttons */}
       <div className="flex items-center gap-0.5">
+        {/* Indent Toggle - only in formatted view */}
+        {currentView === "pretty" && onToggleIndent && (
+          <Button
+            variant={indentEnabled ? "default" : "ghost"}
+            size="icon"
+            className={cn(
+              "h-7 w-7",
+              indentEnabled && "bg-primary text-primary-foreground",
+            )}
+            onClick={onToggleIndent}
+            title={indentEnabled ? "Hide indentation" : "Show indentation"}
+          >
+            <IndentIncrease className="h-3.5 w-3.5" />
+          </Button>
+        )}
+
         {/* Expand/Collapse All - only in non-virtualized table mode */}
         {!isVirtualized && currentView === "pretty" && onToggleExpandAll && (
           <Button

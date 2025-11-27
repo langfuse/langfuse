@@ -18,11 +18,8 @@ function JSONTableViewHeaderInner<T>({
 }: JSONTableViewHeaderProps<T>) {
   return (
     <div className="flex min-h-6 items-center gap-2 border-b border-border bg-muted/50 px-3 py-0.5 text-xs font-medium text-muted-foreground">
-      {/* Spacer for prefix content (e.g., tree indentation) */}
-      {hasPrefix && <div className="w-3" />}
-
-      {/* Spacer for expand icon */}
-      {hasExpandIcon && <div className="w-3.5" />}
+      {/* Spacer for expand icon (aligns with chevron in rows) */}
+      {hasExpandIcon && <div className="w-4" />}
 
       {/* Column headers */}
       {columns.map((column) => (

@@ -106,6 +106,9 @@ export const TraceLogView = ({
   // State for JSON view collapse
   const [jsonViewCollapsed, setJsonViewCollapsed] = useState(false);
 
+  // State for indent visualization
+  const [indentEnabled, setIndentEnabled] = useState(false);
+
   // Flatten tree based on mode
   const allItems = useMemo(() => {
     return logViewMode === "chronological"
@@ -121,36 +124,29 @@ export const TraceLogView = ({
   // Tree style: flat for chronological, use preference for tree-order
   const treeStyle = logViewMode === "chronological" ? "flat" : logViewTreeStyle;
 
-  // Define columns based on tree style
+  // Define columns - combined observation column with optional indentation
   const columns = useMemo((): JSONTableViewColumn<FlatLogItem>[] => {
     const baseColumns: JSONTableViewColumn<FlatLogItem>[] = [
       {
-        key: "type",
-        header: "Type",
-        width: "w-20",
-        render: (item) => <ItemBadge type={item.node.type} isSmall />,
-      },
-      {
-        key: "name",
-        header: "Name",
+        key: "observation",
+        header: "Observation",
         width: "flex-1",
         render: (item) => {
           const displayName = formatDisplayName(item.node);
           const childrenCount = item.node.children?.length ?? 0;
-          const depthIndicator =
-            treeStyle === "flat" ? formatDepthIndicator(item.node.depth) : "";
+          // 12px indent per depth level when enabled
+          const indent = indentEnabled ? item.node.depth * 12 : 0;
 
           return (
-            <div className="flex min-w-0 items-center gap-2">
+            <div
+              className="flex h-5 min-w-0 items-center gap-2"
+              style={{ paddingLeft: indent }}
+            >
+              <ItemBadge type={item.node.type} isSmall />
               <span className="truncate">{displayName}</span>
               {childrenCount > 0 && (
                 <span className="flex-shrink-0 text-xs text-muted-foreground">
                   {childrenCount} {childrenCount === 1 ? "item" : "items"}
-                </span>
-              )}
-              {depthIndicator && (
-                <span className="flex-shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
-                  {depthIndicator}
                 </span>
               )}
             </div>
@@ -193,7 +189,7 @@ export const TraceLogView = ({
     ];
 
     return baseColumns;
-  }, [treeStyle]);
+  }, [indentEnabled]);
 
   // Render tree indentation for indented mode
   const renderRowPrefix = useCallback(
@@ -313,6 +309,8 @@ export const TraceLogView = ({
         onCopyJson={handleCopyJson}
         onDownloadJson={handleDownloadJson}
         currentView={currentView}
+        indentEnabled={indentEnabled}
+        onToggleIndent={() => setIndentEnabled((prev) => !prev)}
       />
 
       {/* Empty states */}
