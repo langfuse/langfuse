@@ -6,6 +6,8 @@ import {
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 
+const { Readable } = require("stream");
+
 describe("StorageService", () => {
   let storageService: StorageService;
   let storageServiceWithExternalEndpoint: StorageService;
@@ -98,6 +100,31 @@ describe("StorageService", () => {
     const files = await storageService.listFiles("");
     const fileNames = files.map((f) => f.file);
     expect(fileNames).not.toContain(fileName1);
+  });
+
+  test("uploadFile should successfully process a Readable entity", async () => {
+    // Setup
+    const fileName = `${randomUUID()}.txt`;
+    const fileType = "text/plain";
+    const data = "Hello, world!";
+    const expiresInSeconds = 3600;
+
+    // Upload a file
+    await storageService.uploadFile({
+      fileName,
+      fileType,
+      data: Readable.from(data),
+    });
+
+    // When
+    const signedUrl = await storageService.getSignedUrl(
+      fileName,
+      expiresInSeconds,
+    );
+
+    // Then
+    expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    expect(signedUrl).not.toContain("external-endpoint.example.com");
   });
 
   test("getSignedUrl should return URL with internal endpoint when no external endpoint is configured", async () => {

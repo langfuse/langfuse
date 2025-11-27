@@ -97,6 +97,7 @@
     "next-auth": "^4.24.12",
     "nodemailer": "^7.0.10",
     "prisma-extension-kysely": "^3.0.0",
+    "safe-regex2": "^5.0.0",
     "uuid": "^9.0.1",
     "winston": "^3.15.0",
     "zod": "^3.25.62",

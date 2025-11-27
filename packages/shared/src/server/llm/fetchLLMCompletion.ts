@@ -238,6 +238,7 @@ export async function fetchLLMCompletion(
     const isClaude45Family =
       modelParams.model?.includes("claude-sonnet-4-5") ||
       modelParams.model?.includes("claude-opus-4-1") ||
+      modelParams.model?.includes("claude-opus-4-5") ||
       modelParams.model?.includes("claude-haiku-4-5");
 
     const chatOptions: Record<string, any> = {
@@ -255,14 +256,23 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       invocationKwargs: modelParams.providerOptions,
     };
+
     chatModel = new ChatAnthropic(chatOptions);
+
     if (isClaude45Family) {
+      if (chatModel.topP === -1) {
+        chatModel.topP = undefined;
+      }
+
+      // TopP and temperature cannot be specified both,
+      // but Langchain is setting placeholder values despite that
       if (
         modelParams.temperature !== undefined &&
         modelParams.top_p === undefined
       ) {
         chatModel.topP = undefined;
       }
+
       if (
         modelParams.top_p !== undefined &&
         modelParams.temperature === undefined

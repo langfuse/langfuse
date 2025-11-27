@@ -48,6 +48,8 @@ export const observationRecordBaseSchema = z.object({
   internal_model_id: z.string().nullish(),
   model_parameters: z.string().nullish(),
   total_cost: z.number().nullish(),
+  usage_pricing_tier_id: z.string().nullish(),
+  usage_pricing_tier_name: z.string().nullish(),
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),

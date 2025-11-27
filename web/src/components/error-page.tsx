@@ -63,9 +63,19 @@ export const ErrorPage = ({
 export const ErrorPageWithSentry = ({
   title = "Error",
   message,
+  additionalButton,
 }: {
   title?: string;
   message: string;
+  additionalButton?:
+    | {
+        label: string;
+        href: string;
+      }
+    | {
+        label: string;
+        onClick: () => void;
+      };
 }) => {
   useEffect(() => {
     // Capture the error with Sentry
@@ -75,5 +85,11 @@ export const ErrorPageWithSentry = ({
       );
   }, [title, message]); // Empty dependency array means this effect runs once on mount
 
-  return <ErrorPage title={title} message={message} />;
+  return (
+    <ErrorPage
+      title={title}
+      message={message}
+      additionalButton={additionalButton}
+    />
+  );
 };

@@ -30,11 +30,9 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod/v4";
-import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
-import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
@@ -552,11 +550,6 @@ export default function SignIn({
 
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const [turnstileToken, setTurnstileToken] = useState<string>();
-  // Used to refresh turnstile as the token can only be used once
-  const [turnstileCData, setTurnstileCData] = useState<string>(
-    new Date().getTime().toString(),
-  );
 
   // Count available auth methods to determine if we should show "Last used" badge
   const availableProviders = Object.entries(authProviders).filter(
@@ -596,7 +589,6 @@ export default function SignIn({
         password: values.password,
         callbackUrl: targetPath ?? "/",
         redirect: false,
-        turnstileToken,
       });
       if (result === undefined) {
         setCredentialsFormError("An unexpected error occurred.");
@@ -617,12 +609,6 @@ export default function SignIn({
       captureException(error);
       console.error(error);
       setCredentialsFormError("An unexpected error occurred.");
-    } finally {
-      // Refresh turnstile as the token can only be used once
-      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
-        setTurnstileCData(new Date().getTime().toString());
-        setTurnstileToken(undefined);
-      }
     }
   }
 
@@ -797,9 +783,6 @@ export default function SignIn({
                           : continueLoading
                       }
                       disabled={
-                        (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                          showPasswordStep &&
-                          turnstileToken === undefined) ||
                         credentialsForm.watch("email") === "" ||
                         (showPasswordStep &&
                           credentialsForm.watch("password") === "")
@@ -838,24 +821,6 @@ export default function SignIn({
               onProviderSelect={setLastUsedAuthMethod}
             />
           </div>
-          {
-            // Turnstile exists copy-paste also on sign-up.tsx
-            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
-              <>
-                <Divider className="text-muted-foreground" />
-                <Turnstile
-                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                  options={{
-                    theme: "light",
-                    action: "sign-in",
-                    cData: turnstileCData,
-                  }}
-                  className="mx-auto"
-                  onSuccess={setTurnstileToken}
-                />
-              </>
-            )
-          }
 
           {!signUpDisabled &&
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&

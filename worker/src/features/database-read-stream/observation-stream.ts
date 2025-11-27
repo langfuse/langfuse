@@ -89,8 +89,10 @@ export const getObservationStream = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
   const clickhouseConfigs = {
-    request_timeout: 120_000,
-    join_algorithm: "partial_merge",
+    request_timeout: 180_000, // 3 minutes
+    clickhouse_settings: {
+      join_algorithm: "partial_merge" as const,
+    },
   };
 
   // Filter out trace-level filters since we don't join the traces table for filtering

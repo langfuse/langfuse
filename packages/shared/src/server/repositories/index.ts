@@ -16,3 +16,5 @@ export * from "./environments";
 export * from "./automation-repository";
 export * from "./dataset-run-items-converters";
 export * from "./dataset-run-items";
+export * from "./dataset-items";
+export * from "./comments";
