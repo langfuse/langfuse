@@ -402,9 +402,6 @@ const inputTraceSchema = z.object({
   fromTimestamp: z.date().nullish(),
   truncated: z.boolean().default(false),
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
-  // Optional fields for agent graph data endpoint
-  minStartTime: z.string().optional(),
-  maxStartTime: z.string().optional(),
 });
 
 const enforceTraceAccess = t.middleware(async (opts) => {
