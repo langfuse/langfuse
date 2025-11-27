@@ -123,7 +123,7 @@ const getModelWithPricesFromRedis = async (
 
     // NEW FORMAT: { model: {...}, pricingTiers: [...] }
     if (parsed.model !== undefined && parsed.pricingTiers !== undefined) {
-      const model = redisModelToPrismaModel(JSON.stringify(parsed.model));
+      const model = redisModelToPrismaModel(parsed.model);
       const pricingTiers: PricingTierWithPrices[] = parsed.pricingTiers.map(
         (tier: any) => ({
           ...tier,
@@ -140,7 +140,7 @@ const getModelWithPricesFromRedis = async (
     // OLD FORMAT: { model: {...}, prices: [...] } (backwards compatible)
     // Convert old format to new format with pricing tiers
     if (parsed.model !== undefined && parsed.prices !== undefined) {
-      const model = redisModelToPrismaModel(JSON.stringify(parsed.model));
+      const model = redisModelToPrismaModel(parsed.model);
       const pricingTiers = await findPricingTiersForModel(model.id);
 
       // Update cache with new format asynchronously (don't await)
@@ -294,27 +294,26 @@ const getModelMatchKeyPrefix = () => {
   return "model-match";
 };
 
-export const redisModelToPrismaModel = (redisModel: string): Model => {
-  const parsed: Model = JSON.parse(redisModel);
+export const redisModelToPrismaModel = (redisModel: Model): Model => {
   return {
-    ...parsed,
-    createdAt: new Date(parsed.createdAt),
-    updatedAt: new Date(parsed.updatedAt),
+    ...redisModel,
+    createdAt: new Date(redisModel.createdAt),
+    updatedAt: new Date(redisModel.updatedAt),
     inputPrice:
-      parsed.inputPrice !== null && parsed.inputPrice !== undefined
-        ? new Decimal(parsed.inputPrice)
+      redisModel.inputPrice !== null && redisModel.inputPrice !== undefined
+        ? new Decimal(redisModel.inputPrice)
         : null,
     outputPrice:
-      parsed.outputPrice !== null && parsed.outputPrice !== undefined
-        ? new Decimal(parsed.outputPrice)
+      redisModel.outputPrice !== null && redisModel.outputPrice !== undefined
+        ? new Decimal(redisModel.outputPrice)
         : null,
     totalPrice:
-      parsed.totalPrice !== null && parsed.totalPrice !== undefined
-        ? new Decimal(parsed.totalPrice)
+      redisModel.totalPrice !== null && redisModel.totalPrice !== undefined
+        ? new Decimal(redisModel.totalPrice)
         : null,
     startDate:
-      parsed.startDate !== null && parsed.startDate !== undefined
-        ? new Date(parsed.startDate)
+      redisModel.startDate !== null && redisModel.startDate !== undefined
+        ? new Date(redisModel.startDate)
         : null,
   };
 };
