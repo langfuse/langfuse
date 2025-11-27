@@ -1,6 +1,7 @@
 import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
+  instrumentSync,
   logger,
   recordIncrement,
   redis,
@@ -119,7 +120,17 @@ const getModelWithPricesFromRedis = async (
       return { model: null, pricingTiers: [] };
     }
 
-    const parsed = JSON.parse(redisValue);
+    const parsed = instrumentSync(
+      {
+        name: "parse-redis-model",
+        traceScope: "model-match",
+      },
+      (span) => {
+        span.setAttribute("model-cache-value-length", redisValue.length);
+
+        return JSON.parse(redisValue);
+      },
+    );
 
     // NEW FORMAT: { model: {...}, pricingTiers: [...] }
     if (parsed.model !== undefined && parsed.pricingTiers !== undefined) {
@@ -127,9 +138,9 @@ const getModelWithPricesFromRedis = async (
       const pricingTiers: PricingTierWithPrices[] = parsed.pricingTiers.map(
         (tier: any) => ({
           ...tier,
-          prices: tier.prices.map((p: any) => ({
-            ...p,
-            price: new Decimal(p.price),
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price as string),
           })),
         }),
       );
@@ -266,9 +277,19 @@ const addModelWithPricingTiersToRedis = async (
 ) => {
   try {
     const key = getRedisModelKey(p);
+
+    const cachedPricingTiers = pricingTiers.map((tier) => {
+      return {
+        ...tier,
+        prices: Object.fromEntries(
+          tier.prices.map((p) => [p.usageType, p.price]),
+        ),
+      };
+    });
+
     await redis?.set(
       key,
-      JSON.stringify({ model, pricingTiers }),
+      JSON.stringify({ model, pricingTiers: cachedPricingTiers }),
       "EX",
       env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
     );
