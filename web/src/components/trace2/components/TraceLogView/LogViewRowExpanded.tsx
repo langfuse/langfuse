@@ -11,6 +11,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type TreeNode } from "@/src/components/trace2/lib/types";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
+import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import {
   formatDisplayName,
   formatRelativeTime,
@@ -22,6 +23,13 @@ export interface LogViewRowExpandedProps {
   traceId: string;
   projectId: string;
   onCollapse: () => void;
+  currentView?: "pretty" | "json";
+  /** Optional external expansion state for JSON tree (non-virtualized mode) */
+  externalExpansionState?: Record<string, boolean> | boolean;
+  /** Callback when expansion state changes (non-virtualized mode) */
+  onExternalExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
 }
 
 /**
@@ -33,6 +41,9 @@ export const LogViewRowExpanded = memo(function LogViewRowExpanded({
   traceId,
   projectId,
   onCollapse,
+  currentView = "pretty",
+  externalExpansionState,
+  onExternalExpansionChange,
 }: LogViewRowExpandedProps) {
   const displayName = formatDisplayName(node);
   const relativeTime = formatRelativeTime(node.startTimeSinceTrace);
@@ -67,12 +78,17 @@ export const LogViewRowExpanded = memo(function LogViewRowExpanded({
     return Object.keys(result).length > 0 ? result : null;
   }, [data]);
 
+  // Use click-without-selection to allow text selection while still supporting collapse
+  const { props: clickProps } = useClickWithoutSelection({
+    onClick: onCollapse,
+  });
+
   return (
     <div className="border-b border-border bg-background">
       {/* Header - clickable to collapse */}
       <div
         className="flex min-h-6 cursor-pointer items-center gap-2 border-b border-border/50 bg-muted/30 px-3 py-0.5 hover:bg-muted/50"
-        onClick={onCollapse}
+        {...clickProps}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -123,11 +139,14 @@ export const LogViewRowExpanded = memo(function LogViewRowExpanded({
         {jsonData && !isLoading && (
           <PrettyJsonView
             json={jsonData}
+            currentView={currentView}
             isLoading={false}
             showNullValues={false}
             stickyTopLevelKey={false}
             showObservationTypeBadge={true}
             scrollable={true}
+            externalExpansionState={externalExpansionState}
+            onExternalExpansionChange={onExternalExpansionChange}
             className="w-full [&_.border]:border-0 [&_.io-message-content]:p-0 [&_.rounded-sm]:rounded-none [&_td:first-child]:pl-6 [&_th:first-child]:pl-6 [&_th]:h-6 [&_th]:text-xs"
           />
         )}

@@ -35,6 +35,7 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   useLogViewConfirmation,
   LOG_VIEW_DISABLED_THRESHOLD,
+  LOG_VIEW_CONFIRMATION_THRESHOLD,
 } from "@/src/components/trace2/components/TraceLogView/useLogViewConfirmation";
 
 // Extracted components
@@ -90,6 +91,10 @@ export function TraceDetailView({
   });
 
   const showLogViewTab = observations.length > 0;
+
+  // Check if log view will be virtualized (affects JSON tab availability)
+  const isLogViewVirtualized =
+    observations.length >= LOG_VIEW_CONFIRMATION_THRESHOLD;
 
   // Auto-redirect from invalid tab state
   useEffect(() => {
@@ -171,6 +176,14 @@ export function TraceDetailView({
                 className="ml-auto mr-1 h-fit px-2 py-0.5"
                 value={currentView}
                 onValueChange={(value) => {
+                  // Don't allow switching to JSON when virtualized on log tab
+                  if (
+                    value === "json" &&
+                    selectedTab === "log" &&
+                    isLogViewVirtualized
+                  ) {
+                    return;
+                  }
                   setCurrentView(value as "pretty" | "json");
                 }}
               >
@@ -178,9 +191,26 @@ export function TraceDetailView({
                   <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
                     Formatted
                   </TabsTrigger>
-                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                    JSON
-                  </TabsTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <TabsTrigger
+                          value="json"
+                          className="h-fit px-1 text-xs"
+                          disabled={
+                            selectedTab === "log" && isLogViewVirtualized
+                          }
+                        >
+                          JSON
+                        </TabsTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    {selectedTab === "log" && isLogViewVirtualized && (
+                      <TooltipContent className="text-xs">
+                        JSON view requires loading all observation data first
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 </TabsList>
               </Tabs>
             )}
@@ -239,7 +269,11 @@ export function TraceDetailView({
           value="log"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <TraceLogView traceId={trace.id} projectId={projectId} />
+          <TraceLogView
+            traceId={trace.id}
+            projectId={projectId}
+            currentView={currentView}
+          />
         </TabsBarContent>
 
         {/* Scores tab content */}

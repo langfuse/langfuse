@@ -17,6 +17,13 @@ export interface LogViewRowProps {
   treeStyle: LogViewTreeStyle;
   traceId: string;
   projectId: string;
+  currentView?: "pretty" | "json";
+  /** Optional external expansion state for JSON tree (non-virtualized mode) */
+  externalExpansionState?: Record<string, boolean> | boolean;
+  /** Callback when expansion state changes (non-virtualized mode) */
+  onExternalExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
 }
 
 /**
@@ -31,6 +38,9 @@ export const LogViewRow = memo(
     treeStyle,
     traceId,
     projectId,
+    currentView = "pretty",
+    externalExpansionState,
+    onExternalExpansionChange,
   }: LogViewRowProps) {
     const handleExpand = () => onToggle(item.node.id);
     const handleCollapse = () => onToggle(item.node.id);
@@ -42,6 +52,9 @@ export const LogViewRow = memo(
           traceId={traceId}
           projectId={projectId}
           onCollapse={handleCollapse}
+          currentView={currentView}
+          externalExpansionState={externalExpansionState}
+          onExternalExpansionChange={onExternalExpansionChange}
         />
       );
     }
@@ -63,7 +76,9 @@ export const LogViewRow = memo(
       prevProps.isExpanded === nextProps.isExpanded &&
       prevProps.treeStyle === nextProps.treeStyle &&
       prevProps.traceId === nextProps.traceId &&
-      prevProps.projectId === nextProps.projectId
+      prevProps.projectId === nextProps.projectId &&
+      prevProps.currentView === nextProps.currentView &&
+      prevProps.externalExpansionState === nextProps.externalExpansionState
     );
   },
 );

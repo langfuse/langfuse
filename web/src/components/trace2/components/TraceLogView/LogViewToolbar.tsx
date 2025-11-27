@@ -8,7 +8,18 @@
  */
 
 import { memo } from "react";
-import { Clock, GitBranch, List, Indent, Search, X } from "lucide-react";
+import {
+  Clock,
+  GitBranch,
+  List,
+  Indent,
+  Search,
+  X,
+  FoldVertical,
+  UnfoldVertical,
+  Copy,
+  Download,
+} from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -42,6 +53,16 @@ export interface LogViewToolbarProps {
   filteredCount?: number;
   /** Whether virtualization is active (for debug indicator) */
   isVirtualized?: boolean;
+  /** Callback to toggle expand/collapse all (non-virtualized only) */
+  onToggleExpandAll?: () => void;
+  /** Whether all rows are expanded */
+  allRowsExpanded?: boolean;
+  /** Callback to copy JSON */
+  onCopyJson?: () => void;
+  /** Callback to download JSON */
+  onDownloadJson?: () => void;
+  /** Current view type (pretty/json) */
+  currentView?: "pretty" | "json";
 }
 
 /**
@@ -57,6 +78,11 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   totalCount,
   filteredCount,
   isVirtualized = true,
+  onToggleExpandAll,
+  allRowsExpanded,
+  onCopyJson,
+  onDownloadJson,
+  currentView = "pretty",
 }: LogViewToolbarProps) {
   const isFiltered = searchQuery.trim().length > 0;
   const showFilteredCount = isFiltered && filteredCount !== undefined;
@@ -151,6 +177,70 @@ export const LogViewToolbar = memo(function LogViewToolbar({
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-1">
+        {/* Expand/Collapse All - only in non-virtualized table mode */}
+        {!isVirtualized && currentView === "pretty" && onToggleExpandAll && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={onToggleExpandAll}
+              >
+                {allRowsExpanded ? (
+                  <FoldVertical className="h-4 w-4" />
+                ) : (
+                  <UnfoldVertical className="h-4 w-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{allRowsExpanded ? "Collapse all" : "Expand all"}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Copy JSON */}
+        {onCopyJson && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={onCopyJson}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Copy as JSON</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Download JSON */}
+        {onDownloadJson && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={onDownloadJson}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Download as JSON</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
 
       {/* Search input */}
       <div className="relative w-64">

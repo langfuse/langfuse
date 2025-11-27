@@ -44,6 +44,8 @@ const createMockObservation = (
   costDetails: {},
   providedCostDetails: {},
   latency: null,
+  usagePricingTierId: null,
+  usagePricingTierName: null,
   ...overrides,
 });
 

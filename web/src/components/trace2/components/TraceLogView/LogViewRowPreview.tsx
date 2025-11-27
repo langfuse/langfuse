@@ -11,6 +11,7 @@ import { cn } from "@/src/utils/tailwind";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { type TreeNode } from "@/src/components/trace2/lib/types";
 import { type LogViewTreeStyle } from "./log-view-types";
+import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import {
   formatDisplayName,
   formatRelativeTime,
@@ -46,10 +47,15 @@ export const LogViewRowPreview = memo(function LogViewRowPreview({
   // Count children for "X items" indicator
   const childrenCount = node.children?.length ?? 0;
 
+  // Use click-without-selection to allow text selection while still supporting expand
+  const { props: clickProps } = useClickWithoutSelection({
+    onClick: onExpand,
+  });
+
   return (
     <div
       className="flex min-h-6 cursor-pointer items-center gap-2 border-b border-border bg-background px-3 py-0.5 hover:bg-muted/50"
-      onClick={onExpand}
+      {...clickProps}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {

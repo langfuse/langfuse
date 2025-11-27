@@ -1,56 +1,80 @@
 /**
- * TraceLogView - Virtualized log view of trace observations.
+ * TraceLogView - Log view of trace observations with conditional virtualization.
  *
  * Features:
- * - Virtualized rendering using @tanstack/react-virtual
+ * - Conditional virtualization based on observation count threshold
+ * - Non-virtualized (< 150 obs): All rows in DOM, full features
+ * - Virtualized (>= 150 obs): Only visible rows rendered
  * - Lazy I/O loading (data fetched only when row is expanded)
  * - Two view modes: chronological (by time) and tree-order (DFS hierarchy)
  * - Search filtering by name, type, or ID
  * - Expandable rows with full I/O preview
  * - Sticky header showing topmost visible observation
  *
- * State management:
- * - expandedRows: Set<string> managed locally for virtualizer estimateSize
- * - searchQuery: Local state for search filtering
- * - Mode/style preferences from ViewPreferencesContext
- * - Tree data from TraceDataContext
+ * Uses JSONTableView for table rendering with domain-specific column definitions.
  */
 
-import { useState, useMemo, useRef, useCallback } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useState, useMemo, useCallback } from "react";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
+import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { ItemBadge } from "@/src/components/ItemBadge";
+import {
+  JSONTableView,
+  type JSONTableViewColumn,
+} from "@/src/components/trace2/components/_shared/JSONTableView";
 import {
   flattenChronological,
   flattenTreeOrder,
   filterBySearch,
 } from "./log-view-flattening";
-import { LogViewRow } from "./LogViewRow";
+import { type FlatLogItem } from "./log-view-types";
 import { LogViewStickyHeader } from "./LogViewStickyHeader";
-import { LogViewTableHeader } from "./LogViewTableHeader";
 import { LogViewToolbar } from "./LogViewToolbar";
-import { useTopmostVisibleItem } from "./useTopmostVisibleItem";
+import { LogViewExpandedContent } from "./LogViewExpandedContent";
+import { LogViewTreeIndent } from "./LogViewTreeIndent";
+import { LogViewJsonMode } from "./LogViewJsonMode";
+import { LOG_VIEW_CONFIRMATION_THRESHOLD } from "./useLogViewConfirmation";
+import {
+  formatDisplayName,
+  formatRelativeTime,
+  formatDuration,
+  formatDepthIndicator,
+} from "./log-view-formatters";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
 
 export interface TraceLogViewProps {
   traceId: string;
   projectId: string;
+  currentView?: "pretty" | "json";
 }
 
 // Row height constants for virtualization
-const COLLAPSED_ROW_HEIGHT = 28; // min-h-6 (24px) + py-0.5 (2px each side) + border
-const EXPANDED_ROW_HEIGHT = 150; // Estimated, will be measured dynamically
+const COLLAPSED_ROW_HEIGHT = 28;
+const EXPANDED_ROW_HEIGHT = 150;
 
-export const TraceLogView = ({ traceId, projectId }: TraceLogViewProps) => {
-  const { tree } = useTraceData();
+export const TraceLogView = ({
+  traceId,
+  projectId,
+  currentView = "pretty",
+}: TraceLogViewProps) => {
+  const { tree, observations } = useTraceData();
   const { logViewMode, setLogViewMode, logViewTreeStyle, setLogViewTreeStyle } =
     useViewPreferences();
-  const parentRef = useRef<HTMLDivElement>(null);
+  const { expansionState, setFieldExpansion } = useJsonExpansion();
 
-  // Lifted state for expand/collapse - needed for virtualizer estimateSize
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  // Determine if we should virtualize based on observation count
+  const isVirtualized = observations.length >= LOG_VIEW_CONFIRMATION_THRESHOLD;
+
+  // Controlled expand state for JSONTableView
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 
   // Local state for search
   const [searchQuery, setSearchQuery] = useState("");
+
+  // State for JSON view collapse
+  const [jsonViewCollapsed, setJsonViewCollapsed] = useState(false);
 
   // Flatten tree based on mode
   const allItems = useMemo(() => {
@@ -64,51 +88,196 @@ export const TraceLogView = ({ traceId, projectId }: TraceLogViewProps) => {
     return filterBySearch(allItems, searchQuery);
   }, [allItems, searchQuery]);
 
-  // Toggle expand/collapse for a row
-  const handleToggle = useCallback((nodeId: string) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-      }
-      return next;
-    });
-  }, []);
-
-  // Estimate row size based on expand state
-  const estimateSize = useCallback(
-    (index: number) => {
-      const item = flatItems[index];
-      if (!item) return COLLAPSED_ROW_HEIGHT;
-      return expandedRows.has(item.node.id)
-        ? EXPANDED_ROW_HEIGHT
-        : COLLAPSED_ROW_HEIGHT;
-    },
-    [flatItems, expandedRows],
-  );
-
-  // Set up virtualizer
-  const rowVirtualizer = useVirtualizer({
-    count: flatItems.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize,
-    overscan: 10, // Render 10 extra items outside viewport
-    measureElement:
-      typeof window !== "undefined"
-        ? (element) => element.getBoundingClientRect().height
-        : undefined,
-  });
-
   // Tree style: flat for chronological, use preference for tree-order
   const treeStyle = logViewMode === "chronological" ? "flat" : logViewTreeStyle;
 
-  // Track the topmost visible item for sticky header
-  const { item: topmostItem, index: topmostIndex } = useTopmostVisibleItem({
-    virtualizer: rowVirtualizer,
+  // Define columns based on tree style
+  const columns = useMemo((): JSONTableViewColumn<FlatLogItem>[] => {
+    const baseColumns: JSONTableViewColumn<FlatLogItem>[] = [
+      {
+        key: "type",
+        header: "Type",
+        width: "w-20",
+        render: (item) => <ItemBadge type={item.node.type} isSmall />,
+      },
+      {
+        key: "name",
+        header: "Name",
+        width: "flex-1",
+        render: (item) => {
+          const displayName = formatDisplayName(item.node);
+          const childrenCount = item.node.children?.length ?? 0;
+          const depthIndicator =
+            treeStyle === "flat" ? formatDepthIndicator(item.node.depth) : "";
+
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate">{displayName}</span>
+              {childrenCount > 0 && (
+                <span className="flex-shrink-0 text-xs text-muted-foreground">
+                  {childrenCount} {childrenCount === 1 ? "item" : "items"}
+                </span>
+              )}
+              {depthIndicator && (
+                <span className="flex-shrink-0 rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                  {depthIndicator}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: "depth",
+        header: "Depth",
+        width: "w-12",
+        align: "right" as const,
+        render: (item) => (
+          <span className="text-xs text-muted-foreground">
+            {item.node.depth >= 0 ? `L${item.node.depth}` : "-"}
+          </span>
+        ),
+      },
+      {
+        key: "duration",
+        header: "Duration",
+        width: "w-16",
+        align: "right" as const,
+        render: (item) => (
+          <span className="text-xs text-muted-foreground">
+            {formatDuration(item.node.startTime, item.node.endTime)}
+          </span>
+        ),
+      },
+      {
+        key: "time",
+        header: "Time",
+        width: "w-12",
+        align: "right" as const,
+        render: (item) => (
+          <span className="text-xs text-muted-foreground">
+            {formatRelativeTime(item.node.startTimeSinceTrace)}
+          </span>
+        ),
+      },
+    ];
+
+    return baseColumns;
+  }, [treeStyle]);
+
+  // Render tree indentation for indented mode
+  const renderRowPrefix = useCallback(
+    (item: FlatLogItem) => {
+      if (treeStyle !== "indented" || item.node.depth <= 0) return null;
+
+      return (
+        <LogViewTreeIndent
+          treeLines={item.treeLines}
+          isLastSibling={item.isLastSibling}
+          depth={item.node.depth}
+        />
+      );
+    },
+    [treeStyle],
+  );
+
+  // Render expanded content with JSON expansion context integration
+  const renderExpanded = useCallback(
+    (item: FlatLogItem) => {
+      const observationExpansionKey = `log:${item.node.id}`;
+
+      return (
+        <LogViewExpandedContent
+          node={item.node}
+          traceId={traceId}
+          projectId={projectId}
+          currentView={currentView}
+          externalExpansionState={
+            !isVirtualized ? expansionState[observationExpansionKey] : undefined
+          }
+          onExternalExpansionChange={
+            !isVirtualized
+              ? (exp) => setFieldExpansion(observationExpansionKey, exp)
+              : undefined
+          }
+        />
+      );
+    },
+    [
+      traceId,
+      projectId,
+      currentView,
+      isVirtualized,
+      expansionState,
+      setFieldExpansion,
+    ],
+  );
+
+  // Render sticky header
+  const renderStickyHeader = useCallback(
+    (item: FlatLogItem | null, index: number) => (
+      <LogViewStickyHeader
+        item={item}
+        totalCount={flatItems.length}
+        currentIndex={index}
+      />
+    ),
+    [flatItems.length],
+  );
+
+  // Track if all rows are expanded (for non-virtualized mode)
+  const allRowsExpanded = useMemo(() => {
+    if (flatItems.length === 0) return false;
+    return flatItems.every((item) => expandedKeys.has(item.node.id));
+  }, [flatItems, expandedKeys]);
+
+  // Toggle expand/collapse all (non-virtualized mode only)
+  const handleToggleExpandAll = useCallback(() => {
+    if (allRowsExpanded) {
+      // Collapse all
+      setExpandedKeys(new Set());
+    } else {
+      // Expand all
+      const allKeys = new Set(flatItems.map((item) => item.node.id));
+      setExpandedKeys(allKeys);
+    }
+  }, [allRowsExpanded, flatItems]);
+
+  // Fetch all observation data for copy/download (enabled when needed)
+  const { data: allObservationsData } = useLogViewAllObservationsIO({
     items: flatItems,
+    traceId,
+    projectId,
+    enabled: currentView === "json" || flatItems.length > 0,
   });
+
+  // Copy JSON handler
+  const handleCopyJson = useCallback(() => {
+    if (allObservationsData) {
+      const textToCopy = JSON.stringify(allObservationsData, null, 2);
+      void copyTextToClipboard(textToCopy);
+    }
+  }, [allObservationsData]);
+
+  // Download JSON handler
+  const handleDownloadJson = useCallback(() => {
+    if (allObservationsData) {
+      const blob = new Blob([JSON.stringify(allObservationsData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `trace-${traceId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }, [allObservationsData, traceId]);
+
+  // Toggle JSON view collapse
+  const handleToggleJsonCollapse = useCallback(() => {
+    setJsonViewCollapsed((prev) => !prev);
+  }, []);
 
   // Check if there are any observations at all
   const hasNoObservations = allItems.length === 0;
@@ -126,6 +295,12 @@ export const TraceLogView = ({ traceId, projectId }: TraceLogViewProps) => {
         onSearchChange={setSearchQuery}
         totalCount={allItems.length}
         filteredCount={flatItems.length}
+        isVirtualized={isVirtualized}
+        onToggleExpandAll={handleToggleExpandAll}
+        allRowsExpanded={allRowsExpanded}
+        onCopyJson={handleCopyJson}
+        onDownloadJson={handleDownloadJson}
+        currentView={currentView}
       />
 
       {/* Empty states */}
@@ -145,60 +320,33 @@ export const TraceLogView = ({ traceId, projectId }: TraceLogViewProps) => {
         </div>
       )}
 
-      {/* Sticky header showing topmost visible observation */}
-      {flatItems.length > 0 && (
-        <LogViewStickyHeader
-          item={topmostItem}
-          totalCount={flatItems.length}
-          currentIndex={topmostIndex}
+      {/* JSON view mode - render all observations as single JSON */}
+      {flatItems.length > 0 && currentView === "json" && (
+        <LogViewJsonMode
+          items={flatItems}
+          traceId={traceId}
+          projectId={projectId}
+          isCollapsed={jsonViewCollapsed}
+          onToggleCollapse={handleToggleJsonCollapse}
         />
       )}
 
-      {/* Sticky table header with column labels */}
-      {flatItems.length > 0 && <LogViewTableHeader treeStyle={treeStyle} />}
-
-      {/* Virtualized list container */}
-      {flatItems.length > 0 && (
-        <div ref={parentRef} className="flex-1 overflow-y-scroll">
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const item = flatItems[virtualRow.index];
-              if (!item) return null;
-
-              const isExpanded = expandedRows.has(item.node.id);
-
-              return (
-                <div
-                  key={item.node.id}
-                  data-index={virtualRow.index}
-                  ref={rowVirtualizer.measureElement}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  <LogViewRow
-                    item={item}
-                    isExpanded={isExpanded}
-                    onToggle={handleToggle}
-                    treeStyle={treeStyle}
-                    traceId={traceId}
-                    projectId={projectId}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* Table view mode - render as expandable table */}
+      {flatItems.length > 0 && currentView === "pretty" && (
+        <JSONTableView
+          items={flatItems}
+          columns={columns}
+          getItemKey={(item) => item.node.id}
+          expandable
+          renderExpanded={renderExpanded}
+          expandedKeys={expandedKeys}
+          onExpandedKeysChange={setExpandedKeys}
+          virtualized={isVirtualized}
+          collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
+          expandedRowHeight={EXPANDED_ROW_HEIGHT}
+          stickyHeaderContent={renderStickyHeader}
+          renderRowPrefix={renderRowPrefix}
+        />
       )}
     </div>
   );
