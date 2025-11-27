@@ -6,82 +6,13 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { useQueries } from "@tanstack/react-query";
 import { type JsonNested } from "@langfuse/shared";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import {
+  normalizeExpansionState,
+  denormalizeExpansionState,
+} from "@/src/components/trace2/contexts/json-expansion-utils";
 import { Download } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { downloadTraceAsJson as downloadTraceUtil } from "@/src/components/trace2/lib/download-trace";
-
-// for Json Expansion Context State (keeps expanded/collapsed state across traces)
-
-// Remove observation ID from keys for persistent expansion state and convert hyphens to dots (PrettyJsonView internal format)
-// Example: "natural-language-filter (abc12345)" -> "natural.language.filter"
-const normalizeKey = (key: string): string => {
-  return key.replace(/-/g, ".").replace(/\s*\([a-f0-9]{8}\)/, "");
-};
-
-// Convert normalized expansion state to actual state with observation IDs
-const denormalizeExpansionState = (
-  normalizedState: Record<string, boolean> | boolean,
-  observationKeys: string[],
-): Record<string, boolean> | boolean => {
-  if (typeof normalizedState === "boolean") return normalizedState;
-
-  // Build mapping: normalized observation name -> actual observation name(s)
-  const normalizedToActual = new Map<string, string[]>();
-  observationKeys.forEach((actualKey) => {
-    const normalized = normalizeKey(actualKey);
-    if (!normalizedToActual.has(normalized)) {
-      normalizedToActual.set(normalized, []);
-    }
-    // store the normalized
-    normalizedToActual.get(normalized)!.push(actualKey.replace(/-/g, "."));
-  });
-
-  const denormalized: Record<string, boolean> = {};
-
-  Object.entries(normalizedState).forEach(([normalizedKey, value]) => {
-    // First check if this is a top-level observation key (no nested path)
-    if (normalizedToActual.has(normalizedKey)) {
-      const actualKeys = normalizedToActual.get(normalizedKey)!;
-      actualKeys.forEach((actualKey) => {
-        denormalized[actualKey] = value;
-      });
-      return;
-    }
-
-    // Otherwise split key into top-level observation and nested path
-    const parts = normalizedKey.split(".");
-    const topLevelNormalized = parts[0];
-    const restOfPath = parts.slice(1).join(".");
-
-    // Find all actual observation keys that match this normalized key
-    const actualTopLevelKeys = normalizedToActual.get(topLevelNormalized) || [];
-
-    actualTopLevelKeys.forEach((actualTopLevel) => {
-      const actualKey = restOfPath
-        ? `${actualTopLevel}.${restOfPath}`
-        : actualTopLevel;
-      denormalized[actualKey] = value;
-    });
-  });
-
-  return denormalized;
-};
-
-// for session storage, convert current expansion state to normalized state
-const normalizeExpansionState = (
-  actualState: Record<string, boolean> | boolean,
-): Record<string, boolean> | boolean => {
-  if (typeof actualState === "boolean") return actualState;
-
-  const normalized: Record<string, boolean> = {};
-
-  Object.entries(actualState).forEach(([key, value]) => {
-    const normalizedKey = normalizeKey(key);
-    normalized[normalizedKey] = value;
-  });
-
-  return normalized;
-};
 
 export interface TraceLogViewProps {
   observations: ObservationReturnTypeWithMetadata[];
