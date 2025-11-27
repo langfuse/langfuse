@@ -1,0 +1,129 @@
+/**
+ * TraceDetailViewHeader - Extracted header component for TraceDetailView
+ *
+ * Contains:
+ * - Title row with ItemBadge, trace name, CopyIdsPopover
+ * - Action buttons (Dataset, Annotate, Queue, Comments)
+ * - Metadata badges (timestamp, session, user, environment, release, version)
+ *
+ * Memoized to prevent unnecessary re-renders when tab state changes.
+ */
+
+import { memo } from "react";
+import {
+  type TraceDomain,
+  type ScoreDomain,
+  AnnotationQueueObjectType,
+} from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { ItemBadge } from "@/src/components/ItemBadge";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import {
+  SessionBadge,
+  UserIdBadge,
+  EnvironmentBadge,
+  ReleaseBadge,
+  VersionBadge,
+} from "./TraceMetadataBadges";
+
+export interface TraceDetailViewHeaderProps {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
+    latency?: number;
+    input: string | null;
+    output: string | null;
+  };
+  projectId: string;
+  traceScores: WithStringifiedMetadata<ScoreDomain>[];
+  commentCount: number | undefined;
+}
+
+export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
+  trace,
+  projectId,
+  traceScores,
+  commentCount,
+}: TraceDetailViewHeaderProps) {
+  return (
+    <div className="flex-shrink-0 space-y-2 border-b p-4">
+      {/* Title row with actions */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
+          <div className="mt-1">
+            <ItemBadge type="TRACE" isSmall />
+          </div>
+          <span className="min-w-0 break-all font-medium">
+            {trace.name || trace.id}
+          </span>
+          <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
+        </div>
+        {/* Action buttons */}
+        <div className="flex flex-shrink-0 flex-wrap items-start gap-0.5">
+          <NewDatasetItemFromExistingObject
+            traceId={trace.id}
+            projectId={projectId}
+            input={trace.input}
+            output={trace.output}
+            metadata={trace.metadata}
+            key={trace.id}
+            size="sm"
+          />
+          <div className="flex items-start">
+            <AnnotateDrawer
+              key={"annotation-drawer-" + trace.id}
+              projectId={projectId}
+              scoreTarget={{
+                type: "trace",
+                traceId: trace.id,
+              }}
+              scores={traceScores}
+              scoreMetadata={{
+                projectId: projectId,
+                environment: trace.environment,
+              }}
+              size="sm"
+            />
+            <CreateNewAnnotationQueueItem
+              projectId={projectId}
+              objectId={trace.id}
+              objectType={AnnotationQueueObjectType.TRACE}
+              size="sm"
+            />
+          </div>
+          <CommentDrawerButton
+            projectId={projectId}
+            objectId={trace.id}
+            objectType="TRACE"
+            count={commentCount}
+            size="sm"
+          />
+        </div>
+      </div>
+
+      {/* Metadata badges */}
+      <div className="flex flex-col gap-2">
+        {/* Timestamp */}
+        <div className="flex flex-wrap items-center gap-1">
+          <LocalIsoDate
+            date={trace.timestamp}
+            accuracy="millisecond"
+            className="text-sm"
+          />
+        </div>
+
+        {/* Other badges */}
+        <div className="flex flex-wrap items-center gap-1">
+          <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
+          <UserIdBadge userId={trace.userId} projectId={projectId} />
+          <EnvironmentBadge environment={trace.environment} />
+          <ReleaseBadge release={trace.release} />
+          <VersionBadge version={trace.version} />
+        </div>
+      </div>
+    </div>
+  );
+});

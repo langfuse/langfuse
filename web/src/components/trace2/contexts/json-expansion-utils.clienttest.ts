@@ -445,5 +445,56 @@ describe("json-expansion-utils", () => {
         runDenormalizeStateTest(100, scale, 0, threshold);
       });
     });
+
+    describe("500k scale", () => {
+      const scale = 500_000;
+      const threshold = 10_000; // 10s
+
+      it("normalizes 500k keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 500k keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("denormalizes state with 500k observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
+      });
+    });
+
+    describe("1M scale", () => {
+      const scale = 1_000_000;
+      const threshold = 30_000; // 30s
+
+      it("normalizes 1M keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 1M keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("denormalizes state with 1M observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
+      });
+    });
+
+    describe("5M scale", () => {
+      const scale = 5_000_000;
+      const threshold = 120_000; // 2 minutes
+
+      it("normalizes 5M keys", () => {
+        runNormalizeKeyTest(scale, threshold);
+      });
+
+      it("normalizes expansion state with 5M keys", () => {
+        runNormalizeStateTest(scale, 0, threshold);
+      });
+
+      it("denormalizes state with 5M observations", () => {
+        runDenormalizeStateTest(100, scale, 0, threshold);
+      });
+    });
   });
 });

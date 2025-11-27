@@ -30,6 +30,8 @@ interface ViewPreferencesContextValue {
   setShowGraph: (value: boolean) => void;
   minObservationLevel: ObservationLevelType;
   setMinObservationLevel: (value: ObservationLevelType) => void;
+  /** Whether trace is rendered in peek mode (e.g., annotation queues) */
+  isPeekMode: boolean;
 }
 
 const ViewPreferencesContext =
@@ -47,11 +49,15 @@ export function useViewPreferences(): ViewPreferencesContextValue {
 
 interface ViewPreferencesProviderProps {
   children: ReactNode;
+  /** Context in which trace is rendered - affects feature availability */
+  traceContext?: "peek" | "fullscreen";
 }
 
 export function ViewPreferencesProvider({
   children,
+  traceContext = "fullscreen",
 }: ViewPreferencesProviderProps) {
+  const isPeekMode = traceContext === "peek";
   const [showDuration, setShowDuration] = useLocalStorage(
     "durationOnObservationTree",
     true,
@@ -92,6 +98,7 @@ export function ViewPreferencesProvider({
       setShowGraph,
       minObservationLevel,
       setMinObservationLevel,
+      isPeekMode,
     }),
     [
       showDuration,
@@ -108,6 +115,7 @@ export function ViewPreferencesProvider({
       setShowGraph,
       minObservationLevel,
       setMinObservationLevel,
+      isPeekMode,
     ],
   );
 

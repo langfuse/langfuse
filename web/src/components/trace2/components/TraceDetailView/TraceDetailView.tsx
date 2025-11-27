@@ -2,18 +2,9 @@
  * TraceDetailView - Shows trace-level details when no observation is selected
  */
 
-import {
-  type TraceDomain,
-  type ScoreDomain,
-  AnnotationQueueObjectType,
-} from "@langfuse/shared";
+import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { Badge } from "@/src/components/ui/badge";
-import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { ExternalLinkIcon } from "lucide-react";
-import Link from "next/link";
 import {
   TabsBar,
   TabsBarContent,
@@ -22,8 +13,14 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+
 // Preview tab components
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -31,35 +28,20 @@ import TagList from "@/src/features/tag/components/TagList";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
 
-// Header action components
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+// Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import ScoresTable from "@/src/components/table/use-cases/scores";
-import { TraceLogView } from "@/src/components/trace2/components/TraceDetailView/TraceLogView";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/src/components/ui/alert-dialog";
+  useLogViewConfirmation,
+  LOG_VIEW_DISABLED_THRESHOLD,
+} from "@/src/components/trace2/hooks/useLogViewConfirmation";
 
-const LOG_VIEW_CONFIRMATION_THRESHOLD = 150;
-const LOG_VIEW_DISABLED_THRESHOLD = 350;
+// Extracted components
+import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
+import { TraceLogViewConfirmationDialog } from "./TraceLogViewConfirmationDialog";
+import { TraceLogView } from "./TraceLogView";
+import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -78,6 +60,7 @@ export function TraceDetailView({
   scores,
   projectId,
 }: TraceDetailViewProps) {
+  // Tab and view state
   const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
     "preview",
   );
@@ -87,180 +70,90 @@ export function TraceDetailView({
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
-  // Get comments and expansion state from contexts
+  // Context hooks
   const { comments } = useTraceData();
   const { expansionState, setFieldExpansion } = useJsonExpansion();
 
-  // Fetch media for trace-level I/O
+  // Data fetching
   const traceMedia = useMedia({ projectId, traceId: trace.id });
 
-  // Filter scores for trace-level only (no observationId)
+  // Derived state
   const traceScores = useMemo(
     () => scores.filter((s) => !s.observationId),
     [scores],
   );
 
+  // Log view confirmation logic
+  const logViewConfirmation = useLogViewConfirmation({
+    observationCount: observations.length,
+    traceId: trace.id,
+  });
+
   const showLogViewTab = observations.length > 0;
-
-  // Log view thresholds for performance
-  const isLogViewDisabled = observations.length > LOG_VIEW_DISABLED_THRESHOLD;
-  const requiresConfirmation =
-    observations.length > LOG_VIEW_CONFIRMATION_THRESHOLD && !isLogViewDisabled;
-
-  const [hasLogViewConfirmed, setHasLogViewConfirmed] = useState(false);
-  const [showLogViewDialog, setShowLogViewDialog] = useState(false);
-
-  // Reset confirmation on trace change
-  useEffect(() => {
-    setHasLogViewConfirmed(false);
-  }, [trace.id]);
 
   // Auto-redirect from invalid tab state
   useEffect(() => {
-    if ((isLogViewDisabled || !showLogViewTab) && selectedTab === "log") {
+    if (
+      (logViewConfirmation.isDisabled || !showLogViewTab) &&
+      selectedTab === "log"
+    ) {
       setSelectedTab("preview");
     }
-  }, [isLogViewDisabled, showLogViewTab, selectedTab]);
+  }, [logViewConfirmation.isDisabled, showLogViewTab, selectedTab]);
 
   // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
-  const router = useRouter();
-  const { peek } = router.query;
+  const { isPeekMode } = useViewPreferences();
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
-  const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
+  const showScoresTab = isAuthenticatedAndProjectMember && !isPeekMode;
+
+  // Handle tab change with log view confirmation
+  const handleTabChange = (value: string) => {
+    if (value === "log") {
+      const canProceed = logViewConfirmation.attemptLogView();
+      if (!canProceed) return;
+    }
+    setSelectedTab(value as "preview" | "log" | "scores");
+  };
+
+  // Handle log view confirmation
+  const handleLogViewConfirm = () => {
+    logViewConfirmation.confirmLogView();
+    setSelectedTab("log");
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header section */}
-      <div className="flex-shrink-0 space-y-2 border-b p-4">
-        {/* Title row with actions */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2">
-            <div className="mt-1">
-              <ItemBadge type="TRACE" isSmall />
-            </div>
-            <span className="min-w-0 break-all font-medium">
-              {trace.name || trace.id}
-            </span>
-            <CopyIdsPopover idItems={[{ id: trace.id, name: "Trace ID" }]} />
-          </div>
-          {/* Action buttons */}
-          <div className="flex flex-shrink-0 flex-wrap items-start gap-0.5">
-            <NewDatasetItemFromExistingObject
-              traceId={trace.id}
-              projectId={projectId}
-              input={trace.input}
-              output={trace.output}
-              metadata={trace.metadata}
-              key={trace.id}
-              size="sm"
-            />
-            <div className="flex items-start">
-              <AnnotateDrawer
-                key={"annotation-drawer-" + trace.id}
-                projectId={projectId}
-                scoreTarget={{
-                  type: "trace",
-                  traceId: trace.id,
-                }}
-                scores={traceScores}
-                scoreMetadata={{
-                  projectId: projectId,
-                  environment: trace.environment,
-                }}
-                size="sm"
-              />
-              <CreateNewAnnotationQueueItem
-                projectId={projectId}
-                objectId={trace.id}
-                objectType={AnnotationQueueObjectType.TRACE}
-                size="sm"
-              />
-            </div>
-            <CommentDrawerButton
-              projectId={projectId}
-              objectId={trace.id}
-              objectType="TRACE"
-              count={comments.get(trace.id)}
-              size="sm"
-            />
-          </div>
-        </div>
-
-        {/* Metadata badges */}
-        <div className="flex flex-col gap-2">
-          {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1">
-            <LocalIsoDate
-              date={trace.timestamp}
-              accuracy="millisecond"
-              className="text-sm"
-            />
-          </div>
-
-          {/* Other badges */}
-          <div className="flex flex-wrap items-center gap-1">
-            {trace.sessionId && (
-              <Link
-                href={`/project/${projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
-                className="inline-flex"
-              >
-                <Badge>
-                  <span className="truncate">Session: {trace.sessionId}</span>
-                  <ExternalLinkIcon className="ml-1 h-3 w-3" />
-                </Badge>
-              </Link>
-            )}
-            {trace.userId && (
-              <Link
-                href={`/project/${projectId}/users/${encodeURIComponent(trace.userId)}`}
-                className="inline-flex"
-              >
-                <Badge>
-                  <span className="truncate">User ID: {trace.userId}</span>
-                  <ExternalLinkIcon className="ml-1 h-3 w-3" />
-                </Badge>
-              </Link>
-            )}
-            {trace.environment && (
-              <Badge variant="tertiary">Env: {trace.environment}</Badge>
-            )}
-            {trace.release && (
-              <Badge variant="tertiary">Release: {trace.release}</Badge>
-            )}
-            {trace.version && (
-              <Badge variant="tertiary">Version: {trace.version}</Badge>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Header section (extracted component) */}
+      <TraceDetailViewHeader
+        trace={trace}
+        projectId={projectId}
+        traceScores={traceScores}
+        commentCount={comments.get(trace.id)}
+      />
 
       {/* Tabs section */}
       <TabsBar
         value={selectedTab}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        onValueChange={(value) => {
-          // Show confirmation dialog for log view if needed
-          if (value === "log" && requiresConfirmation && !hasLogViewConfirmed) {
-            setShowLogViewDialog(true);
-            return;
-          }
-          setSelectedTab(value as "preview" | "log" | "scores");
-        }}
+        onValueChange={handleTabChange}
       >
         <TooltipProvider>
           <TabsBarList>
             <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
             {showLogViewTab && (
-              <TabsBarTrigger value="log" disabled={isLogViewDisabled}>
+              <TabsBarTrigger
+                value="log"
+                disabled={logViewConfirmation.isDisabled}
+              >
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span>Log View</span>
                   </TooltipTrigger>
                   <TooltipContent className="text-xs">
-                    {isLogViewDisabled
+                    {logViewConfirmation.isDisabled
                       ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
-                      : requiresConfirmation
+                      : logViewConfirmation.requiresConfirmation
                         ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
                         : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
                   </TooltipContent>
@@ -374,32 +267,13 @@ export function TraceDetailView({
         )}
       </TabsBar>
 
-      {/* Confirmation dialog for log view with many observations */}
-      <AlertDialog open={showLogViewDialog} onOpenChange={setShowLogViewDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sluggish Performance Warning</AlertDialogTitle>
-            <AlertDialogDescription>
-              This trace has {observations.length} observations. The log view
-              may be slow to load and interact with. Do you want to continue?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowLogViewDialog(false)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setHasLogViewConfirmed(true);
-                setShowLogViewDialog(false);
-                setSelectedTab("log");
-              }}
-            >
-              Show Log View
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Confirmation dialog for log view with many observations (extracted component) */}
+      <TraceLogViewConfirmationDialog
+        open={logViewConfirmation.showDialog}
+        onOpenChange={logViewConfirmation.setShowDialog}
+        observationCount={observations.length}
+        onConfirm={handleLogViewConfirm}
+      />
     </div>
   );
 }
