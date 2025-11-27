@@ -10,7 +10,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { DatasetItemManager } from "@langfuse/shared/src/server";
+import { deleteDatasetItem } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -56,7 +56,7 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 
-      const result = await DatasetItemManager.deleteItem({
+      const result = await deleteDatasetItem({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
       });

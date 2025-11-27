@@ -254,6 +254,14 @@ const EnvSchema = z.object({
   LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
   LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
   LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
+
+  // Dataset Service
+  LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

@@ -2,7 +2,7 @@ import { Prisma } from "../../../db";
 import { FieldValidationError } from "../../../utils/jsonSchemaValidation";
 import { logger } from "../../logger";
 import { DatasetSchemaValidator } from "./DatasetSchemaValidator";
-import type { PreparePayloadResult } from "./types";
+import type { ValidateAndNormalizeResult } from "./types";
 
 type ValidateItemResult =
   | { isValid: true }
@@ -183,13 +183,13 @@ export class DatasetItemValidator {
    * @param params.metadata - JSON string, parsed object, or null
    * @returns Success with normalized data, or error with validation details
    */
-  public preparePayload(params: {
+  public validateAndNormalize(params: {
     input: string | unknown | null | undefined;
     expectedOutput: string | unknown | null | undefined;
     metadata: string | unknown | null | undefined;
     normalizeOpts?: { sanitizeControlChars?: boolean };
     validateOpts: { normalizeUndefinedToNull?: boolean };
-  }): PreparePayloadResult {
+  }): ValidateAndNormalizeResult {
     // 1. Normalize IO
     const normalizedInput = this.normalize(params.input, params.normalizeOpts);
     const normalizedExpectedOutput = this.normalize(
