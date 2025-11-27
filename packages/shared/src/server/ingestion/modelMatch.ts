@@ -1,6 +1,7 @@
 import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
+  instrumentSync,
   logger,
   recordIncrement,
   redis,
@@ -119,41 +120,29 @@ const getModelWithPricesFromRedis = async (
       return { model: null, pricingTiers: [] };
     }
 
-    const parsed = JSON.parse(redisValue);
+    const parsed = instrumentSync(
+      {
+        name: "parse-redis-model",
+        traceScope: "model-match",
+      },
+      (span) => {
+        span.setAttribute("model-cache-value-length", redisValue.length);
 
-    // NEW FORMAT: { model: {...}, pricingTiers: [...] }
+        return JSON.parse(redisValue);
+      },
+    );
+
     if (parsed.model !== undefined && parsed.pricingTiers !== undefined) {
       const model = redisModelToPrismaModel(parsed.model);
       const pricingTiers: PricingTierWithPrices[] = parsed.pricingTiers.map(
         (tier: any) => ({
           ...tier,
-          prices: tier.prices.map((p: any) => ({
-            ...p,
-            price: new Decimal(p.price),
+          prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+            usageType,
+            price: new Decimal(price as string),
           })),
         }),
       );
-
-      return { model, pricingTiers };
-    }
-
-    // OLD FORMAT: { model: {...}, prices: [...] } (backwards compatible)
-    // Convert old format to new format with pricing tiers
-    if (parsed.model !== undefined && parsed.prices !== undefined) {
-      const model = redisModelToPrismaModel(parsed.model);
-      const pricingTiers = await findPricingTiersForModel(model.id);
-
-      // Update cache with new format asynchronously (don't await)
-      if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
-        addModelWithPricingTiersToRedis(p, model, pricingTiers).catch(
-          (error) => {
-            logger.error(
-              `Error updating cache with pricing tiers for ${JSON.stringify(p)}`,
-              error,
-            );
-          },
-        );
-      }
 
       return { model, pricingTiers };
     }
@@ -175,6 +164,8 @@ const getModelWithPricesFromRedis = async (
 export async function findPricingTiersForModel(
   modelId: string,
 ): Promise<PricingTierWithPrices[]> {
+  if (!modelId) return [];
+
   const tiers = await prisma.pricingTier.findMany({
     where: { modelId },
     include: {
@@ -266,9 +257,19 @@ const addModelWithPricingTiersToRedis = async (
 ) => {
   try {
     const key = getRedisModelKey(p);
+
+    const cachedPricingTiers = pricingTiers.map((tier) => {
+      return {
+        ...tier,
+        prices: Object.fromEntries(
+          tier.prices.map((p) => [p.usageType, p.price]),
+        ),
+      };
+    });
+
     await redis?.set(
       key,
-      JSON.stringify({ model, pricingTiers }),
+      JSON.stringify({ model, pricingTiers: cachedPricingTiers }),
       "EX",
       env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
     );
