@@ -53,12 +53,12 @@ export function TraceSearchListItem({
           commentCount={comments.get(node.id)}
           onSelect={onSelect}
         />
-        {/* Relative timestamps row - only show for observations (not TRACE root) */}
+        {/* Temporal and depth context - only show for observations (not TRACE root) */}
         {node.type !== "TRACE" && (
           <div className="text-xs text-muted-foreground/70">
-            @ +{traceRelativeTime} from trace
+            depth {node.depth} • +{traceRelativeTime}
             {parentRelativeTime !== null &&
-              ` | +${parentRelativeTime} from parent`}
+              ` • +${parentRelativeTime} from parent`}
           </div>
         )}
       </div>
