@@ -74,12 +74,25 @@ describe("Token Cost Calculation", () => {
 
   beforeEach(async () => {
     await pruneDatabase();
-    await prisma.model.create({
+    const model = await prisma.model.create({
       data: tokenModelData,
     });
+    const pricingTierId = uuidv4();
+    await prisma.pricingTier.create({
+      data: {
+        id: pricingTierId,
+        name: "Standard",
+        isDefault: true,
+        priority: 0,
+        conditions: [],
+        modelId,
+      },
+    });
+
     await Promise.all([
       prisma.price.createMany({
         data: modelPrices.map((price) => ({
+          pricingTierId,
           modelId,
           projectId: null,
           usageType: price.usageType,
@@ -87,6 +100,7 @@ describe("Token Cost Calculation", () => {
         })),
       }),
     ]);
+
     vi.clearAllMocks();
   });
 

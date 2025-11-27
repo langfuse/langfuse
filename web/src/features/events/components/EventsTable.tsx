@@ -36,7 +36,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
@@ -109,6 +109,7 @@ export type EventsTableRow = {
     outputCost?: number;
   };
   costDetails: Record<string, number>;
+  usagePricingTierName?: string | null;
 
   // Performance metrics
   latency?: number;
@@ -444,7 +445,11 @@ export default function ObservationsEventsTable({
         const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
+          <BreakdownTooltip
+            details={row.original.costDetails}
+            isCost
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
@@ -631,7 +636,7 @@ export default function ObservationsEventsTable({
         return modelId ? (
           <TableIdOrName value={model} />
         ) : (
-          <UpsertModelFormDrawer
+          <UpsertModelFormDialog
             action="create"
             projectId={projectId}
             prefilledModelData={{
@@ -655,7 +660,7 @@ export default function ObservationsEventsTable({
               <span>{model}</span>
               <PlusCircle className="h-3 w-3" />
             </span>
-          </UpsertModelFormDrawer>
+          </UpsertModelFormDialog>
         );
       },
     },
@@ -886,6 +891,7 @@ export default function ObservationsEventsTable({
             timestamp: observation.traceTimestamp ?? undefined,
             usageDetails: observation.usageDetails ?? {},
             costDetails: observation.costDetails ?? {},
+            usagePricingTierName: observation.usagePricingTierName ?? undefined,
             environment: observation.environment ?? undefined,
             input: observation.input
               ? typeof observation.input === "string"
