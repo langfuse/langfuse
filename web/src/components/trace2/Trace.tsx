@@ -17,6 +17,9 @@ import { TracePanelNavigationLayoutDesktop } from "./components/_layout/TracePan
 import { TracePanelNavigationLayoutMobile } from "./components/_layout/TracePanelNavigationLayoutMobile";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "./api/useTraceComments";
+import { useViewPreferences } from "./contexts/ViewPreferencesContext";
+import { useTraceGraphData } from "./contexts/TraceGraphDataContext";
+import { TraceGraphView } from "./components/TraceGraphView/TraceGraphView";
 
 import { useMemo } from "react";
 
@@ -92,13 +95,24 @@ export function Trace({
  * Purpose:
  * - Detects mobile vs desktop viewport
  * - Routes to appropriate platform-specific implementation
+ * - Manages shared graph visibility logic
  *
  * Hooks:
  * - useIsMobile() - for responsive platform detection
+ * - useViewPreferences() - for graph toggle state
+ * - useTraceGraphData() - for graph availability
  */
 function TraceContent() {
   const isMobile = useIsMobile();
-  return isMobile ? <MobileTraceContent /> : <DesktopTraceContent />;
+  const { showGraph } = useViewPreferences();
+  const { isGraphViewAvailable } = useTraceGraphData();
+  const shouldShowGraph = showGraph && isGraphViewAvailable;
+
+  return isMobile ? (
+    <MobileTraceContent shouldShowGraph={shouldShowGraph} />
+  ) : (
+    <DesktopTraceContent shouldShowGraph={shouldShowGraph} />
+  );
 }
 
 /**
@@ -109,11 +123,17 @@ function TraceContent() {
  * - Horizontal resizable panels with collapse functionality
  * - Navigation panel (left) + Detail panel (right)
  */
-function DesktopTraceContent() {
+function DesktopTraceContent({
+  shouldShowGraph,
+}: {
+  shouldShowGraph: boolean;
+}) {
   return (
     <TraceLayoutDesktop>
       <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop>
+        <TracePanelNavigationLayoutDesktop
+          secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
+        >
           <TracePanelNavigation />
         </TracePanelNavigationLayoutDesktop>
       </TraceLayoutDesktop.NavigationPanel>
@@ -133,12 +153,14 @@ function DesktopTraceContent() {
  * - Vertical accordion-style panels
  * - Navigation panel (top, collapsible) + Detail panel (bottom)
  */
-function MobileTraceContent() {
+function MobileTraceContent({ shouldShowGraph }: { shouldShowGraph: boolean }) {
   return (
     <div className="h-full w-full">
       <TraceLayoutMobile>
         <TraceLayoutMobile.NavigationPanel>
-          <TracePanelNavigationLayoutMobile>
+          <TracePanelNavigationLayoutMobile
+            secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}
+          >
             <TracePanelNavigation />
           </TracePanelNavigationLayoutMobile>
         </TraceLayoutMobile.NavigationPanel>

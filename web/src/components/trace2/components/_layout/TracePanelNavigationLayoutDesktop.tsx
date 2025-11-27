@@ -27,21 +27,16 @@ import {
 import { useDesktopLayoutContext } from "./TraceLayoutDesktop";
 import { TracePanelNavigationHeader } from "./TracePanelNavigationHeader";
 import { TracePanelNavigationHiddenNotice } from "./TracePanelNavigationHiddenNotice";
-import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
-import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
-import { TraceGraphView } from "../TraceGraphView/TraceGraphView";
 
 export function TracePanelNavigationLayoutDesktop({
   children,
+  secondaryContent,
 }: {
   children: ReactNode;
+  secondaryContent?: ReactNode;
 }) {
   const { isNavigationPanelCollapsed, handleTogglePanel, shouldPulseToggle } =
     useDesktopLayoutContext();
-  const { showGraph } = useViewPreferences();
-  const { isGraphViewAvailable } = useTraceGraphData();
-
-  const shouldShowGraph = showGraph && isGraphViewAvailable;
 
   return (
     <div className="flex h-full flex-col border-r">
@@ -53,7 +48,7 @@ export function TracePanelNavigationLayoutDesktop({
       {!isNavigationPanelCollapsed && (
         <>
           <TracePanelNavigationHiddenNotice />
-          {shouldShowGraph ? (
+          {secondaryContent ? (
             <ResizablePanelGroup
               direction="vertical"
               className="flex-1 overflow-hidden"
@@ -63,9 +58,7 @@ export function TracePanelNavigationLayoutDesktop({
               </ResizablePanel>
               <ResizableHandle className="h-px bg-border" />
               <ResizablePanel defaultSize={40} minSize={20}>
-                <div className="h-full overflow-hidden">
-                  <TraceGraphView />
-                </div>
+                <div className="h-full overflow-hidden">{secondaryContent}</div>
               </ResizablePanel>
             </ResizablePanelGroup>
           ) : (
