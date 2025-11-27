@@ -42,6 +42,7 @@ import {
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
+import { usePrefetchObservation } from "@/src/components/trace2/api/usePrefetchObservation";
 
 export interface TraceLogViewProps {
   traceId: string;
@@ -120,6 +121,21 @@ export const TraceLogView = ({
   // Disable indent when tree is too deep
   const indentDisabled = tree.childrenDepth > INDENT_DEPTH_THRESHOLD;
   const indentEnabled = indentEnabledPref && !indentDisabled;
+
+  // Prefetch observation data when rows enter viewport (virtualized mode)
+  const { prefetch } = usePrefetchObservation({ projectId });
+
+  const handleVisibleItemsChange = useCallback(
+    (visibleItems: FlatLogItem[]) => {
+      // Prefetch data for all visible items that aren't TRACE type
+      visibleItems.forEach((item) => {
+        if (item.node.type !== "TRACE") {
+          prefetch(item.node.id, traceId, item.node.startTime);
+        }
+      });
+    },
+    [prefetch, traceId],
+  );
 
   // Flatten tree based on mode
   const allItems = useMemo(() => {
@@ -373,6 +389,9 @@ export const TraceLogView = ({
           collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
           expandedRowHeight={EXPANDED_ROW_HEIGHT}
           renderRowPrefix={renderRowPrefix}
+          onVisibleItemsChange={
+            isVirtualized ? handleVisibleItemsChange : undefined
+          }
         />
       )}
     </div>

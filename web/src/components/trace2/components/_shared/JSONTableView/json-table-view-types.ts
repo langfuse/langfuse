@@ -61,6 +61,10 @@ export interface JSONTableViewProps<T> {
   // Callbacks
   /** Called when a row is clicked (in addition to expand/collapse) */
   onRowClick?: (item: T, index: number) => void;
+  /** Called when mouse enters a row (for prefetching) */
+  onRowHover?: (item: T) => void;
+  /** Called when visible items change (for viewport-based prefetching) */
+  onVisibleItemsChange?: (items: T[]) => void;
 
   // Custom row rendering
   /** Render content before columns (e.g., tree indentation) */
@@ -83,6 +87,8 @@ export interface JSONTableViewRowProps<T> {
   onToggle: () => void;
   renderExpanded?: (item: T) => ReactNode;
   renderRowPrefix?: (item: T, isExpanded: boolean) => ReactNode;
+  /** Called when mouse enters the row (for prefetching) */
+  onMouseEnter?: () => void;
 }
 
 /**

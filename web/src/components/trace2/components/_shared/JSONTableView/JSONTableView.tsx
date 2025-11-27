@@ -36,6 +36,8 @@ export function JSONTableView<T>({
   expandedRowHeight = DEFAULT_EXPANDED_ROW_HEIGHT,
   stickyHeaderContent,
   onRowClick: _onRowClick,
+  onRowHover,
+  onVisibleItemsChange,
   renderRowPrefix,
   className,
 }: JSONTableViewProps<T>) {
@@ -139,6 +141,20 @@ export function JSONTableView<T>({
   const topmostIndex = virtualized ? virtualizedTopmostIndex : scrollTopIndex;
   const topmostItem = items[topmostIndex] ?? null;
 
+  // Notify about visible items changes (for viewport-based prefetching)
+  useEffect(() => {
+    if (!virtualized || !onVisibleItemsChange) return;
+
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const visibleItems = virtualItems
+      .map((vi) => items[vi.index])
+      .filter((item): item is T => item !== undefined);
+
+    if (visibleItems.length > 0) {
+      onVisibleItemsChange(visibleItems);
+    }
+  }, [virtualized, rowVirtualizer, items, onVisibleItemsChange]);
+
   // Check if we have items
   const hasItems = items.length > 0;
   const hasPrefix = !!renderRowPrefix;
@@ -203,6 +219,9 @@ export function JSONTableView<T>({
                     onToggle={() => handleToggle(key)}
                     renderExpanded={renderExpanded}
                     renderRowPrefix={renderRowPrefix}
+                    onMouseEnter={
+                      onRowHover ? () => onRowHover(item) : undefined
+                    }
                   />
                 </div>
               );
@@ -229,6 +248,7 @@ export function JSONTableView<T>({
                   onToggle={() => handleToggle(key)}
                   renderExpanded={renderExpanded}
                   renderRowPrefix={renderRowPrefix}
+                  onMouseEnter={onRowHover ? () => onRowHover(item) : undefined}
                 />
               </div>
             );
