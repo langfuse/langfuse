@@ -680,7 +680,7 @@ class BillingService {
         };
 
         const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-          customer: stripeCustomerId,
+          customer: stripeCustomerId ?? undefined,
           line_items: lineItems,
           client_reference_id: clientReferenceId,
           allow_promotion_codes: true,
