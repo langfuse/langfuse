@@ -87,6 +87,7 @@ export * from "./queries";
 export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
 export * from "./repositories/traces";
+export * from "./repositories/dataset-items";
 export * from "./utils/rendering";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
@@ -97,6 +98,7 @@ export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
 export * from "./otel";
+export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";

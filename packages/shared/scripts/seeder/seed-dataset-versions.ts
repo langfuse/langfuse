@@ -3,11 +3,11 @@ import { PrismaClient } from "../../src/index";
 import { logger } from "../../src/server";
 
 // Config
-const ITEM_COUNT = 50_000;
+const ITEM_COUNT = 500;
 const BULK_VERSIONS = 5;
-const ITEMS_PER_BULK_VERSION = 10_000;
-const ADDITIONAL_VERSIONS = 95;
-const TOTAL_VERSIONS = 100;
+const ITEMS_PER_BULK_VERSION = 100;
+const ADDITIONAL_VERSIONS = 25;
+const TOTAL_VERSIONS = 50;
 
 const TEST_DATASET_NAME = "version-perf-test";
 
