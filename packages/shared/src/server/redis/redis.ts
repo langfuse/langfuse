@@ -6,6 +6,7 @@ import { logger } from "../logger";
 const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
   maxRetriesPerRequest: null,
+  // enable dual stack DNS resolution
   family: 0,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
   keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
