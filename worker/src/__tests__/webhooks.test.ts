@@ -82,6 +82,20 @@ class WebhookTestServer {
       http.post("https://webhook-timeout.example.com/*", () => {
         return HttpResponse.error();
       }),
+
+      // GitHub Actions dispatch endpoint
+      http.post(
+        "https://api.github.com/repos/:owner/:repo/dispatches",
+        async ({ request }) => {
+          this.receivedRequests.push({
+            url: request.url,
+            method: request.method,
+            headers: Object.fromEntries(request.headers.entries()),
+            body: JSON.stringify(await request.json()),
+          });
+          return HttpResponse.json({ success: true }, { status: 204 });
+        },
+      ),
     );
   }
 
@@ -1242,5 +1256,109 @@ describe("Webhook Integration Tests", () => {
         );
       },
     );
+
+    it("should transform payload for GitHub Actions dispatch API", async () => {
+      // Get the full prompt for the payload
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      // Update action to use GitHub Actions dispatch URL
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            type: "WEBHOOK",
+            url: "https://api.github.com/repos/test-owner/test-repo/dispatches",
+            requestHeaders: {
+              Authorization: {
+                secret: true,
+                value: encrypt("Bearer ghp_test_token"),
+              },
+              Accept: {
+                secret: false,
+                value: "application/vnd.github+json",
+              },
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      const newExecutionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId: newExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+
+      await prisma.automationExecution.create({
+        data: {
+          id: newExecutionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: webhookInput.executionId,
+          input: webhookInput,
+        },
+      });
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      // Verify webhook request was made with GitHub Actions format
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests.length).toBeGreaterThan(0);
+
+      const request = requests[requests.length - 1];
+      expect(request.url).toBe(
+        "https://api.github.com/repos/test-owner/test-repo/dispatches",
+      );
+      expect(request.method).toBe("POST");
+
+      // Verify GitHub Actions specific headers
+      expect(request.headers["authorization"]).toBe("Bearer ghp_test_token");
+      expect(request.headers["accept"]).toBe("application/vnd.github+json");
+
+      // Verify payload has GitHub Actions format
+      const payload = JSON.parse(request.body);
+      expect(payload).toHaveProperty("event_type");
+      expect(payload.event_type).toBe("langfuse-prompt-update");
+      expect(payload).toHaveProperty("client_payload");
+
+      // Verify Langfuse data is wrapped in client_payload
+      const clientPayload = payload.client_payload;
+      expect(clientPayload.id).toBe(webhookInput.executionId);
+      expect(clientPayload.type).toBe("prompt-version");
+      expect(clientPayload.action).toBe("created");
+      expect(clientPayload.prompt.name).toBe("test-prompt");
+      expect(clientPayload.prompt.version).toBe(1);
+
+      // Verify no Langfuse signature header for GitHub Actions
+      expect(request.headers["x-langfuse-signature"]).toBeUndefined();
+
+      // Verify database execution record was updated
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: newExecutionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
   });
 });
