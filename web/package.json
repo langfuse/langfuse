@@ -86,7 +86,7 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@remixicon/react": "^4.2.0",
-    "@sentry/nextjs": "^10.18.0",
+    "@sentry/nextjs": "^10.27.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^5.85.1",

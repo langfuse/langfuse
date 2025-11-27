@@ -52,6 +52,9 @@ export * from "./features/experiments/utils";
 // datasets
 export * from "./features/datasets/validation";
 
+// model pricing
+export * from "./features/model-pricing/";
+
 // prompts
 export * from "./features/prompts/parsePromptDependencyTags";
 export * from "./features/prompts/validation";

@@ -1,4 +1,4 @@
-import { Model, Price, Prisma } from "../../";
+import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
   logger,
@@ -10,6 +10,7 @@ import {
 import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
+import type { PricingTierWithPrices } from "../pricing-tiers";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -18,7 +19,7 @@ export type ModelMatchProps = {
 
 export type ModelWithPrices = {
   model: Model | null;
-  prices: Price[];
+  pricingTiers: PricingTierWithPrices[];
 };
 
 const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
@@ -36,7 +37,7 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         span.setAttribute("model_match_source", "redis");
 
         if (cachedResult.model === null) {
-          return { model: null, prices: [] };
+          return { model: null, pricingTiers: [] };
         } else {
           logger.debug(
             `Found model name ${cachedResult.model?.modelName} (id: ${cachedResult.model?.id}) for project ${p.projectId} and model ${p.model}`,
@@ -51,8 +52,8 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
       const postgresModel = await findModelInPostgres(p);
 
       if (postgresModel && env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
-        const prices = await findPricesForModel(postgresModel.id);
-        await addModelWithPricesToRedis(p, postgresModel, prices);
+        const pricingTiers = await findPricingTiersForModel(postgresModel.id);
+        await addModelWithPricingTiersToRedis(p, postgresModel, pricingTiers);
 
         span.setAttribute("matched_model_id", postgresModel.id);
         span.setAttribute("model_match_source", "postgres");
@@ -61,9 +62,9 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         logger.debug(
           `Found model name ${postgresModel?.modelName} (id: ${postgresModel?.id}) for project ${p.projectId} and model ${p.model}`,
         );
-        return { model: postgresModel, prices };
+        return { model: postgresModel, pricingTiers };
       } else if (postgresModel) {
-        const prices = await findPricesForModel(postgresModel.id);
+        const pricingTiers = await findPricingTiersForModel(postgresModel.id);
         span.setAttribute("matched_model_id", postgresModel.id);
         span.setAttribute("model_match_source", "postgres");
         span.setAttribute("model_cache_set", "false");
@@ -71,7 +72,7 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         logger.debug(
           `Found model name ${postgresModel?.modelName} (id: ${postgresModel?.id}) for project ${p.projectId} and model ${p.model}`,
         );
-        return { model: postgresModel, prices };
+        return { model: postgresModel, pricingTiers };
       } else {
         span.setAttribute("model_match_source", "none");
 
@@ -83,7 +84,7 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         logger.debug(
           `Model not found for project ${p.projectId} and model ${p.model}`,
         );
-        return { model: null, prices: [] };
+        return { model: null, pricingTiers: [] };
       }
     },
   );
@@ -115,41 +116,53 @@ const getModelWithPricesFromRedis = async (
     recordIncrement("langfuse.model_match.cache_hit", 1);
 
     if (redisValue === NOT_FOUND_TOKEN) {
-      return { model: null, prices: [] };
+      return { model: null, pricingTiers: [] };
     }
 
     const parsed = JSON.parse(redisValue);
 
-    // NEW FORMAT: { model: {...}, prices: [...] }
-    if (parsed.model !== undefined && parsed.prices !== undefined) {
-      const model = redisModelToPrismaModel(JSON.stringify(parsed.model));
-      const prices = parsed.prices.map(
-        (p: any): Price => ({
-          ...p,
-          price: new Decimal(p.price),
-          createdAt: new Date(p.createdAt),
-          updatedAt: new Date(p.updatedAt),
+    // NEW FORMAT: { model: {...}, pricingTiers: [...] }
+    if (parsed.model !== undefined && parsed.pricingTiers !== undefined) {
+      const model = redisModelToPrismaModel(parsed.model);
+      const pricingTiers: PricingTierWithPrices[] = parsed.pricingTiers.map(
+        (tier: any) => ({
+          ...tier,
+          prices: tier.prices.map((p: any) => ({
+            ...p,
+            price: new Decimal(p.price),
+          })),
         }),
       );
-      return { model, prices };
+
+      return { model, pricingTiers };
     }
 
-    // OLD FORMAT: just the model (backwards compatible)
-    // Fetch prices and update cache
-    const model = redisModelToPrismaModel(redisValue);
-    const prices = await findPricesForModel(model.id);
+    // OLD FORMAT: { model: {...}, prices: [...] } (backwards compatible)
+    // Convert old format to new format with pricing tiers
+    if (parsed.model !== undefined && parsed.prices !== undefined) {
+      const model = redisModelToPrismaModel(parsed.model);
+      const pricingTiers = await findPricingTiersForModel(model.id);
 
-    // Update cache with new format asynchronously (don't await)
-    if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
-      addModelWithPricesToRedis(p, model, prices).catch((error) => {
-        logger.error(
-          `Error updating cache with prices for ${JSON.stringify(p)}`,
-          error,
+      // Update cache with new format asynchronously (don't await)
+      if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+        addModelWithPricingTiersToRedis(p, model, pricingTiers).catch(
+          (error) => {
+            logger.error(
+              `Error updating cache with pricing tiers for ${JSON.stringify(p)}`,
+              error,
+            );
+          },
         );
-      });
+      }
+
+      return { model, pricingTiers };
     }
 
-    return { model, prices };
+    // Unknown format
+    logger.warn(
+      `Unknown cache format for model match: ${JSON.stringify(parsed)}`,
+    );
+    return null;
   } catch (error) {
     logger.error(
       `Error getting model for ${JSON.stringify(p)} from Redis`,
@@ -159,8 +172,30 @@ const getModelWithPricesFromRedis = async (
   }
 };
 
-export async function findPricesForModel(modelId: string): Promise<Price[]> {
-  return (await prisma.price.findMany({ where: { modelId } })) ?? [];
+export async function findPricingTiersForModel(
+  modelId: string,
+): Promise<PricingTierWithPrices[]> {
+  const tiers = await prisma.pricingTier.findMany({
+    where: { modelId },
+    include: {
+      prices: {
+        select: {
+          usageType: true,
+          price: true,
+        },
+      },
+    },
+    orderBy: { priority: "asc" },
+  });
+
+  return tiers.map((tier) => ({
+    id: tier.id,
+    name: tier.name,
+    isDefault: tier.isDefault,
+    priority: tier.priority,
+    conditions: tier.conditions as any, // Cast from JsonValue to PricingTierCondition[]
+    prices: tier.prices,
+  }));
 }
 
 export async function findModelInPostgres(
@@ -224,22 +259,22 @@ const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
   }
 };
 
-const addModelWithPricesToRedis = async (
+const addModelWithPricingTiersToRedis = async (
   p: ModelMatchProps,
   model: Model,
-  prices: Price[],
+  pricingTiers: PricingTierWithPrices[],
 ) => {
   try {
     const key = getRedisModelKey(p);
     await redis?.set(
       key,
-      JSON.stringify({ model, prices }),
+      JSON.stringify({ model, pricingTiers }),
       "EX",
       env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
     );
   } catch (error) {
     logger.error(
-      `Error adding model with prices for ${JSON.stringify(p)} to Redis`,
+      `Error adding model with pricing tiers for ${JSON.stringify(p)} to Redis`,
       error,
     );
   }
@@ -259,27 +294,26 @@ const getModelMatchKeyPrefix = () => {
   return "model-match";
 };
 
-export const redisModelToPrismaModel = (redisModel: string): Model => {
-  const parsed: Model = JSON.parse(redisModel);
+export const redisModelToPrismaModel = (redisModel: Model): Model => {
   return {
-    ...parsed,
-    createdAt: new Date(parsed.createdAt),
-    updatedAt: new Date(parsed.updatedAt),
+    ...redisModel,
+    createdAt: new Date(redisModel.createdAt),
+    updatedAt: new Date(redisModel.updatedAt),
     inputPrice:
-      parsed.inputPrice !== null && parsed.inputPrice !== undefined
-        ? new Decimal(parsed.inputPrice)
+      redisModel.inputPrice !== null && redisModel.inputPrice !== undefined
+        ? new Decimal(redisModel.inputPrice)
         : null,
     outputPrice:
-      parsed.outputPrice !== null && parsed.outputPrice !== undefined
-        ? new Decimal(parsed.outputPrice)
+      redisModel.outputPrice !== null && redisModel.outputPrice !== undefined
+        ? new Decimal(redisModel.outputPrice)
         : null,
     totalPrice:
-      parsed.totalPrice !== null && parsed.totalPrice !== undefined
-        ? new Decimal(parsed.totalPrice)
+      redisModel.totalPrice !== null && redisModel.totalPrice !== undefined
+        ? new Decimal(redisModel.totalPrice)
         : null,
     startDate:
-      parsed.startDate !== null && parsed.startDate !== undefined
-        ? new Date(parsed.startDate)
+      redisModel.startDate !== null && redisModel.startDate !== undefined
+        ? new Date(redisModel.startDate)
         : null,
   };
 };

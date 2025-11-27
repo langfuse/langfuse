@@ -447,7 +447,16 @@ types:
     properties:
       datasetRunItems: list<DatasetRunItem>
   Model:
-    docs: Model definition used for transforming usage into USD cost and/or tokenization.
+    docs: |
+      Model definition used for transforming usage into USD cost and/or tokenization.
+
+      Models can have either simple flat pricing or tiered pricing:
+      - Flat pricing: Single price per usage type (legacy, but still supported)
+      - Tiered pricing: Multiple pricing tiers with conditional matching based on usage patterns
+
+      The pricing tiers approach is recommended for models with usage-based pricing variations.
+      When using tiered pricing, the flat price fields (inputPrice, outputPrice, prices) are populated
+      from the default tier for backward compatibility.
     properties:
       id: string
       modelName:
@@ -479,13 +488,209 @@ types:
         type: optional<unknown>
       isLangfuseManaged:
         type: boolean
+      createdAt:
+        docs: Timestamp when the model was created
+        type: datetime
       prices:
-        docs: Price (USD) by usage type
+        docs: |
+          Deprecated. Use 'pricingTiers' instead for models with usage-based pricing variations.
+
+          This field shows prices by usage type from the default pricing tier. Maintained for backward compatibility.
+          If the model uses tiered pricing, this field will be populated from the default tier's prices.
         type: map<string, ModelPrice>
+      pricingTiers:
+        docs: |
+          Array of pricing tiers with conditional pricing based on usage thresholds.
+
+          Pricing tiers enable accurate cost tracking for models that charge different rates based on usage patterns
+          (e.g., different rates for high-volume usage, large context windows, or cached tokens).
+
+          Each model must have exactly one default tier (isDefault=true, priority=0) that serves as a fallback.
+          Additional conditional tiers can be defined with specific matching criteria.
+
+          If this array is empty, the model uses legacy flat pricing from the inputPrice/outputPrice/totalPrice fields.
+        type: list<PricingTier>
 
   ModelPrice:
     properties:
       price: double
+
+  PricingTierCondition:
+    docs: |
+      Condition for matching a pricing tier based on usage details. Used to implement tiered pricing models where costs vary based on usage thresholds.
+
+      How it works:
+      1. The regex pattern matches against usage detail keys (e.g., "input_tokens", "input_cached")
+      2. Values of all matching keys are summed together
+      3. The sum is compared against the threshold value using the specified operator
+      4. All conditions in a tier must be met (AND logic) for the tier to match
+
+      Common use cases:
+      - Threshold-based pricing: Match when accumulated usage exceeds a certain amount
+      - Usage-type-specific pricing: Different rates for cached vs non-cached tokens, or input vs output
+      - Volume-based pricing: Different rates based on total request or token count
+    properties:
+      usageDetailPattern:
+        docs: |
+          Regex pattern to match against usage detail keys. All matching keys' values are summed for threshold comparison.
+
+          Examples:
+          - "^input" matches "input", "input_tokens", "input_cached", etc.
+          - "^(input|prompt)" matches both "input_tokens" and "prompt_tokens"
+          - "_cache$" matches "input_cache", "output_cache", etc.
+
+          The pattern is case-insensitive by default. If no keys match, the sum is treated as zero.
+        type: string
+      operator:
+        docs: |
+          Comparison operator to apply between the summed value and the threshold.
+
+          - gt: greater than (sum > threshold)
+          - gte: greater than or equal (sum >= threshold)
+          - lt: less than (sum < threshold)
+          - lte: less than or equal (sum <= threshold)
+          - eq: equal (sum == threshold)
+          - neq: not equal (sum != threshold)
+        type: PricingTierOperator
+      value:
+        docs: Threshold value for comparison. For token-based pricing, this is typically the token count threshold (e.g., 200000 for a 200K token threshold).
+        type: double
+      caseSensitive:
+        docs: Whether the regex pattern matching is case-sensitive. Default is false (case-insensitive matching).
+        type: boolean
+
+  PricingTier:
+    docs: |
+      Pricing tier definition with conditional pricing based on usage thresholds.
+
+      Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns.
+      For example, some providers charge higher rates when context size exceeds certain thresholds.
+
+      How tier matching works:
+      1. Tiers are evaluated in ascending priority order (priority 1 before priority 2, etc.)
+      2. The first tier where ALL conditions match is selected
+      3. If no conditional tiers match, the default tier is used as a fallback
+      4. The default tier has priority 0 and no conditions
+
+      Why priorities matter:
+      - Lower priority numbers are evaluated first, allowing you to define specific cases before general ones
+      - Example: Priority 1 for "high usage" (>200K tokens), Priority 2 for "medium usage" (>100K tokens), Priority 0 for default
+      - Without proper ordering, a less specific condition might match before a more specific one
+
+      Every model must have exactly one default tier to ensure cost calculation always succeeds.
+    properties:
+      id:
+        docs: Unique identifier for the pricing tier
+        type: string
+      name:
+        docs: |
+          Name of the pricing tier for display and identification purposes.
+
+          Examples: "Standard", "High Volume Tier", "Large Context", "Extended Context Tier"
+        type: string
+      isDefault:
+        docs: |
+          Whether this is the default tier. Every model must have exactly one default tier with priority 0 and no conditions.
+
+          The default tier serves as a fallback when no conditional tiers match, ensuring cost calculation always succeeds.
+          It typically represents the base pricing for standard usage patterns.
+        type: boolean
+      priority:
+        docs: |
+          Priority for tier matching evaluation. Lower numbers = higher priority (evaluated first).
+
+          The default tier must always have priority 0. Conditional tiers should have priority 1, 2, 3, etc.
+
+          Example ordering:
+          - Priority 0: Default tier (no conditions, always matches as fallback)
+          - Priority 1: High usage tier (e.g., >200K tokens)
+          - Priority 2: Medium usage tier (e.g., >100K tokens)
+
+          This ensures more specific conditions are checked before general ones.
+        type: integer
+      conditions:
+        docs: |
+          Array of conditions that must ALL be met for this tier to match (AND logic).
+
+          The default tier must have an empty conditions array. Conditional tiers should have one or more conditions
+          that define when this tier's pricing applies.
+
+          Multiple conditions enable complex matching scenarios (e.g., "high input tokens AND low output tokens").
+        type: list<PricingTierCondition>
+      prices:
+        docs: |
+          Prices (USD) by usage type for this tier.
+
+          Common usage types: "input", "output", "total", "request", "image"
+          Prices are specified in USD per unit (e.g., per token, per request, per second).
+
+          Example: {"input": 0.000003, "output": 0.000015} means $3 per million input tokens and $15 per million output tokens.
+        type: map<string, double>
+
+  PricingTierInput:
+    docs: |
+      Input schema for creating a pricing tier. The tier ID will be automatically generated server-side.
+
+      When creating a model with pricing tiers:
+      - Exactly one tier must have isDefault=true (the fallback tier)
+      - The default tier must have priority=0 and conditions=[]
+      - All tier names and priorities must be unique within the model
+      - Each tier must define at least one price
+
+      See PricingTier for detailed information about how tiers work and why they're useful.
+    properties:
+      name:
+        docs: |
+          Name of the pricing tier for display and identification purposes.
+
+          Must be unique within the model. Common patterns: "Standard", "High Volume Tier", "Extended Context"
+        type: string
+      isDefault:
+        docs: |
+          Whether this is the default tier. Exactly one tier per model must be marked as default.
+
+          Requirements for default tier:
+          - Must have isDefault=true
+          - Must have priority=0
+          - Must have empty conditions array (conditions=[])
+
+          The default tier acts as a fallback when no conditional tiers match.
+        type: boolean
+      priority:
+        docs: |
+          Priority for tier matching evaluation. Lower numbers = higher priority (evaluated first).
+
+          Must be unique within the model. The default tier must have priority=0.
+          Conditional tiers should use priority 1, 2, 3, etc. based on their specificity.
+        type: integer
+      conditions:
+        docs: |
+          Array of conditions that must ALL be met for this tier to match (AND logic).
+
+          The default tier must have an empty array (conditions=[]).
+          Conditional tiers should define one or more conditions that specify when this tier's pricing applies.
+
+          Each condition specifies a regex pattern, operator, and threshold value for matching against usage details.
+        type: list<PricingTierCondition>
+      prices:
+        docs: |
+          Prices (USD) by usage type for this tier. At least one price must be defined.
+
+          Common usage types: "input", "output", "total", "request", "image"
+          Prices are in USD per unit (e.g., per token).
+
+          Example: {"input": 0.000003, "output": 0.000015} represents $3 per million input tokens and $15 per million output tokens.
+        type: map<string, double>
+
+  PricingTierOperator:
+    docs: Comparison operators for pricing tier conditions
+    enum:
+      - gt
+      - gte
+      - lt
+      - lte
+      - eq
+      - neq
 
   # Utilities
   ModelUsageUnit:

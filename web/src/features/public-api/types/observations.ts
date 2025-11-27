@@ -80,6 +80,8 @@ export const APIObservation = z
     promptTokens: z.number(), // backwards compatibility
     completionTokens: z.number(), // backwards compatibility
     totalTokens: z.number(), // backwards compatibility
+    usagePricingTierName: z.string().nullable(),
+    usagePricingTierId: z.string().nullable(),
 
     // matched model
     modelId: z.string().nullable(),

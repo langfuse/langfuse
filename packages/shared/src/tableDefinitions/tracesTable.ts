@@ -184,6 +184,18 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: '"calculatedTotalCost"',
     nullable: true,
   },
+  {
+    name: "Comment Count",
+    id: "commentCount",
+    type: "number",
+    internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Comment Content",
+    id: "commentContent",
+    type: "string",
+    internal: "", // handled by comment filter helpers
+  },
 ];
 
 export const datasetCol: ColumnDefinition = {

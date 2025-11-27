@@ -14,6 +14,7 @@ export type TreeNode = {
   inputUsage?: number | null;
   outputUsage?: number | null;
   totalUsage?: number | null;
+  usageDetails?: Record<string, number>;
   calculatedInputCost?: any;
   calculatedOutputCost?: any;
   calculatedTotalCost?: any;

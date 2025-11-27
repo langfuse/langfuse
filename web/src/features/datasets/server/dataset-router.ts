@@ -46,7 +46,10 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
-  DatasetItemManager,
+  createDatasetItem,
+  upsertDatasetItem,
+  deleteDatasetItem,
+  createManyDatasetItems,
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
@@ -703,7 +706,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await DatasetItemManager.upsertItem({
+      const datasetItem = await upsertDatasetItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         datasetItemId: input.datasetItemId,
@@ -715,23 +718,16 @@ export const datasetRouter = createTRPCRouter({
         status: input.status,
         validateOpts: { normalizeUndefinedToNull: false }, // For UPDATE, undefined means "don't update"
       });
-      if (!result.success) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: result.message,
-          cause: result.cause,
-        });
-      }
 
       await auditLog({
         session: ctx.session,
         resourceType: "datasetItem",
         resourceId: input.datasetItemId,
         action: "update",
-        after: result.datasetItem,
+        after: datasetItem,
       });
 
-      return result.datasetItem;
+      return datasetItem;
     }),
   createDataset: protectedProjectProcedure
     .input(
@@ -948,7 +944,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await DatasetItemManager.deleteItem({
+      const result = await deleteDatasetItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         datasetItemId: input.datasetItemId,
@@ -1058,7 +1054,7 @@ export const datasetRouter = createTRPCRouter({
           status: item.status,
           projectId: input.projectId,
           datasetId: newDataset.id,
-          createdAt: new Date(),
+          createdAt: version,
         }));
 
         await executeWithDatasetServiceStrategy(OperationType.WRITE, {
@@ -1108,7 +1104,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await DatasetItemManager.createItem({
+      const result = await createDatasetItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         input: input.input,
@@ -1174,7 +1170,7 @@ export const datasetRouter = createTRPCRouter({
           scope: "datasets:CUD",
         });
 
-        const result = await DatasetItemManager.createManyItems({
+        const result = await createManyDatasetItems({
           projectId: input.projectId,
           items: input.items,
           normalizeOpts: { sanitizeControlChars: true },

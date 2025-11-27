@@ -18,3 +18,4 @@ export * from "./dataset-run-items-converters";
 export * from "./dataset-run-items";
 export * from "./dataset-items";
 export * from "./dataset-items-columns";
+export * from "./comments";
