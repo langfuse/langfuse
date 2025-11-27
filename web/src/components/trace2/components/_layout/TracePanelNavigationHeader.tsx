@@ -12,6 +12,7 @@
 import { useSearch } from "../../contexts/SearchContext";
 import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
+import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { FoldVertical, UnfoldVertical, Download } from "lucide-react";
@@ -62,6 +63,7 @@ function TracePanelNavigationHeaderExpanded({
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { tree, trace, observations } = useTraceData();
+  const { isGraphViewAvailable } = useTraceGraphData();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -140,7 +142,7 @@ function TracePanelNavigationHeaderExpanded({
           </Button>
 
           {/* Settings Dropdown */}
-          <TraceSettingsDropdown isGraphViewAvailable={false} />
+          <TraceSettingsDropdown isGraphViewAvailable={isGraphViewAvailable} />
 
           {/* Download Button */}
           <Button

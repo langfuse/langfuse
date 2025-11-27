@@ -8,6 +8,7 @@ import { ViewPreferencesProvider } from "./contexts/ViewPreferencesContext";
 import { SelectionProvider } from "./contexts/SelectionContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import { JsonExpansionProvider } from "./contexts/JsonExpansionContext";
+import { TraceGraphDataProvider } from "./contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "./components/_layout/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "./components/_layout/TraceLayoutDesktop";
 import { TracePanelNavigation } from "./components/_layout/TracePanelNavigation";
@@ -67,13 +68,19 @@ export function Trace({
         scores={scores}
         comments={commentsMap}
       >
-        <SelectionProvider>
-          <SearchProvider>
-            <JsonExpansionProvider>
-              <TraceContent />
-            </JsonExpansionProvider>
-          </SearchProvider>
-        </SelectionProvider>
+        <TraceGraphDataProvider
+          projectId={trace.projectId}
+          traceId={trace.id}
+          observations={observations}
+        >
+          <SelectionProvider>
+            <SearchProvider>
+              <JsonExpansionProvider>
+                <TraceContent />
+              </JsonExpansionProvider>
+            </SearchProvider>
+          </SelectionProvider>
+        </TraceGraphDataProvider>
       </TraceDataProvider>
     </ViewPreferencesProvider>
   );
