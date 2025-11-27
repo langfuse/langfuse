@@ -7,7 +7,6 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
   protectedProjectProcedure,
-  protectedGetAgentGraphProcedure,
 } from "@/src/server/api/trpc";
 import {
   BatchActionQuerySchema,
@@ -603,7 +602,7 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 
-  getAgentGraphData: protectedGetAgentGraphProcedure
+  getAgentGraphData: protectedGetTraceProcedure
     .input(
       z.object({
         projectId: z.string(),

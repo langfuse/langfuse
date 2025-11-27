@@ -402,6 +402,9 @@ const inputTraceSchema = z.object({
   fromTimestamp: z.date().nullish(),
   truncated: z.boolean().default(false),
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
+  // Optional fields for agent graph data endpoint
+  minStartTime: z.string().optional(),
+  maxStartTime: z.string().optional(),
 });
 
 const enforceTraceAccess = t.middleware(async (opts) => {
@@ -577,98 +580,6 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceSessionAccess);
-
-/*
- * Protect agent graph data routes.
- * - Users need to be member of the project to access the agent graph data.
- * - Alternatively, the trace needs to be public.
- */
-
-const inputAgentGraphSchema = z.object({
-  traceId: z.string(),
-  projectId: z.string(),
-  minStartTime: z.string(),
-  maxStartTime: z.string(),
-});
-
-const enforceAgentGraphAccess = t.middleware(async (opts) => {
-  const { ctx, next } = opts;
-  const actualInput = await opts.getRawInput();
-  const result = inputAgentGraphSchema.safeParse(actualInput);
-
-  if (!result.success) {
-    logger.error("Invalid input when parsing request body", result.error);
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid input, ${result.error.message}`,
-    });
-  }
-
-  const { traceId, projectId } = result.data;
-
-  // Check if the trace exists and get its public status
-  const clickhouseTrace = await getTraceById({
-    traceId,
-    projectId,
-    clickhouseFeatureTag: "tracing-trpc",
-  });
-
-  if (!clickhouseTrace) {
-    logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Trace not found",
-    });
-  }
-
-  const sessionProject = ctx.session?.user?.organizations
-    .flatMap((org) => org.projects)
-    .find(({ id }) => id === projectId);
-
-  const traceSession = !!clickhouseTrace.sessionId
-    ? await ctx.prisma.traceSession.findFirst({
-        where: {
-          id: clickhouseTrace.sessionId,
-          projectId,
-        },
-        select: {
-          public: true,
-        },
-      })
-    : null;
-
-  const isSessionPublic = traceSession?.public === true;
-
-  if (
-    !clickhouseTrace.public &&
-    !sessionProject &&
-    !isSessionPublic &&
-    ctx.session?.user?.admin !== true
-  ) {
-    logger.error(
-      `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
-    );
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message:
-        "User is not a member of this project and this trace is not public",
-    });
-  }
-
-  return next({
-    ctx: {
-      session: {
-        ...ctx.session,
-        projectRole:
-          ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
-      },
-    },
-  });
-});
-
-export const protectedGetAgentGraphProcedure = withOtelTracingProcedure
-  .use(withErrorHandling)
-  .use(enforceAgentGraphAccess);
 
 const inputAdminSchema = z.object({
   adminApiKey: z.string(),
