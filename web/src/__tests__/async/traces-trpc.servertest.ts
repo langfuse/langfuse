@@ -464,7 +464,9 @@ describe("traces trpc", () => {
           minStartTime,
           maxStartTime,
         }),
-      ).rejects.toThrow("UNAUTHORIZED");
+      ).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+      });
     });
   });
 
