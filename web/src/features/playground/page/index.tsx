@@ -155,9 +155,13 @@ export default function PlaygroundPage() {
               onClick={handleExecuteAll}
               disabled={isRunAllDisabled}
               className="hidden flex-shrink-0 gap-1 md:flex"
-              title="Execute all playground windows simultaneously"
+              title={
+                !hasAnyModelConfigured
+                  ? "Please configure a model in Project Settings first"
+                  : "Execute all playground windows simultaneously"
+              }
             >
-              {isRunAllDisabled ? (
+              {globalIsExecutingAll ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
                 <Play className="h-3 w-3" />
@@ -173,25 +177,28 @@ export default function PlaygroundPage() {
     >
       <div className="flex h-full flex-col">
         {!hasAnyModelConfigured && (
-          <Alert
-            variant="default"
-            className="m-4 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
-          >
-            <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-            <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-              No Model Configured
-            </AlertTitle>
-            <AlertDescription className="text-yellow-700 dark:text-yellow-500">
-              To use the playground, you need to configure a model first. Go to{" "}
-              <Link
-                href={`/project/${projectId}/settings`}
-                className="font-medium underline underline-offset-4 hover:text-yellow-900 dark:hover:text-yellow-300"
-              >
-                <Settings className="inline h-3 w-3" /> Project Settings
-              </Link>{" "}
-              to add an LLM API key and configure your models.
-            </AlertDescription>
-          </Alert>
+          <div className="p-4">
+            <Alert
+              variant="default"
+              className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
+            >
+              <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+              <AlertTitle className="text-yellow-800 dark:text-yellow-400">
+                No Model Configured
+              </AlertTitle>
+              <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+                To use the playground, you need to configure a model first. Go
+                to{" "}
+                <Link
+                  href={`/project/${projectId}/settings`}
+                  className="font-medium underline underline-offset-4 hover:text-yellow-900 dark:hover:text-yellow-300"
+                >
+                  <Settings className="inline h-3 w-3" /> Project Settings
+                </Link>{" "}
+                to add an LLM API key and configure your models.
+              </AlertDescription>
+            </Alert>
+          </div>
         )}
         <div className="flex-1 overflow-hidden">
           <MultiWindowPlayground
