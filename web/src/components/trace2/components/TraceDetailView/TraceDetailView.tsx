@@ -35,12 +35,12 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   useLogViewConfirmation,
   LOG_VIEW_DISABLED_THRESHOLD,
-} from "@/src/components/trace2/hooks/useLogViewConfirmation";
+} from "@/src/components/trace2/components/TraceLogView/useLogViewConfirmation";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
-import { TraceLogViewConfirmationDialog } from "./TraceLogViewConfirmationDialog";
-import { TraceLogView } from "./TraceLogView";
+import { TraceLogViewConfirmationDialog } from "../TraceLogView/TraceLogViewConfirmationDialog";
+import { TraceLogView } from "../TraceLogView/TraceLogView";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export interface TraceDetailViewProps {
