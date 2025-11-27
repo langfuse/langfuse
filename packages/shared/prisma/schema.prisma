@@ -650,10 +650,10 @@ model DatasetItemEvent {
   metadata            Json?
   sourceTraceId       String?        @map("source_trace_id")
   sourceObservationId String?        @map("source_observation_id")
-  createdAt           DateTime?      @map("created_at")
-  deletedAt           DateTime?      @map("deleted_at")
+  validFrom           DateTime?      @map("valid_from")
+  validTo             DateTime?      @map("valid_to")
 
-  @@index([projectId, datasetId, itemId, createdAt])
+  @@index([projectId, datasetId, itemId, validTo])
   @@map("dataset_item_events")
 }
 

@@ -441,8 +441,8 @@ export type DatasetItemEvent = {
   metadata: unknown | null;
   source_trace_id: string | null;
   source_observation_id: string | null;
-  created_at: Timestamp | null;
-  deleted_at: Timestamp | null;
+  valid_from: Timestamp | null;
+  valid_to: Timestamp | null;
 };
 export type DatasetRunItems = {
   id: string;
