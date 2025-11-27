@@ -8,12 +8,8 @@ import {
   PostDatasetItemsV1Response,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import {
-  LangfuseNotFoundError,
-  InvalidRequestError,
-  Prisma,
-} from "@langfuse/shared";
-import { logger, DatasetItemManager } from "@langfuse/shared/src/server";
+import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
+import { logger, upsertDatasetItem } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -43,7 +39,7 @@ export default withMiddlewares({
       } = body;
 
       try {
-        const datasetItem = await DatasetItemManager.upsertItem({
+        const datasetItem = await upsertDatasetItem({
           projectId: auth.scope.projectId,
           datasetName: datasetName,
           datasetItemId: id ?? undefined,

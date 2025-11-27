@@ -45,7 +45,10 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
-  DatasetItemManager,
+  createDatasetItem,
+  upsertDatasetItem,
+  deleteDatasetItem,
+  createManyDatasetItems,
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
@@ -698,7 +701,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const datasetItem = await DatasetItemManager.upsertItem({
+      const datasetItem = await upsertDatasetItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         datasetItemId: input.datasetItemId,
@@ -936,7 +939,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await DatasetItemManager.deleteItem({
+      const result = await deleteDatasetItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         datasetItemId: input.datasetItemId,
@@ -1021,6 +1024,7 @@ export const datasetRouter = createTRPCRouter({
 
       // Copy items in batches to avoid 256MB JSONB limit
       let offset = 0;
+      const createdAt = new Date();
 
       while (true) {
         const itemsBatch = await ctx.prisma.datasetItem.findMany({
@@ -1049,7 +1053,7 @@ export const datasetRouter = createTRPCRouter({
           status: item.status,
           projectId: input.projectId,
           datasetId: newDataset.id,
-          createdAt: new Date(),
+          createdAt: createdAt,
         }));
 
         await executeWithDatasetServiceStrategy(OperationType.WRITE, {
@@ -1099,7 +1103,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await DatasetItemManager.createItem({
+      const result = await createDatasetItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         input: input.input,
@@ -1165,7 +1169,7 @@ export const datasetRouter = createTRPCRouter({
           scope: "datasets:CUD",
         });
 
-        const result = await DatasetItemManager.createManyItems({
+        const result = await createManyDatasetItems({
           projectId: input.projectId,
           items: input.items,
           normalizeOpts: { sanitizeControlChars: true },

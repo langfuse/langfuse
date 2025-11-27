@@ -86,6 +86,7 @@ export * from "./queries";
 export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
 export * from "./repositories/traces";
+export * from "./repositories/dataset-items";
 export * from "./utils/rendering";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
