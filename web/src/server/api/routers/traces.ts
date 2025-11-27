@@ -602,7 +602,7 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 
-  getAgentGraphData: protectedProjectProcedure
+  getAgentGraphData: protectedGetTraceProcedure
     .input(
       z.object({
         projectId: z.string(),
