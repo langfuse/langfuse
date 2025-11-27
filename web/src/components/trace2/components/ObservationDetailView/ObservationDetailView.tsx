@@ -49,6 +49,8 @@ import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { api } from "@/src/utils/api";
+import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { useMedia } from "@/src/components/trace2/api/useMedia";
 
 // Header action components
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -79,8 +81,9 @@ export function ObservationDetailView({
   );
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
-  // Get comments and scores from context
+  // Get comments, scores, and expansion state from contexts
   const { comments, scores } = useTraceData();
+  const { expansionState, setFieldExpansion } = useJsonExpansion();
   const observationScores = useMemo(
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
@@ -100,19 +103,11 @@ export function ObservationDetailView({
   );
 
   // Fetch media for this observation
-  const observationMedia = api.media.getByTraceOrObservationId.useQuery(
-    {
-      traceId: traceId,
-      observationId: observation.id,
-      projectId: projectId,
-    },
-    {
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 50 * 60 * 1000, // 50 minutes
-    },
-  );
+  const observationMedia = useMedia({
+    projectId,
+    traceId,
+    observationId: observation.id,
+  });
 
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
@@ -300,6 +295,12 @@ export function ObservationDetailView({
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+              inputExpansionState={expansionState.input}
+              outputExpansionState={expansionState.output}
+              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              onOutputExpansionChange={(exp) =>
+                setFieldExpansion("output", exp)
+              }
             />
             {observationWithIO.data?.metadata && (
               <div className="px-2">
@@ -311,6 +312,10 @@ export function ObservationDetailView({
                     (m) => m.field === "metadata",
                   )}
                   currentView={currentView}
+                  externalExpansionState={expansionState.metadata}
+                  onExternalExpansionChange={(exp) =>
+                    setFieldExpansion("metadata", exp)
+                  }
                 />
               </div>
             )}

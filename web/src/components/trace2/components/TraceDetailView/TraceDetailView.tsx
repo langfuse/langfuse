@@ -23,6 +23,12 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useMemo, useState } from "react";
+// Preview tab components
+import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import TagList from "@/src/features/tag/components/TagList";
+import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { useMedia } from "@/src/components/trace2/api/useMedia";
 
 // Header action components
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -56,9 +62,14 @@ export function TraceDetailView({
     "jsonViewPreference",
     "pretty",
   );
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
-  // Get comments from context
+  // Get comments and expansion state from contexts
   const { comments } = useTraceData();
+  const { expansionState, setFieldExpansion } = useJsonExpansion();
+
+  // Fetch media for trace-level I/O
+  const traceMedia = useMedia({ projectId, traceId: trace.id });
 
   // Filter scores for trace-level only (no observationId)
   const traceScores = useMemo(
@@ -189,8 +200,9 @@ export function TraceDetailView({
           )}
           <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-          {/* View toggle (Formatted/JSON) - show for preview and log tabs */}
-          {(selectedTab === "log" || selectedTab === "preview") && (
+          {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
+          {(selectedTab === "log" ||
+            (selectedTab === "preview" && isPrettyViewAvailable)) && (
             <Tabs
               className="ml-auto mr-1 h-fit px-2 py-0.5"
               value={currentView}
@@ -210,15 +222,50 @@ export function TraceDetailView({
           )}
         </TabsBarList>
 
-        {/* Preview tab content - placeholder */}
+        {/* Preview tab content */}
         <TabsBarContent
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex h-full w-full items-center justify-center p-4">
-            <p className="text-sm text-muted-foreground">
-              Preview tab content (S5.4a)
-            </p>
+          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+            {/* I/O Preview */}
+            <IOPreview
+              key={trace.id + "-io"}
+              input={trace.input ?? undefined}
+              output={trace.output ?? undefined}
+              media={traceMedia.data}
+              currentView={currentView}
+              setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+              inputExpansionState={expansionState.input}
+              outputExpansionState={expansionState.output}
+              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              onOutputExpansionChange={(exp) =>
+                setFieldExpansion("output", exp)
+              }
+            />
+
+            {/* Tags Section */}
+            <div className="px-2 text-sm font-medium">Tags</div>
+            <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
+              <TagList selectedTags={trace.tags} isLoading={false} />
+            </div>
+
+            {/* Metadata Section */}
+            {trace.metadata && (
+              <div className="px-2">
+                <PrettyJsonView
+                  key={trace.id + "-metadata"}
+                  title="Metadata"
+                  json={trace.metadata}
+                  media={traceMedia.data?.filter((m) => m.field === "metadata")}
+                  currentView={currentView}
+                  externalExpansionState={expansionState.metadata}
+                  onExternalExpansionChange={(exp) =>
+                    setFieldExpansion("metadata", exp)
+                  }
+                />
+              </div>
+            )}
           </div>
         </TabsBarContent>
 
