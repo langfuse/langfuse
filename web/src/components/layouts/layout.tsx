@@ -88,6 +88,7 @@ const unauthenticatedPaths: string[] = [
 const publishablePaths: string[] = [
   "/project/[projectId]/sessions/[sessionId]",
   "/project/[projectId]/traces/[traceId]",
+  "/project/[projectId]/traces2/[traceId]",
   "/auth/reset-password",
 ];
 
