@@ -36,6 +36,13 @@ export type TreeNode = {
   // Observation-specific properties (when type !== 'TRACE')
   parentObservationId?: string | null;
   traceId?: string;
+  // Temporal and structural properties
+  /** Milliseconds from trace start to this node's start time */
+  startTimeSinceTrace: number;
+  /** Milliseconds from parent's start to this node's start (null for root observations or trace root) */
+  startTimeSinceParentStart: number | null;
+  /** Tree depth: -1 for trace root, 0 for root observations, increases with nesting */
+  depth: number;
 };
 
 /**

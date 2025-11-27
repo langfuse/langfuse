@@ -43,6 +43,7 @@ interface ProcessingNode {
   observation: ObservationReturnType;
   childrenIds: string[];
   inDegree: number; // Number of unprocessed children (for topological sort)
+  depth: number; // Tree depth (calculated during graph building)
   treeNode?: TreeNode; // Set when node is processed
 }
 
@@ -112,6 +113,7 @@ function filterAndPrepareObservations(
  * Phase 2: Builds dependency graph for bottom-up tree construction.
  * Creates ProcessingNodes with parent-child relationships via IDs.
  * Calculates in-degrees for topological sort (children count per node).
+ * Calculates depth for each node based on parent relationships.
  */
 function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
   nodeRegistry: Map<string, ProcessingNode>;
@@ -119,12 +121,13 @@ function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
 } {
   const nodeRegistry = new Map<string, ProcessingNode>();
 
-  // First pass: create all ProcessingNodes
+  // First pass: create all ProcessingNodes with initial depth
   for (const obs of sortedObservations) {
     nodeRegistry.set(obs.id, {
       observation: obs,
       childrenIds: [],
       inDegree: 0,
+      depth: 0, // Will be calculated in third pass
       treeNode: undefined,
     });
   }
@@ -139,7 +142,30 @@ function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
     }
   }
 
-  // Third pass: calculate in-degrees and identify leaf nodes
+  // Third pass: calculate depth top-down using BFS
+  const rootIds: string[] = [];
+  for (const [id, node] of nodeRegistry) {
+    if (!node.observation.parentObservationId) {
+      rootIds.push(id);
+      node.depth = 0;
+    }
+  }
+
+  // BFS to propagate depth down the tree
+  const queue = [...rootIds];
+  let queueIndex = 0;
+  while (queueIndex < queue.length) {
+    const currentId = queue[queueIndex++];
+    const currentNode = nodeRegistry.get(currentId)!;
+
+    for (const childId of currentNode.childrenIds) {
+      const childNode = nodeRegistry.get(childId)!;
+      childNode.depth = currentNode.depth + 1;
+      queue.push(childId);
+    }
+  }
+
+  // Fourth pass: calculate in-degrees and identify leaf nodes
   // Note: Children are already in correct order because observations are pre-sorted
   // by startTime in filterAndPrepareObservations, and children are added in iteration order.
   const leafIds: string[] = [];
@@ -160,11 +186,13 @@ function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
  * Phase 3: Builds TreeNodes bottom-up using topological sort.
  * Processes leaf nodes first, then parents once all children are processed.
  * Calculates costs bottom-up: node cost + aggregated children costs.
+ * Also calculates temporal properties (startTimeSinceTrace, startTimeSinceParentStart) and depth.
  */
 function buildTreeNodesBottomUp(
   nodeRegistry: Map<string, ProcessingNode>,
   leafIds: string[],
   nodeMap: Map<string, TreeNode>,
+  traceStartTime: Date,
 ): string[] {
   // Queue starts with all leaf nodes (inDegree === 0)
   // Use index-based traversal instead of shift() for O(1) dequeue (shift is O(N))
@@ -220,6 +248,23 @@ function buildTreeNodesBottomUp(
         ? nodeCost.plus(childrenTotalCost)
         : nodeCost || childrenTotalCost;
 
+    // Calculate temporal and structural properties
+    const startTimeSinceTrace =
+      obs.startTime.getTime() - traceStartTime.getTime();
+
+    let startTimeSinceParentStart: number | null = null;
+
+    if (obs.parentObservationId) {
+      const parentNode = nodeRegistry.get(obs.parentObservationId);
+      if (parentNode) {
+        startTimeSinceParentStart =
+          obs.startTime.getTime() - parentNode.observation.startTime.getTime();
+      }
+    }
+
+    // Use pre-calculated depth from ProcessingNode
+    const depth = currentNode.depth;
+
     // Create TreeNode
     const treeNode: TreeNode = {
       id: obs.id,
@@ -238,6 +283,9 @@ function buildTreeNodesBottomUp(
       parentObservationId: obs.parentObservationId,
       traceId: obs.traceId,
       totalCost,
+      startTimeSinceTrace,
+      startTimeSinceParentStart,
+      depth,
     };
 
     // Store in registry and nodeMap
@@ -291,6 +339,9 @@ function buildTraceTree(
       children: [],
       latency: trace.latency,
       totalCost: undefined,
+      startTimeSinceTrace: 0,
+      startTimeSinceParentStart: null,
+      depth: -1,
     };
     const nodeMap = new Map<string, TreeNode>();
     nodeMap.set(emptyTree.id, emptyTree);
@@ -302,7 +353,12 @@ function buildTraceTree(
 
   // Phase 3: Build TreeNodes bottom-up with cost aggregation
   const nodeMap = new Map<string, TreeNode>();
-  const rootIds = buildTreeNodesBottomUp(nodeRegistry, leafIds, nodeMap);
+  const rootIds = buildTreeNodesBottomUp(
+    nodeRegistry,
+    leafIds,
+    nodeMap,
+    trace.timestamp,
+  );
 
   // Phase 4: Build trace root
   const rootTreeNodes: TreeNode[] = [];
@@ -332,6 +388,9 @@ function buildTraceTree(
     children: rootTreeNodes,
     latency: trace.latency,
     totalCost: traceTotalCost,
+    startTimeSinceTrace: 0,
+    startTimeSinceParentStart: null,
+    depth: -1,
   };
 
   nodeMap.set(tree.id, tree);

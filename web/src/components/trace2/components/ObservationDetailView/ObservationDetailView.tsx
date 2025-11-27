@@ -131,14 +131,14 @@ export function ObservationDetailView({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header section */}
-      <div className="flex-shrink-0 space-y-2 border-b p-4">
+      <div className="flex-shrink-0 space-y-2 border-b p-4 @container">
         {/* Title row with actions */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2">
-            <div className="mt-1">
+        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
+          <div className="flex w-full flex-row items-start gap-1">
+            <div className="mt-1.5">
               <ItemBadge type={observation.type as ObservationType} isSmall />
             </div>
-            <span className="min-w-0 break-all font-medium">
+            <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
               {observation.name || observation.id}
             </span>
             <CopyIdsPopover
@@ -149,7 +149,7 @@ export function ObservationDetailView({
             />
           </div>
           {/* Action buttons */}
-          <div className="flex flex-shrink-0 flex-wrap items-start gap-0.5">
+          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             {observationWithIO.data && (
               <NewDatasetItemFromExistingObject
                 traceId={traceId}
