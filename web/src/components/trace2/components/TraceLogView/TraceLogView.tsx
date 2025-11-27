@@ -53,6 +53,9 @@ export interface TraceLogViewProps {
 const COLLAPSED_ROW_HEIGHT = 28;
 const EXPANDED_ROW_HEIGHT = 150;
 
+// Disable indent visualization when tree is deeper than this threshold
+const INDENT_DEPTH_THRESHOLD = 5;
+
 export const TraceLogView = ({
   traceId,
   projectId,
@@ -108,11 +111,15 @@ export const TraceLogView = ({
 
   // Preferences from localStorage
   const {
-    indentEnabled,
+    indentEnabled: indentEnabledPref,
     setIndentEnabled,
     showMilliseconds,
     setShowMilliseconds,
   } = useLogViewPreferences();
+
+  // Disable indent when tree is too deep
+  const indentDisabled = tree.childrenDepth > INDENT_DEPTH_THRESHOLD;
+  const indentEnabled = indentEnabledPref && !indentDisabled;
 
   // Flatten tree based on mode
   const allItems = useMemo(() => {
@@ -318,7 +325,8 @@ export const TraceLogView = ({
         onDownloadJson={handleDownloadJson}
         currentView={currentView}
         indentEnabled={indentEnabled}
-        onToggleIndent={() => setIndentEnabled(!indentEnabled)}
+        indentDisabled={indentDisabled}
+        onToggleIndent={() => setIndentEnabled(!indentEnabledPref)}
         showMilliseconds={showMilliseconds}
         onToggleMilliseconds={() => setShowMilliseconds(!showMilliseconds)}
       />

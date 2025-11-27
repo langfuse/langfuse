@@ -40,6 +40,8 @@ export interface LogViewToolbarProps {
   currentView?: "pretty" | "json";
   /** Whether indent visualization is enabled */
   indentEnabled?: boolean;
+  /** Whether indent toggle is disabled (tree too deep) */
+  indentDisabled?: boolean;
   /** Callback to toggle indent visualization */
   onToggleIndent?: () => void;
   /** Whether milliseconds are shown in time values */
@@ -61,6 +63,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   onDownloadJson,
   currentView = "pretty",
   indentEnabled = false,
+  indentDisabled = false,
   onToggleIndent,
   showMilliseconds = false,
   onToggleMilliseconds,
@@ -112,9 +115,17 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             className={cn(
               "h-7 w-7",
               indentEnabled && "bg-primary text-primary-foreground",
+              indentDisabled && "cursor-not-allowed opacity-50",
             )}
-            onClick={onToggleIndent}
-            title={indentEnabled ? "Hide indentation" : "Show indentation"}
+            onClick={indentDisabled ? undefined : onToggleIndent}
+            disabled={indentDisabled}
+            title={
+              indentDisabled
+                ? "Indentation disabled for deep trees"
+                : indentEnabled
+                  ? "Hide indentation"
+                  : "Show indentation"
+            }
           >
             <IndentIncrease className="h-3.5 w-3.5" />
           </Button>
