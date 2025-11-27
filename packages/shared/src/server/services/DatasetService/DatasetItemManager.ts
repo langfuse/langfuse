@@ -14,6 +14,7 @@ import {
   OperationType,
   toPostgresDatasetItem,
 } from "../../datasets/executeWithDatasetServiceStrategy";
+import { InternalServerError, InvalidRequestError } from "../../../errors";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
 
@@ -210,13 +211,7 @@ export class DatasetItemManager {
       normalizeOpts?: { sanitizeControlChars?: boolean };
       validateOpts: { normalizeUndefinedToNull?: boolean };
     } & IdOrName,
-  ): Promise<
-    | {
-        success: true;
-        datasetItem: DatasetItem;
-      }
-    | PayloadError
-  > {
+  ): Promise<DatasetItem> {
     // 1. Get dataset
     const dataset =
       "datasetId" in props
@@ -257,7 +252,7 @@ export class DatasetItemManager {
       > | null,
     });
 
-    const itemPayload = validator.preparePayload({
+    const itemPayload = validator.validateAndNormalize({
       input: mergedItemData.input,
       expectedOutput: mergedItemData.expectedOutput,
       metadata: mergedItemData.metadata,
@@ -266,7 +261,9 @@ export class DatasetItemManager {
     });
 
     if (!itemPayload.success) {
-      return itemPayload;
+      throw new InvalidRequestError(
+        `Dataset item validation failed: ${itemPayload.message}`,
+      );
     }
 
     // 5. Prepare full item data for writing
@@ -275,9 +272,9 @@ export class DatasetItemManager {
       input: itemPayload.input,
       expectedOutput: itemPayload.expectedOutput,
       metadata: itemPayload.metadata,
-      sourceTraceId: mergedItemData.sourceTraceId ?? undefined,
-      sourceObservationId: mergedItemData.sourceObservationId ?? undefined,
-      status: mergedItemData.status ?? undefined,
+      sourceTraceId: mergedItemData.sourceTraceId,
+      sourceObservationId: mergedItemData.sourceObservationId,
+      status: mergedItemData.status,
     };
 
     let item: DatasetItem | null = null;
@@ -313,35 +310,14 @@ export class DatasetItemManager {
             createdAt: new Date(),
           },
         });
-
-        // Do not map to DatasetItem for return until we build out write execution path
-        // item = {
-        //   id: res.itemId,
-        //   projectId: res.projectId,
-        //   datasetId: res.datasetId,
-        //   status: res.status ?? DatasetStatus.ACTIVE,
-        //   input: res.input,
-        //   expectedOutput: res.expectedOutput,
-        //   metadata: res.metadata,
-        //   sourceTraceId: res.sourceTraceId,
-        //   sourceObservationId: res.sourceObservationId,
-        //   createdAt: res.createdAt ?? new Date(),
-        //   updatedAt: res.createdAt ?? new Date(),
-        // };
       },
     });
 
     if (!item) {
-      return {
-        success: false,
-        message: "Failed to upsert dataset item",
-      };
+      throw new InternalServerError("Failed to upsert dataset item");
     }
 
-    return {
-      success: true,
-      datasetItem: item,
-    };
+    return item;
   }
 
   /**
@@ -514,7 +490,7 @@ export class DatasetItemManager {
 
       // Validate each item in this dataset
       for (const item of datasetItems) {
-        const result = validator.preparePayload({
+        const result = validator.validateAndNormalize({
           input: item.input,
           expectedOutput: item.expectedOutput,
           metadata: item.metadata,

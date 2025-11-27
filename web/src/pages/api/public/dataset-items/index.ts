@@ -43,7 +43,7 @@ export default withMiddlewares({
       } = body;
 
       try {
-        const result = await DatasetItemManager.upsertItem({
+        const datasetItem = await DatasetItemManager.upsertItem({
           projectId: auth.scope.projectId,
           datasetName: datasetName,
           datasetItemId: id ?? undefined,
@@ -56,24 +56,19 @@ export default withMiddlewares({
           normalizeOpts: { sanitizeControlChars: true },
           validateOpts: { normalizeUndefinedToNull: !!id ? false : true },
         });
-        if (!result.success) {
-          throw new InvalidRequestError(
-            `Dataset item validation failed: ${result.message}`,
-          );
-        }
 
         await auditLog({
           action: "create",
           resourceType: "datasetItem",
-          resourceId: result.datasetItem.id,
+          resourceId: datasetItem.id,
           projectId: auth.scope.projectId,
           orgId: auth.scope.orgId,
           apiKeyId: auth.scope.apiKeyId,
-          after: result.datasetItem,
+          after: datasetItem,
         });
 
         return transformDbDatasetItemToAPIDatasetItem({
-          ...result.datasetItem,
+          ...datasetItem,
           datasetName: datasetName,
         });
       } catch (e) {

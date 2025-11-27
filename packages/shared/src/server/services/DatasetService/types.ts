@@ -10,7 +10,7 @@ export type PayloadError = {
   };
 };
 
-export type PreparePayloadResult =
+export type ValidateAndNormalizeResult =
   | {
       success: true;
       input: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
