@@ -8,8 +8,9 @@
  * - Render graph view below tree/timeline when enabled (collapsible)
  *
  * Hooks:
+ * - None (pure layout component)
  * - useViewPreferences() - for showGraph preference
- * - useGraphData() - for isGraphViewAvailable
+ * - useTraceGraphData() - for isGraphViewAvailable
  *
  * Re-renders when:
  * - Children change (TracePanelNavigation content)

@@ -1,5 +1,5 @@
 /**
- * GraphDataContext - Provides agent graph data for visualization.
+ * TraceGraphDataContext - Provides agent graph data for visualization.
  *
  * Purpose:
  * - Fetches agent graph data once and shares across components
@@ -29,7 +29,9 @@ const TraceGraphDataContext = createContext<TraceGraphDataContextValue | null>(
 export function useTraceGraphData(): TraceGraphDataContextValue {
   const context = useContext(TraceGraphDataContext);
   if (!context) {
-    throw new Error("useGraphData must be used within a GraphDataProvider");
+    throw new Error(
+      "useTraceGraphData must be used within a TraceGraphDataProvider",
+    );
   }
   return context;
 }
