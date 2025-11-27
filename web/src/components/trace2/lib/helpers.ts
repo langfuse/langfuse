@@ -283,15 +283,27 @@ function buildTraceTree(
   // Create nodeMap for O(1) lookup by ID
   const nodeMap = new Map<string, TreeNode>();
 
-  // Convert observations to TreeNodes
-  const convertObservationToTreeNode = (obs: NestedObservation): TreeNode => ({
+  // Convert observations to TreeNodes with temporal and depth properties
+  const convertObservationToTreeNode = (
+    obs: NestedObservation,
+    traceStartTime: Date,
+    parentStartTime: Date | null,
+    depth: number,
+  ): TreeNode => ({
     id: obs.id,
     type: obs.type,
     name: obs.name ?? "",
     startTime: obs.startTime,
     endTime: obs.endTime,
     level: obs.level,
-    children: obs.children.map(convertObservationToTreeNode),
+    children: obs.children.map((child) =>
+      convertObservationToTreeNode(
+        child,
+        traceStartTime,
+        obs.startTime,
+        depth + 1,
+      ),
+    ),
     inputUsage: obs.inputUsage,
     outputUsage: obs.outputUsage,
     totalUsage: obs.totalUsage,
@@ -300,11 +312,17 @@ function buildTraceTree(
     calculatedTotalCost: obs.totalCost,
     parentObservationId: obs.parentObservationId,
     traceId: obs.traceId,
+    startTimeSinceTrace: obs.startTime.getTime() - traceStartTime.getTime(),
+    startTimeSinceParentStart:
+      parentStartTime !== null
+        ? obs.startTime.getTime() - parentStartTime.getTime()
+        : null,
+    depth,
   });
 
   // Convert and enrich children with pre-computed costs and populate nodeMap
   const enrichedChildren = nestedObservations
-    .map(convertObservationToTreeNode)
+    .map((obs) => convertObservationToTreeNode(obs, trace.timestamp, null, 0))
     .map((node) => enrichTreeNodeWithCosts(node, nodeMap));
 
   // Calculate total cost for trace root (sum of all top-level children)
@@ -327,6 +345,9 @@ function buildTraceTree(
     children: enrichedChildren,
     latency: trace.latency,
     totalCost: traceTotalCost,
+    startTimeSinceTrace: 0,
+    startTimeSinceParentStart: null,
+    depth: -1,
   };
 
   // Add trace root to nodeMap as well
