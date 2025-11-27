@@ -15,6 +15,7 @@ import {
   Download,
   Check,
   IndentIncrease,
+  Timer,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -41,6 +42,10 @@ export interface LogViewToolbarProps {
   indentEnabled?: boolean;
   /** Callback to toggle indent visualization */
   onToggleIndent?: () => void;
+  /** Whether milliseconds are shown in time values */
+  showMilliseconds?: boolean;
+  /** Callback to toggle milliseconds display */
+  onToggleMilliseconds?: () => void;
 }
 
 /**
@@ -57,6 +62,8 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   currentView = "pretty",
   indentEnabled = false,
   onToggleIndent,
+  showMilliseconds = false,
+  onToggleMilliseconds,
 }: LogViewToolbarProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -110,6 +117,22 @@ export const LogViewToolbar = memo(function LogViewToolbar({
             title={indentEnabled ? "Hide indentation" : "Show indentation"}
           >
             <IndentIncrease className="h-3.5 w-3.5" />
+          </Button>
+        )}
+
+        {/* Milliseconds Toggle - only in formatted view */}
+        {currentView === "pretty" && onToggleMilliseconds && (
+          <Button
+            variant={showMilliseconds ? "default" : "ghost"}
+            size="icon"
+            className={cn(
+              "h-7 w-7",
+              showMilliseconds && "bg-primary text-primary-foreground",
+            )}
+            onClick={onToggleMilliseconds}
+            title={showMilliseconds ? "Hide milliseconds" : "Show milliseconds"}
+          >
+            <Timer className="h-3.5 w-3.5" />
           </Button>
         )}
 

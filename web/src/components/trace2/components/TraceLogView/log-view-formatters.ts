@@ -23,26 +23,38 @@ export function formatDisplayName(node: TreeNode): string {
 }
 
 /**
- * Formats milliseconds as a time string in mm:ss format.
+ * Formats milliseconds as a time string in mm:ss or mm:ss.mmm format.
  *
- * Examples:
+ * Examples (showMs = false):
  * - 0 → "0:00"
  * - 500 → "0:00"
  * - 1500 → "0:01"
  * - 65000 → "1:05"
  * - 3665000 → "61:05"
  *
+ * Examples (showMs = true):
+ * - 0 → "0:00.000"
+ * - 500 → "0:00.500"
+ * - 1500 → "0:01.500"
+ * - 65123 → "1:05.123"
+ *
  * @param ms - Milliseconds since trace start
- * @returns Formatted time string in mm:ss format
+ * @param showMs - Whether to display milliseconds
+ * @returns Formatted time string in mm:ss or mm:ss.mmm format
  */
-export function formatRelativeTime(ms: number): string {
+export function formatRelativeTime(ms: number, showMs = false): string {
   if (ms < 0) {
-    return "-" + formatRelativeTime(-ms);
+    return "-" + formatRelativeTime(-ms, showMs);
   }
 
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
+  const milliseconds = ms % 1000;
+
+  if (showMs) {
+    return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
+  }
 
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }

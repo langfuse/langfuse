@@ -38,10 +38,10 @@ import {
   formatDisplayName,
   formatRelativeTime,
   formatDuration,
-  formatDepthIndicator,
 } from "./log-view-formatters";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
+import { useLogViewPreferences } from "./useLogViewPreferences";
 
 export interface TraceLogViewProps {
   traceId: string;
@@ -106,8 +106,13 @@ export const TraceLogView = ({
   // State for JSON view collapse
   const [jsonViewCollapsed, setJsonViewCollapsed] = useState(false);
 
-  // State for indent visualization
-  const [indentEnabled, setIndentEnabled] = useState(false);
+  // Preferences from localStorage
+  const {
+    indentEnabled,
+    setIndentEnabled,
+    showMilliseconds,
+    setShowMilliseconds,
+  } = useLogViewPreferences();
 
   // Flatten tree based on mode
   const allItems = useMemo(() => {
@@ -165,6 +170,20 @@ export const TraceLogView = ({
         ),
       },
       {
+        key: "start",
+        header: "Start",
+        width: showMilliseconds ? "w-20" : "w-12",
+        align: "right" as const,
+        render: (item) => (
+          <span className="text-xs text-muted-foreground">
+            {formatRelativeTime(
+              item.node.startTimeSinceTrace,
+              showMilliseconds,
+            )}
+          </span>
+        ),
+      },
+      {
         key: "duration",
         header: "Duration",
         width: "w-16",
@@ -175,21 +194,10 @@ export const TraceLogView = ({
           </span>
         ),
       },
-      {
-        key: "time",
-        header: "Time",
-        width: "w-12",
-        align: "right" as const,
-        render: (item) => (
-          <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(item.node.startTimeSinceTrace)}
-          </span>
-        ),
-      },
     ];
 
     return baseColumns;
-  }, [indentEnabled]);
+  }, [indentEnabled, showMilliseconds]);
 
   // Render tree indentation for indented mode
   const renderRowPrefix = useCallback(
@@ -310,7 +318,9 @@ export const TraceLogView = ({
         onDownloadJson={handleDownloadJson}
         currentView={currentView}
         indentEnabled={indentEnabled}
-        onToggleIndent={() => setIndentEnabled((prev) => !prev)}
+        onToggleIndent={() => setIndentEnabled(!indentEnabled)}
+        showMilliseconds={showMilliseconds}
+        onToggleMilliseconds={() => setShowMilliseconds(!showMilliseconds)}
       />
 
       {/* Empty states */}
