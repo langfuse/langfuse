@@ -296,6 +296,7 @@ function buildTraceTree(
     inputUsage: obs.inputUsage,
     outputUsage: obs.outputUsage,
     totalUsage: obs.totalUsage,
+    usageDetails: obs.usageDetails,
     calculatedInputCost: obs.inputCost,
     calculatedOutputCost: obs.outputCost,
     calculatedTotalCost: obs.totalCost,

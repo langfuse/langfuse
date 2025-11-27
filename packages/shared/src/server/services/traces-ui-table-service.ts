@@ -26,6 +26,7 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -218,6 +219,9 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     clickhouseConfigs,
   } = props;
 
+  // OTel projects use immutable spans - no need for deduplication
+  const skipObservationsDedup = await shouldSkipObservationsFinal(projectId);
+
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
@@ -302,7 +306,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         sumMap(cost_details) as cost_details,
         trace_id,
         project_id
-      FROM observations o FINAL
+      FROM observations o ${skipObservationsDedup ? "" : "FINAL"}
       WHERE o.project_id = {projectId: String}
         ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${observationsFilter ? `AND ${observationFilterRes.query}` : ""}

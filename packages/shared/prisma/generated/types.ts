@@ -741,8 +741,19 @@ export type Price = {
   updated_at: Generated<Timestamp>;
   model_id: string;
   project_id: string | null;
+  pricing_tier_id: string;
   usage_type: string;
   price: string;
+};
+export type PricingTier = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  model_id: string;
+  name: string;
+  is_default: Generated<boolean>;
+  priority: number;
+  conditions: unknown;
 };
 export type Project = {
   id: string;
@@ -944,6 +955,7 @@ export type DB = {
   pending_deletions: PendingDeletion;
   posthog_integrations: PosthogIntegration;
   prices: Price;
+  pricing_tiers: PricingTier;
   project_memberships: ProjectMembership;
   projects: Project;
   prompt_dependencies: PromptDependency;

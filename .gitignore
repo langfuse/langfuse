@@ -57,7 +57,7 @@ yarn-error.log*
 /public/openapi*.yml
 
 # claude meta files
-./claude/tsc-cache/*
+.claude/tsc-cache
 
 # vscode
 node_modules
@@ -72,3 +72,5 @@ web/test-results/*
 
 # local config files
 *.local.*
+
+.claude/tsc-cache

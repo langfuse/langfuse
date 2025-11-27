@@ -45,6 +45,7 @@ import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
 import { ObservationType } from "../../domain";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
+import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 
 /**
  * Checks if observation exists in clickhouse.
@@ -141,6 +142,9 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     preferredClickhouseService,
   } = opts;
 
+  // OTel projects use immutable spans - no need for deduplication
+  const skipDedup = await shouldSkipObservationsFinal(projectId);
+
   const query = `
   SELECT
     id,
@@ -164,6 +168,8 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     provided_cost_details,
     cost_details,
     total_cost,
+    usage_pricing_tier_id,
+    usage_pricing_tier_name,
     completion_start_time,
     prompt_id,
     prompt_name,
@@ -175,8 +181,8 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
   WHERE trace_id = {traceId: String}
   AND project_id = {projectId: String}
    ${timestamp ? `AND start_time >= {traceTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-  ORDER BY event_ts DESC
-  LIMIT 1 BY id, project_id`;
+  ${skipDedup ? "" : "ORDER BY event_ts DESC"}
+  ${skipDedup ? "" : "LIMIT 1 BY id, project_id"}`;
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: {
@@ -279,6 +285,8 @@ export const getObservationForTraceIdByName = async ({
     provided_cost_details,
     cost_details,
     total_cost,
+    usage_pricing_tier_id,
+    usage_pricing_tier_name,
     completion_start_time,
     prompt_id,
     prompt_name,
@@ -399,6 +407,8 @@ export const getObservationsById = async (
     provided_cost_details,
     cost_details,
     total_cost,
+    usage_pricing_tier_id,
+    usage_pricing_tier_name,
     completion_start_time,
     prompt_id,
     prompt_name,
@@ -461,6 +471,8 @@ const getObservationByIdInternal = async ({
     provided_cost_details,
     cost_details,
     total_cost,
+    usage_pricing_tier_id,
+    usage_pricing_tier_name,
     completion_start_time,
     prompt_id,
     prompt_name,
@@ -625,6 +637,8 @@ const getObservationsTableInternal = async <T>(
         o.updated_at as "updated_at",
         o.provided_model_name as "provided_model_name",
         o.total_cost as "total_cost",
+        o.usage_pricing_tier_id as "usage_pricing_tier_id",
+        o.usage_pricing_tier_name as "usage_pricing_tier_name",
         o.prompt_id as "prompt_id",
         o.prompt_name as "prompt_name",
         o.prompt_version as "prompt_version",
@@ -641,6 +655,9 @@ const getObservationsTableInternal = async <T>(
     orderBy,
     clickhouseConfigs,
   } = opts;
+
+  // OTel projects use immutable spans - no need for deduplication
+  const skipDedup = await shouldSkipObservationsFinal(projectId);
 
   const selectString = selectIOAndMetadata
     ? `${select}, o.input, o.output, o.metadata`
@@ -788,7 +805,7 @@ const getObservationsTableInternal = async <T>(
         ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
       ${chOrderBy}
-      ${opts.select === "rows" ? "LIMIT 1 BY o.id, o.project_id" : ""}
+      ${opts.select === "rows" && !skipDedup ? "LIMIT 1 BY o.id, o.project_id" : ""}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
   return measureAndReturn({
