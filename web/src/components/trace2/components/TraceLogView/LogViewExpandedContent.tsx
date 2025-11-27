@@ -75,7 +75,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       )}
 
       {isError && (
-        <div className="rounded border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
+        <div className="flex h-full w-full items-center bg-destructive/10 px-6 py-2 text-xs text-destructive">
           Failed to load data
         </div>
       )}
