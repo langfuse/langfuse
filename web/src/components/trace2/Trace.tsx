@@ -37,7 +37,13 @@ export type TraceProps = {
   ) => void;
 };
 
-export function Trace({ trace, observations, scores, projectId }: TraceProps) {
+export function Trace({
+  trace,
+  observations,
+  scores,
+  projectId,
+  context,
+}: TraceProps) {
   // Fetch comment counts using existing hook
   const { observationCommentCounts, traceCommentCount } = useTraceComments({
     projectId,
@@ -54,7 +60,7 @@ export function Trace({ trace, observations, scores, projectId }: TraceProps) {
   }, [observationCommentCounts, traceCommentCount, trace.id]);
 
   return (
-    <ViewPreferencesProvider>
+    <ViewPreferencesProvider traceContext={context}>
       <TraceDataProvider
         trace={trace}
         observations={observations}

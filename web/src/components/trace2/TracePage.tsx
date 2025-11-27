@@ -135,6 +135,7 @@ export function TracePage({
           observations={trace.data.observations}
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}
+          context={router.query.peek !== undefined ? "peek" : "fullscreen"}
         />
       </div>
     </Page>
