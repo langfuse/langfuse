@@ -59,7 +59,10 @@ export function JsonExpansionProvider({ children }: { children: ReactNode }) {
 
   return (
     <JsonExpansionContext.Provider
-      value={{ expansionState, setFieldExpansion }}
+      value={{
+        expansionState,
+        setFieldExpansion,
+      }}
     >
       {children}
     </JsonExpansionContext.Provider>

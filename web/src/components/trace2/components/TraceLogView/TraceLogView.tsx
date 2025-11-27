@@ -9,7 +9,7 @@
  * - Two view modes: chronological (by time) and tree-order (DFS hierarchy)
  * - Search filtering by name, type, or ID
  * - Expandable rows with full I/O preview
- * - Sticky header showing topmost visible observation
+ * - Copy/Download JSON functionality
  *
  * Uses JSONTableView for table rendering with domain-specific column definitions.
  */
@@ -29,7 +29,6 @@ import {
   filterBySearch,
 } from "./log-view-flattening";
 import { type FlatLogItem } from "./log-view-types";
-import { LogViewStickyHeader } from "./LogViewStickyHeader";
 import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
 import { LogViewTreeIndent } from "./LogViewTreeIndent";
@@ -60,15 +59,46 @@ export const TraceLogView = ({
   currentView = "pretty",
 }: TraceLogViewProps) => {
   const { tree, observations } = useTraceData();
-  const { logViewMode, setLogViewMode, logViewTreeStyle, setLogViewTreeStyle } =
-    useViewPreferences();
+  const { logViewMode, logViewTreeStyle } = useViewPreferences();
   const { expansionState, setFieldExpansion } = useJsonExpansion();
 
   // Determine if we should virtualize based on observation count
   const isVirtualized = observations.length >= LOG_VIEW_CONFIRMATION_THRESHOLD;
 
-  // Controlled expand state for JSONTableView
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  // Get expanded keys from context (persisted in sessionStorage)
+  // Uses dynamic key format: logViewRows:${traceId}
+  const expandedRowsKey = `logViewRows:${traceId}`;
+  const expandedRowsState = (expansionState[expandedRowsKey] ?? {}) as Record<
+    string,
+    boolean
+  >;
+
+  const expandedKeys = useMemo(() => {
+    return new Set(
+      Object.entries(expandedRowsState)
+        .filter(([, isExpanded]) => isExpanded)
+        .map(([id]) => id),
+    );
+  }, [expandedRowsState]);
+
+  // Update expanded keys in context
+  const setExpandedKeys = useCallback(
+    (keysOrUpdater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+      const newKeys =
+        typeof keysOrUpdater === "function"
+          ? keysOrUpdater(expandedKeys)
+          : keysOrUpdater;
+
+      // Convert Set to Record<string, boolean>
+      const newState: Record<string, boolean> = {};
+      newKeys.forEach((id) => {
+        newState[id] = true;
+      });
+
+      setFieldExpansion(expandedRowsKey, newState);
+    },
+    [expandedKeys, setFieldExpansion, expandedRowsKey],
+  );
 
   // Local state for search
   const [searchQuery, setSearchQuery] = useState("");
@@ -213,18 +243,6 @@ export const TraceLogView = ({
     ],
   );
 
-  // Render sticky header
-  const renderStickyHeader = useCallback(
-    (item: FlatLogItem | null, index: number) => (
-      <LogViewStickyHeader
-        item={item}
-        totalCount={flatItems.length}
-        currentIndex={index}
-      />
-    ),
-    [flatItems.length],
-  );
-
   // Track if all rows are expanded (for non-virtualized mode)
   const allRowsExpanded = useMemo(() => {
     if (flatItems.length === 0) return false;
@@ -285,16 +303,10 @@ export const TraceLogView = ({
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* Toolbar with mode toggle and search */}
+      {/* Toolbar with search and actions */}
       <LogViewToolbar
-        mode={logViewMode}
-        onModeChange={setLogViewMode}
-        treeStyle={logViewTreeStyle}
-        onTreeStyleChange={setLogViewTreeStyle}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        totalCount={allItems.length}
-        filteredCount={flatItems.length}
         isVirtualized={isVirtualized}
         onToggleExpandAll={handleToggleExpandAll}
         allRowsExpanded={allRowsExpanded}
@@ -344,7 +356,6 @@ export const TraceLogView = ({
           virtualized={isVirtualized}
           collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
           expandedRowHeight={EXPANDED_ROW_HEIGHT}
-          stickyHeaderContent={renderStickyHeader}
           renderRowPrefix={renderRowPrefix}
         />
       )}
