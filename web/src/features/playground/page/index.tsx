@@ -175,7 +175,7 @@ export default function PlaygroundPage() {
       }}
     >
       <div className="flex h-full flex-col">
-        {!hasAnyModelConfigured && (
+        {!hasAnyModelConfigured && projectId && (
           <NoModelConfiguredAlert projectId={projectId} />
         )}
         <div className="flex-1 overflow-hidden">

@@ -22,10 +22,10 @@ export function NoModelConfiguredAlert({
         <AlertDescription className="text-yellow-700 dark:text-yellow-500">
           To use the playground, you need to configure a model first. Go to{" "}
           <Link
-            href={`/project/${projectId}/settings/models`}
+            href={`/project/${projectId}/settings/llm-connections`}
             className="font-medium underline underline-offset-4 hover:text-yellow-900 dark:hover:text-yellow-300"
           >
-            <Settings className="inline h-3 w-3" /> Model Settings
+            <Settings className="inline h-3 w-3" /> LLM Connection Settings
           </Link>{" "}
           to add an LLM API key and configure your models.
         </AlertDescription>
