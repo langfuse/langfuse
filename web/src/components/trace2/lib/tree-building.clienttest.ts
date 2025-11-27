@@ -908,4 +908,449 @@ describe("buildTraceUiData", () => {
       });
     });
   });
+
+  describe("Temporal and Depth Properties", () => {
+    describe("Basic Calculations", () => {
+      it("calculates startTimeSinceTrace for single observation", () => {
+        const trace = createMockTrace({
+          id: "trace-1",
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "obs-1",
+            name: "Observation 1",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:02.500Z"), // 2500ms after trace
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+        const obs1 = result.nodeMap.get("obs-1");
+
+        expect(obs1?.startTimeSinceTrace).toBe(2500);
+      });
+
+      it("calculates startTimeSinceParentStart for parent-child pair", () => {
+        const trace = createMockTrace({
+          id: "trace-1",
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "parent",
+            name: "Parent",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:01.000Z"), // +1000ms
+          }),
+          createMockObservation({
+            id: "child",
+            name: "Child",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:01.300Z"), // +300ms from parent
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+        const parent = result.nodeMap.get("parent");
+        const child = result.nodeMap.get("child");
+
+        expect(parent?.startTimeSinceTrace).toBe(1000);
+        expect(parent?.startTimeSinceParentStart).toBeNull();
+
+        expect(child?.startTimeSinceTrace).toBe(1300);
+        expect(child?.startTimeSinceParentStart).toBe(300);
+      });
+
+      it("sets startTimeSinceParentStart to null for root observations", () => {
+        const trace = createMockTrace({
+          id: "trace-1",
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "root-1",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:01.000Z"),
+          }),
+          createMockObservation({
+            id: "root-2",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:02.000Z"),
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(
+          result.nodeMap.get("root-1")?.startTimeSinceParentStart,
+        ).toBeNull();
+        expect(
+          result.nodeMap.get("root-2")?.startTimeSinceParentStart,
+        ).toBeNull();
+      });
+
+      it("handles TRACE root node properties correctly", () => {
+        const trace = createMockTrace({
+          id: "trace-1",
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(result.tree.startTimeSinceTrace).toBe(0);
+        expect(result.tree.startTimeSinceParentStart).toBeNull();
+        expect(result.tree.depth).toBe(-1);
+      });
+    });
+
+    describe("Depth Calculation", () => {
+      it("assigns depth 0 to root observations", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "root-1",
+            parentObservationId: null,
+          }),
+          createMockObservation({
+            id: "root-2",
+            parentObservationId: null,
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(result.nodeMap.get("root-1")?.depth).toBe(0);
+        expect(result.nodeMap.get("root-2")?.depth).toBe(0);
+      });
+
+      it("increments depth for nested observations", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "level-0",
+            parentObservationId: null,
+          }),
+          createMockObservation({
+            id: "level-1",
+            parentObservationId: "level-0",
+          }),
+          createMockObservation({
+            id: "level-2",
+            parentObservationId: "level-1",
+          }),
+          createMockObservation({
+            id: "level-3",
+            parentObservationId: "level-2",
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(result.nodeMap.get("level-0")?.depth).toBe(0);
+        expect(result.nodeMap.get("level-1")?.depth).toBe(1);
+        expect(result.nodeMap.get("level-2")?.depth).toBe(2);
+        expect(result.nodeMap.get("level-3")?.depth).toBe(3);
+      });
+
+      it("handles multiple branches with different depths", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "root",
+            parentObservationId: null,
+          }),
+          // Branch 1: depth 1 → 2
+          createMockObservation({
+            id: "branch1-level1",
+            parentObservationId: "root",
+          }),
+          createMockObservation({
+            id: "branch1-level2",
+            parentObservationId: "branch1-level1",
+          }),
+          // Branch 2: depth 1 only
+          createMockObservation({
+            id: "branch2-level1",
+            parentObservationId: "root",
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(result.nodeMap.get("root")?.depth).toBe(0);
+        expect(result.nodeMap.get("branch1-level1")?.depth).toBe(1);
+        expect(result.nodeMap.get("branch1-level2")?.depth).toBe(2);
+        expect(result.nodeMap.get("branch2-level1")?.depth).toBe(1);
+      });
+    });
+
+    describe("Edge Cases", () => {
+      it("handles observation starting at same time as parent", () => {
+        const trace = createMockTrace({
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "parent",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:01.000Z"),
+          }),
+          createMockObservation({
+            id: "child",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:01.000Z"), // Same as parent
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+        const child = result.nodeMap.get("child");
+
+        expect(child?.startTimeSinceParentStart).toBe(0);
+      });
+
+      it("handles observation starting before trace (clock skew)", () => {
+        const trace = createMockTrace({
+          timestamp: new Date("2024-01-01T00:00:01.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "obs-1",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:00.500Z"), // 500ms before trace
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+        const obs1 = result.nodeMap.get("obs-1");
+
+        expect(obs1?.startTimeSinceTrace).toBe(-500);
+      });
+
+      it("handles multiple root observations with different start times", () => {
+        const trace = createMockTrace({
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "root-1",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:01.000Z"),
+          }),
+          createMockObservation({
+            id: "root-2",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:05.000Z"),
+          }),
+          createMockObservation({
+            id: "root-3",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:03.500Z"),
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(result.nodeMap.get("root-1")?.startTimeSinceTrace).toBe(1000);
+        expect(result.nodeMap.get("root-2")?.startTimeSinceTrace).toBe(5000);
+        expect(result.nodeMap.get("root-3")?.startTimeSinceTrace).toBe(3500);
+
+        // All should have null parent-relative time
+        expect(
+          result.nodeMap.get("root-1")?.startTimeSinceParentStart,
+        ).toBeNull();
+        expect(
+          result.nodeMap.get("root-2")?.startTimeSinceParentStart,
+        ).toBeNull();
+        expect(
+          result.nodeMap.get("root-3")?.startTimeSinceParentStart,
+        ).toBeNull();
+      });
+
+      it("handles deep nesting without stack overflow", () => {
+        const trace = createMockTrace({
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const depth = 1000;
+        const observations: ObservationReturnType[] = [];
+
+        // Create deep chain: obs-0 → obs-1 → obs-2 → ... → obs-999
+        for (let i = 0; i < depth; i++) {
+          observations.push(
+            createMockObservation({
+              id: `obs-${i}`,
+              parentObservationId: i === 0 ? null : `obs-${i - 1}`,
+              startTime: new Date(
+                `2024-01-01T00:00:${String(i).padStart(2, "0")}.000Z`,
+              ),
+            }),
+          );
+        }
+
+        const result = buildTraceUiData(trace, observations);
+
+        // Verify first, middle, and last nodes
+        expect(result.nodeMap.get("obs-0")?.depth).toBe(0);
+        expect(result.nodeMap.get("obs-500")?.depth).toBe(500);
+        expect(result.nodeMap.get("obs-999")?.depth).toBe(999);
+
+        // Verify temporal calculations still work
+        expect(result.nodeMap.get("obs-0")?.startTimeSinceTrace).toBe(0);
+        expect(
+          result.nodeMap.get("obs-0")?.startTimeSinceParentStart,
+        ).toBeNull();
+        expect(result.nodeMap.get("obs-1")?.startTimeSinceParentStart).toBe(
+          1000,
+        );
+      });
+    });
+
+    describe("Real-World Scenarios", () => {
+      it("identifies sequential execution pattern", () => {
+        const trace = createMockTrace({
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "parent",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:00.000Z"),
+          }),
+          // Sequential children with large delays
+          createMockObservation({
+            id: "step-1",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:01.000Z"), // +1s
+          }),
+          createMockObservation({
+            id: "step-2",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:03.000Z"), // +3s
+          }),
+          createMockObservation({
+            id: "step-3",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:06.000Z"), // +6s
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // Sequential pattern: large, increasing parent-relative times
+        expect(result.nodeMap.get("step-1")?.startTimeSinceParentStart).toBe(
+          1000,
+        );
+        expect(result.nodeMap.get("step-2")?.startTimeSinceParentStart).toBe(
+          3000,
+        );
+        expect(result.nodeMap.get("step-3")?.startTimeSinceParentStart).toBe(
+          6000,
+        );
+      });
+
+      it("identifies parallel execution pattern", () => {
+        const trace = createMockTrace({
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "parent",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:00.000Z"),
+          }),
+          // Parallel children with small, similar delays
+          createMockObservation({
+            id: "parallel-1",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:00.050Z"), // +50ms
+          }),
+          createMockObservation({
+            id: "parallel-2",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:00.055Z"), // +55ms
+          }),
+          createMockObservation({
+            id: "parallel-3",
+            parentObservationId: "parent",
+            startTime: new Date("2024-01-01T00:00:00.060Z"), // +60ms
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // Parallel pattern: small, similar parent-relative times
+        expect(
+          result.nodeMap.get("parallel-1")?.startTimeSinceParentStart,
+        ).toBe(50);
+        expect(
+          result.nodeMap.get("parallel-2")?.startTimeSinceParentStart,
+        ).toBe(55);
+        expect(
+          result.nodeMap.get("parallel-3")?.startTimeSinceParentStart,
+        ).toBe(60);
+      });
+
+      it("handles mixed execution patterns", () => {
+        const trace = createMockTrace({
+          timestamp: new Date("2024-01-01T00:00:00.000Z"),
+        });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "root",
+            parentObservationId: null,
+            startTime: new Date("2024-01-01T00:00:00.000Z"),
+          }),
+          // First child starts immediately
+          createMockObservation({
+            id: "immediate",
+            parentObservationId: "root",
+            startTime: new Date("2024-01-01T00:00:00.010Z"), // +10ms
+          }),
+          // Second child delayed
+          createMockObservation({
+            id: "delayed",
+            parentObservationId: "root",
+            startTime: new Date("2024-01-01T00:00:02.000Z"), // +2s
+          }),
+          // Nested children under "immediate" - parallel pattern
+          createMockObservation({
+            id: "nested-1",
+            parentObservationId: "immediate",
+            startTime: new Date("2024-01-01T00:00:00.100Z"), // +90ms from parent
+          }),
+          createMockObservation({
+            id: "nested-2",
+            parentObservationId: "immediate",
+            startTime: new Date("2024-01-01T00:00:00.105Z"), // +95ms from parent
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // Immediate execution
+        expect(result.nodeMap.get("immediate")?.startTimeSinceParentStart).toBe(
+          10,
+        );
+        // Delayed execution
+        expect(result.nodeMap.get("delayed")?.startTimeSinceParentStart).toBe(
+          2000,
+        );
+        // Nested parallel execution
+        expect(result.nodeMap.get("nested-1")?.startTimeSinceParentStart).toBe(
+          90,
+        );
+        expect(result.nodeMap.get("nested-2")?.startTimeSinceParentStart).toBe(
+          95,
+        );
+
+        // Verify depths
+        expect(result.nodeMap.get("root")?.depth).toBe(0);
+        expect(result.nodeMap.get("immediate")?.depth).toBe(1);
+        expect(result.nodeMap.get("delayed")?.depth).toBe(1);
+        expect(result.nodeMap.get("nested-1")?.depth).toBe(2);
+        expect(result.nodeMap.get("nested-2")?.depth).toBe(2);
+      });
+    });
+  });
 });
