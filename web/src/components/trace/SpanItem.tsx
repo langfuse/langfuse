@@ -10,6 +10,7 @@ import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import React from "react";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { calculateAggregatedUsage } from "@/src/components/trace/BreakdownToolTip";
 
 export interface SpanItemProps {
   node: TreeNode;
@@ -40,6 +41,15 @@ export const SpanItem: React.FC<SpanItemProps> = ({
 }) => {
   // Use pre-computed cost from the TreeNode (computed during tree building)
   const totalCost = node.totalCost;
+
+  // Calculate aggregated usage from usageDetails when available
+  const aggregatedUsage = node.usageDetails
+    ? calculateAggregatedUsage(node.usageDetails)
+    : {
+        input: node.inputUsage ?? 0,
+        output: node.outputUsage ?? 0,
+        total: node.totalUsage ?? 0,
+      };
 
   const duration =
     node.endTime && node.startTime
@@ -111,12 +121,14 @@ export const SpanItem: React.FC<SpanItemProps> = ({
             </span>
           ) : null}
           {shouldRenderCostTokens &&
-          (node.inputUsage || node.outputUsage || node.totalUsage) ? (
+          (aggregatedUsage.input ||
+            aggregatedUsage.output ||
+            aggregatedUsage.total) ? (
             <span className="text-xs text-muted-foreground">
               {formatTokenCounts(
-                node.inputUsage,
-                node.outputUsage,
-                node.totalUsage,
+                aggregatedUsage.input,
+                aggregatedUsage.output,
+                aggregatedUsage.total,
               )}
             </span>
           ) : null}
