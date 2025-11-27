@@ -1,4 +1,5 @@
 import { DatasetStatus, Prisma } from "../../../db";
+import { DatasetItemDomain } from "../../../domain";
 import { FieldValidationError } from "../../../utils/jsonSchemaValidation";
 
 export type PayloadError = {
@@ -58,13 +59,10 @@ export type CreateManyValidationError = {
   }>;
 };
 
-export type ItemBase = {
-  id: string;
-  sourceTraceId: string | null;
-  sourceObservationId: string | null;
-  status: string;
-  createdAt: Date | null;
-};
+export type ItemBase = Omit<
+  DatasetItemDomain,
+  "input" | "expectedOutput" | "metadata"
+>;
 
 export type ItemWithIO = ItemBase & {
   input: Prisma.JsonValue;

@@ -1,7 +1,8 @@
-import { DatasetItem, DatasetStatus, Prisma } from "@langfuse/shared";
+import { DatasetItemDomain, DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessage,
+  DatasetItemManager,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
@@ -29,6 +30,10 @@ import {
 } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
+
+type DatasetItemToProcess = Omit<DatasetItemDomain, "input"> & {
+  input: Prisma.JsonObject;
+};
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -63,7 +68,7 @@ async function getExistingRunItemDatasetItemIds(
 
 async function processItem(
   projectId: string,
-  datasetItem: DatasetItem & { input: Prisma.JsonObject },
+  datasetItem: DatasetItemToProcess,
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
@@ -148,7 +153,7 @@ async function processItem(
 async function processLLMCall(
   runItemId: string,
   traceId: string,
-  datasetItem: DatasetItem & { input: Prisma.JsonObject },
+  datasetItem: DatasetItemToProcess,
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   let messages: ChatMessage[] = [];
@@ -201,37 +206,53 @@ async function processLLMCall(
   return { success: true };
 }
 
+const EXPERIMENT_BATCH_SIZE = 100;
+
 async function getItemsToProcess(
   projectId: string,
   datasetId: string,
   runId: string,
+  version: Date,
   config: PromptExperimentConfig,
-) {
-  // Fetch all dataset items
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
+): Promise<DatasetItemToProcess[]> {
+  const validatedDatasetItems: DatasetItemToProcess[] = [];
+  let page = 0;
+
+  // Fetch dataset items in batches
+  while (true) {
+    // TODO: fetch ACTIVE items only
+    const items = await DatasetItemManager.getItemsByVersion({
       projectId,
-      status: DatasetStatus.ACTIVE,
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-  });
-
-  // Filter and validate dataset items
-  const validatedDatasetItems = datasetItems
-    .filter(({ input }) => validateDatasetItem(input, config.allVariables))
-    .map((datasetItem) => {
-      // Normalize string inputs to object format for single-variable prompts
-      const normalizedInput = normalizeDatasetItemInput(
-        datasetItem.input,
-        config.allVariables,
-      );
-
-      return {
-        ...datasetItem,
-        input: parseDatasetItemInput(normalizedInput, config.allVariables),
-      };
+      datasetId,
+      version,
+      includeIO: true,
+      limit: EXPERIMENT_BATCH_SIZE,
+      page,
     });
+
+    if (items.length === 0) break;
+
+    // Filter and validate dataset items in this batch
+    const batchValidatedItems = items
+      .filter(({ input }) => validateDatasetItem(input, config.allVariables))
+      .map((datasetItem) => {
+        // Normalize string inputs to object format for single-variable prompts
+        const normalizedInput = normalizeDatasetItemInput(
+          datasetItem.input,
+          config.allVariables,
+        );
+
+        return {
+          ...datasetItem,
+          input: parseDatasetItemInput(normalizedInput, config.allVariables),
+        };
+      });
+
+    validatedDatasetItems.push(...batchValidatedItems);
+
+    if (items.length < EXPERIMENT_BATCH_SIZE) break; // Last batch
+    page++;
+  }
 
   if (!validatedDatasetItems.length) {
     logger.info(
@@ -261,8 +282,10 @@ async function getItemsToProcess(
 
 export const createExperimentJobClickhouse = async ({
   event,
+  version,
 }: {
   event: z.infer<typeof ExperimentCreateEventSchema>;
+  version: Date;
 }) => {
   const startTime = Date.now();
   logger.info(
@@ -289,6 +312,7 @@ export const createExperimentJobClickhouse = async ({
       datasetId,
       runId,
       errorMessage,
+      version,
     );
     return { success: true };
   }
@@ -301,6 +325,7 @@ export const createExperimentJobClickhouse = async ({
     projectId,
     datasetId,
     runId,
+    version,
     experimentConfig,
   );
 
@@ -344,105 +369,114 @@ async function createAllDatasetRunItemsWithConfigError(
   datasetId: string,
   runId: string,
   errorMessage: string,
+  version: Date,
 ) {
-  // Fetch all dataset items
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
+  // Fetch all dataset items in batches
+  let page = 0;
+
+  // Fetch dataset items in batches
+  while (true) {
+    // TODO: fetch ACTIVE items only
+    const items = await DatasetItemManager.getItemsByVersion({
       projectId,
-      status: DatasetStatus.ACTIVE,
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-  });
+      datasetId,
+      version,
+      includeIO: true,
+      limit: EXPERIMENT_BATCH_SIZE,
+      page,
+    });
 
-  // Check for existing run items' dataset item ids to avoid duplicates
-  const existingRunItemDatasetItemIds = await getExistingRunItemDatasetItemIds(
-    projectId,
-    runId,
-    datasetId,
-  );
+    if (items.length === 0) break;
 
-  // Create run items with config error for all non-existing items
-  const newItems = datasetItems.filter(
-    (item) => !existingRunItemDatasetItemIds.has(item.id),
-  );
+    // Check for existing run items' dataset item ids to avoid duplicates
+    const existingRunItemDatasetItemIds =
+      await getExistingRunItemDatasetItemIds(projectId, runId, datasetId);
 
-  const events: IngestionEventType[] = newItems.flatMap((datasetItem) => {
-    const traceId = v4();
-    const runItemId = v4();
-    const generationId = v4();
-    const timestamp = new Date().toISOString();
+    // Create run items with config error for all non-existing items
+    const newItems = items.filter(
+      (item) => !existingRunItemDatasetItemIds.has(item.id),
+    );
 
-    let stringInput = "";
-    try {
-      stringInput = JSON.stringify(datasetItem.input);
-    } catch (error) {
+    const events: IngestionEventType[] = newItems.flatMap((datasetItem) => {
+      const traceId = v4();
+      const runItemId = v4();
+      const generationId = v4();
+      const timestamp = new Date().toISOString();
+
+      let stringInput = "";
+      try {
+        stringInput = JSON.stringify(datasetItem.input);
+      } catch (error) {
+        logger.info(
+          `Failed to stringify input for dataset item ${datasetItem.id}`,
+        );
+      }
+
+      return [
+        // dataset run item
+        {
+          id: runItemId,
+          type: eventTypes.DATASET_RUN_ITEM_CREATE,
+          timestamp,
+          body: {
+            id: runItemId,
+            traceId,
+            observationId: null,
+            error: `Experiment configuration error: ${errorMessage}`,
+            createdAt: timestamp,
+            datasetId: datasetItem.datasetId,
+            runId: runId,
+            datasetItemId: datasetItem.id,
+          },
+        },
+        // trace
+        {
+          id: traceId,
+          type: eventTypes.TRACE_CREATE,
+          timestamp,
+          body: {
+            id: traceId,
+            environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+            name: `dataset-run-item-${runItemId.slice(0, 5)}`,
+            input: stringInput,
+          },
+        },
+        // generation
+        {
+          id: generationId,
+          type: eventTypes.GENERATION_CREATE,
+          timestamp,
+          body: {
+            id: generationId,
+            environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+            traceId,
+            input: stringInput,
+            level: "ERROR" as const,
+            statusMessage: `Experiment configuration error: ${errorMessage}`,
+          },
+        },
+      ];
+    });
+
+    if (events.length > 0) {
       logger.info(
-        `Failed to stringify input for dataset item ${datasetItem.id}`,
+        `Creating ${events.length / 3} dataset run items with config error`,
+      );
+
+      await processEventBatch(
+        events,
+        {
+          validKey: true,
+          scope: {
+            projectId,
+            accessLevel: "project" as const,
+          },
+        },
+        { isLangfuseInternal: true },
       );
     }
 
-    return [
-      // dataset run item
-      {
-        id: runItemId,
-        type: eventTypes.DATASET_RUN_ITEM_CREATE,
-        timestamp,
-        body: {
-          id: runItemId,
-          traceId,
-          observationId: null,
-          error: `Experiment configuration error: ${errorMessage}`,
-          createdAt: timestamp,
-          datasetId: datasetItem.datasetId,
-          runId: runId,
-          datasetItemId: datasetItem.id,
-        },
-      },
-      // trace
-      {
-        id: traceId,
-        type: eventTypes.TRACE_CREATE,
-        timestamp,
-        body: {
-          id: traceId,
-          environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-          name: `dataset-run-item-${runItemId.slice(0, 5)}`,
-          input: stringInput,
-        },
-      },
-      // generation
-      {
-        id: generationId,
-        type: eventTypes.GENERATION_CREATE,
-        timestamp,
-        body: {
-          id: generationId,
-          environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-          traceId,
-          input: stringInput,
-          level: "ERROR" as const,
-          statusMessage: `Experiment configuration error: ${errorMessage}`,
-        },
-      },
-    ];
-  });
-
-  if (events.length > 0) {
-    logger.info(
-      `Creating ${events.length / 3} dataset run items with config error`,
-    );
-
-    await processEventBatch(
-      events,
-      {
-        validKey: true,
-        scope: {
-          projectId,
-          accessLevel: "project" as const,
-        },
-      },
-      { isLangfuseInternal: true },
-    );
+    if (items.length < EXPERIMENT_BATCH_SIZE) break; // Last batch
+    page++;
   }
 }

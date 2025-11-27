@@ -1029,21 +1029,16 @@ export const datasetRouter = createTRPCRouter({
       });
 
       // Copy items in batches to avoid 256MB JSONB limit
-      let offset = 0;
+      let page = 0;
+      const version = new Date();
 
       while (true) {
-        const itemsBatch = await ctx.prisma.datasetItem.findMany({
-          where: {
-            datasetId: input.datasetId,
-            projectId: input.projectId,
-          },
-          orderBy: [
-            { createdAt: "asc" },
-            // ensure consistent ordering for pagination; via bulk upload many items might have the same createdAt
-            { id: "asc" },
-          ],
-          take: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
-          skip: offset,
+        const itemsBatch = await DatasetItemManager.getItemsByVersion({
+          projectId: input.projectId,
+          datasetId: input.datasetId,
+          version,
+          limit: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
+          page,
         });
 
         if (itemsBatch.length === 0) break;
@@ -1075,7 +1070,7 @@ export const datasetRouter = createTRPCRouter({
         });
 
         if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
-        offset += DUPLICATE_DATASET_ITEMS_BATCH_SIZE;
+        page++;
       }
 
       await auditLog({
@@ -1421,6 +1416,7 @@ export const datasetRouter = createTRPCRouter({
 
       const [runData, items] = await Promise.all([
         enrichAndMapToDatasetItemId(projectId, datasetRunItems),
+        // TODO: replace with DatasetItemManager.getItemsByLatest
         ctx.prisma.datasetItem.findMany({
           where: { id: { in: datasetItemIds } },
           select: {
@@ -1456,31 +1452,19 @@ export const datasetRouter = createTRPCRouter({
           .nullish(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { filterByRun, datasetId, projectId, runIds } = input;
+      // Rely on clickhouse to return only dataset item count that match the filters
+      const datasetItemCount = await getDatasetItemsWithRunDataCount({
+        projectId,
+        datasetId,
+        runIds,
+        filterByRun: filterByRun ?? [],
+      });
 
-      // Approach 1: if no filters are set, query postgres for datasets' item count
-      if (!filterByRun || filterByRun.length === 0) {
-        const datasetItemCount = await ctx.prisma.datasetItem.count({
-          where: { datasetId, projectId },
-        });
-
-        return {
-          totalCount: datasetItemCount,
-        };
-      } else {
-        // Approach 2: if filters are set, rely on clickhouse to return only dataset item count that match the filters
-        const datasetItemCount = await getDatasetItemsWithRunDataCount({
-          projectId,
-          datasetId,
-          runIds,
-          filterByRun: filterByRun ?? [],
-        });
-
-        return {
-          totalCount: datasetItemCount,
-        };
-      }
+      return {
+        totalCount: datasetItemCount,
+      };
     }),
 
   datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure
@@ -1492,6 +1476,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      // TODO: replace with DatasetItemManager.getItemsByLatest
       return ctx.prisma.datasetItem.findMany({
         where: {
           projectId: input.projectId,

@@ -575,12 +575,16 @@ export class DatasetItemManager {
     version,
     includeIO,
     returnVersionTimestamp,
+    limit,
+    offset,
   }: {
     projectId: string;
     datasetId: string;
     version: Date;
     includeIO: IncludeIO;
     returnVersionTimestamp: ReturnVersion;
+    limit?: number;
+    offset?: number;
   }): Promise<
     ReturnVersion extends true
       ? {
@@ -593,6 +597,8 @@ export class DatasetItemManager {
       [Implementation.STATEFUL]: async () => {
         const items = await prisma.datasetItem.findMany({
           where: { datasetId, projectId },
+          ...(limit !== undefined && { take: limit }),
+          ...(offset !== undefined && { skip: offset }),
         });
 
         if (returnVersionTimestamp) {
@@ -610,6 +616,8 @@ export class DatasetItemManager {
           version,
           includeIO,
           returnVersionTimestamp,
+          limit,
+          offset,
         }) as any;
       },
     });
@@ -711,6 +719,8 @@ export class DatasetItemManager {
     projectId: string;
     datasetId: string;
     version: Date;
+    limit?: number;
+    page?: number;
     includeIO?: IncludeIO;
     returnVersionTimestamp?: ReturnVersion;
   }): Promise<
@@ -725,6 +735,10 @@ export class DatasetItemManager {
 
     return this.getItems({
       ...props,
+      offset:
+        props.limit !== undefined && props.page !== undefined
+          ? props.page * props.limit
+          : undefined,
       includeIO: options.includeIO as IncludeIO,
       returnVersionTimestamp: options.returnVersionTimestamp as ReturnVersion,
     });
@@ -741,6 +755,8 @@ export class DatasetItemManager {
   >(props: {
     projectId: string;
     datasetId: string;
+    limit?: number;
+    page?: number;
     includeIO?: IncludeIO;
   }): Promise<{
     versionTimestamp: Date;
@@ -753,6 +769,11 @@ export class DatasetItemManager {
       version: new Date(),
       includeIO: options.includeIO as IncludeIO,
       returnVersionTimestamp: true,
+      limit: props.limit,
+      offset:
+        props.limit !== undefined && props.page !== undefined
+          ? props.page * props.limit
+          : undefined,
     });
   }
 

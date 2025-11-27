@@ -118,42 +118,21 @@ export default withMiddlewares({
         datasetId = dataset.id;
       }
 
-      const items = (
-        await prisma.datasetItem.findMany({
-          where: {
-            projectId: auth.scope.projectId,
-            dataset: {
-              projectId: auth.scope.projectId,
-              ...(datasetId ? { id: datasetId } : {}),
-            },
-            sourceTraceId: sourceTraceId ?? undefined,
-            sourceObservationId: sourceObservationId ?? undefined,
-          },
-          take: limit,
-          skip: (page - 1) * limit,
-          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        })
-      ).map(({ dataset, ...other }) => ({
-        ...other,
-        datasetName: dataset.name,
-      }));
+      // TODO: needs to include dataset name also
+      const items = await DatasetItemManager.getItemsByLatest({
+        projectId: auth.scope.projectId,
+        datasetId: datasetId ?? undefined,
+        // sourceTraceId: sourceTraceId ?? undefined,
+        // sourceObservationId: sourceObservationId ?? undefined,
+        limit: limit,
+        page: page - 1,
+      });
 
-      const totalItems = await prisma.datasetItem.count({
-        where: {
-          dataset: {
-            projectId: auth.scope.projectId,
-            ...(datasetId ? { id: datasetId } : {}),
-          },
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-        },
+      const totalItems = await DatasetItemManager.getItemCountByLatest({
+        projectId: auth.scope.projectId,
+        datasetId: datasetId ?? undefined,
+        // sourceTraceId: sourceTraceId ?? undefined,
+        // sourceObservationId: sourceObservationId ?? undefined,
       });
 
       return {

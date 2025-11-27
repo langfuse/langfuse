@@ -1,4 +1,4 @@
-import { prisma } from "../../db";
+import { DatasetStatus, prisma } from "../../db";
 import type { ItemBase, ItemWithIO } from "../services/DatasetService/types";
 
 /**
@@ -13,18 +13,20 @@ type DatasetItemsByVersionQuery = {
 };
 
 /**
- * Raw database row from dataset_item_events query
+ * Raw database row for getting dataset items by version from dataset_item_events table
  */
-type DatasetItemEventRow = {
+type QueryGetDatasetItemRow = {
   item_id: string;
+  project_id: string;
+  dataset_id: string;
   input?: any;
   expected_output?: any;
   metadata?: any;
   source_trace_id: string | null;
   source_observation_id: string | null;
-  status: string;
-  created_at: Date | null;
-  latest_version?: Date;
+  status: DatasetStatus;
+  created_at: Date;
+  latest_version: Date;
 };
 
 /**
@@ -34,21 +36,32 @@ type DatasetItemEventRow = {
  *
  * @param includeIO - Whether to include input/output/metadata fields in SELECT
  * @param returnVersionTimestamp - Whether to include MAX(created_at) as latest_version
+ * @param limit - Optional LIMIT for pagination
+ * @param offset - Optional OFFSET for pagination
  * @returns SQL query string with placeholders for projectId, datasetId, version
  */
 function buildDatasetItemsVersionQuery(
   includeIO: boolean,
   returnVersionTimestamp: boolean,
+  limit?: number,
+  offset?: number,
 ): string {
   const ioFields = includeIO ? "input, expected_output, metadata," : "";
   const versionField = returnVersionTimestamp
     ? ", MAX(created_at) OVER () as latest_version"
     : "";
 
+  const paginationClause =
+    limit !== undefined
+      ? `LIMIT ${limit}${offset !== undefined ? ` OFFSET ${offset}` : ""}`
+      : "";
+
   return `
     WITH latest_events AS (
       SELECT DISTINCT ON (item_id)
         item_id,
+        project_id,
+        dataset_id,
         ${ioFields}
         source_trace_id,
         source_observation_id,
@@ -64,6 +77,8 @@ function buildDatasetItemsVersionQuery(
     )
     SELECT
       item_id,
+      project_id,
+      dataset_id,
       ${ioFields}
       source_trace_id,
       source_observation_id,
@@ -74,6 +89,7 @@ function buildDatasetItemsVersionQuery(
     WHERE deleted_at IS NULL
      OR deleted_at > $3
     ORDER BY item_id
+    ${paginationClause}
   `;
 }
 
@@ -104,11 +120,13 @@ function buildDatasetItemsVersionCountQuery(): string {
  * Converts a raw database row to ItemBase or ItemWithIO
  */
 function convertRowToItem<IncludeIO extends boolean = true>(
-  row: DatasetItemEventRow,
+  row: QueryGetDatasetItemRow,
   includeIO: IncludeIO,
 ): IncludeIO extends true ? ItemWithIO : ItemBase {
   const base: ItemBase = {
     id: row.item_id,
+    projectId: row.project_id,
+    datasetId: row.dataset_id,
     sourceTraceId: row.source_trace_id,
     sourceObservationId: row.source_observation_id,
     status: row.status,
@@ -137,6 +155,8 @@ function convertRowToItem<IncludeIO extends boolean = true>(
  *
  * @param params.includeIO - Whether to include input/expectedOutput/metadata in results
  * @param params.returnVersionTimestamp - Whether to return the actual version timestamp used
+ * @param params.limit - Optional LIMIT for pagination
+ * @param params.offset - Optional OFFSET for pagination
  * @returns Array of items, or object with items + versionTimestamp if requested
  */
 export async function getDatasetItemsByVersion<
@@ -146,6 +166,8 @@ export async function getDatasetItemsByVersion<
   params: DatasetItemsByVersionQuery & {
     includeIO: IncludeIO;
     returnVersionTimestamp?: ReturnVersion;
+    limit?: number;
+    offset?: number;
   },
 ): Promise<
   ReturnVersion extends true
@@ -158,9 +180,11 @@ export async function getDatasetItemsByVersion<
   const query = buildDatasetItemsVersionQuery(
     params.includeIO,
     params.returnVersionTimestamp ?? false,
+    params.limit,
+    params.offset,
   );
 
-  const result = await prisma.$queryRawUnsafe<DatasetItemEventRow[]>(
+  const result = await prisma.$queryRawUnsafe<QueryGetDatasetItemRow[]>(
     query,
     params.projectId,
     params.datasetId,

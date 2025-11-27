@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../../db";
+import { DatasetItemManager } from "../services/DatasetService";
 import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
 import type { DatasetSchemaValidationError } from "./schemaTypes";
 
@@ -49,24 +50,19 @@ export async function validateAllDatasetItems(params: {
   const BATCH_SIZE = 5_000;
   const MAX_ERRORS = 10;
 
-  let offset = 0;
+  let page = 0;
+  const version = new Date();
   const errors: DatasetSchemaValidationError[] = [];
 
   while (errors.length < MAX_ERRORS) {
     // Fetch batch
-    const items = await prisma.datasetItem.findMany({
-      where: {
-        datasetId,
-        projectId,
-      },
-      select: {
-        id: true,
-        input: true,
-        expectedOutput: true,
-      },
-      skip: offset,
-      take: BATCH_SIZE,
-      orderBy: { id: "asc" }, // Consistent ordering for pagination
+
+    const items = await DatasetItemManager.getItemsByVersion({
+      projectId,
+      datasetId,
+      version,
+      limit: BATCH_SIZE,
+      page,
     });
 
     // No more items
@@ -113,7 +109,7 @@ export async function validateAllDatasetItems(params: {
     }
 
     // Move to next batch
-    offset += BATCH_SIZE;
+    page++;
 
     // Last batch was incomplete - we've processed all items
     if (items.length < BATCH_SIZE) break;
