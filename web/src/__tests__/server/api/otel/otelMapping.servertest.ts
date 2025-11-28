@@ -2364,6 +2364,56 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map lk.user_transcript to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.user_transcript",
+          otelAttributeValue: {
+            stringValue: "Hey there. What's the weather?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "Hey there. What's the weather?",
+        },
+      ],
+      [
+        "should map lk.chat_ctx to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.chat_ctx",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              items: [
+                {
+                  id: "lk.agent_task.instructions",
+                  type: "message",
+                  role: "system",
+                  content: ["Your name is Kelly."],
+                  interrupted: false,
+                  extra: {},
+                  metrics: {},
+                  created_at: 1764240453.4831302,
+                },
+              ],
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            items: [
+              {
+                id: "lk.agent_task.instructions",
+                type: "message",
+                role: "system",
+                content: ["Your name is Kelly."],
+                interrupted: false,
+                extra: {},
+                metrics: {},
+                created_at: 1764240453.4831302,
+              },
+            ],
+          }),
+        },
+      ],
+      [
         "should map lk.response.text to output",
         {
           entity: "observation",
