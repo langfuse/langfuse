@@ -16,6 +16,7 @@ import {
   Check,
   IndentIncrease,
   Timer,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -57,6 +58,8 @@ export interface LogViewToolbarProps {
   loadedCount?: number;
   /** Total number of observations (virtualized mode) */
   totalCount?: number;
+  /** Whether download/copy is currently loading */
+  isDownloadLoading?: boolean;
 }
 
 /**
@@ -78,6 +81,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   onToggleMilliseconds,
   loadedCount,
   totalCount,
+  isDownloadLoading = false,
 }: LogViewToolbarProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -224,15 +228,22 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={onDownloadJson}
+                onClick={isDownloadLoading ? undefined : onDownloadJson}
+                disabled={isDownloadLoading}
               >
-                <Download className="h-3.5 w-3.5" />
+                {isDownloadLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {isVirtualized && loadedCount !== undefined && totalCount
-                ? `Download JSON (${loadedCount}/${totalCount} loaded)`
-                : "Download as JSON"}
+              {isDownloadLoading
+                ? "Loading data..."
+                : isVirtualized && loadedCount !== undefined && totalCount
+                  ? `Download JSON (${loadedCount}/${totalCount} loaded)`
+                  : "Download as JSON"}
             </TooltipContent>
           </Tooltip>
         )}

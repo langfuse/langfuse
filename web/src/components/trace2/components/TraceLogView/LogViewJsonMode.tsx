@@ -7,7 +7,7 @@
  * Reuses the existing JSONView component from CodeJsonViewer.tsx.
  */
 
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type FlatLogItem } from "./log-view-types";
@@ -34,13 +34,19 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
   isCollapsed,
   onToggleCollapse,
 }: LogViewJsonModeProps) {
-  const { data, isLoading, isError, loadedCount, totalCount } =
+  const { data, isLoading, isError, loadAllData, totalCount } =
     useLogViewAllObservationsIO({
       items,
       traceId,
       projectId,
-      enabled: true,
     });
+
+  // Auto-load data when JSON mode is rendered
+  useEffect(() => {
+    if (!data && !isLoading && !isError) {
+      void loadAllData();
+    }
+  }, [data, isLoading, isError, loadAllData]);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
@@ -49,7 +55,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">
-            Loading observations ({loadedCount}/{totalCount})...
+            Loading observations (0/{totalCount})...
           </span>
         </div>
       )}

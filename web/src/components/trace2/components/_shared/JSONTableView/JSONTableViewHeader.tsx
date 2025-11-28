@@ -13,7 +13,7 @@ import { type JSONTableViewHeaderProps } from "./json-table-view-types";
  */
 function JSONTableViewHeaderInner<T>({
   columns,
-  hasPrefix,
+  hasPrefix: _hasPrefix,
   hasExpandIcon,
 }: JSONTableViewHeaderProps<T>) {
   return (

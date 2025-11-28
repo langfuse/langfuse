@@ -49,24 +49,43 @@ export function TraceGraphDataProvider({
   traceId,
   observations,
 }: TraceGraphDataProviderProps) {
-  // Calculate time bounds from observations
-  const observationStartTimes = observations.map((o) => o.startTime.getTime());
-  const minStartTime = new Date(
-    Math.min(...observationStartTimes, Date.now()),
-  ).toISOString();
-  const maxStartTime = new Date(
-    Math.max(...observationStartTimes, 0),
-  ).toISOString();
+  // Skip graph data entirely for large traces to avoid performance issues
+  const exceedsThreshold = observations.length >= MAX_NODES_FOR_GRAPH_UI;
+
+  // Calculate time bounds using loop to avoid stack overflow from spread operator
+  // Math.min(...array) with 10k+ elements can exceed JavaScript call stack limit
+  const { minStartTime, maxStartTime } = useMemo(() => {
+    if (exceedsThreshold || observations.length === 0) {
+      return { minStartTime: null, maxStartTime: null };
+    }
+
+    let minTime = Infinity;
+    let maxTime = 0;
+    for (const obs of observations) {
+      const t = obs.startTime.getTime();
+      if (t < minTime) minTime = t;
+      if (t > maxTime) maxTime = t;
+    }
+
+    return {
+      minStartTime: new Date(minTime).toISOString(),
+      maxStartTime: new Date(maxTime).toISOString(),
+    };
+  }, [observations, exceedsThreshold]);
 
   const query = api.traces.getAgentGraphData.useQuery(
     {
       projectId,
       traceId,
-      minStartTime,
-      maxStartTime,
+      minStartTime: minStartTime ?? "",
+      maxStartTime: maxStartTime ?? "",
     },
     {
-      enabled: observations.length > 0,
+      enabled:
+        !exceedsThreshold &&
+        observations.length > 0 &&
+        minStartTime !== null &&
+        maxStartTime !== null,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,

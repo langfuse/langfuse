@@ -53,6 +53,8 @@ export interface JSONTableViewProps<T> {
   collapsedRowHeight?: number;
   /** Row height when expanded (for virtualization estimates) */
   expandedRowHeight?: number;
+  /** Number of rows to render above and below the visible area */
+  overscan?: number;
 
   // Sticky header
   /** Render function for sticky header showing current visible item */

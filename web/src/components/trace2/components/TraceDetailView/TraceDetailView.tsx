@@ -12,7 +12,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -82,13 +82,6 @@ export function TraceDetailView({
   // Check if log view will be virtualized (affects JSON tab availability)
   const isLogViewVirtualized =
     observations.length >= LOG_VIEW_VIRTUALIZATION_THRESHOLD;
-
-  // Auto-redirect from invalid tab state
-  useEffect(() => {
-    if (!showLogViewTab && selectedTab === "log") {
-      setSelectedTab("preview");
-    }
-  }, [showLogViewTab, selectedTab]);
 
   // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
   const { isPeekMode } = useViewPreferences();

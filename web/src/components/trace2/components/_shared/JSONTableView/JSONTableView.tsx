@@ -39,6 +39,7 @@ export function JSONTableView<T>({
   onRowHover,
   onVisibleItemsChange,
   renderRowPrefix,
+  overscan = 100,
   className,
 }: JSONTableViewProps<T>) {
   // Internal expand state (uncontrolled mode)
@@ -97,7 +98,7 @@ export function JSONTableView<T>({
     count: virtualized ? items.length : 0,
     getScrollElement: () => parentRef.current,
     estimateSize,
-    overscan: 50,
+    overscan: overscan,
     measureElement:
       typeof window !== "undefined"
         ? (element) => element.getBoundingClientRect().height
