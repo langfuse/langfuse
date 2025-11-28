@@ -179,25 +179,44 @@ class ConcurrentQueryManager {
 
       try {
         for (const [queryId, todo] of this.activeQueries) {
-          const status = await pollQueryStatus(queryId);
+          try {
+            const status = await pollQueryStatus(queryId);
 
-          if (status === "completed") {
+            if (status === "completed") {
+              this.activeQueries.delete(queryId);
+              await onComplete(todo, true);
+              await scheduleNext(); // Immediately schedule next
+            } else if (status === "failed" || status === "not_found") {
+              this.activeQueries.delete(queryId);
+              const error =
+                status === "failed"
+                  ? await getQueryError(queryId)
+                  : "Query not found in query_log";
+              await onComplete(todo, false, error);
+              await scheduleNext();
+            }
+            // 'running' - continue polling
+          } catch (queryError) {
+            // Error while polling this specific query - treat as failure
+            logger.error(
+              `[Backfill Events] Error polling query ${queryId} for chunk ${todo.id}`,
+              queryError,
+            );
             this.activeQueries.delete(queryId);
-            await onComplete(todo, true);
-            await scheduleNext(); // Immediately schedule next
-          } else if (status === "failed" || status === "not_found") {
-            this.activeQueries.delete(queryId);
-            const error =
-              status === "failed"
-                ? await getQueryError(queryId)
-                : "Query not found in query_log";
-            await onComplete(todo, false, error);
+            const errorMessage =
+              queryError instanceof Error
+                ? queryError.message
+                : String(queryError);
+            await onComplete(todo, false, errorMessage);
             await scheduleNext();
           }
-          // 'running' - continue polling
         }
       } catch (error) {
-        logger.error("[Backfill Events] Error during poll cycle", error);
+        // Unexpected error outside individual query handling
+        logger.error(
+          "[Backfill Events] Unexpected error during poll cycle",
+          error,
+        );
       } finally {
         this.isPolling = false;
       }
