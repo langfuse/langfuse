@@ -42,7 +42,7 @@ type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
 
 export class ClickHouseResourceError extends Error {
   static ERROR_ADVICE_MESSAGE = [
-    "We got notified about this issue and are looking into it..",
+    "We got notified about this issue and are looking into it.",
     "We are continuously improving our API performance.",
   ].join(" ");
 
