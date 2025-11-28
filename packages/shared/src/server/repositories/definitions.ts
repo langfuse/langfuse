@@ -653,6 +653,9 @@ export const eventRecordBaseSchema = z.object({
   provided_cost_details: UsageCostSchema,
   cost_details: UsageCostSchema,
 
+  usage_pricing_tier_id: z.string().nullish(),
+  usage_pricing_tier_name: z.string().nullish(),
+
   // I/O
   input: z.string().nullish(),
   output: z.string().nullish(),

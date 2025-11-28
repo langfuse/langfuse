@@ -62,6 +62,8 @@ interface SpanRecord {
   provided_cost_details: Record<string, number> | null;
   cost_details: Record<string, number> | null;
   total_cost: number;
+  usage_pricing_tier_id: string | null;
+  usage_pricing_tier_name: string | null;
   metadata: Record<string, unknown>;
   source: string;
   tags: Array<string>;
@@ -202,6 +204,8 @@ export async function getRelevantObservations(
       o.provided_cost_details AS provided_cost_details,
       o.cost_details AS cost_details,
       coalesce(o.total_cost, 0) AS total_cost,
+      o.usage_pricing_tier_id,
+      o.usage_pricing_tier_name,
       o.metadata,
       multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
       [] as tags,
@@ -513,6 +517,9 @@ async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       providedCostDetails: span.provided_cost_details || undefined,
       costDetails: span.cost_details || undefined,
       totalCost: span.total_cost || undefined,
+
+      usagePricingTierId: span.usage_pricing_tier_id || undefined,
+      usagePricingTierName: span.usage_pricing_tier_name || undefined,
 
       // I/O
       input: span.input || undefined,
