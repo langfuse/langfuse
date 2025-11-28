@@ -615,11 +615,11 @@ model Dataset {
 }
 
 model DatasetItem {
-  id                  String            @default(cuid())
-  projectId           String            @map("project_id")
-  status              DatasetStatus?    @default(ACTIVE)
+  id                  String         @default(cuid())
+  projectId           String         @map("project_id")
+  status              DatasetStatus? @default(ACTIVE)
   input               Json?
-  expectedOutput      Json?             @map("expected_output")
+  expectedOutput      Json?          @map("expected_output")
   metadata            Json?
   sourceTraceId       String?           @map("source_trace_id")
   sourceObservationId String?           @map("source_observation_id")
@@ -693,7 +693,6 @@ model DatasetRunItems {
   datasetRunId  String      @map("dataset_run_id")
   datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
   datasetItemId String      @map("dataset_item_id")
-  datasetItem   DatasetItem @relation(fields: [datasetItemId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId       String      @map("trace_id")
   observationId String?     @map("observation_id")
   createdAt     DateTime    @default(now()) @map("created_at")

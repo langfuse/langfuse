@@ -15,4 +15,8 @@ WHERE "sys_id" IS NULL;
 ALTER TABLE "dataset_items" 
 ALTER COLUMN "sys_id" SET NOT NULL;
 
+-- Step 4: Add UNIQUE constraint on new PK columns for Phase 1 of PK swap
+ALTER TABLE "dataset_items"
+ADD CONSTRAINT "dataset_items_sys_id_project_id_key" UNIQUE ("sys_id", "project_id");
+
 COMMIT;
