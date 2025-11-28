@@ -45,17 +45,10 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
-  createDatasetItem,
-  upsertDatasetItem,
-  deleteDatasetItem,
-  createManyDatasetItems,
+  DatasetItemManager,
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
-  executeWithDatasetServiceStrategy,
-  toPostgresDatasetItem,
-  OperationType,
-  Implementation,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -63,7 +56,6 @@ import {
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
-import { v4 } from "uuid";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -701,7 +693,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const datasetItem = await upsertDatasetItem({
+      const result = await DatasetItemManager.upsertItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         datasetItemId: input.datasetItemId,
@@ -711,18 +703,25 @@ export const datasetRouter = createTRPCRouter({
         sourceTraceId: input.sourceTraceId,
         sourceObservationId: input.sourceObservationId,
         status: input.status,
-        validateOpts: { normalizeUndefinedToNull: false }, // For UPDATE, undefined means "don't update"
+        validateOpts: { normalizeUndefinedToNull: false }, // For UPDATE, undefined means "don't update" },
       });
+      if (!result.success) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: result.message,
+          cause: result.cause,
+        });
+      }
 
       await auditLog({
         session: ctx.session,
         resourceType: "datasetItem",
         resourceId: input.datasetItemId,
         action: "update",
-        after: datasetItem,
+        after: result.datasetItem,
       });
 
-      return datasetItem;
+      return result.datasetItem;
     }),
   createDataset: protectedProjectProcedure
     .input(
@@ -939,7 +938,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await deleteDatasetItem({
+      const result = await DatasetItemManager.deleteItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         datasetItemId: input.datasetItemId,
@@ -1024,7 +1023,6 @@ export const datasetRouter = createTRPCRouter({
 
       // Copy items in batches to avoid 256MB JSONB limit
       let offset = 0;
-      const createdAt = new Date();
 
       while (true) {
         const itemsBatch = await ctx.prisma.datasetItem.findMany({
@@ -1043,30 +1041,18 @@ export const datasetRouter = createTRPCRouter({
 
         if (itemsBatch.length === 0) break;
 
-        const preparedItems = itemsBatch.map((item) => ({
-          itemId: v4(),
-          input: item.input ?? undefined,
-          expectedOutput: item.expectedOutput ?? undefined,
-          metadata: item.metadata ?? undefined,
-          sourceTraceId: item.sourceTraceId,
-          sourceObservationId: item.sourceObservationId,
-          status: item.status,
-          projectId: input.projectId,
-          datasetId: newDataset.id,
-          createdAt: createdAt,
-        }));
-
-        await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-          [Implementation.STATEFUL]: async () => {
-            await ctx.prisma.datasetItem.createMany({
-              data: preparedItems.map((item) => toPostgresDatasetItem(item)),
-            });
-          },
-          [Implementation.VERSIONED]: async () => {
-            await ctx.prisma.datasetItemEvent.createMany({
-              data: preparedItems,
-            });
-          },
+        await ctx.prisma.datasetItem.createMany({
+          data: itemsBatch.map((item) => ({
+            // the items get new ids as they need to be unique on project level
+            input: item.input ?? undefined,
+            expectedOutput: item.expectedOutput ?? undefined,
+            metadata: item.metadata ?? undefined,
+            sourceTraceId: item.sourceTraceId,
+            sourceObservationId: item.sourceObservationId,
+            status: item.status,
+            projectId: input.projectId,
+            datasetId: newDataset.id,
+          })),
         });
 
         if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
@@ -1103,7 +1089,7 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const result = await createDatasetItem({
+      const result = await DatasetItemManager.createItem({
         projectId: input.projectId,
         datasetId: input.datasetId,
         input: input.input,
@@ -1169,7 +1155,7 @@ export const datasetRouter = createTRPCRouter({
           scope: "datasets:CUD",
         });
 
-        const result = await createManyDatasetItems({
+        const result = await DatasetItemManager.createManyItems({
           projectId: input.projectId,
           items: input.items,
           normalizeOpts: { sanitizeControlChars: true },
@@ -1183,7 +1169,7 @@ export const datasetRouter = createTRPCRouter({
             auditLog({
               session: ctx.session,
               resourceType: "datasetItem",
-              resourceId: item.itemId,
+              resourceId: item.id,
               action: "create",
               after: item,
             }),

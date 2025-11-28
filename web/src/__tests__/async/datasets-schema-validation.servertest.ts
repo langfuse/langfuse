@@ -223,7 +223,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should validate both input and expectedOutput", () => {
-    const result = defaultValidator.validateAndNormalize({
+    const result = defaultValidator.preparePayload({
       input: DATA.validSimpleText,
       expectedOutput: DATA.validNumber,
       metadata: undefined,
@@ -234,7 +234,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should return inputErrors when input invalid", () => {
-    const result = defaultValidator.validateAndNormalize({
+    const result = defaultValidator.preparePayload({
       input: DATA.invalidSimpleText,
       expectedOutput: DATA.validNumber,
       metadata: undefined,
@@ -248,7 +248,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should return expectedOutputErrors when expectedOutput invalid", () => {
-    const result = defaultValidator.validateAndNormalize({
+    const result = defaultValidator.preparePayload({
       input: DATA.validSimpleText,
       expectedOutput: DATA.invalidNumber,
       metadata: undefined,
@@ -262,7 +262,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should return both errors when both invalid", () => {
-    const result = defaultValidator.validateAndNormalize({
+    const result = defaultValidator.preparePayload({
       input: DATA.invalidSimpleText,
       expectedOutput: DATA.invalidNumber,
       metadata: undefined,
@@ -283,7 +283,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
       expectedOutputSchema: TEST_SCHEMAS.requiresObject,
     });
 
-    const result = validator.validateAndNormalize({
+    const result = validator.preparePayload({
       input: undefined,
       expectedOutput: undefined,
       metadata: undefined,
@@ -293,7 +293,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
   });
 
   it("should reject null when schema doesn't allow null", () => {
-    const result = defaultValidator.validateAndNormalize({
+    const result = defaultValidator.preparePayload({
       input: null,
       expectedOutput: null,
       metadata: undefined,
@@ -313,7 +313,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
       inputSchema: TEST_SCHEMAS.allowsNull,
       expectedOutputSchema: TEST_SCHEMAS.allowsNull,
     });
-    const result = validator.validateAndNormalize({
+    const result = validator.preparePayload({
       input: null,
       expectedOutput: null,
       metadata: undefined,

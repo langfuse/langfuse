@@ -10,7 +10,7 @@ export type PayloadError = {
   };
 };
 
-export type ValidateAndNormalizeResult =
+export type PreparePayloadResult =
   | {
       success: true;
       input: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
@@ -32,7 +32,7 @@ export type CreateManyItemsPayload = {
 }[];
 
 export type CreateManyItemsInsert = {
-  itemId: string;
+  id: string;
   projectId: string;
   datasetId: string;
   status: DatasetStatus;
@@ -41,7 +41,6 @@ export type CreateManyItemsInsert = {
   metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
   sourceTraceId?: string;
   sourceObservationId?: string;
-  createdAt: Date;
 }[];
 
 /**
@@ -56,18 +55,4 @@ export type CreateManyValidationError = {
     message: string;
     keyword?: string;
   }>;
-};
-
-export type ItemBase = {
-  id: string;
-  sourceTraceId: string | null;
-  sourceObservationId: string | null;
-  status: string;
-  createdAt: Date | null;
-};
-
-export type ItemWithIO = ItemBase & {
-  input: Prisma.JsonValue;
-  expectedOutput: Prisma.JsonValue;
-  metadata: Prisma.JsonValue;
 };
