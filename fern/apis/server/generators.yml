@@ -10,7 +10,7 @@ groups:
           path: ../../../web/public/generated/api
 
       - name: fernapi/fern-python-sdk
-        version: 2.16.0
+        version: 4.36.0
         output:
           location: local-file-system
           path: ../../../generated/python
