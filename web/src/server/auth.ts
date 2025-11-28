@@ -752,7 +752,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               "Custom SSO provider enforced for domain, user signed in with other provider",
             );
             throw new Error(
-              `You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.`,
+              `You must sign in via custom Enterprise SSO for this domain. Enter your email on the sign-in page and press Continue.`,
             );
           }
 
