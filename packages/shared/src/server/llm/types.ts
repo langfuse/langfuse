@@ -68,7 +68,10 @@ const GoogleAIStudioMessageContentWithToolUse = z.object({
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
-  args: z.record(z.string(), z.unknown()),
+  args: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .transform((val) => val ?? {}),
 });
 export type LLMToolCall = z.infer<typeof LLMToolCallSchema>;
 
