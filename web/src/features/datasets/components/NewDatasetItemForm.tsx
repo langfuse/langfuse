@@ -299,7 +299,10 @@ export const NewDatasetItemForm = (props: {
                     </PopoverTrigger>
                     <PopoverContent className="p-0">
                       <InputCommand>
-                        <InputCommandInput placeholder="Search datasets..." />
+                        <InputCommandInput
+                          placeholder="Search datasets..."
+                          variant="bottom"
+                        />
                         <InputCommandEmpty>
                           No datasets found.
                         </InputCommandEmpty>

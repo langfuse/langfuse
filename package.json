@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.132.0",
+  "version": "3.134.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -92,7 +92,8 @@
       "katex": "^0.16.21",
       "tar-fs": "^2.1.2",
       "rollup@^4.0.0": "^4.22.4",
-      "@types/node-fetch": "^2.6.13"
+      "@types/node-fetch": "^2.6.13",
+      "glob": "^10.5.0"
     },
     "patchedDependencies": {
       "next-auth@4.24.12": "patches/next-auth@4.24.12.patch"

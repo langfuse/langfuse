@@ -4,12 +4,12 @@ import {
   StringFilter,
   type ObservationRecordReadType,
   queryClickhouse,
-  convertObservation,
   measureAndReturn,
   observationsTableUiColumnDefinitions,
+  convertObservation,
+  shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
 import type { FilterState } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
 
 type QueryType = {
   page: number;
@@ -32,8 +32,9 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
   // ClickHouse query optimizations for List Observations API
-  const disableObservationsFinal =
-    env.LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL === "true";
+  const disableObservationsFinal = await shouldSkipObservationsFinal(
+    props.projectId,
+  );
 
   const query = `
     with clickhouse_keys as (
@@ -168,11 +169,18 @@ const generateFilter = (query: QueryType) => {
     simpleFilterProps,
     filterParams,
     advancedFilters,
-    observationsTableUiColumnDefinitions,
+    observationsTableUiColumnDefinitions.filter(
+      (c) => c.clickhouseTableName !== "scores",
+    ),
+  );
+
+  // Remove score filters since observations don't support scores in response
+  const filteredChFilter = chFilter.filter(
+    (f) => f.clickhouseTable !== "scores",
   );
 
   // Add project filter
-  chFilter.push(
+  filteredChFilter.push(
     new StringFilter({
       clickhouseTable: "observations",
       field: "project_id",
@@ -180,5 +188,5 @@ const generateFilter = (query: QueryType) => {
       value: query.projectId,
     }),
   );
-  return chFilter;
+  return filteredChFilter;
 };

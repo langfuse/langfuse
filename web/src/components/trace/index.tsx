@@ -330,11 +330,14 @@ export function Trace(props: {
     tree: traceTree,
     hiddenObservationsCount,
     searchItems,
-  } = useMemo(
-    () =>
-      buildTraceUiData(props.trace, props.observations, minObservationLevel),
-    [props.trace, props.observations, minObservationLevel],
-  );
+    nodeMap,
+  } = useMemo(() => {
+    return buildTraceUiData(
+      props.trace,
+      props.observations,
+      minObservationLevel,
+    );
+  }, [props.trace, props.observations, minObservationLevel]);
 
   // Compute these outside the component to avoid recreation
   const hasQuery = (searchQuery ?? "").trim().length > 0;
@@ -392,6 +395,12 @@ export function Trace(props: {
     />
   );
 
+  // Find the selected node to pass pre-computed cost to preview
+  const selectedNode = useMemo(() => {
+    if (!currentObservationId) return null;
+    return nodeMap.get(currentObservationId) ?? null;
+  }, [nodeMap, currentObservationId]);
+
   const previewContent =
     currentObservationId === undefined ||
     currentObservationId === "" ||
@@ -403,6 +412,7 @@ export function Trace(props: {
         serverScores={props.scores}
         commentCounts={castToNumberMap(traceCommentCounts.data)}
         viewType={viewType}
+        precomputedCost={traceTree.totalCost}
       />
     ) : isValidObservationId ? (
       <ObservationPreview
@@ -414,6 +424,7 @@ export function Trace(props: {
         commentCounts={castToNumberMap(observationCommentCounts.data)}
         viewType={viewType}
         isTimeline={props.selectedTab?.includes("timeline")}
+        precomputedCost={selectedNode?.totalCost}
       />
     ) : null;
 
@@ -435,14 +446,16 @@ export function Trace(props: {
                       Node display
                     </span>
                   ) : (
-                    <CommandInput
-                      showBorder={false}
-                      placeholder="Search"
-                      className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
-                      value={searchInputValue}
-                      onValueChange={handleSearchInputChange}
-                      onKeyDown={handleSearchKeyDown}
-                    />
+                    <div className="relative flex-1">
+                      <CommandInput
+                        showBorder={false}
+                        placeholder="Search"
+                        className="-ml-2 h-9 min-w-20 border-0 focus:ring-0"
+                        value={searchInputValue}
+                        onValueChange={handleSearchInputChange}
+                        onKeyDown={handleSearchKeyDown}
+                      />
+                    </div>
                   )}
                   {viewType === "detailed" && (
                     <div className="flex flex-row items-center gap-0.5">
@@ -602,6 +615,7 @@ export function Trace(props: {
                         colorCodeMetrics={colorCodeMetricsOnObservationTree}
                         minLevel={minObservationLevel}
                         setMinLevel={setMinObservationLevel}
+                        tree={traceTree}
                       />
                     </div>
                   ) : (
@@ -678,14 +692,16 @@ export function Trace(props: {
                           Node display
                         </span>
                       ) : (
-                        <CommandInput
-                          showBorder={false}
-                          placeholder="Search"
-                          className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
-                          value={searchInputValue}
-                          onValueChange={handleSearchInputChange}
-                          onKeyDown={handleSearchKeyDown}
-                        />
+                        <div className="relative flex-1">
+                          <CommandInput
+                            showBorder={false}
+                            placeholder="Search"
+                            className="h-7 min-w-20 border-0 pr-0 focus:ring-0"
+                            value={searchInputValue}
+                            onValueChange={handleSearchInputChange}
+                            onKeyDown={handleSearchKeyDown}
+                          />
+                        </div>
                       )}
                       {viewType === "detailed" && (
                         <div className="flex flex-row items-center gap-0.5">
@@ -902,6 +918,7 @@ export function Trace(props: {
                                   }
                                   minLevel={minObservationLevel}
                                   setMinLevel={setMinObservationLevel}
+                                  tree={traceTree}
                                 />
                               </ResizablePanel>
 
@@ -944,6 +961,7 @@ export function Trace(props: {
                                 }
                                 minLevel={minObservationLevel}
                                 setMinLevel={setMinObservationLevel}
+                                tree={traceTree}
                               />
                             </div>
                           )}

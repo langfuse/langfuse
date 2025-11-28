@@ -14,6 +14,8 @@ import {
   createEventsCh,
   createEvent,
   getTraceByIdFromEventsTable,
+  createObservation,
+  createObservationsCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
@@ -384,6 +386,87 @@ describe("traces trpc", () => {
       );
       // Should include all possible values from config, not just the actual score value
       expect(sentimentScore?.values).toHaveLength(4);
+    });
+  });
+
+  describe("traces.getAgentGraphData", () => {
+    it("should allow unauthenticated access to public trace agent graph data", async () => {
+      const unAuthedSession = createInnerTRPCContext({ session: null });
+      const unAuthedCaller = appRouter.createCaller({
+        ...unAuthedSession,
+        prisma,
+      });
+
+      const trace = createTrace({
+        project_id: projectId,
+        public: true,
+      });
+
+      const observation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        type: "GENERATION",
+      });
+
+      await createTracesCh([trace]);
+      await createObservationsCh([observation]);
+
+      const minStartTime = new Date(
+        new Date(trace.timestamp).getTime() - 1000,
+      ).toISOString();
+      const maxStartTime = new Date(
+        new Date(trace.timestamp).getTime() + 1000,
+      ).toISOString();
+
+      const agentGraphData = await unAuthedCaller.traces.getAgentGraphData({
+        projectId,
+        traceId: trace.id,
+        minStartTime,
+        maxStartTime,
+      });
+
+      expect(agentGraphData).toBeDefined();
+      expect(Array.isArray(agentGraphData)).toBe(true);
+    });
+
+    it("should deny unauthenticated access to private trace agent graph data", async () => {
+      const unAuthedSession = createInnerTRPCContext({ session: null });
+      const unAuthedCaller = appRouter.createCaller({
+        ...unAuthedSession,
+        prisma,
+      });
+
+      const trace = createTrace({
+        project_id: projectId,
+        public: false,
+      });
+
+      const observation = createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        type: "GENERATION",
+      });
+
+      await createTracesCh([trace]);
+      await createObservationsCh([observation]);
+
+      const minStartTime = new Date(
+        new Date(trace.timestamp).getTime() - 1000,
+      ).toISOString();
+      const maxStartTime = new Date(
+        new Date(trace.timestamp).getTime() + 1000,
+      ).toISOString();
+
+      await expect(
+        unAuthedCaller.traces.getAgentGraphData({
+          projectId,
+          traceId: trace.id,
+          minStartTime,
+          maxStartTime,
+        }),
+      ).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+      });
     });
   });
 

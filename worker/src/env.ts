@@ -92,6 +92,8 @@ const EnvSchema = z.object({
     .positive()
     .default(3),
 
+  LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
@@ -149,6 +151,12 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+
+  // Comma-separated list of project IDs that should only export traces table (skip observations and scores)
+  LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
@@ -296,6 +304,21 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(120_000), // 2 minutes
+
+  // ClickHouse mutation monitoring
+  LANGFUSE_MUTATION_MONITOR_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000), // 1 minute
+  LANGFUSE_DELETION_MUTATIONS_MAX_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(15),
+  LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(5),
 
   // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z

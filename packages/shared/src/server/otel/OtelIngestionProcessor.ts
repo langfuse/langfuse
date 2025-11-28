@@ -1210,23 +1210,34 @@ export class OtelIngestionProcessor {
               ? attributes["ai.toolCall.args"]
               : undefined;
 
-      output =
+      if (
         "ai.response.text" in attributes &&
-        Boolean(attributes["ai.response.text"])
-          ? attributes["ai.response.text"]
-          : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
-            ? attributes["ai.result.text"]
-            : "ai.toolCall.result" in attributes
-              ? attributes["ai.toolCall.result"]
-              : "ai.response.object" in attributes
-                ? attributes["ai.response.object"]
-                : "ai.result.object" in attributes // Legacy support for ai SDK versions < 4.0.0
-                  ? attributes["ai.result.object"]
-                  : "ai.response.toolCalls" in attributes
-                    ? attributes["ai.response.toolCalls"]
-                    : "ai.result.toolCalls" in attributes // Legacy support for ai SDK versions < 4.0.0
-                      ? attributes["ai.result.toolCalls"]
-                      : undefined;
+        "ai.response.toolCalls" in attributes
+      ) {
+        output = JSON.stringify({
+          role: "assistant",
+          content: attributes["ai.response.text"],
+          tool_calls: attributes["ai.response.toolCalls"],
+        });
+      } else {
+        output =
+          "ai.response.text" in attributes &&
+          Boolean(attributes["ai.response.text"])
+            ? attributes["ai.response.text"]
+            : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
+              ? attributes["ai.result.text"]
+              : "ai.toolCall.result" in attributes
+                ? attributes["ai.toolCall.result"]
+                : "ai.response.object" in attributes
+                  ? attributes["ai.response.object"]
+                  : "ai.result.object" in attributes // Legacy support for ai SDK versions < 4.0.0
+                    ? attributes["ai.result.object"]
+                    : "ai.response.toolCalls" in attributes
+                      ? attributes["ai.response.toolCalls"]
+                      : "ai.result.toolCalls" in attributes // Legacy support for ai SDK versions < 4.0.0
+                        ? attributes["ai.result.toolCalls"]
+                        : undefined;
+      }
 
       return { input, output, filteredAttributes };
     }
@@ -1740,9 +1751,9 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+      "gen_ai.response.model",
       "ai.model.id",
       "gen_ai.request.model",
-      "gen_ai.response.model",
       "llm.response.model",
       "llm.model_name",
       "model",

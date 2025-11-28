@@ -29,6 +29,7 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
+import { seedDatasetVersions } from "./seed-dataset-versions";
 
 const options = {
   environment: { type: "string" },
@@ -346,6 +347,7 @@ async function main() {
     );
 
     await createDashboardsAndWidgets([project1, project2]);
+    await seedDatasetVersions(prisma, [project1.id, project2.id]);
 
     await prisma.llmSchema.createMany({
       data: [

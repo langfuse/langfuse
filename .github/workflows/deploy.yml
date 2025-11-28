@@ -12,6 +12,7 @@ on:
           - all
           - web
           - web-ingestion
+          - web-iso
           - worker
         required: true
       environment:
@@ -43,12 +44,12 @@ jobs:
           script: |
             if (context.eventName === "workflow_dispatch") {
               if (context.payload.inputs.service === "all") {
-                return `["web", "web-ingestion", "worker"]`
+                return `["web", "web-ingestion", "web-iso", "worker"]`
               }
               return `["${context.payload.inputs.service}"]`
             }
             if (context.eventName === "push") {
-              return `["web", "web-ingestion", "worker"]`
+              return `["web", "web-ingestion", "web-iso", "worker"]`
             }
             return "[]"
           result-encoding: string

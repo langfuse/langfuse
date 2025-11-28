@@ -407,6 +407,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-haiku-4-5-20251001",
+  "claude-opus-4-5-20251101",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
@@ -424,8 +425,9 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
-  "gemini-2.5-pro",
   "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-3-pro-preview",
   "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash-lite-preview-09-2025",
@@ -442,6 +444,7 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3-pro-preview",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",

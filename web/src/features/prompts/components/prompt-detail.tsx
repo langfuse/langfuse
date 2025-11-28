@@ -332,7 +332,7 @@ export const PromptDetail = ({
           <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
-              placeholder="Search versions"
+              placeholder="Search..."
               className="h-fit border-none py-0 text-sm font-light text-muted-foreground focus:ring-0"
             />
 
