@@ -275,6 +275,8 @@ export const handleEventPropagationJob = async (
           usage_details,
           provided_cost_details,
           cost_details,
+          usage_pricing_tier_id,
+          usage_pricing_tier_name,
           input,
           output,
           metadata,
@@ -324,6 +326,8 @@ export const handleEventPropagationJob = async (
           obs.usage_details,
           obs.provided_cost_details,
           obs.cost_details,
+          obs.usage_pricing_tier_id,
+          obs.usage_pricing_tier_name,
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,
           -- Merge trace and observation metadata, with observation taking precedence (first map wins)

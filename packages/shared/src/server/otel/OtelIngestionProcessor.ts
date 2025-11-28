@@ -357,6 +357,10 @@ export class OtelIngestionProcessor {
                     isLangfuseSDKSpans,
                   ),
 
+                  // TODO: Pricing Tiers
+                  usagePricingTierId: null,
+                  usagePricingTierName: null,
+
                   // Properties
                   tags: this.extractTags(spanAttributes),
                   public: this.extractPublic(spanAttributes),
