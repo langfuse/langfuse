@@ -64,7 +64,7 @@ export async function signupApiHandler(
   if (multiTenantSsoProvider) {
     res.status(422).json({
       message:
-        "You must sign in via custom Enterprise SSO for this domain. Enter your email on the sign-in page and press Continue.",
+        "You must sign in via Enterprise SSO for this domain. Enter your email on the sign-in page and press Continue.",
     });
     return;
   }
