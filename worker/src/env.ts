@@ -237,6 +237,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_S3_RECOVERY_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
     .number()

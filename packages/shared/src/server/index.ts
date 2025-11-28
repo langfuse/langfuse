@@ -69,6 +69,7 @@ export * from "./redis/dataRetentionProcessingQueue";
 export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/notificationQueue";
+export * from "./redis/s3RecoveryQueue";
 export * from "./webhooks/validation";
 export * from "./webhooks/ipBlocking";
 export * from "./redis/experimentCreateQueue";

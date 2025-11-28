@@ -197,6 +197,16 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
+export const S3RecoveryJobSchema = z.object({
+  projectIds: z.array(z.string()),
+  timeframes: z.array(
+    z.object({
+      startDate: z.string().datetime(),
+      endDate: z.string().datetime(),
+    }),
+  ),
+});
+
 export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
   action: EventActionSchema,
@@ -261,6 +271,7 @@ export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
 export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
+export type S3RecoveryJobType = z.infer<typeof S3RecoveryJobSchema>;
 
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),
@@ -302,6 +313,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  S3RecoveryQueue = "s3-recovery-queue",
 }
 
 export enum QueueJobs {
@@ -337,6 +349,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  S3RecoveryJob = "s3-recovery-job",
 }
 
 export type TQueueJobTypes = {
@@ -493,5 +506,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.S3RecoveryQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: S3RecoveryJobType;
+    name: QueueJobs.S3RecoveryJob;
   };
 };
