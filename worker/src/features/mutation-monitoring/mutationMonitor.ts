@@ -30,7 +30,7 @@ interface QueueDecision {
  * ```
  * where `role` is the role used by Langfuse to connect to ClickHouse, usually `app`.
  *
- * `QUEUE_TABLE_MAPPING` below shows how mutatations on various tables map to queues.
+ * `QUEUE_TABLE_MAPPING` below shows how mutations on various tables map to queues.
  *
  * - `LANGFUSE_MUTATION_MONITOR_ENABLED` must be set to `true` to enable this feature.
  * - `LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS` defines how often to check for mutations.
