@@ -10,32 +10,9 @@ Sentry.init({
   environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
   release: process.env.NEXT_PUBLIC_BUILD_ID,
 
-  beforeSend(event, hint) {
-    const error = hint.originalException;
+  beforeSend(event) {
+    // const error = hint.originalException;
     const errorValue = event.exception?.values?.[0]?.value || "";
-
-    // Filter out TRPCClientErrors, we track them in DataDog.
-    // The users see those via toast notifications -> see handleTrpcError in web/src/utils/api.ts
-    if (
-      error &&
-      typeof error === "object" &&
-      "name" in error &&
-      error.name === "TRPCClientError"
-    ) {
-      return null;
-    }
-
-    // Filter HTTP client errors from tRPC endpoints
-    // These are captured at the network level by httpClientIntegration but are already
-    // handled by tRPC's error handling system
-    if (
-      (event.exception?.values?.[0]?.mechanism?.type === "http.client" ||
-        event.exception?.values?.[0]?.mechanism?.type ===
-          "auto.http.client.fetch") &&
-      event.request?.url?.includes("/api/trpc/")
-    ) {
-      return null;
-    }
 
     // Filter invalid href errors - these are from user-inputted data containing malformed URLs
     // The Next.js router correctly rejects them, no need to log as errors

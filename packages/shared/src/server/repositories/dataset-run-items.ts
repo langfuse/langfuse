@@ -393,19 +393,30 @@ const getDatasetRunsTableInternal = async <T>(
     ),
   `;
 
+  const datasetRunItemsDedupedCte = `
+    dataset_run_items_deduped AS (
+      SELECT *
+      FROM dataset_run_items_rmt dri
+      WHERE ${baseFilter.query}
+      ORDER BY dri.created_at DESC
+      LIMIT 1 BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
+    ),
+  `;
+
   const traceMetricsCte = `
     trace_metrics AS (
       SELECT
-        of.trace_id,
-        of.project_id,
+        dri.trace_id,
+        dri.project_id,
+        dri.dataset_id,
+        dri.dataset_run_id,
+        dri.dataset_item_id,
         dateDiff('millisecond', min(of.start_time), max(of.end_time)) as latency_ms,
         sum(of.total_cost) as total_cost
-      FROM observations_filtered of
-      JOIN dataset_run_items_rmt dri ON dri.trace_id = of.trace_id 
+      FROM dataset_run_items_deduped dri
+      JOIN observations_filtered of ON dri.trace_id = of.trace_id
         AND dri.project_id = of.project_id
-        AND dri.observation_id IS NULL  -- Only for trace-level dataset run items
-      WHERE ${baseFilter.query}
-      GROUP BY of.trace_id, of.project_id
+      GROUP BY dri.trace_id, dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id
     ),
   `;
 
@@ -420,26 +431,28 @@ const getDatasetRunsTableInternal = async <T>(
         dri.dataset_run_description as dataset_run_description,
         dri.dataset_run_metadata as dataset_run_metadata,
         count(DISTINCT dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_item_id) as count_run_items,
-        
+
         -- Trace-level metrics (average across traces in this dataset run)
         AVG(CASE WHEN dri.observation_id IS NULL THEN tm.latency_ms ELSE NULL END) / 1000.0 as trace_avg_latency,
         AVG(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_avg_cost,
         SUM(CASE WHEN dri.observation_id IS NULL THEN tm.total_cost ELSE NULL END) as trace_total_cost,
-        
-        -- Observation-level metrics  
-        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN 
+
+        -- Observation-level metrics
+        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN
           dateDiff('millisecond', of.start_time, of.end_time) / 1000.0
         ELSE NULL END) as obs_avg_latency,
-        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_avg_cost,
-        SUM(CASE WHEN dri.observation_id IS NOT NULL THEN of.total_cost ELSE NULL END) as obs_total_cost
-        
-      FROM dataset_run_items_rmt dri
-      LEFT JOIN observations_filtered of ON dri.observation_id = of.id 
+        AVG(CASE WHEN dri.observation_id IS NOT NULL THEN tm.total_cost ELSE NULL END) as obs_avg_cost,
+        SUM(CASE WHEN dri.observation_id IS NOT NULL THEN tm.total_cost ELSE NULL END) as obs_total_cost
+
+      FROM dataset_run_items_deduped dri
+      LEFT JOIN observations_filtered of ON dri.observation_id = of.id
         AND dri.project_id = of.project_id
         AND dri.trace_id = of.trace_id
       LEFT JOIN trace_metrics tm ON dri.trace_id = tm.trace_id
         AND dri.project_id = tm.project_id
-        AND dri.observation_id IS NULL
+        AND dri.dataset_id = tm.dataset_id
+        AND dri.dataset_run_id = tm.dataset_run_id
+        AND dri.dataset_item_id = tm.dataset_item_id
       WHERE ${baseFilter.query}
       GROUP BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.dataset_run_name, dri.dataset_run_description, dri.dataset_run_metadata, dri.dataset_run_created_at
     )
@@ -448,6 +461,7 @@ const getDatasetRunsTableInternal = async <T>(
   const query = `
     ${scoresCte}
     ${filteredObservationsCte}
+    ${datasetRunItemsDedupedCte}
     ${traceMetricsCte}
     ${datasetRunMetricsCte}
     SELECT ${opts.select === "count" ? "" : "DISTINCT"}
@@ -972,7 +986,9 @@ export const getDatasetRunItemsWithoutIOByItemIds = async (
 
 export const getDatasetItemIdsByTraceIdCh = async (
   opts: DatasetItemIdsByTraceIdQuery,
-): Promise<{ id: string; datasetId: string }[]> => {
+): Promise<
+  { id: string; datasetId: string; observationId: string | null }[]
+> => {
   const { projectId, traceId, filter } = opts;
 
   const datasetRunItemsFilter = new FilterList([
@@ -1001,6 +1017,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
   const query = `
   SELECT
     dri.dataset_item_id as dataset_item_id,
+    dri.observation_id as observation_id,
     dri.dataset_id as dataset_id
   FROM dataset_run_items_rmt dri 
   WHERE ${appliedFilter.query}
@@ -1008,6 +1025,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
 
   const res = await queryClickhouse<{
     dataset_item_id: string;
+    observation_id: string | null;
     dataset_id: string;
   }>({
     query,
@@ -1025,6 +1043,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
   return res.map((runItem) => {
     return {
       id: runItem.dataset_item_id,
+      observationId: runItem.observation_id,
       datasetId: runItem.dataset_id,
     };
   });

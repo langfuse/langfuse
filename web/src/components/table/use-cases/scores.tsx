@@ -735,7 +735,7 @@ export default function ScoresTable({
               />
             ) : null,
             <BatchExportTableButton
-              {...{ projectId, filterState, orderByState }}
+              {...{ projectId, filterState: backendFilterState, orderByState }}
               tableName={BatchExportTableName.Scores}
               key="batchExport"
             />,

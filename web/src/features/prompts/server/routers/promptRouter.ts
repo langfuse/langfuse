@@ -113,7 +113,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        input.filter ?? [],
         promptsTableCols,
         "prompts",
       );
@@ -122,7 +122,12 @@ export const promptRouter = createTRPCRouter({
       const pathFilter = input.pathPrefix
         ? (() => {
             const prefix = input.pathPrefix;
-            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
+            // Escape backslashes and other LIKE special characters for pattern matching
+            const escapedPrefix = prefix
+              .replace(/\\/g, "\\\\")
+              .replace(/%/g, "\\%")
+              .replace(/_/g, "\\_");
+            return Prisma.sql` AND (p.name LIKE ${`${escapedPrefix}/%`} OR p.name = ${escapedPrefix})`;
           })()
         : Prisma.empty;
 
@@ -196,13 +201,14 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const filterCondition = input.filter
-        ? tableColumnsToSqlFilterAndPrefix(
-            input.filter,
-            promptsTableCols,
-            "prompts",
-          )
-        : Prisma.empty;
+      const filterCondition =
+        input.filter && input.filter.length > 0
+          ? tableColumnsToSqlFilterAndPrefix(
+              input.filter,
+              promptsTableCols,
+              "prompts",
+            )
+          : Prisma.empty;
 
       const pathFilter = input.pathPrefix
         ? (() => {

@@ -33,8 +33,7 @@ export const eventsTableLegacyTraceUiColumnDefinitions: UiColumnMappings = [
   },
 ];
 
-export const eventsTableUiColumnDefinitions: UiColumnMappings = [
-  ...eventsTableLegacyTraceUiColumnDefinitions,
+export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Environment",
     uiTableId: "environment",
@@ -192,26 +191,6 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events",
     clickhouseSelect: 'e."metadata"',
   },
-  // Scores column duplicated to allow renaming column name. Will be removed once session storage cache is outdated
-  // Column names are cached in user sessions - changing them breaks existing filters
-  {
-    uiTableName: "Scores",
-    uiTableId: "scores",
-    clickhouseTableName: "scores",
-    clickhouseSelect: "s.scores_avg",
-  },
-  {
-    uiTableName: "Scores (numeric)",
-    uiTableId: "scores_avg",
-    clickhouseTableName: "scores",
-    clickhouseSelect: "s.scores_avg",
-  },
-  {
-    uiTableName: "Scores (categorical)",
-    uiTableId: "score_categories",
-    clickhouseTableName: "scores",
-    clickhouseSelect: "s.score_categories",
-  },
   {
     uiTableName: "Version",
     uiTableId: "version",
@@ -241,5 +220,42 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "sessionId",
     clickhouseTableName: "events",
     clickhouseSelect: 'e."session_id"',
+  },
+];
+
+export const eventsTableUiColumnDefinitions: UiColumnMappings = [
+  ...eventsTableLegacyTraceUiColumnDefinitions,
+  ...eventsTableNativeUiColumnDefinitions,
+  // Scores column duplicated to allow renaming column name. Will be removed once session storage cache is outdated
+  // Column names are cached in user sessions - changing them breaks existing filters
+  {
+    uiTableName: "Scores",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.scores_avg",
+  },
+  {
+    uiTableName: "Scores (numeric)",
+    uiTableId: "scores_avg",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.scores_avg",
+  },
+  {
+    uiTableName: "Scores (categorical)",
+    uiTableId: "score_categories",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_categories",
+  },
+  {
+    uiTableName: "Comment Count",
+    uiTableId: "commentCount",
+    clickhouseTableName: "comments",
+    clickhouseSelect: "", // handled by comment filter helpers
+  },
+  {
+    uiTableName: "Comment Content",
+    uiTableId: "commentContent",
+    clickhouseTableName: "comments",
+    clickhouseSelect: "", // handled by comment filter helpers
   },
 ];

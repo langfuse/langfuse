@@ -207,6 +207,7 @@ const DatasetAggregateCellContent = ({
               (latencyDiff ? (
                 <DiffLabel
                   diff={latencyDiff}
+                  preferNegativeDiff={true}
                   formatValue={(value) => formatIntervalSeconds(value)}
                   className="ml-1"
                 />
@@ -222,6 +223,7 @@ const DatasetAggregateCellContent = ({
               (totalCostDiff ? (
                 <DiffLabel
                   diff={totalCostDiff}
+                  preferNegativeDiff={true}
                   formatValue={(value) => usdFormatter(value, 2, 4)}
                   className="ml-1"
                 />
