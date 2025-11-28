@@ -54,10 +54,6 @@ export interface LogViewToolbarProps {
   showMilliseconds?: boolean;
   /** Callback to toggle milliseconds display */
   onToggleMilliseconds?: () => void;
-  /** Number of observations with I/O loaded (virtualized mode) */
-  loadedCount?: number;
-  /** Total number of observations (virtualized mode) */
-  totalCount?: number;
   /** Whether download/copy is currently loading */
   isDownloadLoading?: boolean;
 }
@@ -79,8 +75,6 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   onToggleIndent,
   showMilliseconds = false,
   onToggleMilliseconds,
-  loadedCount,
-  totalCount,
   isDownloadLoading = false,
 }: LogViewToolbarProps) {
   const [isCopied, setIsCopied] = useState(false);
@@ -212,11 +206,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {isVirtualized && loadedCount !== undefined && totalCount
-                ? `Copy JSON (${loadedCount}/${totalCount} loaded)`
-                : "Copy as JSON"}
-            </TooltipContent>
+            <TooltipContent>Copy as JSON</TooltipContent>
           </Tooltip>
         )}
 
@@ -239,11 +229,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {isDownloadLoading
-                ? "Loading data..."
-                : isVirtualized && loadedCount !== undefined && totalCount
-                  ? `Download JSON (${loadedCount}/${totalCount} loaded)`
-                  : "Download as JSON"}
+              {isDownloadLoading ? "Loading data..." : "Download as JSON"}
             </TooltipContent>
           </Tooltip>
         )}

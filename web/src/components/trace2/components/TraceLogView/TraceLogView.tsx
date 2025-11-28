@@ -14,15 +14,11 @@
  * Uses JSONTableView for table rendering with domain-specific column definitions.
  */
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
-import { ItemBadge } from "@/src/components/ItemBadge";
-import {
-  JSONTableView,
-  type JSONTableViewColumn,
-} from "@/src/components/trace2/components/_shared/JSONTableView";
+import { JSONTableView } from "@/src/components/trace2/components/_shared/JSONTableView";
 import {
   flattenChronological,
   flattenTreeOrder,
@@ -33,15 +29,10 @@ import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
 import { LogViewTreeIndent } from "./LogViewTreeIndent";
 import { LogViewJsonMode } from "./LogViewJsonMode";
-import {
-  formatDisplayName,
-  formatRelativeTime,
-  formatDuration,
-} from "./log-view-formatters";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
-import { usePrefetchObservation } from "@/src/components/trace2/api/usePrefetchObservation";
+import { useLogViewDownload } from "./useLogViewDownload";
+import { useLogViewColumns } from "./useLogViewColumns";
 
 export interface TraceLogViewProps {
   traceId: string;
@@ -58,80 +49,6 @@ const INDENT_DEPTH_THRESHOLD = 5;
 
 // Threshold for enabling virtualization (observation count)
 export const LOG_VIEW_VIRTUALIZATION_THRESHOLD = 100;
-
-/**
- * Cell component for the observation column that prefetches data when entering viewport.
- */
-interface LogViewObservationCellProps {
-  item: FlatLogItem;
-  indentEnabled: boolean;
-  projectId: string;
-  traceId: string;
-}
-
-const LogViewObservationCell = ({
-  item,
-  indentEnabled,
-  projectId,
-  traceId,
-}: LogViewObservationCellProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const { prefetch } = usePrefetchObservation({ projectId });
-  const hasPrefetched = useRef(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element || item.node.type === "TRACE") return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting && !hasPrefetched.current) {
-          // Debounce: wait 250ms before prefetching to avoid firing
-          // many requests during fast scrolling
-          timeoutRef.current = setTimeout(() => {
-            hasPrefetched.current = true;
-            prefetch(item.node.id, traceId, item.node.startTime);
-          }, 250);
-        } else if (!entry?.isIntersecting && timeoutRef.current) {
-          // Cancel pending prefetch if element leaves viewport
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-      },
-      { rootMargin: "100px" },
-    );
-
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [item.node.id, item.node.type, item.node.startTime, traceId, prefetch]);
-
-  const displayName = formatDisplayName(item.node);
-  const childrenCount = item.node.children?.length ?? 0;
-  const indent = indentEnabled ? item.node.depth * 12 : 0;
-
-  return (
-    <div
-      ref={ref}
-      className="flex h-5 min-w-0 items-center gap-2"
-      style={{ paddingLeft: indent }}
-    >
-      <ItemBadge type={item.node.type} isSmall />
-      <span className="truncate">{displayName}</span>
-      {childrenCount > 0 && (
-        <span className="flex-shrink-0 text-xs text-muted-foreground">
-          {childrenCount} {childrenCount === 1 ? "item" : "items"}
-        </span>
-      )}
-    </div>
-  );
-};
 
 export const TraceLogView = ({
   traceId,
@@ -214,62 +131,13 @@ export const TraceLogView = ({
   // Tree style: flat for chronological, use preference for tree-order
   const treeStyle = logViewMode === "chronological" ? "flat" : logViewTreeStyle;
 
-  // Define columns - combined observation column with optional indentation
-  const columns = useMemo((): JSONTableViewColumn<FlatLogItem>[] => {
-    const baseColumns: JSONTableViewColumn<FlatLogItem>[] = [
-      {
-        key: "observation",
-        header: "Observation",
-        width: "flex-1",
-        render: (item) => (
-          <LogViewObservationCell
-            item={item}
-            indentEnabled={indentEnabled}
-            projectId={projectId}
-            traceId={traceId}
-          />
-        ),
-      },
-      {
-        key: "depth",
-        header: "Depth",
-        width: "w-12",
-        align: "right" as const,
-        render: (item) => (
-          <span className="text-xs text-muted-foreground">
-            {item.node.depth >= 0 ? `L${item.node.depth}` : "-"}
-          </span>
-        ),
-      },
-      {
-        key: "start",
-        header: "Start",
-        width: showMilliseconds ? "w-20" : "w-12",
-        align: "right" as const,
-        render: (item) => (
-          <span className="text-xs text-muted-foreground">
-            {formatRelativeTime(
-              item.node.startTimeSinceTrace,
-              showMilliseconds,
-            )}
-          </span>
-        ),
-      },
-      {
-        key: "duration",
-        header: "Duration",
-        width: "w-16",
-        align: "right" as const,
-        render: (item) => (
-          <span className="text-xs text-muted-foreground">
-            {formatDuration(item.node.startTime, item.node.endTime)}
-          </span>
-        ),
-      },
-    ];
-
-    return baseColumns;
-  }, [indentEnabled, showMilliseconds, projectId, traceId]);
+  // Column definitions
+  const columns = useLogViewColumns({
+    indentEnabled,
+    showMilliseconds,
+    projectId,
+    traceId,
+  });
 
   // Render tree indentation for indented mode
   const renderRowPrefix = useCallback(
@@ -329,85 +197,22 @@ export const TraceLogView = ({
 
   // On-demand loading hook for observation I/O data
   // Does NOT auto-fetch - call loadAllData() or buildDataFromCache() when needed
-  const {
-    data: allObservationsData,
-    isLoading: isLoadingAllData,
-    loadAllData,
-    buildDataFromCache,
-  } = useLogViewAllObservationsIO({
+  const allObservationsIO = useLogViewAllObservationsIO({
     items: flatItems,
     traceId,
     projectId,
   });
 
-  // Track if we're actively loading for download
-  const [isDownloadLoading, setIsDownloadLoading] = useState(false);
-
-  // Helper to download JSON data
-  const downloadJsonData = useCallback(
-    (data: unknown) => {
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `trace-${traceId}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    [traceId],
-  );
-
-  // Copy JSON handler (non-virtualized mode)
-  const handleCopyJson = useCallback(async () => {
-    if (allObservationsData) {
-      // Data already loaded, copy immediately
-      void copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
-    } else {
-      // Load data first, then copy
-      setIsDownloadLoading(true);
-      try {
-        const data = await loadAllData();
-        void copyTextToClipboard(JSON.stringify(data, null, 2));
-      } finally {
-        setIsDownloadLoading(false);
-      }
-    }
-  }, [allObservationsData, loadAllData]);
-
-  // Download JSON handler - different behavior for virtualized vs non-virtualized
-  const handleDownloadJson = useCallback(async () => {
-    if (isVirtualized) {
-      // Virtualized mode: build from tree + cache (no fetching)
-      setIsDownloadLoading(true);
-      // Use setTimeout to allow spinner to render before potentially heavy operation
-      setTimeout(() => {
-        const data = buildDataFromCache();
-        downloadJsonData(data);
-        setIsDownloadLoading(false);
-      }, 0);
-    } else {
-      // Non-virtualized mode: fetch all data if needed
-      if (allObservationsData) {
-        downloadJsonData(allObservationsData);
-      } else {
-        setIsDownloadLoading(true);
-        try {
-          const data = await loadAllData();
-          downloadJsonData(data);
-        } finally {
-          setIsDownloadLoading(false);
-        }
-      }
-    }
-  }, [
-    isVirtualized,
-    allObservationsData,
-    loadAllData,
-    buildDataFromCache,
-    downloadJsonData,
-  ]);
+  // Download and copy handlers
+  const { handleCopyJson, handleDownloadJson, isDownloadOrCopyLoading } =
+    useLogViewDownload({
+      traceId,
+      isVirtualized,
+      allObservationsData: allObservationsIO.data,
+      isLoadingAllData: allObservationsIO.isLoading,
+      loadAllData: allObservationsIO.loadAllData,
+      buildDataFromCache: allObservationsIO.buildDataFromCache,
+    });
 
   // Toggle JSON view collapse
   const handleToggleJsonCollapse = useCallback(() => {
@@ -418,9 +223,6 @@ export const TraceLogView = ({
   const hasNoObservations = allItems.length === 0;
   const hasNoSearchResults = !hasNoObservations && flatItems.length === 0;
 
-  // Loading state for download button
-  const isDownloadOrCopyLoading = isDownloadLoading || isLoadingAllData;
-
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Toolbar with search and actions */}
@@ -430,7 +232,7 @@ export const TraceLogView = ({
         isVirtualized={isVirtualized}
         onToggleExpandAll={handleToggleExpandAll}
         allRowsExpanded={allRowsExpanded}
-        onCopyJson={isVirtualized ? undefined : handleCopyJson}
+        onCopyJson={handleCopyJson}
         onDownloadJson={handleDownloadJson}
         isDownloadLoading={isDownloadOrCopyLoading}
         currentView={currentView}
