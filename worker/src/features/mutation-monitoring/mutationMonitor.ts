@@ -20,6 +20,23 @@ interface QueueDecision {
   reason: string;
 }
 
+/**
+ * MutationMonitor pauses and resumes queue processing
+ * based on how ClickHouse mutations progress.
+ *
+ * Requires correct ClickHouse grants to work:
+ * ```
+ * GRANT SELECT(database, `table`, is_done) ON system.mutations TO <role>;
+ * ```
+ * where `role` is the role used by Langfuse to connect to ClickHouse, usually `app`.
+ *
+ * `QUEUE_TABLE_MAPPING` below shows how mutatations on various tables map to queues.
+ *
+ * - `LANGFUSE_MUTATION_MONITOR_ENABLED` must be set to `true` to enable this feature.
+ * - `LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS` defines how often to check for mutations.
+ * - `LANGFUSE_DELETION_MUTATIONS_MAX_COUNT` once any table for a queue exceeds this threshold, that queue is PAUSED.
+ * `- LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT` once all tables for a queue are below this threshold, that queue is RESUMED.
+ */
 export class MutationMonitor {
   private static timeoutId: NodeJS.Timeout | null = null;
   private static pausedQueues: Set<QueueName> = new Set();
