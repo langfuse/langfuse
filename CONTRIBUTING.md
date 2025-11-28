@@ -145,28 +145,27 @@ Requirements
     cp .env.dev.example .env
    ```
 
-5. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
+5. Format and re-seed the database with example data. **Note**: if you have an existing database, this command wipes it. Also, this may fail on the very first run. Please run it again.
 
    ```bash
    pnpm run dx # first run only (resets db, docker containers, etc...)
-   pnpm run dev # any subsequent runs
    ```
 
    You will be asked whether you want to reset Postgres and ClickHouse. Confirm both with 'Y' and press enter.
 
-6. Open the web app in your browser to start using Langfuse:
+6. Start the dev environment. This will spin up the entire infrastructure in dev mode.
+
+  ```bash
+  pnpm run dev # start the dev environment
+  ```
+
+7. Open the web app in your browser to start using Langfuse:
    - [Sign up page, http://localhost:3000](http://localhost:3000)
    - [Demo project, http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
-7. Log in as a test user:
+8. Log in as a test user:
    - Username: `demo@langfuse.com`
    - Password: `password`
-
-To get comprehensive example data, you can use the `seed` command:
-
-```sh
-pnpm run db:seed:examples
-```
 
 ## Monorepo quickstart
 
