@@ -57,7 +57,7 @@ const EXPANDED_ROW_HEIGHT = 150;
 const INDENT_DEPTH_THRESHOLD = 5;
 
 // Threshold for enabling virtualization (observation count)
-export const LOG_VIEW_VIRTUALIZATION_THRESHOLD = 2;
+export const LOG_VIEW_VIRTUALIZATION_THRESHOLD = 100;
 
 /**
  * Cell component for the observation column that prefetches data when entering viewport.

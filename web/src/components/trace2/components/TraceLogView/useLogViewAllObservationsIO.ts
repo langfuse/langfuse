@@ -118,7 +118,8 @@ export function useLogViewAllObservationsIO({
   }, [items, traceId, projectId, queryClient]);
 
   /**
-   * Load all observation I/O data by fetching each one.
+   * Load all observation I/O data, using cache where available.
+   * Only fetches observations not already in React Query cache.
    * Returns the combined data once all fetches complete.
    */
   const loadAllData = useCallback(async (): Promise<ObservationIOData[]> => {
@@ -130,9 +131,52 @@ export function useLogViewAllObservationsIO({
         (item) => item.node.type !== "TRACE",
       );
 
-      // Fetch all observations in parallel
-      const results = await Promise.all(
-        observationItems.map(async (item) => {
+      // Separate cached vs uncached items
+      const cachedResults: ObservationIOData[] = [];
+      const uncachedItems: FlatLogItem[] = [];
+
+      for (const item of observationItems) {
+        const queryKey = getObservationQueryKey(
+          item.node.id,
+          traceId,
+          projectId,
+          item.node.startTime,
+        );
+        const cachedData = queryClient.getQueryData(queryKey) as
+          | { input?: unknown; output?: unknown; metadata?: unknown }
+          | undefined;
+
+        if (cachedData) {
+          // Build data from cache
+          const baseData: ObservationIOData = {
+            id: item.node.id,
+            type: item.node.type,
+            name: formatDisplayName(item.node),
+            startTime: item.node.startTime,
+            endTime: item.node.endTime,
+            depth: item.node.depth,
+          };
+          if (cachedData.input !== null && cachedData.input !== undefined) {
+            baseData.input = cachedData.input;
+          }
+          if (cachedData.output !== null && cachedData.output !== undefined) {
+            baseData.output = cachedData.output;
+          }
+          if (
+            cachedData.metadata !== null &&
+            cachedData.metadata !== undefined
+          ) {
+            baseData.metadata = cachedData.metadata;
+          }
+          cachedResults.push(baseData);
+        } else {
+          uncachedItems.push(item);
+        }
+      }
+
+      // Only fetch uncached items
+      const fetchedResults = await Promise.all(
+        uncachedItems.map(async (item) => {
           try {
             const result = await utils.observations.byId.fetch({
               observationId: item.node.id,
@@ -175,15 +219,26 @@ export function useLogViewAllObservationsIO({
         }),
       );
 
-      setData(results);
+      // Combine cached and fetched results
+      const allResults = [...cachedResults, ...fetchedResults];
+
+      // Sort to maintain original item order
+      const idOrder = new Map(
+        observationItems.map((item, i) => [item.node.id, i]),
+      );
+      allResults.sort(
+        (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
+      );
+
+      setData(allResults);
       setIsLoading(false);
-      return results;
+      return allResults;
     } catch {
       setIsError(true);
       setIsLoading(false);
       throw new Error("Failed to load observation data");
     }
-  }, [items, traceId, projectId, utils]);
+  }, [items, traceId, projectId, utils, queryClient]);
 
   return {
     /** Cached/loaded data (null if not yet loaded) */
