@@ -49,7 +49,11 @@ const createFormSchema = (mode: "create" | "update") =>
       secretKey: z.string().optional(),
       provider: z
         .string()
-        .min(1, "Please add a provider name that identifies this connection."),
+        .min(1, "Please add a provider name that identifies this connection.")
+        .regex(
+          /^[^:]+$/,
+          "Provider name cannot contain colons. Use a format like 'OpenRouter_Mistral' instead.",
+        ),
       adapter: z.nativeEnum(LLMAdapter),
       baseURL: z.union([z.literal(""), z.url()]),
       withDefaultModels: z.boolean(),
@@ -561,7 +565,8 @@ export function CreateLLMApiKeyForm({
               <FormItem>
                 <FormLabel>Provider name</FormLabel>
                 <FormDescription>
-                  Key to identify the connection within Langfuse.
+                  Key to identify the connection within Langfuse. Cannot contain
+                  colons.
                 </FormDescription>
                 <FormControl>
                   <Input
