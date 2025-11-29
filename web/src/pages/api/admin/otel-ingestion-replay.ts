@@ -7,8 +7,9 @@ import {
   instrumentAsync,
   OtelIngestionQueue,
   QueueJobs,
-  getS3EventStorageConfig,
-  listS3FilesPaginated,
+  getS3EventStorageClient,
+  getS3EventStorageBucket,
+  getS3EventStoragePrefix,
   generateOtelS3Prefixes,
 } from "@langfuse/shared/src/server";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -81,12 +82,10 @@ export default async function handler(
           granularity,
         });
 
-        // Get S3 client and config
-        const {
-          client: s3Client,
-          bucketName,
-          prefix,
-        } = getS3EventStorageConfig();
+        // Get S3 storage client and config
+        const bucketName = getS3EventStorageBucket();
+        const prefix = getS3EventStoragePrefix();
+        const storageClient = getS3EventStorageClient(bucketName);
 
         // Generate S3 prefixes for the time range
         const prefixes = generateOtelS3Prefixes(
@@ -103,9 +102,7 @@ export default async function handler(
         const allFiles: string[] = [];
 
         for (const s3Prefix of prefixes) {
-          const result = await listS3FilesPaginated(
-            s3Client,
-            bucketName,
+          const result = await storageClient.listFilesPaginated(
             s3Prefix,
             MAX_FILES - allFiles.length,
           );

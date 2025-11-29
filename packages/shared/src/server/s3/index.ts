@@ -1,4 +1,3 @@
-import { S3Client } from "@aws-sdk/client-s3";
 import { env } from "../../env";
 import {
   StorageService,
@@ -7,7 +6,6 @@ import {
 
 let s3MediaStorageClient: StorageService;
 let s3EventStorageClient: StorageService;
-let s3EventStorageRawClient: S3Client;
 
 export const getS3MediaStorageClient = (bucketName: string): StorageService => {
   if (!s3MediaStorageClient) {
@@ -42,36 +40,15 @@ export const getS3EventStorageClient = (bucketName: string): StorageService => {
 };
 
 /**
- * Returns the raw S3 client for event storage along with bucket name and prefix.
- * Used for advanced operations like paginated listing that require direct S3 client access.
+ * Returns the S3 event storage bucket name from environment config.
  */
-export const getS3EventStorageConfig = (): {
-  client: S3Client;
-  bucketName: string;
-  prefix: string;
-} => {
-  if (!s3EventStorageRawClient) {
-    const { accessKeyId, secretAccessKey } = {
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-    };
+export const getS3EventStorageBucket = (): string => {
+  return env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET;
+};
 
-    const credentials =
-      accessKeyId !== undefined && secretAccessKey !== undefined
-        ? { accessKeyId, secretAccessKey }
-        : undefined;
-
-    s3EventStorageRawClient = new S3Client({
-      credentials,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-
-  return {
-    client: s3EventStorageRawClient,
-    bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    prefix: env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX,
-  };
+/**
+ * Returns the S3 event storage prefix from environment config.
+ */
+export const getS3EventStoragePrefix = (): string => {
+  return env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX;
 };

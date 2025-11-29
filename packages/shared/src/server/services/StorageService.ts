@@ -54,6 +54,11 @@ function handleStorageError(err: unknown, operation: string): never {
   throw Error(`Failed to ${operation}`);
 }
 
+export interface ListFilesPaginatedResult {
+  files: string[];
+  truncated: boolean;
+}
+
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>; // eslint-disable-line no-unused-vars
 
@@ -66,6 +71,15 @@ export interface StorageService {
   download(path: string): Promise<string>; // eslint-disable-line no-unused-vars
 
   listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>; // eslint-disable-line no-unused-vars
+
+  /**
+   * Lists files with pagination support using continuation tokens.
+   * Returns all files under the given prefix up to maxFiles limit.
+   */
+  listFilesPaginated( // eslint-disable-line no-unused-vars
+    prefix: string, // eslint-disable-line no-unused-vars
+    maxFiles?: number, // eslint-disable-line no-unused-vars
+  ): Promise<ListFilesPaginatedResult>;
 
   getSignedUrl(
     fileName: string, // eslint-disable-line no-unused-vars
@@ -350,6 +364,35 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
+  public async listFilesPaginated(
+    prefix: string,
+    maxFiles: number = 1_000_000,
+  ): Promise<ListFilesPaginatedResult> {
+    try {
+      await this.createContainerIfNotExists();
+
+      const files: string[] = [];
+      const result = this.client.listBlobsFlat({ prefix });
+
+      for await (const blob of result) {
+        if (blob.name.startsWith(prefix)) {
+          files.push(blob.name);
+          if (files.length > maxFiles) {
+            return { files, truncated: true };
+          }
+        }
+      }
+
+      return { files, truncated: false };
+    } catch (err) {
+      logger.error(
+        `Failed to list files from Azure Blob Storage ${prefix}`,
+        err,
+      );
+      handleStorageError(err, "list files from Azure Blob Storage");
+    }
+  }
+
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
@@ -599,6 +642,45 @@ class S3StorageService implements StorageService {
     }
   }
 
+  public async listFilesPaginated(
+    prefix: string,
+    maxFiles: number = 1_000_000,
+  ): Promise<ListFilesPaginatedResult> {
+    const files: string[] = [];
+    let continuationToken: string | undefined;
+
+    try {
+      do {
+        const command = new ListObjectsV2Command({
+          Bucket: this.bucketName,
+          Prefix: prefix,
+          MaxKeys: 1000, // S3 max per request
+          ContinuationToken: continuationToken,
+        });
+
+        const response = await this.client.send(command);
+
+        for (const obj of response.Contents ?? []) {
+          if (obj.Key) {
+            files.push(obj.Key);
+            if (files.length > maxFiles) {
+              return { files, truncated: true };
+            }
+          }
+        }
+
+        continuationToken = response.IsTruncated
+          ? response.NextContinuationToken
+          : undefined;
+      } while (continuationToken);
+
+      return { files, truncated: false };
+    } catch (err) {
+      logger.error(`Failed to list files from S3 ${prefix}`, err);
+      handleStorageError(err, "list files from S3");
+    }
+  }
+
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
@@ -830,6 +912,42 @@ class GoogleCloudStorageService implements StorageService {
         file: file.name,
         createdAt: new Date(file.metadata.timeCreated ?? new Date()),
       }));
+    } catch (err) {
+      logger.error(
+        `Failed to list files from Google Cloud Storage ${prefix}`,
+        err,
+      );
+      handleStorageError(err, "list files from Google Cloud Storage");
+    }
+  }
+
+  public async listFilesPaginated(
+    prefix: string,
+    maxFiles: number = 1_000_000,
+  ): Promise<ListFilesPaginatedResult> {
+    try {
+      const files: string[] = [];
+      let pageToken: string | undefined;
+
+      do {
+        const [pageFiles, nextQuery] = await this.bucket.getFiles({
+          prefix,
+          maxResults: 1000,
+          pageToken,
+          autoPaginate: false,
+        });
+
+        for (const file of pageFiles) {
+          files.push(file.name);
+          if (files.length > maxFiles) {
+            return { files, truncated: true };
+          }
+        }
+
+        pageToken = nextQuery?.pageToken;
+      } while (pageToken);
+
+      return { files, truncated: false };
     } catch (err) {
       logger.error(
         `Failed to list files from Google Cloud Storage ${prefix}`,
