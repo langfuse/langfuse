@@ -448,6 +448,9 @@ export async function commandClickhouse(opts: {
       const res = await clickhouseClient(opts.clickhouseConfigs).command({
         query: opts.query,
         query_params: opts.params,
+        ...(opts.tags?.queryId
+          ? { query_id: opts.tags.queryId as string }
+          : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
           log_comment: JSON.stringify(opts.tags ?? {}),
