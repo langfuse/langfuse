@@ -19,6 +19,7 @@ export const experimentCreateQueueProcessor = async (
   try {
     await createExperimentJobClickhouse({
       event: job.data.payload,
+      version: new Date(job.timestamp),
     });
     return true;
   } catch (e) {

@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
   ExperimentCreateQueue,
+  getDatasetItemsByLatest,
   PromptService,
   QueueJobs,
   QueueName,
@@ -14,8 +15,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type DatasetItem,
-  DatasetStatus,
   extractVariables,
   validateDatasetItem,
   UnauthorizedError,
@@ -23,6 +22,7 @@ import {
   extractPlaceholderNames,
   type PromptMessage,
   isPresent,
+  type DatasetItem,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -140,22 +140,21 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const datasetItems = await ctx.prisma.datasetItem.findMany({
-        where: {
+      const res = await getDatasetItemsByLatest({
+        projectId: input.projectId,
+        filters: {
           datasetId: input.datasetId,
-          projectId: input.projectId,
-          status: DatasetStatus.ACTIVE,
         },
       });
 
-      if (!Boolean(datasetItems.length)) {
+      if (!Boolean(res.items.length)) {
         return {
           isValid: false,
           message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
-      const variablesMap = countValidDatasetItems(datasetItems, allVariables);
+      const variablesMap = countValidDatasetItems(res.items, allVariables);
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
@@ -166,7 +165,7 @@ export const experimentsRouter = createTRPCRouter({
 
       return {
         isValid: true,
-        totalItems: datasetItems.length,
+        totalItems: res.items.length,
         variablesMap: variablesMap,
       };
     }),

@@ -9,7 +9,12 @@ import {
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
-import { logger, upsertDatasetItem } from "@langfuse/shared/src/server";
+import {
+  getDatasetItemsByLatest,
+  getDatasetItemsCountByLatest,
+  logger,
+  upsertDatasetItem,
+} from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -109,39 +114,22 @@ export default withMiddlewares({
         datasetId = dataset.id;
       }
 
-      const items = (
-        await prisma.datasetItem.findMany({
-          where: {
-            projectId: auth.scope.projectId,
-            dataset: {
-              projectId: auth.scope.projectId,
-              ...(datasetId ? { id: datasetId } : {}),
-            },
-            sourceTraceId: sourceTraceId ?? undefined,
-            sourceObservationId: sourceObservationId ?? undefined,
-          },
-          take: limit,
-          skip: (page - 1) * limit,
-          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        })
-      ).map(({ dataset, ...other }) => ({
-        ...other,
-        datasetName: dataset.name,
-      }));
+      const { items } = await getDatasetItemsByLatest({
+        projectId: auth.scope.projectId,
+        includeDatasetName: true,
+        filters: {
+          datasetId,
+          sourceTraceId: sourceTraceId ?? undefined,
+          sourceObservationId: sourceObservationId ?? undefined,
+        },
+        limit: limit,
+        page: page - 1,
+      });
 
-      const totalItems = await prisma.datasetItem.count({
-        where: {
-          dataset: {
-            projectId: auth.scope.projectId,
-            ...(datasetId ? { id: datasetId } : {}),
-          },
+      const totalItems = await getDatasetItemsCountByLatest({
+        projectId: auth.scope.projectId,
+        filters: {
+          datasetId,
           sourceTraceId: sourceTraceId ?? undefined,
           sourceObservationId: sourceObservationId ?? undefined,
         },

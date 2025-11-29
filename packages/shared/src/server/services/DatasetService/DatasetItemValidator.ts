@@ -16,7 +16,7 @@ type ValidateItemResult =
  * Validator for dataset item payloads (normalization + schema validation).
  *
  * @internal
- * **This class is internal to DatasetService. Use DatasetItemManager methods instead.**
+ * **This class is internal to DatasetService. Use dataset-items repository methods instead.**
  *
  * **Purpose:**
  * 1. JSON parsing and normalization (strings → objects, control char sanitization)
@@ -25,10 +25,10 @@ type ValidateItemResult =
  * **Performance:** Compiles schemas once in constructor, validates many items with
  * reused validators. Provides 3800x+ speedup over fresh compilation per item.
  *
- * **Used by:** DatasetItemManager for all CRUD operations
+ * **Used by:** dataset-items repository for all CRUD operations
  *
  * @example
- * // Internal use only - called by DatasetItemManager
+ * // Internal use only - called by dataset-items repository
  * const validator = new DatasetItemValidator({ inputSchema, expectedOutputSchema });
  * for (const item of items) {
  *   const result = validator.preparePayload({ input, expectedOutput, metadata, ... });
