@@ -23,10 +23,9 @@ export const evalJobTraceCreatorQueueProcessor = async (
 ) => {
   try {
     logger.info(
-      `Executing trace-upsert jobstate: ${JSON.stringify(await job.getState())}, job: ${JSON.stringify(job)}`,
+      `Executing trace-upsert jobstate: ${JSON.stringify(await job.getState())}, `,
       {
         ...((await job.getState()) as any),
-        ...job,
       },
     );
     await createEvalJobs({
