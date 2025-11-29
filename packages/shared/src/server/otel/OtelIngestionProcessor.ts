@@ -955,6 +955,9 @@ export class OtelIngestionProcessor {
     scopeAttributes: Record<string, unknown>,
     resourceAttributes: Record<string, unknown>,
   ): void {
+    // Disable public key validation for replay
+    return;
+
     if (
       isLangfuseSDKSpans &&
       (!this.publicKey ||
