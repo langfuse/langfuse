@@ -23,7 +23,6 @@ function JSONTableViewRowInner<T>({
   onToggle,
   renderExpanded,
   renderRowPrefix,
-  onMouseEnter,
 }: JSONTableViewRowProps<T>) {
   // Use click-without-selection to allow text selection while still supporting expand
   const { props: clickProps } = useClickWithoutSelection({
@@ -48,7 +47,6 @@ function JSONTableViewRowInner<T>({
         tabIndex={expandable ? 0 : undefined}
         aria-expanded={expandable ? isExpanded : undefined}
         aria-controls={expandable ? expandedContentId : undefined}
-        onMouseEnter={onMouseEnter}
         onKeyDown={
           expandable
             ? (e) => {

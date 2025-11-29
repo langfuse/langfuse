@@ -61,8 +61,6 @@ export interface JSONTableViewProps<T> {
   stickyHeaderContent?: (topmostItem: T | null, index: number) => ReactNode;
 
   // Callbacks
-  /** Called when mouse enters a row (for prefetching) */
-  onRowHover?: (item: T) => void;
   /** Called when visible items change (for viewport-based prefetching) */
   onVisibleItemsChange?: (items: T[]) => void;
 
@@ -89,8 +87,6 @@ export interface JSONTableViewRowProps<T> {
   onToggle: () => void;
   renderExpanded?: (item: T) => ReactNode;
   renderRowPrefix?: (item: T, isExpanded: boolean) => ReactNode;
-  /** Called when mouse enters the row (for prefetching) */
-  onMouseEnter?: () => void;
 }
 
 /**

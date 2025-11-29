@@ -35,7 +35,6 @@ export function JSONTableView<T>({
   collapsedRowHeight = DEFAULT_COLLAPSED_ROW_HEIGHT,
   expandedRowHeight = DEFAULT_EXPANDED_ROW_HEIGHT,
   stickyHeaderContent,
-  onRowHover,
   onVisibleItemsChange,
   renderRowPrefix,
   overscan = 100,
@@ -215,9 +214,6 @@ export function JSONTableView<T>({
                     onToggle={() => handleToggle(key)}
                     renderExpanded={renderExpanded}
                     renderRowPrefix={renderRowPrefix}
-                    onMouseEnter={
-                      onRowHover ? () => onRowHover(item) : undefined
-                    }
                   />
                 </div>
               );
@@ -245,7 +241,6 @@ export function JSONTableView<T>({
                   onToggle={() => handleToggle(key)}
                   renderExpanded={renderExpanded}
                   renderRowPrefix={renderRowPrefix}
-                  onMouseEnter={onRowHover ? () => onRowHover(item) : undefined}
                 />
               </div>
             );
