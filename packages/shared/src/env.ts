@@ -77,6 +77,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS: z.coerce.number().positive().default(2),
   LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
