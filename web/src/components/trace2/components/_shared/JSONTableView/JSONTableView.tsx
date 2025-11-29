@@ -35,7 +35,6 @@ export function JSONTableView<T>({
   collapsedRowHeight = DEFAULT_COLLAPSED_ROW_HEIGHT,
   expandedRowHeight = DEFAULT_EXPANDED_ROW_HEIGHT,
   stickyHeaderContent,
-  onRowClick: _onRowClick,
   onRowHover,
   onVisibleItemsChange,
   renderRowPrefix,
@@ -158,7 +157,6 @@ export function JSONTableView<T>({
 
   // Check if we have items
   const hasItems = items.length > 0;
-  const hasPrefix = !!renderRowPrefix;
   const hasExpandIcon = expandable;
 
   return (
@@ -174,11 +172,7 @@ export function JSONTableView<T>({
 
       {/* Table header with column labels */}
       {hasItems && (
-        <JSONTableViewHeader
-          columns={columns}
-          hasPrefix={hasPrefix}
-          hasExpandIcon={hasExpandIcon}
-        />
+        <JSONTableViewHeader columns={columns} hasExpandIcon={hasExpandIcon} />
       )}
 
       {/* Virtualized list */}
@@ -213,6 +207,7 @@ export function JSONTableView<T>({
                 >
                   <JSONTableViewRow
                     item={item}
+                    itemKey={key}
                     index={virtualRow.index}
                     columns={columns}
                     isExpanded={isExpanded}
@@ -242,6 +237,7 @@ export function JSONTableView<T>({
               <div key={key} data-row-index={index}>
                 <JSONTableViewRow
                   item={item}
+                  itemKey={key}
                   index={index}
                   columns={columns}
                   isExpanded={isExpanded}

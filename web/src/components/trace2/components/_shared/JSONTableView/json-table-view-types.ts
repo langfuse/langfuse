@@ -61,8 +61,6 @@ export interface JSONTableViewProps<T> {
   stickyHeaderContent?: (topmostItem: T | null, index: number) => ReactNode;
 
   // Callbacks
-  /** Called when a row is clicked (in addition to expand/collapse) */
-  onRowClick?: (item: T, index: number) => void;
   /** Called when mouse enters a row (for prefetching) */
   onRowHover?: (item: T) => void;
   /** Called when visible items change (for viewport-based prefetching) */
@@ -82,6 +80,8 @@ export interface JSONTableViewProps<T> {
  */
 export interface JSONTableViewRowProps<T> {
   item: T;
+  /** Unique key for the item (used for ARIA attributes) */
+  itemKey: string;
   index: number;
   columns: JSONTableViewColumn<T>[];
   isExpanded: boolean;
@@ -98,6 +98,5 @@ export interface JSONTableViewRowProps<T> {
  */
 export interface JSONTableViewHeaderProps<T> {
   columns: JSONTableViewColumn<T>[];
-  hasPrefix: boolean;
   hasExpandIcon: boolean;
 }

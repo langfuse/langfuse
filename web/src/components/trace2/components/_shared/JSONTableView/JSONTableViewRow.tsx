@@ -15,6 +15,7 @@ import { type JSONTableViewRowProps } from "./json-table-view-types";
  */
 function JSONTableViewRowInner<T>({
   item,
+  itemKey,
   index,
   columns,
   isExpanded,
@@ -31,6 +32,7 @@ function JSONTableViewRowInner<T>({
   });
 
   const ChevronIcon = isExpanded ? ChevronDown : ChevronRight;
+  const expandedContentId = `expanded-content-${itemKey}`;
 
   return (
     <div className="border-b border-border bg-background">
@@ -44,6 +46,8 @@ function JSONTableViewRowInner<T>({
         {...(expandable ? clickProps : {})}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}
+        aria-expanded={expandable ? isExpanded : undefined}
+        aria-controls={expandable ? expandedContentId : undefined}
         onMouseEnter={onMouseEnter}
         onKeyDown={
           expandable
@@ -83,7 +87,9 @@ function JSONTableViewRowInner<T>({
 
       {/* Expanded content */}
       {isExpanded && renderExpanded && (
-        <div className="w-full">{renderExpanded(item)}</div>
+        <div id={expandedContentId} className="w-full">
+          {renderExpanded(item)}
+        </div>
       )}
     </div>
   );
