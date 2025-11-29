@@ -50,20 +50,21 @@ interface OtelFilePart {
   file_id: string;
 }
 
-interface OtelGenericPart {
-  type: string;
-  [key: string]: unknown;
-}
-
-type OtelPart =
+type OtelKnownPart =
   | OtelTextPart
   | OtelToolCallRequestPart
   | OtelToolCallResponsePart
   | OtelReasoningPart
   | OtelBlobPart
   | OtelUriPart
-  | OtelFilePart
-  | OtelGenericPart;
+  | OtelFilePart;
+
+interface OtelGenericPart {
+  type: string;
+  [key: string]: unknown;
+}
+
+type OtelPart = OtelKnownPart | OtelGenericPart;
 
 interface OtelChatMessage {
   role: string;
@@ -99,53 +100,67 @@ interface ChatMlContentPart {
  * Converts a single OTEL part to ChatML content part format.
  */
 function convertPartToContentPart(part: OtelPart): ChatMlContentPart | null {
+  if (!isKnownPart(part)) {
+    return { ...part };
+  }
+
   switch (part.type) {
-    case "text": {
-      const textPart = part as OtelTextPart;
-      return { type: "text", text: textPart.content };
-    }
-    case "reasoning": {
-      const reasoningPart = part as OtelReasoningPart;
-      return { type: "reasoning", content: reasoningPart.content };
-    }
-    case "blob": {
-      const blobPart = part as OtelBlobPart;
+    case "text":
+      return { type: "text", text: part.content };
+    case "reasoning":
+      return { type: "reasoning", content: part.content };
+    case "blob":
       return {
         type: "image_url",
         image_url: {
-          url: `data:${blobPart.mime_type ?? "application/octet-stream"};base64,${blobPart.content}`,
+          url: `data:${part.mime_type ?? "application/octet-stream"};base64,${part.content}`,
         },
       };
-    }
-    case "uri": {
-      const uriPart = part as OtelUriPart;
+    case "uri":
       if (
-        uriPart.modality === "image" ||
-        (typeof uriPart.mime_type === "string" &&
-          uriPart.mime_type.startsWith("image/")) ||
-        /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(uriPart.uri)
+        part.modality === "image" ||
+        (typeof part.mime_type === "string" &&
+          part.mime_type.startsWith("image/")) ||
+        /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(part.uri)
       ) {
         return {
           type: "image_url",
-          image_url: { url: uriPart.uri },
+          image_url: { url: part.uri },
         };
       }
-      return { type: "uri", uri: uriPart.uri, mime_type: uriPart.mime_type };
-    }
-    case "file": {
-      const filePart = part as OtelFilePart;
+      return { type: "uri", uri: part.uri, mime_type: part.mime_type };
+    case "file":
       return {
         type: "file",
-        file_id: filePart.file_id,
-        mime_type: filePart.mime_type,
+        file_id: part.file_id,
+        mime_type: part.mime_type,
       };
-    }
     case "tool_call":
     case "tool_call_response":
       return null;
-    default:
-      return { ...part };
   }
+}
+
+function isKnownPart(part: OtelPart): part is OtelKnownPart {
+  return [
+    "text",
+    "reasoning",
+    "blob",
+    "uri",
+    "file",
+    "tool_call",
+    "tool_call_response",
+  ].includes(part.type);
+}
+
+function isToolCallPart(part: OtelPart): part is OtelToolCallRequestPart {
+  return part.type === "tool_call" && "name" in part;
+}
+
+function isToolCallResponsePart(
+  part: OtelPart,
+): part is OtelToolCallResponsePart {
+  return part.type === "tool_call_response" && "response" in part;
 }
 
 /**
@@ -174,26 +189,24 @@ function convertOtelMessageToChatMl(message: OtelChatMessage): ChatMlMessage {
   let toolCallResponseContent: unknown;
 
   for (const part of parts) {
-    if (part.type === "tool_call") {
-      const toolCallPart = part as OtelToolCallRequestPart;
+    if (isToolCallPart(part)) {
       const toolCall: ChatMlToolCall = {
         type: "function",
         function: {
-          name: toolCallPart.name,
+          name: part.name,
           arguments:
-            typeof toolCallPart.arguments === "string"
-              ? toolCallPart.arguments
-              : JSON.stringify(toolCallPart.arguments ?? {}),
+            typeof part.arguments === "string"
+              ? part.arguments
+              : JSON.stringify(part.arguments ?? {}),
         },
       };
-      if (toolCallPart.id) {
-        toolCall.id = toolCallPart.id;
+      if (part.id) {
+        toolCall.id = part.id;
       }
       toolCalls.push(toolCall);
-    } else if (part.type === "tool_call_response") {
-      const toolCallResponsePart = part as OtelToolCallResponsePart;
-      toolCallResponseId = toolCallResponsePart.id ?? undefined;
-      toolCallResponseContent = toolCallResponsePart.response;
+    } else if (isToolCallResponsePart(part)) {
+      toolCallResponseId = part.id ?? undefined;
+      toolCallResponseContent = part.response;
     } else {
       const contentPart = convertPartToContentPart(part);
       if (contentPart) {
