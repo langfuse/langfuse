@@ -22,6 +22,7 @@ export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
+    logger.info(`Executing trace-upsert job`, job.getState(), job);
     await createEvalJobs({
       sourceEventType: "trace-upsert",
       event: job.data.payload,
