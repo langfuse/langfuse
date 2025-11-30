@@ -24,7 +24,11 @@ import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import {
+  isValidDateString,
+  flattenJsonToPathArrays,
+  parseOtelGenAiMessages,
+} from "./utils";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -1459,7 +1463,11 @@ export class OtelIngestionProcessor {
     input = attributes["gen_ai.input.messages"];
     output = attributes["gen_ai.output.messages"];
     if (input || output) {
-      return { input, output, filteredAttributes };
+      return {
+        input: parseOtelGenAiMessages(input),
+        output: parseOtelGenAiMessages(output),
+        filteredAttributes,
+      };
     }
 
     // OpenTelemetry tools (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans)

@@ -2254,27 +2254,163 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
-        "should map gen_ai.input.messages to input",
+        "should convert OTEL format gen_ai.input.messages to ChatML",
         {
           entity: "observation",
           otelAttributeKey: "gen_ai.input.messages",
           otelAttributeValue: {
-            stringValue: '{"foo": "bar"}',
+            stringValue: JSON.stringify([
+              {
+                role: "user",
+                parts: [{ type: "text", content: "Hello" }],
+              },
+            ]),
           },
           entityAttributeKey: "input",
-          entityAttributeValue: '{"foo": "bar"}',
+          entityAttributeValue: [{ role: "user", content: "Hello" }],
         },
       ],
       [
-        "should map gen_ai.output.messages to output",
+        "should convert OTEL format gen_ai.output.messages with tool_call to ChatML",
         {
           entity: "observation",
           otelAttributeKey: "gen_ai.output.messages",
           otelAttributeValue: {
-            stringValue: '{"foo": "bar"}',
+            stringValue: JSON.stringify([
+              {
+                role: "assistant",
+                parts: [
+                  { type: "text", content: "Let me check" },
+                  {
+                    type: "tool_call",
+                    id: "call_123",
+                    name: "get_weather",
+                    arguments: { city: "London" },
+                  },
+                ],
+              },
+            ]),
           },
           entityAttributeKey: "output",
-          entityAttributeValue: '{"foo": "bar"}',
+          entityAttributeValue: [
+            {
+              role: "assistant",
+              content: "Let me check",
+              tool_calls: [
+                {
+                  id: "call_123",
+                  type: "function",
+                  function: {
+                    name: "get_weather",
+                    arguments: '{"city":"London"}',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      [
+        "should convert OTEL format gen_ai.input.messages with tool_call_response to ChatML",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.input.messages",
+          otelAttributeValue: {
+            stringValue: JSON.stringify([
+              {
+                role: "tool",
+                parts: [
+                  {
+                    type: "tool_call_response",
+                    id: "call_123",
+                    response: { temperature: 20, unit: "celsius" },
+                  },
+                ],
+              },
+            ]),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "tool",
+              tool_call_id: "call_123",
+              content: '{"temperature":20,"unit":"celsius"}',
+            },
+          ],
+        },
+      ],
+      [
+        "should convert OTEL format gen_ai.input.messages with blob image to ChatML",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.input.messages",
+          otelAttributeValue: {
+            stringValue: JSON.stringify([
+              {
+                role: "user",
+                parts: [
+                  { type: "text", content: "What is in this image?" },
+                  {
+                    type: "blob",
+                    mime_type: "image/png",
+                    modality: "image",
+                    content:
+                      "iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAACCklEQVR4nO2VaYsCMQyG+/9/hPd946iIOuJ9gIjKKOOR35LlDVT8sCwuO9DZ3XwItmmavE/TOoaI+C+YcS1AQUhBKNZmXAtQEFIQirUZ1wIUhBSEYm3GtQAFIQWhWJtxLUBB6L+CXK9XvlwukRS73W7uQCaTCTcajR8VCIKA0+k0e54XD5DH48Hn81l+7QljjI69nvZrF7E+Go241WqJH3H3+/25347DMBSzOWxeWysyECTN5XJcKpU4k8mIqHa7zYVCgcvlMieTSYFcLpcSZ32z2Yyz2SynUinudruyZzgcSu56vc7T6ZTn87nEVCoV3mw2fDgcJAfqot47V/JbHUFCGIpst1sRNRgMZA3CF4uF+CDeXiesoSPwY/wZCHzoWBAE4m82mzJfrVaSF4cTGcjpdJKkKIDTXa/XIgAiEVer1QRgt9sJAOaAfQcE3e71epxIJKQ71WpV5gCBWcBIQHzfl8IQ+hXIeDzmfD7PnU5HxujgKwjGuC4QiDwAwRh5Pc+TDqNmsViUg8A8EpD9fi9XBg+x3+8LECCOx+NTAOJwkoi1Vwsi8H5wLRCDWHs90RFA4j1gD9bRAd/3n+8B++BDrncefOQfRBTHiduH+vpP9Ou+7GEYRvYRJZcgLsy4FqAgpCAUazOuBSgIKQjF2oxrAQpCCkKxNuNagIKQglCszbgWoCD0R0E+AKKIwlUbMnlLAAAAAElFTkSuQmCC",
+                  },
+                ],
+              },
+            ]),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "What is in this image?" },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAACXBIWXMAAAsTAAALEwEAmpwYAAACCklEQVR4nO2VaYsCMQyG+/9/hPd946iIOuJ9gIjKKOOR35LlDVT8sCwuO9DZ3XwItmmavE/TOoaI+C+YcS1AQUhBKNZmXAtQEFIQirUZ1wIUhBSEYm3GtQAFIQWhWJtxLUBB6L+CXK9XvlwukRS73W7uQCaTCTcajR8VCIKA0+k0e54XD5DH48Hn81l+7QljjI69nvZrF7E+Go241WqJH3H3+/25347DMBSzOWxeWysyECTN5XJcKpU4k8mIqHa7zYVCgcvlMieTSYFcLpcSZ32z2Yyz2SynUinudruyZzgcSu56vc7T6ZTn87nEVCoV3mw2fDgcJAfqot47V/JbHUFCGIpst1sRNRgMZA3CF4uF+CDeXiesoSPwY/wZCHzoWBAE4m82mzJfrVaSF4cTGcjpdJKkKIDTXa/XIgAiEVer1QRgt9sJAOaAfQcE3e71epxIJKQ71WpV5gCBWcBIQHzfl8IQ+hXIeDzmfD7PnU5HxujgKwjGuC4QiDwAwRh5Pc+TDqNmsViUg8A8EpD9fi9XBg+x3+8LECCOx+NTAOJwkoi1Vwsi8H5wLRCDWHs90RFA4j1gD9bRAd/3n+8B++BDrncefOQfRBTHiduH+vpP9Ou+7GEYRvYRJZcgLsy4FqAgpCAUazOuBSgIKQjF2oxrAQpCCkKxNuNagIKQglCszbgWoCD0R0E+AKKIwlUbMnlLAAAAAElFTkSuQmCC",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      [
+        "should convert OTEL format gen_ai.input.messages with uri image to ChatML",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.input.messages",
+          otelAttributeValue: {
+            stringValue: JSON.stringify([
+              {
+                role: "user",
+                parts: [
+                  { type: "text", content: "Describe this logo" },
+                  {
+                    type: "uri",
+                    modality: "image",
+                    uri: "https://langfuse.criteo.com/icon.svg",
+                  },
+                ],
+              },
+            ]),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Describe this logo" },
+                {
+                  type: "image_url",
+                  image_url: { url: "https://langfuse.criteo.com/icon.svg" },
+                },
+              ],
+            },
+          ],
         },
       ],
       [
