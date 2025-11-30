@@ -1,13 +1,18 @@
 #!/usr/bin/env tsx
 
 /**
- * This script is used to filter a CSV file of events and convert it to a JSON file.
- * It then ingests the events into a BullMQ queue.
+ * This script is used to filter a CSV file of S3 access logs and replay ingestion events.
+ * It processes both regular ingestion events and OTEL events, restoring S3 objects and
+ * re-queuing them into the appropriate BullMQ queues.
+ *
+ * The script handles two types of events:
+ * - Regular ingestion events: projectId/type/eventBodyId/eventId.json → IngestionSecondaryQueue
+ * - OTEL events: <prefix>otel/projectId/yyyy/mm/dd/hh/mm/uuid.json → OtelIngestionQueue
  *
  * Setup:
  * 1. Create a CSV file with the events you want to ingest. Take the downloaded CSV from AWS Athena.
  * 2. The file should be called events.csv and be in the root of the worker directory.
- * 4. Run the script with `pnpm --filter=worker run filter-events-csv`
+ * 3. Run the script with `pnpm --filter=worker run filter-events-csv`
  */
 
 import * as fs from "fs";
@@ -19,6 +24,7 @@ import {
   getQueue,
   QueueJobs,
   QueueName,
+  OtelIngestionQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import {
@@ -36,6 +42,9 @@ const JSON_OUTPUT_FILE = "events_filtered.json";
 const QUEUE_NAME = QueueName.IngestionSecondaryQueue;
 const JOB_NAME = QueueJobs.IngestionJob;
 
+const OTEL_JOB_NAME = QueueJobs.OtelIngestionJob;
+const OTEL_QUEUE_NAME = QueueName.OtelIngestionQueue;
+
 interface Stats {
   totalRows: number;
   filteredRows: number;
@@ -50,21 +59,41 @@ const client = new S3Client({
   },
 });
 
-interface JsonOutputItem {
-  useS3EventStore: true;
-  authCheck: {
-    validKey: true;
-    scope: {
-      projectId: string;
-      accessLevel: "all";
+interface RegularIngestionItem {
+  type: "regular";
+  payload: {
+    data: {
+      type: string;
+      eventBodyId: string;
+      fileKey: string;
+    };
+    authCheck: {
+      validKey: true;
+      scope: {
+        projectId: string;
+      };
     };
   };
-  data: {
-    eventBodyId: string;
-    fileKey: string;
-    type: string;
+}
+
+interface OtelIngestionItem {
+  type: "otel";
+  payload: {
+    data: {
+      fileKey: string;
+      publicKey?: string;
+    };
+    authCheck: {
+      validKey: true;
+      scope: {
+        projectId: string;
+        accessLevel: "project";
+      };
+    };
   };
 }
+
+type JsonOutputItem = RegularIngestionItem | OtelIngestionItem;
 
 async function filterCsvFile(
   inputPath: string,
@@ -306,36 +335,74 @@ async function convertCsvToJson(
         return;
       }
 
-      // Parse the S3 path: projectId/type/eventBodyId/eventId.json
-      const pathMatch = keyValue.match(
-        /^([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\.json$/,
-      );
+      // Check if this is an OTEL event (path contains /otel/)
+      const isOtelEvent = keyValue.includes("otel/");
 
-      if (!pathMatch) {
-        console.warn(
-          `⚠️  Invalid key format at row ${processedRows}: ${keyValue}, skipping...`,
-        );
-        return;
-      }
+      let jsonObject: JsonOutputItem;
 
-      const [, projectId, type, eventBodyId, eventId] = pathMatch;
+      if (isOtelEvent) {
+        // Parse OTEL path: <prefix>otel/projectId/yyyy/mm/dd/hh/mm/uuid.json
+        const otelPathMatch = keyValue.match(/\/otel\/([^/]+)\//);
 
-      // Create JSON object with the specified structure
-      const jsonObject: JsonOutputItem = {
-        useS3EventStore: true,
-        authCheck: {
-          validKey: true,
-          scope: {
-            projectId,
-            accessLevel: "all",
+        if (!otelPathMatch) {
+          console.warn(
+            `⚠️  Invalid OTEL key format at row ${processedRows}: ${keyValue}, skipping...`,
+          );
+          return;
+        }
+
+        const projectId = otelPathMatch[1];
+
+        // Create JSON object for OTEL event matching OtelIngestionEventQueueType
+        jsonObject = {
+          type: "otel",
+          payload: {
+            data: {
+              fileKey: keyValue,
+              publicKey: undefined,
+            },
+            authCheck: {
+              validKey: true,
+              scope: {
+                projectId,
+                accessLevel: "project",
+              },
+            },
           },
-        },
-        data: {
-          eventBodyId,
-          fileKey: eventId,
-          type: `${type}-create`,
-        },
-      };
+        };
+      } else {
+        // Parse the S3 path: projectId/type/eventBodyId/eventId.json
+        const pathMatch = keyValue.match(
+          /^([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\.json$/,
+        );
+
+        if (!pathMatch) {
+          console.warn(
+            `⚠️  Invalid key format at row ${processedRows}: ${keyValue}, skipping...`,
+          );
+          return;
+        }
+
+        const [, projectId, type, eventBodyId, eventId] = pathMatch;
+
+        // Create JSON object matching IngestionEventQueueType
+        jsonObject = {
+          type: "regular",
+          payload: {
+            data: {
+              type: `${type}-create`,
+              eventBodyId,
+              fileKey: eventId,
+            },
+            authCheck: {
+              validKey: true,
+              scope: {
+                projectId,
+              },
+            },
+          },
+        };
+      }
 
       jsonObjects.push(jsonObject);
     });
@@ -398,22 +465,26 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
 
     console.log(`📊 Total events to ingest: ${events.length.toLocaleString()}`);
 
-    // Set up BullMQ queue with Redis connection
+    // Separate OTEL and regular events
+    const otelEvents = events.filter(
+      (event): event is OtelIngestionItem => event.type === "otel",
+    );
+    const regularEvents = events.filter(
+      (event): event is RegularIngestionItem => event.type === "regular",
+    );
 
-    const queue = getQueue(QueueName.IngestionSecondaryQueue);
+    console.log(
+      `📊 OTEL events: ${otelEvents.length.toLocaleString()}, Regular events: ${regularEvents.length.toLocaleString()}`,
+    );
 
-    if (!queue) {
-      throw new Error("Failed to get queue");
-    }
-
-    console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
-
-    // Process events in batches of 500 for S3 restoration
+    // Process S3 restoration for all events
     const S3_BATCH_SIZE = 1000;
-    let processedCount = 0;
+    let restoredCount = 0;
 
-    for (let i = 0; i < events.length; i += S3_BATCH_SIZE) {
-      const batch = events.slice(i, i + S3_BATCH_SIZE);
+    const allEventsForRestoration = [...regularEvents, ...otelEvents];
+
+    for (let i = 0; i < allEventsForRestoration.length; i += S3_BATCH_SIZE) {
+      const batch = allEventsForRestoration.slice(i, i + S3_BATCH_SIZE);
       console.log(
         `🔍 Processing S3 restoration batch ${Math.ceil((i + 1) / S3_BATCH_SIZE)} (${batch.length} events)`,
       );
@@ -421,7 +492,15 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
       // Process all events in the batch concurrently
       await Promise.all(
         batch.map(async (event) => {
-          const keyValue = `${event.authCheck.scope.projectId}/${getClickhouseEntityType(event.data.type)}/${event.data.eventBodyId}/${event.data.fileKey}.json`;
+          let keyValue: string;
+
+          if (event.type === "otel") {
+            // For OTEL events, the full path is already in payload.data.fileKey
+            keyValue = event.payload.data.fileKey;
+          } else {
+            // For regular events, construct the path
+            keyValue = `${event.payload.authCheck.scope.projectId}/${getClickhouseEntityType(event.payload.data.type)}/${event.payload.data.eventBodyId}/${event.payload.data.fileKey}.json`;
+          }
 
           try {
             // List versions to find the delete marker
@@ -455,47 +534,108 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
         }),
       );
 
-      processedCount += batch.length;
+      restoredCount += batch.length;
       console.log(
-        `✅ Completed S3 restoration batch (${processedCount}/${events.length} events processed)`,
+        `✅ Completed S3 restoration batch (${restoredCount}/${allEventsForRestoration.length} events processed)`,
       );
     }
     console.log(`🔍 All delete markers removed`);
 
-    // Ingest events into queue in batches of 1000
-    const BATCH_SIZE = 1000;
-    for (let i = 0; i < events.length; i += BATCH_SIZE) {
-      const batch = events.slice(i, i + BATCH_SIZE);
+    // Process OTEL events
+    if (otelEvents.length > 0) {
+      console.log(`\n🔄 Processing OTEL events...`);
+      const otelQueue = OtelIngestionQueue.getInstance({});
 
-      // Prepare jobs for bulk insertion
-      const jobs = batch.map((event) => ({
-        name: JOB_NAME,
-        data: {
-          payload: event,
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: JOB_NAME,
-        },
-      }));
-
-      // Add batch to queue
-      await queue.addBulk(jobs);
-
-      processedEvents += batch.length;
-
-      // Log progress every batch
-      console.log(
-        `✅ Added batch ${Math.ceil((i + 1) / BATCH_SIZE)} (${processedEvents}/${events.length} events)`,
-      );
-
-      // Log sample event from each batch for tracking
-      if (batch.length > 0) {
-        console.log(`📄 Sample event from batch: ${JSON.stringify(batch[0])}`);
+      if (!otelQueue) {
+        throw new Error("Failed to get OTEL queue");
       }
+
+      console.log(`🔗 Connected to OTEL ingestion queue: ${OTEL_QUEUE_NAME}`);
+
+      const BATCH_SIZE = 1000;
+      for (let i = 0; i < otelEvents.length; i += BATCH_SIZE) {
+        const batch = otelEvents.slice(i, i + BATCH_SIZE);
+
+        // Prepare jobs for bulk insertion
+        const jobs = batch.map((event) => ({
+          name: OTEL_JOB_NAME,
+          data: {
+            timestamp: new Date(),
+            id: randomUUID(),
+            payload: event.payload,
+            name: OTEL_JOB_NAME,
+          },
+        }));
+
+        // Add batch to queue
+        await otelQueue.addBulk(jobs);
+
+        processedEvents += batch.length;
+
+        // Log progress every batch
+        console.log(
+          `✅ Added OTEL batch ${Math.ceil((i + 1) / BATCH_SIZE)} (${processedEvents}/${events.length} events)`,
+        );
+
+        // Log sample event from each batch for tracking
+        if (batch.length > 0) {
+          console.log(
+            `📄 Sample OTEL event from batch: ${JSON.stringify(batch[0])}`,
+          );
+        }
+      }
+
+      // Close the OTEL queue connection
+      await otelQueue.close();
     }
 
-    // Close the queue connection
-    await queue.close();
+    // Process regular events
+    if (regularEvents.length > 0) {
+      console.log(`\n🔄 Processing regular ingestion events...`);
+      const queue = getQueue(QueueName.IngestionSecondaryQueue);
+
+      if (!queue) {
+        throw new Error("Failed to get queue");
+      }
+
+      console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
+
+      const BATCH_SIZE = 1000;
+      for (let i = 0; i < regularEvents.length; i += BATCH_SIZE) {
+        const batch = regularEvents.slice(i, i + BATCH_SIZE);
+
+        // Prepare jobs for bulk insertion
+        const jobs = batch.map((event) => ({
+          name: JOB_NAME,
+          data: {
+            timestamp: new Date(),
+            id: randomUUID(),
+            payload: event.payload,
+            name: JOB_NAME,
+          },
+        }));
+
+        // Add batch to queue
+        await queue.addBulk(jobs);
+
+        processedEvents += batch.length;
+
+        // Log progress every batch
+        console.log(
+          `✅ Added regular batch ${Math.ceil((i + 1) / BATCH_SIZE)} (${processedEvents}/${events.length} events)`,
+        );
+
+        // Log sample event from each batch for tracking
+        if (batch.length > 0) {
+          console.log(
+            `📄 Sample regular event from batch: ${JSON.stringify(batch[0])}`,
+          );
+        }
+      }
+
+      // Close the queue connection
+      await queue.close();
+    }
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -504,13 +644,17 @@ async function ingestEventsToQueue(jsonPath: string): Promise<void> {
       `📊 Total events ingested: ${processedEvents.toLocaleString()}`,
     );
     console.log(
+      `   - OTEL events: ${otelEvents.length.toLocaleString()} (Queue: ${OTEL_QUEUE_NAME}, Job: ${OTEL_JOB_NAME})`,
+    );
+    console.log(
+      `   - Regular events: ${regularEvents.length.toLocaleString()} (Queue: ${QUEUE_NAME}, Job: ${JOB_NAME})`,
+    );
+    console.log(
       `⏱️  Ingestion time: ${(processingTimeMs / 1000).toFixed(1)} seconds`,
     );
     console.log(
       `🚀 Average speed: ${Math.round(processedEvents / (processingTimeMs / 1000)).toLocaleString()} events/second`,
     );
-    console.log(`🗂️  Queue name: ${QUEUE_NAME}`);
-    console.log(`🔧 Job name: ${JOB_NAME}`);
   } catch (error) {
     throw new Error(
       `Failed to ingest events to queue: ${(error as Error).message}`,
