@@ -38,3 +38,17 @@ export const getS3EventStorageClient = (bucketName: string): StorageService => {
   }
   return s3EventStorageClient;
 };
+
+/**
+ * Returns the S3 event storage bucket name from environment config.
+ */
+export const getS3EventStorageBucket = (): string => {
+  return env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET;
+};
+
+/**
+ * Returns the S3 event storage prefix from environment config.
+ */
+export const getS3EventStoragePrefix = (): string => {
+  return env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX;
+};

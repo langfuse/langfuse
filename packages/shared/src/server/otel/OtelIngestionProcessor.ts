@@ -605,12 +605,6 @@ export class OtelIngestionProcessor {
         scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
       const scopeAttributes = this.extractScopeAttributes(scopeSpan);
 
-      this.validatePublicKey(
-        isLangfuseSDKSpans,
-        scopeAttributes,
-        resourceAttributes,
-      );
-
       if (isLangfuseSDKSpans) {
         recordIncrement("langfuse.otel.ingestion.langfuse_sdk_batch", 1);
       }
@@ -948,25 +942,6 @@ export class OtelIngestionProcessor {
       timestamp: new Date().toISOString(),
       body: observation,
     } as unknown as IngestionEventType;
-  }
-
-  private validatePublicKey(
-    isLangfuseSDKSpans: boolean,
-    scopeAttributes: Record<string, unknown>,
-    resourceAttributes: Record<string, unknown>,
-  ): void {
-    if (
-      isLangfuseSDKSpans &&
-      (!this.publicKey ||
-        (scopeAttributes["public_key"] as unknown as string) !==
-          this.publicKey) &&
-      (resourceAttributes["telemetry.sdk.language"] as unknown as string) ===
-        "python" // Only Python has multi project setups. Node OTEL does not allow setting scope.attributes, thus skipping the check for node
-    ) {
-      throw new ForbiddenError(
-        `Langfuse OTEL SDK span has different public key '${scopeAttributes["public_key"]}' than used for authentication '${this.publicKey}'. Discarding span.`,
-      );
-    }
   }
 
   private hasTraceUpdates(attributes: Record<string, unknown>): boolean {

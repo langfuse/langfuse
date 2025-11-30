@@ -1,4 +1,5 @@
 export * from "./services/StorageService";
+export * from "./services/otelS3Utils";
 export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
