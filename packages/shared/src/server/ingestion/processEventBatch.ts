@@ -30,6 +30,10 @@ import {
   StorageServiceFactory,
 } from "../services/StorageService";
 import { isTraceIdInSample } from "./sampling";
+import {
+  isS3SlowDownError,
+  markProjectS3Slowdown,
+} from "../redis/s3SlowdownTracking";
 
 let s3StorageServiceClient: StorageService;
 
@@ -239,6 +243,20 @@ export const processEventBatch = async (
     results.forEach((result) => {
       if (result.status === "rejected") {
         s3UploadErrored = true;
+
+        // Check if this is a SlowDown error and mark the project for secondary queue
+        if (isS3SlowDownError(result.reason)) {
+          logger.warn(
+            "S3 SlowDown error during upload, marking project for secondary queue",
+            {
+              projectId: authCheck.scope.projectId,
+              error: result.reason,
+            },
+          );
+          // Fire and forget - don't await, don't block the error flow
+          markProjectS3Slowdown(authCheck.scope.projectId!).catch(() => {});
+        }
+
         logger.error("Failed to upload event to S3", {
           error: result.reason,
         });

@@ -76,6 +76,7 @@ export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
+export * from "./redis/s3SlowdownTracking";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";
