@@ -7,6 +7,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 import { Portal } from "@radix-ui/react-hover-card";
 import { Info } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -62,7 +64,29 @@ export default function DocPopup({
                 className,
               )}
             >
-              {description}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ node, ...props }) => (
+                    <a
+                      {...props}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-primary/30 hover:decoration-primary"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {props.children}
+                    </a>
+                  ),
+                  p: ({ node, ...props }) => (
+                    <p {...props} className="mb-2 last:mb-0">
+                      {props.children}
+                    </p>
+                  ),
+                }}
+              >
+                {description}
+              </ReactMarkdown>
             </div>
           ) : (
             description
@@ -87,7 +111,29 @@ export function Popup({ triggerContent, description }: PopupProps) {
       <HoverCardContent>
         {typeof description === "string" ? (
           <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
-            {description}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ node, ...props }) => (
+                  <a
+                    {...props}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-primary/30 hover:decoration-primary"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {props.children}
+                  </a>
+                ),
+                p: ({ node, ...props }) => (
+                  <p {...props} className="mb-2 last:mb-0">
+                    {props.children}
+                  </p>
+                ),
+              }}
+            >
+              {description}
+            </ReactMarkdown>
           </div>
         ) : (
           description

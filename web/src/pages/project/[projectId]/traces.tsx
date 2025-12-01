@@ -37,7 +37,7 @@ export default function Traces() {
           title: "Tracing",
           help: {
             description:
-              "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+              "A trace represents a single function/api invocation. Traces contain observations. See [docs](https://langfuse.com/docs/observability/data-model) to learn more.",
             href: "https://langfuse.com/docs/observability/data-model",
           },
         }}
@@ -54,7 +54,7 @@ export default function Traces() {
         title: "Tracing",
         help: {
           description:
-            "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+            "A trace represents a single function/api invocation. Traces contain observations. See [docs](https://langfuse.com/docs/observability/data-model) to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps: {
