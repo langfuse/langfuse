@@ -592,7 +592,8 @@ export function CategoricalFacet({
               <div className="py-1 text-xs text-muted-foreground">
                 {filterKey === "sessionId" ? (
                   <span>
-                    Sessions group traces together, which is useful for tracing multi-step workflows.{" "}
+                    Sessions group traces together, which is useful for tracing
+                    multi-step workflows.{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/sessions"
                       target="_blank"
@@ -603,26 +604,25 @@ export function CategoricalFacet({
                     </a>{" "}
                     to learn how to add sessions to your traces.
                   </span>
-                  ) : filterKey === "name" ? (
-                    <span>
-                      No trace names found in the given time range.
-                    </span>
-                  ) : filterKey === "tags" ? (
-                    <span>
-                      Tags let you to filter traces according to custom categories(e.g. feature flags).{" "}
-                      <a
-                        href="https://langfuse.com/docs/observability/features/tags"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline hover:text-foreground"
-                      >
-                        See docs
-                      </a>{" "}
-                      to learn how to add tags to your traces.
-                    </span>
-                  ) : (
-                    "No options found"
-                  )}
+                ) : filterKey === "name" ? (
+                  <span>No trace names found in the given time range.</span>
+                ) : filterKey === "tags" ? (
+                  <span>
+                    Tags let you to filter traces according to custom
+                    categories(e.g. feature flags).{" "}
+                    <a
+                      href="https://langfuse.com/docs/observability/features/tags"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      See docs
+                    </a>{" "}
+                    to learn how to add tags to your traces.
+                  </span>
+                ) : (
+                  "No options found"
+                )}
               </div>
             ) : (
               <>
@@ -685,8 +685,8 @@ export function CategoricalFacet({
                 options.length === 1 &&
                 options[0]?.toLowerCase() === "default" ? (
                   <div className="mt-2 px-2 text-xs text-muted-foreground">
-                    Environments help you separate traces from different contexts (e.g. production,
-                    staging).{" "}
+                    Environments help you separate traces from different
+                    contexts (e.g. production, staging).{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/environments"
                       target="_blank"
@@ -699,8 +699,7 @@ export function CategoricalFacet({
                   </div>
                 ) : null}
               </>
-            )
-}
+            )}
           </div>
         )}
 
