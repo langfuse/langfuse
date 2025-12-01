@@ -64,6 +64,7 @@ export async function handleCreateProject(
       where: {
         name,
         orgId: scope.orgId,
+        deletedAt: null,
       },
     });
 

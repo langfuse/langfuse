@@ -1,7 +1,7 @@
 import {
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
-} from "@/src/components/schemas/ChatMlSchema";
+} from "@langfuse/shared";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -32,7 +32,7 @@ export function MarkdownJsonViewHeader({
   const [isCopied, setIsCopied] = useState(false);
 
   return (
-    <div className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors group-hover:bg-muted/80">
+    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors group-hover:bg-muted/80">
       <div className="flex items-center gap-2">
         {titleIcon}
         {title}

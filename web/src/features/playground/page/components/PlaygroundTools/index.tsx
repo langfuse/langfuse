@@ -79,7 +79,7 @@ export const PlaygroundToolsPopover = () => {
     <Command className="flex flex-col">
       <CommandInput
         placeholder="Search tools..."
-        className="h-8 border-none p-1 focus:ring-0 focus:ring-offset-0"
+        className="h-8 border-none py-1 pl-6 pr-1 focus:ring-0 focus:ring-offset-0"
       />
       <CommandList className="max-h-[300px] overflow-y-auto">
         <CommandEmpty>No tools found.</CommandEmpty>
@@ -253,7 +253,7 @@ export const PlaygroundTools = () => {
                   <div className="flex items-center gap-1">
                     <WrenchIcon className="h-4 w-4 text-muted-foreground" />
                     <h3
-                      className="max-w-[200px] truncate text-ellipsis text-sm font-medium"
+                      className="max-w-[145px] truncate text-ellipsis text-sm font-medium"
                       title={tool.name}
                     >
                       {tool.name}

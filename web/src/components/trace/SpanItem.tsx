@@ -5,20 +5,19 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import {
-  calculateDisplayTotalCost,
-  heatMapTextColor,
-  unnestObservation,
-} from "@/src/components/trace/lib/helpers";
-import { type APIScoreV2 } from "@langfuse/shared";
+import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
+import { type ScoreDomain } from "@langfuse/shared";
 import type Decimal from "decimal.js";
 import React from "react";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { calculateAggregatedUsage } from "@/src/components/trace/BreakdownToolTip";
 
 export interface SpanItemProps {
   node: TreeNode;
-  scores: APIScoreV2[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
   comments?: Map<string, number>;
-  showMetrics: boolean;
+  showDuration: boolean;
+  showCostTokens: boolean;
   showScores: boolean;
   colorCodeMetrics: boolean;
   parentTotalCost?: Decimal;
@@ -31,7 +30,8 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   node,
   scores,
   comments,
-  showMetrics,
+  showDuration,
+  showCostTokens,
   showScores,
   colorCodeMetrics,
   parentTotalCost,
@@ -39,19 +39,17 @@ export const SpanItem: React.FC<SpanItemProps> = ({
   showComments = true,
   className,
 }) => {
-  const convertTreeNodeToObservation = (treeNode: TreeNode): any => ({
-    ...treeNode,
-    children: treeNode.children.map(convertTreeNodeToObservation),
-  });
+  // Use pre-computed cost from the TreeNode (computed during tree building)
+  const totalCost = node.totalCost;
 
-  const totalCost = calculateDisplayTotalCost({
-    allObservations:
-      node.children.length > 0
-        ? node.children.flatMap((child) =>
-            unnestObservation(convertTreeNodeToObservation(child)),
-          )
-        : [convertTreeNodeToObservation(node)],
-  });
+  // Calculate aggregated usage from usageDetails when available
+  const aggregatedUsage = node.usageDetails
+    ? calculateAggregatedUsage(node.usageDetails)
+    : {
+        input: node.inputUsage ?? 0,
+        output: node.outputUsage ?? 0,
+        total: node.totalUsage ?? 0,
+      };
 
   const duration =
     node.endTime && node.startTime
@@ -60,23 +58,25 @@ export const SpanItem: React.FC<SpanItemProps> = ({
         ? node.latency * 1000
         : undefined;
 
-  const shouldRenderMetrics =
-    showMetrics &&
+  const shouldRenderDuration =
+    showDuration && Boolean(duration || node.latency);
+
+  const shouldRenderCostTokens =
+    showCostTokens &&
     Boolean(
-      node.inputUsage ||
-        node.outputUsage ||
-        node.totalUsage ||
-        duration ||
-        totalCost ||
-        node.latency,
+      node.inputUsage || node.outputUsage || node.totalUsage || totalCost,
     );
+
+  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
       <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-        <span className="flex-shrink truncate text-xs">{node.name}</span>
+        <span className="flex-shrink truncate text-xs">
+          {node.name || `Unnamed ${node.type.toLowerCase()}`}
+        </span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-x-2">
           {comments && showComments ? (
             <CommentCountIcon count={comments.get(node.id)} />
           ) : null}
@@ -96,9 +96,9 @@ export const SpanItem: React.FC<SpanItemProps> = ({
         </div>
       </div>
 
-      {shouldRenderMetrics && (
-        <div className="flex flex-wrap gap-2">
-          {duration || node.latency ? (
+      {shouldRenderAnyMetrics && (
+        <div className="flex flex-wrap gap-x-2">
+          {shouldRenderDuration && (duration || node.latency) ? (
             <span
               title={
                 node.children.length > 0 || node.type === "TRACE"
@@ -120,16 +120,19 @@ export const SpanItem: React.FC<SpanItemProps> = ({
               )}
             </span>
           ) : null}
-          {node.inputUsage || node.outputUsage || node.totalUsage ? (
+          {shouldRenderCostTokens &&
+          (aggregatedUsage.input ||
+            aggregatedUsage.output ||
+            aggregatedUsage.total) ? (
             <span className="text-xs text-muted-foreground">
               {formatTokenCounts(
-                node.inputUsage,
-                node.outputUsage,
-                node.totalUsage,
+                aggregatedUsage.input,
+                aggregatedUsage.output,
+                aggregatedUsage.total,
               )}
             </span>
           ) : null}
-          {totalCost ? (
+          {shouldRenderCostTokens && totalCost ? (
             <span
               title={
                 node.children.length > 0 || node.type === "TRACE"

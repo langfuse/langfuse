@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
@@ -51,6 +52,10 @@ import {
   AgentGraphDataSchema,
 } from "@/src/features/trace-graph-view/types";
 import { env } from "@/src/env.mjs";
+import {
+  toDomainWithStringifiedMetadata,
+  toDomainArrayWithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -106,9 +111,20 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "TRACE",
+      });
+
+      if (hasNoMatches) {
+        return { traces: [] };
+      }
+
       const traces = await getTracesTable({
         projectId: ctx.session.projectId,
-        filter: input.filter ?? [],
+        filter: filterState,
         searchQuery: input.searchQuery ?? undefined,
         searchType: input.searchType ?? ["id"],
         orderBy: input.orderBy,
@@ -120,9 +136,20 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "TRACE",
+      });
+
+      if (hasNoMatches) {
+        return { totalCount: 0 };
+      }
+
       const count = await getTracesTableCount({
         projectId: ctx.session.projectId,
-        filter: input.filter ?? [],
+        filter: filterState,
         searchType: input.searchType,
         searchQuery: input.searchQuery ?? undefined,
         limit: 1,
@@ -143,15 +170,50 @@ export const traceRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       if (input.traceIds.length === 0) return [];
+
+      const { filterState, hasNoMatches, matchingIds } =
+        await applyCommentFilters({
+          filterState: input.filter ?? [],
+          prisma: ctx.prisma,
+          projectId: ctx.session.projectId,
+          objectType: "TRACE",
+        });
+
+      if (hasNoMatches) {
+        return [];
+      }
+
+      // If comment filters returned matching IDs, intersect with input.traceIds
+      let filteredTraceIds = input.traceIds;
+      if (matchingIds !== null) {
+        filteredTraceIds = input.traceIds.filter((id) =>
+          matchingIds.includes(id),
+        );
+
+        if (filteredTraceIds.length === 0) {
+          return [];
+        }
+      }
+
+      // Remove the comment filter's ID injection and use filteredTraceIds instead
+      const filterWithoutCommentIds = filterState.filter(
+        (f) =>
+          !(
+            f.type === "stringOptions" &&
+            f.column === "id" &&
+            f.operator === "any of"
+          ),
+      );
+
       const res = await getTracesTableMetrics({
         projectId: ctx.session.projectId,
         filter: [
-          ...(input.filter ?? []),
+          ...filterWithoutCommentIds,
           {
             type: "stringOptions",
             operator: "any of",
             column: "ID",
-            value: input.traceIds,
+            value: filteredTraceIds,
           },
         ],
       });
@@ -248,7 +310,7 @@ export const traceRouter = createTRPCRouter({
         projectId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
-        truncated: z.boolean().default(false), // used to truncate the input and output
+        verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
     )
     .query(async ({ ctx }) => {
@@ -316,22 +378,15 @@ export const traceRouter = createTRPCRouter({
           : undefined;
 
       return {
-        ...ctx.trace,
-        metadata: ctx.trace.metadata
-          ? JSON.stringify(ctx.trace.metadata)
-          : null,
+        ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: validatedScores.map((s) => ({
-          ...s,
-          metadata: s.metadata ? JSON.stringify(s.metadata) : undefined,
-        })),
+        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
-          ...o,
+          ...toDomainWithStringifiedMetadata(o),
           output: undefined,
           input: undefined, // this is not queried above.
-          metadata: o.metadata ? JSON.stringify(o.metadata) : undefined,
         })) as ObservationReturnTypeWithMetadata[],
       };
     }),
@@ -479,7 +534,19 @@ export const traceRouter = createTRPCRouter({
           });
         }
         clickhouseTrace.public = input.public;
-        await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        const promises = [
+          upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+        ];
+        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+          promises.push(
+            updateEvents(
+              input.projectId,
+              { traceIds: [clickhouseTrace.id] },
+              { public: input.public },
+            ),
+          );
+        }
+        await Promise.all(promises);
         return clickhouseTrace;
       } catch (error) {
         logger.error("Failed to call traces.publish", error);
@@ -535,13 +602,16 @@ export const traceRouter = createTRPCRouter({
       }
     }),
 
-  getAgentGraphData: protectedProjectProcedure
+  getAgentGraphData: protectedGetTraceProcedure
     .input(
       z.object({
         projectId: z.string(),
         traceId: z.string(),
         minStartTime: z.string(),
         maxStartTime: z.string(),
+        // Optional fields for enforceTraceAccess middleware (supports public traces)
+        timestamp: z.date().nullish(),
+        fromTimestamp: z.date().nullish(),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {

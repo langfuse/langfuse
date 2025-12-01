@@ -38,26 +38,25 @@ fi
 
 # Ensure CLICKHOUSE_DB is set
 if [ -z "${CLICKHOUSE_DB}" ]; then
-    export CLICKHOUSE_DB="default"
+  export CLICKHOUSE_DB="default"
 fi
 
 # Parse the CLICKHOUSE_MIGRATION_URL to extract host and port
 # Expected format: clickhouse://localhost:9000
 if [[ $CLICKHOUSE_MIGRATION_URL =~ ^clickhouse://([^:]+):([0-9]+)$ ]]; then
-    CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
-    CLICKHOUSE_PORT="${BASH_REMATCH[2]}"
+  CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
+  CLICKHOUSE_PORT="${BASH_REMATCH[2]}"
 elif [[ $CLICKHOUSE_MIGRATION_URL =~ ^clickhouse://([^:]+)$ ]]; then
-    CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
-    CLICKHOUSE_PORT="9000"  # Default native protocol port
+  CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
+  CLICKHOUSE_PORT="9000" # Default native protocol port
 else
-    echo "Error: Could not parse CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL}"
-    exit 1
+  echo "Error: Could not parse CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL}"
+  exit 1
 fi
 
-if ! command -v clickhouse &> /dev/null
-then
-	echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
-	exit 1
+if ! command -v clickhouse &>/dev/null; then
+  echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
+  exit 1
 fi
 
 echo "Creating development tables in ClickHouse..."
@@ -101,6 +100,8 @@ CREATE TABLE IF NOT EXISTS observations_batch_staging
     provided_cost_details Map(LowCardinality(String), Decimal64(12)),
     cost_details Map(LowCardinality(String), Decimal64(12)),
     total_cost Nullable(Decimal64(12)),
+    usage_pricing_tier_id Nullable(String),
+    usage_pricing_tier_name Nullable(String),
     completion_start_time Nullable(DateTime64(3)),
     prompt_id Nullable(String),
     prompt_name Nullable(String),
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS observations_batch_staging
     environment LowCardinality(String) DEFAULT 'default',
 ) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
 PARTITION BY toStartOfInterval(s3_first_seen_timestamp, INTERVAL 3 MINUTE)
+PRIMARY KEY (project_id, toDate(s3_first_seen_timestamp))
 ORDER BY (
     project_id,
     toDate(s3_first_seen_timestamp),
@@ -160,26 +162,37 @@ CREATE TABLE IF NOT EXISTS events
       -- Model
       model_id String,
       provided_model_name String,
-      model_parameters JSON,
+      model_parameters String,
+      model_parameters_json JSON MATERIALIZED model_parameters::JSON,
 
       -- Usage
-      provided_usage_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
-      usage_details JSON(
+      provided_usage_details Map(LowCardinality(String), UInt64),
+      provided_usage_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_usage_details::JSON,
+      usage_details Map(LowCardinality(String), UInt64),
+      usage_details_json JSON(
         max_dynamic_paths=64,
         max_dynamic_types=8,
         input UInt64,
         output UInt64,
         total UInt64,
-      ),
-      provided_cost_details JSON(max_dynamic_paths=64, max_dynamic_types=8),
-      cost_details JSON(
+      ) MATERIALIZED usage_details::JSON,
+      provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
+      provided_cost_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_cost_details::JSON,
+      cost_details Map(LowCardinality(String), Decimal(18,12)),
+      cost_details_json JSON(
         max_dynamic_paths=64,
         max_dynamic_types=8,
         input Decimal(18,12),
         output Decimal(18,12),
         total Decimal(18,12),
-      ),
-      total_cost Decimal(18, 12) ALIAS cost_details.total,
+      ) MATERIALIZED cost_details::JSON,
+
+      calculated_input_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
+      calculated_output_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
+      calculated_total_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
+      total_cost Decimal(18, 12) ALIAS cost_details_json.total,
+      usage_pricing_tier_id Nullable(String),
+      usage_pricing_tier_name Nullable(String),
 
       -- I/O
       input String CODEC(ZSTD(3)),
@@ -255,7 +268,8 @@ CREATE TABLE IF NOT EXISTS events
   ENGINE = ReplacingMergeTree(event_ts, is_deleted)
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
-  ORDER BY (project_id, toUnixTimestamp(start_time), xxHash32(trace_id), span_id)
+  PRIMARY KEY (project_id, start_time, xxHash32(trace_id))
+  ORDER BY (project_id, start_time, xxHash32(trace_id), span_id)
   SAMPLE BY xxHash32(trace_id)
   SETTINGS
     index_granularity = 8192,
@@ -312,7 +326,7 @@ clickhouse client \
          CAST(o.prompt_version, 'Nullable(String)'),
          o.internal_model_id                                                             AS model_id,
          o.provided_model_name,
-         o.model_parameters,
+         coalesce(o.model_parameters, '{}'),
          o.provided_usage_details,
          o.usage_details,
          o.provided_cost_details,

@@ -1,7 +1,12 @@
 import { z } from "zod/v4";
 import type { Prompt } from "../../../prisma/generated/types";
 import { jsonSchema } from "../../utils/zod";
-import { COMMIT_MESSAGE_MAX_LENGTH } from "./constants";
+import {
+  COMMIT_MESSAGE_MAX_LENGTH,
+  PROMPT_LABEL_MAX_LENGTH,
+  PROMPT_LABEL_REGEX,
+  PROMPT_LABEL_REGEX_ERROR,
+} from "./constants";
 import { PromptChatMessageSchema } from "../../server/llm/types";
 import { PromptNameSchema } from "./validation";
 
@@ -18,11 +23,8 @@ export enum PromptType {
 export const PromptLabelSchema = z
   .string()
   .min(1)
-  .max(36)
-  .regex(
-    /^[a-z0-9_\-.]+$/,
-    "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
-  );
+  .max(PROMPT_LABEL_MAX_LENGTH)
+  .regex(PROMPT_LABEL_REGEX, PROMPT_LABEL_REGEX_ERROR);
 
 const BaseCreateTextPromptSchema = z.object({
   name: PromptNameSchema,

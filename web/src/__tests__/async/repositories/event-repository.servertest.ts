@@ -51,21 +51,33 @@ describe("Clickhouse Events Repository Test", () => {
           matchPattern: `(?i)^(gpt-?4-${modelId})$`,
           startDate: new Date("2023-01-01"),
           unit: "TOKENS",
-          Price: {
-            create: [
-              {
-                usageType: "input",
-                price: 0.03,
+
+          pricingTiers: {
+            create: {
+              isDefault: true,
+              conditions: [],
+              name: "Standard",
+              priority: 0,
+              prices: {
+                create: [
+                  {
+                    usageType: "input",
+                    price: 0.03,
+                    modelId,
+                  },
+                  {
+                    usageType: "output",
+                    price: 0.06,
+                    modelId,
+                  },
+                  {
+                    usageType: "total",
+                    price: 0.09,
+                    modelId,
+                  },
+                ],
               },
-              {
-                usageType: "output",
-                price: 0.06,
-              },
-              {
-                usageType: "total",
-                price: 0.09,
-              },
-            ],
+            },
           },
         },
       });
@@ -1460,17 +1472,27 @@ describe("Clickhouse Events Repository Test", () => {
           matchPattern: `(?i)^(test-model-${modelId})$`,
           startDate: new Date("2023-01-01"),
           unit: "TOKENS",
-          Price: {
-            create: [
-              {
-                usageType: "input",
-                price: 0.01,
+          pricingTiers: {
+            create: {
+              isDefault: true,
+              conditions: [],
+              name: "Standard",
+              priority: 0,
+              prices: {
+                create: [
+                  {
+                    usageType: "input",
+                    price: 0.01,
+                    modelId,
+                  },
+                  {
+                    usageType: "output",
+                    price: 0.02,
+                    modelId,
+                  },
+                ],
               },
-              {
-                usageType: "output",
-                price: 0.02,
-              },
-            ],
+            },
           },
         },
       });
@@ -1506,7 +1528,7 @@ describe("Clickhouse Events Repository Test", () => {
   });
 
   maybe("Update methods", () => {
-    it("should allow to set bookmarked on a root span", async () => {
+    it("should allow to set/unset bookmarked", async () => {
       const traceId = randomUUID();
       const traceId2 = randomUUID();
       const rootSpanId = randomUUID();
@@ -1597,6 +1619,82 @@ describe("Clickhouse Events Repository Test", () => {
       });
       expect(result).toBeDefined();
       expect(result?.bookmarked).toBe(true);
+    });
+
+    it("should allow to set/unset public", async () => {
+      const traceId = randomUUID();
+      const traceId2 = randomUUID();
+      const rootSpanId = randomUUID();
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "root-event",
+        public: false,
+        parent_span_id: "",
+      });
+      const rootEvent2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "root-event2",
+        public: true,
+        parent_span_id: "",
+      });
+
+      await createEventsCh([rootEvent, rootEvent2]);
+
+      var result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(false);
+
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: true });
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(true);
+
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: false });
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(false);
+
+      // Non-root event with public
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "event-hijack",
+          public: true,
+          parent_span_id: rootSpanId,
+        }),
+      ]);
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(true);
+
+      // Clearing public on non-root
+      await updateEvents(projectId, { traceIds: [traceId] }, { public: false });
+
+      result = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(false);
+
+      // Trace id 2 should remain public
+      result = await getTraceByIdFromEventsTable({
+        projectId,
+        traceId: traceId2,
+      });
+      expect(result).toBeDefined();
+      expect(result?.public).toBe(true);
     });
   });
 });

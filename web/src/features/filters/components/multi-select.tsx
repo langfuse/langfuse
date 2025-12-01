@@ -130,7 +130,7 @@ export function MultiSelect({
         <Button
           variant="outline"
           className={cn(
-            "flex h-8 w-full items-center justify-between gap-x-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "flex h-8 w-full items-center justify-between gap-x-2 rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -172,7 +172,7 @@ export function MultiSelect({
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="center">
         <InputCommand>
-          <InputCommandInput placeholder={title} />
+          <InputCommandInput placeholder={title} variant="bottom" />
           <InputCommandList>
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
             {!isCustomSelectEnabled && (

@@ -4,6 +4,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -133,7 +134,7 @@ export function PromptTable() {
   const promptsRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
     prompts.data?.prompts.map((p) => ({
       ...p,
-      id: p.name,
+      id: buildFullPath(currentFolderPath, p.name),
     })),
     promptMetrics.data?.map((pm) => ({
       ...pm,
@@ -149,8 +150,9 @@ export function PromptTable() {
 
     for (const prompt of promptsRowData.rows) {
       const isFolder = (prompt as { row_type?: string }).row_type === "folder";
-      const itemName = prompt.id; // id actually contains the name due to type mapping
-      const fullPath = buildFullPath(currentFolderPath, itemName);
+      const fullPath = prompt.id; // id now contains the full path (used for metrics join)
+      // Extract just the name portion (last segment) for display
+      const itemName = fullPath.split("/").pop() ?? fullPath;
       const type = isFolder ? "folder" : (prompt.type as "text" | "chat");
 
       combinedRows.push(
@@ -176,7 +178,7 @@ export function PromptTable() {
       ...promptsRowData,
       rows: combinedRows,
     };
-  }, [promptsRowData, currentFolderPath]);
+  }, [promptsRowData]);
 
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {
@@ -209,7 +211,7 @@ export function PromptTable() {
             value: item.value,
             count: item.count !== undefined ? Number(item.count) : undefined,
           };
-        }) || [],
+        }) ?? undefined,
       tags:
         promptFilterOptions.data?.tags?.map((t) => {
           // API type says { value: string }[], but for some items, there is an optional count
@@ -218,7 +220,7 @@ export function PromptTable() {
             value: item.value,
             count: item.count !== undefined ? Number(item.count) : undefined,
           };
-        }) || [],
+        }) ?? undefined,
       version: [],
     }),
     [promptFilterOptions.data],
@@ -228,6 +230,7 @@ export function PromptTable() {
     promptFilterConfig,
     newFilterOptions,
     projectId,
+    promptFilterOptions.isPending,
   );
 
   useEffect(() => {
@@ -396,7 +399,7 @@ export function PromptTable() {
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -437,7 +440,7 @@ export function PromptTable() {
               }}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

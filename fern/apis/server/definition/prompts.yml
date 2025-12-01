@@ -13,7 +13,9 @@ service:
       path-parameters:
         promptName:
           type: string
-          docs: The name of the prompt
+          docs: |
+            The name of the prompt. If the prompt is in a folder (e.g., "folder/subfolder/prompt-name"), 
+            the folder path must be URL encoded.
       request:
         name: GetPromptRequest
         query-parameters:

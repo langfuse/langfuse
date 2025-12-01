@@ -1,30 +1,6 @@
 import z from "zod/v4";
-import { type ScoreDataType } from "../../db";
 import { StringNoHTML, StringNoHTMLNonEmpty } from "../../utils/zod";
-
-const NUMERIC: ScoreDataType = "NUMERIC";
-const CATEGORICAL: ScoreDataType = "CATEGORICAL";
-const BOOLEAN: ScoreDataType = "BOOLEAN";
-
-export const availableDataTypes = [NUMERIC, CATEGORICAL, BOOLEAN] as const;
-
-const NumericData = z.object({
-  value: z.number(),
-  stringValue: z.undefined().nullish(),
-  dataType: z.literal("NUMERIC"),
-});
-
-const CategoricalData = z.object({
-  value: z.number().nullish(),
-  stringValue: z.string(),
-  dataType: z.literal("CATEGORICAL"),
-});
-
-const BooleanData = z.object({
-  value: z.number(),
-  stringValue: z.string(),
-  dataType: z.literal("BOOLEAN"),
-});
+import { BooleanData, CategoricalData, NumericData } from "../../domain";
 
 const ScoreTargetTrace = z.object({
   type: z.literal("trace"),
@@ -50,13 +26,14 @@ export type ScoreTarget = z.infer<typeof ScoreTarget>;
 const CreateAnnotationScoreBase = z.object({
   id: z.string().optional(),
   name: StringNoHTMLNonEmpty,
+  value: z.number(),
   projectId: z.string(),
   environment: z.string().default("default"),
   scoreTarget: ScoreTarget,
   configId: z.string(),
   comment: StringNoHTML.nullish(),
   queueId: z.string().nullish(),
-  timestamp: z.date().optional(), // Required for ClickHouse deduplication
+  timestamp: z.coerce.date().optional(), // Required for ClickHouse deduplication - coerce handles string/number inputs
 });
 
 const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
@@ -67,11 +44,9 @@ const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
  * CreateAnnotationScoreData is only used for annotation scores created via the UI.
  * For langfuse score types please refer to `web/src/features/public-api/types/scores.ts`
  */
-export const CreateAnnotationScoreData = z.discriminatedUnion("dataType", [
-  CreateAnnotationScoreBase.merge(NumericData),
-  CreateAnnotationScoreBase.merge(CategoricalData),
-  CreateAnnotationScoreBase.merge(BooleanData),
-]);
+export const CreateAnnotationScoreData = CreateAnnotationScoreBase.and(
+  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
+);
 
 export type CreateAnnotationScoreData = z.infer<
   typeof CreateAnnotationScoreData
@@ -81,11 +56,9 @@ export type CreateAnnotationScoreData = z.infer<
  * UpdateAnnotationScoreData is only used for annotation scores updated via the UI
  * For langfuse score types please refer to `web/src/features/public-api/types/scores.ts`
  */
-export const UpdateAnnotationScoreData = z.discriminatedUnion("dataType", [
-  UpdateAnnotationScoreBase.merge(NumericData),
-  UpdateAnnotationScoreBase.merge(CategoricalData),
-  UpdateAnnotationScoreBase.merge(BooleanData),
-]);
+export const UpdateAnnotationScoreData = UpdateAnnotationScoreBase.and(
+  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
+);
 
 export type UpdateAnnotationScoreData = z.infer<
   typeof UpdateAnnotationScoreData

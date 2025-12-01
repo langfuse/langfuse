@@ -95,7 +95,6 @@ export function StarTraceToggle({
     },
     onSettled: () => {
       setIsLoading(false);
-      void utils.traces.all.invalidate();
     },
   });
 

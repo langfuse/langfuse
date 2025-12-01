@@ -21,13 +21,23 @@ import {
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
+// Skip tests that use Azurite in Azure mode due to known Azurite limitations
+// with multipart uploads. These tests use MinIO explicitly or are skipped.
+// Unfortunately, this is necessary as we don't have a good way to skip empty file uploads
+// and at least azurite doesn't handle them gracefully.
+const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
+
 describe("BlobStorageIntegrationProcessingJob", () => {
   let storageService: StorageService;
+  let s3StorageService: StorageService;
   const bucketName = env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || "";
   const accessKeyId = env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID || "";
   const secretAccessKey = env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY || "";
   const endpoint = env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT || undefined;
   const region = env.LANGFUSE_S3_EVENT_UPLOAD_REGION || undefined;
+  const minioAccessKeyId = "minio";
+  const minioAccessKeySecret = "miniosecret";
+  const minioEndpoint = "http://localhost:9090";
 
   beforeAll(async () => {
     storageService = StorageServiceFactory.getInstance({
@@ -37,6 +47,15 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       endpoint,
       region,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+    s3StorageService = StorageServiceFactory.getInstance({
+      accessKeyId: minioAccessKeyId,
+      secretAccessKey: minioAccessKeySecret,
+      bucketName,
+      endpoint: minioEndpoint,
+      region,
+      forcePathStyle: true,
+      useAzureBlob: false,
     });
   });
 
@@ -85,10 +104,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         type: BlobStorageIntegrationType.S3,
         bucketName,
         prefix: "",
-        accessKeyId,
-        secretAccessKey: encrypt(secretAccessKey),
+        accessKeyId: minioAccessKeyId,
+        secretAccessKey: encrypt(minioAccessKeySecret),
         region: region ? region : "auto",
-        endpoint: endpoint ? endpoint : null,
+        endpoint: minioEndpoint,
         forcePathStyle:
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
@@ -142,7 +161,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await s3StorageService.listFiles("");
     const projectFiles = files.filter((f) => f.file.includes(projectId));
 
     // Should have 3 files (traces, observations, scores)
@@ -161,19 +180,19 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     // Check file contents
     if (traceFile) {
-      const content = await storageService.download(traceFile.file);
+      const content = await s3StorageService.download(traceFile.file);
       expect(content).toContain(traceId);
       expect(content).toContain("Test Trace");
     }
 
     if (observationFile) {
-      const content = await storageService.download(observationFile.file);
+      const content = await s3StorageService.download(observationFile.file);
       expect(content).toContain(observationId);
       expect(content).toContain("Test Observation");
     }
 
     if (scoreFile) {
-      const content = await storageService.download(scoreFile.file);
+      const content = await s3StorageService.download(scoreFile.file);
       expect(content).toContain(scoreId);
       expect(content).toContain("Test Score");
       expect(content).toContain("0.95");
@@ -209,10 +228,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         type: BlobStorageIntegrationType.S3,
         bucketName,
         prefix: "",
-        accessKeyId,
-        secretAccessKey: encrypt(secretAccessKey),
+        accessKeyId: minioAccessKeyId,
+        secretAccessKey: encrypt(minioAccessKeySecret),
         region: region,
-        endpoint: endpoint,
+        endpoint: minioEndpoint,
         forcePathStyle:
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
@@ -272,10 +291,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         type: BlobStorageIntegrationType.S3,
         bucketName,
         prefix,
-        accessKeyId,
-        secretAccessKey: encrypt(secretAccessKey),
+        accessKeyId: minioAccessKeyId,
+        secretAccessKey: encrypt(minioAccessKeySecret),
         region: region ? region : "auto",
-        endpoint: endpoint ? endpoint : null,
+        endpoint: minioEndpoint,
         forcePathStyle:
           env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
@@ -367,10 +386,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${fileType.toLowerCase()}-test/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -386,7 +405,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } as Job);
 
       // Get files for this file type
-      const files = await storageService.listFiles("");
+      const files = await s3StorageService.listFiles("");
       const projectFiles = files.filter(
         (f) =>
           f.file.includes(projectId) &&
@@ -404,7 +423,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
       // Check file contents for each type
       for (const file of projectFiles) {
-        const content = await storageService.download(file.file);
+        const content = await s3StorageService.download(file.file);
 
         // Verify content based on file type
         if (file.file.includes("/traces/")) {
@@ -444,75 +463,79 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   describe("BlobStorageExportMode minTimestamp behavior", () => {
-    it("should export old data for FULL_HISTORY mode when data exists", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
+    maybeIt(
+      "should export old data for FULL_HISTORY mode when data exists",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
 
-      // Create trace with old timestamp that's far enough in the past
-      // but not so old that it might not be found by ClickHouse
-      const now = new Date();
-      const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
-      const oldTrace = createTrace({
-        project_id: projectId,
-        timestamp: twoDaysAgo.getTime(),
-        name: "Old Trace",
-      });
-      await createTracesCh([oldTrace]);
+        // Create trace with old timestamp that's far enough in the past
+        // but not so old that it might not be found by ClickHouse
+        const now = new Date();
+        const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+        const oldTrace = createTrace({
+          project_id: projectId,
+          timestamp: twoDaysAgo.getTime(),
+          name: "Old Trace",
+        });
+        await createTracesCh([oldTrace]);
 
-      // Create integration with FULL_HISTORY mode and no lastSyncAt
-      await prisma.blobStorageIntegration.create({
-        data: {
-          projectId,
-          type: BlobStorageIntegrationType.S3,
-          bucketName,
-          prefix: `${projectId}/test-full-history/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
-          region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
-          forcePathStyle:
-            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-          enabled: true,
-          exportFrequency: "hourly",
-          exportMode: "FULL_HISTORY",
-          exportStartDate: null,
-          lastSyncAt: null, // First export
-        },
-      });
+        // Create integration with FULL_HISTORY mode and no lastSyncAt
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: `${projectId}/test-full-history/`,
+            accessKeyId,
+            secretAccessKey: encrypt(secretAccessKey),
+            region: region ? region : "auto",
+            endpoint: endpoint ? endpoint : null,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportMode: "FULL_HISTORY",
+            exportStartDate: null,
+            lastSyncAt: null, // First export
+          },
+        });
 
-      await handleBlobStorageIntegrationProjectJob({
-        data: { payload: { projectId } },
-      } as Job);
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
 
-      // If data was found and exported, check the files
-      const files = await storageService.listFiles(
-        `${projectId}/test-full-history/`,
-      );
-      const projectFiles = files.filter((f) => f.file.includes(projectId));
+        // If data was found and exported, check the files
+        const files = await storageService.listFiles(
+          `${projectId}/test-full-history/`,
+        );
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
 
-      // With FULL_HISTORY mode, if the ClickHouse query finds the old data,
-      // it should export starting from that timestamp
-      if (projectFiles.length > 0) {
-        const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
-        expect(traceFile).toBeDefined();
+        // With FULL_HISTORY mode, if the ClickHouse query finds the old data,
+        // it should export starting from that timestamp
+        if (projectFiles.length > 0) {
+          const traceFile = projectFiles.find((f) =>
+            f.file.includes("/traces/"),
+          );
+          expect(traceFile).toBeDefined();
 
-        if (traceFile) {
-          const content = await storageService.download(traceFile.file);
-          expect(content).toContain(oldTrace.id);
+          if (traceFile) {
+            const content = await storageService.download(traceFile.file);
+            expect(content).toContain(oldTrace.id);
+          }
         }
-      }
 
-      // Verify integration was updated if export happened
-      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
-        {
-          where: { projectId },
-        },
-      );
+        // Verify integration was updated if export happened
+        const updatedIntegration =
+          await prisma.blobStorageIntegration.findUnique({
+            where: { projectId },
+          });
 
-      // If files were exported, lastSyncAt should be set
-      if (projectFiles.length > 0) {
-        expect(updatedIntegration?.lastSyncAt).toBeDefined();
-      }
-    });
+        // If files were exported, lastSyncAt should be set
+        if (projectFiles.length > 0) {
+          expect(updatedIntegration?.lastSyncAt).toBeDefined();
+        }
+      },
+    );
 
     it("should use current date for FROM_TODAY mode on first export", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
@@ -602,10 +625,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${projectId}/test-custom/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -620,7 +643,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         data: { payload: { projectId } },
       } as Job);
 
-      const files = await storageService.listFiles(`${projectId}/test-custom/`);
+      const files = await s3StorageService.listFiles(
+        `${projectId}/test-custom/`,
+      );
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
@@ -628,7 +653,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
       // Should only include traces from custom date onwards
       if (traceFile) {
-        const content = await storageService.download(traceFile.file);
+        const content = await s3StorageService.download(traceFile.file);
         expect(content).not.toContain(oldTrace.id);
         expect(content).toContain(recentTrace.id);
       }
@@ -636,81 +661,83 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   describe("Chunked historic exports", () => {
-    it("should cap maxTimestamp to one frequency period ahead for FULL_HISTORY mode", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const now = new Date();
-      const veryOldTimestamp = new Date(
-        now.getTime() - 7 * 24 * 60 * 60 * 1000,
-      ); // 7 days ago
+    maybeIt(
+      "should cap maxTimestamp to one frequency period ahead for FULL_HISTORY mode",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        const now = new Date();
+        const veryOldTimestamp = new Date(
+          now.getTime() - 7 * 24 * 60 * 60 * 1000,
+        ); // 7 days ago
 
-      // Create trace from 7 days ago
-      const oldTrace = createTrace({
-        project_id: projectId,
-        timestamp: veryOldTimestamp.getTime(),
-        name: "Old Trace",
-      });
-      await createTracesCh([oldTrace]);
+        // Create trace from 7 days ago
+        const oldTrace = createTrace({
+          project_id: projectId,
+          timestamp: veryOldTimestamp.getTime(),
+          name: "Old Trace",
+        });
+        await createTracesCh([oldTrace]);
 
-      // Create integration with FULL_HISTORY and hourly frequency (first export)
-      await prisma.blobStorageIntegration.create({
-        data: {
-          projectId,
-          type: BlobStorageIntegrationType.S3,
-          bucketName,
-          prefix: `${projectId}/test-chunking/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
-          region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
-          forcePathStyle:
-            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-          enabled: true,
-          exportFrequency: "hourly",
-          exportMode: "FULL_HISTORY",
-          exportStartDate: null,
-          lastSyncAt: null,
-        },
-      });
+        // Create integration with FULL_HISTORY and hourly frequency (first export)
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: `${projectId}/test-chunking/`,
+            accessKeyId,
+            secretAccessKey: encrypt(secretAccessKey),
+            region: region ? region : "auto",
+            endpoint: endpoint ? endpoint : null,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportMode: "FULL_HISTORY",
+            exportStartDate: null,
+            lastSyncAt: null,
+          },
+        });
 
-      // When
-      await handleBlobStorageIntegrationProjectJob({
-        data: { payload: { projectId } },
-      } as Job);
+        // When
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
 
-      // Then
-      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
-        {
-          where: { projectId },
-        },
-      );
+        // Then
+        const updatedIntegration =
+          await prisma.blobStorageIntegration.findUnique({
+            where: { projectId },
+          });
 
-      expect(updatedIntegration).toBeDefined();
+        expect(updatedIntegration).toBeDefined();
 
-      // Check if files were exported (meaning data was found)
-      const files = await storageService.listFiles(
-        `${projectId}/test-chunking/`,
-      );
-      const projectFiles = files.filter((f) => f.file.includes(projectId));
-
-      // If data was found and exported, verify chunking behavior
-      if (projectFiles.length > 0 && updatedIntegration?.lastSyncAt) {
-        // When ClickHouse finds the old data, it should start from that timestamp
-        // and cap the export to 1 hour (frequency interval)
-        // lastSyncAt should be capped to 1 hour after the found timestamp
-        const minExpectedTime = veryOldTimestamp.getTime();
-        const maxExpectedTime = veryOldTimestamp.getTime() + 60 * 60 * 1000; // +1 hour
-        const tolerance = 2000; // 2 second tolerance
-
-        expect(updatedIntegration.lastSyncAt.getTime()).toBeGreaterThanOrEqual(
-          minExpectedTime,
+        // Check if files were exported (meaning data was found)
+        const files = await storageService.listFiles(
+          `${projectId}/test-chunking/`,
         );
-        expect(updatedIntegration.lastSyncAt.getTime()).toBeLessThanOrEqual(
-          maxExpectedTime + tolerance,
-        );
-      }
-      // If no data was found (fallback to current time), the time window would be invalid
-      // and no export would happen, which is acceptable behavior
-    });
+        const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+        // If data was found and exported, verify chunking behavior
+        if (projectFiles.length > 0 && updatedIntegration?.lastSyncAt) {
+          // When ClickHouse finds the old data, it should start from that timestamp
+          // and cap the export to 1 hour (frequency interval)
+          // lastSyncAt should be capped to 1 hour after the found timestamp
+          const minExpectedTime = veryOldTimestamp.getTime();
+          const maxExpectedTime = veryOldTimestamp.getTime() + 60 * 60 * 1000; // +1 hour
+          const tolerance = 2000; // 2 second tolerance
+
+          expect(
+            updatedIntegration.lastSyncAt.getTime(),
+          ).toBeGreaterThanOrEqual(minExpectedTime);
+          expect(updatedIntegration.lastSyncAt.getTime()).toBeLessThanOrEqual(
+            maxExpectedTime + tolerance,
+          );
+        }
+        // If no data was found (fallback to current time), the time window would be invalid
+        // and no export would happen, which is acceptable behavior
+      },
+    );
 
     it("should immediately schedule next chunk when in catch-up mode", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
@@ -737,10 +764,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${projectId}/test-catchup/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,
@@ -793,10 +820,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           type: BlobStorageIntegrationType.S3,
           bucketName,
           prefix: `${projectId}/test-caught-up/`,
-          accessKeyId,
-          secretAccessKey: encrypt(secretAccessKey),
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
-          endpoint: endpoint ? endpoint : null,
+          endpoint: minioEndpoint,
           forcePathStyle:
             env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
           enabled: true,

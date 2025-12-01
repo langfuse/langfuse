@@ -2,6 +2,8 @@ import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema"
 import {
   ChatMessageRole,
   ChatMessageType,
+  isOpenAITextContentPart,
+  isOpenAIImageContentPart,
   type ChatMessage,
   type PlaceholderMessage,
 } from "@langfuse/shared";
@@ -14,6 +16,33 @@ function contentToString(content: unknown): string {
   if (content === null || content === undefined) {
     return "";
   }
+
+  // Handle OpenAI/Vercel AI SDK content parts array: [{type: "text", text: "..."}, ...]
+  // Extract text for playground display; stringify other structures (tool results, etc.)
+  if (Array.isArray(content)) {
+    const textParts: string[] = [];
+
+    for (const item of content) {
+      if (isOpenAITextContentPart(item)) {
+        textParts.push(item.text);
+      } else if (isOpenAIImageContentPart(item)) {
+        textParts.push("[Image]");
+      } else if (
+        item &&
+        typeof item === "object" &&
+        "type" in item &&
+        item.type === "input_audio"
+      ) {
+        textParts.push("[Audio]");
+      }
+    }
+
+    // If we extracted any text parts, return them joined
+    if (textParts.length > 0) {
+      return textParts.join("\n");
+    }
+  }
+
   return JSON.stringify(content);
 }
 
@@ -83,9 +112,17 @@ export function convertChatMlToPlayground(
   const toolCallId =
     msg.tool_call_id || jsonData?.tool_call_id || jsonData?.toolCallId;
   if (toolCallId) {
+    // If content is undefined but we have rich data in json.json (spread tool result),
+    // use that for playground display
+    // this happens if for complex tool calls isRichToolResult applies
+    const toolContent =
+      msg.content !== undefined && msg.content !== null
+        ? msg.content
+        : jsonData;
+
     return {
       role: ChatMessageRole.Tool,
-      content: contentToString(msg.content),
+      content: contentToString(toolContent),
       type: ChatMessageType.ToolResult,
       toolCallId: toolCallId as string,
     };

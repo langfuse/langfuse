@@ -77,10 +77,9 @@ function inferDataType(value: string | number): ScoreDataType {
 function mapStringValueToNumericValue(
   config: ScoreConfigDomain,
   label: string,
-): number | null {
+): number {
   return (
-    config.categories?.find((category) => category.label === label)?.value ??
-    null
+    config.categories?.find((category) => category.label === label)?.value ?? 0
   );
 }
 
@@ -117,7 +116,7 @@ function inflateScoreBody(
 
   return {
     ...scoreProps,
-    value: config ? mapStringValueToNumericValue(config, body.value) : null,
+    value: config ? mapStringValueToNumericValue(config, body.value) : 0,
     stringValue: body.value,
     dataType: ScoreDataType.CATEGORICAL,
   };

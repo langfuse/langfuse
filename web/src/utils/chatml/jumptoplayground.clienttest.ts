@@ -1,6 +1,23 @@
 // Mock the problematic @langfuse/shared import before importing our functions
 jest.mock("@langfuse/shared", () => {
   const { z } = require("zod/v4");
+
+  const OpenAITextContentPart = z.object({
+    type: z.literal("text"),
+    text: z.string(),
+  });
+
+  const OpenAIImageContentPart = z.object({
+    type: z.literal("image_url"),
+    image_url: z.union([
+      z.string(),
+      z.object({
+        url: z.string(),
+        detail: z.enum(["auto", "low", "high"]).optional(),
+      }),
+    ]),
+  });
+
   return {
     ChatMessageRole: {
       System: "system",
@@ -25,10 +42,35 @@ jest.mock("@langfuse/shared", () => {
         parameters: z.any().optional(),
       }),
     }),
+    BaseChatMlMessageSchema: z
+      .object({
+        role: z.string().optional(),
+        name: z.string().optional(),
+        content: z
+          .union([
+            z.record(z.string(), z.any()),
+            z.string(),
+            z.array(z.any()),
+            z.any(), // Simplified - was OpenAIContentSchema
+          ])
+          .nullish(),
+        audio: z.any().optional(),
+        additional_kwargs: z.record(z.string(), z.any()).optional(),
+        tools: z.array(z.any()).optional(),
+        tool_calls: z.array(z.any()).optional(),
+        tool_call_id: z.string().optional(),
+      })
+      .passthrough(),
+    isOpenAITextContentPart: (content: any) => {
+      return OpenAITextContentPart.safeParse(content).success;
+    },
+    isOpenAIImageContentPart: (content: any) => {
+      return OpenAIImageContentPart.safeParse(content).success;
+    },
   };
 });
 
-import { normalizeInput } from "./adapters";
+import { normalizeInput, normalizeOutput } from "./adapters";
 import { convertChatMlToPlayground } from "./playgroundConverter";
 import { extractTools } from "./extractTools";
 
@@ -505,6 +547,31 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
+  it("should extract text from Vercel AI SDK content array format", () => {
+    // Vercel AI SDK format: content as array with type/text structure
+    const input = {
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Hello world" }],
+        },
+      ],
+    };
+
+    const inResult = normalizeInput(input, {});
+    expect(inResult.success).toBe(true);
+
+    const playgroundMsg = convertChatMlToPlayground(inResult.data![0]);
+
+    // Should extract text, not stringify array
+    expect(
+      playgroundMsg && "content" in playgroundMsg && playgroundMsg.content,
+    ).toBe("Hello world");
+    expect(
+      playgroundMsg && "content" in playgroundMsg && playgroundMsg.content,
+    ).not.toContain("[{");
+  });
+
   it("should extract tools from Microsoft Agent Framework metadata", () => {
     // Microsoft Agent Framework stores tools in metadata.attributes["gen_ai.tool.definitions"]
     const input = [
@@ -591,5 +658,263 @@ describe("Playground Jump Full Pipeline", () => {
     });
     expect(tools[1].name).toBe("get_time");
     expect(tools[1].description).toBe("Get the current time in a timezone.");
+  });
+
+  it("should preserve rich tool results when jumping to playground", () => {
+    // Regression test: tool results with many keys(6+) are spread into json passthrough by adapters
+    // (for PrettyJsonView table rendering in trace view). playgroundConverter must fallback
+    // to jsonData when content is undefined to preserve tool result data for playground.
+    const input = {
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "c1",
+              type: "function",
+              function: { name: "verify", arguments: {} },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: {
+            PatientNo: "123",
+            First: "J",
+            Last: "D",
+            Email: "j@x.com",
+            Mobile: "555",
+            Active: true,
+          },
+          tool_call_id: "c1",
+        },
+      ],
+    };
+
+    const playgroundMessages = normalizeInput(input, { metadata: input })
+      .data?.map(convertChatMlToPlayground)
+      .filter((m) => m !== null);
+
+    const secondMsg = playgroundMessages?.[1];
+    expect(secondMsg).toBeDefined();
+    expect(secondMsg && "role" in secondMsg ? secondMsg.role : null).toBe(
+      "tool",
+    );
+    expect(
+      secondMsg && "content" in secondMsg ? secondMsg.content : "",
+    ).toContain("PatientNo");
+  });
+
+  it("should handle OpenAI Agents function_call and function_call_output", () => {
+    // user message, function_call (tool call), function_call_output (tool result)
+    const input = [
+      { content: "What's the weather in Tokyo?", role: "user" },
+      {
+        arguments: { city: "Tokyo" },
+        call_id: "call_abc123",
+        name: "get_weather",
+        type: "function_call",
+        id: "fc_xyz",
+        status: "completed",
+      },
+      {
+        call_id: "call_abc123",
+        output: "The weather in Tokyo is sunny.",
+        type: "function_call_output",
+      },
+    ];
+
+    const inResult = normalizeInput(input, { framework: "openai" });
+    expect(inResult.success).toBe(true);
+
+    const playgroundMessages = inResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Should have 3 messages
+    expect(playgroundMessages).toHaveLength(3);
+
+    // Message 1: user
+    expect(playgroundMessages[0]?.type).toBe("public-api-created");
+    if (playgroundMessages[0]?.type === "public-api-created") {
+      expect(playgroundMessages[0].role).toBe("user");
+      expect(playgroundMessages[0].content).toBe(
+        "What's the weather in Tokyo?",
+      );
+    }
+
+    // Message 2: assistant with tool call
+    expect(playgroundMessages[1]?.type).toBe("assistant-tool-call");
+    if (playgroundMessages[1]?.type === "assistant-tool-call") {
+      expect(playgroundMessages[1].toolCalls[0].id).toBe("call_abc123");
+      expect(playgroundMessages[1].toolCalls[0].name).toBe("get_weather");
+    }
+
+    // Message 3: tool result
+    expect(playgroundMessages[2]?.type).toBe("tool-result");
+    if (playgroundMessages[2]?.type === "tool-result") {
+      expect(playgroundMessages[2].toolCallId).toBe("call_abc123");
+      expect(playgroundMessages[2].content).toBe(
+        "The weather in Tokyo is sunny.",
+      );
+    }
+  });
+
+  it("should handle VAPI camelCase toolCalls and preserve IDs", () => {
+    // VAPI uses camelCase toolCalls instead of tool_calls
+    // Critical: Tool call IDs must be preserved for OpenAI API compatibility
+    const input = {
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "verify_user",
+            description: "Verify user",
+            parameters: { type: "object", properties: {}, required: [] },
+          },
+        },
+      ],
+      messages: [
+        {
+          role: "assistant",
+          content: "Checking...",
+          toolCalls: [
+            {
+              id: "call_123",
+              type: "function",
+              function: { name: "verify_user", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: '{"verified": true}',
+          tool_call_id: "call_123",
+        },
+      ],
+    };
+
+    const inResult = normalizeInput(input, {
+      observationName: "chat-completion",
+    });
+    expect(inResult.success).toBe(true);
+
+    const playgroundMessages = inResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Critical assertions: IDs must match
+    const toolCallMsg = playgroundMessages[0];
+    expect(toolCallMsg?.type).toBe("assistant-tool-call");
+    if (toolCallMsg?.type === "assistant-tool-call") {
+      expect(toolCallMsg.toolCalls[0].id).toBe("call_123");
+    }
+
+    const toolResultMsg = playgroundMessages[1];
+    expect(toolResultMsg?.type).toBe("tool-result");
+    if (toolResultMsg?.type === "tool-result") {
+      expect(toolResultMsg.toolCallId).toBe("call_123");
+    }
+
+    // Verify tools extracted
+    expect(extractTools(input)).toHaveLength(1);
+  });
+
+  it("should handle stringified tools in metadata (like from vercel AI SDK v5 + bedrock)", () => {
+    // metadata contains stringified tools instead of actual objects, causing flattenToolDefinition to return {}
+    // and ChatML validation to fail with "normalizeInput success: false"
+
+    const input = [
+      {
+        role: "system",
+        content: "You are a helpful assistant.",
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "Test" }],
+      },
+    ];
+
+    // metadata.tools array has STRINGIFIED elements
+    const metadata = {
+      tools: [
+        JSON.stringify({
+          type: "function",
+          name: "get_weather",
+          description: "Get weather info",
+          inputSchema: {
+            type: "object",
+            properties: { city: { type: "string" } },
+            required: ["city"],
+          },
+        }),
+        JSON.stringify({
+          type: "function",
+          name: "search_web",
+          description: "Search the web",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+          },
+        }),
+      ],
+      scope: { name: "ai" },
+    };
+
+    const inResult = normalizeInput(input, { metadata });
+
+    // Should succeed (flattenToolDefinition parses strings)
+    expect(inResult.success).toBe(true);
+    expect(inResult.data).toBeDefined();
+    expect(inResult.data!.length).toBeGreaterThan(0);
+
+    // Verify tools are attached to messages
+    const firstMessage = inResult.data![0];
+    expect(firstMessage.tools).toBeDefined();
+    expect(firstMessage.tools!.length).toBe(2);
+    expect(firstMessage.tools![0].name).toBe("get_weather");
+    expect(firstMessage.tools![1].name).toBe("search_web");
+  });
+
+  it("should respect includeOutput flag when jumping to playground, default to no output added", () => {
+    // kinda a bad test mocking UI behavior and not really testing the UI.
+    // but it should illustrate that the default behavior is to not include output! and document that.
+    const input = {
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "What can you help me with?" },
+      ],
+    };
+    const output = {
+      role: "assistant",
+      content: "I can help with many tasks!",
+    };
+    const ctx = {};
+
+    // Process input (always happens)
+    const inputMessages = normalizeInput(input, ctx)
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Test 1: Default behavior (includeOutput=false) - only input passed to the playground
+    expect(inputMessages.length).toBe(2);
+    const secondMsg = inputMessages[1];
+    if (secondMsg && "role" in secondMsg) {
+      expect(secondMsg.role).toBe("user");
+    }
+
+    // Test 2: With includeOutput=true - input + output
+    const outputMessages = normalizeOutput(output, ctx)
+      .data!.map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null && msg.type !== "assistant-tool-call");
+
+    const withOutput = [...inputMessages, ...outputMessages];
+    expect(withOutput.length).toBe(3);
+    const thirdMsg = withOutput[2];
+    if (thirdMsg && "role" in thirdMsg) {
+      expect(thirdMsg.role).toBe("assistant");
+      expect(thirdMsg.content).toBe("I can help with many tasks!");
+    }
   });
 });

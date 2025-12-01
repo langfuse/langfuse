@@ -1,34 +1,8 @@
 import { tracesTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
-
-const TRACE_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  id: "id",
-  name: "name",
-  userId: "userId",
-  sessionId: "sessionId",
-  version: "version",
-  release: "release",
-  tags: "tags",
-  environment: "environment",
-  level: "level",
-  bookmarked: "bookmarked",
-  latency: "latency",
-  inputTokens: "inputTokens",
-  outputTokens: "outputTokens",
-  totalTokens: "totalTokens",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
-  score_categories: "score_categories",
-  scores_avg: "scores_avg",
-  metadata: "metadata",
-};
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
-
-  columnToQueryKey: TRACE_COLUMN_TO_QUERY_KEY,
 
   columnDefinitions: tracesTableCols,
 
@@ -81,6 +55,18 @@ export const traceFilterConfig: FilterConfig = {
       label: "Bookmarked",
       trueLabel: "Bookmarked",
       falseLabel: "Not bookmarked",
+    },
+    {
+      type: "numeric" as const,
+      column: "commentCount",
+      label: "Comment Count",
+      min: 0,
+      max: 100,
+    },
+    {
+      type: "string" as const,
+      column: "commentContent",
+      label: "Comment Content",
     },
     {
       type: "categorical" as const,

@@ -1580,6 +1580,215 @@ describe("/api/public/traces API Endpoint", () => {
           expect(matchingTrace2).toBeTruthy();
           expect(matchingTrace2?.version).toBe("2.0");
         });
+
+        it("should filter by latency without requesting metrics field group", async () => {
+          // Filtering by latency should work even without requesting the "metrics" field group
+          const baseTimestamp = Date.now();
+          const traceWithLatency1 = randomUUID();
+          const traceWithLatency2 = randomUUID();
+          const traceWithLatency3 = randomUUID();
+
+          // Create trace 1 with observations that result in ~0.5 second latency
+          const trace1 = createTrace({
+            id: traceWithLatency1,
+            name: "trace-latency-1",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+            environment: "test-latency",
+          });
+
+          const observations1: ObservationEventData[] = [
+            {
+              trace_id: traceWithLatency1,
+              project_id: projectId,
+              name: "obs-1",
+              start_time: baseTimestamp,
+              end_time: baseTimestamp + 500, // 0.5 seconds
+            },
+          ];
+
+          // Create trace 2 with observations that result in ~1.5 second latency
+          const trace2 = createTrace({
+            id: traceWithLatency2,
+            name: "trace-latency-2",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+            environment: "test-latency",
+          });
+
+          const observations2: ObservationEventData[] = [
+            {
+              trace_id: traceWithLatency2,
+              project_id: projectId,
+              name: "obs-2",
+              start_time: baseTimestamp,
+              end_time: baseTimestamp + 1500, // 1.5 seconds
+            },
+          ];
+
+          // Create trace 3 with observations that result in ~2.5 second latency
+          const trace3 = createTrace({
+            id: traceWithLatency3,
+            name: "trace-latency-3",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+            environment: "test-latency",
+          });
+
+          const observations3: ObservationEventData[] = [
+            {
+              trace_id: traceWithLatency3,
+              project_id: projectId,
+              name: "obs-3",
+              start_time: baseTimestamp,
+              end_time: baseTimestamp + 2500, // 2.5 seconds
+            },
+          ];
+
+          await createTraceWithObservations(
+            useEventsTable,
+            trace1,
+            observations1,
+          );
+          await createTraceWithObservations(
+            useEventsTable,
+            trace2,
+            observations2,
+          );
+          await createTraceWithObservations(
+            useEventsTable,
+            trace3,
+            observations3,
+          );
+
+          // Simple wait to ensure data is available
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
+          // Test filtering by latency range (>= 0 and <= 1.9 seconds)
+          // This should return trace1 and trace2, but not trace3
+          // Note: We're NOT requesting the "metrics" field group
+          const filterParam = JSON.stringify([
+            {
+              type: "number",
+              column: "latency",
+              operator: ">=",
+              value: 0,
+            },
+            {
+              type: "number",
+              column: "latency",
+              operator: "<=",
+              value: 1.9,
+            },
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [traceWithLatency1, traceWithLatency2, traceWithLatency3],
+            },
+          ]);
+
+          const traces = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`fields=core&filter=${encodeURIComponent(filterParam)}`),
+          );
+
+          expect(traces.status).toBe(200);
+          const trace1Result = traces.body.data.find(
+            (t) => t.id === traceWithLatency1,
+          );
+          const trace2Result = traces.body.data.find(
+            (t) => t.id === traceWithLatency2,
+          );
+          const trace3Result = traces.body.data.find(
+            (t) => t.id === traceWithLatency3,
+          );
+
+          // Trace 1 (0.5s) and Trace 2 (1.5s) should be found
+          expect(trace1Result).toBeTruthy();
+          expect(trace2Result).toBeTruthy();
+          // Trace 3 (2.5s) should NOT be found
+          expect(trace3Result).toBeUndefined();
+
+          expect(traces.body.meta.totalItems).toBeGreaterThanOrEqual(2);
+        });
+
+        it("should filter by score_categories without requesting scores field group", async () => {
+          // Filtering by score fields should work even without requesting the "scores" field group
+          // This test verifies that score_stats CTE is created when filters reference scores table
+          const baseTimestamp = Date.now();
+          const traceWithScore1 = randomUUID();
+          const traceWithScore2 = randomUUID();
+
+          // Create trace 1 with categorical score "good"
+          const trace1 = createTrace({
+            id: traceWithScore1,
+            name: "trace-score-1",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+
+          const score1 = createTraceScore({
+            trace_id: traceWithScore1,
+            project_id: projectId,
+            name: "quality",
+            string_value: "good",
+            data_type: "CATEGORICAL",
+            timestamp: baseTimestamp,
+            observation_id: null, // Must be null for trace-level scores
+          });
+
+          // Create trace 2 with categorical score "bad"
+          const trace2 = createTrace({
+            id: traceWithScore2,
+            name: "trace-score-2",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+
+          const score2 = createTraceScore({
+            trace_id: traceWithScore2,
+            project_id: projectId,
+            name: "quality",
+            string_value: "bad",
+            data_type: "CATEGORICAL",
+            timestamp: baseTimestamp,
+            observation_id: null, // Must be null for trace-level scores
+          });
+
+          await createTraceWithObservations(useEventsTable, trace1, []);
+          await createTraceWithObservations(useEventsTable, trace2, []);
+          await createScoresCh([score1, score2]);
+
+          // Test filtering by score_categories (check for "good" score)
+          // This should return trace1 only
+          // Note: We're NOT requesting the "scores" field group
+          const filterParam = JSON.stringify([
+            {
+              type: "stringOptions",
+              column: "score_categories",
+              operator: "any of",
+              value: ["quality:good"],
+            },
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [traceWithScore1, traceWithScore2],
+            },
+          ]);
+
+          const traces = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`fields=core&filter=${encodeURIComponent(filterParam)}`),
+          );
+
+          expect(traces.status).toBe(200);
+          expect(traces.body.data.map((d) => d.id)).toEqual([traceWithScore1]);
+          expect(traces.body.meta.totalItems).toBe(1);
+        });
       });
     };
 
@@ -1802,7 +2011,7 @@ describe("/api/public/traces API Endpoint", () => {
           const page2Ids = page2.body.data.map((t) => t.id);
           const intersection = page1Ids.filter((id) => page2Ids.includes(id));
           expect(intersection.length).toBe(0);
-        });
+        }, 10_000);
 
         it("should filter traces by timestamp range", async () => {
           const now = new Date();
@@ -1914,6 +2123,107 @@ describe("/api/public/traces API Endpoint", () => {
     runTestSuite(false); // Good old traces table
     if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
       runTestSuite(true); // Events table
+    }
+  });
+
+  // Comprehensive filter column tests - verify all documented filter columns don't crash
+  describe("Filter Columns - Doesn't Fail Tests", () => {
+    const runFilterTests = (useEventsTable: boolean) => {
+      const suiteName = useEventsTable
+        ? "with events table"
+        : "with traces table";
+      const queryParam = useEventsTable ? "?useEventsTable=true&" : "?";
+
+      describe(suiteName, () => {
+        // Aggregated Metrics (from observations)
+        const metricsFilters = [
+          { column: "latency", type: "number", operator: ">=", value: 0 },
+          { column: "inputTokens", type: "number", operator: ">=", value: 0 },
+          { column: "outputTokens", type: "number", operator: ">=", value: 0 },
+          { column: "totalTokens", type: "number", operator: ">=", value: 0 },
+          { column: "inputCost", type: "number", operator: ">=", value: 0 },
+          { column: "outputCost", type: "number", operator: ">=", value: 0 },
+          { column: "totalCost", type: "number", operator: ">=", value: 0 },
+        ];
+
+        metricsFilters.forEach(({ column, type, operator, value }) => {
+          it(`should not fail when filtering by ${column}`, async () => {
+            const filterParam = JSON.stringify([
+              { type, column, operator, value },
+            ]);
+            const response = await makeZodVerifiedAPICall(
+              GetTracesV1Response,
+              "GET",
+              `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
+            );
+            expect(response.status).toBe(200);
+            expect(response.body.data).toBeDefined();
+            expect(response.body.meta).toBeDefined();
+          });
+        });
+
+        // Observation Level Aggregations
+        const observationAggFilters = [
+          { column: "level", type: "string", operator: "=", value: "ERROR" },
+          { column: "warningCount", type: "number", operator: ">=", value: 0 },
+          { column: "errorCount", type: "number", operator: ">=", value: 0 },
+          { column: "defaultCount", type: "number", operator: ">=", value: 0 },
+          { column: "debugCount", type: "number", operator: ">=", value: 0 },
+        ];
+
+        observationAggFilters.forEach(({ column, type, operator, value }) => {
+          it(`should not fail when filtering by ${column}`, async () => {
+            const filterParam = JSON.stringify([
+              { type, column, operator, value },
+            ]);
+            const response = await makeZodVerifiedAPICall(
+              GetTracesV1Response,
+              "GET",
+              `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
+            );
+            expect(response.status).toBe(200);
+            expect(response.body.data).toBeDefined();
+            expect(response.body.meta).toBeDefined();
+          });
+        });
+
+        // Scores (should not crash, filters are ignored per our fix)
+        const scoreFilters = [
+          {
+            column: "scores_avg",
+            type: "numberObject",
+            key: "quality",
+            operator: ">=",
+            value: 0.5,
+          },
+          {
+            column: "score_categories",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["good", "bad"],
+          },
+        ];
+
+        scoreFilters.forEach((filterDef) => {
+          it(`should not fail when filtering by ${filterDef.column}`, async () => {
+            const filterParam = JSON.stringify([filterDef]);
+            const response = await makeZodVerifiedAPICall(
+              GetTracesV1Response,
+              "GET",
+              `/api/public/traces${queryParam}filter=${encodeURIComponent(filterParam)}`,
+            );
+            expect(response.status).toBe(200);
+            expect(response.body.data).toBeDefined();
+            expect(response.body.meta).toBeDefined();
+          });
+        });
+      });
+    };
+
+    // Run for both table implementations
+    runFilterTests(false);
+    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+      runFilterTests(true);
     }
   });
 });

@@ -1,6 +1,6 @@
 import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src/server";
 import {
-  convertToScore,
+  convertClickhouseScoreToDomain,
   StringFilter,
   type ScoreRecordReadType,
   queryClickhouse,
@@ -21,6 +21,7 @@ export type ScoreQueryType = {
   scoreId?: string;
   configId?: string;
   sessionId?: string;
+  datasetRunId?: string;
   queueId?: string;
   traceTags?: string | string[];
   operator?: string;
@@ -97,7 +98,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY
-          s.timestamp desc
+          s.timestamp desc, s.event_ts desc
       LIMIT
           1 BY s.id, s.project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
@@ -139,7 +140,7 @@ export const _handleGenerateScoresForPublicApi = async ({
       });
 
       return records.map((record) => ({
-        ...convertToScore(record),
+        ...convertClickhouseScoreToDomain(record),
         trace:
           record.trace_id !== null
             ? {
@@ -292,6 +293,13 @@ const secureScoreFilterOptions = [
   {
     id: "sessionId",
     clickhouseSelect: "session_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "datasetRunId",
+    clickhouseSelect: "dataset_run_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
     clickhousePrefix: "s",

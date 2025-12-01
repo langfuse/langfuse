@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
 import {
   createTRPCRouter,
   protectedGetSessionProcedure,
@@ -39,6 +40,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -113,7 +115,9 @@ const handleGetSessionById = async (input: {
     ...postgresSession,
     traces: clickhouseTraces.map((t) => ({
       ...t,
-      scores: validatedScores.filter((s) => s.traceId === t.id),
+      scores: toDomainArrayWithStringifiedMetadata(
+        validatedScores.filter((s) => s.traceId === t.id),
+      ),
     })),
     totalCost: costData ?? 0,
     users: [
@@ -137,9 +141,20 @@ export const sessionRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "SESSION",
+      });
+
+      if (hasNoMatches) {
+        return { sessions: [] };
+      }
+
       const finalFilter = await getPublicSessionsFilter(
         input.projectId,
-        input.filter ?? [],
+        filterState,
       );
       const sessions = await getSessionsTable({
         projectId: input.projectId,
@@ -184,10 +199,21 @@ export const sessionRouter = createTRPCRouter({
     }),
   countAll: protectedProjectProcedure
     .input(SessionFilterOptions)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "SESSION",
+      });
+
+      if (hasNoMatches) {
+        return { totalCount: 0 };
+      }
+
       const finalFilter = await getPublicSessionsFilter(
         input.projectId,
-        input.filter ?? [],
+        filterState,
       );
       const count = await getSessionsTableCount({
         projectId: input.projectId,
@@ -373,7 +399,7 @@ export const sessionRouter = createTRPCRouter({
 
       return {
         ...session,
-        scores: validatedScores,
+        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };
     }),
   bookmark: protectedProjectProcedure

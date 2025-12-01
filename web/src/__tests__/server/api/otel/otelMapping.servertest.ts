@@ -1041,6 +1041,72 @@ describe("OTel Resource Span Mapping", () => {
         }),
       });
     });
+
+    it("should convert a Vercel AI SDK embedding span to Langfuse embedding-create event", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "ai" },
+            spans: [
+              {
+                traceId: {
+                  type: "Buffer",
+                  data: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                },
+                spanId: {
+                  type: "Buffer",
+                  data: [1, 2, 3, 4, 5, 6, 7, 8],
+                },
+                name: "generate-document-embedding",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 153687506,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 1327836088,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "operation.name",
+                    value: {
+                      stringValue:
+                        "ai.embed.doEmbed generate-document-embedding",
+                    },
+                  },
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "gemini-embedding-001" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      // Then
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
+      expect(parsedEvents).toHaveLength(2); // trace + embedding
+
+      // Should create embedding-create event, not span-create
+      const embeddingEvent = parsedEvents.find(
+        (event) => event.type === "embedding-create",
+      );
+      expect(embeddingEvent).toBeDefined();
+      expect(embeddingEvent?.body.model).toBe("gemini-embedding-001");
+    });
   });
 
   describe("Property Mapping", () => {
@@ -1205,19 +1271,13 @@ describe("OTel Resource Span Mapping", () => {
     );
 
     it.each([
-      ["ai.generateText", "generation-create"],
       ["ai.generateText.doGenerate", "generation-create"],
-      ["ai.streamText", "generation-create"],
       ["ai.streamText.doStream", "generation-create"],
       ["ai.generateObject", "generation-create"],
       ["ai.generateObject.doGenerate", "generation-create"],
-      ["ai.streamObject", "generation-create"],
       ["ai.streamObject.doStream", "generation-create"],
-      ["ai.embed", "embedding-create"],
       ["ai.embed.doEmbed", "embedding-create"],
-      ["ai.embedMany", "embedding-create"],
       ["ai.embedMany.doEmbed", "embedding-create"],
-      ["ai.embed generate-document-embedding", "embedding-create"],
       ["ai.embed.doEmbed generate-document-embedding", "embedding-create"],
       ["ai.toolCall", "tool-create"],
     ])(
@@ -1698,6 +1758,16 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract providedModelName from ai.model.id",
+        {
+          entity: "observation",
+          otelAttributeKey: "ai.model.id",
+          otelAttributeValue: { stringValue: "gemini-embedding-001" },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gemini-embedding-001",
+        },
+      ],
+      [
         "should extract providedModelName from llm.model_name",
         {
           entity: "observation",
@@ -2010,6 +2080,46 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "usageDetails.input_cache_creation",
           entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract llm.input_messages.message.content to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.input_messages.0.message.content",
+          otelAttributeValue: {
+            stringValue: "Hello, how are you?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            { message: { content: "Hello, how are you?" } },
+          ],
+        },
+      ],
+      [
+        "should extract llm.input_messages.message.role to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.input_messages.0.message.role",
+          otelAttributeValue: {
+            stringValue: "system",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [{ message: { role: "system" } }],
+        },
+      ],
+      [
+        "should extract llm.output_messages.message.content to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.output_messages.0.message.content",
+          otelAttributeValue: {
+            stringValue: "Hello, how are you?",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: [
+            { message: { content: "Hello, how are you?" } },
+          ],
         },
       ],
       [
@@ -2787,6 +2897,284 @@ describe("OTel Resource Span Mapping", () => {
         );
       },
     );
+
+    it("should map llm.input_messages and llm.output_messages to input/output and filter from metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const openInferenceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "agno-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "llm-call",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // OpenInference llm.input_messages format (used by Agno, BeeAI, etc.)
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "system" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.content",
+                    value: { stringValue: "You are a helpful assistant." },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.role",
+                    value: { stringValue: "user" },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.content",
+                    value: { stringValue: "What is the weather today?" },
+                  },
+                  // OpenInference llm.output_messages format
+                  {
+                    key: "llm.output_messages.0.message.role",
+                    value: { stringValue: "assistant" },
+                  },
+                  {
+                    key: "llm.output_messages.0.message.content",
+                    value: {
+                      stringValue:
+                        "I don't have access to real-time weather data.",
+                    },
+                  },
+                  // Custom attributes (should remain in metadata.attributes)
+                  {
+                    key: "custom_attribute",
+                    value: { stringValue: "should_be_preserved" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openInferenceSpan,
+        new Set(),
+      );
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Verify input is extracted and structured as a nested array
+      expect(observation?.body.input).toBeDefined();
+      const inputParsed =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+      expect(Array.isArray(inputParsed)).toBe(true);
+      expect(inputParsed[0].message.role).toBe("system");
+      expect(inputParsed[0].message.content).toBe(
+        "You are a helpful assistant.",
+      );
+      expect(inputParsed[1].message.role).toBe("user");
+      expect(inputParsed[1].message.content).toBe("What is the weather today?");
+
+      // Verify output is extracted and structured as a nested array
+      expect(observation?.body.output).toBeDefined();
+      const outputParsed =
+        typeof observation?.body.output === "string"
+          ? JSON.parse(observation.body.output)
+          : observation?.body.output;
+      expect(Array.isArray(outputParsed)).toBe(true);
+      expect(outputParsed[0].message.role).toBe("assistant");
+      expect(outputParsed[0].message.content).toBe(
+        "I don't have access to real-time weather data.",
+      );
+
+      // Verify llm.input_messages.* and llm.output_messages.* are NOT in metadata.attributes
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.1.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.1.message.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.content"
+        ],
+      ).toBeUndefined();
+
+      // Verify custom attributes ARE in metadata.attributes
+      expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
+        "should_be_preserved",
+      );
+    });
+
+    it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
+      // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
+      // all known input/output attribute patterns from multiple frameworks
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const multiFrameworkSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "multi-framework-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Input attribute that will be mapped
+                  {
+                    key: "input",
+                    value: { stringValue: '{"query": "test input"}' },
+                  },
+                  // gen_ai.prompt.* pattern (should be filtered)
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "prompt content" },
+                  },
+                  // gen_ai.completion.* pattern (should be filtered)
+                  {
+                    key: "gen_ai.completion.0.content",
+                    value: { stringValue: "completion content" },
+                  },
+                  // llm.input_messages.* pattern (should be filtered)
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "user" },
+                  },
+                  // llm.output_messages.* pattern (should be filtered)
+                  {
+                    key: "llm.output_messages.0.message.role",
+                    value: { stringValue: "assistant" },
+                  },
+                  // Custom attributes (should be preserved)
+                  {
+                    key: "custom.request_id",
+                    value: { stringValue: "req-12345" },
+                  },
+                  {
+                    key: "deployment.region",
+                    value: { stringValue: "us-west-2" },
+                  },
+                  {
+                    key: "model.version",
+                    value: { stringValue: "v2.0" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        multiFrameworkSpan,
+        new Set(),
+      );
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Verify input was extracted
+      expect(observation?.body.input).toBe('{"query": "test input"}');
+
+      // Verify input attribute is filtered from metadata
+      expect(observation?.body.metadata?.attributes?.input).toBeUndefined();
+
+      // Verify gen_ai.prompt.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.prompt.0.content"],
+      ).toBeUndefined();
+
+      // Verify gen_ai.completion.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.completion.0.content"],
+      ).toBeUndefined();
+
+      // Verify llm.input_messages.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+
+      // Verify llm.output_messages.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+
+      // Verify custom attributes ARE preserved in metadata.attributes
+      expect(
+        observation?.body.metadata?.attributes?.["custom.request_id"],
+      ).toBe("req-12345");
+      expect(
+        observation?.body.metadata?.attributes?.["deployment.region"],
+      ).toBe("us-west-2");
+      expect(observation?.body.metadata?.attributes?.["model.version"]).toBe(
+        "v2.0",
+      );
+    });
   });
 
   describe("Span Counting", () => {
@@ -4185,6 +4573,202 @@ describe("OTel Resource Span Mapping", () => {
       // Should still create a trace
       const traceEvents = events.filter((e) => e.type === "trace-create");
       expect(traceEvents.length).toBe(1);
+    });
+
+    it("should map Vercel AI SDK toolCall to tool-create", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "ai.toolCall",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: {
+                        stringValue: "ai.toolCall MyAgent.MyLLM.myFunction",
+                      },
+                    },
+                    {
+                      key: "resource.name",
+                      value: { stringValue: "MyAgent.MyLLM.myFunction" },
+                    },
+                    {
+                      key: "ai.operationId",
+                      value: { stringValue: "ai.toolCall" },
+                    },
+                    {
+                      key: "ai.toolCall.name",
+                      value: { stringValue: "myTool" },
+                    },
+                    {
+                      key: "ai.toolCall.id",
+                      value: { stringValue: "call_abc123" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const toolEvents = events.filter((e) => e.type === "tool-create");
+      expect(toolEvents.length).toBe(1);
+    });
+
+    it("should map Vercel AI SDK toolCall using ai.operationId alone (without operation.name)", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "tool-execution",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "ai.operationId",
+                      value: { stringValue: "ai.toolCall" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const toolEvents = events.filter((e) => e.type === "tool-create");
+      expect(toolEvents.length).toBe(1);
+    });
+
+    it("should map Vercel AI SDK generation WITH model to generation-create", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "text-generation",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "ai.generateText" },
+                    },
+                    {
+                      key: "gen_ai.response.model",
+                      value: { stringValue: "gpt-4" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const generationEvents = events.filter(
+        (e) => e.type === "generation-create",
+      );
+      expect(generationEvents.length).toBe(1);
+    });
+
+    it("should fallback to span-create for AI SDK generation WITHOUT model", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "text-generation",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "ai.generateText" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const spanEvents = events.filter((e) => e.type === "span-create");
+      const generationEvents = events.filter(
+        (e) => e.type === "generation-create",
+      );
+      expect(spanEvents.length).toBe(1);
+      expect(generationEvents.length).toBe(0);
     });
 
     it("should override the observation type if it is declared as 'span' but holds generation-like attributes for python-sdk <= 3.3.0", async () => {

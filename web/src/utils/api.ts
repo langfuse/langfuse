@@ -120,10 +120,8 @@ const handleTrpcError = (
         return;
       }
     }
-    // Only send server errors (5xx) to Sentry, not client errors (4xx)
-    if (httpStatus >= 500 && httpStatus < 600) {
-      captureException(error);
-    }
+
+    captureException(error);
   } else {
     // For non-TRPC errors, still send to Sentry
     captureException(error);

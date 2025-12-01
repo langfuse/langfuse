@@ -17,6 +17,7 @@ import {
   QueueJobs,
   instrumentSync,
   recordDistribution,
+  UsageDetails,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -271,6 +272,18 @@ export class OtelIngestionProcessor {
                 const experimentFields =
                   this.extractExperimentFields(spanAttributes);
 
+                const usageDetails = UsageDetails.safeParse(
+                  this.extractUsageDetails(
+                    spanAttributes,
+                    scopeSpan?.scope?.name ?? "",
+                  ),
+                );
+                if (!usageDetails.success) {
+                  logger.warn(
+                    `Invalid usage details extracted from OTEL span for traceId ${traceId}: ${JSON.stringify(usageDetails.error)}`,
+                  );
+                }
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -336,10 +349,9 @@ export class OtelIngestionProcessor {
                   ),
 
                   // Usage and cost details
-                  providedUsageDetails: this.extractUsageDetails(
-                    spanAttributes,
-                    scopeSpan?.scope?.name ?? "",
-                  ),
+                  providedUsageDetails: usageDetails.success
+                    ? usageDetails.data
+                    : undefined,
                   providedCostDetails: this.extractCostDetails(
                     spanAttributes,
                     isLangfuseSDKSpans,
@@ -903,11 +915,8 @@ export class OtelIngestionProcessor {
       usageDetails: this.extractUsageDetails(
         attributes,
         instrumentationScopeName,
-      ) as any,
-      costDetails: this.extractCostDetails(
-        attributes,
-        isLangfuseSDKSpans,
-      ) as any,
+      ),
+      costDetails: this.extractCostDetails(attributes, isLangfuseSDKSpans),
       input,
       output,
     };
@@ -1069,20 +1078,50 @@ export class OtelIngestionProcessor {
     const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
+    // Helper function to set a value at a nested path
+    const setNestedValue = (obj: any, path: string[], value: unknown): void => {
+      let current = obj;
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = path[i];
+        if (!(key in current)) {
+          // Check if next key is a number to decide if we need an array or object
+          current[key] = /^\d+$/.test(path[i + 1]) ? [] : {};
+        }
+        current = current[key];
+      }
+      current[path[path.length - 1]] = value;
+    };
+
     if (useArray) {
       const result: any[] = [];
       for (const key of keys) {
-        const [index, ikey] = key.split(".", 2) as [number, string];
+        const pathParts = key.split(".");
+        const index = parseInt(pathParts[0], 10);
         if (!result[index]) {
           result[index] = {};
         }
-        result[index][ikey] = input[`${prefix}.${index}.${ikey}`];
+        if (pathParts.length === 2) {
+          // Simple case: 0.content -> result[0].content
+          result[index][pathParts[1]] = input[`${prefix}.${key}`];
+        } else {
+          // Nested case: 0.message.content -> result[0].message.content
+          setNestedValue(
+            result[index],
+            pathParts.slice(1),
+            input[`${prefix}.${key}`],
+          );
+        }
       }
       return result;
     } else {
       const result: Record<string, unknown> = {};
       for (const key of keys) {
-        result[key] = input[`${prefix}.${key}`];
+        const pathParts = key.split(".");
+        if (pathParts.length === 1) {
+          result[key] = input[`${prefix}.${key}`];
+        } else {
+          setNestedValue(result, pathParts, input[`${prefix}.${key}`]);
+        }
       }
       return result;
     }
@@ -1157,11 +1196,13 @@ export class OtelIngestionProcessor {
       delete rawFilteredAttributes[key];
     });
 
-    // Delete gen_ai.prompt.* and gen_ai.completion.* keys
+    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, and llm.output_messages.* keys
     Object.keys(attributes).forEach((key) => {
       if (
         key.startsWith("gen_ai.prompt") ||
-        key.startsWith("gen_ai.completion")
+        key.startsWith("gen_ai.completion") ||
+        key.startsWith("llm.input_messages") ||
+        key.startsWith("llm.output_messages")
       ) {
         delete rawFilteredAttributes[key];
       }
@@ -1201,22 +1242,34 @@ export class OtelIngestionProcessor {
               ? attributes["ai.toolCall.args"]
               : undefined;
 
-      output =
-        "ai.response.text" in attributes
-          ? attributes["ai.response.text"]
-          : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
-            ? attributes["ai.result.text"]
-            : "ai.toolCall.result" in attributes
-              ? attributes["ai.toolCall.result"]
-              : "ai.response.object" in attributes
-                ? attributes["ai.response.object"]
-                : "ai.result.object" in attributes // Legacy support for ai SDK versions < 4.0.0
-                  ? attributes["ai.result.object"]
-                  : "ai.response.toolCalls" in attributes
-                    ? attributes["ai.response.toolCalls"]
-                    : "ai.result.toolCalls" in attributes // Legacy support for ai SDK versions < 4.0.0
-                      ? attributes["ai.result.toolCalls"]
-                      : undefined;
+      if (
+        "ai.response.text" in attributes &&
+        "ai.response.toolCalls" in attributes
+      ) {
+        output = JSON.stringify({
+          role: "assistant",
+          content: attributes["ai.response.text"],
+          tool_calls: attributes["ai.response.toolCalls"],
+        });
+      } else {
+        output =
+          "ai.response.text" in attributes &&
+          Boolean(attributes["ai.response.text"])
+            ? attributes["ai.response.text"]
+            : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
+              ? attributes["ai.result.text"]
+              : "ai.toolCall.result" in attributes
+                ? attributes["ai.toolCall.result"]
+                : "ai.response.object" in attributes
+                  ? attributes["ai.response.object"]
+                  : "ai.result.object" in attributes // Legacy support for ai SDK versions < 4.0.0
+                    ? attributes["ai.result.object"]
+                    : "ai.response.toolCalls" in attributes
+                      ? attributes["ai.response.toolCalls"]
+                      : "ai.result.toolCalls" in attributes // Legacy support for ai SDK versions < 4.0.0
+                        ? attributes["ai.result.toolCalls"]
+                        : undefined;
+      }
 
       return { input, output, filteredAttributes };
     }
@@ -1430,6 +1483,35 @@ export class OtelIngestionProcessor {
       return {
         input: this.convertKeyPathToNestedObject(input, "gen_ai.prompt"),
         output: this.convertKeyPathToNestedObject(output, "gen_ai.completion"),
+        filteredAttributes,
+      };
+    }
+
+    // OpenInference llm.input_messages and llm.output_messages (used by Agno, BeeAI, etc.)
+    const llmInputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("llm.input_messages"),
+    );
+    const llmOutputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("llm.output_messages"),
+    );
+    if (llmInputAttributes.length > 0 || llmOutputAttributes.length > 0) {
+      const llmInput = llmInputAttributes.reduce((acc: any, key) => {
+        acc[key] = attributes[key];
+        return acc;
+      }, {});
+      const llmOutput = llmOutputAttributes.reduce((acc: any, key) => {
+        acc[key] = attributes[key];
+        return acc;
+      }, {});
+      return {
+        input: this.convertKeyPathToNestedObject(
+          llmInput,
+          "llm.input_messages",
+        ),
+        output: this.convertKeyPathToNestedObject(
+          llmOutput,
+          "llm.output_messages",
+        ),
         filteredAttributes,
       };
     }
@@ -1730,8 +1812,9 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
-      "gen_ai.request.model",
       "gen_ai.response.model",
+      "ai.model.id",
+      "gen_ai.request.model",
       "llm.response.model",
       "llm.model_name",
       "model",

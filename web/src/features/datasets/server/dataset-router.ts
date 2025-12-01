@@ -9,7 +9,6 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import {
   paginationZod,
-  DatasetStatus,
   singleFilter,
   StringNoHTML,
   StringNoHTMLNonEmpty,
@@ -19,6 +18,7 @@ import {
   timeFilter,
   isClickhouseFilterColumn,
   optionalPaginationZod,
+  LangfuseConflictError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
@@ -45,26 +45,28 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   getDatasetItemsWithRunDataCount,
   getDatasetItemIdsWithRunData,
+  createDatasetItem,
+  upsertDatasetItem,
+  deleteDatasetItem,
+  createManyDatasetItems,
+  validateAllDatasetItems,
+  DatasetJSONSchema,
+  type DatasetMutationResult,
+  executeWithDatasetServiceStrategy,
+  toPostgresDatasetItem,
+  OperationType,
+  Implementation,
 } from "@langfuse/shared/src/server";
-import { createId as createCuid } from "@paralleldrive/cuid2";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
+import { type BulkDatasetItemValidationError } from "@langfuse/shared";
+import { v4 } from "uuid";
 
-const formatDatasetItemData = (data: string | null | undefined) => {
-  if (data === "") return Prisma.DbNull;
-  try {
-    return !!data ? (JSON.parse(data) as Prisma.InputJsonObject) : undefined;
-  } catch (e) {
-    logger.info(
-      "[trpc.datasets.formatDatasetItemData] failed to parse dataset item data",
-      e,
-    );
-    return undefined;
-  }
-};
+// Batch size kept small (100) as items may have large input/output/metadata JSON
+const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
 
 /**
  * Adds a case-insensitive search condition to a Kysely query
@@ -161,6 +163,8 @@ const generateDatasetQuery = ({
         d.project_id,
         d.updated_at,
         d.created_at,
+        d.input_schema,
+        d.expected_output_schema,
         2 as sort_priority, -- Individual datasets second
         'dataset'::text as row_type  -- Mark as individual dataset
       FROM filtered_datasets d 
@@ -178,6 +182,8 @@ const generateDatasetQuery = ({
         d.project_id,
         d.updated_at,
         d.created_at,
+        d.input_schema,
+        d.expected_output_schema,
         1 as sort_priority, -- Folders first
         'folder'::text as row_type, -- Mark as folder representative
         ROW_NUMBER() OVER (
@@ -189,11 +195,11 @@ const generateDatasetQuery = ({
     ),
     combined AS (
       SELECT
-        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type
+        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type, input_schema, expected_output_schema
       FROM individual_datasets_in_folder
       UNION ALL
       SELECT
-        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type
+        id, name, description, metadata, project_id, updated_at, created_at, sort_priority, row_type, input_schema, expected_output_schema
       FROM subfolder_representatives WHERE rn = 1
     )
     SELECT
@@ -202,7 +208,7 @@ const generateDatasetQuery = ({
     ${orderAndLimit}
     `;
   } else {
-    const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at`;
+    const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at, input_schema, expected_output_schema`;
 
     // When we're at the root level, show all individual datasets that don't have folders
     // and one representative per folder for datasets that do have folders
@@ -210,7 +216,7 @@ const generateDatasetQuery = ({
     WITH ${datasetsCTE},
     individual_datasets AS (
       /* Individual datasets without folders */
-      SELECT d.id, d.name, d.description, d.metadata, d.project_id, d.updated_at, d.created_at, 'dataset'::text as row_type
+      SELECT d.id, d.name, d.description, d.metadata, d.project_id, d.updated_at, d.created_at, d.input_schema, d.expected_output_schema, 'dataset'::text as row_type
       FROM filtered_datasets d
       WHERE d.name NOT LIKE '%/%'
     ),
@@ -224,6 +230,8 @@ const generateDatasetQuery = ({
         d.project_id,
         d.updated_at,
         d.created_at,
+        d.input_schema,
+        d.expected_output_schema,
         'folder'::text as row_type, -- Mark as folder representative
         ROW_NUMBER() OVER (PARTITION BY SPLIT_PART(d.name, '/', 1) ORDER BY LENGTH(d.name) ASC, d.updated_at DESC) AS rn
       FROM filtered_datasets d
@@ -272,6 +280,8 @@ export const datasetRouter = createTRPCRouter({
         select: {
           id: true,
           name: true,
+          inputSchema: true,
+          expectedOutputSchema: true,
         },
       });
     }),
@@ -289,7 +299,12 @@ export const datasetRouter = createTRPCRouter({
       const pathFilter = input.pathPrefix
         ? (() => {
             const prefix = input.pathPrefix;
-            return Prisma.sql` AND (d.name LIKE ${`${prefix}/%`} OR d.name = ${prefix})`;
+            // Escape backslashes and other LIKE special characters for pattern matching
+            const escapedPrefix = prefix
+              .replace(/\\/g, "\\\\")
+              .replace(/%/g, "\\%")
+              .replace(/_/g, "\\_");
+            return Prisma.sql` AND (d.name LIKE ${`${escapedPrefix}/%`} OR d.name = ${escapedPrefix})`;
           })()
         : Prisma.empty;
 
@@ -314,6 +329,8 @@ export const datasetRouter = createTRPCRouter({
             d.created_at as "createdAt",
             d.updated_at as "updatedAt",
             d.metadata,
+            d.input_schema as "inputSchema",
+            d.expected_output_schema as "expectedOutputSchema",
             d.row_type`,
             projectId: input.projectId,
             limit: input.limit,
@@ -525,7 +542,7 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           runIds: runsWithMetrics.map((run) => run.id),
           includeHasMetadata: true,
-          excludeMetadata: false,
+          excludeMetadata: true,
         }),
       ]);
 
@@ -662,6 +679,7 @@ export const datasetRouter = createTRPCRouter({
         searchType: input.searchType,
       });
     }),
+
   updateDatasetItem: protectedProjectProcedure
     .input(
       z.object({
@@ -682,38 +700,20 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      const datasetItem = await ctx.prisma.datasetItem.update({
-        where: {
-          id_projectId: {
-            id: input.datasetItemId,
-            projectId: input.projectId,
-          },
-          datasetId: input.datasetId,
-        },
-        data: {
-          input:
-            input.input === ""
-              ? Prisma.DbNull
-              : input.input !== undefined
-                ? (JSON.parse(input.input) as Prisma.InputJsonObject)
-                : undefined,
-          expectedOutput:
-            input.expectedOutput === ""
-              ? Prisma.DbNull
-              : input.expectedOutput !== undefined
-                ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
-                : undefined,
-          metadata:
-            input.metadata === ""
-              ? Prisma.DbNull
-              : input.metadata !== undefined
-                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
-                : undefined,
-          sourceTraceId: input.sourceTraceId,
-          sourceObservationId: input.sourceObservationId,
-          status: input.status,
-        },
+
+      const datasetItem = await upsertDatasetItem({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        datasetItemId: input.datasetItemId,
+        input: input.input,
+        expectedOutput: input.expectedOutput,
+        metadata: input.metadata,
+        sourceTraceId: input.sourceTraceId,
+        sourceObservationId: input.sourceObservationId,
+        status: input.status,
+        validateOpts: { normalizeUndefinedToNull: false }, // For UPDATE, undefined means "don't update"
       });
+
       await auditLog({
         session: ctx.session,
         resourceType: "datasetItem",
@@ -721,6 +721,7 @@ export const datasetRouter = createTRPCRouter({
         action: "update",
         after: datasetItem,
       });
+
       return datasetItem;
     }),
   createDataset: protectedProjectProcedure
@@ -730,33 +731,59 @@ export const datasetRouter = createTRPCRouter({
         name: StringNoHTMLNonEmpty,
         description: StringNoHTML.nullish(),
         metadata: z.string().nullish(),
+        inputSchema: DatasetJSONSchema.nullish(),
+        expectedOutputSchema: DatasetJSONSchema.nullish(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<DatasetMutationResult> => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
 
-      const dataset = await upsertDataset({
-        input: {
-          name: input.name,
-          description: input.description ?? undefined,
-          metadata: resolveMetadata(input.metadata),
-        },
-        projectId: input.projectId,
-      });
+      try {
+        const dataset = await upsertDataset({
+          input: {
+            name: input.name,
+            description: input.description ?? undefined,
+            metadata: resolveMetadata(input.metadata),
+            inputSchema: input.inputSchema,
+            expectedOutputSchema: input.expectedOutputSchema,
+          },
+          projectId: input.projectId,
+        });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "dataset",
-        resourceId: dataset.id,
-        action: "create",
-        after: dataset,
-      });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "dataset",
+          resourceId: dataset.id,
+          action: "create",
+          after: dataset,
+        });
 
-      return dataset;
+        return { success: true, dataset };
+      } catch (error) {
+        // Check if this is a validation error from upsertDataset
+        if (
+          error instanceof Error &&
+          error.message.includes("Schema validation failed")
+        ) {
+          // Parse validation errors from message
+          const match = error.message.match(/Details: (\[.*\])$/);
+          if (match) {
+            try {
+              const validationErrors = JSON.parse(match[1]);
+              return { success: false, validationErrors };
+            } catch (e) {
+              // Failed to parse, rethrow original error
+              throw error;
+            }
+          }
+        }
+        // Re-throw non-validation errors
+        throw error;
+      }
     }),
   updateDataset: protectedProjectProcedure
     .input(
@@ -766,14 +793,67 @@ export const datasetRouter = createTRPCRouter({
         name: StringNoHTMLNonEmpty.nullish(),
         description: StringNoHTML.nullish(),
         metadata: z.string().nullish(),
+        inputSchema: DatasetJSONSchema.nullish(),
+        expectedOutputSchema: DatasetJSONSchema.nullish(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<DatasetMutationResult> => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
+
+      // If schemas are being updated, validate all existing items
+      // Fast validation (10K items in <1s) means we can always validate
+      if (
+        input.inputSchema !== undefined ||
+        input.expectedOutputSchema !== undefined
+      ) {
+        const existingDataset = await ctx.prisma.dataset.findUnique({
+          where: {
+            id_projectId: {
+              id: input.datasetId,
+              projectId: input.projectId,
+            },
+          },
+          select: { inputSchema: true, expectedOutputSchema: true },
+        });
+
+        if (existingDataset) {
+          // Determine the final schemas after update
+          const finalInputSchema =
+            input.inputSchema !== undefined
+              ? input.inputSchema
+              : existingDataset.inputSchema;
+          const finalExpectedOutputSchema =
+            input.expectedOutputSchema !== undefined
+              ? input.expectedOutputSchema
+              : existingDataset.expectedOutputSchema;
+
+          // Validate all items if at least one schema is being set (not null)
+          if (finalInputSchema !== null || finalExpectedOutputSchema !== null) {
+            const validationResult = await validateAllDatasetItems({
+              datasetId: input.datasetId,
+              projectId: input.projectId,
+              inputSchema: finalInputSchema as Record<string, unknown> | null,
+              expectedOutputSchema: finalExpectedOutputSchema as Record<
+                string,
+                unknown
+              > | null,
+              prisma: ctx.prisma,
+            });
+
+            if (!validationResult.isValid) {
+              // Return validation errors instead of throwing
+              return {
+                success: false,
+                validationErrors: validationResult.errors,
+              };
+            }
+          }
+        }
+      }
 
       const dataset = await updateDataset({
         input: {
@@ -781,6 +861,8 @@ export const datasetRouter = createTRPCRouter({
           name: input.name ?? undefined,
           description: input.description ?? undefined,
           metadata: resolveMetadata(input.metadata),
+          inputSchema: input.inputSchema,
+          expectedOutputSchema: input.expectedOutputSchema,
         },
         projectId: input.projectId,
       });
@@ -793,7 +875,7 @@ export const datasetRouter = createTRPCRouter({
         after: dataset,
       });
 
-      return dataset;
+      return { success: true, dataset };
     }),
   deleteDataset: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
@@ -804,30 +886,42 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const deletedDataset = await ctx.prisma.dataset.delete({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
+      try {
+        const deletedDataset = await ctx.prisma.dataset.delete({
+          where: {
+            id_projectId: {
+              id: input.datasetId,
+              projectId: input.projectId,
+            },
           },
-        },
-      });
+        });
 
-      await addToDeleteDatasetQueue({
-        deletionType: "dataset",
-        projectId: input.projectId,
-        datasetId: deletedDataset.id,
-      });
+        await addToDeleteDatasetQueue({
+          deletionType: "dataset",
+          projectId: input.projectId,
+          datasetId: deletedDataset.id,
+        });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "dataset",
-        resourceId: deletedDataset.id,
-        action: "delete",
-        before: deletedDataset,
-      });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "dataset",
+          resourceId: deletedDataset.id,
+          action: "delete",
+          before: deletedDataset,
+        });
 
-      return deletedDataset;
+        return deletedDataset;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2025"
+        ) {
+          throw new LangfuseConflictError(
+            "The dataset you are trying to delete has likely been deleted",
+          );
+        }
+        throw error;
+      }
     }),
 
   deleteDatasetItem: protectedProjectProcedure
@@ -845,44 +939,21 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      // First get the item to use in audit log
-      const item = await ctx.prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetItemId,
-            projectId: input.projectId,
-          },
-          datasetId: input.datasetId,
-        },
-      });
-
-      if (!item) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Dataset item not found",
-        });
-      }
-
-      // Delete the dataset item
-      const deletedItem = await ctx.prisma.datasetItem.delete({
-        where: {
-          id_projectId: {
-            id: input.datasetItemId,
-            projectId: input.projectId,
-          },
-          datasetId: input.datasetId,
-        },
+      const result = await deleteDatasetItem({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        datasetItemId: input.datasetItemId,
       });
 
       await auditLog({
         session: ctx.session,
         resourceType: "datasetItem",
-        resourceId: deletedItem.id,
+        resourceId: result.deletedItem.id,
         action: "delete",
-        before: item,
+        before: result.deletedItem,
       });
 
-      return deletedItem;
+      return result.deletedItem;
     }),
   duplicateDataset: protectedProjectProcedure
     .input(
@@ -902,13 +973,6 @@ export const datasetRouter = createTRPCRouter({
           id_projectId: {
             id: input.datasetId,
             projectId: input.projectId,
-          },
-        },
-        include: {
-          datasetItems: {
-            orderBy: {
-              createdAt: "asc",
-            },
           },
         },
       });
@@ -952,13 +1016,35 @@ export const datasetRouter = createTRPCRouter({
           name: duplicateDatasetName(counter),
           description: dataset.description ?? undefined,
           metadata: dataset.metadata ?? undefined,
+          inputSchema: dataset.inputSchema,
+          expectedOutputSchema: dataset.expectedOutputSchema,
         },
         projectId: input.projectId,
       });
 
-      await ctx.prisma.datasetItem.createMany({
-        data: dataset.datasetItems.map((item) => ({
-          // the items get new ids as they need to be unique on project level
+      // Copy items in batches to avoid 256MB JSONB limit
+      let offset = 0;
+      const createdAt = new Date();
+
+      while (true) {
+        const itemsBatch = await ctx.prisma.datasetItem.findMany({
+          where: {
+            datasetId: input.datasetId,
+            projectId: input.projectId,
+          },
+          orderBy: [
+            { createdAt: "asc" },
+            // ensure consistent ordering for pagination; via bulk upload many items might have the same createdAt
+            { id: "asc" },
+          ],
+          take: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
+          skip: offset,
+        });
+
+        if (itemsBatch.length === 0) break;
+
+        const preparedItems = itemsBatch.map((item) => ({
+          itemId: v4(),
           input: item.input ?? undefined,
           expectedOutput: item.expectedOutput ?? undefined,
           metadata: item.metadata ?? undefined,
@@ -967,8 +1053,25 @@ export const datasetRouter = createTRPCRouter({
           status: item.status,
           projectId: input.projectId,
           datasetId: newDataset.id,
-        })),
-      });
+          createdAt: createdAt,
+        }));
+
+        await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+          [Implementation.STATEFUL]: async () => {
+            await ctx.prisma.datasetItem.createMany({
+              data: preparedItems.map((item) => toPostgresDatasetItem(item)),
+            });
+          },
+          [Implementation.VERSIONED]: async () => {
+            await ctx.prisma.datasetItemEvent.createMany({
+              data: preparedItems,
+            });
+          },
+        });
+
+        if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
+        offset += DUPLICATE_DATASET_ITEMS_BATCH_SIZE;
+      }
 
       await auditLog({
         session: ctx.session,
@@ -999,40 +1102,38 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
+
+      const result = await createDatasetItem({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        input: input.input,
+        expectedOutput: input.expectedOutput,
+        metadata: input.metadata,
+        sourceTraceId: input.sourceTraceId,
+        sourceObservationId: input.sourceObservationId,
+        normalizeOpts: { sanitizeControlChars: true },
+        validateOpts: {
+          normalizeUndefinedToNull: true, // For CREATE, undefined becomes null in DB
         },
       });
-      if (!dataset) {
+
+      if (!result.success) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Dataset not found",
+          code: "BAD_REQUEST",
+          message: result.message,
+          cause: result.cause,
         });
       }
 
-      const datasetItem = await ctx.prisma.datasetItem.create({
-        data: {
-          input: formatDatasetItemData(input.input),
-          expectedOutput: formatDatasetItemData(input.expectedOutput),
-          metadata: formatDatasetItemData(input.metadata),
-          datasetId: input.datasetId,
-          sourceTraceId: input.sourceTraceId,
-          sourceObservationId: input.sourceObservationId,
-          projectId: input.projectId,
-        },
-      });
       await auditLog({
         session: ctx.session,
         resourceType: "datasetItem",
-        resourceId: datasetItem.id,
+        resourceId: result.datasetItem.id,
         action: "create",
-        after: datasetItem,
+        after: result.datasetItem,
       });
-      return datasetItem;
+
+      return result.datasetItem;
     }),
 
   createManyDatasetItems: protectedProjectProcedure
@@ -1051,61 +1152,47 @@ export const datasetRouter = createTRPCRouter({
         ),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "datasets:CUD",
-      });
-
-      // Verify all datasets exist and belong to the project
-      const datasetIds = [
-        ...new Set(input.items.map((item) => item.datasetId)),
-      ];
-      const datasets = await ctx.prisma.dataset.findMany({
-        where: {
-          id: { in: datasetIds },
+    .mutation(
+      async ({
+        input,
+        ctx,
+      }): Promise<
+        | { success: true }
+        | {
+            success: false;
+            validationErrors: BulkDatasetItemValidationError[];
+          }
+      > => {
+        throwIfNoProjectAccess({
+          session: ctx.session,
           projectId: input.projectId,
-        },
-      });
-
-      if (datasets.length !== datasetIds.length) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "One or more datasets not found",
+          scope: "datasets:CUD",
         });
-      }
 
-      const itemsWithIds = input.items.map((item) => ({
-        id: createCuid(),
-        input: formatDatasetItemData(item.input),
-        expectedOutput: formatDatasetItemData(item.expectedOutput),
-        metadata: formatDatasetItemData(item.metadata),
-        datasetId: item.datasetId,
-        sourceTraceId: item.sourceTraceId,
-        sourceObservationId: item.sourceObservationId,
-        projectId: input.projectId,
-        status: DatasetStatus.ACTIVE,
-      }));
+        const result = await createManyDatasetItems({
+          projectId: input.projectId,
+          items: input.items,
+          normalizeOpts: { sanitizeControlChars: true },
+          validateOpts: { normalizeUndefinedToNull: true },
+        });
 
-      await ctx.prisma.datasetItem.createMany({
-        data: itemsWithIds,
-      });
+        if (!result.success) return result;
 
-      await Promise.all(
-        itemsWithIds.map(async (item) =>
-          auditLog({
-            session: ctx.session,
-            resourceType: "datasetItem",
-            resourceId: item.id,
-            action: "create",
-            after: item,
-          }),
-        ),
-      );
+        await Promise.all(
+          result.datasetItems.map(async (item) =>
+            auditLog({
+              session: ctx.session,
+              resourceType: "datasetItem",
+              resourceId: item.itemId,
+              action: "create",
+              after: item,
+            }),
+          ),
+        );
 
-      return;
-    }),
+        return { success: true };
+      },
+    ),
   runItemsByItemId: protectedProjectProcedure
     .input(
       z.object({
@@ -1300,6 +1387,14 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
+
+      if (runIds.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+        };
+      }
+
       // Step 1: Return dataset item ids for which the run items match the filters
       const datasetItemIds = await getDatasetItemIdsWithRunData({
         projectId: input.projectId,
@@ -1670,6 +1765,131 @@ export const datasetRouter = createTRPCRouter({
         resourceId: updatedDataset.id,
         action: "update",
         after: updatedDataset,
+      });
+
+      return updatedDataset;
+    }),
+
+  validateDatasetSchema: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        inputSchema: DatasetJSONSchema.nullable(),
+        expectedOutputSchema: DatasetJSONSchema.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      if (!dataset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
+      }
+
+      const validationResult = await validateAllDatasetItems({
+        datasetId: input.datasetId,
+        projectId: input.projectId,
+        inputSchema: input.inputSchema,
+        expectedOutputSchema: input.expectedOutputSchema,
+        prisma: ctx.prisma,
+      });
+
+      return validationResult;
+    }),
+
+  setDatasetSchema: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        inputSchema: DatasetJSONSchema.nullable(),
+        expectedOutputSchema: DatasetJSONSchema.nullable(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      if (!dataset) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
+      }
+
+      // Validate all existing items before applying schema
+      const validationResult = await validateAllDatasetItems({
+        datasetId: input.datasetId,
+        projectId: input.projectId,
+        inputSchema: input.inputSchema,
+        expectedOutputSchema: input.expectedOutputSchema,
+        prisma: ctx.prisma,
+      });
+
+      if (!validationResult.isValid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Schema validation failed for ${validationResult.errors.length} item(s)`,
+          cause: validationResult.errors,
+        });
+      }
+
+      // Update dataset with new schemas
+      const updatedDataset = await ctx.prisma.dataset.update({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        data: {
+          inputSchema: input.inputSchema ?? Prisma.DbNull,
+          expectedOutputSchema: input.expectedOutputSchema ?? Prisma.DbNull,
+        },
+      });
+
+      // Audit log
+      await auditLog({
+        session: ctx.session,
+        resourceType: "dataset",
+        resourceId: input.datasetId,
+        action: "updateSchema",
+        before: {
+          inputSchema: dataset.inputSchema,
+          expectedOutputSchema: dataset.expectedOutputSchema,
+        },
+        after: {
+          inputSchema: updatedDataset.inputSchema,
+          expectedOutputSchema: updatedDataset.expectedOutputSchema,
+        },
       });
 
       return updatedDataset;

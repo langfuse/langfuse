@@ -5,6 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
@@ -159,6 +160,13 @@ export default function ScoresTable({
       },
     );
 
+  const environmentOptions = React.useMemo(
+    () =>
+      environmentFilterOptions.data?.map((value) => value.environment) ??
+      undefined,
+    [environmentFilterOptions.data],
+  );
+
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
@@ -223,29 +231,36 @@ export default function ScoresTable({
         filterOptions.data?.name?.map((n) => ({
           value: n.value,
           count: n.count !== undefined ? Number(n.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       source: ["ANNOTATION", "API", "EVAL"],
       dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
       value: [],
+      stringValue:
+        filterOptions.data?.stringValue?.map((sv) => ({
+          value: sv.value,
+          count: sv.count !== undefined ? Number(sv.count) : undefined,
+        })) ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
           count: tn.count !== undefined ? Number(tn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       userId:
         filterOptions.data?.userId?.map((u) => ({
           value: u.value,
           count: u.count !== undefined ? Number(u.count) : undefined,
-        })) || [],
-      tags: filterOptions.data?.tags?.map((t) => t.value) || [], // tags don't have counts
+        })) ?? undefined,
+      tags: filterOptions.data?.tags?.map((t) => t.value) ?? undefined, // tags don't have counts
+      environment: environmentOptions,
     }),
-    [filterOptions.data],
+    [filterOptions.data, environmentOptions],
   );
 
   const queryFilter = useSidebarFilterState(
     scoreFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending || environmentFilterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -720,7 +735,7 @@ export default function ScoresTable({
               />
             ) : null,
             <BatchExportTableButton
-              {...{ projectId, filterState, orderByState }}
+              {...{ projectId, filterState: backendFilterState, orderByState }}
               tableName={BatchExportTableName.Scores}
               key="batchExport"
             />,
@@ -742,7 +757,7 @@ export default function ScoresTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -780,7 +795,7 @@ export default function ScoresTable({
               rowHeight={rowHeight}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

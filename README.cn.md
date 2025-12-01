@@ -245,7 +245,7 @@ _[Langfuse 中的公共示例追踪](https://cloud.langfuse.com/project/cloramnk
 
 ## ⭐️ 给我们加星
 
-![为 Langfuse 加星](https://langfuse.com/images/docs/github-readme/github-star-howto.gif)
+![star-langfuse-on-github](https://github.com/user-attachments/assets/79a1d816-d229-4526-aecc-097d4a19f1ad)
 
 ## 💭 支持
 

@@ -163,16 +163,34 @@ export async function handleDeleteOrganization(
     return res.status(404).json({ error: "Organization not found" });
   }
 
-  // Check if organization has any projects
-  const projectCount = await prisma.project.count({
-    where: { orgId: organizationId },
+  // count non-deleted projects
+  const countNonDeletedProjects = await prisma.project.count({
+    where: {
+      orgId: organizationId,
+      deletedAt: null,
+    },
   });
 
-  if (projectCount > 0) {
+  // count all projects (including soft-deleted)
+  const countAllProjects = await prisma.project.count({
+    where: {
+      orgId: organizationId,
+    },
+  });
+
+  if (countNonDeletedProjects > 0) {
     return res.status(400).json({
       error: "Cannot delete organization with existing projects",
       message:
         "Please delete or transfer all projects before deleting the organization.",
+    });
+  }
+
+  if (countAllProjects > 0) {
+    return res.status(400).json({
+      error: "Cannot delete organization with existing projects",
+      message:
+        "Deletion of your projects is still being processed, please try deleting the organization later",
     });
   }
 

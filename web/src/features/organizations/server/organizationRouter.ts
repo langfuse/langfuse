@@ -123,18 +123,34 @@ export const organizationsRouter = createTRPCRouter({
         scope: "organization:delete",
       });
 
-      // count soft and hard deleted projects
-      const countProjects = await ctx.prisma.project.count({
+      // count non-deleted projects
+      const countNonDeletedProjects = await ctx.prisma.project.count({
+        where: {
+          orgId: input.orgId,
+          deletedAt: null,
+        },
+      });
+
+      // count all projects (including soft-deleted)
+      const countAllProjects = await ctx.prisma.project.count({
         where: {
           orgId: input.orgId,
         },
       });
 
-      if (countProjects > 0) {
+      if (countNonDeletedProjects > 0) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
             "Please delete or transfer all projects before deleting the organization.",
+        });
+      }
+
+      if (countAllProjects > 0) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Deletion of your projects is still being processed, please try deleting the organization later",
         });
       }
 

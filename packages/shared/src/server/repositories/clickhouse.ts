@@ -42,8 +42,7 @@ type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
 
 export class ClickHouseResourceError extends Error {
   static ERROR_ADVICE_MESSAGE = [
-    "Database resource limit exceeded.",
-    "Please use more specific filters or a shorter time range.",
+    "We got notified about this issue and are looking into it.",
     "We are continuously improving our API performance.",
   ].join(" ");
 
@@ -349,6 +348,10 @@ export async function queryClickhouse<T>(opts: {
       // Retry logic for socket hang up and other network errors
       return await backOff(
         async () => {
+          // same logic as for prisma. we want to see queries in development
+          if (env.NODE_ENV === "development") {
+            logger.info(`clickhouse:query ${opts.query}`);
+          }
           const res = await clickhouseClient(
             opts.clickhouseConfigs,
             opts.preferredClickhouseService,
@@ -363,11 +366,6 @@ export async function queryClickhouse<T>(opts: {
               log_comment: JSON.stringify(opts.tags ?? {}),
             },
           });
-
-          // same logic as for prisma. we want to see queries in development
-          if (env.NODE_ENV === "development") {
-            logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
-          }
 
           span.setAttribute("ch.queryId", res.query_id);
 

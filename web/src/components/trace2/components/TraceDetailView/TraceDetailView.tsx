@@ -1,0 +1,279 @@
+/**
+ * TraceDetailView - Shows trace-level details when no observation is selected
+ */
+
+import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  TabsBar,
+  TabsBarContent,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+
+// Preview tab components
+import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import TagList from "@/src/features/tag/components/TagList";
+import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { useMedia } from "@/src/components/trace2/api/useMedia";
+
+// Contexts and hooks
+import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import {
+  useLogViewConfirmation,
+  LOG_VIEW_DISABLED_THRESHOLD,
+} from "@/src/components/trace2/components/TraceLogView/useLogViewConfirmation";
+
+// Extracted components
+import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
+import { TraceLogViewConfirmationDialog } from "../TraceLogView/TraceLogViewConfirmationDialog";
+import { TraceLogView } from "../TraceLogView/TraceLogView";
+import ScoresTable from "@/src/components/table/use-cases/scores";
+
+export interface TraceDetailViewProps {
+  trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
+    latency?: number;
+    input: string | null;
+    output: string | null;
+  };
+  observations: ObservationReturnTypeWithMetadata[];
+  scores: WithStringifiedMetadata<ScoreDomain>[];
+  projectId: string;
+}
+
+export function TraceDetailView({
+  trace,
+  observations,
+  scores,
+  projectId,
+}: TraceDetailViewProps) {
+  // Tab and view state
+  const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
+    "preview",
+  );
+  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
+    "jsonViewPreference",
+    "pretty",
+  );
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+
+  // Context hooks
+  const { comments } = useTraceData();
+  const { expansionState, setFieldExpansion } = useJsonExpansion();
+
+  // Data fetching
+  const traceMedia = useMedia({ projectId, traceId: trace.id });
+
+  // Derived state
+  const traceScores = useMemo(
+    () => scores.filter((s) => !s.observationId),
+    [scores],
+  );
+
+  // Log view confirmation logic
+  const logViewConfirmation = useLogViewConfirmation({
+    observationCount: observations.length,
+    traceId: trace.id,
+  });
+
+  const showLogViewTab = observations.length > 0;
+
+  // Auto-redirect from invalid tab state
+  useEffect(() => {
+    if (
+      (logViewConfirmation.isDisabled || !showLogViewTab) &&
+      selectedTab === "log"
+    ) {
+      setSelectedTab("preview");
+    }
+  }, [logViewConfirmation.isDisabled, showLogViewTab, selectedTab]);
+
+  // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
+  const { isPeekMode } = useViewPreferences();
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+  const showScoresTab = isAuthenticatedAndProjectMember && !isPeekMode;
+
+  // Handle tab change with log view confirmation
+  const handleTabChange = (value: string) => {
+    if (value === "log") {
+      const canProceed = logViewConfirmation.attemptLogView();
+      if (!canProceed) return;
+    }
+    setSelectedTab(value as "preview" | "log" | "scores");
+  };
+
+  // Handle log view confirmation
+  const handleLogViewConfirm = () => {
+    logViewConfirmation.confirmLogView();
+    setSelectedTab("log");
+  };
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Header section (extracted component) */}
+      <TraceDetailViewHeader
+        trace={trace}
+        projectId={projectId}
+        traceScores={traceScores}
+        commentCount={comments.get(trace.id)}
+      />
+
+      {/* Tabs section */}
+      <TabsBar
+        value={selectedTab}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        onValueChange={handleTabChange}
+      >
+        <TooltipProvider>
+          <TabsBarList>
+            <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+            {showLogViewTab && (
+              <TabsBarTrigger
+                value="log"
+                disabled={logViewConfirmation.isDisabled}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>Log View</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs">
+                    {logViewConfirmation.isDisabled
+                      ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
+                      : logViewConfirmation.requiresConfirmation
+                        ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
+                        : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
+                  </TooltipContent>
+                </Tooltip>
+              </TabsBarTrigger>
+            )}
+            {showScoresTab && (
+              <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+            )}
+
+            {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
+            {(selectedTab === "log" ||
+              (selectedTab === "preview" && isPrettyViewAvailable)) && (
+              <Tabs
+                className="ml-auto mr-1 h-fit px-2 py-0.5"
+                value={currentView}
+                onValueChange={(value) => {
+                  setCurrentView(value as "pretty" | "json");
+                }}
+              >
+                <TabsList className="h-fit py-0.5">
+                  <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                    Formatted
+                  </TabsTrigger>
+                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                    JSON
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+          </TabsBarList>
+        </TooltipProvider>
+
+        {/* Preview tab content */}
+        <TabsBarContent
+          value="preview"
+          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+        >
+          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+            {/* I/O Preview */}
+            <IOPreview
+              key={trace.id + "-io"}
+              input={trace.input ?? undefined}
+              output={trace.output ?? undefined}
+              media={traceMedia.data}
+              currentView={currentView}
+              setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+              inputExpansionState={expansionState.input}
+              outputExpansionState={expansionState.output}
+              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              onOutputExpansionChange={(exp) =>
+                setFieldExpansion("output", exp)
+              }
+            />
+
+            {/* Tags Section */}
+            <div className="px-2 text-sm font-medium">Tags</div>
+            <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
+              <TagList selectedTags={trace.tags} isLoading={false} />
+            </div>
+
+            {/* Metadata Section */}
+            {trace.metadata && (
+              <div className="px-2">
+                <PrettyJsonView
+                  key={trace.id + "-metadata"}
+                  title="Metadata"
+                  json={trace.metadata}
+                  media={traceMedia.data?.filter((m) => m.field === "metadata")}
+                  currentView={currentView}
+                  externalExpansionState={expansionState.metadata}
+                  onExternalExpansionChange={(exp) =>
+                    setFieldExpansion("metadata", exp)
+                  }
+                />
+              </div>
+            )}
+          </div>
+        </TabsBarContent>
+
+        {/* Log View tab content */}
+        <TabsBarContent
+          value="log"
+          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+        >
+          <TraceLogView
+            observations={observations}
+            traceId={trace.id}
+            projectId={projectId}
+            currentView={currentView}
+            trace={trace}
+          />
+        </TabsBarContent>
+
+        {/* Scores tab content */}
+        {showScoresTab && (
+          <TabsBarContent
+            value="scores"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden"
+          >
+            <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3">
+              <ScoresTable
+                projectId={projectId}
+                omittedFilter={["Trace ID"]}
+                traceId={trace.id}
+                hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
+                localStorageSuffix="TracePreview"
+              />
+            </div>
+          </TabsBarContent>
+        )}
+      </TabsBar>
+
+      {/* Confirmation dialog for log view with many observations (extracted component) */}
+      <TraceLogViewConfirmationDialog
+        open={logViewConfirmation.showDialog}
+        onOpenChange={logViewConfirmation.setShowDialog}
+        observationCount={observations.length}
+        onConfirm={handleLogViewConfirm}
+      />
+    </div>
+  );
+}

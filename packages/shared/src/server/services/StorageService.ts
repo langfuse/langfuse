@@ -115,12 +115,17 @@ export class StorageServiceFactory {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
   }): StorageService {
-    if (params.useAzureBlob || env.LANGFUSE_USE_AZURE_BLOB === "true") {
+    if (
+      params.useAzureBlob !== undefined
+        ? params.useAzureBlob
+        : env.LANGFUSE_USE_AZURE_BLOB === "true"
+    ) {
       return new AzureBlobStorageService(params);
     }
     if (
-      params.useGoogleCloudStorage ||
-      env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
+      params.useGoogleCloudStorage !== undefined
+        ? params.useGoogleCloudStorage
+        : env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
     ) {
       // Use provided credentials or fall back to environment variable
       const googleParams = {
@@ -193,36 +198,24 @@ class AzureBlobStorageService implements StorageService {
   }
 
   public async uploadFile(params: UploadFile): Promise<void> {
-    const { fileName, data } = params;
+    const { fileName, fileType, data, partSize } = params;
     try {
       await this.createContainerIfNotExists();
 
       const blockBlobClient = this.client.getBlockBlobClient(fileName);
 
       if (typeof data === "string") {
-        await blockBlobClient.upload(data, data.length);
+        await blockBlobClient.upload(data, data.length, {
+          blobHTTPHeaders: { blobContentType: fileType },
+        });
       } else if (data instanceof Readable) {
-        const blockIds = [];
-        for await (const chunk of data) {
-          // Azure requires block IDs to be base64 strings of the same length
-          // Use a fixed format with padded index to ensure consistent length
-          const blockIdStr: string = `block-${blockIds.length.toString().padStart(10, "0")}`;
-          const blockId = Buffer.from(blockIdStr).toString("base64");
+        // bufferSize controls the block size (default 8MB supports ~800GB files)
+        const bufferSize = partSize ?? 8 * 1024 * 1024; // Default 8MB per block
+        const maxConcurrency = 5; // Default value
 
-          const bufferChunk = Buffer.isBuffer(chunk)
-            ? chunk
-            : Buffer.from(chunk);
-
-          await blockBlobClient.stageBlock(
-            blockId,
-            bufferChunk,
-            bufferChunk.length,
-          );
-          blockIds.push(blockId);
-        }
-        if (blockIds.length > 0) {
-          await blockBlobClient.commitBlockList(blockIds);
-        }
+        await blockBlobClient.uploadStream(data, bufferSize, maxConcurrency, {
+          blobHTTPHeaders: { blobContentType: fileType },
+        });
       } else {
         throw new Error("Unsupported data type. Must be Readable or string.");
       }

@@ -48,6 +48,8 @@ export const observationRecordBaseSchema = z.object({
   internal_model_id: z.string().nullish(),
   model_parameters: z.string().nullish(),
   total_cost: z.number().nullish(),
+  usage_pricing_tier_id: z.string().nullish(),
+  usage_pricing_tier_name: z.string().nullish(),
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
@@ -94,6 +96,23 @@ export const observationBatchStagingRecordInsertSchema =
   });
 export type ObservationBatchStagingRecordInsertType = z.infer<
   typeof observationBatchStagingRecordInsertSchema
+>;
+
+// Events-specific observation schema (includes user_id and session_id)
+// These fields are only available in the events table, not in historical observations
+export const eventsObservationRecordBaseSchema =
+  observationRecordBaseSchema.extend({
+    user_id: z.string().nullish(),
+    session_id: z.string().nullish(),
+  });
+
+export const eventsObservationRecordReadSchema =
+  observationRecordReadSchema.extend({
+    user_id: z.string().nullish(),
+    session_id: z.string().nullish(),
+  });
+export type EventsObservationRecordReadType = z.infer<
+  typeof eventsObservationRecordReadSchema
 >;
 
 export const traceRecordBaseSchema = z.object({
@@ -188,13 +207,13 @@ export const scoreRecordBaseSchema = z.object({
   dataset_run_id: z.string().nullish(),
   environment: z.string().default("default"),
   name: z.string(),
-  value: z.number().nullish(),
+  value: z.number(),
   source: z.string(),
   comment: z.string().nullish(),
   metadata: z.record(z.string(), z.string()),
   author_user_id: z.string().nullish(),
   config_id: z.string().nullish(),
-  data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
+  data_type: z.string(),
   string_value: z.string().nullish(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),

@@ -124,17 +124,28 @@ export const IOPreview: React.FC<{
       const message = messages[i];
       const isOutputMessage = i >= inputMessageCount; // Only output messages get numbered
 
-      if (message.tool_calls && Array.isArray(message.tool_calls)) {
+      const toolCallList = parseToolCallsFromMessage(message);
+
+      if (toolCallList.length > 0) {
         const messageToolNumbers: number[] = [];
 
-        for (const toolCall of message.tool_calls) {
-          if (toolCall.name && typeof toolCall.name === "string") {
-            toolCallCounts.set(
-              toolCall.name,
-              (toolCallCounts.get(toolCall.name) || 0) + 1,
-            );
+        for (const toolCall of toolCallList) {
+          const calledToolName =
+            toolCall.name && typeof toolCall.name === "string"
+              ? toolCall.name
+              : // AI SDK has 'toolName'
+                toolCall.toolName && typeof toolCall.toolName === "string"
+                ? toolCall.toolName
+                : undefined;
 
+          if (calledToolName) {
+            // count tool calls from OUTPUT messages only, only those were called
+            // in this generation
             if (isOutputMessage) {
+              toolCallCounts.set(
+                calledToolName,
+                (toolCallCounts.get(calledToolName) || 0) + 1,
+              );
               toolCallCounter++;
               messageToolNumbers.push(toolCallCounter);
             }
@@ -196,13 +207,18 @@ export const IOPreview: React.FC<{
     <>
       {/* Show tools at the top if available */}
       {allTools.length > 0 && (
-        <div className="mb-4 border-b border-border pb-4">
-          <div className="px-1 py-1 text-sm font-medium capitalize">Tools</div>
-          <ToolCallDefinitionCard
-            tools={allTools}
-            toolCallCounts={toolCallCounts}
-            toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-          />
+        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+          <div className="mb-4 border-b border-border pb-4">
+            <div className="io-message-header px-1 py-1 text-sm font-medium capitalize">
+              Tools
+            </div>
+            <ToolCallDefinitionCard
+              tools={allTools}
+              toolCallCounts={toolCallCounts}
+              toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+              className="px-2"
+            />
+          </div>
         </div>
       )}
 
@@ -237,20 +253,22 @@ export const IOPreview: React.FC<{
             style={{ display: selectedView === "pretty" ? "block" : "none" }}
           >
             {canDisplayAsChat ? (
-              <OpenAiMessageView
-                messages={allMessages}
-                shouldRenderMarkdown={shouldRenderMarkdownSafely}
-                additionalInput={
-                  Object.keys(additionalInput ?? {}).length > 0
-                    ? additionalInput
-                    : undefined
-                }
-                media={media ?? []}
-                currentView={selectedView}
-                messageToToolCallNumbers={messageToToolCallNumbers}
-              />
+              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+                <OpenAiMessageView
+                  messages={allMessages}
+                  shouldRenderMarkdown={shouldRenderMarkdownSafely}
+                  additionalInput={
+                    Object.keys(additionalInput ?? {}).length > 0
+                      ? additionalInput
+                      : undefined
+                  }
+                  media={media ?? []}
+                  currentView={selectedView}
+                  messageToToolCallNumbers={messageToToolCallNumbers}
+                />
+              </div>
             ) : (
-              <>
+              <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
                 {!(hideIfNull && !input) && !hideInput ? (
                   <PrettyJsonView
                     title="Input"
@@ -273,38 +291,40 @@ export const IOPreview: React.FC<{
                     onExternalExpansionChange={onOutputExpansionChange}
                   />
                 ) : null}
-              </>
+              </div>
             )}
           </div>
 
           {/* JSON view content */}
           <div style={{ display: selectedView === "json" ? "block" : "none" }}>
-            {!(hideIfNull && !input) && !hideInput ? (
-              <PrettyJsonView
-                title="Input"
-                json={input ?? null}
-                isLoading={isLoading}
-                media={media?.filter((m) => m.field === "input") ?? []}
-                currentView={selectedView}
-                externalExpansionState={inputExpansionState}
-                onExternalExpansionChange={onInputExpansionChange}
-              />
-            ) : null}
-            {!(hideIfNull && !output) && !hideOutput ? (
-              <PrettyJsonView
-                title="Output"
-                json={output}
-                isLoading={isLoading}
-                media={media?.filter((m) => m.field === "output") ?? []}
-                currentView={selectedView}
-                externalExpansionState={outputExpansionState}
-                onExternalExpansionChange={onOutputExpansionChange}
-              />
-            ) : null}
+            <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+              {!(hideIfNull && !input) && !hideInput ? (
+                <PrettyJsonView
+                  title="Input"
+                  json={input ?? null}
+                  isLoading={isLoading}
+                  media={media?.filter((m) => m.field === "input") ?? []}
+                  currentView={selectedView}
+                  externalExpansionState={inputExpansionState}
+                  onExternalExpansionChange={onInputExpansionChange}
+                />
+              ) : null}
+              {!(hideIfNull && !output) && !hideOutput ? (
+                <PrettyJsonView
+                  title="Output"
+                  json={output}
+                  isLoading={isLoading}
+                  media={media?.filter((m) => m.field === "output") ?? []}
+                  currentView={selectedView}
+                  externalExpansionState={outputExpansionState}
+                  onExternalExpansionChange={onOutputExpansionChange}
+                />
+              ) : null}
+            </div>
           </div>
         </>
       ) : (
-        <>
+        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
           {!(hideIfNull && !input) && !hideInput ? (
             <PrettyJsonView
               title="Input"
@@ -327,7 +347,7 @@ export const IOPreview: React.FC<{
               onExternalExpansionChange={onOutputExpansionChange}
             />
           ) : null}
-        </>
+        </div>
       )}
     </>
   );
@@ -458,10 +478,7 @@ export const OpenAiMessageView: React.FC<{
                 <>
                   <div
                     key={originalIndex}
-                    className={cn(
-                      "transition-colors hover:bg-muted",
-                      !isShowingTable && "group",
-                    )}
+                    className={cn("transition-colors hover:bg-muted")}
                   >
                     {isPlaceholderMessage(message) ? (
                       <>
@@ -539,18 +556,17 @@ export const OpenAiMessageView: React.FC<{
                                     ) : undefined
                                   }
                                 />
-                                {message.tool_calls &&
-                                  Array.isArray(message.tool_calls) &&
-                                  message.tool_calls.length > 0 && (
-                                    <div className="mt-2">
-                                      <ToolCallInvocationsView
-                                        message={message}
-                                        toolCallNumbers={messageToToolCallNumbers?.get(
-                                          originalIndex,
-                                        )}
-                                      />
-                                    </div>
-                                  )}
+                                {parseToolCallsFromMessage(message).length >
+                                  0 && (
+                                  <div className="mt-2">
+                                    <ToolCallInvocationsView
+                                      message={message}
+                                      toolCallNumbers={messageToToolCallNumbers?.get(
+                                        originalIndex,
+                                      )}
+                                    />
+                                  </div>
+                                )}
                               </div>
                               <div
                                 style={{
@@ -582,18 +598,17 @@ export const OpenAiMessageView: React.FC<{
                                     ) : undefined
                                   }
                                 />
-                                {message.tool_calls &&
-                                  Array.isArray(message.tool_calls) &&
-                                  message.tool_calls.length > 0 && (
-                                    <div className="mt-2">
-                                      <ToolCallInvocationsView
-                                        message={message}
-                                        toolCallNumbers={messageToToolCallNumbers?.get(
-                                          originalIndex,
-                                        )}
-                                      />
-                                    </div>
-                                  )}
+                                {parseToolCallsFromMessage(message).length >
+                                  0 && (
+                                  <div className="mt-2">
+                                    <ToolCallInvocationsView
+                                      message={message}
+                                      toolCallNumbers={messageToToolCallNumbers?.get(
+                                        originalIndex,
+                                      )}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             </>
                           )}
@@ -619,9 +634,7 @@ export const OpenAiMessageView: React.FC<{
                             }
                           />
                         ) : !shouldRenderContent(message) &&
-                          message.tool_calls &&
-                          Array.isArray(message.tool_calls) &&
-                          message.tool_calls.length > 0 ? (
+                          parseToolCallsFromMessage(message).length > 0 ? (
                           // No content but has tool_calls - show tool invocations
                           <div>
                             <MarkdownJsonViewHeader
@@ -706,3 +719,13 @@ export const OpenAiMessageView: React.FC<{
     </div>
   );
 };
+
+function parseToolCallsFromMessage(
+  message: ReturnType<typeof combineInputOutputMessages>[0],
+) {
+  return message.tool_calls && Array.isArray(message.tool_calls)
+    ? message.tool_calls
+    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
+      ? message.json.tool_calls
+      : [];
+}

@@ -1,8 +1,8 @@
-import { ScoreSourceType } from "../../domain";
+import { ScoreDomain, ScoreSourceType } from "../../domain";
 import { PreferredClickhouseService } from "../clickhouse/client";
 import { queryClickhouse } from "./clickhouse";
 import { ScoreRecordReadType } from "./definitions";
-import { convertToScore } from "./scores_converters";
+import { convertClickhouseScoreToDomain } from "./scores_converters";
 
 /**
  * @internal
@@ -21,7 +21,7 @@ export const _handleGetScoreById = async ({
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
   preferredClickhouseService?: PreferredClickhouseService;
-}) => {
+}): Promise<ScoreDomain | undefined> => {
   const query = `
   SELECT *
   FROM scores s
@@ -49,7 +49,7 @@ export const _handleGetScoreById = async ({
     },
     preferredClickhouseService,
   });
-  return rows.map(convertToScore).shift();
+  return rows.map((row) => convertClickhouseScoreToDomain(row)).shift();
 };
 
 /**
@@ -67,7 +67,7 @@ export const _handleGetScoresByIds = async ({
   scoreId: string[];
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
-}) => {
+}): Promise<ScoreDomain[]> => {
   const query = `
   SELECT *
   FROM scores s
@@ -93,5 +93,5 @@ export const _handleGetScoresByIds = async ({
       projectId,
     },
   });
-  return rows.map(convertToScore);
+  return rows.map((row) => convertClickhouseScoreToDomain(row));
 };

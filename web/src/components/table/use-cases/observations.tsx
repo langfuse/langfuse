@@ -5,6 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -40,9 +41,12 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import {
+  BreakdownTooltip,
+  calculateAggregatedUsage,
+} from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState, type Row } from "@tanstack/react-table";
@@ -84,6 +88,7 @@ export type ObservationsTableRow = {
   usageDetails: Record<string, number>;
   totalCost?: number;
   costDetails: Record<string, number>;
+  usagePricingTierName?: string | null;
   model?: string;
   promptName?: string;
   environment?: string;
@@ -285,49 +290,50 @@ export default function ObservationsTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
 
     return {
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        environmentFilterOptions.data?.map((value) => value.environment) ??
+        undefined,
       name:
         filterOptions.data?.name?.map((n) => ({
           value: n.value,
           count: n.count !== undefined ? Number(n.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       type:
         filterOptions.data?.type?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
           count: tn.count !== undefined ? Number(tn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       model:
         filterOptions.data?.model?.map((m) => ({
           value: m.value,
           count: m.count !== undefined ? Number(m.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       modelId:
         filterOptions.data?.modelId?.map((mid) => ({
           value: mid.value,
           count: mid.count !== undefined ? Number(mid.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       promptName:
         filterOptions.data?.promptName?.map((pn) => ({
           value: pn.value,
           count: pn.count !== undefined ? Number(pn.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       tags:
         filterOptions.data?.tags?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -346,6 +352,7 @@ export default function ObservationsTable({
     observationFilterConfig,
     newFilterOptions,
     projectId,
+    filterOptions.isPending || environmentFilterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -518,11 +525,7 @@ export default function ObservationsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationsTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {
@@ -630,7 +633,11 @@ export default function ObservationsTable({
         const value: number | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <BreakdownTooltip details={row.original.costDetails} isCost>
+          <BreakdownTooltip
+            details={row.original.costDetails}
+            isCost
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <span>{usdFormatter(value)}</span>
               <InfoIcon className="h-3 w-3" />
@@ -665,18 +672,19 @@ export default function ObservationsTable({
       id: "tokens",
       size: 150,
       cell: ({ row }) => {
-        const value: {
-          inputUsage: number;
-          outputUsage: number;
-          totalUsage: number;
-        } = row.getValue("usage");
+        const aggregatedUsage = calculateAggregatedUsage(
+          row.original.usageDetails,
+        );
         return (
-          <BreakdownTooltip details={row.original.usageDetails}>
+          <BreakdownTooltip
+            details={row.original.usageDetails}
+            pricingTierName={row.original.usagePricingTierName ?? undefined}
+          >
             <div className="flex items-center gap-1">
               <TokenUsageBadge
-                inputUsage={value.inputUsage}
-                outputUsage={value.outputUsage}
-                totalUsage={value.totalUsage}
+                inputUsage={aggregatedUsage.input}
+                outputUsage={aggregatedUsage.output}
+                totalUsage={aggregatedUsage.total}
                 inline
               />
               <InfoIcon className="h-3 w-3" />
@@ -703,7 +711,7 @@ export default function ObservationsTable({
         return modelId ? (
           <TableIdOrName value={model} />
         ) : (
-          <UpsertModelFormDrawer
+          <UpsertModelFormDialog
             action="create"
             projectId={projectId}
             prefilledModelData={{
@@ -727,7 +735,7 @@ export default function ObservationsTable({
               <span>{model}</span>
               <PlusCircle className="h-3 w-3" />
             </span>
-          </UpsertModelFormDrawer>
+          </UpsertModelFormDialog>
         );
       },
     },
@@ -1133,6 +1141,7 @@ export default function ObservationsTable({
             timestamp: generation.traceTimestamp ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
+            usagePricingTierName: generation.usagePricingTierName ?? undefined,
             environment: generation.environment ?? undefined,
           };
         })
@@ -1209,7 +1218,7 @@ export default function ObservationsTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -1276,7 +1285,7 @@ export default function ObservationsTable({
               }}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );
@@ -1303,7 +1312,7 @@ const GenerationsDynamicCell = ({
       traceId,
       projectId,
       startTime,
-      truncated: true,
+      verbosity: "compact",
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",
