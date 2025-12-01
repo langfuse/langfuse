@@ -89,9 +89,13 @@ export function useAuthGuard(
       !isPublishable &&
       !isPublicPath
     ) {
-      const targetPath = encodeURIComponent(
-        basePath + (pathname === "/" ? pathname : asPath),
-      );
+      // asPath already includes the base path when accessed via browser
+      // Strip the base path if present to avoid double-prepending
+      let pathToStore = pathname === "/" ? pathname : asPath;
+      if (basePath && pathToStore.startsWith(basePath)) {
+        pathToStore = pathToStore.slice(basePath.length) || "/";
+      }
+      const targetPath = encodeURIComponent(pathToStore);
       return {
         action: "redirect",
         url: `/auth/sign-in?targetPath=${targetPath}`,

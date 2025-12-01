@@ -53,6 +53,12 @@ export function getSafeRedirectPath(
     return safeDefault;
   }
 
+  // If basePath is configured, check if the path already starts with it
+  // This prevents double-prepending when the path already includes the base path
+  if (basePath && trimmed.startsWith(basePath)) {
+    return trimmed;
+  }
+
   // Prepend basePath if configured
   return basePath + trimmed;
 }

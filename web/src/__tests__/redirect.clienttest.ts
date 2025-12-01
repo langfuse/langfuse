@@ -169,6 +169,32 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("http://evil.com")).toBe("/my-app/");
       expect(getSafeRedirectPath("javascript:alert(1)")).toBe("/my-app/");
     });
+
+    it("should not double-prepend basePath when path already includes it", () => {
+      // This prevents the bug where basePath gets added multiple times
+      // Scenario: path already includes basePath (e.g., from asPath in Next.js router)
+      expect(getSafeRedirectPath("/my-app")).toBe("/my-app");
+      expect(getSafeRedirectPath("/my-app/")).toBe("/my-app/");
+      expect(getSafeRedirectPath("/my-app/dashboard")).toBe(
+        "/my-app/dashboard",
+      );
+      expect(getSafeRedirectPath("/my-app/project/123")).toBe(
+        "/my-app/project/123",
+      );
+      expect(getSafeRedirectPath("/my-app/dashboard?tab=overview")).toBe(
+        "/my-app/dashboard?tab=overview",
+      );
+      expect(getSafeRedirectPath("/my-app/dashboard#section")).toBe(
+        "/my-app/dashboard#section",
+      );
+    });
+
+    it("should handle edge case where basePath appears in path but not at start", () => {
+      // Path contains basePath but doesn't start with it - should still prepend
+      expect(getSafeRedirectPath("/some/my-app/path")).toBe(
+        "/my-app/some/my-app/path",
+      );
+    });
   });
 
   describe("edge cases", () => {
