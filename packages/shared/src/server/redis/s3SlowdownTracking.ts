@@ -4,7 +4,10 @@ import { traceException, recordIncrement } from "../instrumentation";
 import { env } from "../../env";
 
 const S3_SLOWDOWN_PREFIX = "langfuse:s3-slowdown";
-const DEFAULT_TTL_SECONDS = 14400; // 4 hours
+
+function isSlowdownEnabled(): boolean {
+  return env.LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED === "true";
+}
 
 /**
  * Check if an error is an S3 SlowDown error (rate limiting).
@@ -34,10 +37,9 @@ export function isS3SlowDownError(err: unknown): boolean {
  * Sets a Redis key with TTL to trigger secondary queue routing.
  */
 export async function markProjectS3Slowdown(projectId: string): Promise<void> {
-  if (!redis) return;
+  if (!redis || !isSlowdownEnabled()) return;
 
-  const ttlSeconds =
-    env.LANGFUSE_S3_SLOWDOWN_TTL_SECONDS ?? DEFAULT_TTL_SECONDS;
+  const ttlSeconds = env.LANGFUSE_S3_RATE_ERROR_SLOWDOWN_TTL_SECONDS;
 
   try {
     const key = `${S3_SLOWDOWN_PREFIX}:${projectId}`;
@@ -59,7 +61,7 @@ export async function markProjectS3Slowdown(projectId: string): Promise<void> {
  * Returns false on error to fail open (don't redirect unnecessarily).
  */
 export async function hasS3SlowdownFlag(projectId: string): Promise<boolean> {
-  if (!redis) return false;
+  if (!redis || !isSlowdownEnabled()) return false;
 
   try {
     const key = `${S3_SLOWDOWN_PREFIX}:${projectId}`;
