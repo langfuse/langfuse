@@ -671,7 +671,8 @@ class BillingService {
         })();
 
         const returnUrl = `${env.NEXTAUTH_URL}/organization/${orgId}/settings/billing`;
-        const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
+        const stripeCustomerId =
+          parsedOrg.cloudConfig?.stripe?.customerId ?? undefined;
         const clientReferenceId = createStripeClientReference(orgId);
         const subscriptionMetadata: StripeSubscriptionMetadata = {
           orgId: orgId,
@@ -679,7 +680,7 @@ class BillingService {
         };
 
         const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-          customer: stripeCustomerId,
+          customer: stripeCustomerId ?? undefined,
           line_items: lineItems,
           client_reference_id: clientReferenceId,
           allow_promotion_codes: true,

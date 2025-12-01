@@ -364,11 +364,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           name="isActive"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Labels</FormLabel>
-              <FormDescription>
-                This version will be labeled as the version to be used in
-                production for this prompt. Labels can be updated later.
-              </FormDescription>
               <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
                 <FormControl>
                   <Checkbox
@@ -389,7 +384,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           name="commitMessage"
           render={({ field }) => (
             <FormItem className="relative">
-              <FormLabel>Commit message (optional)</FormLabel>
+              <FormLabel>Commit message</FormLabel>
               <FormDescription>
                 Provide information about the changes made in this version.
                 Helps maintain a clear history of prompt iterations.

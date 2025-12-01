@@ -9,6 +9,7 @@ export const RateLimitResource = z.enum([
   "prompts",
   "legacy-ingestion",
   "datasets",
+  "trace-delete",
 ]);
 
 // result of the rate limit check.

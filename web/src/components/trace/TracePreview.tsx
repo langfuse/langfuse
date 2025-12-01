@@ -20,8 +20,8 @@ import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/compon
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useMemo, useState, useEffect } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
-import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import type Decimal from "decimal.js";
 import {
   TabsBar,
   TabsBarContent,
@@ -29,7 +29,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { InfoIcon } from "lucide-react";
+import { ExternalLinkIcon, InfoIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import Link from "next/link";
@@ -68,6 +68,7 @@ export const TracePreview = ({
   commentCounts,
   viewType = "detailed",
   showCommentButton = false,
+  precomputedCost,
 }: {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
@@ -79,6 +80,7 @@ export const TracePreview = ({
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
   showCommentButton?: boolean;
+  precomputedCost: Decimal | undefined;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -112,13 +114,7 @@ export const TracePreview = ({
     },
   );
 
-  const totalCost = useMemo(
-    () =>
-      calculateDisplayTotalCost({
-        allObservations: observations,
-      }),
-    [observations],
-  );
+  const totalCost = precomputedCost;
 
   const usageDetails = useMemo(
     () =>
@@ -235,7 +231,10 @@ export const TracePreview = ({
                   href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
                   className="inline-flex"
                 >
-                  <Badge>Session: {trace.sessionId}</Badge>
+                  <Badge>
+                    <span className="truncate">Session: {trace.sessionId}</span>
+                    <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                  </Badge>
                 </Link>
               ) : null}
               {trace.userId ? (
@@ -243,7 +242,10 @@ export const TracePreview = ({
                   href={`/project/${trace.projectId as string}/users/${encodeURIComponent(trace.userId)}`}
                   className="inline-flex"
                 >
-                  <Badge>User ID: {trace.userId}</Badge>
+                  <Badge>
+                    <span className="truncate">User ID: {trace.userId}</span>
+                    <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                  </Badge>
                 </Link>
               ) : null}
               {trace.environment ? (

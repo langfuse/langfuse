@@ -1793,11 +1793,11 @@ describe("Fetch datasets for UI presentation", () => {
         const item0Run1 = result.get(itemIds[0])?.[run1Id];
         expect(item0Run1?.observation?.latency).toBeDefined();
         // Observation 1: 3500ms - 2500ms = 1000ms latency, which translates to 1 second
-        expect(item0Run1?.observation?.latency).toBe(1);
+        expect(item0Run1?.observation?.latency).toBeCloseTo(1);
 
         const item0Run2 = result.get(itemIds[0])?.[run2Id];
         expect(item0Run2?.observation?.latency).toBeDefined();
-        expect(item0Run2?.observation?.latency).toBe(1); // Same observation
+        expect(item0Run2?.observation?.latency).toBeCloseTo(1); // Same observation
 
         // Test trace-level latency (calculated from trace timestamps and observations)
         const item1Run1 = result.get(itemIds[1])?.[run1Id];

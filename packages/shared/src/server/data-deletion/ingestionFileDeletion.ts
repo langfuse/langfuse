@@ -1,11 +1,11 @@
 import {
-  BlobStorageFileRefRecordReadType,
   getBlobStorageByProjectId,
   getBlobStorageByProjectIdAndEntityIds,
   getBlobStorageByProjectIdAndTraceIds,
   getBlobStorageByProjectIdBeforeDate,
-  logger,
-} from "..";
+} from "../repositories/blobStorageLog";
+import { BlobStorageFileRefRecordReadType } from "../repositories/definitions";
+import { logger } from "../logger";
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
 import { getS3EventStorageClient } from "../s3";

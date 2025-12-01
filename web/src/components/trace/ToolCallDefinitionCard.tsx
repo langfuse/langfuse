@@ -79,7 +79,7 @@ export function ToolCallDefinitionCard({
                   className={cn(
                     "text-xs font-medium",
                     isCalled &&
-                      "border-transparent bg-light-green text-dark-green hover:bg-light-green",
+                      "select-none border-transparent bg-light-green text-dark-green hover:bg-light-green",
                   )}
                 >
                   {statusText}

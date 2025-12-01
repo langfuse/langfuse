@@ -91,11 +91,6 @@ const staticProviders: Provider[] = [
         placeholder: "jsmith@example.com",
       },
       password: { label: "Password", type: "password" },
-      turnstileToken: {
-        label: "Turnstile Token (Captcha)",
-        type: "text",
-        value: "dummy",
-      },
     },
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
@@ -103,23 +98,6 @@ const staticProviders: Provider[] = [
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
-
-      if (env.TURNSTILE_SECRET_KEY && env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-        const res = await fetch(
-          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-          {
-            method: "POST",
-            body: `secret=${encodeURIComponent(env.TURNSTILE_SECRET_KEY)}&response=${encodeURIComponent(credentials.turnstileToken)}`,
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-            },
-          },
-        );
-        const data = await res.json();
-        if (data.success === false) {
-          throw new Error("Invalid captcha token");
-        }
-      }
 
       const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
@@ -774,7 +752,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               "Custom SSO provider enforced for domain, user signed in with other provider",
             );
             throw new Error(
-              `You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.`,
+              `You must sign in via Enterprise SSO for this domain. Enter your email on the sign-in page and press Continue.`,
             );
           }
 
