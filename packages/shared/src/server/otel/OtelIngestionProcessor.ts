@@ -1078,20 +1078,50 @@ export class OtelIngestionProcessor {
     const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
     const useArray = keys.some((key) => key.match(/^\d+\./));
 
+    // Helper function to set a value at a nested path
+    const setNestedValue = (obj: any, path: string[], value: unknown): void => {
+      let current = obj;
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = path[i];
+        if (!(key in current)) {
+          // Check if next key is a number to decide if we need an array or object
+          current[key] = /^\d+$/.test(path[i + 1]) ? [] : {};
+        }
+        current = current[key];
+      }
+      current[path[path.length - 1]] = value;
+    };
+
     if (useArray) {
       const result: any[] = [];
       for (const key of keys) {
-        const [index, ikey] = key.split(".", 2) as [number, string];
+        const pathParts = key.split(".");
+        const index = parseInt(pathParts[0], 10);
         if (!result[index]) {
           result[index] = {};
         }
-        result[index][ikey] = input[`${prefix}.${index}.${ikey}`];
+        if (pathParts.length === 2) {
+          // Simple case: 0.content -> result[0].content
+          result[index][pathParts[1]] = input[`${prefix}.${key}`];
+        } else {
+          // Nested case: 0.message.content -> result[0].message.content
+          setNestedValue(
+            result[index],
+            pathParts.slice(1),
+            input[`${prefix}.${key}`],
+          );
+        }
       }
       return result;
     } else {
       const result: Record<string, unknown> = {};
       for (const key of keys) {
-        result[key] = input[`${prefix}.${key}`];
+        const pathParts = key.split(".");
+        if (pathParts.length === 1) {
+          result[key] = input[`${prefix}.${key}`];
+        } else {
+          setNestedValue(result, pathParts, input[`${prefix}.${key}`]);
+        }
       }
       return result;
     }

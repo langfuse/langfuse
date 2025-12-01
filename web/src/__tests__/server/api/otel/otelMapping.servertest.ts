@@ -2091,7 +2091,21 @@ describe("OTel Resource Span Mapping", () => {
             stringValue: "Hello, how are you?",
           },
           entityAttributeKey: "input",
-          entityAttributeValue: [{ content: "Hello, how are you?" }],
+          entityAttributeValue: [
+            { message: { content: "Hello, how are you?" } },
+          ],
+        },
+      ],
+      [
+        "should extract llm.input_messages.message.role to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.input_messages.0.message.role",
+          otelAttributeValue: {
+            stringValue: "system",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [{ message: { role: "system" } }],
         },
       ],
       [
@@ -2103,7 +2117,9 @@ describe("OTel Resource Span Mapping", () => {
             stringValue: "Hello, how are you?",
           },
           entityAttributeKey: "output",
-          entityAttributeValue: [{ content: "Hello, how are you?" }],
+          entityAttributeValue: [
+            { message: { content: "Hello, how are you?" } },
+          ],
         },
       ],
       [
@@ -2965,31 +2981,29 @@ describe("OTel Resource Span Mapping", () => {
         (e) => e.type.endsWith("-create") && e.type !== "trace-create",
       );
 
-      // Verify input is extracted and structured as an array
+      // Verify input is extracted and structured as a nested array
       expect(observation?.body.input).toBeDefined();
       const inputParsed =
         typeof observation?.body.input === "string"
           ? JSON.parse(observation.body.input)
           : observation?.body.input;
       expect(Array.isArray(inputParsed)).toBe(true);
-      expect(inputParsed[0]["message.role"]).toBe("system");
-      expect(inputParsed[0]["message.content"]).toBe(
+      expect(inputParsed[0].message.role).toBe("system");
+      expect(inputParsed[0].message.content).toBe(
         "You are a helpful assistant.",
       );
-      expect(inputParsed[1]["message.role"]).toBe("user");
-      expect(inputParsed[1]["message.content"]).toBe(
-        "What is the weather today?",
-      );
+      expect(inputParsed[1].message.role).toBe("user");
+      expect(inputParsed[1].message.content).toBe("What is the weather today?");
 
-      // Verify output is extracted and structured as an array
+      // Verify output is extracted and structured as a nested array
       expect(observation?.body.output).toBeDefined();
       const outputParsed =
         typeof observation?.body.output === "string"
           ? JSON.parse(observation.body.output)
           : observation?.body.output;
       expect(Array.isArray(outputParsed)).toBe(true);
-      expect(outputParsed[0]["message.role"]).toBe("assistant");
-      expect(outputParsed[0]["message.content"]).toBe(
+      expect(outputParsed[0].message.role).toBe("assistant");
+      expect(outputParsed[0].message.content).toBe(
         "I don't have access to real-time weather data.",
       );
 
