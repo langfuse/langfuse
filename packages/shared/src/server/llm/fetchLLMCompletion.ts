@@ -270,7 +270,7 @@ export async function fetchLLMCompletion(
         modelParams.temperature !== undefined &&
         modelParams.top_p === undefined
       ) {
-        chatModel.topP = undefined;
+          chatModel.topP = undefined;
       }
 
       if (
@@ -375,7 +375,8 @@ export async function fetchLLMCompletion(
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
-      model: modelParams.model,
+      model: modelParams.model, 
+      baseUrl: baseURL ?? undefined,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
