@@ -865,7 +865,7 @@ export function NumericFacet({
             <Slider
               min={min}
               max={max}
-              step={1}
+              step={max - min <= 1000 ? 0.01 : 1}
               value={localValue}
               onValueChange={handleSliderChange}
             />

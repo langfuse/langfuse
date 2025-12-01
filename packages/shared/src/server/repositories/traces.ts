@@ -452,6 +452,7 @@ export const getTraceById = async ({
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
   preferredClickhouseService,
+  excludeInputOutput = false,
 }: {
   traceId: string;
   projectId: string;
@@ -460,6 +461,8 @@ export const getTraceById = async ({
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
   preferredClickhouseService?: PreferredClickhouseService;
+  /** When true, sets input/output columns to empty in the query to reduce database load */
+  excludeInputOutput?: boolean;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -484,6 +487,17 @@ export const getTraceById = async ({
       },
     },
     fn: (input) => {
+      const inputColumn = excludeInputOutput
+        ? "''"
+        : renderingProps.truncated
+          ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+          : "input";
+      const outputColumn = excludeInputOutput
+        ? "''"
+        : renderingProps.truncated
+          ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+          : "output";
+
       const query = `
         SELECT
           id,
@@ -497,8 +511,8 @@ export const getTraceById = async ({
           public as public,
           bookmarked as bookmarked,
           tags,
-          ${renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
-          ${renderingProps.truncated ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          ${inputColumn} as input,
+          ${outputColumn} as output,
           session_id as session_id,
           0 as is_deleted,
           timestamp,
