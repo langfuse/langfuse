@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { paginationZod, LLMAdapter } from "@langfuse/shared";
+import { paginationZod, LLMAdapter, type JSONValue } from "@langfuse/shared";
 import { BedrockConfigSchema, VertexAIConfigSchema } from "@langfuse/shared";
 
 // Base LLM connection response schema - strict to prevent secret leakage
@@ -48,7 +48,7 @@ const PutLlmConnectionV1BodyBase = z.object({
   customModels: z.array(z.string().min(1)).optional(),
   withDefaultModels: z.boolean().optional().default(true),
   extraHeaders: z.record(z.string(), z.string()).optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: z.record(z.string(), z.string()).optional(),
 });
 
 // PUT /api/public/llm-connections request body (upsert) with adapter-specific validation
@@ -113,7 +113,7 @@ export function transformDbLlmConnectionToAPI(dbConnection: {
   customModels: string[];
   withDefaultModels: boolean;
   extraHeaderKeys: string[];
-  config: Record<string, unknown> | null;
+  config: JSONValue | null;
   createdAt: Date;
   updatedAt: Date;
 }): z.infer<typeof LlmConnectionResponse> {

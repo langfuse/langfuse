@@ -103,7 +103,7 @@ export default withMiddlewares({
         extraHeaderKeys: body.extraHeaders
           ? Object.keys(body.extraHeaders)
           : [],
-        config: body.config || null,
+        config: body.config,
       };
 
       // Perform upsert
