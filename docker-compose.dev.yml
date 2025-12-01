@@ -49,6 +49,7 @@ services:
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
+      --maxmemory-policy noeviction
     ports:
       - ${HOST_IP:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379
     networks:
