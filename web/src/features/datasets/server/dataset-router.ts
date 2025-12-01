@@ -641,6 +641,19 @@ export const datasetRouter = createTRPCRouter({
           id_projectId: { id: input.datasetItemId, projectId: input.projectId },
           datasetId: input.datasetId,
         },
+        select: {
+          id: true,
+          projectId: true,
+          datasetId: true,
+          status: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
+          sourceTraceId: true,
+          sourceObservationId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
     }),
   countItemsByDatasetId: protectedProjectProcedure
@@ -1029,6 +1042,15 @@ export const datasetRouter = createTRPCRouter({
             datasetId: input.datasetId,
             projectId: input.projectId,
           },
+          select: {
+            id: true,
+            status: true,
+            input: true,
+            expectedOutput: true,
+            metadata: true,
+            sourceTraceId: true,
+            sourceObservationId: true,
+          },
           orderBy: [
             { createdAt: "asc" },
             // ensure consistent ordering for pagination; via bulk upload many items might have the same createdAt
@@ -1217,6 +1239,19 @@ export const datasetRouter = createTRPCRouter({
         where: {
           id: datasetItemId,
           projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          projectId: true,
+          datasetId: true,
+          status: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
+          sourceTraceId: true,
+          sourceObservationId: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
       if (!datasetItem) {

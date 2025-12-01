@@ -9,6 +9,8 @@ import {
   type Dataset as DbDataset,
   removeObjectKeys,
   type DatasetRunItemDomain,
+  type DatasetStatus,
+  type DatasetItemDomain,
 } from "@langfuse/shared";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
@@ -85,7 +87,23 @@ export const transformDbDatasetRunToAPIDatasetRun = (
   removeObjectKeys(dbDatasetRun, ["projectId"]);
 
 export const transformDbDatasetItemToAPIDatasetItem = (
-  dbDatasetItem: DbDatasetItems & { datasetName: string },
+  dbDatasetItem: Omit<DbDatasetItems, "status"> & {
+    datasetName: string;
+    status: DatasetStatus;
+  },
+): z.infer<typeof APIDatasetItem> =>
+  removeObjectKeys(dbDatasetItem, [
+    "projectId",
+    "sysId",
+    "validFrom",
+    "isDeleted",
+  ]);
+
+export const transformDbDatasetItemDomainToAPIDatasetItem = (
+  dbDatasetItem: Omit<DatasetItemDomain, "status"> & {
+    datasetName: string;
+    status: DatasetStatus;
+  },
 ): z.infer<typeof APIDatasetItem> =>
   removeObjectKeys(dbDatasetItem, ["projectId"]);
 

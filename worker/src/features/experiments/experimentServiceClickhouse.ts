@@ -1,4 +1,4 @@
-import { DatasetItem, DatasetStatus, Prisma } from "@langfuse/shared";
+import { DatasetItemDomain, DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessage,
@@ -63,7 +63,7 @@ async function getExistingRunItemDatasetItemIds(
 
 async function processItem(
   projectId: string,
-  datasetItem: DatasetItem & { input: Prisma.JsonObject },
+  datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
@@ -148,7 +148,7 @@ async function processItem(
 async function processLLMCall(
   runItemId: string,
   traceId: string,
-  datasetItem: DatasetItem & { input: Prisma.JsonObject },
+  datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   let messages: ChatMessage[] = [];
@@ -213,6 +213,19 @@ async function getItemsToProcess(
       datasetId,
       projectId,
       status: DatasetStatus.ACTIVE,
+    },
+    select: {
+      id: true,
+      projectId: true,
+      datasetId: true,
+      status: true,
+      input: true,
+      expectedOutput: true,
+      metadata: true,
+      sourceTraceId: true,
+      sourceObservationId: true,
+      createdAt: true,
+      updatedAt: true,
     },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
@@ -351,6 +364,19 @@ async function createAllDatasetRunItemsWithConfigError(
       datasetId,
       projectId,
       status: DatasetStatus.ACTIVE,
+    },
+    select: {
+      id: true,
+      projectId: true,
+      datasetId: true,
+      status: true,
+      input: true,
+      expectedOutput: true,
+      metadata: true,
+      sourceTraceId: true,
+      sourceObservationId: true,
+      createdAt: true,
+      updatedAt: true,
     },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });

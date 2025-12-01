@@ -49,6 +49,7 @@ export default withMiddlewares({
         items: datasetItems
           .map((item) => ({
             ...item,
+            status: item.status ?? "ACTIVE",
             datasetName: dataset.name,
           }))
           .map(transformDbDatasetItemToAPIDatasetItem),

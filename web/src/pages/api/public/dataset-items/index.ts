@@ -6,6 +6,7 @@ import {
   GetDatasetItemsV1Response,
   PostDatasetItemsV1Body,
   PostDatasetItemsV1Response,
+  transformDbDatasetItemDomainToAPIDatasetItem,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
@@ -63,9 +64,10 @@ export default withMiddlewares({
           after: datasetItem,
         });
 
-        return transformDbDatasetItemToAPIDatasetItem({
+        return transformDbDatasetItemDomainToAPIDatasetItem({
           ...datasetItem,
           datasetName: datasetName,
+          status: datasetItem.status ?? "ACTIVE",
         });
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -133,6 +135,7 @@ export default withMiddlewares({
         })
       ).map(({ dataset, ...other }) => ({
         ...other,
+        status: other.status ?? "ACTIVE",
         datasetName: dataset.name,
       }));
 

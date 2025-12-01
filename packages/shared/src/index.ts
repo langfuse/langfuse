@@ -21,6 +21,7 @@ export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
 export * from "./domain/dataset-run-items";
+export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
 
 // llm api

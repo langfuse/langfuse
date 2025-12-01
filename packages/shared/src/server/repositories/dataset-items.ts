@@ -6,6 +6,7 @@ import {
   InvalidRequestError,
 } from "../../errors";
 import { DatasetItemValidator } from "../services/DatasetService/DatasetItemValidator";
+import { DatasetItemDomain } from "../../domain/dataset-items";
 import type {
   CreateManyItemsInsert,
   CreateManyItemsPayload,
@@ -94,8 +95,13 @@ async function getDatasetByName(props: {
   return dataset;
 }
 
+function toDomainType(item: DatasetItem): DatasetItemDomain {
+  const { sysId, validFrom, isDeleted, ...domainItem } = item;
+  return domainItem;
+}
+
 function mergeItemData(
-  existingItem: DatasetItem,
+  existingItem: DatasetItemDomain,
   newData: {
     input?: string | unknown | null;
     expectedOutput?: string | unknown | null;
@@ -132,7 +138,7 @@ async function getItemById(props: {
   projectId: string;
   datasetItemId: string;
   datasetId?: string;
-}): Promise<DatasetItem | null> {
+}): Promise<DatasetItemDomain | null> {
   const item = await prisma.datasetItem.findUnique({
     where: {
       id_projectId: {
@@ -140,6 +146,19 @@ async function getItemById(props: {
         projectId: props.projectId,
       },
       ...(props.datasetId ? { datasetId: props.datasetId } : {}),
+    },
+    select: {
+      id: true,
+      projectId: true,
+      datasetId: true,
+      status: true,
+      input: true,
+      expectedOutput: true,
+      metadata: true,
+      sourceTraceId: true,
+      sourceObservationId: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
 
@@ -168,7 +187,7 @@ export async function createDatasetItem(props: {
   validateOpts: {
     normalizeUndefinedToNull?: boolean;
   };
-}): Promise<{ success: true; datasetItem: DatasetItem } | PayloadError> {
+}): Promise<{ success: true; datasetItem: DatasetItemDomain } | PayloadError> {
   // Delegate to createManyDatasetItems with single item
   const result = await createManyDatasetItems({
     projectId: props.projectId,
@@ -200,7 +219,7 @@ export async function createDatasetItem(props: {
     id: result.datasetItems[0].itemId,
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as DatasetItem;
+  } as DatasetItemDomain;
 
   return { success: true, datasetItem };
 }
@@ -227,7 +246,7 @@ export async function upsertDatasetItem(
     normalizeOpts?: { sanitizeControlChars?: boolean };
     validateOpts: { normalizeUndefinedToNull?: boolean };
   } & IdOrName,
-): Promise<DatasetItem> {
+): Promise<DatasetItemDomain> {
   // 1. Get dataset
   const dataset =
     "datasetId" in props
@@ -244,7 +263,7 @@ export async function upsertDatasetItem(
 
   // 2. Fetch existing item if updating (itemId provided)
   // This ensures we validate and write the complete merged state
-  let existingItem: DatasetItem | null = null;
+  let existingItem: DatasetItemDomain | null = null;
   if (props.datasetItemId) {
     existingItem = await getItemById({
       projectId: props.projectId,
@@ -318,7 +337,7 @@ export async function upsertDatasetItem(
     throw new InternalServerError("Failed to upsert dataset item");
   }
 
-  return item;
+  return toDomainType(item);
 }
 
 /**
@@ -330,7 +349,7 @@ export async function deleteDatasetItem(props: {
   projectId: string;
   datasetItemId: string;
   datasetId?: string;
-}): Promise<{ success: true; deletedItem: DatasetItem }> {
+}): Promise<{ success: true; deletedItem: DatasetItemDomain }> {
   const item = await getItemById({
     projectId: props.projectId,
     datasetItemId: props.datasetItemId,

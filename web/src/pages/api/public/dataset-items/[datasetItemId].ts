@@ -44,6 +44,7 @@ export default withMiddlewares({
 
       return transformDbDatasetItemToAPIDatasetItem({
         ...datasetItemBody,
+        status: datasetItemBody.status ?? "ACTIVE",
         datasetName: dataset.name,
       });
     },
