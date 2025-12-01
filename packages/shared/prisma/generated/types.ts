@@ -420,7 +420,7 @@ export type Dataset = {
 export type DatasetItem = {
   id: string;
   project_id: string;
-  status: Generated<DatasetStatus>;
+  status: Generated<DatasetStatus | null>;
   input: unknown | null;
   expected_output: unknown | null;
   metadata: unknown | null;
