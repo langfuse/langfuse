@@ -158,6 +158,19 @@ async function getItemById(props: {
       },
       ...(props.datasetId ? { datasetId: props.datasetId } : {}),
     },
+    select: {
+      id: true,
+      projectId: true,
+      datasetId: true,
+      status: true,
+      input: true,
+      expectedOutput: true,
+      metadata: true,
+      sourceTraceId: true,
+      sourceObservationId: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
 
   return item ? toDomainType(item) : null;
