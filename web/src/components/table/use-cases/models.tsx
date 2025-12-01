@@ -4,7 +4,12 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import {
+  useQueryParams,
+  withDefault,
+  NumberParam,
+  StringParam,
+} from "use-query-params";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -24,7 +29,8 @@ import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
+import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -66,11 +72,16 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const [queryParams, setQueryParams] = useQueryParams({
+    search: withDefault(StringParam, ""),
+  });
+  const searchString = queryParams.search;
   const models = api.models.getAll.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId,
+      searchString,
     },
     {
       refetchOnWindowFocus: false,
@@ -257,12 +268,16 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   );
 
   const convertToTableRow = (model: GetModelResult): ModelTableRow => {
+    // Get default tier prices for backward compatibility
+    const defaultTier = model.pricingTiers.find((t) => t.isDefault);
+    const prices = defaultTier?.prices;
+
     return {
       modelId: model.id,
       maintainer: model.projectId ? "User" : "Langfuse",
       modelName: model.modelName,
       matchPattern: model.matchPattern,
-      prices: model.prices,
+      prices,
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
       lastUsed: model.lastUsed,
@@ -280,21 +295,31 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        searchConfig={{
+          updateQuery: (event: string) => {
+            setQueryParams({ search: event });
+          },
+          tableAllowsFullTextSearch: true,
+          currentQuery: searchString,
+        }}
         actionButtons={
-          <UpsertModelFormDrawer {...{ projectId, action: "create" }}>
-            <ActionButton
-              variant="secondary"
-              icon={<PlusIcon className="h-4 w-4" />}
-              hasAccess={hasWriteAccess}
-              onClick={() => capture("models:new_form_open")}
-            >
-              Add model definition
-            </ActionButton>
-          </UpsertModelFormDrawer>
+          <>
+            <TestModelMatchButton projectId={projectId} />
+            <UpsertModelFormDialog {...{ projectId, action: "create" }}>
+              <ActionButton
+                variant="secondary"
+                icon={<PlusIcon className="h-4 w-4" />}
+                hasAccess={hasWriteAccess}
+                onClick={() => capture("models:new_form_open")}
+              >
+                Add Model Definition
+              </ActionButton>
+            </UpsertModelFormDialog>
+          </>
         }
         className="px-0"
       />
-      <SettingsTableCard>
+      <SettingsTableCard className="max-h-[75dvh]">
         <DataTable
           tableName={"models"}
           columns={columns}

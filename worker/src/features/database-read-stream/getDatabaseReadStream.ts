@@ -120,7 +120,7 @@ export const getDatabaseReadStreamPaginated = async ({
   };
 
   const clickhouseConfigs = {
-    request_timeout: 120_000,
+    request_timeout: 180_000,
   };
 
   switch (tableName) {
@@ -385,7 +385,7 @@ export const getDatabaseReadStreamPaginated = async ({
                 undefined as Date | undefined,
               ),
               {
-                request_timeout: 120_000,
+                request_timeout: 180_000,
               },
             ),
           ]);
@@ -698,7 +698,7 @@ export const getTraceIdentifierStream = async (props: {
   };
 
   const clickhouseConfigs = {
-    request_timeout: 120_000,
+    request_timeout: 180_000,
   };
 
   return new DatabaseReadStream<TraceIdentifiers>(

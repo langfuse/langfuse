@@ -13,6 +13,7 @@ import {
   PostModelsV1Response,
 } from "@/src/features/public-api/types/models";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
 
 describe("/models API Endpoints", () => {
   let auth: string;
@@ -38,6 +39,17 @@ describe("/models API Endpoints", () => {
         unit: "TOKENS",
       },
     });
+    const pricingTierId1 = v4();
+    await prisma.pricingTier.create({
+      data: {
+        id: pricingTierId1,
+        isDefault: true,
+        priority: 0,
+        conditions: [],
+        name: "Standard",
+        modelId: "model-1",
+      },
+    });
     await prisma.price.createMany({
       data: [
         {
@@ -45,16 +57,25 @@ describe("/models API Endpoints", () => {
           projectId: null,
           usageType: "input",
           price: 0.001,
+          pricingTierId: pricingTierId1,
         },
         {
           modelId: "model-1",
           projectId: null,
           usageType: "output",
           price: 0.002,
+          pricingTierId: pricingTierId1,
         },
-        { modelId: "model-1", projectId: null, usageType: "total", price: 0.1 },
+        {
+          modelId: "model-1",
+          projectId: null,
+          usageType: "total",
+          price: 0.1,
+          pricingTierId: pricingTierId1,
+        },
       ],
     });
+
     await prisma.model.create({
       data: {
         id: "model-2",
@@ -68,6 +89,17 @@ describe("/models API Endpoints", () => {
         unit: "TOKENS",
       },
     });
+    const pricingTierId2 = v4();
+    await prisma.pricingTier.create({
+      data: {
+        id: pricingTierId2,
+        isDefault: true,
+        priority: 0,
+        conditions: [],
+        name: "Standard",
+        modelId: "model-2",
+      },
+    });
     await prisma.price.createMany({
       data: [
         {
@@ -75,12 +107,14 @@ describe("/models API Endpoints", () => {
           projectId: null,
           usageType: "input",
           price: 0.02,
+          pricingTierId: pricingTierId2,
         },
         {
           modelId: "model-2",
           projectId: null,
           usageType: "output",
           price: 0.04,
+          pricingTierId: pricingTierId2,
         },
       ],
     });
@@ -216,20 +250,6 @@ describe("/models API Endpoints", () => {
       auth,
     );
     expect(customModel.status).toBe(400);
-  });
-
-  it("Post model without prices or tokenizer", async () => {
-    await makeZodVerifiedAPICall(
-      PostModelsV1Response,
-      "POST",
-      "/api/public/models",
-      {
-        modelName: "gpt-3.5-turbo",
-        matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
-        unit: "TOKENS",
-      },
-      auth,
-    );
   });
 
   it("Post model with missing fields", async () => {

@@ -17,11 +17,14 @@ import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
 import {
   clearModelCacheForProject,
   queryClickhouse,
+  findModel,
+  matchPricingTier,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
+  searchString: z.string(),
   ...paginationZod,
 });
 
@@ -41,8 +44,8 @@ export const modelRouter = createTRPCRouter({
   getById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), modelId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const modelQueryResult = await ctx.prisma.$queryRaw`          
-          SELECT 
+      const modelQueryResult = await ctx.prisma.$queryRaw`
+          SELECT
             m.id,
             m.project_id as "projectId",
             m.model_name as "modelName",
@@ -52,14 +55,34 @@ export const modelRouter = createTRPCRouter({
             COALESCE(
               (
                 SELECT
-                  JSONB_OBJECT_AGG(usage_type, price)
+                  JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                      'id', mpt.id,
+                      'name', mpt.name,
+                      'isDefault', mpt.is_default,
+                      'priority', mpt.priority,
+                      'conditions', mpt.conditions,
+                      'prices', COALESCE(
+                        (
+                          SELECT
+                            JSONB_OBJECT_AGG(p.usage_type, p.price)
+                          FROM
+                            prices p
+                          WHERE
+                            p.pricing_tier_id = mpt.id
+                        ),
+                        '{}'::jsonb
+                      )
+                    )
+                    ORDER BY mpt.priority ASC
+                  )
                 FROM
-                  prices
+                  pricing_tiers mpt
                 WHERE
-                  model_id = m.id
+                  mpt.model_id = m.id
               ),
-              '{}'::jsonb
-            ) AS prices
+              '[]'::json
+            ) AS "pricingTiers"
           FROM
             models m
           WHERE
@@ -85,12 +108,13 @@ export const modelRouter = createTRPCRouter({
   getAll: protectedProjectProcedure
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
-      const { projectId, page, limit } = input;
+      const { projectId, page, limit, searchString } = input;
+      const searchStringCondition = `%${searchString}%`;
 
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
         ctx.prisma.$queryRaw`
-          SELECT DISTINCT ON (project_id, model_name) 
+          SELECT DISTINCT ON (project_id, model_name)
             m.id,
             m.project_id as "projectId",
             m.model_name as "modelName",
@@ -100,23 +124,43 @@ export const modelRouter = createTRPCRouter({
             COALESCE(
               (
                 SELECT
-                  JSONB_OBJECT_AGG(usage_type, price)
+                  JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                      'id', mpt.id,
+                      'name', mpt.name,
+                      'isDefault', mpt.is_default,
+                      'priority', mpt.priority,
+                      'conditions', mpt.conditions,
+                      'prices', COALESCE(
+                        (
+                          SELECT
+                            JSONB_OBJECT_AGG(p.usage_type, p.price)
+                          FROM
+                            prices p
+                          WHERE
+                            p.pricing_tier_id = mpt.id
+                        ),
+                        '{}'::jsonb
+                      )
+                    )
+                    ORDER BY mpt.priority ASC
+                  )
                 FROM
-                  prices
+                  pricing_tiers mpt
                 WHERE
-                  model_id = m.id
+                  mpt.model_id = m.id
               ),
-              '{}'::jsonb
-            ) AS prices
+              '[]'::json
+            ) AS "pricingTiers"
           FROM
             models m
           WHERE
-            project_id IS NULL
-            OR project_id = ${projectId}
+            (project_id IS NULL OR project_id = ${projectId})
+			      AND model_name ILIKE ${searchStringCondition}
           ORDER BY
             project_id,
             model_name,
-            m.created_at DESC NULLS LAST 
+            m.created_at DESC NULLS LAST
           `,
 
         // Total count
@@ -127,8 +171,8 @@ export const modelRouter = createTRPCRouter({
         >`
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
-          WHERE project_id IS NULL 
-          OR project_id = ${projectId};
+          WHERE (project_id IS NULL OR project_id = ${projectId})
+          AND model_name ILIKE ${searchStringCondition};
         `,
       ]);
 
@@ -201,6 +245,7 @@ export const modelRouter = createTRPCRouter({
         matchPattern,
         tokenizerConfig,
         tokenizerId,
+        pricingTiers,
       } = input;
 
       throwIfNoProjectAccess({
@@ -281,32 +326,47 @@ export const modelRouter = createTRPCRouter({
           },
         });
 
-        await tx.price.deleteMany({
+        // Delete all existing pricing tiers
+        await tx.pricingTier.deleteMany({
           where: {
             modelId: upsertedModel.id,
           },
         });
 
-        await tx.price.createMany({
-          data: Object.entries(input.prices)
-            .filter(
-              (priceEntry): priceEntry is [string, number] =>
-                priceEntry[1] != null,
-            )
-            .map(([usageType, price]) => ({
+        // Create new pricing tiers
+        for (const tier of pricingTiers) {
+          const createdTier = await tx.pricingTier.create({
+            data: {
               modelId: upsertedModel.id,
-              projectId: upsertedModel.projectId,
-              usageType,
-              price,
-            })),
-        });
+              name: tier.name,
+              isDefault: tier.isDefault,
+              priority: tier.priority,
+              conditions: tier.conditions,
+            },
+          });
+
+          // Create prices for this tier
+          await Promise.all(
+            Object.entries(tier.prices).map(([usageType, price]) =>
+              tx.price.create({
+                data: {
+                  modelId: upsertedModel.id,
+                  projectId: upsertedModel.projectId,
+                  pricingTierId: createdTier.id,
+                  usageType,
+                  price,
+                },
+              }),
+            ),
+          );
+        }
 
         await auditLog({
           session: ctx.session,
           resourceType: "model",
           resourceId: upsertedModel.id,
-          action: modelId ? "update" : "create",
-          after: upsertedModel,
+          action: providedModelId ? "update" : "create",
+          after: { model: upsertedModel, pricingTiers },
         });
 
         return upsertedModel;
@@ -350,5 +410,93 @@ export const modelRouter = createTRPCRouter({
       await clearModelCacheForProject(input.projectId);
 
       return deletedModel;
+    }),
+  testMatch: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        modelName: z.string().min(1),
+        usageDetails: z.record(z.string(), z.number()).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { projectId, modelName, usageDetails } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "models:CUD",
+      });
+
+      // Step 1: Use existing findModel from shared
+      const { model, pricingTiers } = await findModel({
+        projectId,
+        model: modelName,
+      });
+
+      if (!model) {
+        return { matched: false as const };
+      }
+
+      // Step 2: If no usage details provided, return default tier
+      if (!usageDetails || Object.keys(usageDetails).length === 0) {
+        const defaultTier = pricingTiers.find((t) => t.isDefault);
+        if (!defaultTier) {
+          return { matched: false as const };
+        }
+
+        return {
+          matched: true as const,
+          model: {
+            id: model.id,
+            modelName: model.modelName,
+            matchPattern: model.matchPattern,
+            projectId: model.projectId,
+          },
+          matchedTier: {
+            id: defaultTier.id,
+            name: defaultTier.name,
+            priority: defaultTier.priority,
+            isDefault: true,
+            prices: Object.fromEntries(
+              defaultTier.prices.map((p) => [p.usageType, p.price.toNumber()]),
+            ),
+          },
+        };
+      }
+
+      // Step 3: Use matchPricingTier from shared
+      const matchResult = matchPricingTier(pricingTiers, usageDetails);
+
+      if (!matchResult) {
+        return { matched: false as const };
+      }
+
+      // Step 4: Find the full tier details
+      const matchedTier = pricingTiers.find(
+        (t) => t.id === matchResult.pricingTierId,
+      );
+      if (!matchedTier) {
+        return { matched: false as const };
+      }
+
+      return {
+        matched: true as const,
+        model: {
+          id: model.id,
+          modelName: model.modelName,
+          matchPattern: model.matchPattern,
+          projectId: model.projectId,
+        },
+        matchedTier: {
+          id: matchedTier.id,
+          name: matchedTier.name,
+          priority: matchedTier.priority,
+          isDefault: matchedTier.isDefault,
+          prices: Object.fromEntries(
+            matchedTier.prices.map((p) => [p.usageType, p.price.toNumber()]),
+          ),
+        },
+      };
     }),
 });

@@ -16,6 +16,7 @@ import {
   enrichObservationWithModelData,
   clickhouseSearchCondition,
   convertObservation,
+  shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Readable } from "stream";
@@ -88,9 +89,15 @@ export const getObservationStream = async (props: {
     searchType,
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
+
+  // Check if we should skip deduplication for OTEL projects
+  const skipDedup = await shouldSkipObservationsFinal(projectId);
+
   const clickhouseConfigs = {
-    request_timeout: 120_000,
-    join_algorithm: "partial_merge",
+    request_timeout: 180_000, // 3 minutes
+    clickhouse_settings: {
+      join_algorithm: "partial_merge" as const,
+    },
   };
 
   // Filter out trace-level filters since we don't join the traces table for filtering
@@ -239,7 +246,7 @@ export const getObservationStream = async (props: {
         LEFT JOIN scores_agg s ON s.trace_id = o.trace_id AND s.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
         ${search.query}
-      LIMIT 1 BY o.id, o.project_id
+      ${skipDedup ? "" : "LIMIT 1 BY o.id, o.project_id"}
       limit {rowLimit: Int64}
   `;
 

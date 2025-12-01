@@ -45,6 +45,41 @@ export async function traceDeletionProcessor(
     },
   );
 
+  // Check if project is in skip list
+  if (env.LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS.includes(projectId)) {
+    logger.info(
+      `Skipping trace deletion for project ${projectId} (in skip list). No pending deletions created, no queue job added.`,
+      {
+        projectId,
+        traceIds,
+        traceCount: traceIds.length,
+        skipReason: "LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS",
+      },
+    );
+
+    return; // Early return - don't create pending_deletions or queue job
+  }
+
+  // Check if project still exists (might have been deleted)
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true },
+  });
+
+  if (!project) {
+    logger.info(
+      `Skipping trace deletion for project ${projectId} (project no longer exists). No pending deletions created, no queue job added.`,
+      {
+        projectId,
+        traceIds,
+        traceCount: traceIds.length,
+        skipReason: "PROJECT_NOT_FOUND",
+      },
+    );
+
+    return; // Early return - project deletion handles cleanup separately
+  }
+
   try {
     // Create pending deletion records for all traces
     await prisma.pendingDeletion.createMany({

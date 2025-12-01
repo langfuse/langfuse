@@ -430,6 +430,20 @@ export type DatasetItem = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type DatasetItemEvent = {
+  id: string;
+  item_id: string;
+  project_id: string;
+  dataset_id: string;
+  status: DatasetStatus | null;
+  input: unknown | null;
+  expected_output: unknown | null;
+  metadata: unknown | null;
+  source_trace_id: string | null;
+  source_observation_id: string | null;
+  created_at: Timestamp | null;
+  deleted_at: Timestamp | null;
+};
 export type DatasetRunItems = {
   id: string;
   project_id: string;
@@ -727,8 +741,19 @@ export type Price = {
   updated_at: Generated<Timestamp>;
   model_id: string;
   project_id: string | null;
+  pricing_tier_id: string;
   usage_type: string;
   price: string;
+};
+export type PricingTier = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  model_id: string;
+  name: string;
+  is_default: Generated<boolean>;
+  priority: number;
+  conditions: unknown;
 };
 export type Project = {
   id: string;
@@ -906,6 +931,7 @@ export type DB = {
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
   dashboards: Dashboard;
+  dataset_item_events: DatasetItemEvent;
   dataset_items: DatasetItem;
   dataset_run_items: DatasetRunItems;
   dataset_runs: DatasetRuns;
@@ -929,6 +955,7 @@ export type DB = {
   pending_deletions: PendingDeletion;
   posthog_integrations: PosthogIntegration;
   prices: Price;
+  pricing_tiers: PricingTier;
   project_memberships: ProjectMembership;
   projects: Project;
   prompt_dependencies: PromptDependency;
