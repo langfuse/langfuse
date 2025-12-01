@@ -43,7 +43,7 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
 ]);
 
 const countValidDatasetItems = (
-  datasetItems: DatasetItemDomain[],
+  datasetItems: Omit<DatasetItemDomain, "status">[],
   variables: string[],
 ): Record<string, number> => {
   const variableMap: Record<string, number> = {};
@@ -150,7 +150,6 @@ export const experimentsRouter = createTRPCRouter({
           id: true,
           projectId: true,
           datasetId: true,
-          status: true,
           input: true,
           expectedOutput: true,
           metadata: true,
