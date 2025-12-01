@@ -145,6 +145,7 @@ export default withMiddlewares({
     name: "Delete Multiple Traces",
     bodySchema: DeleteTracesV1Body,
     responseSchema: DeleteTracesV1Response,
+    rateLimitResource: "trace-delete",
     fn: async ({ body, auth }) => {
       const { traceIds } = body;
 

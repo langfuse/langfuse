@@ -635,7 +635,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 type="button"
                                 size="xs"
                                 title="Add or view score comment"
-                                className="h-full items-start px-0 pl-1 disabled:text-primary/50 disabled:opacity-100"
+                                className="h-full px-0 pl-1 disabled:text-primary/50 disabled:opacity-100"
                                 disabled={
                                   isScoreUnsaved(score.id) ||
                                   (config.isArchived && !score.comment)
