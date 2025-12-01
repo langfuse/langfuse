@@ -375,7 +375,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const userIdFilterResponse = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(userIdFilterParam)}`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(userIdFilterParam)}&limit=1000`,
       );
 
       expect(userIdFilterResponse.status).toBe(200);
@@ -429,7 +429,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch with limit=2 (should have cursor since we have 3 observations)
       const response = await makeZodVerifiedAPICall(
@@ -468,7 +467,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch with limit=5 (should not have cursor since we only have 2)
       const response = await makeZodVerifiedAPICall(
@@ -506,7 +504,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page with limit=2
       const page1 = await makeZodVerifiedAPICall(
@@ -598,7 +595,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       });
 
       await createEventsCh([obs1, obs2, obs3]);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page
       const page1 = await makeZodVerifiedAPICall(
@@ -658,7 +654,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page with type filter
       const page1 = await makeZodVerifiedAPICall(
