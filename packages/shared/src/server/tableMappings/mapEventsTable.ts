@@ -246,4 +246,16 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "s.score_categories",
   },
+  {
+    uiTableName: "Comment Count",
+    uiTableId: "commentCount",
+    clickhouseTableName: "comments",
+    clickhouseSelect: "", // handled by comment filter helpers
+  },
+  {
+    uiTableName: "Comment Content",
+    uiTableId: "commentContent",
+    clickhouseTableName: "comments",
+    clickhouseSelect: "", // handled by comment filter helpers
+  },
 ];

@@ -8,12 +8,8 @@ import {
   PostDatasetItemsV1Response,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import {
-  LangfuseNotFoundError,
-  InvalidRequestError,
-  Prisma,
-} from "@langfuse/shared";
-import { logger, DatasetItemManager } from "@langfuse/shared/src/server";
+import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
+import { logger, upsertDatasetItem } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -43,7 +39,7 @@ export default withMiddlewares({
       } = body;
 
       try {
-        const result = await DatasetItemManager.upsertItem({
+        const datasetItem = await upsertDatasetItem({
           projectId: auth.scope.projectId,
           datasetName: datasetName,
           datasetItemId: id ?? undefined,
@@ -56,24 +52,19 @@ export default withMiddlewares({
           normalizeOpts: { sanitizeControlChars: true },
           validateOpts: { normalizeUndefinedToNull: !!id ? false : true },
         });
-        if (!result.success) {
-          throw new InvalidRequestError(
-            `Dataset item validation failed: ${result.message}`,
-          );
-        }
 
         await auditLog({
           action: "create",
           resourceType: "datasetItem",
-          resourceId: result.datasetItem.id,
+          resourceId: datasetItem.id,
           projectId: auth.scope.projectId,
           orgId: auth.scope.orgId,
           apiKeyId: auth.scope.apiKeyId,
-          after: result.datasetItem,
+          after: datasetItem,
         });
 
         return transformDbDatasetItemToAPIDatasetItem({
-          ...result.datasetItem,
+          ...datasetItem,
           datasetName: datasetName,
         });
       } catch (e) {

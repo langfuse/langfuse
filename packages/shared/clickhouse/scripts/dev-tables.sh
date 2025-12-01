@@ -38,26 +38,25 @@ fi
 
 # Ensure CLICKHOUSE_DB is set
 if [ -z "${CLICKHOUSE_DB}" ]; then
-    export CLICKHOUSE_DB="default"
+  export CLICKHOUSE_DB="default"
 fi
 
 # Parse the CLICKHOUSE_MIGRATION_URL to extract host and port
 # Expected format: clickhouse://localhost:9000
 if [[ $CLICKHOUSE_MIGRATION_URL =~ ^clickhouse://([^:]+):([0-9]+)$ ]]; then
-    CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
-    CLICKHOUSE_PORT="${BASH_REMATCH[2]}"
+  CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
+  CLICKHOUSE_PORT="${BASH_REMATCH[2]}"
 elif [[ $CLICKHOUSE_MIGRATION_URL =~ ^clickhouse://([^:]+)$ ]]; then
-    CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
-    CLICKHOUSE_PORT="9000"  # Default native protocol port
+  CLICKHOUSE_HOST="${BASH_REMATCH[1]}"
+  CLICKHOUSE_PORT="9000" # Default native protocol port
 else
-    echo "Error: Could not parse CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL}"
-    exit 1
+  echo "Error: Could not parse CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL}"
+  exit 1
 fi
 
-if ! command -v clickhouse &> /dev/null
-then
-	echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
-	exit 1
+if ! command -v clickhouse &>/dev/null; then
+  echo "Error: clickhouse binary could not be found. Please install ClickHouse client tools."
+  exit 1
 fi
 
 echo "Creating development tables in ClickHouse..."
@@ -101,6 +100,8 @@ CREATE TABLE IF NOT EXISTS observations_batch_staging
     provided_cost_details Map(LowCardinality(String), Decimal64(12)),
     cost_details Map(LowCardinality(String), Decimal64(12)),
     total_cost Nullable(Decimal64(12)),
+    usage_pricing_tier_id Nullable(String),
+    usage_pricing_tier_name Nullable(String),
     completion_start_time Nullable(DateTime64(3)),
     prompt_id Nullable(String),
     prompt_name Nullable(String),
@@ -190,6 +191,8 @@ CREATE TABLE IF NOT EXISTS events
       calculated_output_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
       calculated_total_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
       total_cost Decimal(18, 12) ALIAS cost_details_json.total,
+      usage_pricing_tier_id Nullable(String),
+      usage_pricing_tier_name Nullable(String),
 
       -- I/O
       input String CODEC(ZSTD(3)),
