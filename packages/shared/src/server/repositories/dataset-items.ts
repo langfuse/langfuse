@@ -12,12 +12,7 @@ import type {
   CreateManyValidationError,
   PayloadError,
 } from "../services/DatasetService/types";
-import {
-  Implementation,
-  executeWithDatasetServiceStrategy,
-  OperationType,
-  toPostgresDatasetItem,
-} from "../datasets/executeWithDatasetServiceStrategy";
+import { toPostgresDatasetItem } from "../datasets/executeWithDatasetServiceStrategy";
 
 type IdOrName = { datasetId: string } | { datasetName: string };
 
@@ -300,39 +295,24 @@ export async function upsertDatasetItem(
 
   let item: DatasetItem | null = null;
   // 6. Update item
-  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-    [Implementation.STATEFUL]: async () => {
-      const res = await prisma.datasetItem.upsert({
-        where: {
-          id_projectId: {
-            id: itemId,
-            projectId: props.projectId,
-          },
-          datasetId: dataset.id,
-        },
-        create: {
-          ...toPostgresDatasetItem(itemData),
-          datasetId: dataset.id,
-          projectId: props.projectId,
-        },
-        update: {
-          ...toPostgresDatasetItem(itemData),
-        },
-      });
-      item = res;
+  const res = await prisma.datasetItem.upsert({
+    where: {
+      id_projectId: {
+        id: itemId,
+        projectId: props.projectId,
+      },
+      datasetId: dataset.id,
     },
-    [Implementation.VERSIONED]: async () => {
-      // Write full item state to event table
-      await prisma.datasetItemEvent.create({
-        data: {
-          ...itemData,
-          projectId: props.projectId,
-          datasetId: dataset.id,
-          createdAt: new Date(),
-        },
-      });
+    create: {
+      ...toPostgresDatasetItem(itemData),
+      datasetId: dataset.id,
+      projectId: props.projectId,
+    },
+    update: {
+      ...toPostgresDatasetItem(itemData),
     },
   });
+  item = res;
 
   if (!item) {
     throw new InternalServerError("Failed to upsert dataset item");
@@ -363,26 +343,12 @@ export async function deleteDatasetItem(props: {
     );
   }
 
-  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-    [Implementation.STATEFUL]: async () => {
-      await prisma.datasetItem.delete({
-        where: {
-          id_projectId: {
-            id: props.datasetItemId,
-            projectId: props.projectId,
-          },
-        },
-      });
-    },
-    [Implementation.VERSIONED]: async () => {
-      await prisma.datasetItemEvent.create({
-        data: {
-          itemId: props.datasetItemId,
-          projectId: props.projectId,
-          datasetId: item.datasetId,
-          deletedAt: new Date(),
-        },
-      });
+  await prisma.datasetItem.delete({
+    where: {
+      id_projectId: {
+        id: props.datasetItemId,
+        projectId: props.projectId,
+      },
     },
   });
 
@@ -534,15 +500,8 @@ export async function createManyDatasetItems(props: {
   }
 
   // 5. Bulk insert all valid items
-  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-    [Implementation.STATEFUL]: async () => {
-      await prisma.datasetItem.createMany({
-        data: preparedItems.map(toPostgresDatasetItem),
-      });
-    },
-    [Implementation.VERSIONED]: async () => {
-      await prisma.datasetItemEvent.createMany({ data: preparedItems });
-    },
+  await prisma.datasetItem.createMany({
+    data: preparedItems.map(toPostgresDatasetItem),
   });
 
   return {

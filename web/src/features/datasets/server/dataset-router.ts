@@ -52,10 +52,7 @@ import {
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
-  executeWithDatasetServiceStrategy,
   toPostgresDatasetItem,
-  OperationType,
-  Implementation,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -1056,17 +1053,8 @@ export const datasetRouter = createTRPCRouter({
           createdAt: createdAt,
         }));
 
-        await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-          [Implementation.STATEFUL]: async () => {
-            await ctx.prisma.datasetItem.createMany({
-              data: preparedItems.map((item) => toPostgresDatasetItem(item)),
-            });
-          },
-          [Implementation.VERSIONED]: async () => {
-            await ctx.prisma.datasetItemEvent.createMany({
-              data: preparedItems,
-            });
-          },
+        await ctx.prisma.datasetItem.createMany({
+          data: preparedItems.map((item) => toPostgresDatasetItem(item)),
         });
 
         if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
