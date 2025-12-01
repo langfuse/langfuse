@@ -90,6 +90,9 @@ export const ObservationSchema = z.object({
   inputUsage: z.number(),
   outputUsage: z.number(),
   totalUsage: z.number(),
+  // pricing tier information
+  usagePricingTierId: z.string().nullable(),
+  usagePricingTierName: z.string().nullable(),
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;

@@ -21,7 +21,8 @@ import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useState } from "react";
+import type Decimal from "decimal.js";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   TabsBar,
@@ -29,9 +30,9 @@ import {
   TabsBarTrigger,
   TabsBarContent,
 } from "@/src/components/ui/tabs-bar";
-import { BreakdownTooltip } from "./BreakdownToolTip";
+import { BreakdownTooltip, calculateAggregatedUsage } from "./BreakdownToolTip";
 import { ExternalLinkIcon, InfoIcon, PlusCircle } from "lucide-react";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -51,6 +52,7 @@ export const ObservationPreview = ({
   viewType = "detailed",
   isTimeline,
   showCommentButton = false,
+  precomputedCost,
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
@@ -61,6 +63,7 @@ export const ObservationPreview = ({
   viewType?: "focused" | "detailed";
   isTimeline?: boolean;
   showCommentButton?: boolean;
+  precomputedCost: Decimal | undefined;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -125,14 +128,7 @@ export const ObservationPreview = ({
       })
     : undefined;
 
-  const totalCost = useMemo(
-    () =>
-      calculateDisplayTotalCost({
-        allObservations: observations,
-        rootObservationId: currentObservationId,
-      }),
-    [observations, currentObservationId],
-  );
+  const totalCost = precomputedCost;
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
 
@@ -265,6 +261,9 @@ export const ObservationPreview = ({
                     <BreakdownTooltip
                       details={preloadedObservation.costDetails}
                       isCost={true}
+                      pricingTierName={
+                        preloadedObservation.usagePricingTierName ?? undefined
+                      }
                     >
                       <Badge
                         variant="tertiary"
@@ -287,27 +286,38 @@ export const ObservationPreview = ({
                       projectId={preloadedObservation.projectId}
                     />
                   ) : undefined}
-                  {isGenerationLike(preloadedObservation.type) && (
-                    <BreakdownTooltip
-                      details={preloadedObservation.usageDetails}
-                      isCost={false}
-                    >
-                      <Badge
-                        variant="tertiary"
-                        className="flex items-center gap-1"
-                      >
-                        <span>
-                          {formatTokenCounts(
-                            preloadedObservation.inputUsage,
-                            preloadedObservation.outputUsage,
-                            preloadedObservation.totalUsage,
-                            true,
-                          )}
-                        </span>
-                        <InfoIcon className="h-3 w-3" />
-                      </Badge>
-                    </BreakdownTooltip>
-                  )}
+                  {isGenerationLike(preloadedObservation.type) &&
+                    (() => {
+                      const aggregatedUsage = calculateAggregatedUsage(
+                        preloadedObservation.usageDetails,
+                      );
+
+                      return (
+                        <BreakdownTooltip
+                          details={preloadedObservation.usageDetails}
+                          isCost={false}
+                          pricingTierName={
+                            preloadedObservation.usagePricingTierName ??
+                            undefined
+                          }
+                        >
+                          <Badge
+                            variant="tertiary"
+                            className="flex items-center gap-1"
+                          >
+                            <span>
+                              {formatTokenCounts(
+                                aggregatedUsage.input,
+                                aggregatedUsage.output,
+                                aggregatedUsage.total,
+                                true,
+                              )}
+                            </span>
+                            <InfoIcon className="h-3 w-3" />
+                          </Badge>
+                        </BreakdownTooltip>
+                      );
+                    })()}
                   {preloadedObservation.version ? (
                     <Badge variant="tertiary">
                       Version: {preloadedObservation.version}
@@ -328,7 +338,7 @@ export const ObservationPreview = ({
                         </Link>
                       </Badge>
                     ) : (
-                      <UpsertModelFormDrawer
+                      <UpsertModelFormDialog
                         action="create"
                         projectId={preloadedObservation.projectId}
                         prefilledModelData={{
@@ -356,7 +366,7 @@ export const ObservationPreview = ({
                           <span>{preloadedObservation.model}</span>
                           <PlusCircle className="h-3 w-3" />
                         </Badge>
-                      </UpsertModelFormDrawer>
+                      </UpsertModelFormDialog>
                     )
                   ) : null}
 

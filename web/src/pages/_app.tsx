@@ -12,7 +12,7 @@ import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import Layout from "@/src/components/layouts/layout";
+import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
@@ -143,10 +143,10 @@ const MyApp: AppType<{ session: Session | null }> = ({
                   >
                     <ScoreCacheProvider>
                       <SupportDrawerProvider defaultOpen={false}>
-                        <Layout>
+                        <AppLayout>
                           <Component {...pageProps} />
                           <UserTracking />
-                        </Layout>
+                        </AppLayout>
                       </SupportDrawerProvider>
                       <BetterStackUptimeStatusMessage />
                     </ScoreCacheProvider>

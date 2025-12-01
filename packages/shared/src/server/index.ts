@@ -10,6 +10,9 @@ export * from "./services/PromptService";
 export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
 export * from "./services/InMemoryFilterService";
+export * from "./services/DatasetService";
+export * from "./datasets/schemaValidation";
+export * from "./datasets/schemaTypes";
 export * from "./evalJobConfigCache";
 export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
@@ -37,6 +40,7 @@ export * from "../server/ingestion/modelMatch";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "../server/queries/public-api-filter-builder";
+export * from "../server/pricing-tiers";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
 export * from "./redis/createEvalQueue";
@@ -71,6 +75,8 @@ export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/eventPropagationQueue";
+export * from "./redis/otelProjectTracking";
+export * from "./redis/s3SlowdownTracking";
 export * from "./auth/types";
 export * from "./queues";
 export * from "./orderByToPrisma";
@@ -79,8 +85,10 @@ export * from "./instrumentation";
 export * from "./logger";
 export * from "./headerPropagation";
 export * from "./queries";
+export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
 export * from "./repositories/traces";
+export * from "./repositories/dataset-items";
 export * from "./utils/rendering";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
@@ -91,12 +99,12 @@ export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./tableMappings";
 export * from "./otel";
+export * from "./datasets/executeWithDatasetServiceStrategy";
 
 export * from "./data-deletion/ingestionFileDeletion";
 export * from "./s3";
 
 // dataset run items
-export * from "./datasets";
 export * from "./dataset-run-items/addToDeleteQueue";
 
 // test utils

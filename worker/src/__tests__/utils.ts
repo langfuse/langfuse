@@ -9,6 +9,7 @@ export const pruneDatabase = async () => {
 
   logger.info("Pruning database");
   await prisma.datasetItem.deleteMany();
+  await prisma.datasetItemEvent.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();

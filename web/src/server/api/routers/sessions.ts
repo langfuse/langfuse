@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
 import {
   createTRPCRouter,
   protectedGetSessionProcedure,
@@ -140,9 +141,20 @@ export const sessionRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "SESSION",
+      });
+
+      if (hasNoMatches) {
+        return { sessions: [] };
+      }
+
       const finalFilter = await getPublicSessionsFilter(
         input.projectId,
-        input.filter ?? [],
+        filterState,
       );
       const sessions = await getSessionsTable({
         projectId: input.projectId,
@@ -187,10 +199,21 @@ export const sessionRouter = createTRPCRouter({
     }),
   countAll: protectedProjectProcedure
     .input(SessionFilterOptions)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "SESSION",
+      });
+
+      if (hasNoMatches) {
+        return { totalCount: 0 };
+      }
+
       const finalFilter = await getPublicSessionsFilter(
         input.projectId,
-        input.filter ?? [],
+        filterState,
       );
       const count = await getSessionsTableCount({
         projectId: input.projectId,

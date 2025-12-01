@@ -5,8 +5,11 @@ import {
   getCurrentSpan,
   getQueue,
   getS3EventStorageClient,
+  hasS3SlowdownFlag,
   IngestionEventType,
+  isS3SlowDownError,
   logger,
+  markProjectS3Slowdown,
   QueueName,
   recordDistribution,
   recordHistogram,
@@ -102,14 +105,21 @@ export const ingestionQueueProcessorBuilder = (
         }
       }
 
+      // Check if project should be redirected to secondary queue
+      const projectId = job.data.payload.authCheck.scope.projectId;
+      const shouldRedirectEnv =
+        projectIdsToRedirectToSecondaryQueue.includes(projectId);
+      const shouldRedirectSlowdown = await hasS3SlowdownFlag(projectId);
+
       if (
         enableRedirectToSecondaryQueue &&
-        projectIdsToRedirectToSecondaryQueue.includes(
-          job.data.payload.authCheck.scope.projectId,
-        )
+        (shouldRedirectEnv || shouldRedirectSlowdown)
       ) {
         logger.debug(
-          `Redirecting ingestion event to secondary queue for project ${job.data.payload.authCheck.scope.projectId}`,
+          `Redirecting ingestion event to secondary queue for project ${projectId}`,
+          {
+            reason: shouldRedirectSlowdown ? "s3_slowdown_flag" : "env_config",
+          },
         );
         const secondaryQueue = getQueue(QueueName.IngestionSecondaryQueue);
         if (secondaryQueue) {
@@ -273,6 +283,16 @@ export const ingestionQueueProcessorBuilder = (
         forwardToEventsTable,
       );
     } catch (e) {
+      // Check if this is a SlowDown error and mark the project for secondary queue
+      if (isS3SlowDownError(e)) {
+        const projectId = job.data.payload.authCheck.scope.projectId;
+        logger.warn(
+          "S3 SlowDown error during ingestion processing, marking project for secondary queue",
+          { projectId, error: e },
+        );
+        await markProjectS3Slowdown(projectId);
+      }
+
       logger.error(
         `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
         e,

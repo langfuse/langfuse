@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
+import { env } from "../../env";
 
 const getMinTimestampForExport = async (
   projectId: string,
@@ -60,6 +61,7 @@ const getMinTimestampForExport = async (
                 FROM scores
                 WHERE project_id = {projectId: String}
               )
+              WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
           params: { projectId },
         });
@@ -82,7 +84,7 @@ const getMinTimestampForExport = async (
         logger.info(
           `[BLOB INTEGRATION] No historical data found for project ${projectId}, using current time`,
         );
-        return new Date();
+        return new Date(0);
       } catch (error) {
         logger.error(
           `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
@@ -345,11 +347,26 @@ export const handleBlobStorageIntegrationProjectJob = async (
       fileType: blobStorageIntegration.fileType,
     };
 
-    await Promise.all([
-      processBlobStorageExport({ ...executionConfig, table: "traces" }),
-      processBlobStorageExport({ ...executionConfig, table: "observations" }),
-      processBlobStorageExport({ ...executionConfig, table: "scores" }),
-    ]);
+    // Check if this project should only export traces
+    const isTraceOnlyProject =
+      env.LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS.includes(
+        projectId,
+      );
+
+    if (isTraceOnlyProject) {
+      // Only process traces table for projects in the trace-only list
+      logger.info(
+        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export, skipping observations and scores`,
+      );
+      await processBlobStorageExport({ ...executionConfig, table: "traces" });
+    } else {
+      // Process all tables for projects not in the trace-only list
+      await Promise.all([
+        processBlobStorageExport({ ...executionConfig, table: "traces" }),
+        processBlobStorageExport({ ...executionConfig, table: "observations" }),
+        processBlobStorageExport({ ...executionConfig, table: "scores" }),
+      ]);
+    }
 
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
