@@ -172,7 +172,6 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -249,7 +248,6 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -327,7 +325,6 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
         })
@@ -488,7 +485,6 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -1103,7 +1099,6 @@ describe("eval service tests", () => {
           id: datasetItemId,
           project_id: projectId,
           dataset_id: datasetId2,
-          sys_id: randomUUID(),
           source_trace_id: traceId,
         })
         .execute();
@@ -1259,7 +1254,6 @@ describe("eval service tests", () => {
         .values({
           id: datasetItemId,
           project_id: projectId,
-          sys_id: randomUUID(),
           dataset_id: datasetId1,
           source_trace_id: traceId,
         })
@@ -1952,7 +1946,6 @@ describe("eval service tests", () => {
           expected_output: { expected_output: "This is a great response" },
           project_id: projectId,
           dataset_id: datasetId,
-          sys_id: randomUUID(),
         })
         .execute();
 
@@ -2626,7 +2619,6 @@ describe("eval service tests", () => {
         .values({
           id: datasetItemId,
           project_id: projectId,
-          sys_id: randomUUID(),
           dataset_id: datasetId,
         })
         .execute();
