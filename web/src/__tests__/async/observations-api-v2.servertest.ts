@@ -272,6 +272,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation1, observation2]);
 
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       // Focus on testing columns that require joins to other tables
       // (columns from traces table: userId, traceName, sessionId, traceTags, traceEnvironment)
       // and score-related columns that may require special handling
@@ -375,10 +377,11 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const userIdFilterResponse = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
-        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(userIdFilterParam)}&limit=1000`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic&filter=${encodeURIComponent(userIdFilterParam)}`,
       );
 
       expect(userIdFilterResponse.status).toBe(200);
+      expect(userIdFilterResponse.body.data.length).toEqual(2);
       const userFilteredObs = userIdFilterResponse.body.data.find(
         (obs: any) => obs.id === observationId1,
       );
