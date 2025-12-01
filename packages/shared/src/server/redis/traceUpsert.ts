@@ -76,7 +76,7 @@ export class TraceUpsertQueue {
           defaultJobOptions: {
             removeOnComplete: 100,
             removeOnFail: 100_000,
-            attempts: 5,
+            attempts: env.LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS,
             delay: 15_000, // 15 seconds
             backoff: {
               type: "exponential",

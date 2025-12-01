@@ -263,6 +263,7 @@ export const createEvalJobs = async ({
             ? new Date(event.timestamp)
             : new Date(jobTimestamp),
         clickhouseFeatureTag: "eval-create",
+        excludeInputOutput: true,
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
