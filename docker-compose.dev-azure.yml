@@ -51,6 +51,7 @@ services:
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
+      --maxmemory-policy noeviction
     ports:
       - 6379:6379
 
