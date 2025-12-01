@@ -96,8 +96,19 @@ async function getDatasetByName(props: {
 }
 
 function toDomainType(item: DatasetItem): DatasetItemDomain {
-  const { sysId, validFrom, isDeleted, ...domainItem } = item;
-  return domainItem;
+  return {
+    id: item.id,
+    projectId: item.projectId,
+    datasetId: item.datasetId,
+    status: item.status ?? "ACTIVE",
+    input: item.input,
+    expectedOutput: item.expectedOutput,
+    metadata: item.metadata,
+    sourceTraceId: item.sourceTraceId,
+    sourceObservationId: item.sourceObservationId,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
 }
 
 function mergeItemData(
@@ -147,22 +158,9 @@ async function getItemById(props: {
       },
       ...(props.datasetId ? { datasetId: props.datasetId } : {}),
     },
-    select: {
-      id: true,
-      projectId: true,
-      datasetId: true,
-      status: true,
-      input: true,
-      expectedOutput: true,
-      metadata: true,
-      sourceTraceId: true,
-      sourceObservationId: true,
-      createdAt: true,
-      updatedAt: true,
-    },
   });
 
-  return item ?? null;
+  return item ? toDomainType(item) : null;
 }
 
 /**

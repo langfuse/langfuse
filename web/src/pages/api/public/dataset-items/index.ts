@@ -7,7 +7,6 @@ import {
   PostDatasetItemsV1Body,
   PostDatasetItemsV1Response,
   transformDbDatasetItemDomainToAPIDatasetItem,
-  transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import { logger, upsertDatasetItem } from "@langfuse/shared/src/server";
@@ -133,9 +132,18 @@ export default withMiddlewares({
             },
           },
         })
-      ).map(({ dataset, ...other }) => ({
-        ...other,
-        status: other.status ?? "ACTIVE",
+      ).map(({ dataset, ...item }) => ({
+        id: item.id,
+        projectId: item.projectId,
+        datasetId: item.datasetId,
+        input: item.input,
+        expectedOutput: item.expectedOutput,
+        metadata: item.metadata,
+        sourceTraceId: item.sourceTraceId,
+        sourceObservationId: item.sourceObservationId,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        status: item.status ?? "ACTIVE",
         datasetName: dataset.name,
       }));
 
@@ -151,7 +159,7 @@ export default withMiddlewares({
       });
 
       return {
-        data: items.map(transformDbDatasetItemToAPIDatasetItem),
+        data: items.map(transformDbDatasetItemDomainToAPIDatasetItem),
         meta: {
           page,
           limit,

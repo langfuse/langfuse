@@ -6,7 +6,7 @@ import {
   GetDatasetItemV1Response,
   DeleteDatasetItemV1Query,
   DeleteDatasetItemV1Response,
-  transformDbDatasetItemToAPIDatasetItem,
+  transformDbDatasetItemDomainToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -40,11 +40,20 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Dataset item not found");
       }
 
-      const { dataset, ...datasetItemBody } = datasetItem;
+      const { dataset } = datasetItem;
 
-      return transformDbDatasetItemToAPIDatasetItem({
-        ...datasetItemBody,
-        status: datasetItemBody.status ?? "ACTIVE",
+      return transformDbDatasetItemDomainToAPIDatasetItem({
+        id: datasetItem.id,
+        projectId: datasetItem.projectId,
+        datasetId: datasetItem.datasetId,
+        status: datasetItem.status ?? "ACTIVE",
+        input: datasetItem.input,
+        expectedOutput: datasetItem.expectedOutput,
+        metadata: datasetItem.metadata,
+        sourceTraceId: datasetItem.sourceTraceId,
+        sourceObservationId: datasetItem.sourceObservationId,
+        createdAt: datasetItem.createdAt,
+        updatedAt: datasetItem.updatedAt,
         datasetName: dataset.name,
       });
     },

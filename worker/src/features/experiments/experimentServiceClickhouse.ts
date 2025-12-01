@@ -242,6 +242,7 @@ async function getItemsToProcess(
 
       return {
         ...datasetItem,
+        status: datasetItem.status ?? "ACTIVE",
         input: parseDatasetItemInput(normalizedInput, config.allVariables),
       };
     });

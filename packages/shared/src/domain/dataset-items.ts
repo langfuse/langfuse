@@ -1,6 +1,17 @@
-import { DatasetItem } from "../db";
+import { DatasetItem, DatasetStatus } from "../db";
 
-export type DatasetItemDomain = Omit<
+export type DatasetItemDomain = Pick<
   DatasetItem,
-  "sysId" | "validFrom" | "isDeleted"
->;
+  | "id"
+  | "projectId"
+  | "datasetId"
+  | "input"
+  | "expectedOutput"
+  | "metadata"
+  | "sourceTraceId"
+  | "sourceObservationId"
+  | "createdAt"
+  | "updatedAt"
+> & {
+  status: DatasetStatus;
+};
