@@ -608,8 +608,8 @@ export function CategoricalFacet({
                   <span>No trace names found in the given time range.</span>
                 ) : filterKey === "tags" ? (
                   <span>
-                    Tags let you to filter traces according to custom
-                    categories(e.g. feature flags).{" "}
+                    Tags let you filter traces according to custom categories
+                    (e.g. feature flags).{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/tags"
                       target="_blank"

@@ -10,6 +10,41 @@ import { Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+const MarkdownContent = ({ children }: { children: string }) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      a: ({ node: _node, ...props }) => {
+        const safeHref =
+          props.href && typeof props.href === "string"
+            ? props.href.match(/^(https?|mailto|tel):/)
+              ? props.href
+              : "#"
+            : "#";
+        return (
+          <a
+            {...props}
+            href={safeHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-primary/30 hover:decoration-primary"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {props.children}
+          </a>
+        );
+      },
+      p: ({ node: _node, ...props }) => (
+        <p {...props} className="mb-2 last:mb-0">
+          {props.children}
+        </p>
+      ),
+    }}
+  >
+    {children}
+  </ReactMarkdown>
+);
+
 export type DocPopupProps = {
   description: React.ReactNode;
   href?: string;
@@ -64,29 +99,7 @@ export default function DocPopup({
                 className,
               )}
             >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  a: ({ node: _node, ...props }) => (
-                    <a
-                      {...props}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline decoration-primary/30 hover:decoration-primary"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {props.children}
-                    </a>
-                  ),
-                  p: ({ node: _node, ...props }) => (
-                    <p {...props} className="mb-2 last:mb-0">
-                      {props.children}
-                    </p>
-                  ),
-                }}
-              >
-                {description}
-              </ReactMarkdown>
+              <MarkdownContent>{description}</MarkdownContent>
             </div>
           ) : (
             description
@@ -111,29 +124,7 @@ export function Popup({ triggerContent, description }: PopupProps) {
       <HoverCardContent>
         {typeof description === "string" ? (
           <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                a: ({ node: _node, ...props }) => (
-                  <a
-                    {...props}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-primary/30 hover:decoration-primary"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {props.children}
-                  </a>
-                ),
-                p: ({ node: _node, ...props }) => (
-                  <p {...props} className="mb-2 last:mb-0">
-                    {props.children}
-                  </p>
-                ),
-              }}
-            >
-              {description}
-            </ReactMarkdown>
+            <MarkdownContent>{description}</MarkdownContent>
           </div>
         ) : (
           description
