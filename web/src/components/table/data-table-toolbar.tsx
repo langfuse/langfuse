@@ -59,12 +59,12 @@ export interface MultiSelect {
 }
 
 interface SearchConfig {
-  metadataSearchFields: string[];
+  metadataSearchFields?: string[];
   updateQuery: (event: string) => void;
   currentQuery?: string;
   tableAllowsFullTextSearch?: boolean;
-  setSearchType: ((newSearchType: TracingSearchType[]) => void) | undefined;
-  searchType: TracingSearchType[] | undefined;
+  setSearchType?: (newSearchType: TracingSearchType[]) => void;
+  searchType?: TracingSearchType[];
   customDropdownLabels?: {
     metadata: string;
     fullText: string;
@@ -196,7 +196,7 @@ export function DataTableToolbar<TData, TValue>({
                 placeholder={
                   searchConfig.tableAllowsFullTextSearch
                     ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
+                    : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
                 }
                 value={searchString}
                 onChange={(event) => {
@@ -239,14 +239,14 @@ export function DataTableToolbar<TData, TValue>({
                           ) ? (
                             <p className="text-xs font-normal text-primary">
                               Searches in Input/Output and{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {searchConfig.metadataSearchFields?.join(", ")}.
                               {!searchConfig.hidePerformanceWarning &&
                                 " For improved performance, please filter the table down."}
                             </p>
                           ) : (
                             <p className="text-xs font-normal text-primary">
                               Searches in{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {searchConfig.metadataSearchFields?.join(", ")}.
                             </p>
                           )
                         }

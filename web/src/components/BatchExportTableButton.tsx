@@ -76,13 +76,15 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   const getWarningMessage = () => {
     switch (props.tableName) {
       case BatchTableNames.Traces:
-        return "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) are not included in trace exports. You may receive more data than expected.";
+        return "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.";
       case BatchTableNames.Observations:
-        return "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) are not included in observation exports. You may receive more data than expected.";
+        return "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) and Comments are not included in observation exports. You may receive more data than expected.";
+      case BatchTableNames.Sessions:
+        return "Note: Filters on Comments are not included in session exports. You may receive more data than expected.";
       case BatchTableNames.AuditLogs:
         return "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.";
       default:
-        // Note: for Scores, Sessions, DatasetRunItems, DatasetItems, filters should work as expected
+        // Note: for Scores, DatasetRunItems, DatasetItems, filters should work as expected
         return null;
     }
   };

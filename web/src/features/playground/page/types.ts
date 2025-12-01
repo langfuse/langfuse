@@ -52,6 +52,8 @@ export interface PlaygroundHandle {
   stopExecution: () => void;
   /** Getter for current streaming state */
   getIsStreaming: () => boolean;
+  /** Getter for whether a model is configured */
+  hasModelConfigured: () => boolean;
 }
 
 /**
@@ -71,6 +73,8 @@ export interface WindowCoordinationReturn {
   getExecutionStatus: () => string | null;
   /** Whether any windows are currently executing */
   isExecutingAll: boolean;
+  /** Whether any window has a model configured */
+  hasAnyModelConfigured: boolean;
 }
 
 /**
@@ -104,6 +108,7 @@ export const PLAYGROUND_EVENTS = {
   WINDOW_REGISTERED: "playground:window-registered",
   WINDOW_UNREGISTERED: "playground:window-unregistered",
   WINDOW_EXECUTION_STATE_CHANGE: "playground:window-execution-state-change",
+  WINDOW_MODEL_CONFIG_CHANGE: "playground:window-model-config-change",
 } as const;
 
 /**
