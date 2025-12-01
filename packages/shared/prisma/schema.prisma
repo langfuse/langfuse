@@ -640,6 +640,7 @@ model DatasetItem {
   @@index([datasetId], type: Hash)
   @@index([createdAt])
   @@index([updatedAt])
+  @@index([projectId, datasetId, id, validFrom])
   @@map("dataset_items")
 }
 
