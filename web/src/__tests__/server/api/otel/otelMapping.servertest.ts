@@ -2083,6 +2083,30 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract llm.input_messages.message.content to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.input_messages.0.message.content",
+          otelAttributeValue: {
+            stringValue: "Hello, how are you?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [{ content: "Hello, how are you?" }],
+        },
+      ],
+      [
+        "should extract llm.output_messages.message.content to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.output_messages.0.message.content",
+          otelAttributeValue: {
+            stringValue: "Hello, how are you?",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: [{ content: "Hello, how are you?" }],
+        },
+      ],
+      [
         "#5457: should map traceloop.entity.input to input",
         {
           entity: "trace",
@@ -2857,6 +2881,155 @@ describe("OTel Resource Span Mapping", () => {
         );
       },
     );
+
+    it("should map llm.input_messages and llm.output_messages to input/output and filter from metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const openInferenceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "agno-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "llm-call",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // OpenInference llm.input_messages format (used by Agno, BeeAI, etc.)
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "system" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.content",
+                    value: { stringValue: "You are a helpful assistant." },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.role",
+                    value: { stringValue: "user" },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.content",
+                    value: { stringValue: "What is the weather today?" },
+                  },
+                  // OpenInference llm.output_messages format
+                  {
+                    key: "llm.output_messages.0.message.role",
+                    value: { stringValue: "assistant" },
+                  },
+                  {
+                    key: "llm.output_messages.0.message.content",
+                    value: {
+                      stringValue:
+                        "I don't have access to real-time weather data.",
+                    },
+                  },
+                  // Custom attributes (should remain in metadata.attributes)
+                  {
+                    key: "custom_attribute",
+                    value: { stringValue: "should_be_preserved" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openInferenceSpan,
+        new Set(),
+      );
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Verify input is extracted and structured as an array
+      expect(observation?.body.input).toBeDefined();
+      const inputParsed =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+      expect(Array.isArray(inputParsed)).toBe(true);
+      expect(inputParsed[0]["message.role"]).toBe("system");
+      expect(inputParsed[0]["message.content"]).toBe(
+        "You are a helpful assistant.",
+      );
+      expect(inputParsed[1]["message.role"]).toBe("user");
+      expect(inputParsed[1]["message.content"]).toBe(
+        "What is the weather today?",
+      );
+
+      // Verify output is extracted and structured as an array
+      expect(observation?.body.output).toBeDefined();
+      const outputParsed =
+        typeof observation?.body.output === "string"
+          ? JSON.parse(observation.body.output)
+          : observation?.body.output;
+      expect(Array.isArray(outputParsed)).toBe(true);
+      expect(outputParsed[0]["message.role"]).toBe("assistant");
+      expect(outputParsed[0]["message.content"]).toBe(
+        "I don't have access to real-time weather data.",
+      );
+
+      // Verify llm.input_messages.* and llm.output_messages.* are NOT in metadata.attributes
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.1.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.1.message.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.content"
+        ],
+      ).toBeUndefined();
+
+      // Verify custom attributes ARE in metadata.attributes
+      expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
+        "should_be_preserved",
+      );
+    });
   });
 
   describe("Span Counting", () => {

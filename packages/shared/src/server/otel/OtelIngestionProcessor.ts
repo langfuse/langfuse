@@ -1166,11 +1166,13 @@ export class OtelIngestionProcessor {
       delete rawFilteredAttributes[key];
     });
 
-    // Delete gen_ai.prompt.* and gen_ai.completion.* keys
+    // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, and llm.output_messages.* keys
     Object.keys(attributes).forEach((key) => {
       if (
         key.startsWith("gen_ai.prompt") ||
-        key.startsWith("gen_ai.completion")
+        key.startsWith("gen_ai.completion") ||
+        key.startsWith("llm.input_messages") ||
+        key.startsWith("llm.output_messages")
       ) {
         delete rawFilteredAttributes[key];
       }
@@ -1451,6 +1453,35 @@ export class OtelIngestionProcessor {
       return {
         input: this.convertKeyPathToNestedObject(input, "gen_ai.prompt"),
         output: this.convertKeyPathToNestedObject(output, "gen_ai.completion"),
+        filteredAttributes,
+      };
+    }
+
+    // OpenInference llm.input_messages and llm.output_messages (used by Agno, BeeAI, etc.)
+    const llmInputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("llm.input_messages"),
+    );
+    const llmOutputAttributes = Object.keys(attributes).filter((key) =>
+      key.startsWith("llm.output_messages"),
+    );
+    if (llmInputAttributes.length > 0 || llmOutputAttributes.length > 0) {
+      const llmInput = llmInputAttributes.reduce((acc: any, key) => {
+        acc[key] = attributes[key];
+        return acc;
+      }, {});
+      const llmOutput = llmOutputAttributes.reduce((acc: any, key) => {
+        acc[key] = attributes[key];
+        return acc;
+      }, {});
+      return {
+        input: this.convertKeyPathToNestedObject(
+          llmInput,
+          "llm.input_messages",
+        ),
+        output: this.convertKeyPathToNestedObject(
+          llmOutput,
+          "llm.output_messages",
+        ),
         filteredAttributes,
       };
     }
