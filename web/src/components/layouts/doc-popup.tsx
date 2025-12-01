@@ -67,7 +67,7 @@ export default function DocPopup({
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  a: ({ node, ...props }) => (
+                  a: ({ node: _node, ...props }) => (
                     <a
                       {...props}
                       target="_blank"
@@ -78,7 +78,7 @@ export default function DocPopup({
                       {props.children}
                     </a>
                   ),
-                  p: ({ node, ...props }) => (
+                  p: ({ node: _node, ...props }) => (
                     <p {...props} className="mb-2 last:mb-0">
                       {props.children}
                     </p>
@@ -114,7 +114,7 @@ export function Popup({ triggerContent, description }: PopupProps) {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                a: ({ node, ...props }) => (
+                a: ({ node: _node, ...props }) => (
                   <a
                     {...props}
                     target="_blank"
@@ -125,7 +125,7 @@ export function Popup({ triggerContent, description }: PopupProps) {
                     {props.children}
                   </a>
                 ),
-                p: ({ node, ...props }) => (
+                p: ({ node: _node, ...props }) => (
                   <p {...props} className="mb-2 last:mb-0">
                     {props.children}
                   </p>
