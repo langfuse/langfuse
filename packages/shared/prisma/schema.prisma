@@ -617,7 +617,7 @@ model Dataset {
 model DatasetItem {
   id                  String            @default(cuid())
   projectId           String            @map("project_id")
-  status              DatasetStatus     @default(ACTIVE)
+  status              DatasetStatus?    @default(ACTIVE)
   input               Json?
   expectedOutput      Json?             @map("expected_output")
   metadata            Json?
