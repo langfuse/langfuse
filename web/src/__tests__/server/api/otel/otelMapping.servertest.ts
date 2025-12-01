@@ -3044,6 +3044,137 @@ describe("OTel Resource Span Mapping", () => {
         "should_be_preserved",
       );
     });
+
+    it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
+      // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
+      // all known input/output attribute patterns from multiple frameworks
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const multiFrameworkSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "multi-framework-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Input attribute that will be mapped
+                  {
+                    key: "input",
+                    value: { stringValue: '{"query": "test input"}' },
+                  },
+                  // gen_ai.prompt.* pattern (should be filtered)
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "prompt content" },
+                  },
+                  // gen_ai.completion.* pattern (should be filtered)
+                  {
+                    key: "gen_ai.completion.0.content",
+                    value: { stringValue: "completion content" },
+                  },
+                  // llm.input_messages.* pattern (should be filtered)
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "user" },
+                  },
+                  // llm.output_messages.* pattern (should be filtered)
+                  {
+                    key: "llm.output_messages.0.message.role",
+                    value: { stringValue: "assistant" },
+                  },
+                  // Custom attributes (should be preserved)
+                  {
+                    key: "custom.request_id",
+                    value: { stringValue: "req-12345" },
+                  },
+                  {
+                    key: "deployment.region",
+                    value: { stringValue: "us-west-2" },
+                  },
+                  {
+                    key: "model.version",
+                    value: { stringValue: "v2.0" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        multiFrameworkSpan,
+        new Set(),
+      );
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Verify input was extracted
+      expect(observation?.body.input).toBe('{"query": "test input"}');
+
+      // Verify input attribute is filtered from metadata
+      expect(observation?.body.metadata?.attributes?.input).toBeUndefined();
+
+      // Verify gen_ai.prompt.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.prompt.0.content"],
+      ).toBeUndefined();
+
+      // Verify gen_ai.completion.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.completion.0.content"],
+      ).toBeUndefined();
+
+      // Verify llm.input_messages.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+
+      // Verify llm.output_messages.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+
+      // Verify custom attributes ARE preserved in metadata.attributes
+      expect(
+        observation?.body.metadata?.attributes?.["custom.request_id"],
+      ).toBe("req-12345");
+      expect(
+        observation?.body.metadata?.attributes?.["deployment.region"],
+      ).toBe("us-west-2");
+      expect(observation?.body.metadata?.attributes?.["model.version"]).toBe(
+        "v2.0",
+      );
+    });
   });
 
   describe("Span Counting", () => {
