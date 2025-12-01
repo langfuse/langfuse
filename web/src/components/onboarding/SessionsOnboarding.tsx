@@ -5,7 +5,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 export function SessionsOnboarding() {
   return (
     <SplashScreen
-      title="You don't have any sessions yet"
+      title="You aren't using sessions yet"
       description="Sessions let you group traces that belong to the same workflow, or conversation."
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/sessions-overview-v1.mp4"
     >
