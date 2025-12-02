@@ -98,18 +98,32 @@ describe("eval service tests", () => {
       expect(compiledString).toBe("This is a plain string without variables");
     });
 
-    test("compile template string with empty context", async () => {
+    test("compile template string with empty context keeps original variables", async () => {
       const template = "Hello {{name}}!";
       const compiledString = compileTemplateString(template, {});
-      expect(compiledString).toBe("Hello !");
+      expect(compiledString).toBe("Hello {{name}}!");
     });
 
-    test("compile template string with missing variable returns empty string", async () => {
+    test("compile template string with missing variable keeps original variable", async () => {
       const template = "Hello {{name}}, your score is {{score}}";
       const compiledString = compileTemplateString(template, {
         name: "Alice",
       });
-      expect(compiledString).toBe("Hello Alice, your score is ");
+      expect(compiledString).toBe("Hello Alice, your score is {{score}}");
+    });
+
+    test("compile template string with all variables missing keeps all original", async () => {
+      const template = "{{greeting}} {{name}}, welcome to {{place}}!";
+      const compiledString = compileTemplateString(template, {});
+      expect(compiledString).toBe(
+        "{{greeting}} {{name}}, welcome to {{place}}!",
+      );
+    });
+
+    test("compile template string with whitespace variable missing keeps original with whitespace", async () => {
+      const template = "Hello {{  name  }}!";
+      const compiledString = compileTemplateString(template, {});
+      expect(compiledString).toBe("Hello {{  name  }}!");
     });
 
     test("compile template string with null value returns empty string", async () => {

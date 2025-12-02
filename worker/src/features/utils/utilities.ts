@@ -11,7 +11,7 @@ export function compileTemplateString(
         const value = context[key];
         return value === undefined || value === null ? "" : String(value);
       }
-      return ""; // missing key → empty string
+      return match; // missing key → return original variable including its braces
     });
   } catch (error) {
     logger.info("Template compilation error:", error);
