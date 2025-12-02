@@ -20,6 +20,7 @@ interface NumericFacet {
   label: string;
   min: number;
   max: number;
+  step?: number;
   unit?: string;
 }
 
