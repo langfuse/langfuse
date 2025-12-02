@@ -39,7 +39,6 @@ import {
 } from "./traceFilterUtils";
 import {
   ChatMessageRole,
-  Prisma,
   singleFilter,
   variableMappingList,
   evalDatasetFormFilterCols,

@@ -31,8 +31,6 @@ import {
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
 
-const EXPERIMENT_BATCH_SIZE = 100;
-
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
   runId: string,
