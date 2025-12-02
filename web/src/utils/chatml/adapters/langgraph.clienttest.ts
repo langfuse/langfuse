@@ -182,6 +182,34 @@ describe("LangGraph Adapter", () => {
     expect(result.data?.[1].tools?.[0].name).toBe("Web-Search");
   });
 
+  it("should skip null entries in tool_calls arrays", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          null,
+          {
+            id: "call_valid",
+            type: "function",
+            function: {
+              name: "search_docs",
+              arguments: { topic: "Langfuse" },
+            },
+          },
+        ],
+      },
+    ];
+
+    const result = normalizeInput(input, { framework: "langgraph" });
+    expect(result.success).toBe(true);
+
+    const toolCalls = result.data?.[0].tool_calls;
+    expect(toolCalls?.length).toBe(1);
+    expect(toolCalls?.[0].name).toBe("search_docs");
+    expect(toolCalls?.[0].arguments).toBe('{"topic":"Langfuse"}');
+  });
+
   it("should clean up additional_kwargs with null values", () => {
     const output = {
       role: "assistant",
