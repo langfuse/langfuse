@@ -12,6 +12,7 @@ export enum BatchExportStatus {
   PROCESSING = "PROCESSING", // eslint-disable-line no-unused-vars
   COMPLETED = "COMPLETED", // eslint-disable-line no-unused-vars
   FAILED = "FAILED", // eslint-disable-line no-unused-vars
+  CANCELLED = "CANCELLED", // eslint-disable-line no-unused-vars
 }
 
 export enum BatchExportFileFormat {
