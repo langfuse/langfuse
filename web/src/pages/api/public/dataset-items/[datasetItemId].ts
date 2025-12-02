@@ -21,26 +21,31 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 
-      const datasetItem = await prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: datasetItemId,
-          },
-        },
-        include: {
-          dataset: {
-            select: {
-              name: true,
-            },
-          },
-        },
+      const datasetItem = await getDatasetItemById({
+        projectId: auth.scope.projectId,
+        datasetItemId: datasetItemId,
+        status: "ALL",
       });
       if (!datasetItem) {
         throw new LangfuseNotFoundError("Dataset item not found");
       }
 
-      const { dataset } = datasetItem;
+      const dataset = await prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            projectId: auth.scope.projectId,
+            id: datasetItem.datasetId,
+          },
+        },
+        select: {
+          name: true,
+        },
+      });
+
+      // Note that we cascade items on delete, so returning a 404 here is expected
+      if (!dataset) {
+        throw new LangfuseNotFoundError("Dataset item not found");
+      }
 
       return transformDbDatasetItemDomainToAPIDatasetItem({
         id: datasetItem.id,

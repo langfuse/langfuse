@@ -35,21 +35,10 @@ export default withMiddlewares({
        **************/
       const { traceId, observationId, datasetItemId } = body;
 
-      const datasetItem = await prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: datasetItemId,
-          },
-          status: "ACTIVE",
-        },
-        select: {
-          id: true,
-          datasetId: true,
-          input: true,
-          expectedOutput: true,
-          metadata: true,
-        },
+      const datasetItem = await getDatasetItemById({
+        projectId: auth.scope.projectId,
+        datasetItemId: datasetItemId,
+        status: "ACTIVE",
       });
 
       if (!datasetItem) {

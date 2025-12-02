@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../../db";
+import { getDatasetItemsByLatest } from "../repositories";
 import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
 import type { DatasetSchemaValidationError } from "./schemaTypes";
 
@@ -20,7 +21,7 @@ export type ValidationResult = {
  *
  * **When NOT to use:**
  * - DO NOT use for validating new items during creation/update
- * - Use DatasetItemManager methods instead, which handle per-item validation
+ * - Use  dataset-items repository methods instead, which handle per-item validation
  *
  * **Performance:**
  * - Batched validation: processes 5000 items at a time
@@ -49,24 +50,18 @@ export async function validateAllDatasetItems(params: {
   const BATCH_SIZE = 5_000;
   const MAX_ERRORS = 10;
 
-  let offset = 0;
+  let page = 0;
   const errors: DatasetSchemaValidationError[] = [];
 
   while (errors.length < MAX_ERRORS) {
     // Fetch batch
-    const items = await prisma.datasetItem.findMany({
-      where: {
+    const items = await getDatasetItemsByLatest({
+      projectId,
+      filters: {
         datasetId,
-        projectId,
       },
-      select: {
-        id: true,
-        input: true,
-        expectedOutput: true,
-      },
-      skip: offset,
-      take: BATCH_SIZE,
-      orderBy: { id: "asc" }, // Consistent ordering for pagination
+      limit: BATCH_SIZE,
+      page,
     });
 
     // No more items
@@ -113,7 +108,7 @@ export async function validateAllDatasetItems(params: {
     }
 
     // Move to next batch
-    offset += BATCH_SIZE;
+    page++;
 
     // Last batch was incomplete - we've processed all items
     if (items.length < BATCH_SIZE) break;
