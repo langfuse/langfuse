@@ -241,7 +241,7 @@ export default class BackfillExperimentsHistoric
         false AS public,
         '' AS user_id,
         '' AS session_id
-      FROM observations_pid_tid_sorting o
+      FROM observations o
       WHERE o.project_id IN {projectIds: Array(String)}
         AND o.trace_id IN {traceIds: Array(String)}
     `;
@@ -300,7 +300,7 @@ export default class BackfillExperimentsHistoric
         t.public,
         coalesce(t.user_id, '') AS user_id,
         coalesce(t.session_id, '') AS session_id
-      FROM traces_pid_tid_sorting t
+      FROM traces t
       WHERE t.project_id IN {projectIds: Array(String)}
         AND t.id IN {traceIds: Array(String)}
     `;
@@ -353,12 +353,7 @@ export default class BackfillExperimentsHistoric
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 
-    const requiredTables = [
-      "events",
-      "observations_pid_tid_sorting",
-      "traces_pid_tid_sorting",
-      "dataset_run_items_rmt",
-    ];
+    const requiredTables = ["events", "dataset_run_items_rmt"];
 
     for (const tableName of requiredTables) {
       if (!tableNames.some((r) => r.name === tableName)) {
@@ -444,7 +439,7 @@ export default class BackfillExperimentsHistoric
         this.fetchTracesForTraces(projectIds, traceIds),
       ]);
 
-      logger.debug(
+      logger.info(
         `[Backfill Experiments] Fetched ${observations.length} observations and ${traces.length} traces`,
       );
 
@@ -470,6 +465,8 @@ export default class BackfillExperimentsHistoric
       const allEnrichedSpans: EnrichedSpan[] = [];
       const processedSpanIds = new Set<string>();
       let skippedCount = 0;
+
+      logger.info(`SpanMap Keys: ${Array.from(spanMap.keys()).join(", ")}`);
 
       for (const dri of dris) {
         const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
