@@ -466,8 +466,6 @@ export default class BackfillExperimentsHistoric
       const processedSpanIds = new Set<string>();
       let skippedCount = 0;
 
-      logger.info(`SpanMap Keys: ${Array.from(spanMap.keys()).join(", ")}`);
-
       for (const dri of dris) {
         const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
         const rootSpan = spanMap.get(rootSpanId);
