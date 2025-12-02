@@ -12,6 +12,7 @@ import {
   createOrgProjectAndApiKey,
   isValidJSONSchema,
   DatasetItemValidator,
+  getDatasetItemsByLatest,
 } from "@langfuse/shared/src/server";
 import { validateFieldAgainstSchema } from "@langfuse/shared";
 
@@ -1038,9 +1039,16 @@ describe("Public API - Dataset Schema Enforcement", () => {
       // 4. Verify only valid item was created
       const dataset = await prisma.dataset.findFirst({
         where: { name: "e2e-workflow", projectId },
-        include: { datasetItems: true },
       });
-      expect(dataset?.datasetItems.length).toBe(1);
+      if (!dataset) {
+        throw new Error("Dataset not found");
+      }
+      const datasetItems = await getDatasetItemsByLatest({
+        projectId,
+        filters: { datasetIds: [dataset.id] },
+        includeIO: false,
+      });
+      expect(datasetItems.length).toBe(1);
 
       // 5. Update schema (should validate existing items)
       const updateSchemaRes = await makeAPICall(
