@@ -633,7 +633,7 @@ model DatasetItem {
   isDeleted           Boolean           @default(false) @map("is_deleted")
   datasetRunItems     DatasetRunItems[]
 
-  @@id([id, projectId])
+  @@id([sysId, projectId])
   @@index([sourceTraceId], type: Hash)
   @@index([sourceObservationId], type: Hash)
   @@index([datasetId], type: Hash)
