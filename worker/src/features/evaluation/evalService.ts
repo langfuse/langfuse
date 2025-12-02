@@ -31,6 +31,7 @@ import {
   mapDatasetRunItemFilterColumn,
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
+  getDatasetItemById,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -57,6 +58,22 @@ import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
+
+/**
+ * Extracts datasetIds from a validated FilterState
+ * Used for dataset evaluator filters to check if a dataset item matches the filter
+ */
+function resolveDatasetIdFilterValue(
+  filterState: z.infer<typeof singleFilter>[],
+): string[] | undefined {
+  const datasetIdFilter = filterState.find((f) => f.column === "datasetId");
+
+  if (datasetIdFilter && datasetIdFilter.type === "stringOptions") {
+    return datasetIdFilter.value;
+  }
+
+  return undefined;
+}
 
 let s3StorageServiceClient: StorageService;
 
@@ -419,24 +436,35 @@ export const createEvalJobs = async ({
       | { id: string; observationId: string | null }
       | undefined;
     if (isDatasetConfig) {
-      const condition = tableColumnsToSqlFilterAndPrefix(
+      // validate filter
+      tableColumnsToSqlFilterAndPrefix(
         config.target_object === "dataset" ? validatedFilter : [],
         evalDatasetFormFilterCols,
         "dataset_items",
       );
-
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
-        const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string }>
-        >(Prisma.sql`
-          SELECT id
-          FROM dataset_items as di
-          WHERE project_id = ${event.projectId}
-            AND id = ${event.datasetItemId}
-            ${condition}
-        `);
-        datasetItem = datasetItems.shift();
+        //resolve filter value
+        const datasetIds = resolveDatasetIdFilterValue(validatedFilter);
+        const item = await getDatasetItemById({
+          projectId: event.projectId,
+          datasetItemId: event.datasetItemId,
+          status: "ACTIVE",
+          includeIO: false,
+        });
+
+        if (!item) {
+          datasetItem = undefined;
+        } else {
+          // Set datasetItem if item exists and matches filter (if any)
+          // - No filter (undefined/empty): accept any item
+          // - Filter specified: accept only if item's datasetId is in filter
+          const hasFilter = datasetIds && datasetIds.length > 0;
+          const matchesFilter =
+            !hasFilter || datasetIds.includes(item.datasetId);
+
+          datasetItem = matchesFilter ? { id: item.id } : undefined;
+        }
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.
         // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
