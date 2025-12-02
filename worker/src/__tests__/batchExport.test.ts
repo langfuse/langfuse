@@ -1176,10 +1176,10 @@ describe("batch export test suite", () => {
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
-          type: "string",
-          operator: "=",
-          column: "datasetId",
-          value: datasetId,
+          type: "stringOptions",
+          operator: "any of",
+          column: "datasetIds",
+          value: [datasetId],
         },
       ],
       orderBy: { column: "createdAt", order: "DESC" },

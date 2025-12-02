@@ -3,47 +3,48 @@ import { ColumnDefinition } from "../../tableDefinitions";
 
 export const datasetItemsFilterCols: ColumnDefinition[] = [
   {
-    name: "Dataset ID",
-    id: "datasetId",
-    type: "string",
-    internal: "li.dataset_id",
+    name: "Dataset IDs",
+    id: "datasetIds",
+    type: "stringOptions",
+    internal: "di.dataset_id",
+    options: [],
   },
   {
     name: "Item ID",
     id: "id",
     type: "stringOptions",
-    internal: "li.id",
+    internal: "di.id",
     options: [],
   },
   {
     name: "Source Trace ID",
     id: "sourceTraceId",
     type: "string",
-    internal: "li.source_trace_id",
+    internal: "di.source_trace_id",
   },
   {
     name: "Source Observation ID",
     id: "sourceObservationId",
     type: "string",
-    internal: "li.source_observation_id",
+    internal: "di.source_observation_id",
   },
   {
     name: "Status",
     id: "status",
     type: "stringOptions",
-    internal: "li.status::text",
+    internal: "di.status::text",
     options: Object.values(DatasetStatus).map((value) => ({ value })),
   },
   {
     name: "Metadata",
     id: "metadata",
     type: "stringObject",
-    internal: "li.metadata",
+    internal: "di.metadata",
   },
   {
     name: "Created At",
     id: "createdAt",
     type: "datetime",
-    internal: "li.created_at",
+    internal: "di.created_at",
   },
 ];

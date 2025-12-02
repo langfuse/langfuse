@@ -14,7 +14,6 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { type RouterOutput } from "@/src/utils/types";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { DatasetItemDomain, Prisma } from "@langfuse/shared";

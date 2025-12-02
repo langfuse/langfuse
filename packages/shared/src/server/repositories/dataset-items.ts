@@ -107,11 +107,13 @@ function toDomainType<
   item: DatasetItem & { dataset?: { name: string } },
   includeIO: IncludeIO = true as IncludeIO,
   includeDatasetName: IncludeDatasetName = false as IncludeDatasetName,
-):
-  | DatasetItemDomain
-  | DatasetItemDomainWithoutIO
-  | (DatasetItemDomain & { datasetName: string })
-  | (DatasetItemDomainWithoutIO & { datasetName: string }) {
+): IncludeIO extends true
+  ? IncludeDatasetName extends true
+    ? DatasetItemDomain & { datasetName: string }
+    : DatasetItemDomain
+  : IncludeDatasetName extends true
+    ? DatasetItemDomainWithoutIO & { datasetName: string }
+    : DatasetItemDomainWithoutIO {
   const base: DatasetItemDomainWithoutIO = {
     id: item.id,
     projectId: item.projectId,
@@ -654,7 +656,7 @@ export function createDatasetItemFilterState(options: {
   if (options.datasetIds && options.datasetIds.length > 0) {
     filterState.push({
       type: "stringOptions",
-      column: "datasetId",
+      column: "datasetIds",
       operator: "any of",
       value: options.datasetIds,
     });
@@ -768,12 +770,12 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
  * Applies ILIKE search on id, input, expectedOutput, and metadata fields.
  * Returns Prisma.empty if no search query provided.
  *
- * @param tableAlias - The table alias to use (e.g., 'li' for CTE, 'di' for direct table)
+ * @param tableAlias - The table alias to use (default 'di' for dataset items)
  */
 function buildDatasetItemSearchCondition(
   searchQuery?: string,
   searchType?: ("id" | "content")[],
-  tableAlias: string = "li",
+  tableAlias: string = "di",
 ): Prisma.Sql {
   if (!searchQuery || searchQuery === "") {
     return Prisma.empty;
@@ -820,11 +822,11 @@ function buildStatefulDatasetItemsQuery(
   offset?: number,
 ): Prisma.Sql {
   const ioFields = includeIO
-    ? Prisma.sql`li.input, li.expected_output, li.metadata,`
+    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
     : Prisma.empty;
 
   const datasetJoin = includeDatasetName
-    ? Prisma.sql`LEFT JOIN datasets d ON li.dataset_id = d.id AND li.project_id = d.project_id`
+    ? Prisma.sql`LEFT JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id`
     : Prisma.empty;
 
   const datasetNameField = includeDatasetName
@@ -840,7 +842,7 @@ function buildStatefulDatasetItemsQuery(
   const searchCondition = buildDatasetItemSearchCondition(
     searchQuery,
     searchType,
-    "li",
+    "di",
   );
 
   const paginationClause =
@@ -850,22 +852,22 @@ function buildStatefulDatasetItemsQuery(
 
   return Prisma.sql`
     SELECT
-      li.id,
-      li.project_id,
-      li.dataset_id,
+      di.id,
+      di.project_id,
+      di.dataset_id,
       ${ioFields}
-      li.source_trace_id,
-      li.source_observation_id,
-      li.status,
-      li.created_at,
-      li.updated_at
+      di.source_trace_id,
+      di.source_observation_id,
+      di.status,
+      di.created_at,
+      di.updated_at
       ${datasetNameField}
-    FROM dataset_items li
+    FROM dataset_items di
     ${datasetJoin}
-    WHERE li.project_id = ${projectId}
+    WHERE di.project_id = ${projectId}
     ${filterCondition}
     ${searchCondition}
-    ORDER BY li.status ASC, li.created_at DESC, li.id DESC
+    ORDER BY di.status ASC, di.created_at DESC, di.id DESC
     ${paginationClause}
   `;
 }
@@ -888,13 +890,13 @@ function buildStatefulDatasetItemsCountQuery(
   const searchCondition = buildDatasetItemSearchCondition(
     searchQuery,
     searchType,
-    "li",
+    "di",
   );
 
   return Prisma.sql`
     SELECT COUNT(*) as count
-    FROM dataset_items li
-    WHERE li.project_id = ${projectId}
+    FROM dataset_items di
+    WHERE di.project_id = ${projectId}
     ${filterCondition}
     ${searchCondition}
   `;
@@ -930,7 +932,7 @@ function buildDatasetItemsLatestQuery(
     : Prisma.empty;
 
   const datasetJoin = includeDatasetName
-    ? Prisma.sql`LEFT JOIN datasets d ON li.dataset_id = d.id AND li.project_id = d.project_id`
+    ? Prisma.sql`LEFT JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id`
     : Prisma.empty;
 
   const datasetNameField = includeDatasetName
@@ -964,7 +966,8 @@ function buildDatasetItemsLatestQuery(
         source_observation_id,
         status,
         created_at,
-        updated_at,        valid_from,
+        updated_at,
+        valid_from,
         is_deleted
       FROM dataset_items
       WHERE project_id = ${projectId}
@@ -972,21 +975,21 @@ function buildDatasetItemsLatestQuery(
       ORDER BY id, project_id, valid_from DESC
     )
     SELECT
-      li.id,
-      li.project_id,
-      li.dataset_id,
+      di.id,
+      di.project_id,
+      di.dataset_id,
       ${ioFields}
-      li.source_trace_id,
-      li.source_observation_id,
-      li.status,
-      li.created_at,
-      li.updated_at
+      di.source_trace_id,
+      di.source_observation_id,
+      di.status,
+      di.created_at,
+      di.updated_at
       ${datasetNameField}
-    FROM latest_items li
+    FROM latest_items di
     ${datasetJoin}
-    WHERE li.is_deleted = false
+    WHERE di.is_deleted = false
     ${searchCondition}
-    ORDER BY li.valid_from DESC
+    ORDER BY di.valid_from DESC
     ${paginationClause}
   `;
 }
@@ -1033,8 +1036,8 @@ function buildDatasetItemsLatestCountQuery(
       ORDER BY id, project_id, valid_from DESC
     )
     SELECT COUNT(*) as count
-    FROM latest_items li
-    WHERE li.is_deleted = false
+    FROM latest_items di
+    WHERE di.is_deleted = false
     ${searchCondition}
   `;
 }
@@ -1060,12 +1063,12 @@ function buildDatasetItemsLatestCountGroupedQuery(
       ORDER BY valid_from, id DESC
     )
     SELECT
-      li.dataset_id,
+      di.dataset_id,
       COUNT(*) as count
-    FROM latest_items li
-    WHERE li.is_deleted = false
-      AND li.status = 'ACTIVE'
-    GROUP BY li.dataset_id
+    FROM latest_items di
+    WHERE di.is_deleted = false
+      AND di.status = 'ACTIVE'
+    GROUP BY di.dataset_id
   `;
 }
 
