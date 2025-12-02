@@ -18,7 +18,9 @@ import {
   UnfoldVertical,
   PanelLeftClose,
   PanelLeftOpen,
+  Info,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -428,6 +430,40 @@ export function Trace(props: {
       />
     ) : null;
 
+  const observationTypeAlert = useMemo(() => {
+    if (
+      context === "peek" &&
+      props.observations.length > 0 &&
+      props.observations.every((o) => o.type === "SPAN")
+    ) {
+      return (
+        <div className="mx-2 mb-2 flex flex-col items-start justify-center gap-2 rounded-lg border border-dashed p-4">
+          <div className="flex w-full flex-row items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+              <Info className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <h3 className="text-sm font-semibold">
+              You’re only using spans here.
+            </h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            You’ll get much richer insights by using specific observation types.
+          </p>
+          <Button variant="outline" asChild size="sm">
+            <Link
+              href="https://langfuse.com/docs/observability/features/observation-types"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Learn how to use observation types
+            </Link>
+          </Button>
+        </div>
+      );
+    }
+    return null;
+  }, [context, props.observations]);
+
   return (
     <JsonExpansionProvider>
       <div
@@ -436,7 +472,7 @@ export function Trace(props: {
       >
         {/* Mobile: Vertical stack without resizing */}
         {isMobile && (
-          <div className="flex h-full w-full flex-col overflow-y-auto md:hidden">
+          <div className="flex w-full flex-1 flex-col overflow-y-auto md:hidden">
             {/* Tree Panel - Mobile */}
             <div className="flex-shrink-0 border-b pb-2">
               <Command className="mt-1 flex flex-col gap-1 overflow-hidden rounded-none border-0">
@@ -619,7 +655,10 @@ export function Trace(props: {
                       />
                     </div>
                   ) : (
-                    <div className="w-full">{treeOrSearchContent}</div>
+                    <div className="w-full">
+                      {treeOrSearchContent}
+                      {observationTypeAlert}
+                    </div>
                   )}
                 </div>
               </Command>
@@ -634,7 +673,7 @@ export function Trace(props: {
 
         {/* Desktop: Horizontal resizable panels */}
         {!isMobile && (
-          <div className="hidden md:block md:h-full">
+          <div className="hidden md:flex md:h-full md:min-h-0 md:flex-1 md:flex-col">
             <ResizablePanelGroup
               id={panelGroupId}
               direction="horizontal"
@@ -980,8 +1019,11 @@ export function Trace(props: {
                                 maxSize={95}
                                 className="flex flex-col overflow-hidden pl-0 pr-2"
                               >
-                                <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                                <div className="min-h-0 overflow-y-auto pb-2">
                                   {treeOrSearchContent}
+                                </div>
+                                <div className="shrink-0">
+                                  {observationTypeAlert}
                                 </div>
                               </ResizablePanel>
 
@@ -1001,8 +1043,11 @@ export function Trace(props: {
                             </ResizablePanelGroup>
                           ) : (
                             <div className="flex h-full w-full flex-col overflow-hidden pl-0 pr-2">
-                              <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                              <div className="min-h-0 overflow-y-auto pb-2">
                                 {treeOrSearchContent}
+                              </div>
+                              <div className="shrink-0">
+                                {observationTypeAlert}
                               </div>
                             </div>
                           )}
