@@ -35,6 +35,7 @@ interface MigrationArgs {
   pollIntervalMs?: number; // Default: 30_000
   maxRetries?: number; // Default: 3
   batchTimeoutMs?: number; // Default: 7_200_000 (2h)
+  retryFailed?: boolean; // Reset failed chunks to pending
 }
 
 interface MigrationState {
@@ -556,8 +557,23 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     query: string,
     queryId: string,
     timeoutMs: number,
+    retryCount: number = 0,
   ): Promise<void> {
-    logger.debug(`[Backfill Events] Firing query ${queryId}`);
+    logger.info(`[Backfill Events] Firing query ${queryId}`);
+
+    // Apply memory-reducing settings on retries
+    const retrySettings =
+      retryCount > 0
+        ? {
+            max_threads: 1,
+          }
+        : {};
+
+    if (retryCount > 0) {
+      logger.info(
+        `[Backfill Events] Applying retry settings for query ${queryId}: max_threads=1 (retry ${retryCount})`,
+      );
+    }
 
     // Fire the query - commandClickhouse will wait for completion
     // but we want to track it via polling instead
@@ -574,6 +590,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       clickhouseSettings: {
         send_progress_in_http_headers: 1,
         http_headers_progress_interval_ms: "30000",
+        ...retrySettings,
       },
     });
 
@@ -717,6 +734,25 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     // Phase 2: Recover any in-progress queries from previous run
     await this.recoverInProgressTodos(state);
 
+    // Phase 2.5: Reset failed chunks to pending if --retry-failed flag is set
+    if (migrationArgs.retryFailed) {
+      state = await this.loadState();
+      const failedChunks = state.todos.filter((t) => t.status === "failed");
+      if (failedChunks.length > 0) {
+        logger.info(
+          `[Backfill Events] Resetting ${failedChunks.length} failed chunks to pending`,
+        );
+        for (const todo of state.todos) {
+          if (todo.status === "failed") {
+            todo.status = "pending";
+            todo.error = undefined;
+            todo.retryCount = 0;
+          }
+        }
+        await this.updateState(state);
+      }
+    }
+
     // Phase 3: Execute chunks with concurrency
     const manager = new ConcurrentQueryManager();
 
@@ -756,6 +792,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
           query,
           state.todos[todoIndex].queryId!,
           config.batchTimeoutMs!,
+          state.todos[todoIndex].retryCount || 0,
         );
         manager.addQuery(
           state.todos[todoIndex],
@@ -878,6 +915,7 @@ async function main() {
       pollIntervalMs: { type: "string", short: "p", default: "30000" },
       maxRetries: { type: "string", short: "r", default: "3" },
       batchTimeoutMs: { type: "string", short: "t", default: "7200000" },
+      retryFailed: { type: "boolean", short: "f", default: false },
     },
   });
 
@@ -888,6 +926,7 @@ async function main() {
     pollIntervalMs: parseInt(args.values.pollIntervalMs as string, 10),
     maxRetries: parseInt(args.values.maxRetries as string, 10),
     batchTimeoutMs: parseInt(args.values.batchTimeoutMs as string, 10),
+    retryFailed: args.values.retryFailed as boolean,
   };
 
   const validation = await migration.validate(parsedArgs);
