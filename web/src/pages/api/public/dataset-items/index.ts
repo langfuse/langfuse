@@ -9,7 +9,12 @@ import {
   transformDbDatasetItemDomainToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
-import { logger, upsertDatasetItem } from "@langfuse/shared/src/server";
+import {
+  getDatasetItemsByLatest,
+  getDatasetItemsCountByLatest,
+  logger,
+  upsertDatasetItem,
+} from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -110,11 +115,11 @@ export default withMiddlewares({
         datasetId = dataset.id;
       }
 
-      const { items } = await getDatasetItemsByLatest({
+      const items = await getDatasetItemsByLatest({
         projectId: auth.scope.projectId,
         includeDatasetName: true,
         filters: {
-          datasetId,
+          ...(datasetId && { datasetIds: [datasetId] }),
           sourceTraceId: sourceTraceId ?? undefined,
           sourceObservationId: sourceObservationId ?? undefined,
         },
@@ -125,7 +130,7 @@ export default withMiddlewares({
       const totalItems = await getDatasetItemsCountByLatest({
         projectId: auth.scope.projectId,
         filters: {
-          datasetId,
+          ...(datasetId && { datasetIds: [datasetId] }),
           sourceTraceId: sourceTraceId ?? undefined,
           sourceObservationId: sourceObservationId ?? undefined,
         },

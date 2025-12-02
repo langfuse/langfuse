@@ -215,7 +215,7 @@ async function getItemsToProcess(
     projectId,
     includeIO: true,
     filters: {
-      datasetId,
+      datasetIds: [datasetId],
     },
   });
 

@@ -634,16 +634,11 @@ export type ItemWithDatasetName<T> = T & {
  * Used by dataset-items repository for clean API
  */
 export type DatasetItemFilters = {
-  datasetId?: string;
+  datasetIds?: string[]; // Filter for one or multiple dataset IDs
   itemIds?: string[];
   sourceTraceId?: string | null; // null = filter for IS NULL, undefined = no filter
   sourceObservationId?: string | null; // null = filter for IS NULL, undefined = no filter
   status?: "ACTIVE" | "ALL"; // Defaults to 'ACTIVE' at manager level
-};
-
-const DEFAULT_OPTIONS = {
-  includeIO: true,
-  returnVersionTimestamp: false,
 };
 
 /**
@@ -692,12 +687,12 @@ export function convertFiltersToFilterState(
 ): FilterState {
   const filterState: FilterState = [];
 
-  if (filters.datasetId) {
+  if (filters.datasetIds && filters.datasetIds.length > 0) {
     filterState.push({
-      type: "string",
+      type: "stringOptions",
       column: "datasetId",
-      operator: "=",
-      value: filters.datasetId,
+      operator: "any of",
+      value: filters.datasetIds,
     });
   }
 
@@ -1099,9 +1094,10 @@ export async function getDatasetItemsByLatest<
       const items = await prisma.datasetItem.findMany({
         where: {
           projectId: props.projectId,
-          ...(defaultFilters.datasetId && {
-            datasetId: defaultFilters.datasetId,
-          }),
+          ...(defaultFilters.datasetIds &&
+            defaultFilters.datasetIds.length > 0 && {
+              datasetId: { in: defaultFilters.datasetIds },
+            }),
           ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
           ...(defaultFilters.itemIds && {
             id: { in: defaultFilters.itemIds },
@@ -1154,9 +1150,10 @@ export async function getDatasetItemsCountByLatest(props: {
       return await prisma.datasetItem.count({
         where: {
           projectId: props.projectId,
-          ...(defaultFilters.datasetId && {
-            datasetId: defaultFilters.datasetId,
-          }),
+          ...(defaultFilters.datasetIds &&
+            defaultFilters.datasetIds.length > 0 && {
+              datasetId: { in: defaultFilters.datasetIds },
+            }),
           ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
           ...(defaultFilters.itemIds && {
             id: { in: defaultFilters.itemIds },

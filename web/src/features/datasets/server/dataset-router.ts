@@ -657,7 +657,7 @@ export const datasetRouter = createTRPCRouter({
       return await getDatasetItemsCountByLatest({
         projectId: input.projectId,
         filters: {
-          datasetId: input.datasetId,
+          datasetIds: [input.datasetId],
         },
       });
     }),
@@ -1035,7 +1035,7 @@ export const datasetRouter = createTRPCRouter({
         const itemsBatch = await getDatasetItemsByLatest({
           projectId: input.projectId,
           filters: {
-            datasetId: input.datasetId,
+            datasetIds: [input.datasetId],
           },
           limit: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
           page,
@@ -1410,7 +1410,7 @@ export const datasetRouter = createTRPCRouter({
         getDatasetItemsByLatest({
           projectId: input.projectId,
           filters: {
-            datasetId: datasetId,
+            datasetIds: [datasetId],
             itemIds: datasetItemIds,
           },
         }),

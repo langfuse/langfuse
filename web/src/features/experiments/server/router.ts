@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
   ExperimentCreateQueue,
+  getDatasetItemsByLatest,
   PromptService,
   QueueJobs,
   QueueName,
@@ -14,7 +15,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  DatasetStatus,
   extractVariables,
   validateDatasetItem,
   UnauthorizedError,
@@ -140,21 +140,21 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const res = await getDatasetItemsByLatest({
+      const items = await getDatasetItemsByLatest({
         projectId: input.projectId,
         filters: {
-          datasetId: input.datasetId,
+          datasetIds: [input.datasetId],
         },
       });
 
-      if (!Boolean(res.items.length)) {
+      if (!Boolean(items.length)) {
         return {
           isValid: false,
           message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
-      const variablesMap = countValidDatasetItems(res.items, allVariables);
+      const variablesMap = countValidDatasetItems(items, allVariables);
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
@@ -165,7 +165,7 @@ export const experimentsRouter = createTRPCRouter({
 
       return {
         isValid: true,
-        totalItems: res.items.length,
+        totalItems: items.length,
         variablesMap: variablesMap,
       };
     }),
