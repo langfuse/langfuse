@@ -850,7 +850,7 @@ function buildDatasetItemsLatestQuery(
       FROM dataset_items
       WHERE project_id = ${projectId}
       ${filterCondition}
-      ORDER BY id, project_id, valid_from DESC
+      ORDER BY valid_from, id DESC
     )
     SELECT
       li.id,
@@ -900,11 +900,41 @@ function buildDatasetItemsLatestCountQuery(
       FROM dataset_items
       WHERE project_id = ${projectId}
       ${filterCondition}
-      ORDER BY id, project_id, valid_from DESC
+      ORDER BY valid_from, id DESC
     )
     SELECT COUNT(*) as count
     FROM latest_items li
     WHERE li.is_deleted = false
+  `;
+}
+
+/**
+ * Builds the SQL query for counting latest dataset items grouped by dataset_id.
+ */
+function buildDatasetItemsLatestCountGroupedQuery(
+  projectId: string,
+  datasetIds: string[],
+): Prisma.Sql {
+  return Prisma.sql`
+    WITH latest_items AS (
+      SELECT DISTINCT ON (id, project_id)
+        id,
+        project_id,
+        dataset_id,
+        status,
+        is_deleted
+      FROM dataset_items
+      WHERE project_id = ${projectId}
+        AND dataset_id = ANY(${datasetIds})
+      ORDER BY valid_from, id DESC
+    )
+    SELECT
+      li.dataset_id,
+      COUNT(*) as count
+    FROM latest_items li
+    WHERE li.is_deleted = false
+      AND li.status = 'ACTIVE'
+    GROUP BY li.dataset_id
   `;
 }
 
@@ -1022,6 +1052,27 @@ async function getDatasetItemsCountByLatestInternal(params: {
   const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
 
   return result.length > 0 ? Number(result[0].count) : 0;
+}
+
+/**
+ * Internal function to count latest dataset items grouped by dataset_id using raw SQL.
+ */
+async function getDatasetItemsCountByLatestGroupedInternal(params: {
+  projectId: string;
+  datasetIds: string[];
+}): Promise<Array<{ datasetId: string; count: number }>> {
+  const query = buildDatasetItemsLatestCountGroupedQuery(
+    params.projectId,
+    params.datasetIds,
+  );
+
+  const result =
+    await prisma.$queryRaw<Array<{ dataset_id: string; count: bigint }>>(query);
+
+  return result.map((row) => ({
+    datasetId: row.dataset_id,
+    count: Number(row.count),
+  }));
 }
 
 /**
@@ -1240,6 +1291,36 @@ export async function getDatasetItemsCountByLatest(props: {
         projectId: props.projectId,
         filters: props.filters,
       });
+    },
+  });
+}
+
+export async function getDatasetItemsCountByLatestGrouped(props: {
+  projectId: string;
+  datasetIds: string[];
+}): Promise<Array<{ datasetId: string; count: number }>> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      const results = await prisma.datasetItem.groupBy({
+        by: ["datasetId"],
+        where: {
+          projectId: props.projectId,
+          datasetId: { in: props.datasetIds },
+        },
+        _count: true,
+      });
+
+      return results.map((r) => ({
+        datasetId: r.datasetId,
+        count: r._count,
+      }));
+    },
+    [Implementation.VERSIONED]: async () => {
+      const results = await getDatasetItemsCountByLatestGroupedInternal({
+        projectId: props.projectId,
+        datasetIds: props.datasetIds,
+      });
+      return results;
     },
   });
 }

@@ -57,6 +57,7 @@ import {
   getDatasetItemById,
   getDatasetItemsByLatest,
   getDatasetItemsCountByLatest,
+  getDatasetItemsCountByLatestGrouped,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -364,12 +365,8 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       if (input.datasetIds.length === 0) return { metrics: [] };
 
+      // Get dataset runs metrics
       const query = DB.selectFrom("datasets")
-        .leftJoin("dataset_items", (join) =>
-          join
-            .onRef("datasets.id", "=", "dataset_items.dataset_id")
-            .on("dataset_items.project_id", "=", input.projectId),
-        )
         .leftJoin("dataset_runs", (join) =>
           join
             .onRef("datasets.id", "=", "dataset_runs.dataset_id")
@@ -377,7 +374,6 @@ export const datasetRouter = createTRPCRouter({
         )
         .select(({ eb }) => [
           "datasets.id",
-          eb.fn.count("dataset_items.id").distinct().as("countDatasetItems"),
           eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
           eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
         ])
@@ -387,14 +383,32 @@ export const datasetRouter = createTRPCRouter({
 
       const compiledQuery = query.compile();
 
-      const metrics = await ctx.prisma.$queryRawUnsafe<
+      const runsMetrics = await ctx.prisma.$queryRawUnsafe<
         Array<{
           id: string;
-          countDatasetItems: number;
           countDatasetRuns: number;
           lastRunAt: Date | null;
         }>
       >(compiledQuery.sql, ...compiledQuery.parameters);
+
+      // Get dataset items count for all datasets
+      const itemsCounts = await getDatasetItemsCountByLatestGrouped({
+        projectId: input.projectId,
+        datasetIds: input.datasetIds,
+      });
+
+      // Merge the metrics
+      const metrics = input.datasetIds.map((datasetId) => {
+        const runsMetric = runsMetrics.find((m) => m.id === datasetId);
+        const itemsCount = itemsCounts.find((m) => m.datasetId === datasetId);
+
+        return {
+          id: datasetId,
+          countDatasetItems: itemsCount?.count ?? 0,
+          countDatasetRuns: runsMetric?.countDatasetRuns ?? 0,
+          lastRunAt: runsMetric?.lastRunAt ?? null,
+        };
+      });
 
       return { metrics };
     }),
