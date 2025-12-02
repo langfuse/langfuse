@@ -10,6 +10,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import {
+  createDatasetItemFilterState,
   getDatasetItemsByLatest,
   getDatasetItemsCountByLatest,
   logger,
@@ -115,25 +116,22 @@ export default withMiddlewares({
         datasetId = dataset.id;
       }
 
+      const filterState = createDatasetItemFilterState({
+        ...(datasetId && { datasetIds: [datasetId] }),
+        sourceTraceId: sourceTraceId ?? undefined,
+        sourceObservationId: sourceObservationId ?? undefined,
+      });
       const items = await getDatasetItemsByLatest({
         projectId: auth.scope.projectId,
+        filterState,
         includeDatasetName: true,
-        filters: {
-          ...(datasetId && { datasetIds: [datasetId] }),
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-        },
         limit: limit,
         page: page - 1,
       });
 
       const totalItems = await getDatasetItemsCountByLatest({
         projectId: auth.scope.projectId,
-        filters: {
-          ...(datasetId && { datasetIds: [datasetId] }),
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-        },
+        filterState,
       });
 
       return {

@@ -13,6 +13,7 @@ import {
   isValidJSONSchema,
   DatasetItemValidator,
   getDatasetItemsByLatest,
+  createDatasetItemFilterState,
 } from "@langfuse/shared/src/server";
 import { validateFieldAgainstSchema } from "@langfuse/shared";
 
@@ -1045,7 +1046,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
       }
       const datasetItems = await getDatasetItemsByLatest({
         projectId,
-        filters: { datasetIds: [dataset.id] },
+        filterState: createDatasetItemFilterState({ datasetIds: [dataset.id] }),
         includeIO: false,
       });
       expect(datasetItems.length).toBe(1);

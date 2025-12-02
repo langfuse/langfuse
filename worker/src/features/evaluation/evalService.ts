@@ -31,7 +31,7 @@ import {
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
   getDatasetItemById,
-  validateAndConvertToDatasetItemFilters,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -57,6 +57,7 @@ import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
+import { isArray } from "lodash";
 
 let s3StorageServiceClient: StorageService;
 
@@ -419,10 +420,11 @@ export const createEvalJobs = async ({
       | { id: string; observationId: string | null }
       | undefined;
     if (isDatasetConfig) {
-      // Validate and convert filter to DatasetItemFilters
-      const itemFilters = validateAndConvertToDatasetItemFilters(
+      // Validate filter condition
+      tableColumnsToSqlFilterAndPrefix(
         config.target_object === "dataset" ? validatedFilter : [],
         evalDatasetFormFilterCols,
+        "dataset_items",
       );
 
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
@@ -437,13 +439,20 @@ export const createEvalJobs = async ({
         if (!item) {
           datasetItem = undefined;
         } else {
-          // Set datasetItem if item exists and matches filter (if any)
-          // - No filter (undefined/empty): accept any item
-          // - Filter specified: accept only if item's datasetId is in filter
-          const datasetIds = itemFilters?.datasetIds;
-          const hasFilter = datasetIds && datasetIds.length > 0;
+          // Check if item matches datasetId filter (if any)
+          const datasetIdFilter = validatedFilter.find(
+            (f) => f.column === "datasetId" && f.type === "stringOptions",
+          );
+          const allowedDatasetIds =
+            datasetIdFilter?.type === "stringOptions" &&
+            isArray(datasetIdFilter.value)
+              ? datasetIdFilter.value
+              : null;
+
           const matchesFilter =
-            !hasFilter || datasetIds.includes(item.datasetId);
+            !allowedDatasetIds ||
+            allowedDatasetIds.length === 0 ||
+            allowedDatasetIds.includes(item.datasetId);
 
           datasetItem = matchesFilter ? { id: item.id } : undefined;
         }

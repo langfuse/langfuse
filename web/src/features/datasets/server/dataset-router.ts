@@ -58,6 +58,7 @@ import {
   getDatasetItemsByLatest,
   getDatasetItemsCountByLatest,
   getDatasetItemsCountByLatestGrouped,
+  createDatasetItemFilterState,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -670,9 +671,9 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input }) => {
       return await getDatasetItemsCountByLatest({
         projectId: input.projectId,
-        filters: {
+        filterState: createDatasetItemFilterState({
           datasetIds: [input.datasetId],
-        },
+        }),
       });
     }),
   itemsByDatasetId: protectedProjectProcedure
@@ -1048,9 +1049,9 @@ export const datasetRouter = createTRPCRouter({
       while (true) {
         const itemsBatch = await getDatasetItemsByLatest({
           projectId: input.projectId,
-          filters: {
+          filterState: createDatasetItemFilterState({
             datasetIds: [input.datasetId],
-          },
+          }),
           limit: DUPLICATE_DATASET_ITEMS_BATCH_SIZE,
           page,
         });
@@ -1423,10 +1424,11 @@ export const datasetRouter = createTRPCRouter({
         enrichAndMapToDatasetItemId(projectId, datasetRunItems),
         getDatasetItemsByLatest({
           projectId: input.projectId,
-          filters: {
+          filterState: createDatasetItemFilterState({
             datasetIds: [datasetId],
             itemIds: datasetItemIds,
-          },
+            status: "ACTIVE",
+          }),
         }),
       ]);
 
@@ -1481,10 +1483,10 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const items = await getDatasetItemsByLatest({
         projectId: input.projectId,
-        filters: {
+        filterState: createDatasetItemFilterState({
           sourceTraceId: input.traceId,
           sourceObservationId: input.observationId ?? null, // null -> should not include observations from the same trace
-        },
+        }),
         includeDatasetName: true,
       });
 

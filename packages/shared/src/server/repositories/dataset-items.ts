@@ -632,31 +632,6 @@ export type ItemWithDatasetName<T> = T & {
 };
 
 /**
- * Filter options for querying dataset items
- * Used by dataset-items repository for clean API
- */
-export type DatasetItemFilters = {
-  datasetIds?: string[]; // Filter for one or multiple dataset IDs
-  itemIds?: string[];
-  sourceTraceId?: string | null; // null = filter for IS NULL, undefined = no filter
-  sourceObservationId?: string | null; // null = filter for IS NULL, undefined = no filter
-  status?: "ACTIVE" | "ALL"; // Defaults to 'ACTIVE' at manager level
-  searchQuery?: string; // Full-text search query
-  searchType?: ("id" | "content")[]; // Search types: id and/or content
-  metadata?: Array<{
-    // Metadata filters (key-value pairs)
-    key: string;
-    operator:
-      | "="
-      | "contains"
-      | "does not contain"
-      | "starts with"
-      | "ends with";
-    value: string;
-  }>;
-};
-
-/**
  * Raw database row for getting latest dataset items from dataset_items table
  */
 type QueryGetLatestDatasetItemRow = {
@@ -675,97 +650,44 @@ type QueryGetLatestDatasetItemRow = {
 };
 
 /**
- * Default filter for dataset items - always filter ACTIVE status
- */
-const DEFAULT_DATASET_ITEM_FILTERS: DatasetItemFilters = {
-  status: "ACTIVE",
-};
-
-/**
- * Apply default filters with user overrides
- */
-export function applyDefaultFilters(
-  filters?: DatasetItemFilters,
-): DatasetItemFilters {
-  return {
-    ...DEFAULT_DATASET_ITEM_FILTERS,
-    ...filters,
-  };
-}
-
-/**
- * Validates FilterState against column definitions and converts to DatasetItemFilters
- * Similar to tableColumnsToSqlFilterAndPrefix but returns typed DatasetItemFilters instead of SQL
+ * Helper to create FilterState for common dataset item filtering use cases.
+ * Use this when you need simple filters. For complex filters, construct FilterState directly.
  *
- * @param filterState - The filter state to validate and convert
- * @param tableColumns - Column definitions to validate against (e.g., evalDatasetFormFilterCols)
- * @returns DatasetItemFilters object that can be passed to repository functions
- * @throws Error if filter references unknown column
- *
+ * @example
+ * const filterState = createDatasetItemFilterState({
+ *   datasetIds: ["dataset-1"],
+ *   status: "ACTIVE",
+ * });
  */
-export function validateAndConvertToDatasetItemFilters(
-  filterState: FilterState,
-  tableColumns: ColumnDefinition[],
-): DatasetItemFilters | null {
-  const filters: DatasetItemFilters = {};
-
-  for (const filter of filterState) {
-    // Validate that the column exists in the column definitions
-    const col = tableColumns.find(
-      (c) => c.name === filter.column || c.id === filter.column,
-    );
-    if (!col) {
-      logger.error("Invalid filter column", filter.column);
-      throw new Error("Invalid filter column: " + filter.column);
-    }
-
-    // Map validated column to DatasetItemFilters
-    if (col.id === "datasetId" && filter.type === "stringOptions") {
-      filters.datasetIds = filter.value;
-    } else if (col.id === "metadata" && filter.type === "stringObject") {
-      if (!filters.metadata) {
-        filters.metadata = [];
-      }
-      filters.metadata.push({
-        key: filter.key,
-        operator: filter.operator,
-        value: filter.value,
-      });
-    }
-  }
-
-  return filters;
-}
-
-/**
- * Converts clean DatasetItemFilters object to FilterState array
- * for use with tableColumnsToSqlFilterAndPrefix
- */
-export function convertFiltersToFilterState(
-  filters: DatasetItemFilters,
-): FilterState {
+export function createDatasetItemFilterState(options: {
+  datasetIds?: string[];
+  itemIds?: string[];
+  sourceTraceId?: string | null;
+  sourceObservationId?: string | null;
+  status?: "ACTIVE" | "ALL";
+}): FilterState {
   const filterState: FilterState = [];
 
-  if (filters.datasetIds && filters.datasetIds.length > 0) {
+  if (options.datasetIds && options.datasetIds.length > 0) {
     filterState.push({
       type: "stringOptions",
       column: "datasetId",
       operator: "any of",
-      value: filters.datasetIds,
+      value: options.datasetIds,
     });
   }
 
-  if (filters.itemIds && filters.itemIds.length > 0) {
+  if (options.itemIds && options.itemIds.length > 0) {
     filterState.push({
       type: "stringOptions",
       column: "id",
       operator: "any of",
-      value: filters.itemIds,
+      value: options.itemIds,
     });
   }
 
-  if (filters.sourceTraceId !== undefined) {
-    if (filters.sourceTraceId === null) {
+  if (options.sourceTraceId !== undefined) {
+    if (options.sourceTraceId === null) {
       filterState.push({
         type: "null",
         column: "sourceTraceId",
@@ -777,13 +699,13 @@ export function convertFiltersToFilterState(
         type: "string",
         column: "sourceTraceId",
         operator: "=",
-        value: filters.sourceTraceId,
+        value: options.sourceTraceId,
       });
     }
   }
 
-  if (filters.sourceObservationId !== undefined) {
-    if (filters.sourceObservationId === null) {
+  if (options.sourceObservationId !== undefined) {
+    if (options.sourceObservationId === null) {
       filterState.push({
         type: "null",
         column: "sourceObservationId",
@@ -795,12 +717,12 @@ export function convertFiltersToFilterState(
         type: "string",
         column: "sourceObservationId",
         operator: "=",
-        value: filters.sourceObservationId,
+        value: options.sourceObservationId,
       });
     }
   }
 
-  if (filters.status === "ACTIVE") {
+  if (options.status === "ACTIVE") {
     filterState.push({
       type: "stringOptions",
       column: "status",
@@ -809,19 +731,53 @@ export function convertFiltersToFilterState(
     });
   }
 
-  if (filters.metadata && filters.metadata.length > 0) {
-    for (const metadataFilter of filters.metadata) {
-      filterState.push({
-        type: "stringObject",
-        column: "metadata",
-        key: metadataFilter.key,
-        operator: metadataFilter.operator,
-        value: metadataFilter.value,
-      });
+  return filterState;
+}
+
+/**
+ * Converts FilterState to Prisma where clause for STATEFUL mode.
+ * This is a temporary helper for the deprecated STATEFUL implementation.
+ * VERSIONED mode uses SQL directly and doesn't need this.
+ */
+function buildPrismaWhereFromFilterState(filterState: FilterState): any {
+  const where: any = {};
+
+  for (const filter of filterState) {
+    switch (filter.column) {
+      case "datasetId":
+        if (filter.type === "stringOptions" && filter.value.length > 0) {
+          where.datasetId = { in: filter.value };
+        }
+        break;
+      case "id":
+        if (filter.type === "stringOptions" && filter.value.length > 0) {
+          where.id = { in: filter.value };
+        }
+        break;
+      case "sourceTraceId":
+        if (filter.type === "null" && filter.operator === "is null") {
+          where.sourceTraceId = null;
+        } else if (filter.type === "string") {
+          where.sourceTraceId = filter.value;
+        }
+        break;
+      case "sourceObservationId":
+        if (filter.type === "null" && filter.operator === "is null") {
+          where.sourceObservationId = null;
+        } else if (filter.type === "string") {
+          where.sourceObservationId = filter.value;
+        }
+        break;
+      case "status":
+        if (filter.type === "stringOptions" && filter.value.length > 0) {
+          where.status = { in: filter.value.map((v) => v as DatasetStatus) };
+        }
+        break;
+      // metadata filters are not supported in Prisma path (need raw SQL)
     }
   }
 
-  return filterState;
+  return where;
 }
 
 /**
@@ -1235,16 +1191,15 @@ async function getDatasetItemsByLatestInternal<
  */
 async function getDatasetItemsCountByLatestInternal(params: {
   projectId: string;
-  filters?: DatasetItemFilters;
+  filterState: FilterState;
+  searchQuery?: string;
+  searchType?: ("id" | "content")[];
 }): Promise<number> {
-  const filtersWithDefaults = applyDefaultFilters(params.filters);
-  const filterState = convertFiltersToFilterState(filtersWithDefaults);
-
   const query = buildDatasetItemsLatestCountQuery(
     params.projectId,
-    filterState,
-    params.filters?.searchQuery,
-    params.filters?.searchType,
+    params.filterState,
+    params.searchQuery,
+    params.searchType,
   );
 
   const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
@@ -1363,15 +1318,21 @@ export async function getDatasetItemById<
 /**
  * Retrieves the latest version of dataset items.
  * For each unique item ID, returns the latest non-deleted version.
+ *
+ * @param filterState - FilterState array for filtering (use createDatasetItemFilterState for simple cases)
+ * @param searchQuery - Optional full-text search query (searches id, input, expectedOutput, metadata)
+ * @param searchType - Search types: ["id"], ["content"], or ["id", "content"]
  */
 export async function getDatasetItemsByLatest<
   IncludeIO extends boolean = true,
   IncludeDatasetName extends boolean = false,
 >(props: {
   projectId: string;
+  filterState: FilterState;
+  searchQuery?: string;
+  searchType?: ("id" | "content")[];
   includeIO?: IncludeIO;
   includeDatasetName?: IncludeDatasetName;
-  filters?: DatasetItemFilters;
   limit?: number;
   page?: number;
 }): Promise<
@@ -1384,6 +1345,7 @@ export async function getDatasetItemsByLatest<
       : DatasetItemDomainWithoutIO[]
 > {
   const includeIO = (props.includeIO ?? true) as IncludeIO;
+  const includeDatasetName = props.includeDatasetName ?? false;
   const offset =
     props.limit !== undefined && props.page !== undefined
       ? props.page * props.limit
@@ -1391,26 +1353,20 @@ export async function getDatasetItemsByLatest<
 
   return executeWithDatasetServiceStrategy(OperationType.READ, {
     [Implementation.STATEFUL]: async () => {
-      const defaultFilters = props.filters ?? {};
-      const status = defaultFilters.status ?? "ACTIVE";
-      const includeDatasetName = props.includeDatasetName ?? false;
-      const { searchQuery, searchType } = defaultFilters;
+      // STATEFUL: Use raw SQL if search or metadata filters are present
+      const hasSearch = props.searchQuery && props.searchQuery !== "";
+      const hasMetadataFilter = props.filterState.some(
+        (f) => f.column === "metadata" && f.type === "stringObject",
+      );
 
-      // If there's a search query, use raw SQL for STATEFUL mode (Prisma doesn't support ILIKE on JSONB)
-      if (
-        (searchQuery && searchQuery !== "") ||
-        (defaultFilters.metadata && defaultFilters.metadata.length > 0)
-      ) {
-        const filtersWithDefaults = applyDefaultFilters(props.filters);
-        const filterState = convertFiltersToFilterState(filtersWithDefaults);
-
+      if (hasSearch || hasMetadataFilter) {
         const query = buildStatefulDatasetItemsQuery(
           props.projectId,
           includeIO,
           includeDatasetName,
-          filterState,
-          searchQuery,
-          searchType,
+          props.filterState,
+          props.searchQuery,
+          props.searchType,
           props.limit,
           offset,
         );
@@ -1422,6 +1378,12 @@ export async function getDatasetItemsByLatest<
           convertLatestRowToDomain(row, includeIO, includeDatasetName),
         ) as any;
       }
+
+      // Otherwise use Prisma
+      const where = {
+        projectId: props.projectId,
+        ...buildPrismaWhereFromFilterState(props.filterState),
+      };
 
       const selectFields = includeIO
         ? undefined
@@ -1437,23 +1399,7 @@ export async function getDatasetItemsByLatest<
           };
 
       const items = await prisma.datasetItem.findMany({
-        where: {
-          projectId: props.projectId,
-          ...(defaultFilters.datasetIds &&
-            defaultFilters.datasetIds.length > 0 && {
-              datasetId: { in: defaultFilters.datasetIds },
-            }),
-          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
-          ...(defaultFilters.itemIds && {
-            id: { in: defaultFilters.itemIds },
-          }),
-          ...(defaultFilters.sourceTraceId !== undefined && {
-            sourceTraceId: defaultFilters.sourceTraceId,
-          }),
-          ...(defaultFilters.sourceObservationId !== undefined && {
-            sourceObservationId: defaultFilters.sourceObservationId,
-          }),
-        },
+        where,
         ...(selectFields && { select: selectFields }),
         ...(props.limit !== undefined && { take: props.limit }),
         ...(offset !== undefined && { skip: offset }),
@@ -1468,16 +1414,14 @@ export async function getDatasetItemsByLatest<
       ) as any;
     },
     [Implementation.VERSIONED]: async () => {
-      const filtersWithDefaults = applyDefaultFilters(props.filters);
-      const filterState = convertFiltersToFilterState(filtersWithDefaults);
-
+      // VERSIONED: FilterState → SQL directly
       return getDatasetItemsByLatestInternal({
         projectId: props.projectId,
         includeIO,
-        includeDatasetName: props.includeDatasetName,
-        filter: filterState,
-        searchQuery: props.filters?.searchQuery,
-        searchType: props.filters?.searchType,
+        includeDatasetName,
+        filter: props.filterState,
+        searchQuery: props.searchQuery,
+        searchType: props.searchType,
         limit: props.limit,
         offset,
       });
@@ -1485,56 +1429,54 @@ export async function getDatasetItemsByLatest<
   });
 }
 
+/**
+ * Counts the latest version of dataset items matching the filter.
+ *
+ * @param filterState - FilterState array for filtering (use createDatasetItemFilterState for simple cases)
+ * @param searchQuery - Optional full-text search query
+ * @param searchType - Search types: ["id"], ["content"], or ["id", "content"]
+ */
 export async function getDatasetItemsCountByLatest(props: {
   projectId: string;
-  filters?: DatasetItemFilters;
+  filterState: FilterState;
+  searchQuery?: string;
+  searchType?: ("id" | "content")[];
 }): Promise<number> {
   return executeWithDatasetServiceStrategy(OperationType.READ, {
     [Implementation.STATEFUL]: async () => {
-      const defaultFilters = props.filters ?? {};
-      const status = defaultFilters.status ?? "ACTIVE";
-      const { searchQuery, searchType } = defaultFilters;
+      // STATEFUL: Use raw SQL if search or metadata filters are present
+      const hasSearch = props.searchQuery && props.searchQuery !== "";
+      const hasMetadataFilter = props.filterState.some(
+        (f) => f.column === "metadata" && f.type === "stringObject",
+      );
 
-      // If there's a search query, use raw SQL for STATEFUL mode
-      if (searchQuery && searchQuery !== "") {
-        const filtersWithDefaults = applyDefaultFilters(props.filters);
-        const filterState = convertFiltersToFilterState(filtersWithDefaults);
-
+      if (hasSearch || hasMetadataFilter) {
         const query = buildStatefulDatasetItemsCountQuery(
           props.projectId,
-          filterState,
-          searchQuery,
-          searchType,
+          props.filterState,
+          props.searchQuery,
+          props.searchType,
         );
 
         const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
         return result.length > 0 ? Number(result[0].count) : 0;
       }
 
-      return await prisma.datasetItem.count({
-        where: {
-          projectId: props.projectId,
-          ...(defaultFilters.datasetIds &&
-            defaultFilters.datasetIds.length > 0 && {
-              datasetId: { in: defaultFilters.datasetIds },
-            }),
-          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
-          ...(defaultFilters.itemIds && {
-            id: { in: defaultFilters.itemIds },
-          }),
-          ...(defaultFilters.sourceTraceId !== undefined && {
-            sourceTraceId: defaultFilters.sourceTraceId,
-          }),
-          ...(defaultFilters.sourceObservationId !== undefined && {
-            sourceObservationId: defaultFilters.sourceObservationId,
-          }),
-        },
-      });
+      // Otherwise use Prisma
+      const where = {
+        projectId: props.projectId,
+        ...buildPrismaWhereFromFilterState(props.filterState),
+      };
+
+      return await prisma.datasetItem.count({ where });
     },
     [Implementation.VERSIONED]: async () => {
+      // VERSIONED: FilterState → SQL directly
       return getDatasetItemsCountByLatestInternal({
         projectId: props.projectId,
-        filters: props.filters,
+        filterState: props.filterState,
+        searchQuery: props.searchQuery,
+        searchType: props.searchType,
       });
     },
   });

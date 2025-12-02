@@ -2,6 +2,7 @@ import { DatasetItemDomain, DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessage,
+  createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
@@ -208,13 +209,14 @@ async function getItemsToProcess(
   runId: string,
   config: PromptExperimentConfig,
 ) {
-  // Fetch all dataset item
+  // Fetch all dataset items
   const datasetItems = await getDatasetItemsByLatest({
     projectId,
-    includeIO: true,
-    filters: {
+    filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],
-    },
+      status: "ACTIVE",
+    }),
+    includeIO: true,
   });
 
   // Filter and validate dataset items

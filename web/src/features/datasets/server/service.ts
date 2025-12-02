@@ -1,10 +1,8 @@
 import {
   filterAndValidateDbScoreList,
-  Prisma,
   type PrismaClient,
   optionalPaginationZod,
   type FilterState,
-  datasetItemFilterColumns,
   type DatasetItem,
   type TracingSearchType,
   singleFilter,
@@ -16,9 +14,7 @@ import {
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsGroupedByTraceId,
   getScoresForTraces,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
-  validateAndConvertToDatasetItemFilters,
   getDatasetItemsByLatest,
   getDatasetItemsCountByLatest,
 } from "@langfuse/shared/src/server";
@@ -58,31 +54,32 @@ export type DatasetRunItemsTableInput = {
 };
 
 export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
-  // Convert FilterState to DatasetItemFilters
-  const baseFilters = validateAndConvertToDatasetItemFilters(
-    input.filter,
-    datasetItemFilterColumns,
-  );
-
-  // Add dataset ID and search parameters
-  const filters = {
-    ...baseFilters,
-    datasetIds: [input.datasetId],
-    searchQuery: input.searchQuery,
-    searchType: input.searchType,
-  };
+  // Add dataset ID filter to existing FilterState
+  const filterState: FilterState = [
+    ...input.filter,
+    {
+      type: "stringOptions",
+      column: "datasetId",
+      operator: "any of",
+      value: [input.datasetId],
+    },
+  ];
 
   const [datasetItems, totalCount] = await Promise.all([
     getDatasetItemsByLatest({
       projectId: input.projectId,
-      filters,
+      filterState,
+      searchQuery: input.searchQuery,
+      searchType: input.searchType,
       includeIO: false,
       limit: input.limit,
       page: input.page,
     }),
     getDatasetItemsCountByLatest({
       projectId: input.projectId,
-      filters,
+      filterState,
+      searchQuery: input.searchQuery,
+      searchType: input.searchType,
     }),
   ]);
 

@@ -1,5 +1,8 @@
 import type { PrismaClient } from "../../db";
-import { getDatasetItemsByLatest } from "../repositories";
+import {
+  createDatasetItemFilterState,
+  getDatasetItemsByLatest,
+} from "../repositories";
 import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
 import type { DatasetSchemaValidationError } from "./schemaTypes";
 
@@ -57,9 +60,9 @@ export async function validateAllDatasetItems(params: {
     // Fetch batch
     const items = await getDatasetItemsByLatest({
       projectId,
-      filters: {
+      filterState: createDatasetItemFilterState({
         datasetIds: [datasetId],
-      },
+      }),
       limit: BATCH_SIZE,
       page,
     });
