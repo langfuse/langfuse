@@ -17,8 +17,6 @@ import {
 import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
-import { logger } from "../logger";
-import { ColumnDefinition } from "../../tableDefinitions";
 
 /**
  * Repository for dataset item CRUD operations.
@@ -102,21 +100,6 @@ async function getDatasetByName(props: {
  * Converts a DatasetItem to Domain types with optional IO fields and dataset name.
  * Automatically excludes version columns (sysId, validFrom, isDeleted).
  */
-function toDomainType<
-  IncludeIO extends boolean = true,
-  IncludeDatasetName extends boolean = false,
->(
-  item: DatasetItem & { dataset?: { name: string } },
-  includeIO?: IncludeIO,
-  includeDatasetName?: IncludeDatasetName,
-): IncludeIO extends true
-  ? IncludeDatasetName extends true
-    ? DatasetItemDomain & { datasetName: string }
-    : DatasetItemDomain
-  : IncludeDatasetName extends true
-    ? DatasetItemDomainWithoutIO & { datasetName: string }
-    : DatasetItemDomainWithoutIO;
-
 function toDomainType<
   IncludeIO extends boolean = true,
   IncludeDatasetName extends boolean = false,

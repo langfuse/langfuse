@@ -3,7 +3,6 @@ import {
   FilterCondition,
   TimeFilter,
   BatchExportQueryType,
-  evalDatasetFormFilterCols,
   OrderByState,
   TracingSearchType,
   ScoreDataType,

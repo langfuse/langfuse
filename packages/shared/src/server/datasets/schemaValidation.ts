@@ -47,8 +47,7 @@ export async function validateAllDatasetItems(params: {
   expectedOutputSchema: Record<string, unknown> | null;
   prisma: PrismaClient;
 }): Promise<ValidationResult> {
-  const { datasetId, projectId, inputSchema, expectedOutputSchema, prisma } =
-    params;
+  const { datasetId, projectId, inputSchema, expectedOutputSchema } = params;
 
   const BATCH_SIZE = 5_000;
   const MAX_ERRORS = 10;
