@@ -76,9 +76,11 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
       FROM clusterAllReplicas('default', 'system.processes')
       WHERE query_id = {queryId: String}
       LIMIT 1
-      SETTINGS skip_unavailable_shards = 1
     `,
     params: { queryId },
+    clickhouseSettings: {
+      skip_unavailable_shards: 1,
+    },
     tags: {
       feature: "background-migration",
       operation: "pollQueryStatus-processes",
@@ -101,9 +103,11 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
         -- AND type != 'QueryStart'
       ORDER BY event_time_microseconds DESC
       LIMIT 1
-      SETTINGS skip_unavailable_shards = 1
     `,
     params: { queryId },
+    clickhouseSettings: {
+      skip_unavailable_shards: 1,
+    },
     tags: {
       feature: "background-migration",
       operation: "pollQueryStatus-queryLog",
@@ -144,9 +148,11 @@ async function getQueryError(queryId: string): Promise<string | undefined> {
         AND exception != ''
       ORDER BY event_time_microseconds DESC
       LIMIT 1
-      SETTINGS skip_unavailable_shards = 1
     `,
     params: { queryId },
+    clickhouseSettings: {
+      skip_unavailable_shards: 1,
+    },
     tags: {
       feature: "background-migration",
       operation: "getQueryError",
