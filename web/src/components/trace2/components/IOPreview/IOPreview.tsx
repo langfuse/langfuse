@@ -261,15 +261,17 @@ export function IOPreview({
         <JsonInputOutputView {...jsonViewProps} />
       </div>
       {showEmptyState && (
-        <div className="mx-2 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent">
-            <BookOpen className="h-5 w-5 text-muted-foreground" />
+        <div className="mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+          <div className="flex w-full flex-row items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <h3 className="text-sm font-semibold">{title}</h3>
           </div>
-          <h3 className="text-sm font-semibold">{title}</h3>
           <p className="max-w-sm text-sm text-muted-foreground">
             Add it in your code to make debugging a lot easier.
           </p>
-          <Button variant="outline" asChild size="sm" className="mt-2">
+          <Button variant="outline" asChild size="sm">
             <Link
               href="https://langfuse.com/faq/all/empty-trace-input-and-output"
               target="_blank"
