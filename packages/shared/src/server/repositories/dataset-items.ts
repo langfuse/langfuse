@@ -1060,10 +1060,10 @@ export async function getDatasetItemsByLatest<
 }): Promise<
   IncludeIO extends true
     ? IncludeDatasetName extends true
-      ? DatasetItemDomain & { datasetName: string }[]
+      ? Array<DatasetItemDomain & { datasetName: string }>
       : DatasetItemDomain[]
     : IncludeDatasetName extends true
-      ? DatasetItemDomainWithoutIO & { datasetName: string }[]
+      ? Array<DatasetItemDomainWithoutIO & { datasetName: string }>
       : DatasetItemDomainWithoutIO[]
 > {
   const includeIO = (props.includeIO ?? true) as IncludeIO;
