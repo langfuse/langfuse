@@ -775,7 +775,7 @@ export const datasetRouter = createTRPCRouter({
             try {
               const validationErrors = JSON.parse(match[1]);
               return { success: false, validationErrors };
-            } catch (e) {
+            } catch (_e) {
               // Failed to parse, rethrow original error
               throw error;
             }

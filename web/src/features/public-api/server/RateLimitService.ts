@@ -88,7 +88,7 @@ export class RateLimitService {
     if (RateLimitService?.redis?.status !== "ready") {
       try {
         await RateLimitService?.redis?.connect();
-      } catch (err) {
+      } catch (_err) {
         // Do nothing here. We will fail open if Redis is not available.
       }
     }
