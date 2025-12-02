@@ -1,4 +1,5 @@
 import {
+  deleteEventsByTraceIds,
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
   deleteTraces,
@@ -159,6 +160,9 @@ export const processClickhouseTraceDelete = async (
       deleteTraces(projectId, traceIds),
       deleteObservationsByTraceIds(projectId, traceIds),
       deleteScoresByTraceIds(projectId, traceIds),
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+        ? deleteEventsByTraceIds(projectId, traceIds)
+        : Promise.resolve(),
     ]);
   } catch (e) {
     logger.error(
