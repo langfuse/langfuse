@@ -117,9 +117,6 @@ export type EventInput = {
   providedCostDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
 
-  usagePricingTierId?: string;
-  usagePricingTierName?: string;
-
   // I/O
   input?: string;
   output?: string;
@@ -387,8 +384,8 @@ export class IngestionService {
       cost_details:
         generationUsage?.cost_details ?? eventData.costDetails ?? {},
 
-      usage_pricing_tier_id: eventData.usagePricingTierId,
-      usage_pricing_tier_name: eventData.usagePricingTierName,
+      usage_pricing_tier_id: generationUsage?.usage_pricing_tier_id,
+      usage_pricing_tier_name: generationUsage?.usage_pricing_tier_name,
 
       // I/O
       input: eventData.input,
