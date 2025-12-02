@@ -8,6 +8,7 @@ import {
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import { getDatasetItemsByLatest } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -24,12 +25,6 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
         },
         include: {
-          datasetItems: {
-            where: {
-              status: "ACTIVE",
-            },
-            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          },
           datasetRuns: {
             select: {
               name: true,
@@ -42,26 +37,19 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Dataset not found");
       }
 
-      const { datasetItems, datasetRuns, ...params } = dataset;
+      const datasetItems = await getDatasetItemsByLatest({
+        projectId: auth.scope.projectId,
+        filters: {
+          datasetIds: [dataset.id],
+        },
+        includeDatasetName: true,
+      });
+
+      const { datasetRuns, ...params } = dataset;
 
       return {
         ...transformDbDatasetToAPIDataset(params),
-        items: datasetItems
-          .map((item) => ({
-            id: item.id,
-            projectId: item.projectId,
-            datasetId: item.datasetId,
-            input: item.input,
-            expectedOutput: item.expectedOutput,
-            metadata: item.metadata,
-            sourceTraceId: item.sourceTraceId,
-            sourceObservationId: item.sourceObservationId,
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt,
-            status: item.status ?? "ACTIVE",
-            datasetName: dataset.name,
-          }))
-          .map(transformDbDatasetItemDomainToAPIDatasetItem),
+        items: datasetItems.map(transformDbDatasetItemDomainToAPIDatasetItem),
         runs: datasetRuns.map((run) => run.name),
       };
     },
