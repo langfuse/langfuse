@@ -13,7 +13,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
+import { ModelUsageUnit, paginationZod, Prisma } from "@langfuse/shared";
 import {
   clearModelCacheForProject,
   queryClickhouse,
@@ -109,7 +109,11 @@ export const modelRouter = createTRPCRouter({
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
       const { projectId, page, limit, searchString } = input;
-      const searchStringCondition = `%${searchString}%`;
+
+      const searchStringTemplate = `%${searchString}%`;
+      const searchStringCondition = searchString
+        ? Prisma.sql`AND model_name ILIKE ${searchStringTemplate}`
+        : Prisma.sql`AND 1=1`;
 
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
@@ -156,7 +160,7 @@ export const modelRouter = createTRPCRouter({
             models m
           WHERE
             (project_id IS NULL OR project_id = ${projectId})
-			      AND model_name ILIKE ${searchStringCondition}
+			      ${searchStringCondition}
           ORDER BY
             project_id,
             model_name,
@@ -172,7 +176,7 @@ export const modelRouter = createTRPCRouter({
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
           WHERE (project_id IS NULL OR project_id = ${projectId})
-          AND model_name ILIKE ${searchStringCondition};
+          ${searchStringCondition};
         `,
       ]);
 
