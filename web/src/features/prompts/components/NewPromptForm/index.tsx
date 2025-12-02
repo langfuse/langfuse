@@ -73,7 +73,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       type: initialPrompt?.type,
       prompt: initialPrompt?.prompt?.valueOf(),
     });
-  } catch (err) {
+  } catch (_err) {
     initialPromptVariant = null;
   }
 
