@@ -12,24 +12,14 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import * as readline from "readline";
 import { parse } from "csv-parse";
 import { randomUUID } from "crypto";
-import {
-  getClickhouseEntityType,
-  getQueue,
-  QueueJobs,
-  QueueName,
-} from "@langfuse/shared/src/server";
-import { env } from "../../env";
-import {
-  DeleteObjectCommand,
-  ListObjectVersionsCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
+import { getQueue, QueueJobs, QueueName } from "@langfuse/shared/src/server";
 
 const INPUT_FILE = "events.csv";
 const OUTPUT_FILE = "events_filtered.csv";
-const JSON_OUTPUT_FILE = "events_filtered.json";
+const JSONL_OUTPUT_FILE = "events_filtered.jsonl";
 
 // Redis configuration
 // eslint-disable-next-line turbo/no-undeclared-env-vars
@@ -41,14 +31,6 @@ interface Stats {
   filteredRows: number;
   processingTimeMs: number;
 }
-
-const client = new S3Client({
-  requestHandler: {
-    httpsAgent: {
-      maxSockets: 300,
-    },
-  },
-});
 
 interface JsonOutputItem {
   useS3EventStore: true;
@@ -96,6 +78,7 @@ async function filterCsvFile(
     const outputStream = fs.createWriteStream(outputPath);
 
     let operationColumnIndex = -1;
+    let keyColumnIndex = -1;
     let headers: string[] = [];
     let isHeaderProcessed = false;
 
@@ -154,6 +137,9 @@ async function filterCsvFile(
         operationColumnIndex = headers.findIndex(
           (header) => header.toLowerCase().trim() === "operation",
         );
+        keyColumnIndex = headers.findIndex(
+          (header) => header.toLowerCase().trim() === "key",
+        );
 
         if (operationColumnIndex === -1) {
           clearInterval(progressInterval);
@@ -161,9 +147,16 @@ async function filterCsvFile(
           return;
         }
 
+        if (keyColumnIndex === -1) {
+          clearInterval(progressInterval);
+          reject(new Error('Could not find "key" column in CSV header'));
+          return;
+        }
+
         console.log(
           `🎯 Found operation column at index ${operationColumnIndex}`,
         );
+        console.log(`🗝️  Found key column at index ${keyColumnIndex}`);
         console.log(
           `📋 Headers: ${headers.slice(0, 5).join(", ")}${headers.length > 5 ? "..." : ""}`,
         );
@@ -226,16 +219,16 @@ async function filterCsvFile(
   });
 }
 
-async function convertCsvToJson(
+async function convertCsvToJsonl(
   csvPath: string,
-  jsonPath: string,
+  jsonlPath: string,
 ): Promise<void> {
-  console.log(`🔄 Converting ${csvPath} to JSON format...`);
-  console.log(`📝 JSON output will be written to ${jsonPath}`);
+  console.log(`🔄 Converting ${csvPath} to JSONL format...`);
+  console.log(`📝 JSONL output will be written to ${jsonlPath}`);
 
   const startTime = Date.now();
   let processedRows = 0;
-  const jsonObjects: JsonOutputItem[] = [];
+  let writtenObjects = 0;
 
   // Check if CSV file exists
   if (!fs.existsSync(csvPath)) {
@@ -244,6 +237,7 @@ async function convertCsvToJson(
 
   return new Promise<void>((resolve, reject) => {
     const inputStream = fs.createReadStream(csvPath);
+    const outputStream = fs.createWriteStream(jsonlPath);
 
     let keyColumnIndex = -1;
     let headers: string[] = [];
@@ -264,7 +258,7 @@ async function convertCsvToJson(
         const elapsed = (Date.now() - startTime) / 1000;
         const rowsPerSecond = Math.round(processedRows / elapsed);
         console.log(
-          `🔄 Converted ${processedRows.toLocaleString()} rows to JSON (${rowsPerSecond.toLocaleString()} rows/sec)`,
+          `🔄 Converted ${processedRows.toLocaleString()} rows to JSONL (${rowsPerSecond.toLocaleString()} rows/sec)`,
         );
       }
     }, 5000);
@@ -272,11 +266,12 @@ async function convertCsvToJson(
     // Handle parsing errors
     parser.on("error", (err: Error) => {
       clearInterval(progressInterval);
+      outputStream.end();
       reject(new Error(`CSV parsing error during conversion: ${err.message}`));
     });
 
     // Process each row
-    parser.on("data", async (row: string[]) => {
+    parser.on("data", (row: string[]) => {
       // Handle header row
       if (!isHeaderProcessed) {
         headers = row;
@@ -286,6 +281,7 @@ async function convertCsvToJson(
 
         if (keyColumnIndex === -1) {
           clearInterval(progressInterval);
+          outputStream.end();
           reject(new Error('Could not find "key" column in CSV header'));
           return;
         }
@@ -308,7 +304,7 @@ async function convertCsvToJson(
 
       // Parse the S3 path: projectId/type/eventBodyId/eventId.json
       const pathMatch = keyValue.match(
-        /^([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\.json$/,
+        /^([^/]+)\/([^/]+)\/(.+)\/([^/]+)\.json$/,
       );
 
       if (!pathMatch) {
@@ -337,27 +333,27 @@ async function convertCsvToJson(
         },
       };
 
-      jsonObjects.push(jsonObject);
+      // Write each JSON object as a single line (JSONL format)
+      outputStream.write(JSON.stringify(jsonObject) + "\n");
+      writtenObjects++;
     });
 
     // Handle completion
     parser.on("end", () => {
       clearInterval(progressInterval);
+      outputStream.end();
 
-      try {
-        // Write JSON file
-        fs.writeFileSync(jsonPath, JSON.stringify(jsonObjects, null, 2));
-
+      outputStream.on("finish", () => {
         const processingTimeMs = Date.now() - startTime;
-        const outputFileStats = fs.statSync(jsonPath);
+        const outputFileStats = fs.statSync(jsonlPath);
         const outputFileSizeGB = (outputFileStats.size / 1024 ** 3).toFixed(2);
 
-        console.log("\n🎉 === JSON Conversion Complete ===");
+        console.log("\n🎉 === JSONL Conversion Complete ===");
         console.log(
           `📊 Total rows converted: ${processedRows.toLocaleString()}`,
         );
         console.log(
-          `📝 JSON objects created: ${jsonObjects.length.toLocaleString()}`,
+          `📝 JSON objects written: ${writtenObjects.toLocaleString()}`,
         );
         console.log(
           `⏱️  Conversion time: ${(processingTimeMs / 1000).toFixed(1)} seconds`,
@@ -365,14 +361,10 @@ async function convertCsvToJson(
         console.log(
           `🚀 Average speed: ${Math.round(processedRows / (processingTimeMs / 1000)).toLocaleString()} rows/second`,
         );
-        console.log(`📁 JSON file size: ${outputFileSizeGB} GB`);
+        console.log(`📁 JSONL file size: ${outputFileSizeGB} GB`);
 
         resolve();
-      } catch (error) {
-        reject(
-          new Error(`Failed to write JSON file: ${(error as Error).message}`),
-        );
-      }
+      });
     });
 
     // Connect streams
@@ -380,141 +372,110 @@ async function convertCsvToJson(
   });
 }
 
-async function ingestEventsToQueue(jsonPath: string): Promise<void> {
-  console.log(`🚀 Starting to ingest events from ${jsonPath} to BullMQ...`);
+async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
+  console.log(`🚀 Starting to ingest events from ${jsonlPath} to BullMQ...`);
 
-  // Check if JSON file exists
-  if (!fs.existsSync(jsonPath)) {
-    throw new Error(`JSON file not found: ${jsonPath}`);
+  // Check if JSONL file exists
+  if (!fs.existsSync(jsonlPath)) {
+    throw new Error(`JSONL file not found: ${jsonlPath}`);
   }
 
   const startTime = Date.now();
   let processedEvents = 0;
 
-  try {
-    // Read and parse JSON file
-    const jsonContent = fs.readFileSync(jsonPath, "utf8");
-    const events: JsonOutputItem[] = JSON.parse(jsonContent);
+  // Set up BullMQ queue with Redis connection
+  const queue = getQueue(QueueName.IngestionSecondaryQueue);
 
-    console.log(`📊 Total events to ingest: ${events.length.toLocaleString()}`);
+  if (!queue) {
+    throw new Error("Failed to get queue");
+  }
 
-    // Set up BullMQ queue with Redis connection
+  console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
 
-    const queue = getQueue(QueueName.IngestionSecondaryQueue);
+  // Second pass: ingest events into queue in batches
+  console.log(`📥 Starting queue ingestion...`);
 
-    if (!queue) {
-      throw new Error("Failed to get queue");
-    }
+  const BATCH_SIZE = 1000;
+  let batch: JsonOutputItem[] = [];
+  let batchNumber = 0;
 
-    console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
+  const ingestStream = fs.createReadStream(jsonlPath);
+  const ingestRl = readline.createInterface({
+    input: ingestStream,
+    crlfDelay: Infinity,
+  });
 
-    // Process events in batches of 500 for S3 restoration
-    const S3_BATCH_SIZE = 1000;
-    let processedCount = 0;
+  for await (const line of ingestRl) {
+    if (!line.trim()) continue;
 
-    for (let i = 0; i < events.length; i += S3_BATCH_SIZE) {
-      const batch = events.slice(i, i + S3_BATCH_SIZE);
-      console.log(
-        `🔍 Processing S3 restoration batch ${Math.ceil((i + 1) / S3_BATCH_SIZE)} (${batch.length} events)`,
-      );
+    try {
+      const event: JsonOutputItem = JSON.parse(line);
+      batch.push(event);
 
-      // Process all events in the batch concurrently
-      await Promise.all(
-        batch.map(async (event) => {
-          const keyValue = `${event.authCheck.scope.projectId}/${getClickhouseEntityType(event.data.type)}/${event.data.eventBodyId}/${event.data.fileKey}.json`;
-
-          try {
-            // List versions to find the delete marker
-            const listCommand = new ListObjectVersionsCommand({
-              Bucket: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-              Prefix: keyValue,
-            });
-
-            const response = await client.send(listCommand);
-
-            // Find the delete marker
-            const deleteMarkers = response.DeleteMarkers || [];
-            const deleteMarker = deleteMarkers.find(
-              (marker) => marker.Key === keyValue,
-            );
-
-            if (deleteMarker) {
-              const deleteCommand = new DeleteObjectCommand({
-                Bucket: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-                Key: keyValue,
-                VersionId: deleteMarker.VersionId,
-              });
-
-              await client.send(deleteCommand);
-            }
-          } catch (error) {
-            console.error(
-              `❌ Failed to restore ${keyValue}: ${(error as Error).message}`,
-            );
-          }
-        }),
-      );
-
-      processedCount += batch.length;
-      console.log(
-        `✅ Completed S3 restoration batch (${processedCount}/${events.length} events processed)`,
-      );
-    }
-    console.log(`🔍 All delete markers removed`);
-
-    // Ingest events into queue in batches of 1000
-    const BATCH_SIZE = 1000;
-    for (let i = 0; i < events.length; i += BATCH_SIZE) {
-      const batch = events.slice(i, i + BATCH_SIZE);
-
-      // Prepare jobs for bulk insertion
-      const jobs = batch.map((event) => ({
-        name: JOB_NAME,
-        data: {
-          payload: event,
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: JOB_NAME,
-        },
-      }));
-
-      // Add batch to queue
-      await queue.addBulk(jobs);
-
-      processedEvents += batch.length;
-
-      // Log progress every batch
-      console.log(
-        `✅ Added batch ${Math.ceil((i + 1) / BATCH_SIZE)} (${processedEvents}/${events.length} events)`,
-      );
-
-      // Log sample event from each batch for tracking
-      if (batch.length > 0) {
-        console.log(`📄 Sample event from batch: ${JSON.stringify(batch[0])}`);
+      // Process queue ingestion in batches
+      if (batch.length >= BATCH_SIZE) {
+        batchNumber++;
+        await processQueueBatch(queue, batch, batchNumber, processedEvents);
+        processedEvents += batch.length;
+        batch = [];
       }
+    } catch {
+      // Already warned during first pass
     }
+  }
 
-    // Close the queue connection
-    await queue.close();
+  // Process remaining batch
+  if (batch.length > 0) {
+    batchNumber++;
+    await processQueueBatch(queue, batch, batchNumber, processedEvents);
+    processedEvents += batch.length;
+  }
 
-    const processingTimeMs = Date.now() - startTime;
+  // Close the queue connection
+  await queue.close();
 
-    console.log("\n🎉 === Event Ingestion Complete ===");
-    console.log(
-      `📊 Total events ingested: ${processedEvents.toLocaleString()}`,
-    );
-    console.log(
-      `⏱️  Ingestion time: ${(processingTimeMs / 1000).toFixed(1)} seconds`,
-    );
-    console.log(
-      `🚀 Average speed: ${Math.round(processedEvents / (processingTimeMs / 1000)).toLocaleString()} events/second`,
-    );
-    console.log(`🗂️  Queue name: ${QUEUE_NAME}`);
-    console.log(`🔧 Job name: ${JOB_NAME}`);
-  } catch (error) {
-    throw new Error(
-      `Failed to ingest events to queue: ${(error as Error).message}`,
-    );
+  const processingTimeMs = Date.now() - startTime;
+
+  console.log("\n🎉 === Event Ingestion Complete ===");
+  console.log(`📊 Total events ingested: ${processedEvents.toLocaleString()}`);
+  console.log(
+    `⏱️  Ingestion time: ${(processingTimeMs / 1000).toFixed(1)} seconds`,
+  );
+  console.log(
+    `🚀 Average speed: ${Math.round(processedEvents / (processingTimeMs / 1000)).toLocaleString()} events/second`,
+  );
+  console.log(`🗂️  Queue name: ${QUEUE_NAME}`);
+  console.log(`🔧 Job name: ${JOB_NAME}`);
+}
+
+async function processQueueBatch(
+  queue: NonNullable<ReturnType<typeof getQueue>>,
+  batch: JsonOutputItem[],
+  batchNumber: number,
+  processedEvents: number,
+): Promise<void> {
+  // Prepare jobs for bulk insertion
+  const jobs = batch.map((event) => ({
+    name: JOB_NAME,
+    data: {
+      payload: event,
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: JOB_NAME,
+    },
+  }));
+
+  // Add batch to queue
+  await queue.addBulk(jobs);
+
+  // Log progress
+  console.log(
+    `✅ Added batch ${batchNumber} (${processedEvents + batch.length} events) to queue`,
+  );
+
+  // Log sample event from each batch for tracking
+  if (batch.length > 0) {
+    console.log(`📄 Sample event from batch: ${JSON.stringify(batch[0])}`);
   }
 }
 
@@ -523,24 +484,24 @@ async function main() {
   try {
     const inputPath = path.resolve(INPUT_FILE);
     const outputPath = path.resolve(OUTPUT_FILE);
-    const jsonOutputPath = path.resolve(JSON_OUTPUT_FILE);
+    const jsonlOutputPath = path.resolve(JSONL_OUTPUT_FILE);
 
     console.log(`📂 Input file: ${inputPath}`);
     console.log(`📂 Output file: ${outputPath}`);
-    console.log(`📂 JSON output file: ${jsonOutputPath}`);
+    console.log(`📂 JSONL output file: ${jsonlOutputPath}`);
 
     // Step 1: Filter the CSV file
     await filterCsvFile(inputPath, outputPath);
 
     console.log("\n✅ CSV filtering completed successfully!");
 
-    // Step 2: Convert filtered CSV to JSON
-    await convertCsvToJson(outputPath, jsonOutputPath);
+    // Step 2: Convert filtered CSV to JSONL
+    await convertCsvToJsonl(outputPath, jsonlOutputPath);
 
-    console.log("\n✅ JSON conversion completed successfully!");
+    console.log("\n✅ JSONL conversion completed successfully!");
 
     // Step 3: Ingest events to BullMQ
-    await ingestEventsToQueue(jsonOutputPath);
+    await ingestEventsToQueue(jsonlOutputPath);
 
     console.log("\n✅ Script completed successfully!");
   } catch (error) {
