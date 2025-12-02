@@ -272,6 +272,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation1, observation2]);
 
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
       // Focus on testing columns that require joins to other tables
       // (columns from traces table: userId, traceName, sessionId, traceTags, traceEnvironment)
       // and score-related columns that may require special handling
@@ -379,6 +381,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       expect(userIdFilterResponse.status).toBe(200);
+      expect(userIdFilterResponse.body.data.length).toEqual(2);
       const userFilteredObs = userIdFilterResponse.body.data.find(
         (obs: any) => obs.id === observationId1,
       );
@@ -429,7 +432,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch with limit=2 (should have cursor since we have 3 observations)
       const response = await makeZodVerifiedAPICall(
@@ -468,7 +470,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch with limit=5 (should not have cursor since we only have 2)
       const response = await makeZodVerifiedAPICall(
@@ -506,7 +507,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page with limit=2
       const page1 = await makeZodVerifiedAPICall(
@@ -598,7 +598,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       });
 
       await createEventsCh([obs1, obs2, obs3]);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page
       const page1 = await makeZodVerifiedAPICall(
@@ -658,7 +657,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page with type filter
       const page1 = await makeZodVerifiedAPICall(
