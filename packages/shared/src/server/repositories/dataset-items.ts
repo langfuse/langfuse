@@ -729,7 +729,7 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
 
   for (const filter of filterState) {
     switch (filter.column) {
-      case "datasetId":
+      case "datasetIds":
         if (filter.type === "stringOptions" && filter.value.length > 0) {
           where.datasetId = { in: filter.value };
         }
