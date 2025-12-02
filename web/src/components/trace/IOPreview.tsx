@@ -30,8 +30,9 @@ import {
 } from "@/src/utils/chatml";
 import { ToolCallDefinitionCard } from "@/src/components/trace/ToolCallDefinitionCard";
 import { ToolCallInvocationsView } from "@/src/components/trace/ToolCallInvocationsView";
-import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
+import { ListChevronsDownUp, ListChevronsUpDown, BookOpen } from "lucide-react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import Link from "next/link";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -202,6 +203,17 @@ export const IOPreview: React.FC<{
   const shouldRenderMarkdownSafely =
     totalContentSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
 
+  const isInputEmpty = input === null || input === undefined;
+  const isOutputEmpty = output === null || output === undefined;
+  const showEmptyState =
+    (isInputEmpty || isOutputEmpty) && !isLoading && !hideIfNull;
+
+  const title = isInputEmpty
+    ? isOutputEmpty
+      ? "Looks like this trace didn't receive an input/output."
+      : "Looks like this trace didn't receive an input."
+    : "Looks like this trace didn't receive an output.";
+
   // default I/O
   return (
     <>
@@ -347,6 +359,25 @@ export const IOPreview: React.FC<{
               onExternalExpansionChange={onOutputExpansionChange}
             />
           ) : null}
+        </div>
+      )}
+      {showEmptyState && (
+        <div className="mx-2 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent">
+            <BookOpen className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Add it in your code to make debugging a lot easier.
+          </p>
+          <Button variant="outline" asChild size="sm" className="mt-2">
+            <Link
+              href="https://langfuse.com/faq/all/empty-trace-input-and-output"
+              target="_blank"
+            >
+              View Documentation
+            </Link>
+          </Button>
         </div>
       )}
     </>

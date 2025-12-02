@@ -11,6 +11,9 @@ import { useChatMLParser } from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
+import { Button } from "@/src/components/ui/button";
+import { BookOpen } from "lucide-react";
+import Link from "next/link";
 
 export type { ViewMode };
 
@@ -205,6 +208,17 @@ export function IOPreview({
     onOutputExpansionChange,
   };
 
+  const isInputEmpty = parsedInput === null || parsedInput === undefined;
+  const isOutputEmpty = parsedOutput === null || parsedOutput === undefined;
+  const showEmptyState =
+    (isInputEmpty || isOutputEmpty) && !isLoading && !hideIfNull;
+
+  const title = isInputEmpty
+    ? isOutputEmpty
+      ? "Looks like this trace didn't receive an input/output."
+      : "Looks like this trace didn't receive an input."
+    : "Looks like this trace didn't receive an output.";
+
   return (
     <>
       <SectionToolDefinitions
@@ -246,6 +260,25 @@ export function IOPreview({
       <div style={{ display: selectedView === "json" ? "block" : "none" }}>
         <JsonInputOutputView {...jsonViewProps} />
       </div>
+      {showEmptyState && (
+        <div className="mx-2 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent">
+            <BookOpen className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Add it in your code to make debugging a lot easier.
+          </p>
+          <Button variant="outline" asChild size="sm" className="mt-2">
+            <Link
+              href="https://langfuse.com/faq/all/empty-trace-input-and-output"
+              target="_blank"
+            >
+              View Documentation
+            </Link>
+          </Button>
+        </div>
+      )}
     </>
   );
 }
