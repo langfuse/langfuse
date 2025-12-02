@@ -181,7 +181,7 @@ export default function SignIn({
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
       });
-    } catch (err) {
+    } catch (_err) {
       setFormError("An error occurred. Please try again.");
     }
   }
