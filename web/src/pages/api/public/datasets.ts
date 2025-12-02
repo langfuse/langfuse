@@ -10,6 +10,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { upsertDataset } from "@/src/features/datasets/server/actions/createDataset";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getDatasetItemsByLatest } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -68,17 +69,6 @@ export default withMiddlewares({
           createdAt: true,
           updatedAt: true,
           id: true,
-          datasetItems: {
-            where: {
-              status: "ACTIVE",
-            },
-            select: {
-              id: true,
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-          },
           datasetRuns: {
             select: {
               name: true,
@@ -98,6 +88,23 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
+      const datasetItems = await getDatasetItemsByLatest({
+        projectId: auth.scope.projectId,
+        filters: {
+          datasetIds: datasets.map(({ id }) => id),
+        },
+        includeIO: false,
+      });
+
+      // create Map of dataset id to dataset item ids
+      const datasetItemIdsMap = new Map<string, string[]>();
+      for (const item of datasetItems) {
+        datasetItemIdsMap.set(item.datasetId, [
+          ...(datasetItemIdsMap.get(item.datasetId) || []),
+          item.id,
+        ]);
+      }
+
       const totalItems = await prisma.dataset.count({
         where: {
           projectId: auth.scope.projectId,
@@ -105,9 +112,9 @@ export default withMiddlewares({
       });
 
       return {
-        data: datasets.map(({ datasetItems, datasetRuns, ...rest }) => ({
+        data: datasets.map(({ datasetRuns, ...rest }) => ({
           ...rest,
-          items: datasetItems.map(({ id }) => id),
+          items: datasetItemIdsMap.get(rest.id) || [],
           runs: datasetRuns.map(({ name }) => name),
         })),
         meta: {
