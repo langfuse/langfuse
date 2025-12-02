@@ -15,18 +15,8 @@ import * as path from "path";
 import * as readline from "readline";
 import { parse } from "csv-parse";
 import { randomUUID } from "crypto";
-import {
-  getClickhouseEntityType,
-  getQueue,
-  QueueJobs,
-  QueueName,
-} from "@langfuse/shared/src/server";
-import { env } from "../../env";
-import {
-  DeleteObjectCommand,
-  ListObjectVersionsCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
+import { getQueue, QueueJobs, QueueName } from "@langfuse/shared/src/server";
+import { S3Client } from "@aws-sdk/client-s3";
 
 const INPUT_FILE = "events.csv";
 const OUTPUT_FILE = "events_filtered.csv";
