@@ -927,8 +927,12 @@ function buildDatasetItemsLatestQuery(
   limit?: number,
   offset?: number,
 ): Prisma.Sql {
-  const ioFields = includeIO
-    ? Prisma.sql`input, expected_output, metadata,`
+  const ioFieldsCTE = includeIO
+    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
+    : Prisma.empty;
+
+  const ioFieldsOuter = includeIO
+    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
     : Prisma.empty;
 
   const datasetJoin = includeDatasetName
@@ -957,28 +961,28 @@ function buildDatasetItemsLatestQuery(
 
   return Prisma.sql`
     WITH latest_items AS (
-      SELECT DISTINCT ON (id, project_id)
-        id,
-        project_id,
-        dataset_id,
-        ${ioFields}
-        source_trace_id,
-        source_observation_id,
-        status,
-        created_at,
-        updated_at,
-        valid_from,
-        is_deleted
-      FROM dataset_items
-      WHERE project_id = ${projectId}
+      SELECT DISTINCT ON (di.id, di.project_id)
+        di.id,
+        di.project_id,
+        di.dataset_id,
+        ${ioFieldsCTE}
+        di.source_trace_id,
+        di.source_observation_id,
+        di.status,
+        di.created_at,
+        di.updated_at,
+        di.valid_from,
+        di.is_deleted
+      FROM dataset_items di
+      WHERE di.project_id = ${projectId}
       ${filterCondition}
-      ORDER BY id, project_id, valid_from DESC
+      ORDER BY di.id, di.project_id, di.valid_from DESC
     )
     SELECT
       di.id,
       di.project_id,
       di.dataset_id,
-      ${ioFields}
+      ${ioFieldsOuter}
       di.source_trace_id,
       di.source_observation_id,
       di.status,
@@ -1017,23 +1021,23 @@ function buildDatasetItemsLatestCountQuery(
 
   return Prisma.sql`
     WITH latest_items AS (
-      SELECT DISTINCT ON (id, project_id)
-        id,
-        project_id,
-        dataset_id,
-        input,
-        expected_output,
-        metadata,
-        source_trace_id,
-        source_observation_id,
-        status,
-        created_at,
-        updated_at,
-        is_deleted
-      FROM dataset_items
-      WHERE project_id = ${projectId}
+      SELECT DISTINCT ON (di.id, di.project_id)
+        di.id,
+        di.project_id,
+        di.dataset_id,
+        di.input,
+        di.expected_output,
+        di.metadata,
+        di.source_trace_id,
+        di.source_observation_id,
+        di.status,
+        di.created_at,
+        di.updated_at,
+        di.is_deleted
+      FROM dataset_items di
+      WHERE di.project_id = ${projectId}
       ${filterCondition}
-      ORDER BY id, project_id, valid_from DESC
+      ORDER BY di.id, di.project_id, di.valid_from DESC
     )
     SELECT COUNT(*) as count
     FROM latest_items di
@@ -1051,16 +1055,16 @@ function buildDatasetItemsLatestCountGroupedQuery(
 ): Prisma.Sql {
   return Prisma.sql`
     WITH latest_items AS (
-      SELECT DISTINCT ON (id, project_id)
-        id,
-        project_id,
-        dataset_id,
-        status,
-        is_deleted
-      FROM dataset_items
-      WHERE project_id = ${projectId}
-        AND dataset_id = ANY(${datasetIds})
-      ORDER BY valid_from, id DESC
+      SELECT DISTINCT ON (di.id, di.project_id)
+        di.id,
+        di.project_id,
+        di.dataset_id,
+        di.status,
+        di.is_deleted
+      FROM dataset_items di
+      WHERE di.project_id = ${projectId}
+        AND di.dataset_id = ANY(${datasetIds})
+      ORDER BY di.id, di.project_id, di.valid_from DESC
     )
     SELECT
       di.dataset_id,
