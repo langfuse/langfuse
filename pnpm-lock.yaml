@@ -968,9 +968,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      handlebars:
-        specifier: ^4.7.8
-        version: 4.7.8
       helmet:
         specifier: ^7.1.0
         version: 7.1.0
@@ -21691,7 +21688,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 24.10.1
+      '@types/node': 24.3.0
     optional: true
 
   '@typescript-eslint/eslint-plugin@6.21.0(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.9.2))(eslint@8.57.0)(typescript@5.9.2)':
@@ -24795,7 +24792,7 @@ snapshots:
 
   extract-zip@2.0.1:
     dependencies:
-      debug: 4.3.4
+      debug: 4.4.3
       get-stream: 5.2.0
       yauzl: 2.10.0
     optionalDependencies:
@@ -25276,6 +25273,7 @@ snapshots:
       wordwrap: 1.0.0
     optionalDependencies:
       uglify-js: 3.18.0
+    optional: true
 
   has-bigints@1.0.2: {}
 
@@ -30900,7 +30898,8 @@ snapshots:
       triple-beam: 1.4.1
       winston-transport: 4.7.1
 
-  wordwrap@1.0.0: {}
+  wordwrap@1.0.0:
+    optional: true
 
   wrap-ansi@6.2.0:
     dependencies:
