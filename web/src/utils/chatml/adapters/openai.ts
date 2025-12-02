@@ -158,9 +158,7 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   // Format: { id, type: "function", function: { name, arguments } }
   // Convert to: { id, name, arguments, type }
   if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
-    const sanitizedToolCalls = (
-      normalized.tool_calls as unknown[]
-    ).filter(
+    const sanitizedToolCalls = (normalized.tool_calls as unknown[]).filter(
       (tc): tc is Record<string, unknown> =>
         Boolean(tc) && typeof tc === "object",
     );
