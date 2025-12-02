@@ -80,13 +80,15 @@ export function AppLayout(props: PropsWithChildren) {
     return <LoadingLayout message={authGuard.message} />;
   }
 
-  // Project access denied - only check for authenticated users on non-publishable paths
-  // Publishable paths (traces, sessions) should be accessible without authentication
-  if (
-    session.status === "authenticated" &&
-    !isPublishable &&
-    !projectAccess.hasAccess
-  ) {
+  // Project access denied - handle based on path type
+  if (session.status === "authenticated" && !projectAccess.hasAccess) {
+    // For publishable paths (shared traces/sessions), render minimal layout without sidebar
+    // This allows authenticated users to view shared content without seeing project navigation
+    if (isPublishable) {
+      return <MinimalLayout>{props.children}</MinimalLayout>;
+    }
+
+    // For non-publishable paths, show error page
     return (
       <ErrorPageWithSentry
         title="Project Not Found"
