@@ -87,7 +87,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         <Button
           variant="ghost"
           size="xs"
-          className={cn("mt-[0.1px] text-[0.625rem]", className)}
+          className={cn("mt-[0.2px] text-[0.625rem]", className)}
         >
           {VERSION}
           {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
@@ -99,7 +99,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             />
           )}
           {hasUpdate && !showBackgroundMigrationStatus && (
-            <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />
+            <ArrowUp className={`h-3 w-3 ${color}`} />
           )}
         </Button>
       </DropdownMenuTrigger>

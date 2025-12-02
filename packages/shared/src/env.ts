@@ -77,10 +77,15 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS: z.coerce.number().positive().default(2),
   LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -131,6 +136,13 @@ const EnvSchema = z.object({
     .default("true"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(3600), // 1 hour
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
