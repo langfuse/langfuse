@@ -837,11 +837,11 @@ function buildStatefulDatasetItemsQuery(
   offset?: number,
 ): Prisma.Sql {
   const ioFields = includeIO
-    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
+    ? Prisma.sql`li.input, li.expected_output, li.metadata,`
     : Prisma.empty;
 
   const datasetJoin = includeDatasetName
-    ? Prisma.sql`LEFT JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id`
+    ? Prisma.sql`LEFT JOIN datasets d ON li.dataset_id = d.id AND li.project_id = d.project_id`
     : Prisma.empty;
 
   const datasetNameField = includeDatasetName
@@ -857,7 +857,7 @@ function buildStatefulDatasetItemsQuery(
   const searchCondition = buildDatasetItemSearchCondition(
     searchQuery,
     searchType,
-    "di",
+    "li",
   );
 
   const paginationClause =
@@ -867,22 +867,22 @@ function buildStatefulDatasetItemsQuery(
 
   return Prisma.sql`
     SELECT
-      di.id,
-      di.project_id,
-      di.dataset_id,
+      li.id,
+      li.project_id,
+      li.dataset_id,
       ${ioFields}
-      di.source_trace_id,
-      di.source_observation_id,
-      di.status,
-      di.created_at,
-      di.updated_at
+      li.source_trace_id,
+      li.source_observation_id,
+      li.status,
+      li.created_at,
+      li.updated_at
       ${datasetNameField}
-    FROM dataset_items di
+    FROM dataset_items li
     ${datasetJoin}
-    WHERE di.project_id = ${projectId}
+    WHERE li.project_id = ${projectId}
     ${filterCondition}
     ${searchCondition}
-    ORDER BY di.status ASC, di.created_at DESC, di.id DESC
+    ORDER BY li.status ASC, li.created_at DESC, li.id DESC
     ${paginationClause}
   `;
 }
@@ -905,13 +905,13 @@ function buildStatefulDatasetItemsCountQuery(
   const searchCondition = buildDatasetItemSearchCondition(
     searchQuery,
     searchType,
-    "di",
+    "li",
   );
 
   return Prisma.sql`
     SELECT COUNT(*) as count
-    FROM dataset_items di
-    WHERE di.project_id = ${projectId}
+    FROM dataset_items li
+    WHERE li.project_id = ${projectId}
     ${filterCondition}
     ${searchCondition}
   `;
