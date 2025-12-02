@@ -623,7 +623,7 @@ async function main() {
     const inputPath = path.resolve(INPUT_FILE);
     const outputPath = path.resolve(OUTPUT_FILE);
     const jsonOutputPath = path.resolve(JSON_OUTPUT_FILE);
-    const otelJsonOutputPath = path.resolve();
+    const otelJsonOutputPath = path.resolve(OTEL_JSON_OUTPUT_FILE);
 
     console.log(`📂 Input file: ${inputPath}`);
     console.log(`📂 Output file: ${outputPath}`);
