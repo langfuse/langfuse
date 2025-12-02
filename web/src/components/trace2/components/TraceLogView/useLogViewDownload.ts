@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationIOData } from "./useLogViewAllObservationsIO";
 
@@ -20,6 +21,8 @@ export interface UseLogViewDownloadParams {
   allObservationsData: ObservationIOData[] | null;
   /** Whether data is being loaded by useLogViewAllObservationsIO */
   isLoadingAllData: boolean;
+  /** IDs of observations that failed to load */
+  failedObservationIds: string[];
   /** Load all observation data (uses cache where available) */
   loadAllData: () => Promise<ObservationIOData[]>;
   /** Build data from tree + cache without fetching (for cache-only mode) */
@@ -43,6 +46,7 @@ export function useLogViewDownload({
   isDownloadCacheOnly,
   allObservationsData,
   isLoadingAllData,
+  failedObservationIds,
   loadAllData,
   buildDataFromCache,
 }: UseLogViewDownloadParams): UseLogViewDownloadReturn {
@@ -73,17 +77,34 @@ export function useLogViewDownload({
       setTimeout(() => {
         const data = buildDataFromCache();
         void copyTextToClipboard(JSON.stringify(data, null, 2));
+        toast.success("Copied to clipboard (cache only)");
         setIsDownloadLoading(false);
       }, 0);
     } else {
       // Load all mode: fetch all data if needed
       if (allObservationsData) {
         void copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
+        // Show warning if some observations failed to load
+        if (failedObservationIds.length > 0) {
+          toast.warning(
+            `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+          );
+        } else {
+          toast.success("Copied to clipboard");
+        }
       } else {
         setIsDownloadLoading(true);
         try {
           const data = await loadAllData();
           void copyTextToClipboard(JSON.stringify(data, null, 2));
+          // Check for failures after loading
+          if (failedObservationIds.length > 0) {
+            toast.warning(
+              `Copied to clipboard. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+            );
+          } else {
+            toast.success("Copied to clipboard");
+          }
         } finally {
           setIsDownloadLoading(false);
         }
@@ -94,6 +115,7 @@ export function useLogViewDownload({
     allObservationsData,
     loadAllData,
     buildDataFromCache,
+    failedObservationIds,
   ]);
 
   // Download JSON handler - uses cache only or loads all based on threshold
@@ -105,17 +127,34 @@ export function useLogViewDownload({
       setTimeout(() => {
         const data = buildDataFromCache();
         downloadJsonData(data);
+        toast.success("Downloaded trace data (cache only)");
         setIsDownloadLoading(false);
       }, 0);
     } else {
       // Load all mode: fetch all data if needed
       if (allObservationsData) {
         downloadJsonData(allObservationsData);
+        // Show warning if some observations failed to load
+        if (failedObservationIds.length > 0) {
+          toast.warning(
+            `Downloaded trace data. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+          );
+        } else {
+          toast.success("Downloaded trace data");
+        }
       } else {
         setIsDownloadLoading(true);
         try {
           const data = await loadAllData();
           downloadJsonData(data);
+          // Check for failures after loading
+          if (failedObservationIds.length > 0) {
+            toast.warning(
+              `Downloaded trace data. ${failedObservationIds.length} observation${failedObservationIds.length === 1 ? "" : "s"} failed to load and ${failedObservationIds.length === 1 ? "is" : "are"} missing I/O data.`,
+            );
+          } else {
+            toast.success("Downloaded trace data");
+          }
         } finally {
           setIsDownloadLoading(false);
         }
@@ -127,6 +166,7 @@ export function useLogViewDownload({
     loadAllData,
     buildDataFromCache,
     downloadJsonData,
+    failedObservationIds,
   ]);
 
   // Loading state for download button

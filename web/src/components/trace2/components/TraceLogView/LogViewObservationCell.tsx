@@ -8,13 +8,18 @@
 import { memo, useRef, useEffect } from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePrefetchObservation } from "@/src/components/trace2/api/usePrefetchObservation";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import { type FlatLogItem } from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
 
 // Constants for prefetching behavior
-const PREFETCH_ROOT_MARGIN = "100px";
-const PREFETCH_DEBOUNCE_MS = 250;
-const INDENT_PX = 12;
+const {
+  prefetch: {
+    rootMargin: PREFETCH_ROOT_MARGIN,
+    debounceMs: PREFETCH_DEBOUNCE_MS,
+  },
+  indentPx: INDENT_PX,
+} = TRACE_VIEW_CONFIG.logView;
 
 export interface LogViewObservationCellProps {
   item: FlatLogItem;
@@ -40,6 +45,9 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
   useEffect(() => {
     const element = ref.current;
     if (!element || item.node.type === "TRACE") return;
+
+    // Reset prefetch flag when item changes to ensure we prefetch new data
+    hasPrefetched.current = false;
 
     const observer = new IntersectionObserver(
       (entries) => {

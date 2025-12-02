@@ -11,11 +11,12 @@ import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { chunk } from "lodash";
 import { api } from "@/src/utils/api";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import { type FlatLogItem } from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
 
 // Max concurrent requests when loading all observation data
-const FETCH_CONCURRENCY = 10;
+const FETCH_CONCURRENCY = TRACE_VIEW_CONFIG.logView.batchFetch.concurrency;
 
 export interface UseLogViewAllObservationsIOParams {
   items: FlatLogItem[];
@@ -73,6 +74,9 @@ export function useLogViewAllObservationsIO({
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [data, setData] = useState<ObservationIOData[] | null>(null);
+  const [failedObservationIds, setFailedObservationIds] = useState<string[]>(
+    [],
+  );
 
   /**
    * Build download data from tree structure + any cached observation I/O.
@@ -125,10 +129,12 @@ export function useLogViewAllObservationsIO({
    * Load all observation I/O data, using cache where available.
    * Only fetches observations not already in React Query cache.
    * Returns the combined data once all fetches complete.
+   * Tracks failures and continues downloading remaining observations.
    */
   const loadAllData = useCallback(async (): Promise<ObservationIOData[]> => {
     setIsLoading(true);
     setIsError(false);
+    setFailedObservationIds([]);
 
     try {
       const observationItems = items.filter(
@@ -178,6 +184,9 @@ export function useLogViewAllObservationsIO({
         }
       }
 
+      // Track failed observation IDs
+      const failures: string[] = [];
+
       // Fetch uncached items in batches to avoid rate limiting
       const itemChunks = chunk(uncachedItems, FETCH_CONCURRENCY);
       const fetchedResults: ObservationIOData[] = [];
@@ -214,7 +223,8 @@ export function useLogViewAllObservationsIO({
 
               return baseData;
             } catch {
-              // If individual fetch fails, return base data without I/O
+              // Track failure and return base data without I/O
+              failures.push(item.node.id);
               return {
                 id: item.node.id,
                 type: item.node.type,
@@ -241,6 +251,7 @@ export function useLogViewAllObservationsIO({
       );
 
       setData(allResults);
+      setFailedObservationIds(failures);
       setIsLoading(false);
       return allResults;
     } catch {
@@ -257,6 +268,8 @@ export function useLogViewAllObservationsIO({
     isLoading,
     /** Whether an error occurred during loading */
     isError,
+    /** IDs of observations that failed to load */
+    failedObservationIds,
     /** Trigger loading all observation I/O data */
     loadAllData,
     /** Build data from tree + cache without fetching (for virtualized mode) */

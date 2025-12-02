@@ -41,6 +41,8 @@ export interface LogViewToolbarProps {
   isVirtualized?: boolean;
   /** Total number of observations (shown in Large Trace indicator) */
   observationCount?: number;
+  /** Number of observations with loaded I/O data (for cache-only mode) */
+  loadedObservationCount?: number;
   /** Callback to toggle expand/collapse all (non-virtualized only) */
   onToggleExpandAll?: () => void;
   /** Whether all rows are expanded */
@@ -75,6 +77,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   onSearchChange,
   isVirtualized = true,
   observationCount,
+  loadedObservationCount,
   onToggleExpandAll,
   allRowsExpanded,
   onCopyJson,
@@ -229,60 +232,104 @@ export const LogViewToolbar = memo(function LogViewToolbar({
 
         {/* Copy JSON */}
         {onCopyJson && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={isDownloadLoading ? undefined : handleCopyClick}
-                disabled={isDownloadLoading}
-              >
-                {isDownloadLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : isCopied ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isDownloadLoading
-                ? "Loading data..."
-                : isDownloadCacheOnly
-                  ? "Copy as JSON (I/O for cached observations only)"
-                  : "Copy as JSON"}
-            </TooltipContent>
-          </Tooltip>
+          <HoverCard openDelay={200}>
+            <HoverCardTrigger asChild>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={isDownloadLoading ? undefined : handleCopyClick}
+                    disabled={isDownloadLoading}
+                  >
+                    {isDownloadLoading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : isCopied ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isDownloadLoading
+                    ? "Loading data..."
+                    : isDownloadCacheOnly
+                      ? "Copy as JSON (cache only)"
+                      : "Copy as JSON"}
+                </TooltipContent>
+              </Tooltip>
+            </HoverCardTrigger>
+            {isDownloadCacheOnly && !isDownloadLoading && (
+              <HoverCardContent className="w-64 text-sm" sideOffset={8}>
+                <p className="font-medium">Cache-only mode</p>
+                <p className="mt-1 text-muted-foreground">
+                  For large traces, only expanded observations include full I/O
+                  data.
+                </p>
+                {loadedObservationCount !== undefined &&
+                  observationCount !== undefined && (
+                    <p className="mt-1.5 text-muted-foreground">
+                      <span className="font-medium">
+                        {loadedObservationCount} of {observationCount}
+                      </span>{" "}
+                      observations loaded
+                    </p>
+                  )}
+              </HoverCardContent>
+            )}
+          </HoverCard>
         )}
 
         {/* Download JSON */}
         {onDownloadJson && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={isDownloadLoading ? undefined : onDownloadJson}
-                disabled={isDownloadLoading}
-              >
-                {isDownloadLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isDownloadLoading
-                ? "Loading data..."
-                : isDownloadCacheOnly
-                  ? "Download as JSON (I/O for cached observations only)"
-                  : "Download as JSON"}
-            </TooltipContent>
-          </Tooltip>
+          <HoverCard openDelay={200}>
+            <HoverCardTrigger asChild>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={isDownloadLoading ? undefined : onDownloadJson}
+                    disabled={isDownloadLoading}
+                  >
+                    {isDownloadLoading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isDownloadLoading
+                    ? "Loading data..."
+                    : isDownloadCacheOnly
+                      ? "Download as JSON (cache only)"
+                      : "Download as JSON"}
+                </TooltipContent>
+              </Tooltip>
+            </HoverCardTrigger>
+            {isDownloadCacheOnly && !isDownloadLoading && (
+              <HoverCardContent className="w-64 text-sm" sideOffset={8}>
+                <p className="font-medium">Cache-only mode</p>
+                <p className="mt-1 text-muted-foreground">
+                  For large traces, only expanded observations include full I/O
+                  data.
+                </p>
+                {loadedObservationCount !== undefined &&
+                  observationCount !== undefined && (
+                    <p className="mt-1.5 text-muted-foreground">
+                      <span className="font-medium">
+                        {loadedObservationCount} of {observationCount}
+                      </span>{" "}
+                      observations loaded
+                    </p>
+                  )}
+              </HoverCardContent>
+            )}
+          </HoverCard>
         )}
       </div>
     </div>

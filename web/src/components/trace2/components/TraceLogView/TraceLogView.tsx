@@ -3,8 +3,8 @@
  *
  * Features:
  * - Conditional virtualization based on observation count threshold
- * - Non-virtualized (< 150 obs): All rows in DOM, full features
- * - Virtualized (>= 150 obs): Only visible rows rendered
+ * - Non-virtualized (< 350 obs): All rows in DOM, full features
+ * - Virtualized (>= 350 obs): Only visible rows rendered
  * - Lazy I/O loading (data fetched only when row is expanded)
  * - Two view modes: chronological (by time) and tree-order (DFS hierarchy)
  * - Search filtering by name, type, or ID
@@ -12,9 +12,27 @@
  * - Copy/Download JSON functionality
  *
  * Uses JSONTableView for table rendering with domain-specific column definitions.
+ *
+ * **IMPORTANT: Context Dependencies**
+ * This component MUST be rendered within the following context providers:
+ * - `TraceDataProvider` - Provides tree, observations, and scores data
+ * - `ViewPreferencesProvider` - Provides logViewMode, logViewTreeStyle preferences
+ * - `JsonExpansionProvider` - Manages expansion state persistence
+ *
+ * Example usage:
+ * ```tsx
+ * <TraceDataProvider trace={trace} observations={observations}>
+ *   <ViewPreferencesProvider>
+ *     <JsonExpansionProvider>
+ *       <TraceLogView traceId={id} projectId={pid} currentView="pretty" />
+ *     </JsonExpansionProvider>
+ *   </ViewPreferencesProvider>
+ * </TraceDataProvider>
+ * ```
  */
 
 import { useState, useMemo, useCallback } from "react";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
@@ -29,7 +47,10 @@ import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
 import { LogViewTreeIndent } from "./LogViewTreeIndent";
 import { LogViewJsonMode } from "./LogViewJsonMode";
-import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
+import {
+  useLogViewAllObservationsIO,
+  useObservationIOLoadedCount,
+} from "./useLogViewAllObservationsIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
 import { useLogViewDownload } from "./useLogViewDownload";
 import { useLogViewColumns } from "./useLogViewColumns";
@@ -40,18 +61,16 @@ export interface TraceLogViewProps {
   currentView?: "pretty" | "json";
 }
 
-// Row height constants for virtualization
-const COLLAPSED_ROW_HEIGHT = 28;
-const EXPANDED_ROW_HEIGHT = 150;
+// Import configuration constants
+const {
+  virtualizationThreshold: LOG_VIEW_VIRTUALIZATION_THRESHOLD,
+  downloadThreshold: LOG_VIEW_DOWNLOAD_THRESHOLD,
+  rowHeight: { collapsed: COLLAPSED_ROW_HEIGHT, expanded: EXPANDED_ROW_HEIGHT },
+  maxIndentDepth: INDENT_DEPTH_THRESHOLD,
+} = TRACE_VIEW_CONFIG.logView;
 
-// Disable indent visualization when tree is deeper than this threshold
-const INDENT_DEPTH_THRESHOLD = 5;
-
-// Threshold for enabling virtualization (observation count)
-export const LOG_VIEW_VIRTUALIZATION_THRESHOLD = 350;
-
-// Threshold for disabling download JSON (observation count)
-export const LOG_VIEW_DOWNLOAD_THRESHOLD = 350;
+// Re-export thresholds for use in parent components
+export { LOG_VIEW_VIRTUALIZATION_THRESHOLD };
 
 export const TraceLogView = ({
   traceId,
@@ -210,6 +229,13 @@ export const TraceLogView = ({
     projectId,
   });
 
+  // Track loaded observation count for cache-only mode UX
+  const { loaded: loadedObservationCount } = useObservationIOLoadedCount({
+    items: flatItems,
+    traceId,
+    projectId,
+  });
+
   // Download and copy handlers
   const { handleCopyJson, handleDownloadJson, isDownloadOrCopyLoading } =
     useLogViewDownload({
@@ -217,6 +243,7 @@ export const TraceLogView = ({
       isDownloadCacheOnly,
       allObservationsData: allObservationsIO.data,
       isLoadingAllData: allObservationsIO.isLoading,
+      failedObservationIds: allObservationsIO.failedObservationIds,
       loadAllData: allObservationsIO.loadAllData,
       buildDataFromCache: allObservationsIO.buildDataFromCache,
     });
@@ -238,6 +265,7 @@ export const TraceLogView = ({
         onSearchChange={setSearchQuery}
         isVirtualized={isVirtualized}
         observationCount={observations.length}
+        loadedObservationCount={loadedObservationCount}
         onToggleExpandAll={handleToggleExpandAll}
         allRowsExpanded={allRowsExpanded}
         onCopyJson={handleCopyJson}

@@ -39,10 +39,8 @@ import { useSelection } from "@/src/components/trace2/contexts/SelectionContext"
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 // Extracted components
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
-import {
-  TraceLogView,
-  LOG_VIEW_VIRTUALIZATION_THRESHOLD,
-} from "../TraceLogView/TraceLogView";
+import { TraceLogView } from "../TraceLogView/TraceLogView";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export interface TraceDetailViewProps {
@@ -86,7 +84,7 @@ export function TraceDetailView({
 
   // Check if log view will be virtualized (affects JSON tab availability)
   const isLogViewVirtualized =
-    observations.length >= LOG_VIEW_VIRTUALIZATION_THRESHOLD;
+    observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
   // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
   const { isPeekMode } = useViewPreferences();
@@ -182,8 +180,8 @@ export function TraceDetailView({
                         <p className="font-medium">JSON view unavailable</p>
                         <p className="mt-1 text-muted-foreground">
                           Disabled for traces with{" "}
-                          {LOG_VIEW_VIRTUALIZATION_THRESHOLD}+ observations to
-                          maintain performance.
+                          {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
+                          observations to maintain performance.
                         </p>
                       </HoverCardContent>
                     </HoverCard>
