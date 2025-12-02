@@ -451,24 +451,6 @@ jobs:
           node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
-      - name: Setup Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-e2e-server-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-e2e-server-
-            ${{ runner.os }}-turbo-
-      - name: Cache Next.js builds
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-e2e-server-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-e2e-server-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-e2e-server-
       - name: install dependencies
         run: |
           pnpm install
