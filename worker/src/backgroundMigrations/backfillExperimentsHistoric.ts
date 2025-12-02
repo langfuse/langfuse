@@ -1,13 +1,22 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
   clickhouseClient,
-  commandClickhouse,
+  convertDateToClickhouseDateTime,
   logger,
   queryClickhouse,
-  flattenJsonToPathArrays,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import {
+  DatasetRunItem,
+  SpanRecord,
+  EnrichedSpan,
+  TraceProperties,
+  buildSpanMaps,
+  findAllChildren,
+  enrichSpansWithExperiment,
+  writeEnrichedSpans,
+} from "../features/eventPropagation/handleExperimentBackfill";
 import { parseArgs } from "node:util";
 
 // Hard-coded migration ID (must match the Prisma migration INSERT)
@@ -38,87 +47,7 @@ interface MigrationState {
 interface MigrationArgs {
   chunkSize?: string;
   batchTimeoutMs?: string;
-}
-
-interface DatasetRunItem {
-  id: string;
-  project_id: string;
-  trace_id: string;
-  observation_id: string | null;
-  dataset_run_id: string;
-  dataset_run_name: string;
-  dataset_run_description: string;
-  dataset_run_metadata: Record<string, unknown>;
-  dataset_id: string;
-  dataset_item_id: string;
-  dataset_item_expected_output: string;
-  dataset_item_metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-interface SpanRecord {
-  project_id: string;
-  trace_id: string;
-  span_id: string;
-  parent_span_id: string;
-  start_time: string;
-  end_time: string | null;
-  name: string;
-  type: string;
-  environment: string;
-  version: string;
-  release: string;
-  input: string;
-  output: string;
-  level: string;
-  status_message: string;
-  completion_start_time: string | null;
-  prompt_id: string;
-  prompt_name: string;
-  prompt_version: string | null;
-  model_id: string;
-  provided_model_name: string;
-  model_parameters: string;
-  provided_usage_details: Record<string, number> | null;
-  usage_details: Record<string, number> | null;
-  provided_cost_details: Record<string, number> | null;
-  cost_details: Record<string, number> | null;
-  total_cost: number;
-  metadata: Record<string, unknown>;
-  source: string;
-  tags: Array<string>;
-  bookmarked: boolean;
-  public: boolean;
-  user_id: string;
-  session_id: string;
-  created_at: string;
-  updated_at: string;
-  event_ts: string;
-  is_deleted: number;
-}
-
-interface EnrichedSpan extends SpanRecord {
-  experiment_id: string;
-  experiment_name: string;
-  experiment_metadata_names: string[];
-  experiment_metadata_values: Array<string | null | undefined>;
-  experiment_description: string;
-  experiment_dataset_id: string;
-  experiment_item_id: string;
-  experiment_item_root_span_id: string;
-  experiment_item_expected_output: string;
-  experiment_item_metadata_names: string[];
-  experiment_item_metadata_values: Array<string | null | undefined>;
-}
-
-interface TraceProperties {
-  userId: string;
-  sessionId: string;
-  version: string;
-  release: string;
-  tags: string[];
-  bookmarked: boolean;
-  public: boolean;
+  maxDate?: string;
 }
 
 // ============================================================================
@@ -171,9 +100,10 @@ export default class BackfillExperimentsHistoric
   // DRI Fetching
   // --------------------------------------------------------------------------
 
-  private async countTotalDRIs(): Promise<number> {
+  private async countTotalDRIs(maxDate: Date): Promise<number> {
     const result = await queryClickhouse<{ count: string }>({
-      query: `SELECT count(*) as count FROM dataset_run_items_rmt`,
+      query: `SELECT count(*) as count FROM dataset_run_items_rmt WHERE created_at <= {maxDate: DateTime64(3)}`,
+      params: { maxDate: convertDateToClickhouseDateTime(maxDate) },
       tags: {
         feature: "background-migration",
         operation: "countTotalDRIs",
@@ -185,6 +115,7 @@ export default class BackfillExperimentsHistoric
   private async fetchDRIsChunk(
     cursor: CursorPosition | null,
     chunkSize: number,
+    maxDate: Date,
   ): Promise<DatasetRunItem[]> {
     let query: string;
 
@@ -206,6 +137,7 @@ export default class BackfillExperimentsHistoric
           dri.dataset_item_metadata,
           dri.created_at
         FROM dataset_run_items_rmt AS dri
+        WHERE dri.created_at <= {maxDate: DateTime64(3)}
         ORDER BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.id
         LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
         LIMIT {chunkSize: UInt32}
@@ -230,6 +162,7 @@ export default class BackfillExperimentsHistoric
         FROM dataset_run_items_rmt AS dri
         WHERE (dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.id) >
               ({cursor_project_id: String}, {cursor_dataset_id: String}, {cursor_dataset_run_id: String}, {cursor_id: String})
+        AND dri.created_at <= {maxDate: DateTime64(3)}
         ORDER BY dri.project_id, dri.dataset_id, dri.dataset_run_id, dri.id
         LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
         LIMIT {chunkSize: UInt32}
@@ -245,8 +178,9 @@ export default class BackfillExperimentsHistoric
             cursor_dataset_run_id: cursor.dataset_run_id,
             cursor_id: cursor.id,
             chunkSize,
+            maxDate: convertDateToClickhouseDateTime(maxDate),
           }
-        : { chunkSize },
+        : { chunkSize, maxDate: convertDateToClickhouseDateTime(maxDate) },
       tags: {
         feature: "background-migration",
         operation: "fetchDRIsChunk",
@@ -298,22 +232,18 @@ export default class BackfillExperimentsHistoric
         o.provided_cost_details,
         o.cost_details,
         coalesce(o.total_cost, 0) AS total_cost,
+        o.usage_pricing_tier_id,
+        o.usage_pricing_tier_name,
         o.metadata,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
         [] AS tags,
         false AS bookmarked,
         false AS public,
         '' AS user_id,
-        '' AS session_id,
-        o.created_at,
-        o.updated_at,
-        o.event_ts,
-        o.is_deleted
+        '' AS session_id
       FROM observations_pid_tid_sorting o
       WHERE o.project_id IN {projectIds: Array(String)}
         AND o.trace_id IN {traceIds: Array(String)}
-      ORDER BY o.event_ts DESC
-      LIMIT 1 BY o.project_id, o.id
     `;
 
     return queryClickhouse<SpanRecord>({
@@ -342,22 +272,22 @@ export default class BackfillExperimentsHistoric
         '' AS parent_span_id,
         t.timestamp AS start_time,
         NULL AS end_time,
-        coalesce(t.name, '') AS name,
+        t.name AS name,
         'SPAN' AS type,
         coalesce(t.environment, '') AS environment,
         coalesce(t.version, '') AS version,
         coalesce(t.release, '') AS release,
         coalesce(t.input, '') AS input,
         coalesce(t.output, '') AS output,
-        'DEFAULT' AS level,
+        '' AS level,
         '' AS status_message,
-        NULL AS completion_start_time,
+        '' AS completion_start_time,
         '' AS prompt_id,
         '' AS prompt_name,
-        NULL AS prompt_version,
+        '' AS prompt_version,
         '' AS model_id,
         '' AS provided_model_name,
-        '{}' AS model_parameters,
+        '' AS model_parameters,
         map() AS provided_usage_details,
         map() AS usage_details,
         map() AS provided_cost_details,
@@ -369,16 +299,10 @@ export default class BackfillExperimentsHistoric
         t.bookmarked,
         t.public,
         coalesce(t.user_id, '') AS user_id,
-        coalesce(t.session_id, '') AS session_id,
-        t.created_at,
-        t.updated_at,
-        t.event_ts,
-        t.is_deleted
+        coalesce(t.session_id, '') AS session_id
       FROM traces_pid_tid_sorting t
       WHERE t.project_id IN {projectIds: Array(String)}
         AND t.id IN {traceIds: Array(String)}
-      ORDER BY t.event_ts DESC
-      LIMIT 1 BY t.project_id, t.id
     `;
 
     return queryClickhouse<SpanRecord>({
@@ -389,290 +313,6 @@ export default class BackfillExperimentsHistoric
         operation: "fetchTracesForTraces",
       },
     });
-  }
-
-  // --------------------------------------------------------------------------
-  // Span Enrichment (adapted from handleExperimentBackfill.ts)
-  // --------------------------------------------------------------------------
-
-  private buildSpanMaps(spans: SpanRecord[]): {
-    spanMap: Map<string, SpanRecord>;
-    childMap: Map<string, SpanRecord[]>;
-  } {
-    const spanMap = new Map<string, SpanRecord>();
-    const childMap = new Map<string, SpanRecord[]>();
-
-    for (const span of spans) {
-      spanMap.set(span.span_id, span);
-
-      const parentId = span.parent_span_id;
-      if (!childMap.has(parentId)) {
-        childMap.set(parentId, []);
-      }
-      childMap.get(parentId)!.push(span);
-    }
-
-    return { spanMap, childMap };
-  }
-
-  private findAllChildren(
-    rootSpanId: string,
-    childMap: Map<string, SpanRecord[]>,
-  ): SpanRecord[] {
-    const children: SpanRecord[] = [];
-    const queue: string[] = [rootSpanId];
-
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      const directChildren = childMap.get(currentId) || [];
-
-      for (const child of directChildren) {
-        children.push(child);
-        queue.push(child.span_id);
-      }
-    }
-
-    return children;
-  }
-
-  private enrichSpansWithExperiment(
-    rootSpan: SpanRecord,
-    childSpans: SpanRecord[],
-    dri: DatasetRunItem,
-    traceProperties: TraceProperties | undefined,
-  ): EnrichedSpan[] {
-    const enrichedSpans: EnrichedSpan[] = [];
-
-    const experimentMetadataFlattened = flattenJsonToPathArrays(
-      dri.dataset_run_metadata,
-    );
-    const experimentItemMetadataFlattened = flattenJsonToPathArrays(
-      dri.dataset_item_metadata,
-    );
-
-    // Enrich root span
-    enrichedSpans.push({
-      ...rootSpan,
-      user_id: traceProperties?.userId || "",
-      session_id: traceProperties?.sessionId || "",
-      version: rootSpan.version || traceProperties?.version || "",
-      release: traceProperties?.release || "",
-      tags: traceProperties?.tags || [],
-      bookmarked: traceProperties?.bookmarked || false,
-      public: traceProperties?.public || false,
-      experiment_id: dri.dataset_run_id,
-      experiment_name: dri.dataset_run_name,
-      experiment_metadata_names: experimentMetadataFlattened.names,
-      experiment_metadata_values: experimentMetadataFlattened.values,
-      experiment_description: dri.dataset_run_description,
-      experiment_dataset_id: dri.dataset_id,
-      experiment_item_id: dri.dataset_item_id,
-      experiment_item_root_span_id: rootSpan.span_id,
-      experiment_item_expected_output: dri.dataset_item_expected_output,
-      experiment_item_metadata_names: experimentItemMetadataFlattened.names,
-      experiment_item_metadata_values: experimentItemMetadataFlattened.values,
-    });
-
-    // Enrich child spans
-    for (const child of childSpans) {
-      enrichedSpans.push({
-        ...child,
-        user_id: traceProperties?.userId || "",
-        session_id: traceProperties?.sessionId || "",
-        version: child.version || traceProperties?.version || "",
-        release: traceProperties?.release || "",
-        tags: traceProperties?.tags || [],
-        public: traceProperties?.public || false,
-        bookmarked: false, // Only root span is bookmarked
-        experiment_id: dri.dataset_run_id,
-        experiment_name: dri.dataset_run_name,
-        experiment_metadata_names: experimentMetadataFlattened.names,
-        experiment_metadata_values: experimentMetadataFlattened.values,
-        experiment_description: dri.dataset_run_description,
-        experiment_dataset_id: dri.dataset_id,
-        experiment_item_id: dri.dataset_item_id,
-        experiment_item_root_span_id: rootSpan.span_id,
-        experiment_item_expected_output: dri.dataset_item_expected_output,
-        experiment_item_metadata_names: experimentItemMetadataFlattened.names,
-        experiment_item_metadata_values: experimentItemMetadataFlattened.values,
-      });
-    }
-
-    return enrichedSpans;
-  }
-
-  // --------------------------------------------------------------------------
-  // Batch Writing
-  // --------------------------------------------------------------------------
-
-  private async writeEnrichedSpansToEvents(
-    spans: EnrichedSpan[],
-    timeoutMs: number,
-  ): Promise<void> {
-    if (spans.length === 0) return;
-
-    // Build VALUES clause for batch insert
-    const values = spans
-      .map((span) => {
-        const metadataNames = Object.keys(span.metadata || {});
-        const metadataValues = Object.values(span.metadata || {}).map((v) =>
-          typeof v === "string" ? v : JSON.stringify(v),
-        );
-
-        return `(
-          '${this.escapeString(span.project_id)}',
-          '${this.escapeString(span.trace_id)}',
-          '${this.escapeString(span.span_id)}',
-          '${this.escapeString(span.parent_span_id)}',
-          parseDateTimeBestEffort('${span.start_time}'),
-          ${span.end_time ? `parseDateTimeBestEffort('${span.end_time}')` : "NULL"},
-          '${this.escapeString(span.name)}',
-          '${this.escapeString(span.type)}',
-          '${this.escapeString(span.environment)}',
-          '${this.escapeString(span.version)}',
-          '${this.escapeString(span.release)}',
-          [${span.tags.map((t) => `'${this.escapeString(t)}'`).join(",")}],
-          ${span.public ? 1 : 0},
-          ${span.bookmarked ? 1 : 0},
-          '${this.escapeString(span.user_id)}',
-          '${this.escapeString(span.session_id)}',
-          '${this.escapeString(span.level)}',
-          '${this.escapeString(span.status_message)}',
-          ${span.completion_start_time ? `parseDateTimeBestEffort('${span.completion_start_time}')` : "NULL"},
-          '${this.escapeString(span.prompt_id)}',
-          '${this.escapeString(span.prompt_name)}',
-          ${span.prompt_version !== null ? span.prompt_version : "NULL"},
-          '${this.escapeString(span.model_id)}',
-          '${this.escapeString(span.provided_model_name)}',
-          '${this.escapeString(span.model_parameters)}',
-          ${this.formatMapUInt64(span.provided_usage_details)},
-          ${this.formatMapUInt64(span.usage_details)},
-          ${this.formatMapDecimal(span.provided_cost_details)},
-          ${this.formatMapDecimal(span.cost_details)},
-          '${this.escapeString(span.input)}',
-          '${this.escapeString(span.output)}',
-          CAST('${this.escapeString(JSON.stringify(span.metadata || {}))}', 'JSON'),
-          [${metadataNames.map((n) => `'${this.escapeString(n)}'`).join(",")}],
-          [${metadataValues.map((v) => `'${this.escapeString(v)}'`).join(",")}],
-          '${this.escapeString(span.source)}',
-          '' AS blob_storage_file_path,
-          0 AS event_bytes,
-          parseDateTimeBestEffort('${span.created_at}'),
-          parseDateTimeBestEffort('${span.updated_at}'),
-          parseDateTimeBestEffort('${span.event_ts}'),
-          ${span.is_deleted},
-          '${this.escapeString(span.experiment_id)}',
-          '${this.escapeString(span.experiment_name)}',
-          [${span.experiment_metadata_names.map((n) => `'${this.escapeString(n)}'`).join(",")}],
-          [${span.experiment_metadata_values.map((v) => `${v === null || v === undefined ? "NULL" : `'${this.escapeString(String(v))}'`}`).join(",")}],
-          '${this.escapeString(span.experiment_description)}',
-          '${this.escapeString(span.experiment_dataset_id)}',
-          '${this.escapeString(span.experiment_item_id)}',
-          '${this.escapeString(span.experiment_item_root_span_id)}',
-          '${this.escapeString(span.experiment_item_expected_output)}',
-          [${span.experiment_item_metadata_names.map((n) => `'${this.escapeString(n)}'`).join(",")}],
-          [${span.experiment_item_metadata_values.map((v) => `${v === null || v === undefined ? "NULL" : `'${this.escapeString(String(v))}'`}`).join(",")}]
-        )`;
-      })
-      .join(",\n");
-
-    const query = `
-      INSERT INTO events (
-        project_id,
-        trace_id,
-        span_id,
-        parent_span_id,
-        start_time,
-        end_time,
-        name,
-        type,
-        environment,
-        version,
-        release,
-        tags,
-        public,
-        bookmarked,
-        user_id,
-        session_id,
-        level,
-        status_message,
-        completion_start_time,
-        prompt_id,
-        prompt_name,
-        prompt_version,
-        model_id,
-        provided_model_name,
-        model_parameters,
-        provided_usage_details,
-        usage_details,
-        provided_cost_details,
-        cost_details,
-        input,
-        output,
-        metadata,
-        metadata_names,
-        metadata_raw_values,
-        source,
-        blob_storage_file_path,
-        event_bytes,
-        created_at,
-        updated_at,
-        event_ts,
-        is_deleted,
-        experiment_id,
-        experiment_name,
-        experiment_metadata_names,
-        experiment_metadata_values,
-        experiment_description,
-        experiment_dataset_id,
-        experiment_item_id,
-        experiment_item_root_span_id,
-        experiment_item_expected_output,
-        experiment_item_metadata_names,
-        experiment_item_metadata_values
-      )
-      VALUES ${values}
-    `;
-
-    await commandClickhouse({
-      query,
-      tags: {
-        feature: "background-migration",
-        operation: "writeEnrichedSpansToEvents",
-      },
-      clickhouseConfigs: {
-        request_timeout: timeoutMs,
-      },
-      clickhouseSettings: {
-        http_headers_progress_interval_ms: "100000",
-        type_json_skip_duplicated_paths: 1,
-      },
-    });
-  }
-
-  private escapeString(str: string): string {
-    if (!str) return "";
-    return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  }
-
-  private formatMapUInt64(
-    map: Record<string, number> | null | undefined,
-  ): string {
-    if (!map || Object.keys(map).length === 0) return "map()";
-    const entries = Object.entries(map)
-      .map(([k, v]) => `'${this.escapeString(k)}', toUInt64(${v})`)
-      .join(", ");
-    return `map(${entries})`;
-  }
-
-  private formatMapDecimal(
-    map: Record<string, number> | null | undefined,
-  ): string {
-    if (!map || Object.keys(map).length === 0) return "map()";
-    const entries = Object.entries(map)
-      .map(([k, v]) => `'${this.escapeString(k)}', toDecimal64(${v}, 12)`)
-      .join(", ");
-    return `map(${entries})`;
   }
 
   // --------------------------------------------------------------------------
@@ -758,6 +398,9 @@ export default class BackfillExperimentsHistoric
     const batchTimeoutMs = parseInt(
       migrationArgs.batchTimeoutMs ?? String(DEFAULT_BATCH_TIMEOUT_MS),
     );
+    const maxDate = migrationArgs.maxDate
+      ? new Date(migrationArgs.maxDate)
+      : new Date(); // Process everything up to now
 
     logger.info(
       `[Backfill Experiments] Starting historic experiment backfill with args: ${JSON.stringify({ chunkSize, batchTimeoutMs })}`,
@@ -768,7 +411,7 @@ export default class BackfillExperimentsHistoric
 
     // Get total count on first run
     if (state.totalDRIs === null) {
-      state.totalDRIs = await this.countTotalDRIs();
+      state.totalDRIs = await this.countTotalDRIs(maxDate);
       await this.updateState(state);
       logger.info(
         `[Backfill Experiments] Total DRIs to process: ${state.totalDRIs.toLocaleString()}`,
@@ -778,7 +421,7 @@ export default class BackfillExperimentsHistoric
     // Main processing loop
     while (!this.isAborted) {
       // Fetch next chunk
-      const dris = await this.fetchDRIsChunk(state.cursor, chunkSize);
+      const dris = await this.fetchDRIsChunk(state.cursor, chunkSize, maxDate);
 
       if (dris.length === 0) {
         logger.info(
@@ -788,7 +431,7 @@ export default class BackfillExperimentsHistoric
       }
 
       logger.info(
-        `[Backfill Experiments] Processing chunk of ${dris.length} DRIs (total processed: ${state.totalProcessed.toLocaleString()}/${state.totalDRIs?.toLocaleString() ?? "?"})`,
+        `[Backfill Experiments] Processing chunk of ${dris.length} DRIs (total processed: ${state.totalProcessed}/${state.totalDRIs ?? "?"})`,
       );
 
       // Extract unique project and trace IDs
@@ -807,7 +450,7 @@ export default class BackfillExperimentsHistoric
 
       // Build span maps
       const allSpans = [...observations, ...traces];
-      const { spanMap, childMap } = this.buildSpanMaps(allSpans);
+      const { spanMap, childMap } = buildSpanMaps(allSpans);
 
       // Build trace properties map
       const tracePropertiesMap = new Map<string, TraceProperties>();
@@ -841,9 +484,9 @@ export default class BackfillExperimentsHistoric
         }
 
         const traceProperties = tracePropertiesMap.get(dri.trace_id);
-        const childSpans = this.findAllChildren(rootSpanId, childMap);
+        const childSpans = findAllChildren(rootSpanId, childMap);
 
-        const enrichedSpans = this.enrichSpansWithExperiment(
+        const enrichedSpans = enrichSpansWithExperiment(
           rootSpan,
           childSpans,
           dri,
@@ -867,7 +510,7 @@ export default class BackfillExperimentsHistoric
 
       // Write enriched spans to events table
       if (allEnrichedSpans.length > 0) {
-        await this.writeEnrichedSpansToEvents(allEnrichedSpans, batchTimeoutMs);
+        await writeEnrichedSpans(allEnrichedSpans);
         logger.info(
           `[Backfill Experiments] Wrote ${allEnrichedSpans.length} enriched spans to events table`,
         );
@@ -920,6 +563,11 @@ async function main() {
         type: "string",
         short: "t",
         default: String(DEFAULT_BATCH_TIMEOUT_MS),
+      },
+      maxDate: {
+        type: "string",
+        short: "m",
+        default: undefined,
       },
     },
   });
