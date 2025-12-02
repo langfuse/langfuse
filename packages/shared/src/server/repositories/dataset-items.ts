@@ -641,6 +641,19 @@ export type DatasetItemFilters = {
   sourceTraceId?: string | null; // null = filter for IS NULL, undefined = no filter
   sourceObservationId?: string | null; // null = filter for IS NULL, undefined = no filter
   status?: "ACTIVE" | "ALL"; // Defaults to 'ACTIVE' at manager level
+  searchQuery?: string; // Full-text search query
+  searchType?: ("id" | "content")[]; // Search types: id and/or content
+  metadata?: Array<{
+    // Metadata filters (key-value pairs)
+    key: string;
+    operator:
+      | "="
+      | "contains"
+      | "does not contain"
+      | "starts with"
+      | "ends with";
+    value: string;
+  }>;
 };
 
 /**
@@ -709,6 +722,15 @@ export function validateAndConvertToDatasetItemFilters(
     // Map validated column to DatasetItemFilters
     if (col.id === "datasetId" && filter.type === "stringOptions") {
       filters.datasetIds = filter.value;
+    } else if (col.id === "metadata" && filter.type === "stringObject") {
+      if (!filters.metadata) {
+        filters.metadata = [];
+      }
+      filters.metadata.push({
+        key: filter.key,
+        operator: filter.operator,
+        value: filter.value,
+      });
     }
   }
 
@@ -787,7 +809,156 @@ export function convertFiltersToFilterState(
     });
   }
 
+  if (filters.metadata && filters.metadata.length > 0) {
+    for (const metadataFilter of filters.metadata) {
+      filterState.push({
+        type: "stringObject",
+        column: "metadata",
+        key: metadataFilter.key,
+        operator: metadataFilter.operator,
+        value: metadataFilter.value,
+      });
+    }
+  }
+
   return filterState;
+}
+
+/**
+ * Builds SQL search filter for full-text search on dataset items.
+ * Applies ILIKE search on id, input, expectedOutput, and metadata fields.
+ * Returns Prisma.empty if no search query provided.
+ *
+ * @param tableAlias - The table alias to use (e.g., 'li' for CTE, 'di' for direct table)
+ */
+function buildDatasetItemSearchCondition(
+  searchQuery?: string,
+  searchType?: ("id" | "content")[],
+  tableAlias: string = "li",
+): Prisma.Sql {
+  if (!searchQuery || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const types = searchType ?? ["content"];
+  const searchConditions: Prisma.Sql[] = [];
+
+  if (types.includes("id")) {
+    searchConditions.push(
+      Prisma.sql`${Prisma.raw(tableAlias)}.id ILIKE ${`%${searchQuery}%`}`,
+    );
+  }
+
+  if (types.includes("content")) {
+    searchConditions.push(
+      Prisma.sql`${Prisma.raw(tableAlias)}.input::text ILIKE ${`%${searchQuery}%`}`,
+    );
+    searchConditions.push(
+      Prisma.sql`${Prisma.raw(tableAlias)}.expected_output::text ILIKE ${`%${searchQuery}%`}`,
+    );
+    searchConditions.push(
+      Prisma.sql`${Prisma.raw(tableAlias)}.metadata::text ILIKE ${`%${searchQuery}%`}`,
+    );
+  }
+
+  return searchConditions.length > 0
+    ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
+    : Prisma.empty;
+}
+
+/**
+ * Builds SQL query for STATEFUL dataset items with search support.
+ * Simple direct query without version logic.
+ */
+function buildStatefulDatasetItemsQuery(
+  projectId: string,
+  includeIO: boolean,
+  includeDatasetName: boolean,
+  filter: FilterState,
+  searchQuery?: string,
+  searchType?: ("id" | "content")[],
+  limit?: number,
+  offset?: number,
+): Prisma.Sql {
+  const ioFields = includeIO
+    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
+    : Prisma.empty;
+
+  const datasetJoin = includeDatasetName
+    ? Prisma.sql`LEFT JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id`
+    : Prisma.empty;
+
+  const datasetNameField = includeDatasetName
+    ? Prisma.sql`, d.name as dataset_name`
+    : Prisma.empty;
+
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
+    datasetItemsFilterCols,
+    "dataset_item_events",
+  );
+
+  const searchCondition = buildDatasetItemSearchCondition(
+    searchQuery,
+    searchType,
+    "di",
+  );
+
+  const paginationClause =
+    limit !== undefined
+      ? Prisma.sql`LIMIT ${limit}${offset !== undefined ? Prisma.sql` OFFSET ${offset}` : Prisma.empty}`
+      : Prisma.empty;
+
+  return Prisma.sql`
+    SELECT
+      di.id,
+      di.project_id,
+      di.dataset_id,
+      ${ioFields}
+      di.source_trace_id,
+      di.source_observation_id,
+      di.status,
+      di.created_at,
+      di.updated_at
+      ${datasetNameField}
+    FROM dataset_items di
+    ${datasetJoin}
+    WHERE di.project_id = ${projectId}
+    ${filterCondition}
+    ${searchCondition}
+    ORDER BY di.status ASC, di.created_at DESC, di.id DESC
+    ${paginationClause}
+  `;
+}
+
+/**
+ * Builds SQL count query for STATEFUL dataset items with search support.
+ */
+function buildStatefulDatasetItemsCountQuery(
+  projectId: string,
+  filter: FilterState,
+  searchQuery?: string,
+  searchType?: ("id" | "content")[],
+): Prisma.Sql {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
+    datasetItemsFilterCols,
+    "dataset_item_events",
+  );
+
+  const searchCondition = buildDatasetItemSearchCondition(
+    searchQuery,
+    searchType,
+    "di",
+  );
+
+  return Prisma.sql`
+    SELECT COUNT(*) as count
+    FROM dataset_items di
+    WHERE di.project_id = ${projectId}
+    ${filterCondition}
+    ${searchCondition}
+  `;
 }
 
 /**
@@ -799,6 +970,8 @@ export function convertFiltersToFilterState(
  * @param includeIO - Whether to include input/output/metadata fields in SELECT
  * @param includeDatasetName - Whether to JOIN datasets table and include dataset name
  * @param filter - FilterState array for filtering (includes datasetId, status, etc.)
+ * @param searchQuery - Optional full-text search query
+ * @param searchType - Optional search types (id, content)
  * @param limit - Optional LIMIT for pagination
  * @param offset - Optional OFFSET for pagination
  * @returns Prisma.Sql query
@@ -808,6 +981,8 @@ function buildDatasetItemsLatestQuery(
   includeIO: boolean,
   includeDatasetName: boolean,
   filter: FilterState,
+  searchQuery?: string,
+  searchType?: ("id" | "content")[],
   limit?: number,
   offset?: number,
 ): Prisma.Sql {
@@ -827,6 +1002,11 @@ function buildDatasetItemsLatestQuery(
     filter,
     datasetItemsFilterCols,
     "dataset_item_events",
+  );
+
+  const searchCondition = buildDatasetItemSearchCondition(
+    searchQuery,
+    searchType,
   );
 
   const paginationClause =
@@ -850,7 +1030,7 @@ function buildDatasetItemsLatestQuery(
       FROM dataset_items
       WHERE project_id = ${projectId}
       ${filterCondition}
-      ORDER BY valid_from, id DESC
+      ORDER BY id, project_id, valid_from DESC
     )
     SELECT
       li.id,
@@ -866,6 +1046,7 @@ function buildDatasetItemsLatestQuery(
     FROM latest_items li
     ${datasetJoin}
     WHERE li.is_deleted = false
+    ${searchCondition}
     ORDER BY li.valid_from DESC
     ${paginationClause}
   `;
@@ -878,11 +1059,18 @@ function buildDatasetItemsLatestQuery(
 function buildDatasetItemsLatestCountQuery(
   projectId: string,
   filter: FilterState,
+  searchQuery?: string,
+  searchType?: ("id" | "content")[],
 ): Prisma.Sql {
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     filter,
     datasetItemsFilterCols,
     "dataset_item_events",
+  );
+
+  const searchCondition = buildDatasetItemSearchCondition(
+    searchQuery,
+    searchType,
   );
 
   return Prisma.sql`
@@ -891,6 +1079,9 @@ function buildDatasetItemsLatestCountQuery(
         id,
         project_id,
         dataset_id,
+        input,
+        expected_output,
+        metadata,
         source_trace_id,
         source_observation_id,
         status,
@@ -900,11 +1091,12 @@ function buildDatasetItemsLatestCountQuery(
       FROM dataset_items
       WHERE project_id = ${projectId}
       ${filterCondition}
-      ORDER BY valid_from, id DESC
+      ORDER BY id, project_id, valid_from DESC
     )
     SELECT COUNT(*) as count
     FROM latest_items li
     WHERE li.is_deleted = false
+    ${searchCondition}
   `;
 }
 
@@ -1001,6 +1193,8 @@ async function getDatasetItemsByLatestInternal<
   includeIO: IncludeIO;
   includeDatasetName?: IncludeDatasetName;
   filter: FilterState;
+  searchQuery?: string;
+  searchType?: ("id" | "content")[];
   limit?: number;
   offset?: number;
 }): Promise<
@@ -1017,6 +1211,8 @@ async function getDatasetItemsByLatestInternal<
     params.includeIO,
     params.includeDatasetName ?? false,
     params.filter,
+    params.searchQuery,
+    params.searchType,
     params.limit,
     params.offset,
   );
@@ -1047,6 +1243,8 @@ async function getDatasetItemsCountByLatestInternal(params: {
   const query = buildDatasetItemsLatestCountQuery(
     params.projectId,
     filterState,
+    params.filters?.searchQuery,
+    params.filters?.searchType,
   );
 
   const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
@@ -1081,7 +1279,7 @@ async function getDatasetItemsCountByLatestGroupedInternal(params: {
  * Used by API layers to fetch current state before merging partial updates.
  *
  * @param props.datasetId - Optional to ensure item belongs to correct dataset
- * @param props.status - Filter by status ('ACTIVE' for active items only, 'ALL' to include archived items)
+ * @param props.status - Filter by status ('ACTIVE' for active items only, 'ALL' to include archived items). Default is "ALL"
  * @returns The dataset item or null if not found/deleted
  */
 export async function getDatasetItemById<
@@ -1196,6 +1394,34 @@ export async function getDatasetItemsByLatest<
       const defaultFilters = props.filters ?? {};
       const status = defaultFilters.status ?? "ACTIVE";
       const includeDatasetName = props.includeDatasetName ?? false;
+      const { searchQuery, searchType } = defaultFilters;
+
+      // If there's a search query, use raw SQL for STATEFUL mode (Prisma doesn't support ILIKE on JSONB)
+      if (
+        (searchQuery && searchQuery !== "") ||
+        (defaultFilters.metadata && defaultFilters.metadata.length > 0)
+      ) {
+        const filtersWithDefaults = applyDefaultFilters(props.filters);
+        const filterState = convertFiltersToFilterState(filtersWithDefaults);
+
+        const query = buildStatefulDatasetItemsQuery(
+          props.projectId,
+          includeIO,
+          includeDatasetName,
+          filterState,
+          searchQuery,
+          searchType,
+          props.limit,
+          offset,
+        );
+
+        const result =
+          await prisma.$queryRaw<QueryGetLatestDatasetItemRow[]>(query);
+
+        return result.map((row) =>
+          convertLatestRowToDomain(row, includeIO, includeDatasetName),
+        ) as any;
+      }
 
       const selectFields = includeIO
         ? undefined
@@ -1250,6 +1476,8 @@ export async function getDatasetItemsByLatest<
         includeIO,
         includeDatasetName: props.includeDatasetName,
         filter: filterState,
+        searchQuery: props.filters?.searchQuery,
+        searchType: props.filters?.searchType,
         limit: props.limit,
         offset,
       });
@@ -1265,6 +1493,23 @@ export async function getDatasetItemsCountByLatest(props: {
     [Implementation.STATEFUL]: async () => {
       const defaultFilters = props.filters ?? {};
       const status = defaultFilters.status ?? "ACTIVE";
+      const { searchQuery, searchType } = defaultFilters;
+
+      // If there's a search query, use raw SQL for STATEFUL mode
+      if (searchQuery && searchQuery !== "") {
+        const filtersWithDefaults = applyDefaultFilters(props.filters);
+        const filterState = convertFiltersToFilterState(filtersWithDefaults);
+
+        const query = buildStatefulDatasetItemsCountQuery(
+          props.projectId,
+          filterState,
+          searchQuery,
+          searchType,
+        );
+
+        const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
+        return result.length > 0 ? Number(result[0].count) : 0;
+      }
 
       return await prisma.datasetItem.count({
         where: {

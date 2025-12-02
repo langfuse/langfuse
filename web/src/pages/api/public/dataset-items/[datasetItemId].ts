@@ -10,7 +10,10 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { deleteDatasetItem } from "@langfuse/shared/src/server";
+import {
+  deleteDatasetItem,
+  getDatasetItemById,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

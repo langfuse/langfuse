@@ -34,4 +34,10 @@ export const datasetItemsFilterCols: ColumnDefinition[] = [
     internal: "le.status::text",
     options: Object.values(DatasetStatus).map((value) => ({ value })),
   },
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: "le.metadata",
+  },
 ];
