@@ -37,7 +37,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   dataset_run_items: "createdAt",
-  dataset_items: "createdAt",
+  dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
   audit_logs: "createdAt",
 };
 const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {

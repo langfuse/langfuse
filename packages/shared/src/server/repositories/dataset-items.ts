@@ -867,7 +867,7 @@ function buildStatefulDatasetItemsQuery(
     WHERE di.project_id = ${projectId}
     ${filterCondition}
     ${searchCondition}
-    ORDER BY di.status ASC, di.created_at DESC, di.id DESC
+    ORDER BY di.created_at DESC, di.id ASC
     ${paginationClause}
   `;
 }
@@ -993,7 +993,7 @@ function buildDatasetItemsLatestQuery(
     ${datasetJoin}
     WHERE di.is_deleted = false
     ${searchCondition}
-    ORDER BY di.valid_from DESC
+    ORDER BY di.valid_from DESC, di.id ASC
     ${paginationClause}
   `;
 }
@@ -1393,7 +1393,7 @@ export async function getDatasetItemsByLatest<
         ...(selectFields && { select: selectFields }),
         ...(props.limit !== undefined && { take: props.limit }),
         ...(offset !== undefined && { skip: offset }),
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         ...(includeDatasetName && {
           include: { dataset: { select: { name: true } } },
         }),

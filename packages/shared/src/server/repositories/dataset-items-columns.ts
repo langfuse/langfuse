@@ -47,4 +47,10 @@ export const datasetItemsFilterCols: ColumnDefinition[] = [
     type: "datetime",
     internal: "di.created_at",
   },
+  {
+    name: "Valid From",
+    id: "validFrom",
+    type: "datetime",
+    internal: "di.valid_from",
+  },
 ];
