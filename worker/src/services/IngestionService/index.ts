@@ -384,6 +384,9 @@ export class IngestionService {
       cost_details:
         generationUsage?.cost_details ?? eventData.costDetails ?? {},
 
+      usage_pricing_tier_id: generationUsage?.usage_pricing_tier_id,
+      usage_pricing_tier_name: generationUsage?.usage_pricing_tier_name,
+
       // I/O
       input: eventData.input,
       output: eventData.output,
