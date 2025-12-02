@@ -9,9 +9,13 @@
 
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { chunk } from "lodash";
 import { api } from "@/src/utils/api";
 import { type FlatLogItem } from "./log-view-types";
 import { formatDisplayName } from "./log-view-formatters";
+
+// Max concurrent requests when loading all observation data
+const FETCH_CONCURRENCY = 10;
 
 export interface UseLogViewAllObservationsIOParams {
   items: FlatLogItem[];
@@ -174,50 +178,56 @@ export function useLogViewAllObservationsIO({
         }
       }
 
-      // Only fetch uncached items
-      const fetchedResults = await Promise.all(
-        uncachedItems.map(async (item) => {
-          try {
-            const result = await utils.observations.byId.fetch({
-              observationId: item.node.id,
-              traceId,
-              projectId,
-              startTime: item.node.startTime,
-            });
+      // Fetch uncached items in batches to avoid rate limiting
+      const itemChunks = chunk(uncachedItems, FETCH_CONCURRENCY);
+      const fetchedResults: ObservationIOData[] = [];
 
-            const baseData: ObservationIOData = {
-              id: item.node.id,
-              type: item.node.type,
-              name: formatDisplayName(item.node),
-              startTime: item.node.startTime,
-              endTime: item.node.endTime,
-              depth: item.node.depth,
-            };
+      for (const itemChunk of itemChunks) {
+        const chunkResults = await Promise.all(
+          itemChunk.map(async (item) => {
+            try {
+              const result = await utils.observations.byId.fetch({
+                observationId: item.node.id,
+                traceId,
+                projectId,
+                startTime: item.node.startTime,
+              });
 
-            if (result.input !== null && result.input !== undefined) {
-              baseData.input = result.input;
-            }
-            if (result.output !== null && result.output !== undefined) {
-              baseData.output = result.output;
-            }
-            if (result.metadata !== null && result.metadata !== undefined) {
-              baseData.metadata = result.metadata;
-            }
+              const baseData: ObservationIOData = {
+                id: item.node.id,
+                type: item.node.type,
+                name: formatDisplayName(item.node),
+                startTime: item.node.startTime,
+                endTime: item.node.endTime,
+                depth: item.node.depth,
+              };
 
-            return baseData;
-          } catch {
-            // If individual fetch fails, return base data without I/O
-            return {
-              id: item.node.id,
-              type: item.node.type,
-              name: formatDisplayName(item.node),
-              startTime: item.node.startTime,
-              endTime: item.node.endTime,
-              depth: item.node.depth,
-            } as ObservationIOData;
-          }
-        }),
-      );
+              if (result.input !== null && result.input !== undefined) {
+                baseData.input = result.input;
+              }
+              if (result.output !== null && result.output !== undefined) {
+                baseData.output = result.output;
+              }
+              if (result.metadata !== null && result.metadata !== undefined) {
+                baseData.metadata = result.metadata;
+              }
+
+              return baseData;
+            } catch {
+              // If individual fetch fails, return base data without I/O
+              return {
+                id: item.node.id,
+                type: item.node.type,
+                name: formatDisplayName(item.node),
+                startTime: item.node.startTime,
+                endTime: item.node.endTime,
+                depth: item.node.depth,
+              } as ObservationIOData;
+            }
+          }),
+        );
+        fetchedResults.push(...chunkResults);
+      }
 
       // Combine cached and fetched results
       const allResults = [...cachedResults, ...fetchedResults];

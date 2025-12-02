@@ -48,7 +48,10 @@ const EXPANDED_ROW_HEIGHT = 150;
 const INDENT_DEPTH_THRESHOLD = 5;
 
 // Threshold for enabling virtualization (observation count)
-export const LOG_VIEW_VIRTUALIZATION_THRESHOLD = 100;
+export const LOG_VIEW_VIRTUALIZATION_THRESHOLD = 350;
+
+// Threshold for disabling download JSON (observation count)
+export const LOG_VIEW_DOWNLOAD_THRESHOLD = 350;
 
 export const TraceLogView = ({
   traceId,
@@ -62,6 +65,10 @@ export const TraceLogView = ({
   // Determine if we should virtualize based on observation count
   const isVirtualized =
     observations.length >= LOG_VIEW_VIRTUALIZATION_THRESHOLD;
+
+  // Determine if download/copy should use cached I/O only (vs loading all)
+  const isDownloadCacheOnly =
+    observations.length >= LOG_VIEW_DOWNLOAD_THRESHOLD;
 
   // Get expanded keys from context (persisted in sessionStorage)
   // Uses dynamic key format: logViewRows:${traceId}
@@ -207,7 +214,7 @@ export const TraceLogView = ({
   const { handleCopyJson, handleDownloadJson, isDownloadOrCopyLoading } =
     useLogViewDownload({
       traceId,
-      isVirtualized,
+      isDownloadCacheOnly,
       allObservationsData: allObservationsIO.data,
       isLoadingAllData: allObservationsIO.isLoading,
       loadAllData: allObservationsIO.loadAllData,
@@ -230,10 +237,12 @@ export const TraceLogView = ({
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         isVirtualized={isVirtualized}
+        observationCount={observations.length}
         onToggleExpandAll={handleToggleExpandAll}
         allRowsExpanded={allRowsExpanded}
         onCopyJson={handleCopyJson}
         onDownloadJson={handleDownloadJson}
+        isDownloadCacheOnly={isDownloadCacheOnly}
         isDownloadLoading={isDownloadOrCopyLoading}
         currentView={currentView}
         indentEnabled={indentEnabled}
@@ -260,7 +269,7 @@ export const TraceLogView = ({
         </div>
       )}
 
-      {/* JSON view mode - render all observations as single JSON (disabled when virtualized) */}
+      {/* JSON view mode - only available for non-virtualized traces */}
       {flatItems.length > 0 && currentView === "json" && !isVirtualized && (
         <LogViewJsonMode
           items={flatItems}

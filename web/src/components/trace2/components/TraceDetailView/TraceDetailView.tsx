@@ -19,6 +19,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 
 // Preview tab components
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
@@ -132,17 +137,22 @@ export function TraceDetailView({
             )}
 
             {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
+            {/* JSON is disabled for virtualized log view (large traces) */}
             {(selectedTab === "log" ||
               (selectedTab === "preview" && isPrettyViewAvailable)) && (
               <Tabs
                 className="ml-auto mr-1 h-fit px-2 py-0.5"
-                value={currentView}
+                value={
+                  selectedTab === "log" && isLogViewVirtualized
+                    ? "pretty"
+                    : currentView
+                }
                 onValueChange={(value) => {
-                  // Don't allow switching to JSON when virtualized on log tab
+                  // Don't allow JSON for virtualized log view
                   if (
-                    value === "json" &&
                     selectedTab === "log" &&
-                    isLogViewVirtualized
+                    isLogViewVirtualized &&
+                    value === "json"
                   ) {
                     return;
                   }
@@ -153,26 +163,35 @@ export function TraceDetailView({
                   <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
                     Formatted
                   </TabsTrigger>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
+                  {selectedTab === "log" && isLogViewVirtualized ? (
+                    <HoverCard openDelay={200}>
+                      <HoverCardTrigger asChild>
                         <TabsTrigger
                           value="json"
                           className="h-fit px-1 text-xs"
-                          disabled={
-                            selectedTab === "log" && isLogViewVirtualized
-                          }
+                          disabled
                         >
                           JSON
                         </TabsTrigger>
-                      </span>
-                    </TooltipTrigger>
-                    {selectedTab === "log" && isLogViewVirtualized && (
-                      <TooltipContent className="text-xs">
-                        JSON view requires loading all observation data first
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        align="end"
+                        className="w-64 text-sm"
+                        sideOffset={8}
+                      >
+                        <p className="font-medium">JSON view unavailable</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Disabled for traces with{" "}
+                          {LOG_VIEW_VIRTUALIZATION_THRESHOLD}+ observations to
+                          maintain performance.
+                        </p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
+                    <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                      JSON
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </Tabs>
             )}
@@ -234,7 +253,7 @@ export function TraceDetailView({
           <TraceLogView
             traceId={trace.id}
             projectId={projectId}
-            currentView={currentView}
+            currentView={isLogViewVirtualized ? "pretty" : currentView}
           />
         </TabsBarContent>
 

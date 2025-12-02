@@ -14,21 +14,21 @@ import { type ObservationIOData } from "./useLogViewAllObservationsIO";
 export interface UseLogViewDownloadParams {
   /** Trace ID for filename */
   traceId: string;
-  /** Whether virtualization is enabled */
-  isVirtualized: boolean;
+  /** Whether to use cached I/O only (vs loading all data) */
+  isDownloadCacheOnly: boolean;
   /** Already loaded observation data (null if not loaded) */
   allObservationsData: ObservationIOData[] | null;
   /** Whether data is being loaded by useLogViewAllObservationsIO */
   isLoadingAllData: boolean;
   /** Load all observation data (uses cache where available) */
   loadAllData: () => Promise<ObservationIOData[]>;
-  /** Build data from tree + cache without fetching (for virtualized mode) */
+  /** Build data from tree + cache without fetching (for cache-only mode) */
   buildDataFromCache: () => ObservationIOData[];
 }
 
 export interface UseLogViewDownloadReturn {
-  /** Copy JSON to clipboard handler (returns undefined for virtualized mode) */
-  handleCopyJson: (() => Promise<void>) | undefined;
+  /** Copy JSON to clipboard handler */
+  handleCopyJson: () => Promise<void>;
   /** Download JSON file handler */
   handleDownloadJson: () => Promise<void>;
   /** Whether download/copy operation is in progress */
@@ -40,7 +40,7 @@ export interface UseLogViewDownloadReturn {
  */
 export function useLogViewDownload({
   traceId,
-  isVirtualized,
+  isDownloadCacheOnly,
   allObservationsData,
   isLoadingAllData,
   loadAllData,
@@ -65,27 +65,41 @@ export function useLogViewDownload({
     [traceId],
   );
 
-  // Copy JSON handler (non-virtualized mode only)
+  // Copy JSON handler - uses cache only or loads all based on threshold
   const handleCopyJson = useCallback(async () => {
-    if (allObservationsData) {
-      // Data already loaded, copy immediately
-      void copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
-    } else {
-      // Load data first, then copy
+    if (isDownloadCacheOnly) {
+      // Cache-only mode: build from tree + cache (no fetching)
       setIsDownloadLoading(true);
-      try {
-        const data = await loadAllData();
+      setTimeout(() => {
+        const data = buildDataFromCache();
         void copyTextToClipboard(JSON.stringify(data, null, 2));
-      } finally {
         setIsDownloadLoading(false);
+      }, 0);
+    } else {
+      // Load all mode: fetch all data if needed
+      if (allObservationsData) {
+        void copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
+      } else {
+        setIsDownloadLoading(true);
+        try {
+          const data = await loadAllData();
+          void copyTextToClipboard(JSON.stringify(data, null, 2));
+        } finally {
+          setIsDownloadLoading(false);
+        }
       }
     }
-  }, [allObservationsData, loadAllData]);
+  }, [
+    isDownloadCacheOnly,
+    allObservationsData,
+    loadAllData,
+    buildDataFromCache,
+  ]);
 
-  // Download JSON handler - different behavior for virtualized vs non-virtualized
+  // Download JSON handler - uses cache only or loads all based on threshold
   const handleDownloadJson = useCallback(async () => {
-    if (isVirtualized) {
-      // Virtualized mode: build from tree + cache (no fetching)
+    if (isDownloadCacheOnly) {
+      // Cache-only mode: build from tree + cache (no fetching)
       setIsDownloadLoading(true);
       // Use setTimeout to allow spinner to render before potentially heavy operation
       setTimeout(() => {
@@ -94,7 +108,7 @@ export function useLogViewDownload({
         setIsDownloadLoading(false);
       }, 0);
     } else {
-      // Non-virtualized mode: fetch all data if needed
+      // Load all mode: fetch all data if needed
       if (allObservationsData) {
         downloadJsonData(allObservationsData);
       } else {
@@ -108,7 +122,7 @@ export function useLogViewDownload({
       }
     }
   }, [
-    isVirtualized,
+    isDownloadCacheOnly,
     allObservationsData,
     loadAllData,
     buildDataFromCache,
@@ -119,8 +133,7 @@ export function useLogViewDownload({
   const isDownloadOrCopyLoading = isDownloadLoading || isLoadingAllData;
 
   return {
-    // Only provide copy handler for non-virtualized mode
-    handleCopyJson: isVirtualized ? undefined : handleCopyJson,
+    handleCopyJson,
     handleDownloadJson,
     isDownloadOrCopyLoading,
   };
