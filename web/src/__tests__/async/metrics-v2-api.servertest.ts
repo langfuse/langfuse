@@ -10,6 +10,10 @@ import {
   createTracesCh,
   createEventsCh,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+
+const hasEvents = env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+const maybe = hasEvents ? describe : describe.skip;
 
 describe("/api/public/v2/metrics API Endpoint", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -22,6 +26,11 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   const testMetadataValue = randomUUID();
 
   beforeAll(async () => {
+    if (!hasEvents) {
+      // don't attempt data setup if events table is disabled
+      return;
+    }
+
     traceId = randomUUID();
     observationIds = [];
 
@@ -78,7 +87,12 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
   });
 
-  describe("Basic Functionality", () => {
+  it("should kill redis connection", () => {
+    // we need at least one test case to avoid hanging
+    // redis connection when everything else is skipped.
+  });
+
+  maybe("Basic Functionality", () => {
     it("should return correct count metrics", async () => {
       const query = {
         view: "observations",
@@ -239,7 +253,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     });
   });
 
-  describe("Denormalized Trace Fields", () => {
+  maybe("Denormalized Trace Fields", () => {
     it("should support userId dimension from events table", async () => {
       const query = {
         view: "observations",
@@ -340,7 +354,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     });
   });
 
-  describe("Validation - Trace-JOIN Dimensions", () => {
+  maybe("Validation - Trace-JOIN Dimensions", () => {
     it("should reject traceName dimension (requires traces JOIN)", async () => {
       const query = {
         view: "observations",
@@ -399,7 +413,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     });
   });
 
-  describe("Validation - View Support", () => {
+  maybe("Validation - View Support", () => {
     it("should reject traces view (not supported in V2)", async () => {
       const query = {
         view: "traces",
@@ -434,7 +448,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     });
   });
 
-  describe("Time Dimension", () => {
+  maybe("Time Dimension", () => {
     it("should support time dimension with granularity", async () => {
       const query = {
         view: "observations",
@@ -455,7 +469,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     });
   });
 
-  describe("Filters", () => {
+  maybe("Filters", () => {
     it("should support filtering by observation-level dimensions", async () => {
       const query = {
         view: "observations",
@@ -509,7 +523,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     });
   });
 
-  describe("LFE-6148: Comprehensive filter validation", () => {
+  maybe("LFE-6148: Comprehensive filter validation", () => {
     it("should return 400 error for invalid array field filters", async () => {
       // Test using string type on array field (tags) - should return validation error
       const invalidStringTypeQuery = {
