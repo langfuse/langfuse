@@ -40,4 +40,10 @@ export const datasetItemsFilterCols: ColumnDefinition[] = [
     type: "stringObject",
     internal: "le.metadata",
   },
+  {
+    name: "Created At",
+    id: "createdAt",
+    type: "datetime",
+    internal: "le.created_at",
+  },
 ];

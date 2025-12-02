@@ -510,10 +510,11 @@ export const getDatabaseReadStreamPaginated = async ({
     case "dataset_items": {
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          // TODO: AND di.created_at < ${cutoffCreatedAt} filter is not applied yet
           const items = await getDatasetItemsByLatest<true, true>({
             projectId,
-            filterState: filter ?? [],
+            filterState: filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
             includeIO: true,
             includeDatasetName: true,
             limit: pageSize,
