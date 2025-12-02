@@ -8,7 +8,10 @@ import {
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getDatasetItemsByLatest } from "@langfuse/shared/src/server";
+import {
+  createDatasetItemFilterState,
+  getDatasetItemsByLatest,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -39,9 +42,9 @@ export default withMiddlewares({
 
       const datasetItems = await getDatasetItemsByLatest({
         projectId: auth.scope.projectId,
-        filters: {
+        filterState: createDatasetItemFilterState({
           datasetIds: [dataset.id],
-        },
+        }),
         includeDatasetName: true,
       });
 

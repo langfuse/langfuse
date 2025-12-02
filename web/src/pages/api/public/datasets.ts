@@ -10,7 +10,10 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { upsertDataset } from "@/src/features/datasets/server/actions/createDataset";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { getDatasetItemsByLatest } from "@langfuse/shared/src/server";
+import {
+  createDatasetItemFilterState,
+  getDatasetItemsByLatest,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -90,9 +93,10 @@ export default withMiddlewares({
 
       const datasetItems = await getDatasetItemsByLatest({
         projectId: auth.scope.projectId,
-        filters: {
+        filterState: createDatasetItemFilterState({
           datasetIds: datasets.map(({ id }) => id),
-        },
+          status: "ACTIVE",
+        }),
         includeIO: false,
       });
 

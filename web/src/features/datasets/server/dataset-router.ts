@@ -1209,7 +1209,7 @@ export const datasetRouter = createTRPCRouter({
         ...optionalPaginationZod,
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { datasetItemId, datasetId } = input;
 
       const filter = [

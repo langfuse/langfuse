@@ -15,6 +15,7 @@ import {
   logger,
   processEventBatch,
   getObservationById,
+  getDatasetItemById,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";

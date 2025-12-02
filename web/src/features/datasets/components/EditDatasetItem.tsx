@@ -17,7 +17,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import { type RouterOutput } from "@/src/utils/types";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
-import type { Prisma } from "@langfuse/shared";
+import type { DatasetItemDomain, Prisma } from "@langfuse/shared";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 
 const formSchema = z.object({
@@ -81,7 +81,7 @@ export const EditDatasetItem = ({
   dataset,
 }: {
   projectId: string;
-  datasetItem: RouterOutput["datasets"]["itemById"];
+  datasetItem: DatasetItemDomain | null;
   dataset: Dataset | null;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
