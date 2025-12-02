@@ -996,18 +996,37 @@ async function getDatasetItemsCountByLatestInternal(params: {
  * @param props.status - Filter by status ('ACTIVE' for active items only, 'ALL' to include archived items)
  * @returns The dataset item or null if not found/deleted
  */
-export async function getDatasetItemById(props: {
+export async function getDatasetItemById<
+  IncludeIO extends boolean = true,
+>(props: {
   projectId: string;
   datasetItemId: string;
   status: "ACTIVE" | "ALL";
   datasetId?: string;
-}): Promise<DatasetItemDomain | null> {
+  includeIO?: IncludeIO;
+}): Promise<
+  | (IncludeIO extends true ? DatasetItemDomain : DatasetItemDomainWithoutIO)
+  | null
+> {
   const status = props.status;
+  const includeIO = (props.includeIO ?? true) as IncludeIO;
 
   return executeWithDatasetServiceStrategy(OperationType.READ, {
     [Implementation.STATEFUL]: async () => {
       // OLD: Simple lookup in dataset_items
       const item = await prisma.datasetItem.findUnique({
+        select: includeIO
+          ? undefined
+          : {
+              id: true,
+              projectId: true,
+              datasetId: true,
+              sourceTraceId: true,
+              sourceObservationId: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+            },
         where: {
           id_projectId: {
             id: props.datasetItemId,
@@ -1017,11 +1036,23 @@ export async function getDatasetItemById(props: {
           ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
         },
       });
-      return item ? toDomainType(item) : null;
+      return item ? toDomainType(item, includeIO) : null;
     },
     [Implementation.VERSIONED]: async () => {
       // NEW: Get latest version from dataset_items by validFrom DESC
       const item = await prisma.datasetItem.findFirst({
+        select: includeIO
+          ? undefined
+          : {
+              id: true,
+              projectId: true,
+              datasetId: true,
+              sourceTraceId: true,
+              sourceObservationId: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+            },
         where: {
           id: props.datasetItemId,
           projectId: props.projectId,
@@ -1038,7 +1069,7 @@ export async function getDatasetItemById(props: {
         return null;
       }
 
-      return toDomainType(item);
+      return toDomainType(item, includeIO);
     },
   });
 }
