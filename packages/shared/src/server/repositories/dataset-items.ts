@@ -17,6 +17,8 @@ import {
 import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
+import { logger } from "../logger";
+import { ColumnDefinition } from "../../tableDefinitions";
 
 /**
  * Repository for dataset item CRUD operations.
@@ -676,6 +678,41 @@ export function applyDefaultFilters(
     ...DEFAULT_DATASET_ITEM_FILTERS,
     ...filters,
   };
+}
+
+/**
+ * Validates FilterState against column definitions and converts to DatasetItemFilters
+ * Similar to tableColumnsToSqlFilterAndPrefix but returns typed DatasetItemFilters instead of SQL
+ *
+ * @param filterState - The filter state to validate and convert
+ * @param tableColumns - Column definitions to validate against (e.g., evalDatasetFormFilterCols)
+ * @returns DatasetItemFilters object that can be passed to repository functions
+ * @throws Error if filter references unknown column
+ *
+ */
+export function validateAndConvertToDatasetItemFilters(
+  filterState: FilterState,
+  tableColumns: ColumnDefinition[],
+): DatasetItemFilters | null {
+  const filters: DatasetItemFilters = {};
+
+  for (const filter of filterState) {
+    // Validate that the column exists in the column definitions
+    const col = tableColumns.find(
+      (c) => c.name === filter.column || c.id === filter.column,
+    );
+    if (!col) {
+      logger.error("Invalid filter column", filter.column);
+      throw new Error("Invalid filter column: " + filter.column);
+    }
+
+    // Map validated column to DatasetItemFilters
+    if (col.id === "datasetId" && filter.type === "stringOptions") {
+      filters.datasetIds = filter.value;
+    }
+  }
+
+  return filters;
 }
 
 /**

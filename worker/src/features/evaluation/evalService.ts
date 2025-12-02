@@ -7,7 +7,6 @@ import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
   setNoJobConfigsCache,
@@ -32,6 +31,7 @@ import {
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
   getDatasetItemById,
+  validateAndConvertToDatasetItemFilters,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -58,22 +58,6 @@ import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
-
-/**
- * Extracts datasetIds from a validated FilterState
- * Used for dataset evaluator filters to check if a dataset item matches the filter
- */
-function resolveDatasetIdFilterValue(
-  filterState: z.infer<typeof singleFilter>[],
-): string[] | undefined {
-  const datasetIdFilter = filterState.find((f) => f.column === "datasetId");
-
-  if (datasetIdFilter && datasetIdFilter.type === "stringOptions") {
-    return datasetIdFilter.value;
-  }
-
-  return undefined;
-}
 
 let s3StorageServiceClient: StorageService;
 
@@ -436,16 +420,14 @@ export const createEvalJobs = async ({
       | { id: string; observationId: string | null }
       | undefined;
     if (isDatasetConfig) {
-      // validate filter
-      tableColumnsToSqlFilterAndPrefix(
+      // Validate and convert filter to DatasetItemFilters
+      const itemFilters = validateAndConvertToDatasetItemFilters(
         config.target_object === "dataset" ? validatedFilter : [],
         evalDatasetFormFilterCols,
-        "dataset_items",
       );
+
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
-        //resolve filter value
-        const datasetIds = resolveDatasetIdFilterValue(validatedFilter);
         const item = await getDatasetItemById({
           projectId: event.projectId,
           datasetItemId: event.datasetItemId,
@@ -459,6 +441,7 @@ export const createEvalJobs = async ({
           // Set datasetItem if item exists and matches filter (if any)
           // - No filter (undefined/empty): accept any item
           // - Filter specified: accept only if item's datasetId is in filter
+          const datasetIds = itemFilters?.datasetIds;
           const hasFilter = datasetIds && datasetIds.length > 0;
           const matchesFilter =
             !hasFilter || datasetIds.includes(item.datasetId);
