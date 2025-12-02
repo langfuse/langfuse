@@ -6,6 +6,7 @@ import {
   eventTypes,
   ExperimentCreateEventSchema,
   fetchLLMCompletion,
+  getDatasetItemsByLatest,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
@@ -29,6 +30,8 @@ import {
 } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
+
+const EXPERIMENT_BATCH_SIZE = 100;
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -207,27 +210,13 @@ async function getItemsToProcess(
   runId: string,
   config: PromptExperimentConfig,
 ) {
-  // Fetch all dataset items
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
+  // Fetch all dataset item
+  const datasetItems = await getDatasetItemsByLatest({
+    projectId,
+    includeIO: true,
+    filters: {
       datasetId,
-      projectId,
-      status: DatasetStatus.ACTIVE,
     },
-    select: {
-      id: true,
-      projectId: true,
-      datasetId: true,
-      status: true,
-      input: true,
-      expectedOutput: true,
-      metadata: true,
-      sourceTraceId: true,
-      sourceObservationId: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
 
   // Filter and validate dataset items
