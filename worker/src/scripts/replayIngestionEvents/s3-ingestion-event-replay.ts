@@ -180,10 +180,7 @@ async function filterCsvFile(
       // Check if the operation column contains "REST.PUT.OBJECT"
       // and exclude keys that start with "otel/" (OpenTelemetry events)
       const keyValue = row[keyColumnIndex]?.trim();
-      if (
-        row[operationColumnIndex]?.trim() === "REST.PUT.OBJECT" &&
-        !keyValue?.startsWith("otel/")
-      ) {
+      if (row[operationColumnIndex]?.trim() === "REST.PUT.OBJECT") {
         outputStream.write(formatCsvRow(row));
         stats.filteredRows++;
       }
