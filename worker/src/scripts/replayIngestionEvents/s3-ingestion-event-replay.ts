@@ -382,7 +382,6 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
 
   const startTime = Date.now();
   let processedEvents = 0;
-  let totalEvents = 0;
 
   // Set up BullMQ queue with Redis connection
   const queue = getQueue(QueueName.IngestionSecondaryQueue);
@@ -392,11 +391,6 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
   }
 
   console.log(`🔗 Connected to Redis and created queue: ${QUEUE_NAME}`);
-
-  // First pass: count total lines and process S3 restoration in batches
-  console.log(`📊 Counting events and processing S3 restoration...`);
-
-  console.log(`📊 Total events found: ${totalEvents.toLocaleString()}`);
 
   // Second pass: ingest events into queue in batches
   console.log(`📥 Starting queue ingestion...`);
@@ -421,13 +415,7 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
       // Process queue ingestion in batches
       if (batch.length >= BATCH_SIZE) {
         batchNumber++;
-        await processQueueBatch(
-          queue,
-          batch,
-          batchNumber,
-          processedEvents,
-          totalEvents,
-        );
+        await processQueueBatch(queue, batch, batchNumber, processedEvents);
         processedEvents += batch.length;
         batch = [];
       }
@@ -439,13 +427,7 @@ async function ingestEventsToQueue(jsonlPath: string): Promise<void> {
   // Process remaining batch
   if (batch.length > 0) {
     batchNumber++;
-    await processQueueBatch(
-      queue,
-      batch,
-      batchNumber,
-      processedEvents,
-      totalEvents,
-    );
+    await processQueueBatch(queue, batch, batchNumber, processedEvents);
     processedEvents += batch.length;
   }
 
@@ -471,7 +453,6 @@ async function processQueueBatch(
   batch: JsonOutputItem[],
   batchNumber: number,
   processedEvents: number,
-  totalEvents: number,
 ): Promise<void> {
   // Prepare jobs for bulk insertion
   const jobs = batch.map((event) => ({
@@ -489,7 +470,7 @@ async function processQueueBatch(
 
   // Log progress
   console.log(
-    `✅ Added batch ${batchNumber} (${processedEvents + batch.length}/${totalEvents} events)`,
+    `✅ Added batch ${batchNumber} (${processedEvents + batch.length} events) to queue`,
   );
 
   // Log sample event from each batch for tracking
