@@ -631,7 +631,7 @@ async function ingestEventsToOtelQueue(otelJsonlPath: string): Promise<void> {
 }
 
 async function processOtelQueueBatch(
-  queue: OtelIngestionQueue,
+  queue: NonNullable<ReturnType<typeof getQueue>>,
   batch: OTelJsonOutputItem[],
   batchNumber: number,
   processedEvents: number,
