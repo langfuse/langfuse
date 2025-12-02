@@ -231,7 +231,7 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared ch:up
       - name: Build
-        run: pnpm run build
+        run: pnpm run build --filter=web...
         env:
           NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
@@ -343,7 +343,7 @@ jobs:
         run: |
           pnpm --filter=shared ch:dev-tables
       - name: Build
-        run: pnpm run build
+        run: pnpm run build --filter=web...
         env:
           NODE_OPTIONS: --max_old_space_size=8192
       - name: Start Langfuse
@@ -588,7 +588,7 @@ jobs:
           pnpm --filter=shared run ch:up
           pnpm run db:seed
       - name: Build
-        run: pnpm run build
+        run: pnpm run build --filter=web...
         env:
           NODE_OPTIONS: --max_old_space_size=8192
       - name: Install playwright
@@ -647,7 +647,7 @@ jobs:
           pnpm --filter=shared run ch:up
           pnpm run db:seed:examples
       - name: Build
-        run: pnpm run build
+        run: pnpm run build --filter=web...
         env:
           NODE_OPTIONS: --max_old_space_size=8192
       - name: Run server
