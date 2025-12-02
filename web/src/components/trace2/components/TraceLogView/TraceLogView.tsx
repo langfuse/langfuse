@@ -47,10 +47,8 @@ import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
 import { LogViewTreeIndent } from "./LogViewTreeIndent";
 import { LogViewJsonMode } from "./LogViewJsonMode";
-import {
-  useLogViewAllObservationsIO,
-  useObservationIOLoadedCount,
-} from "./useLogViewAllObservationsIO";
+import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
+import { useObservationIOLoadedCount } from "./useLogViewObservationIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
 import { useLogViewDownload } from "./useLogViewDownload";
 import { useLogViewColumns } from "./useLogViewColumns";
