@@ -16,7 +16,6 @@ import * as readline from "readline";
 import { parse } from "csv-parse";
 import { randomUUID } from "crypto";
 import { getQueue, QueueJobs, QueueName } from "@langfuse/shared/src/server";
-import { S3Client } from "@aws-sdk/client-s3";
 
 const INPUT_FILE = "events.csv";
 const OUTPUT_FILE = "events_filtered.csv";
@@ -32,14 +31,6 @@ interface Stats {
   filteredRows: number;
   processingTimeMs: number;
 }
-
-const client = new S3Client({
-  requestHandler: {
-    httpsAgent: {
-      maxSockets: 300,
-    },
-  },
-});
 
 interface JsonOutputItem {
   useS3EventStore: true;
