@@ -112,7 +112,7 @@
     "@types/pg": "^8.11.10",
     "@types/react": "19.2.2",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/parser": "^7.12.0",
+    "@typescript-eslint/parser": "^8.48.1",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
