@@ -1957,6 +1957,116 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
+  /api/public/v2/metrics:
+    get:
+      description: >-
+        Get metrics from the Langfuse project using a query object. V2 endpoint
+        with optimized performance.
+
+
+        ## V2 Differences
+
+        - Supports `observations`, `scores-numeric`, and `scores-categorical`
+        views only (traces view not supported)
+
+        - Direct access to userId, sessionId, tags, and release fields on
+        observations
+
+        - Does not support trace-specific dimensions: traceName, traceRelease,
+        traceVersion
+
+
+        For more details, see the [Metrics API
+        documentation](https://langfuse.com/docs/metrics/features/metrics-api).
+      operationId: metricsV2_metrics
+      tags:
+        - MetricsV2
+      parameters:
+        - name: query
+          in: query
+          description: >-
+            JSON string containing the query parameters with the following
+            structure:
+
+            ```json
+
+            {
+              "view": string,           // Required. One of "observations", "scores-numeric", "scores-categorical"
+              "dimensions": [           // Optional. Default: []
+                {
+                  "field": string       // Field to group by, e.g. "name", "userId", "sessionId", "type"
+                }
+              ],
+              "metrics": [              // Required. At least one metric must be provided
+                {
+                  "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                  "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95", "histogram"
+                }
+              ],
+              "filters": [              // Optional. Default: []
+                {
+                  "column": string,     // Column to filter on
+                  "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                  "value": any,         // Value to compare against
+                  "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                  "key": string         // Required only when filtering on metadata
+                }
+              ],
+              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
+              },
+              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+              "toTimestamp": string,    // Required. ISO datetime string for end of time range
+              "orderBy": [              // Optional. Default: null
+                {
+                  "field": string,      // Field to order by
+                  "direction": string   // "asc" or "desc"
+                }
+              ],
+              "config": {               // Optional. Query-specific configuration
+                "bins": number,         // Optional. Number of bins for histogram (1-100), default: 10
+                "row_limit": number     // Optional. Row limit for results (1-1000)
+              }
+            }
+
+            ```
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsV2Response'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/metrics:
     get:
       description: >-
@@ -7190,8 +7300,8 @@ components:
             Name of the pricing tier for display and identification purposes.
 
 
-            Examples: "Standard", "High Volume Tier", "Large Context",
-            "Extended Context Tier"
+            Examples: "Standard", "High Volume Tier", "Large Context", "Extended
+            Context Tier"
         isDefault:
           type: boolean
           description: >-
@@ -7296,8 +7406,8 @@ components:
             Name of the pricing tier for display and identification purposes.
 
 
-            Must be unique within the model. Common patterns: "Standard
-            Pricing", "High Volume Tier", "Extended Context"
+            Must be unique within the model. Common patterns: "Standard", "High
+            Volume Tier", "Extended Context"
         isDefault:
           type: boolean
           description: >-
@@ -8327,6 +8437,14 @@ components:
           description: >-
             Keys of extra headers sent with requests (values excluded for
             security)
+        config:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            Adapter-specific configuration. Required for Bedrock
+            (`{"region":"us-east-1"}`), optional for VertexAI
+            (`{"location":"us-central1"}`), not used by other adapters.
         createdAt:
           type: string
           format: date-time
@@ -8392,6 +8510,17 @@ components:
             type: string
           nullable: true
           description: Extra headers to send with requests
+        config:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            Adapter-specific configuration. Validation rules: - **Bedrock**:
+            Required. Must be `{"region": "<aws-region>"}` (e.g.,
+            `{"region":"us-east-1"}`) - **VertexAI**: Optional. If provided,
+            must be `{"location": "<gcp-location>"}` (e.g.,
+            `{"location":"us-central1"}`) - **Other adapters**: Not supported.
+            Omit this field or set to null.
       required:
         - provider
         - adapter
@@ -8564,6 +8693,24 @@ components:
         - application/x-tar
         - application/x-7z-compressed
       description: The MIME type of the media record
+    MetricsV2Response:
+      title: MetricsV2Response
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: >-
+            The metrics data. Each item in the list contains the metric values
+            and dimensions requested in the query.
+
+            Format varies based on the query parameters.
+
+            Histograms will return an array with [lower, upper, height] tuples.
+      required:
+        - data
     MetricsResponse:
       title: MetricsResponse
       type: object
