@@ -62,3 +62,25 @@ export function getSafeRedirectPath(
   // Prepend basePath if configured
   return basePath + trimmed;
 }
+
+/**
+ * Strips NEXT_PUBLIC_BASE_PATH from a path so it can be used with
+ * Next.js' router (which already prepends the basePath automatically).
+ */
+export function stripBasePath(path: string): string {
+  const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
+  if (!basePath) {
+    return path || "/";
+  }
+
+  if (!path) {
+    return "/";
+  }
+
+  if (!path.startsWith(basePath)) {
+    return path;
+  }
+
+  const stripped = path.slice(basePath.length) || "/";
+  return stripped.startsWith("/") ? stripped : `/${stripped}`;
+}

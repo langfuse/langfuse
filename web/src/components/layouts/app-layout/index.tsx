@@ -28,6 +28,7 @@ import { useAuthGuard } from "./hooks/useAuthGuard";
 import { useProjectAccess } from "./hooks/useProjectAccess";
 import { useFilteredNavigation } from "./hooks/useFilteredNavigation";
 import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
+import { stripBasePath } from "@/src/utils/redirect";
 
 /**
  * Main layout component
@@ -126,8 +127,8 @@ export function AppLayout(props: PropsWithChildren) {
   const handleSignOut = async () => {
     sessionStorage.clear();
     // Redirect to sign-in with current path as targetPath for post-login redirect
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-    const targetPath = encodeURIComponent(basePath + router.asPath);
+    const pathWithoutBase = stripBasePath(router.asPath || "/");
+    const targetPath = encodeURIComponent(pathWithoutBase);
     // explicitly set callbackUrl to avoid error pages when the user is currently on a publishable path without a published entity
     await signOut({ callbackUrl: `/auth/sign-in?targetPath=${targetPath}` });
   };

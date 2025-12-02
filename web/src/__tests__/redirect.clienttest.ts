@@ -1,4 +1,4 @@
-import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import { env } from "@/src/env.mjs";
 
 describe("getSafeRedirectPath", () => {
@@ -235,6 +235,63 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath({})).toBe("/");
       // @ts-expect-error Testing runtime behavior with invalid input
       expect(getSafeRedirectPath([])).toBe("/");
+    });
+  });
+});
+
+describe("stripBasePath", () => {
+  const originalBasePath = env.NEXT_PUBLIC_BASE_PATH;
+
+  afterAll(() => {
+    (env as any).NEXT_PUBLIC_BASE_PATH = originalBasePath;
+  });
+
+  describe("without basePath configured", () => {
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_BASE_PATH = undefined;
+    });
+
+    it("returns path unchanged", () => {
+      expect(stripBasePath("/dashboard")).toBe("/dashboard");
+    });
+
+    it("normalizes empty values to '/'", () => {
+      expect(stripBasePath("")).toBe("/");
+      expect(stripBasePath(undefined as unknown as string)).toBe("/");
+    });
+  });
+
+  describe("with basePath configured", () => {
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_BASE_PATH = "/apps";
+    });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_BASE_PATH = undefined;
+    });
+
+    it("strips the basePath prefix", () => {
+      expect(stripBasePath("/apps")).toBe("/");
+      expect(stripBasePath("/apps/")).toBe("/");
+      expect(stripBasePath("/apps/project/123")).toBe("/project/123");
+    });
+
+    it("handles query strings and hashes", () => {
+      expect(stripBasePath("/apps/project/123?foo=bar")).toBe(
+        "/project/123?foo=bar",
+      );
+      expect(stripBasePath("/apps/dashboard#section")).toBe(
+        "/dashboard#section",
+      );
+      expect(stripBasePath("/apps/?foo=bar#top")).toBe("/?foo=bar#top");
+    });
+
+    it("only strips the first occurrence", () => {
+      expect(stripBasePath("/apps/apps/dashboard")).toBe("/apps/dashboard");
+    });
+
+    it("leaves paths without basePath untouched", () => {
+      expect(stripBasePath("/no-base")).toBe("/no-base");
     });
   });
 });
