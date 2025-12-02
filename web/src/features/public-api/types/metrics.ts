@@ -199,7 +199,9 @@ export const GetMetricsV2Query = z.object({
       try {
         return JSON.parse(str);
       } catch (e) {
-        throw new InvalidRequestError("Invalid JSON in query parameter");
+        throw new InvalidRequestError(
+          "Invalid JSON in query parameter: " + (e as Error).message,
+        );
       }
     })
     .pipe(MetricsV2QueryObject),

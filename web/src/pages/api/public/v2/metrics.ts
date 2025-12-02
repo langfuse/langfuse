@@ -6,6 +6,7 @@ import {
   GetMetricsV2Response,
 } from "@/src/features/public-api/types/metrics";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { type QueryType } from "@/src/features/query/types";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -18,7 +19,7 @@ export default withMiddlewares({
         const queryParams = query.query;
 
         // Map observations view to events-observations internally
-        let resolvedQuery = queryParams;
+        let resolvedQuery: QueryType = queryParams;
         if (queryParams.view === "observations") {
           resolvedQuery = {
             ...queryParams,
