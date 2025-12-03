@@ -2,7 +2,7 @@ BEGIN;
 
 -- Step 1: Add columns
 ALTER TABLE "dataset_items" ADD COLUMN     "is_deleted" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "sys_id" TEXT,
+ADD COLUMN     "sys_id" TEXT DEFAULT md5(random()::text || clock_timestamp()::text)::uuid::text,
 ADD COLUMN     "valid_from" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 ALTER COLUMN "status" DROP NOT NULL;
 
