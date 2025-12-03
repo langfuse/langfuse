@@ -28,6 +28,8 @@ service:
       path: /annotation-queues
       request: CreateAnnotationQueueRequest
       response: AnnotationQueue
+      errors:
+        - commons.ConflictError
 
     getQueue:
       docs: Get an annotation queue by ID
