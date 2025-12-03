@@ -441,95 +441,114 @@ export function WidgetForm({
         staleTime: Infinity,
       },
     );
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => ({
-      value: value.environment,
-    })) || [];
-  const nameOptions = traceFilterOptions.data?.name || [];
-  const tagsOptions = traceFilterOptions.data?.tags || [];
-
   // Filter columns for PopoverFilterBuilder
-  const filterColumns: ColumnDefinition[] = [
-    {
-      name: "Environment",
-      id: "environment",
-      type: "stringOptions",
-      options: environmentOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "Trace Name",
-      id: "traceName",
-      type: "stringOptions",
-      options: nameOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "Observation Name",
-      id: "observationName",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Score Name",
-      id: "scoreName",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Tags",
-      id: "tags",
-      type: "arrayOptions",
-      options: tagsOptions,
-      internal: "internalValue",
-    },
-    {
-      name: "User",
-      id: "user",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Session",
-      id: "session",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Metadata",
-      id: "metadata",
-      type: "stringObject",
-      internal: "internalValue",
-    },
-    {
-      name: "Release",
-      id: "release",
-      type: "string",
-      internal: "internalValue",
-    },
-    {
-      name: "Version",
-      id: "version",
-      type: "string",
-      internal: "internalValue",
-    },
-  ];
-  if (selectedView === "scores-categorical") {
-    filterColumns.push({
-      name: "Score String Value",
-      id: "stringValue",
-      type: "string",
-      internal: "internalValue",
-    });
-  }
-  if (selectedView === "scores-numeric") {
-    filterColumns.push({
-      name: "Score Value",
-      id: "value",
-      type: "number",
-      internal: "internalValue",
-    });
-  }
+  const filterColumns: ColumnDefinition[] = useMemo(() => {
+    const environmentOptions =
+      environmentFilterOptions.data?.map((value) => ({
+        value: value.environment,
+      })) || [];
+    const nameOptions = traceFilterOptions.data?.name || [];
+    const tagsOptions = traceFilterOptions.data?.tags || [];
+
+    // Define base filter columns
+    const baseColumns: ColumnDefinition[] = [
+      {
+        name: "Environment",
+        id: "environment",
+        type: "stringOptions",
+        options: environmentOptions,
+        internal: "internalValue",
+      },
+      {
+        name: "Trace Name",
+        id: "traceName",
+        type: "stringOptions",
+        options: nameOptions,
+        internal: "internalValue",
+      },
+      {
+        name: "Observation Name",
+        id: "observationName",
+        type: "string",
+        internal: "internalValue",
+      },
+      {
+        name: "Score Name",
+        id: "scoreName",
+        type: "string",
+        internal: "internalValue",
+      },
+      {
+        name: "Tags",
+        id: "tags",
+        type: "arrayOptions",
+        options: tagsOptions,
+        internal: "internalValue",
+      },
+      {
+        name: "User",
+        id: "user",
+        type: "string",
+        internal: "internalValue",
+      },
+      {
+        name: "Session",
+        id: "session",
+        type: "string",
+        internal: "internalValue",
+      },
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+        internal: "internalValue",
+      },
+      {
+        name: "Release",
+        id: "release",
+        type: "string",
+        internal: "internalValue",
+      },
+      {
+        name: "Version",
+        id: "version",
+        type: "string",
+        internal: "internalValue",
+      },
+    ];
+
+    // Define filter columns to exclude per view
+    const excludedFilters: Record<string, string[]> = {
+      observations: ["traceName"],
+      traces: ["traceName"], // traceName filter represents the trace's name field
+    };
+    const filtersToExclude = excludedFilters[selectedView] || [];
+
+    // Filter out excluded columns
+    let columns = baseColumns.filter(
+      (col) => !filtersToExclude.includes(col.id),
+    );
+
+    // Add view-specific columns (scores)
+    if (selectedView === "scores-categorical") {
+      columns.push({
+        name: "Score String Value",
+        id: "stringValue",
+        type: "string",
+        internal: "internalValue",
+      });
+    }
+    if (selectedView === "scores-numeric") {
+      columns.push({
+        name: "Score Value",
+        id: "value",
+        type: "number",
+        internal: "internalValue",
+      });
+    }
+
+    return columns;
+  }, [selectedView, environmentFilterOptions, traceFilterOptions]);
 
   // When chart type does not support breakdown, wipe the breakdown dimension
   useEffect(() => {
@@ -734,8 +753,17 @@ export function WidgetForm({
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
+    // Define dimension fields to exclude per view
+    const excludedDimensions: Record<string, string[]> = {
+      observations: ["traceName"],
+      traces: ["name"],
+    };
+
     const viewDeclaration = viewDeclarations[selectedView];
+    const dimensionsToExclude = excludedDimensions[selectedView] || [];
+
     return Object.entries(viewDeclaration.dimensions)
+      .filter(([key]) => !dimensionsToExclude.includes(key)) // Filter out excluded dimensions
       .map(([key]) => ({
         value: key,
         label: startCase(key),
