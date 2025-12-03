@@ -2943,6 +2943,73 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       });
       expect(remaining.length).toBe(0);
     });
+
+    it("returns 400 when deleting prompt with dependencies", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const childName = "childPrompt" + uuidv4();
+      const parentName = "parentPrompt" + uuidv4();
+
+      // Create child prompt
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: childName,
+          prompt: "I am a child prompt",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Create parent prompt that depends on child
+      const parentPrompt = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parentName,
+          prompt: `Parent with dependency: @@@langfusePrompt:name=${childName}|version=1@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Create dependency relationship
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parentPrompt.id,
+          childName: childName,
+          childVersion: 1,
+          projectId,
+        },
+      });
+
+      // Try to delete child prompt (should fail because parent depends on it)
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(childName)}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("error");
+      // @ts-expect-error
+      expect(res.body.message).toContain("depending on");
+      // @ts-expect-error
+      expect(res.body.message).toContain(parentName);
+
+      // Verify child was NOT deleted
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name: childName },
+      });
+      expect(remaining.length).toBe(1);
+    });
   });
 
   describe("Parsing prompt dependency tags", () => {
