@@ -1,5 +1,4 @@
-import { DatasetItemDomain, DatasetStatus, Prisma } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { DatasetItemDomain, Prisma } from "@langfuse/shared";
 import {
   ChatMessage,
   createDatasetItemFilterState,
