@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -32,10 +32,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Code, FormInput } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Label } from "@/src/components/ui/label";
+import { JSONSchemaForm } from "@/src/components/json-schema-form";
+import { parseJsonSafe } from "@/src/utils/json";
+import validator from "@rjsf/validator-ajv8";
+import type { IChangeEvent } from "@rjsf/core";
+import type { RJSFSchema } from "@rjsf/utils";
+
+type EditorMode = "json" | "form";
 
 const formSchema = z.object({
   datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
@@ -161,6 +170,90 @@ export const NewDatasetItemForm = (props: {
   // Check if any selected dataset has schemas
   const hasInputSchema = selectedDatasets.some((d) => d.inputSchema);
   const hasOutputSchema = selectedDatasets.some((d) => d.expectedOutputSchema);
+  const hasAnySchema = hasInputSchema || hasOutputSchema;
+
+  // Get the unified schema for single dataset selection (form mode only works well with single dataset)
+  const singleDataset =
+    selectedDatasets.length === 1 ? selectedDatasets[0] : null;
+  const inputSchema = singleDataset?.inputSchema as RJSFSchema | null;
+  const outputSchema = singleDataset?.expectedOutputSchema as RJSFSchema | null;
+
+  // Editor mode state - default to form if schemas are available and single dataset selected
+  const [editorMode, setEditorMode] = useState<EditorMode>("json");
+
+  // Update mode when dataset selection changes
+  useEffect(() => {
+    if (singleDataset && (inputSchema || outputSchema) && !hasInitialValues) {
+      setEditorMode("form");
+    } else {
+      setEditorMode("json");
+    }
+  }, [singleDataset, inputSchema, outputSchema, hasInitialValues]);
+
+  // State for form mode data
+  const [inputFormData, setInputFormData] = useState<unknown>(() =>
+    parseJsonSafe(inputValue),
+  );
+  const [outputFormData, setOutputFormData] = useState<unknown>(() =>
+    parseJsonSafe(expectedOutputValue),
+  );
+
+  // Sync form data with JSON values when switching modes
+  const handleModeChange = useCallback(
+    (newMode: EditorMode) => {
+      if (newMode === "form" && editorMode === "json") {
+        // Switching from JSON to Form - parse current JSON values
+        setInputFormData(parseJsonSafe(inputValue));
+        setOutputFormData(parseJsonSafe(expectedOutputValue));
+      } else if (newMode === "json" && editorMode === "form") {
+        // Switching from Form to JSON - stringify form data
+        if (inputFormData !== undefined) {
+          form.setValue("input", JSON.stringify(inputFormData, null, 2), {
+            shouldValidate: true,
+          });
+        }
+        if (outputFormData !== undefined) {
+          form.setValue(
+            "expectedOutput",
+            JSON.stringify(outputFormData, null, 2),
+            { shouldValidate: true },
+          );
+        }
+      }
+      setEditorMode(newMode);
+    },
+    [
+      editorMode,
+      inputValue,
+      expectedOutputValue,
+      inputFormData,
+      outputFormData,
+      form,
+    ],
+  );
+
+  // Handle JSONSchemaForm changes
+  const handleInputFormChange = useCallback(
+    (e: IChangeEvent) => {
+      setInputFormData(e.formData);
+      // Also update the underlying form value for validation
+      const jsonString =
+        e.formData !== undefined ? JSON.stringify(e.formData, null, 2) : "";
+      form.setValue("input", jsonString, { shouldValidate: true });
+    },
+    [form],
+  );
+
+  const handleOutputFormChange = useCallback(
+    (e: IChangeEvent) => {
+      setOutputFormData(e.formData);
+      // Also update the underlying form value for validation
+      const jsonString =
+        e.formData !== undefined ? JSON.stringify(e.formData, null, 2) : "";
+      form.setValue("expectedOutput", jsonString, { shouldValidate: true });
+    },
+    [form],
+  );
 
   // Filter validation errors by field
   const inputErrors = validation.errors.filter((e) => e.field === "input");
@@ -178,6 +271,9 @@ export const NewDatasetItemForm = (props: {
 
     const dataset = selectedDatasets[0];
     if (!dataset) return;
+
+    // Only generate in JSON mode
+    if (editorMode !== "json") return;
 
     // Generate input placeholder if schema exists and field is empty
     if (dataset.inputSchema && !inputValue) {
@@ -208,6 +304,7 @@ export const NewDatasetItemForm = (props: {
     inputValue,
     expectedOutputValue,
     form,
+    editorMode,
   ]);
 
   const utils = api.useUtils();
@@ -226,6 +323,21 @@ export const NewDatasetItemForm = (props: {
     });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    // If in form mode, ensure form data is synced to JSON values
+    let inputJson = values.input;
+    let outputJson = values.expectedOutput;
+
+    if (editorMode === "form") {
+      inputJson =
+        inputFormData !== undefined
+          ? JSON.stringify(inputFormData, null, 2)
+          : "";
+      outputJson =
+        outputFormData !== undefined
+          ? JSON.stringify(outputFormData, null, 2)
+          : "";
+    }
+
     if (props.traceId) {
       capture("dataset_item:new_from_trace_form_submit", {
         object: props.observationId ? "observation" : "trace",
@@ -239,8 +351,8 @@ export const NewDatasetItemForm = (props: {
         projectId: props.projectId,
         items: values.datasetIds.map((datasetId) => ({
           datasetId,
-          input: values.input,
-          expectedOutput: values.expectedOutput,
+          input: inputJson,
+          expectedOutput: outputJson,
           metadata: values.metadata,
           sourceTraceId: props.traceId,
           sourceObservationId: props.observationId,
@@ -250,6 +362,8 @@ export const NewDatasetItemForm = (props: {
         if (result.success) {
           props.onFormSuccess?.();
           form.reset();
+          setInputFormData(undefined);
+          setOutputFormData(undefined);
 
           return;
         }
@@ -263,6 +377,9 @@ export const NewDatasetItemForm = (props: {
         console.error(error);
       });
   }
+
+  // Check if form mode is available (single dataset with at least one schema)
+  const canUseFormMode = singleDataset && hasAnySchema;
 
   return (
     <Form {...form}>
@@ -367,93 +484,191 @@ export const NewDatasetItemForm = (props: {
               )}
             />
           </div>
+
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="input"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Input</FormLabel>
-                      {hasInputSchema &&
-                        selectedDatasets
-                          .filter((d) => d.inputSchema)
-                          .map((dataset) => (
-                            <DatasetSchemaHoverCard
-                              key={dataset.id}
-                              schema={dataset.inputSchema!}
-                              schemaType="input"
-                              showLabel
-                            />
-                          ))[0]}
+            {/* Mode toggle - only show when form mode is available */}
+            {canUseFormMode && (
+              <Tabs
+                value={editorMode}
+                onValueChange={(value) => handleModeChange(value as EditorMode)}
+                className="mb-4"
+              >
+                <TabsList className="grid w-full max-w-xs grid-cols-2">
+                  <TabsTrigger value="form" className="flex items-center gap-2">
+                    <FormInput className="h-4 w-4" />
+                    Form
+                  </TabsTrigger>
+                  <TabsTrigger value="json" className="flex items-center gap-2">
+                    <Code className="h-4 w-4" />
+                    JSON
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+
+            {editorMode === "form" && canUseFormMode ? (
+              // Form mode - render JSONSchemaForm components
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Input Form */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">Input</Label>
+                    {inputSchema && (
+                      <DatasetSchemaHoverCard
+                        schema={inputSchema}
+                        schemaType="input"
+                        showLabel
+                      />
+                    )}
+                  </div>
+                  {inputSchema ? (
+                    <div className="rounded-md border bg-card p-4">
+                      <JSONSchemaForm
+                        schema={inputSchema}
+                        validator={validator}
+                        formData={inputFormData}
+                        onChange={handleInputFormChange}
+                        uiSchema={{
+                          "ui:submitButtonOptions": { norender: true },
+                        }}
+                        liveValidate
+                      >
+                        <></>
+                      </JSONSchemaForm>
                     </div>
-                    <FormControl>
-                      <CodeMirrorEditor
-                        mode="json"
-                        value={field.value}
-                        onChange={field.onChange}
-                        minHeight={200}
-                        placeholder={`{
+                  ) : (
+                    <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+                      No input schema defined
+                    </div>
+                  )}
+                </div>
+
+                {/* Expected Output Form */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">
+                      Expected output
+                    </Label>
+                    {outputSchema && (
+                      <DatasetSchemaHoverCard
+                        schema={outputSchema}
+                        schemaType="expectedOutput"
+                        showLabel
+                      />
+                    )}
+                  </div>
+                  {outputSchema ? (
+                    <div className="rounded-md border bg-card p-4">
+                      <JSONSchemaForm
+                        schema={outputSchema}
+                        validator={validator}
+                        formData={outputFormData}
+                        onChange={handleOutputFormChange}
+                        uiSchema={{
+                          "ui:submitButtonOptions": { norender: true },
+                        }}
+                        liveValidate
+                      >
+                        <></>
+                      </JSONSchemaForm>
+                    </div>
+                  ) : (
+                    <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+                      No expected output schema defined
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              // JSON mode - render CodeMirrorEditor components (original behavior)
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="input"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <FormLabel>Input</FormLabel>
+                        {hasInputSchema &&
+                          selectedDatasets
+                            .filter((d) => d.inputSchema)
+                            .map((dataset) => (
+                              <DatasetSchemaHoverCard
+                                key={dataset.id}
+                                schema={dataset.inputSchema!}
+                                schemaType="input"
+                                showLabel
+                              />
+                            ))[0]}
+                      </div>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          mode="json"
+                          value={field.value}
+                          onChange={field.onChange}
+                          minHeight={200}
+                          placeholder={`{
   "question": "What is the capital of England?"
 }`}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    {validation.hasSchemas &&
-                      inputErrors.length > 0 &&
-                      (hasInitialValues || hasInteractedWithInput) && (
-                        <DatasetItemFieldSchemaErrors
-                          errors={inputErrors}
-                          showDatasetName={selectedDatasets.length > 1}
                         />
-                      )}
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="expectedOutput"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Expected output</FormLabel>
-                      {hasOutputSchema &&
-                        selectedDatasets
-                          .filter((d) => d.expectedOutputSchema)
-                          .map((dataset) => (
-                            <DatasetSchemaHoverCard
-                              key={dataset.id}
-                              schema={dataset.expectedOutputSchema!}
-                              schemaType="expectedOutput"
-                              showLabel
-                            />
-                          ))[0]}
-                    </div>
-                    <FormControl>
-                      <CodeMirrorEditor
-                        mode="json"
-                        value={field.value}
-                        onChange={field.onChange}
-                        minHeight={200}
-                        placeholder={`{
+                      </FormControl>
+                      <FormMessage />
+                      {validation.hasSchemas &&
+                        inputErrors.length > 0 &&
+                        (hasInitialValues || hasInteractedWithInput) && (
+                          <DatasetItemFieldSchemaErrors
+                            errors={inputErrors}
+                            showDatasetName={selectedDatasets.length > 1}
+                          />
+                        )}
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="expectedOutput"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <FormLabel>Expected output</FormLabel>
+                        {hasOutputSchema &&
+                          selectedDatasets
+                            .filter((d) => d.expectedOutputSchema)
+                            .map((dataset) => (
+                              <DatasetSchemaHoverCard
+                                key={dataset.id}
+                                schema={dataset.expectedOutputSchema!}
+                                schemaType="expectedOutput"
+                                showLabel
+                              />
+                            ))[0]}
+                      </div>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          mode="json"
+                          value={field.value}
+                          onChange={field.onChange}
+                          minHeight={200}
+                          placeholder={`{
   "answer": "London"
 }`}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    {validation.hasSchemas &&
-                      expectedOutputErrors.length > 0 &&
-                      (hasInitialValues || hasInteractedWithExpectedOutput) && (
-                        <DatasetItemFieldSchemaErrors
-                          errors={expectedOutputErrors}
-                          showDatasetName={selectedDatasets.length > 1}
                         />
-                      )}
-                  </FormItem>
-                )}
-              />
-            </div>
+                      </FormControl>
+                      <FormMessage />
+                      {validation.hasSchemas &&
+                        expectedOutputErrors.length > 0 &&
+                        (hasInitialValues ||
+                          hasInteractedWithExpectedOutput) && (
+                          <DatasetItemFieldSchemaErrors
+                            errors={expectedOutputErrors}
+                            showDatasetName={selectedDatasets.length > 1}
+                          />
+                        )}
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <FormField
               control={form.control}
