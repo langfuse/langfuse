@@ -85,7 +85,7 @@ export const deletePrompt = async (params: DeletePromptParams) => {
       where: { projectId, id: { in: prompts.map((p) => p.id) } },
     });
   } catch (err) {
-    logger.error(err, "Failed to delete prompt");
+    logger.error("Failed to delete prompt", err);
     throw err;
   } finally {
     await promptService.unlockCache({ projectId, promptName });
