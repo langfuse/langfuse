@@ -166,12 +166,54 @@ export function IOPreview({
 
   // Determine if markdown is safe to render (content size check)
   const shouldRenderMarkdown = useMemo(() => {
-    const inputSize = JSON.stringify(parsedInput || {}).length;
-    const outputSize = JSON.stringify(parsedOutput || {}).length;
-    const messagesSize = JSON.stringify(allMessages).length;
-    return (
-      inputSize + outputSize + messagesSize <= MARKDOWN_RENDER_CHARACTER_LIMIT
+    const startTime = performance.now();
+
+    // Fast byte estimation without expensive JSON.stringify
+    // Estimate: count string lengths + rough object overhead
+    const estimateSize = (obj: unknown): number => {
+      if (obj === null || obj === undefined) return 4; // "null" or "undefined"
+      if (typeof obj === "string") return obj.length;
+      if (typeof obj === "number") return obj.toString().length;
+      if (typeof obj === "boolean") return obj ? 4 : 5; // "true" or "false"
+
+      if (Array.isArray(obj)) {
+        // Rough estimate: sum of elements + commas + brackets
+        return obj.reduce((sum, item) => sum + estimateSize(item) + 1, 2);
+      }
+
+      if (typeof obj === "object") {
+        // Rough estimate: keys + values + colons + commas + braces
+        return Object.entries(obj).reduce(
+          (sum, [key, value]) => sum + key.length + estimateSize(value) + 3, // 3 for ":", "," and quotes
+          2, // 2 for opening and closing braces
+        );
+      }
+
+      return 0;
+    };
+
+    const inputSize = estimateSize(parsedInput);
+    const outputSize = estimateSize(parsedOutput);
+    const messagesSize = estimateSize(allMessages);
+    const totalSize = inputSize + outputSize + messagesSize;
+
+    const shouldRender = totalSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
+
+    const elapsed = performance.now() - startTime;
+
+    // Performance logging
+    console.log(
+      `[IOPreview] shouldRenderMarkdown check:`,
+      `\n  - Input size: ${(inputSize / 1024).toFixed(2)}KB`,
+      `\n  - Output size: ${(outputSize / 1024).toFixed(2)}KB`,
+      `\n  - Messages size: ${(messagesSize / 1024).toFixed(2)}KB`,
+      `\n  - Total size: ${(totalSize / 1024).toFixed(2)}KB`,
+      `\n  - Limit: ${(MARKDOWN_RENDER_CHARACTER_LIMIT / 1024).toFixed(2)}KB`,
+      `\n  - Decision: ${shouldRender ? "RENDER MARKDOWN" : "SKIP MARKDOWN"}`,
+      `\n  - Time taken: ${elapsed.toFixed(2)}ms`,
     );
+
+    return shouldRender;
   }, [parsedInput, parsedOutput, allMessages]);
 
   // Handle view change with analytics
