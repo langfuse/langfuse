@@ -7,7 +7,12 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
+import {
+  paginationZod,
+  type PrismaClient,
+  Role,
+  formatAuthProviderName,
+} from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
@@ -125,6 +130,12 @@ async function getMembers(
   return {
     memberships: orgMemberships.map((om) => ({
       ...om,
+      user: {
+        ...om.user,
+        accounts: om.user.accounts.map((account) => ({
+          provider: formatAuthProviderName(account.provider),
+        })),
+      },
       projectRole: projectMemberships.find((pm) => pm.userId === om.userId)
         ?.role,
     })),

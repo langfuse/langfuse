@@ -27,7 +27,6 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
-import { formatAuthProviderName } from "@/src/features/rbac/utils/formatAuthProvider";
 import {
   HoverCard,
   HoverCardContent,
@@ -191,9 +190,7 @@ export function MembersTable({
         const providers = row.getValue("providers") as string[];
         if (providers.length === 0) return "-";
 
-        return providers
-          .map((provider) => formatAuthProviderName(provider))
-          .join(", ");
+        return providers.join(", ");
       },
     },
     {
