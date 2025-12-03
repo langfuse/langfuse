@@ -23,7 +23,7 @@ import { parseArgs } from "node:util";
 const backgroundMigrationId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 // Configuration defaults
-const DEFAULT_CHUNK_SIZE = 10_000;
+const DEFAULT_CHUNK_SIZE = 1_000;
 const DEFAULT_BATCH_TIMEOUT_MS = 600_000; // 10 minutes
 
 // ============================================================================
@@ -235,7 +235,7 @@ export default class BackfillExperimentsHistoric
         o.usage_pricing_tier_id,
         o.usage_pricing_tier_name,
         o.metadata,
-        multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+        multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill-experiments', 'ingestion-api-backfill-experiments') AS source,
         [] AS tags,
         false AS bookmarked,
         false AS public,
@@ -294,7 +294,7 @@ export default class BackfillExperimentsHistoric
         map() AS cost_details,
         0 AS total_cost,
         t.metadata,
-        multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+        multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel-backfill-experiments', 'ingestion-api-backfill-experiments') AS source,
         t.tags,
         t.bookmarked,
         t.public,
