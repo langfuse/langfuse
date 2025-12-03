@@ -3,7 +3,7 @@ import { StarIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
