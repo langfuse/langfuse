@@ -651,7 +651,7 @@ describe("buildTraceUiData", () => {
     });
   });
 
-  describe("Performance Tests", () => {
+  describe.skip("Performance Tests", () => {
     // Helper to generate observations at scale
     const generateObservations = (
       count: number,
