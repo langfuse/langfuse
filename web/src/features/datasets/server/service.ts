@@ -71,7 +71,6 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
       filterState,
       searchQuery: input.searchQuery,
       searchType: input.searchType,
-      includeIO: false,
       limit: input.limit,
       page: input.page,
     }),
