@@ -32,7 +32,6 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { useMemo, useState } from "react";
 import {
   LatencyBadge,
@@ -51,6 +50,7 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { api } from "@/src/utils/api";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
+import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
 
 // Header action components
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -72,13 +72,27 @@ export function ObservationDetailView({
   projectId,
   traceId,
 }: ObservationDetailViewProps) {
-  const [selectedTab, setSelectedTab] = useState<"preview" | "scores">(
-    "preview",
-  );
-  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
-    "jsonViewPreference",
-    "pretty",
-  );
+  // Tab and view state from URL (via SelectionContext)
+  // For observations, "log" tab doesn't apply - map to "preview"
+  const {
+    selectedTab: globalSelectedTab,
+    setSelectedTab: setGlobalSelectedTab,
+    viewPref,
+    setViewPref,
+  } = useSelection();
+
+  // Map global tab to observation-specific tabs (preview, scores)
+  // "log" tab doesn't exist for observations, so fall back to "preview"
+  const selectedTab =
+    globalSelectedTab === "scores" ? "scores" : ("preview" as const);
+
+  const setSelectedTab = (tab: "preview" | "scores") => {
+    setGlobalSelectedTab(tab);
+  };
+
+  // Map viewPref to currentView format expected by child components
+  const currentView = viewPref === "json" ? "json" : "pretty";
+
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   // Get comments, scores, and expansion state from contexts
@@ -131,7 +145,7 @@ export function ObservationDetailView({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header section */}
-      <div className="flex-shrink-0 space-y-2 border-b p-4 @container">
+      <div className="flex-shrink-0 space-y-2 border-b p-4">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
@@ -264,7 +278,7 @@ export function ObservationDetailView({
               className="ml-auto mr-1 h-fit px-2 py-0.5"
               value={currentView}
               onValueChange={(value) => {
-                setCurrentView(value as "pretty" | "json");
+                setViewPref(value === "json" ? "json" : "formatted");
               }}
             >
               <TabsList className="h-fit py-0.5">
@@ -284,7 +298,7 @@ export function ObservationDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+          <div className="flex w-full flex-col gap-2 overflow-y-auto">
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
