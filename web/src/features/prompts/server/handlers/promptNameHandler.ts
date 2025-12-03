@@ -1,10 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
-
 import { deletePrompt } from "@/src/features/prompts/server/actions/deletePrompt";
-import { GetPromptByNameSchema } from "@/src/features/prompts/server/utils/validation";
-
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import {
