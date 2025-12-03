@@ -600,13 +600,40 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
       maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
     },
     callbacks: {
+      async jwt({ token, user, account }) {
+        // On initial sign-in, store user ID and provider info in the token
+        if (account && user) {
+          // For OAuth providers, look up the user ID via the linked account
+          if (
+            account.provider !== "credentials" &&
+            account.provider !== "email" &&
+            account.providerAccountId
+          ) {
+            const linkedAccount = await prisma.account.findUnique({
+              where: {
+                provider_providerAccountId: {
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                },
+              },
+              select: { userId: true },
+            });
+            if (linkedAccount) {
+              token.sub = linkedAccount.userId;
+              token.isSsoLogin = true;
+            }
+          }
+        }
+        return token;
+      },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async () => {
+          // Try to look up user by ID first (more robust), fall back to email
           const dbUser = await prisma.user.findUnique({
-            where: {
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-              email: token.email!.toLowerCase(),
-            },
+            where: token.sub
+              ? { id: token.sub }
+              : // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                { email: token.email!.toLowerCase() },
             select: {
               id: true,
               name: true,
@@ -637,6 +664,59 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               },
             },
           });
+
+          // Optional: Update user email on SSO login if it has changed
+          // This supports cases where an identity provider changes email addresses (e.g., corporate email migrations)
+          // Uses the already-fetched dbUser to avoid additional queries
+          if (
+            env.AUTH_SSO_UPDATE_USER_EMAIL_ON_LOGIN === "true" &&
+            token.isSsoLogin &&
+            dbUser &&
+            token.email &&
+            dbUser.email !== token.email.toLowerCase()
+          ) {
+            const newEmail = token.email.toLowerCase();
+            try {
+              // Check if the new email is already in use by another user
+              const existingUserWithEmail = await prisma.user.findUnique({
+                where: { email: newEmail },
+                select: { id: true },
+              });
+
+              if (
+                existingUserWithEmail &&
+                existingUserWithEmail.id !== dbUser.id
+              ) {
+                logger.warn(
+                  "SSO email update blocked: new email already in use by another user",
+                  {
+                    oldEmail: dbUser.email,
+                    newEmail,
+                    userId: dbUser.id,
+                  },
+                );
+              } else {
+                await prisma.user.update({
+                  where: { id: dbUser.id },
+                  data: { email: newEmail },
+                });
+                logger.info("Updated user email on SSO login", {
+                  userId: dbUser.id,
+                  oldEmail: dbUser.email,
+                  newEmail,
+                });
+                // Update the local reference so the session returns the new email
+                dbUser.email = newEmail;
+              }
+            } catch (error) {
+              // Log error but don't block session - email update is non-critical
+              logger.error("Failed to update user email on SSO login", {
+                error: error instanceof Error ? error.message : String(error),
+                userId: dbUser.id,
+              });
+              traceException(error);
+            }
+          }
 
           return {
             ...session,
@@ -814,74 +894,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               if (!isAllowed) {
                 return await Promise.resolve(false);
               }
-            }
-          }
-
-          // Optional: Update user email on SSO login if it has changed
-          // This supports cases where an identity provider changes email addresses (e.g., corporate email migrations)
-          if (
-            env.AUTH_SSO_UPDATE_USER_EMAIL_ON_LOGIN === "true" &&
-            account?.provider &&
-            account.provider !== "credentials" &&
-            account.provider !== "email" &&
-            account.providerAccountId
-          ) {
-            try {
-              // Find the existing user via their linked SSO account
-              const linkedAccount = await prisma.account.findUnique({
-                where: {
-                  provider_providerAccountId: {
-                    provider: account.provider,
-                    providerAccountId: account.providerAccountId,
-                  },
-                },
-                select: { user: { select: { id: true, email: true } } },
-              });
-
-              // If user exists and email has changed, update it
-              if (
-                linkedAccount?.user &&
-                linkedAccount.user.email !== email &&
-                email
-              ) {
-                // Check if the new email is already in use by another user
-                const existingUserWithEmail = await prisma.user.findUnique({
-                  where: { email },
-                  select: { id: true },
-                });
-
-                if (
-                  existingUserWithEmail &&
-                  existingUserWithEmail.id !== linkedAccount.user.id
-                ) {
-                  logger.warn(
-                    "SSO email update blocked: new email already in use by another user",
-                    {
-                      oldEmail: linkedAccount.user.email,
-                      newEmail: email,
-                      userId: linkedAccount.user.id,
-                    },
-                  );
-                } else {
-                  await prisma.user.update({
-                    where: { id: linkedAccount.user.id },
-                    data: { email },
-                  });
-                  logger.info("Updated user email on SSO login", {
-                    userId: linkedAccount.user.id,
-                    oldEmail: linkedAccount.user.email,
-                    newEmail: email,
-                  });
-                }
-              }
-            } catch (error) {
-              // Log error but don't block sign in - email update is non-critical
-              logger.error("Failed to update user email on SSO login", {
-                error: error instanceof Error ? error.message : String(error),
-                email,
-                provider: account.provider,
-              });
-              traceException(error);
             }
           }
 

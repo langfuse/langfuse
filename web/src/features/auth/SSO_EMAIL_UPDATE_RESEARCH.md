@@ -25,12 +25,24 @@ Default: `false` (disabled)
 
 ### How It Works
 
-1. During SSO sign-in, after all authentication validations pass
-2. The system looks up the existing user via their linked SSO account (using `provider` + `providerAccountId`)
-3. If the SSO-provided email differs from the stored email:
-   - Checks if the new email is already in use by another user
-   - If not in use, updates the user's email
-   - Logs the change for audit purposes
+The implementation is optimized to avoid unnecessary database queries:
+
+1. **JWT Callback (runs once per sign-in)**:
+   - On initial SSO sign-in, stores the user ID and a `isSsoLogin` flag in the JWT token
+   - This allows looking up users by ID instead of email (more robust)
+
+2. **Session Callback (reuses existing query)**:
+   - The session callback already queries the database for user data
+   - We piggyback on this existing query to compare emails
+   - If the SSO-provided email (from `token.email`) differs from the stored email (`dbUser.email`):
+     - Checks if the new email is already in use by another user
+     - If not in use, updates the user's email
+     - Logs the change for audit purposes
+
+This approach:
+- Adds only one small DB query on sign-in (to get user ID for the JWT)
+- Reuses the existing session query for email comparison
+- Only performs the "email exists" check when emails actually differ (rare)
 
 ## Security Considerations and Risks
 
