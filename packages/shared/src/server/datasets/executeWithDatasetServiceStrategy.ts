@@ -22,24 +22,16 @@ export async function executeWithDatasetServiceStrategy<T>(
   operation: OperationType,
   implementations: Implementations<T>,
 ): Promise<T> {
-  // Dual Write Strategy: WRITE operation
+  // Single Write Strategy: WRITE operation
   if (operation === OperationType.WRITE) {
-    // Always write to stateful implementation
-    const statefulResult = await implementations[Implementation.STATEFUL]();
-
-    // Optionally write to versioned implementation
+    // Either write to versioned implementation OR stateful implementation
     if (
       env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION === "true"
     ) {
-      await implementations[Implementation.VERSIONED]().catch((e) => {
-        // Don't throw - stateful write succeeded
-        logger.info("Failed to write to versioned implementation", {
-          error: e,
-        });
-      });
+      return await implementations[Implementation.VERSIONED]();
+    } else {
+      return await implementations[Implementation.STATEFUL]();
     }
-
-    return statefulResult;
   }
 
   // READ operation - use configured source
@@ -49,15 +41,4 @@ export async function executeWithDatasetServiceStrategy<T>(
     return implementations[Implementation.VERSIONED]();
   }
   return implementations[Implementation.STATEFUL]();
-}
-
-/**
- * Converts internal dataset item representation to Postgres DatasetItem format.
- * Removes itemId, keeps id. Preserves createdAt/updatedAt.
- */
-export function toPostgresDatasetItem<
-  T extends { itemId: string; [key: string]: any },
->(item: T): Omit<T, "itemId"> & { id: string } {
-  const { itemId, ...rest } = item;
-  return { ...rest, id: itemId };
 }

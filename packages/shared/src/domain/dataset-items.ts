@@ -2,6 +2,7 @@ import { DatasetItem, DatasetStatus } from "../db";
 
 export type DatasetItemDomain = Pick<
   DatasetItem,
+  | "sysId"
   | "id"
   | "projectId"
   | "datasetId"
