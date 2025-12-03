@@ -473,7 +473,12 @@ export function Trace(props: {
           <p className="text-sm text-muted-foreground">
             You'll get much richer insights by using specific observation types.
           </p>
-          <Button variant="outline" asChild size="sm">
+          <Button
+            variant="outline"
+            asChild
+            size="sm"
+            className="h-auto whitespace-normal py-0.5 text-left"
+          >
             <Link
               href="https://langfuse.com/docs/observability/features/observation-types"
               target="_blank"
