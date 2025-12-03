@@ -2,7 +2,9 @@ import { z } from "zod/v4";
 import { dashboardColumnDefinitions, singleFilter } from "@langfuse/shared";
 import { type views } from "@/src/features/query/types";
 
-const FilterArray = z.array(singleFilter);
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const FilterArray = z.array(singleFilter);
 
 const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
   traces: [

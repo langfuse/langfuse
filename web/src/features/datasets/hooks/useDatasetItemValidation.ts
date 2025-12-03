@@ -48,7 +48,7 @@ export const useDatasetItemValidation = (
 
     try {
       inputData = inputString ? JSON.parse(inputString) : null;
-    } catch (e) {
+    } catch (_e) {
       // Invalid JSON - skip validation (Zod will catch this)
       return { isValid: true, errors: [], hasSchemas: false };
     }
@@ -57,7 +57,7 @@ export const useDatasetItemValidation = (
       outputData = expectedOutputString
         ? JSON.parse(expectedOutputString)
         : null;
-    } catch (e) {
+    } catch (_e) {
       // Invalid JSON - skip validation (Zod will catch this)
       return { isValid: true, errors: [], hasSchemas: false };
     }

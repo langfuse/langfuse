@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Link from "next/link";
 import { captureException } from "@sentry/nextjs";
+import { stripBasePath } from "@/src/utils/redirect";
 
 export const ErrorPage = ({
   title = "Error",
@@ -25,7 +26,7 @@ export const ErrorPage = ({
 }) => {
   const session = useSession();
   const router = useRouter();
-  const newTargetPath = router.asPath;
+  const newTargetPath = stripBasePath(router.asPath || "/");
 
   return (
     <div className="flex h-full flex-col items-center justify-center">

@@ -175,13 +175,13 @@ export default function SignIn({
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: targetPath
-          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${targetPath}`
-          : isLangfuseCloud && region !== "DEV"
+        callbackUrl:
+          targetPath ??
+          (isLangfuseCloud && region !== "DEV"
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
-            : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`,
+            : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
       });
-    } catch (err) {
+    } catch (_err) {
       setFormError("An error occurred. Please try again.");
     }
   }

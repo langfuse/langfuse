@@ -57,6 +57,14 @@ export const handleBatchExportJob = async (
     );
   }
 
+  // Check if the batch export has been cancelled
+  if (jobDetails.status === BatchExportStatus.CANCELLED) {
+    logger.info(
+      `Batch export ${batchExportId} has been cancelled. Skipping processing.`,
+    );
+    return; // Exit early without processing
+  }
+
   // Check if the batch export is older than 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
