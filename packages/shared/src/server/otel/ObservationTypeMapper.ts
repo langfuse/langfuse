@@ -364,9 +364,23 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
+    // GenAI tool call detection (e.g., Pydantic AI, any framework using gen_ai.tool.* attributes)
+    new CustomAttributeMapper(
+      "GenAI_Tool_Call",
+      6,
+      (attributes) => {
+        // Check for standard GenAI tool call attributes
+        return (
+          hasMeaningfulValue(attributes["gen_ai.tool.name"]) ||
+          hasMeaningfulValue(attributes["gen_ai.tool.call.id"])
+        );
+      },
+      () => "TOOL",
+    ),
+
     new CustomAttributeMapper(
       "ModelBased",
-      6,
+      7,
       (attributes, _resourceAttributes, _scopeData) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
