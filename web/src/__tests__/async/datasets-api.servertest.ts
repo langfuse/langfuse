@@ -32,6 +32,9 @@ import {
   getDatasetRunItemsByDatasetIdCh,
   createDatasetRunItemsCh,
   createDatasetRunItem,
+  getDatasetItemById,
+  getDatasetItemsByLatest,
+  createDatasetItemFilterState,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
@@ -266,10 +269,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       auth,
     );
 
-    const databaseDatasetItem = await prisma.datasetItem.findFirst({
-      where: {
-        id: datasetItemId,
-      },
+    const databaseDatasetItem = await getDatasetItemById({
+      projectId,
+      datasetItemId: datasetItemId,
+      status: "ALL",
+      includeIO: true,
     });
     expect(databaseDatasetItem).toMatchObject({
       input: { john: "doe" },
@@ -460,40 +464,30 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         auth,
       );
     }
-    const dbDatasetItems = await prisma.datasetItem.findMany({
-      where: {
-        projectId: projectId,
-        dataset: {
-          name: "dataset-name",
-        },
-      },
-      select: {
-        id: true,
-        projectId: true,
-        datasetId: true,
-        status: true,
-        input: true,
-        expectedOutput: true,
-        metadata: true,
-        sourceTraceId: true,
-        sourceObservationId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+    const dataset1 = await prisma.dataset.findUnique({
+      where: { projectId_name: { projectId, name: "dataset-name" } },
+    });
+    const dbDatasetItems = await getDatasetItemsByLatest({
+      projectId: projectId,
+      filterState: createDatasetItemFilterState({
+        datasetIds: [dataset1!.id],
+      }),
+      includeIO: true,
     });
     expect(dbDatasetItems.length).toBe(5);
-    const dbDatasetItemsApiResponseFormat = dbDatasetItems.map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ projectId, ...item }) => ({
-        ...item,
-        createdAt: item.createdAt.toISOString(),
-        updatedAt: item.updatedAt.toISOString(),
-        datasetName: "dataset-name",
-      }),
-    );
+    const dbDatasetItemsApiResponseFormat = dbDatasetItems.map((item) => ({
+      id: item.id,
+      datasetId: item.datasetId,
+      status: item.status,
+      input: item.input,
+      expectedOutput: item.expectedOutput,
+      metadata: item.metadata,
+      sourceTraceId: item.sourceTraceId,
+      sourceObservationId: item.sourceObservationId,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      datasetName: "dataset-name",
+    }));
 
     // add another dataset to test the list endpoint
     await makeZodVerifiedAPICall(
@@ -516,35 +510,27 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
       auth,
     );
-    const dbDatasetItemsOther = await prisma.datasetItem.findMany({
-      where: {
-        projectId: projectId,
-        dataset: {
-          name: "dataset-name-other",
-        },
-      },
-      select: {
-        id: true,
-        projectId: true,
-        datasetId: true,
-        status: true,
-        input: true,
-        expectedOutput: true,
-        metadata: true,
-        sourceTraceId: true,
-        sourceObservationId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+    const dataset2 = await prisma.dataset.findUnique({
+      where: { projectId_name: { projectId, name: "dataset-name-other" } },
+    });
+    const dbDatasetItemsOther = await getDatasetItemsByLatest({
+      projectId: projectId,
+      filterState: createDatasetItemFilterState({
+        datasetIds: [dataset2!.id],
+      }),
+      includeIO: true,
     });
     expect(dbDatasetItemsOther.length).toBe(1);
     const dbDatasetItemsOtherApiResponseFormat = dbDatasetItemsOther.map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ projectId, ...item }) => ({
-        ...item,
+      (item) => ({
+        id: item.id,
+        datasetId: item.datasetId,
+        status: item.status,
+        input: item.input,
+        expectedOutput: item.expectedOutput,
+        metadata: item.metadata,
+        sourceTraceId: item.sourceTraceId,
+        sourceObservationId: item.sourceObservationId,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
         datasetName: "dataset-name-other",
@@ -718,8 +704,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       status: "ARCHIVED",
     });
 
-    const dbDatasetItem = await prisma.datasetItem.findFirst({
-      where: { id: "dataset-item-id", projectId },
+    const dbDatasetItem = await getDatasetItemById({
+      projectId,
+      datasetItemId: "dataset-item-id",
+      status: "ALL",
+      includeIO: true,
     });
     expect(dbDatasetItem).not.toBeNull();
     expect(dbDatasetItem?.input).toMatchObject({ key: "value2" });
@@ -1259,34 +1248,29 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       `/api/public/dataset-items/${datasetItemBody.id}`,
     );
     expect(getApiDatasetItem.body.metadata).toBe("api-item");
-    const dbItems = await prisma.datasetItem.findMany({
-      where: { id: datasetItemBody.id },
-      select: {
-        id: true,
-        projectId: true,
-        datasetId: true,
-        status: true,
-        input: true,
-        expectedOutput: true,
-        metadata: true,
-        sourceTraceId: true,
-        sourceObservationId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const dbItem1 = await getDatasetItemById({
+      projectId: apiDataset.body.projectId,
+      datasetItemId: datasetItemBody.id,
+      status: "ALL",
+      includeIO: true,
     });
+    const dbItem2 = await getDatasetItemById({
+      projectId: otherProject.id,
+      datasetItemId: datasetItemBody.id,
+      status: "ALL",
+      includeIO: true,
+    });
+    const dbItems = [dbItem1, dbItem2].filter((item) => item !== null);
     expect(dbItems.length).toBe(2);
     expect(dbItems).toHaveLength(2);
     expect(dbItems).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           metadata: "api-item",
-          projectId: apiDataset.body.projectId,
           id: datasetItemBody.id,
         }),
         expect.objectContaining({
           metadata: null,
-          projectId: otherProject.id,
           id: datasetItemBody.id,
         }),
       ]),
@@ -1382,13 +1366,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getDeletedItem.status).toBe(404);
 
     // Verify item is removed from database
-    const dbItem = await prisma.datasetItem.findUnique({
-      where: {
-        id_projectId: {
-          id: itemId,
-          projectId: dataset.body.projectId,
-        },
-      },
+    const dbItem = await getDatasetItemById({
+      projectId: dataset.body.projectId,
+      datasetItemId: itemId,
+      status: "ALL",
+      includeIO: true,
     });
     expect(dbItem).toBeNull();
 
