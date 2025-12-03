@@ -336,7 +336,7 @@ export async function upsertDatasetItem(
   // 6. Update item
   await executeWithDatasetServiceStrategy(OperationType.WRITE, {
     [Implementation.STATEFUL]: async () => {
-      if (!!existingItem) {
+      if (existingItem) {
         const res = await prisma.datasetItem.update({
           where: {
             sysId_projectId: {
