@@ -14,12 +14,14 @@ import { VirtualizedTreeNodeWrapper } from "./_shared/VirtualizedTreeNodeWrapper
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "../contexts/TraceDataContext";
 import { useSelection } from "../contexts/SelectionContext";
+import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
 import { type TreeNode } from "../lib/types";
 
 export function TraceTree() {
   const { tree, comments } = useTraceData();
   const { selectedNodeId, setSelectedNodeId, collapsedNodes, toggleCollapsed } =
     useSelection();
+  const { handleHover } = useHandlePrefetchObservation();
 
   // Calculate root totals for heatmap color scaling
   // These values are used as the "max" reference for all nodes
@@ -60,6 +62,7 @@ export function TraceTree() {
               parentTotalDuration={rootTotalDuration}
               commentCount={comments.get(typedNode.id)}
               onSelect={onSelect}
+              onHover={() => handleHover(typedNode)}
             />
           </VirtualizedTreeNodeWrapper>
         );

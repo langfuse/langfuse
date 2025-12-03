@@ -12,14 +12,18 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 
 // Preview tab components
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
@@ -31,16 +35,12 @@ import { useMedia } from "@/src/components/trace2/api/useMedia";
 // Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
+import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import {
-  useLogViewConfirmation,
-  LOG_VIEW_DISABLED_THRESHOLD,
-} from "@/src/components/trace2/components/TraceLogView/useLogViewConfirmation";
-
 // Extracted components
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
-import { TraceLogViewConfirmationDialog } from "../TraceLogView/TraceLogViewConfirmationDialog";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 
 export interface TraceDetailViewProps {
@@ -60,15 +60,12 @@ export function TraceDetailView({
   scores,
   projectId,
 }: TraceDetailViewProps) {
-  // Tab and view state
-  const [selectedTab, setSelectedTab] = useState<"preview" | "log" | "scores">(
-    "preview",
-  );
-  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
-    "jsonViewPreference",
-    "pretty",
-  );
+  // Tab and view state from URL (via SelectionContext)
+  const { selectedTab, setSelectedTab, viewPref, setViewPref } = useSelection();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+
+  // Map viewPref to currentView format expected by child components
+  const currentView = viewPref === "json" ? "json" : "pretty";
 
   // Context hooks
   const { comments } = useTraceData();
@@ -83,23 +80,11 @@ export function TraceDetailView({
     [scores],
   );
 
-  // Log view confirmation logic
-  const logViewConfirmation = useLogViewConfirmation({
-    observationCount: observations.length,
-    traceId: trace.id,
-  });
-
   const showLogViewTab = observations.length > 0;
 
-  // Auto-redirect from invalid tab state
-  useEffect(() => {
-    if (
-      (logViewConfirmation.isDisabled || !showLogViewTab) &&
-      selectedTab === "log"
-    ) {
-      setSelectedTab("preview");
-    }
-  }, [logViewConfirmation.isDisabled, showLogViewTab, selectedTab]);
+  // Check if log view will be virtualized (affects JSON tab availability)
+  const isLogViewVirtualized =
+    observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
   // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
   const { isPeekMode } = useViewPreferences();
@@ -107,19 +92,9 @@ export function TraceDetailView({
     useIsAuthenticatedAndProjectMember(projectId);
   const showScoresTab = isAuthenticatedAndProjectMember && !isPeekMode;
 
-  // Handle tab change with log view confirmation
+  // Handle tab change
   const handleTabChange = (value: string) => {
-    if (value === "log") {
-      const canProceed = logViewConfirmation.attemptLogView();
-      if (!canProceed) return;
-    }
     setSelectedTab(value as "preview" | "log" | "scores");
-  };
-
-  // Handle log view confirmation
-  const handleLogViewConfirm = () => {
-    logViewConfirmation.confirmLogView();
-    setSelectedTab("log");
   };
 
   return (
@@ -142,20 +117,15 @@ export function TraceDetailView({
           <TabsBarList>
             <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
             {showLogViewTab && (
-              <TabsBarTrigger
-                value="log"
-                disabled={logViewConfirmation.isDisabled}
-              >
+              <TabsBarTrigger value="log">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span>Log View</span>
                   </TooltipTrigger>
                   <TooltipContent className="text-xs">
-                    {logViewConfirmation.isDisabled
-                      ? `Log View is disabled for traces with more than ${LOG_VIEW_DISABLED_THRESHOLD} observations (this trace has ${observations.length})`
-                      : logViewConfirmation.requiresConfirmation
-                        ? `Log View may be slow with ${observations.length} observations. Click to confirm.`
-                        : "Shows all observations concatenated. Great for quickly scanning through them. Nullish values are omitted."}
+                    {isLogViewVirtualized
+                      ? `Shows all ${observations.length} observations with virtualization enabled.`
+                      : "Shows all observations concatenated. Great for quickly scanning through them."}
                   </TooltipContent>
                 </Tooltip>
               </TabsBarTrigger>
@@ -165,22 +135,61 @@ export function TraceDetailView({
             )}
 
             {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
+            {/* JSON is disabled for virtualized log view (large traces) */}
             {(selectedTab === "log" ||
               (selectedTab === "preview" && isPrettyViewAvailable)) && (
               <Tabs
                 className="ml-auto mr-1 h-fit px-2 py-0.5"
-                value={currentView}
+                value={
+                  selectedTab === "log" && isLogViewVirtualized
+                    ? "pretty"
+                    : currentView
+                }
                 onValueChange={(value) => {
-                  setCurrentView(value as "pretty" | "json");
+                  // Don't allow JSON for virtualized log view
+                  if (
+                    selectedTab === "log" &&
+                    isLogViewVirtualized &&
+                    value === "json"
+                  ) {
+                    return;
+                  }
+                  setViewPref(value === "json" ? "json" : "formatted");
                 }}
               >
                 <TabsList className="h-fit py-0.5">
                   <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
                     Formatted
                   </TabsTrigger>
-                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                    JSON
-                  </TabsTrigger>
+                  {selectedTab === "log" && isLogViewVirtualized ? (
+                    <HoverCard openDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <TabsTrigger
+                          value="json"
+                          className="h-fit px-1 text-xs"
+                          disabled
+                        >
+                          JSON
+                        </TabsTrigger>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        align="end"
+                        className="w-64 text-sm"
+                        sideOffset={8}
+                      >
+                        <p className="font-medium">JSON view unavailable</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Disabled for traces with{" "}
+                          {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
+                          observations to maintain performance.
+                        </p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
+                    <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                      JSON
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </Tabs>
             )}
@@ -192,7 +201,7 @@ export function TraceDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+          <div className="flex w-full flex-col gap-2 overflow-y-auto">
             {/* I/O Preview */}
             <IOPreview
               key={trace.id + "-io"}
@@ -240,11 +249,9 @@ export function TraceDetailView({
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
           <TraceLogView
-            observations={observations}
             traceId={trace.id}
             projectId={projectId}
-            currentView={currentView}
-            trace={trace}
+            currentView={isLogViewVirtualized ? "pretty" : currentView}
           />
         </TabsBarContent>
 
@@ -266,14 +273,6 @@ export function TraceDetailView({
           </TabsBarContent>
         )}
       </TabsBar>
-
-      {/* Confirmation dialog for log view with many observations (extracted component) */}
-      <TraceLogViewConfirmationDialog
-        open={logViewConfirmation.showDialog}
-        onOpenChange={logViewConfirmation.setShowDialog}
-        observationCount={observations.length}
-        onConfirm={handleLogViewConfirm}
-      />
     </div>
   );
 }
