@@ -1178,7 +1178,7 @@ describe("batch export test suite", () => {
         {
           type: "stringOptions",
           operator: "any of",
-          column: "datasetIds",
+          column: "datasetId",
           value: [datasetId],
         },
       ],
