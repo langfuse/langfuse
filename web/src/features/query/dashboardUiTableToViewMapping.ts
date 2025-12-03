@@ -99,53 +99,6 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "traceVersion",
     },
   ],
-  "events-observations": [
-    // Similar to observations but without trace-JOIN fields (traceName, traceRelease, traceVersion)
-    {
-      uiTableName: "Observation Name",
-      viewName: "name",
-    },
-    {
-      uiTableName: "Score Name",
-      viewName: "scoreName",
-    },
-    {
-      uiTableName: "User",
-      viewName: "userId",
-    },
-    {
-      uiTableName: "Session",
-      viewName: "sessionId",
-    },
-    {
-      uiTableName: "Metadata",
-      viewName: "metadata",
-    },
-    {
-      uiTableName: "Type",
-      viewName: "type",
-    },
-    {
-      uiTableName: "Tags",
-      viewName: "tags",
-    },
-    {
-      uiTableName: "Model",
-      viewName: "providedModelName",
-    },
-    {
-      uiTableName: "Environment",
-      viewName: "environment",
-    },
-    {
-      uiTableName: "Release",
-      viewName: "release",
-    },
-    {
-      uiTableName: "Version",
-      viewName: "version",
-    },
-  ],
   "scores-numeric": [
     {
       uiTableName: "Score Name",

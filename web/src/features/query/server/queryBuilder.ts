@@ -6,10 +6,10 @@ import {
 import {
   type QueryType,
   type ViewDeclarationType,
-  type views,
   query as queryModel,
   type metricAggregations,
   type granularities,
+  type privateViews,
 } from "../types";
 import { viewDeclarations } from "@/src/features/query/dataModel";
 import {
@@ -75,7 +75,7 @@ export class QueryBuilder {
   }
 
   private getViewDeclaration(
-    viewName: z.infer<typeof views>,
+    viewName: z.infer<typeof privateViews>,
   ): ViewDeclarationType {
     if (!(viewName in viewDeclarations)) {
       throw new InvalidRequestError(
