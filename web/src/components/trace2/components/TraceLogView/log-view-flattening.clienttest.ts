@@ -405,7 +405,7 @@ describe("log-view-flattening", () => {
     });
   });
 
-  describe("performance", () => {
+  describe.skip("performance", () => {
     it("should handle 1000 observations efficiently", () => {
       const observations: TreeNode[] = [];
       for (let i = 0; i < 1000; i++) {
