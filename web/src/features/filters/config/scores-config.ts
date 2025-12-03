@@ -42,8 +42,9 @@ export const scoreFilterConfig: FilterConfig = {
       type: "numeric" as const,
       column: "value",
       label: "Value",
-      min: -100,
-      max: 100,
+      min: 0,
+      max: 1,
+      step: 0.01,
     },
     {
       type: "categorical" as const,
@@ -54,6 +55,11 @@ export const scoreFilterConfig: FilterConfig = {
       type: "string" as const,
       column: "traceId",
       label: "Trace ID",
+    },
+    {
+      type: "string" as const,
+      column: "sessionId",
+      label: "Session ID",
     },
     {
       type: "categorical" as const,

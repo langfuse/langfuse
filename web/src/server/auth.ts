@@ -40,6 +40,7 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
+import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import { z } from "zod/v4";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
@@ -111,9 +112,7 @@ const staticProviders: Provider[] = [
       const multiTenantSsoProvider =
         await getSsoAuthProviderIdForDomain(domain);
       if (multiTenantSsoProvider) {
-        throw new Error(
-          `Sign in with SSO is required for this domain. Please enter your email address and click continue to proceed.`,
-        );
+        throw new Error(ENTERPRISE_SSO_REQUIRED_MESSAGE);
       }
 
       const dbUser = await prisma.user.findUnique({
@@ -748,12 +747,17 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             multiTenantSsoProvider &&
             account?.provider !== multiTenantSsoProvider
           ) {
-            console.log(
+            logger.info(
               "Custom SSO provider enforced for domain, user signed in with other provider",
+              { email, attemptedProvider: account?.provider },
             );
-            throw new Error(
-              `You must sign in via Enterprise SSO for this domain. Enter your email on the sign-in page and press Continue.`,
-            );
+            const params = new URLSearchParams({
+              reason: "sso_enforced_domain",
+            });
+            if (email) params.set("email", email);
+            if (account?.provider)
+              params.set("attemptedProvider", account.provider);
+            return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
           }
 
           // EE: Check that provider is only used for the associated domain

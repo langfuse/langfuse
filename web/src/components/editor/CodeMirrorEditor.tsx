@@ -106,7 +106,7 @@ const promptLinter = linter((view) => {
           message: "Malformed prompt dependency tag",
         });
       }
-    } catch (error) {
+    } catch (_error) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,

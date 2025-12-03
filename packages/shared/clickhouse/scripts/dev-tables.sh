@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS events
       -- Metadata
       -- Keep raw JSON to benefit from future ClickHouse improvements.
       -- For now, store things as "German Strings" with fast prefix matches based on https://www.uber.com/en-DE/blog/logging/.
-      metadata JSON,
+      metadata JSON(max_dynamic_paths=0),
       metadata_names Array(String),
       metadata_raw_values Array(String), -- should not be used on retrieval, only for materializing other columns
       metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_raw_values),
@@ -275,7 +275,11 @@ CREATE TABLE IF NOT EXISTS events
     index_granularity = 8192,
     index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
     enable_block_number_column = 1,
-    enable_block_offset_column = 1
+    enable_block_offset_column = 1,
+    dynamic_serialization_version='v3',
+    object_serialization_version='v3',
+    object_shared_data_serialization_version='advanced',
+    object_shared_data_serialization_version_for_zero_level_parts='map_with_buckets'
     -- Try without, but re-enable if recent row performance is bad
     -- min_rows_for_wide_part = 0,
     -- min_bytes_for_wide_part = 0

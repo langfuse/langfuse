@@ -1,6 +1,12 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-const DATASET_RUN_FIELDS = ["output", "scores", "resourceMetrics"] as const;
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const DATASET_RUN_FIELDS = [
+  "output",
+  "scores",
+  "resourceMetrics",
+] as const;
 export type DatasetRunField = (typeof DATASET_RUN_FIELDS)[number];
 
 interface DatasetCompareFieldsContextValue {

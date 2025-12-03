@@ -112,7 +112,12 @@ export const useModelParams = (windowId?: string) => {
 
   // Set default provider and model
   useEffect(() => {
-    if (availableProviders.length > 0 && !modelParams.provider.value) {
+    if (
+      availableProviders.length > 0 &&
+      (!modelParams.provider.value ||
+        !availableProviders.includes(modelParams.provider.value))
+    ) {
+      // fall back to a valid provider whenever the cached value is missing or no longer available (e.g. after switching projects)
       if (
         persistedModelProvider &&
         availableProviders.includes(persistedModelProvider)
