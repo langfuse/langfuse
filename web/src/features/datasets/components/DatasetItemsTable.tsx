@@ -15,7 +15,6 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
-  type DatasetItem,
   datasetItemFilterColumns,
   DatasetStatus,
   type Prisma,
@@ -44,7 +43,7 @@ type RowData = {
     traceId: string;
     observationId?: string;
   };
-  status: DatasetItem["status"];
+  status: DatasetStatus;
   createdAt: Date;
   input: Prisma.JsonValue;
   expectedOutput: Prisma.JsonValue;
@@ -321,7 +320,7 @@ export function DatasetItemsTable({
             observationId: item.sourceObservationId ?? undefined,
           }
         : undefined,
-      status: item.status,
+      status: item.status ?? "ACTIVE",
       createdAt: item.createdAt,
       input: item.input,
       expectedOutput: item.expectedOutput,
