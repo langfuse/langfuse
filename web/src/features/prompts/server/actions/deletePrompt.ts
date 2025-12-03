@@ -29,6 +29,42 @@ export const deletePrompt = async (params: DeletePromptParams) => {
     throw new LangfuseNotFoundError("Prompt not found");
   }
 
+  // Check if other prompts depend on the prompt(s) being deleted
+  const dependents = await prisma.$queryRaw<
+    {
+      parent_name: string;
+      parent_version: number;
+      child_version: number;
+      child_label: string;
+    }[]
+  >`
+    SELECT
+      p."name" AS "parent_name",
+      p."version" AS "parent_version",
+      pd."child_version" AS "child_version",
+      pd."child_label" AS "child_label"
+    FROM
+      prompt_dependencies pd
+      INNER JOIN prompts p ON p.id = pd.parent_id
+    WHERE
+      p.project_id = ${projectId}
+      AND pd.project_id = ${projectId}
+      AND pd.child_name = ${promptName}
+  `;
+
+  if (dependents.length > 0) {
+    const dependencyMessages = dependents
+      .map(
+        (d) =>
+          `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+      )
+      .join("\n");
+
+    throw new InvalidRequestError(
+      `Other prompts are depending on prompt versions you are trying to delete:\n\n${dependencyMessages}\n\nPlease delete the dependent prompts first.`,
+    );
+  }
+
   const promptService = new PromptService(prisma, redis);
 
   try {
